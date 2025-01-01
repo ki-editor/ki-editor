@@ -154,9 +154,9 @@ pub(crate) fn cli() -> anyhow::Result<()> {
 
 use crate::components::editor::Editor;
 use crate::components::editor_keymap::{
-    shifted, Meaning, KEYBOARD_LAYOUT, KEYMAP_CONTROL, KEYMAP_NORMAL, KEYMAP_NORMAL_SHIFTED, QWERTY,
+    shifted, Meaning, KEYMAP_CONTROL, KEYMAP_NORMAL, KEYMAP_NORMAL_SHIFTED, QWERTY,
 };
-use crate::components::keymap_legend::Keymaps;
+use crate::components::keymap_legend::{KeymapLegendBody, Keymaps};
 use crate::context::Context;
 use comfy_table::{Cell, CellAlignment, ColumnConstraint::Absolute, Table, Width::Fixed};
 use crossterm::event::KeyCode;
@@ -165,132 +165,91 @@ use event::{KeyEvent, KeyModifiers};
 fn write_keymap_table() -> anyhow::Result<()> {
     let context = Context::default();
     let editor = Editor::from_text(None, "");
+    let normal_keymaps = editor.normal_mode_keymap_legend_config(&context);
 
-    //print_keymap_table("Normal", KEYMAP_NORMAL)?;
+    let normal_keymaps: Vec<Keymaps> = match &normal_keymaps.body {
+        KeymapLegendBody::SingleSection { keymaps } => vec![keymaps.clone()],
+        KeymapLegendBody::MultipleSections { sections } => {
+            sections.iter().map(|s| s.keymaps.clone()).collect()
+        }
+    };
 
-    try_me(
-        "Normal",
-        KeyModifiers::None,
-        editor.normal_mode_keymaps(&context),
-    );
+    print_single_keymap_table("Normal", KeyModifiers::None, &normal_keymaps);
+    print_single_keymap_table("Shift", KeyModifiers::Shift, &normal_keymaps);
+    print_single_keymap_table("Control", KeyModifiers::Ctrl, &normal_keymaps);
+    print_single_keymap_table("Alternate", KeyModifiers::Alt, &normal_keymaps);
 
-    print_keymap_table("Shifted", KEYMAP_NORMAL_SHIFTED)?;
-    try_me(
-        "Shift",
-        KeyModifiers::Shift,
-        editor.normal_mode_keymaps(&context),
-    );
+    let mut vmode_keymaps = normal_keymaps.clone();
+    vmode_keymaps.insert(0, editor.visual_mode_initialized_keymaps());
 
-    print_keymap_table("Shifted", KEYMAP_NORMAL_SHIFTED)?;
-
-    try_me(
-        "Control",
-        KeyModifiers::Ctrl,
-        editor.normal_mode_keymaps(&context),
-    );
-
-    print_keymap_table("Control", KEYMAP_CONTROL)?;
-    try_me(
-        "Alternate",
-        KeyModifiers::Alt,
-        editor.normal_mode_keymaps(&context),
-    );
+    print_single_keymap_table("V-mode", KeyModifiers::None, &vmode_keymaps);
 
     Ok(())
 }
 
-fn try_me(name: &str, modifiers: KeyModifiers, keymaps: Keymaps) {
-    println!("{}:", name);
+fn print_single_keymap_table(name: &str, modifiers: KeyModifiers, keymaps: &Vec<Keymaps>) {
+    let rows: Vec<Vec<Option<String>>> = QWERTY
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|key| {
+                    let ke = match modifiers {
+                        KeyModifiers::Shift => KeyEvent {
+                            code: KeyCode::Char(shifted(key).chars().next().unwrap()),
+                            modifiers: KeyModifiers::Shift,
+                        },
+                        _ => KeyEvent {
+                            code: KeyCode::Char(key.chars().next().unwrap()),
+                            modifiers: modifiers.clone(),
+                        },
+                    };
 
-    let mut table = Table::new();
-    let rows = QWERTY.iter().map(|row| {
-        row.iter().map(|key| {
-            let ke = match modifiers {
-                KeyModifiers::Shift => KeyEvent {
-                    code: KeyCode::Char(shifted(key).chars().next().unwrap()),
-                    modifiers: KeyModifiers::Shift,
-                },
-                _ => KeyEvent {
-                    code: KeyCode::Char(key.chars().next().unwrap()),
-                    modifiers: modifiers.clone(),
-                },
-            };
+                    let keymap = keymaps.iter().find_map(|p| p.get(&ke));
 
-            let display = match keymaps.get(&ke) {
-                Some(keymap) => match &keymap.short_description {
-                    Some(short) => short.to_string(),
-                    None => "".to_string(),
-                },
-                None => "".to_string(),
-            };
-
-            Cell::new(display).set_alignment(CellAlignment::Center)
+                    match keymap {
+                        Some(keymap) => keymap.short_description.clone(),
+                        None => None,
+                    }
+                })
+                .collect()
         })
-    });
+        .collect();
 
-    table
-        .add_rows(rows)
-        .set_constraints(vec![
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-        ])
-        .load_preset(comfy_table::presets::UTF8_FULL)
-        .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
+    if rows.iter().any(|v| v.iter().any(Option::is_some)) {
+        println!("{}:", name);
 
-    println!("{}", table);
-    println!("");
-}
+        let mut table = Table::new();
+        let table_rows = rows.iter().map(|row| {
+            row.into_iter().map(|value| {
+                let display = match value {
+                    Some(value) => value.to_string(),
+                    None => "".to_string(),
+                };
 
-fn print_keymap_table(name: &str, keymap: [[Meaning; 10]; 3]) -> anyhow::Result<()> {
-    let mut table = Table::new();
+                Cell::new(display).set_alignment(CellAlignment::Center)
+            })
+        });
 
-    println!("{}:", name);
+        table
+            .add_rows(table_rows)
+            .set_constraints(vec![
+                Absolute(Fixed(8)),
+                Absolute(Fixed(8)),
+                Absolute(Fixed(8)),
+                Absolute(Fixed(8)),
+                Absolute(Fixed(8)),
+                Absolute(Fixed(8)),
+                Absolute(Fixed(8)),
+                Absolute(Fixed(8)),
+                Absolute(Fixed(8)),
+                Absolute(Fixed(8)),
+            ])
+            .load_preset(comfy_table::presets::UTF8_FULL)
+            .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
 
-    for row in keymap.iter() {
-        table.add_row(vec![
-            Cell::new(meaning_to_string(&row[0])).set_alignment(CellAlignment::Center),
-            Cell::new(meaning_to_string(&row[1])).set_alignment(CellAlignment::Center),
-            Cell::new(meaning_to_string(&row[2])).set_alignment(CellAlignment::Center),
-            Cell::new(meaning_to_string(&row[3])).set_alignment(CellAlignment::Center),
-            Cell::new(meaning_to_string(&row[4])).set_alignment(CellAlignment::Center),
-            Cell::new(""),
-            Cell::new(meaning_to_string(&row[5])).set_alignment(CellAlignment::Center),
-            Cell::new(meaning_to_string(&row[6])).set_alignment(CellAlignment::Center),
-            Cell::new(meaning_to_string(&row[7])).set_alignment(CellAlignment::Center),
-            Cell::new(meaning_to_string(&row[8])).set_alignment(CellAlignment::Center),
-            Cell::new(meaning_to_string(&row[9])).set_alignment(CellAlignment::Center),
-        ]);
+        println!("{}", table);
+        println!("");
     }
-
-    table
-        .set_constraints(vec![
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(0)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-        ])
-        .load_preset(comfy_table::presets::UTF8_FULL)
-        .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
-
-    println!("{}", table);
-    println!("");
-
-    Ok(())
 }
 
 fn write_keymap_drawer() -> anyhow::Result<()> {

@@ -468,7 +468,7 @@ impl Editor {
                 .chain(Some(if self.selection_set.is_extended() {
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::OpenN),
-                        "".to_string(),
+                        "surund".to_string(),
                         "Surround".to_string(),
                         Dispatch::ShowKeymapLegend(self.surround_keymap_legend_config()),
                     )
@@ -864,15 +864,17 @@ impl Editor {
                     KeymapLegendSection {
                         title: "Select".to_string(),
                         keymaps: Keymaps::new(&[
-                            Keymap::new(
+                            Keymap::new_extended(
                                 KEYBOARD_LAYOUT.get_key(&Meaning::InstN),
+                                "sel around".to_string(),
                                 "Select Around".to_string(),
                                 Dispatch::ShowKeymapLegend(
                                     self.select_surround_keymap_legend_config(SurroundKind::Around),
                                 ),
                             ),
-                            Keymap::new(
+                            Keymap::new_extended(
                                 KEYBOARD_LAYOUT.get_key(&Meaning::InstP),
+                                "sel inside".to_string(),
                                 "Select Inside".to_string(),
                                 Dispatch::ShowKeymapLegend(
                                     self.select_surround_keymap_legend_config(SurroundKind::Inside),
@@ -883,15 +885,17 @@ impl Editor {
                     KeymapLegendSection {
                         title: "Action".to_string(),
                         keymaps: Keymaps::new(&[
-                            Keymap::new(
+                            Keymap::new_extended(
                                 KEYBOARD_LAYOUT.get_key(&Meaning::Chng_),
+                                "change surnd".to_string(),
                                 "Change Surround".to_string(),
                                 Dispatch::ShowKeymapLegend(
                                     self.change_surround_from_keymap_legend_config(),
                                 ),
                             ),
-                            Keymap::new(
+                            Keymap::new_extended(
                                 KEYBOARD_LAYOUT.get_key(&Meaning::DeltN),
+                                "delete surnd".to_string(),
                                 "Delete Surround".to_string(),
                                 Dispatch::ShowKeymapLegend(
                                     self.delete_surround_keymap_legend_config(),
