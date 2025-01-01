@@ -184,6 +184,17 @@ fn write_keymap_table() -> anyhow::Result<()> {
 
     print_single_keymap_table("V-mode", KeyModifiers::None, &vmode_keymaps);
 
+    let insert_mode_keymap = editor.insert_mode_keymap_legend_config();
+
+    let insert_mode_keymap: Vec<Keymaps> = match &insert_mode_keymap.body {
+        KeymapLegendBody::SingleSection { keymaps } => vec![keymaps.clone()],
+        KeymapLegendBody::MultipleSections { sections } => {
+            sections.iter().map(|s| s.keymaps.clone()).collect()
+        }
+    };
+
+    print_single_keymap_table("Insert", KeyModifiers::Alt, &insert_mode_keymap);
+
     Ok(())
 }
 

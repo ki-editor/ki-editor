@@ -319,13 +319,13 @@ impl Editor {
                         ),
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_key(&Meaning::DeltN),
-                            "delete prim curs".to_string(),
+                            "delete curs →".to_string(),
                             Direction::End.format_action("Delete primary cursor"),
                             Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
                         ),
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_key(&Meaning::DeltP),
-                            "".to_string(),
+                            "delete curs ←".to_string(),
                             Direction::Start.format_action("Delete primary cursor"),
                             Dispatch::ToEditor(DeleteCurrentCursor(Direction::Start)),
                         ),
@@ -618,43 +618,51 @@ impl Editor {
                     KeymapLegendSection {
                         title: "GNU Readline movements".to_string(),
                         keymaps: Keymaps::new(&[
-                            Keymap::new(
+                            Keymap::new_extended(
                                 KEYBOARD_LAYOUT.get_insert_key(&Meaning::CharP),
+                                "char ←".to_string(),
                                 "Move back a character".to_string(),
                                 Dispatch::ToEditor(MoveCharacterBack),
                             ),
-                            Keymap::new(
+                            Keymap::new_extended(
                                 KEYBOARD_LAYOUT.get_insert_key(&Meaning::CharN),
+                                "char →".to_string(),
                                 "Move forward a character".to_string(),
                                 Dispatch::ToEditor(MoveCharacterForward),
                             ),
-                            Keymap::new(
+                            Keymap::new_extended(
                                 KEYBOARD_LAYOUT.get_insert_key(&Meaning::LineP),
+                                "line ←".to_string(),
                                 "Move to line start".to_string(),
                                 Dispatch::ToEditor(MoveToLineStart),
                             ),
-                            Keymap::new(
+                            Keymap::new_extended(
                                 KEYBOARD_LAYOUT.get_insert_key(&Meaning::LineN),
+                                "line →".to_string(),
                                 "Move to line end".to_string(),
                                 Dispatch::ToEditor(MoveToLineEnd),
                             ),
-                            Keymap::new(
-                                KEYBOARD_LAYOUT.get_insert_key(&Meaning::KilLN),
-                                Direction::End.format_action("Kill line"),
-                                Dispatch::ToEditor(KillLine(Direction::End)),
-                            ),
-                            Keymap::new(
+                            Keymap::new_extended(
                                 KEYBOARD_LAYOUT.get_insert_key(&Meaning::KilLP),
+                                "kill line ←".to_string(),
                                 Direction::End.format_action("Kill line"),
                                 Dispatch::ToEditor(KillLine(Direction::Start)),
                             ),
-                            Keymap::new(
+                            Keymap::new_extended(
+                                KEYBOARD_LAYOUT.get_insert_key(&Meaning::KilLN),
+                                "kill line →".to_string(),
+                                Direction::End.format_action("Kill line"),
+                                Dispatch::ToEditor(KillLine(Direction::End)),
+                            ),
+                            Keymap::new_extended(
                                 KEYBOARD_LAYOUT.get_insert_key(&Meaning::DTknP),
+                                "delete token ←".to_string(),
                                 "Delete token backward".to_string(),
                                 Dispatch::ToEditor(DeleteWordBackward { short: false }),
                             ),
-                            Keymap::new(
+                            Keymap::new_extended(
                                 KEYBOARD_LAYOUT.get_insert_key(&Meaning::DWrdP),
+                                "delete word ←".to_string(),
                                 "Delete word backward".to_string(),
                                 Dispatch::ToEditor(DeleteWordBackward { short: true }),
                             ),
