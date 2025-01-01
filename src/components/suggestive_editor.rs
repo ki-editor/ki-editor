@@ -26,7 +26,7 @@ use super::{
 /// Editor with auto-complete
 pub(crate) struct SuggestiveEditor {
     editor: Editor,
-    completion_dropdown: Dropdown,
+    pub completion_dropdown: Dropdown,
 
     trigger_characters: Vec<String>,
     filter: SuggestiveEditorFilter,

@@ -5,7 +5,7 @@ use my_proc_macros::key;
 use crate::{
     app::{Dispatch, DispatchPrompt, Dispatches, GlobalSearchFilterGlob, Scope},
     buffer::Buffer,
-    components::editor::DispatchEditor,
+    components::{editor::DispatchEditor, keymap_legend::Keymaps},
     context::Context,
     lsp::completion::Completion,
     selection::SelectionMode,
@@ -127,9 +127,11 @@ impl Component for Prompt {
     fn editor(&self) -> &Editor {
         self.editor.editor()
     }
+
     fn editor_mut(&mut self) -> &mut Editor {
         self.editor.editor_mut()
     }
+
     fn handle_dispatch_editor(
         &mut self,
         context: &mut Context,
@@ -137,12 +139,28 @@ impl Component for Prompt {
     ) -> anyhow::Result<Dispatches> {
         self.editor.handle_dispatch_editor(context, dispatch)
     }
+
     fn handle_key_event(
         &mut self,
         context: &Context,
         event: event::KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         match event {
+            key!("ctrl+o") if self.prompt_history_key == PromptHistoryKey::OpenFile => {
+                let mut final_dispatches = Dispatches::new(vec![Dispatch::CloseCurrentWindow]);
+
+                self.editor
+                    .completion_dropdown
+                    .filtered_item_groups
+                    .iter()
+                    .for_each(|i| {
+                        i.items.iter().for_each(|ci| {
+                            final_dispatches.extend(ci.item.dispatches.clone());
+                        })
+                    });
+
+                Ok(final_dispatches)
+            }
             key!("esc") if self.editor().mode == Mode::Normal => {
                 Ok(Dispatches::one(Dispatch::CloseCurrentWindow)
                     .chain(self.fire_dispatches_on_change.clone().unwrap_or_default()))

@@ -2232,6 +2232,10 @@ impl Dispatches {
     pub(crate) fn empty() -> Dispatches {
         Dispatches(Default::default())
     }
+
+    pub fn extend(&mut self, other: Dispatches) {
+        self.0.extend(other.0)
+    }
 }
 
 #[must_use]

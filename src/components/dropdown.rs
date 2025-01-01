@@ -103,7 +103,7 @@ pub(crate) struct Dropdown {
     title: String,
     filter: String,
     items: Vec<DropdownItem>,
-    filtered_item_groups: Vec<FilteredDropdownItemGroup>,
+    pub filtered_item_groups: Vec<FilteredDropdownItemGroup>,
     current_item_index: usize,
 }
 
@@ -1008,16 +1008,16 @@ pub(crate) struct DropdownRender {
     pub(crate) info: Option<Info>,
 }
 #[derive(Debug, Clone, PartialEq)]
-struct FilteredDropdownItem {
+pub(crate) struct FilteredDropdownItem {
     item_index: u32,
-    item: DropdownItem,
+    pub item: DropdownItem,
     fuzzy_score: u32,
     fuzzy_matched_char_indices: Vec<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct FilteredDropdownItemGroup {
+pub(crate) struct FilteredDropdownItemGroup {
     group_key: Option<String>,
-    items: Vec<FilteredDropdownItem>,
+    pub items: Vec<FilteredDropdownItem>,
     fuzzy_matched_char_indices: Vec<u32>,
 }
