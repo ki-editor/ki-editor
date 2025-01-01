@@ -169,26 +169,24 @@ fn write_keymap_table() -> anyhow::Result<()> {
     let mut editor = Editor::from_text(None, "");
     let normal_keymaps: Vec<Keymaps> = editor.normal_mode_keymap_legend_config(&context).into();
 
+    editor.mode = Mode::MultiCursor;
+    let multicursor_keymaps: Vec<Keymaps> =
+        editor.normal_mode_keymap_legend_config(&context).into();
+
+    let mut vmode_keymaps = normal_keymaps.clone();
+    vmode_keymaps.insert(0, editor.visual_mode_initialized_keymaps());
+
     print_single_keymap_table("Normal", KeyModifiers::None, &normal_keymaps);
     print_single_keymap_table("Normal Shift", KeyModifiers::Shift, &normal_keymaps);
     print_single_keymap_table("Normal Control", KeyModifiers::Ctrl, &normal_keymaps);
     print_single_keymap_table("Normal Alternate", KeyModifiers::Alt, &normal_keymaps);
-
-    editor.mode = Mode::MultiCursor;
-    let multicursor_keymaps: Vec<Keymaps> =
-        editor.normal_mode_keymap_legend_config(&context).into();
     print_single_keymap_table("Multi-Cursor", KeyModifiers::None, &multicursor_keymaps);
     print_single_keymap_table(
         "Multi-Cursor Shift",
         KeyModifiers::Shift,
         &multicursor_keymaps,
     );
-
-    let mut vmode_keymaps = normal_keymaps.clone();
-    vmode_keymaps.insert(0, editor.visual_mode_initialized_keymaps());
-
     print_single_keymap_table("V-mode", KeyModifiers::None, &vmode_keymaps);
-
     print_single_keymap_table(
         "Insert",
         KeyModifiers::Alt,
@@ -229,14 +227,21 @@ fn print_single_keymap_table(name: &str, modifiers: KeyModifiers, keymaps: &Vec<
 
         let mut table = Table::new();
         let table_rows = rows.iter().map(|row| {
-            row.into_iter().map(|value| {
-                let display = match value {
-                    Some(value) => value.to_string(),
-                    None => "".to_string(),
-                };
+            let mut cols: Vec<Cell> = row
+                .into_iter()
+                .map(|value| {
+                    let display = match value {
+                        Some(value) => value.to_string(),
+                        None => "".to_string(),
+                    };
 
-                Cell::new(display).set_alignment(CellAlignment::Center)
-            })
+                    Cell::new(display).set_alignment(CellAlignment::Center)
+                })
+                .collect();
+
+            cols.insert(5, Cell::new(""));
+
+            cols
         });
 
         table
@@ -247,6 +252,7 @@ fn print_single_keymap_table(name: &str, modifiers: KeyModifiers, keymaps: &Vec<
                 Absolute(Fixed(8)),
                 Absolute(Fixed(8)),
                 Absolute(Fixed(8)),
+                Absolute(Fixed(1)),
                 Absolute(Fixed(8)),
                 Absolute(Fixed(8)),
                 Absolute(Fixed(8)),
