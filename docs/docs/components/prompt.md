@@ -32,3 +32,20 @@ The prompt has two behaviours:
 | ------ | ----------------------------------------- | ---------------------------- |
 | Picker | Select current matching item upon `enter` | symbol picker, file picker   |
 | Prompt | Use current search query upon `enter`     | search prompt, rename prompt |
+
+## Special Picker Behaviors
+
+Currently the file picker is the only prompt with special behavior. Other
+prompts may get special behaviors in the future.
+
+### File Picker
+
+| Key      | Behavior                                       |
+| -------- | ---------------------------------------------- |
+| `ctrl+o` | Open all narrowed files in the Completion list |
+
+Imagine you are going to work on the `widget` in your source code project. You
+may have three files: a controller, a view and a test. You type `widget` into
+the file picker and that narrows down the completions to `widget.js`,
+`widget.html` and `widget_test.js`. Pressing `ctrl+o` will open all three and
+close the file picker.
