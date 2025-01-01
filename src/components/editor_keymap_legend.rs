@@ -280,6 +280,33 @@ impl Editor {
                         "Toggle Mark".to_string(),
                         Dispatch::ToEditor(ToggleMark),
                     ),
+                    Keymap::new_extended(
+                        KEYBOARD_LAYOUT.get_key(&Meaning::CSrch),
+                        "cfg search".to_string(),
+                        "Configure Search".to_string(),
+                        Dispatch::ShowSearchConfig {
+                            scope: Scope::Local,
+                            if_current_not_found: IfCurrentNotFound::LookForward,
+                        },
+                    ),
+                    Keymap::new_extended(
+                        KEYBOARD_LAYOUT.get_key(&Meaning::SrchN),
+                        "search →".to_string(),
+                        Direction::End.format_action("Search"),
+                        Dispatch::OpenSearchPrompt {
+                            scope: Scope::Local,
+                            if_current_not_found: IfCurrentNotFound::LookForward,
+                        },
+                    ),
+                    Keymap::new_extended(
+                        KEYBOARD_LAYOUT.get_key(&Meaning::SrchP),
+                        "search ←".to_string(),
+                        Direction::Start.format_action("Search"),
+                        Dispatch::OpenSearchPrompt {
+                            scope: Scope::Local,
+                            if_current_not_found: IfCurrentNotFound::LookBackward,
+                        },
+                    ),
                 ]
                 .into_iter()
                 .chain(if self.mode == Mode::MultiCursor {
@@ -425,14 +452,15 @@ impl Editor {
                         "Pipe to shell".to_string(),
                         Dispatch::OpenPipeToShellPrompt,
                     ),
-                    Keymap::new(
+                    Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::Indnt),
+                        "indent".to_string(),
                         "Indent".to_string(),
                         Dispatch::ToEditor(Indent),
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::DeDnt),
-                        "".to_string(),
+                        "dedent".to_string(),
                         "Dedent".to_string(),
                         Dispatch::ToEditor(Dedent),
                     ),

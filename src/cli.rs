@@ -154,7 +154,7 @@ pub(crate) fn cli() -> anyhow::Result<()> {
 
 use crate::components::editor::Editor;
 use crate::components::editor_keymap::{
-    Meaning, KEYBOARD_LAYOUT, KEYMAP_CONTROL, KEYMAP_NORMAL, KEYMAP_NORMAL_SHIFTED, QWERTY,
+    shifted, Meaning, KEYBOARD_LAYOUT, KEYMAP_CONTROL, KEYMAP_NORMAL, KEYMAP_NORMAL_SHIFTED, QWERTY,
 };
 use crate::components::keymap_legend::Keymaps;
 use crate::context::Context;
@@ -167,8 +167,6 @@ fn write_keymap_table() -> anyhow::Result<()> {
     let editor = Editor::from_text(None, "");
 
     //print_keymap_table("Normal", KEYMAP_NORMAL)?;
-    //print_keymap_table("Shifted", KEYMAP_NORMAL_SHIFTED)?;
-    //print_keymap_table("Control", KEYMAP_CONTROL)?;
 
     try_me(
         "Normal",
@@ -176,11 +174,14 @@ fn write_keymap_table() -> anyhow::Result<()> {
         editor.normal_mode_keymaps(&context),
     );
 
+    print_keymap_table("Shifted", KEYMAP_NORMAL_SHIFTED)?;
     try_me(
         "Shift",
         KeyModifiers::Shift,
         editor.normal_mode_keymaps(&context),
     );
+
+    print_keymap_table("Shifted", KEYMAP_NORMAL_SHIFTED)?;
 
     try_me(
         "Control",
@@ -188,6 +189,7 @@ fn write_keymap_table() -> anyhow::Result<()> {
         editor.normal_mode_keymaps(&context),
     );
 
+    print_keymap_table("Control", KEYMAP_CONTROL)?;
     try_me(
         "Alternate",
         KeyModifiers::Alt,
@@ -205,7 +207,7 @@ fn try_me(name: &str, modifiers: KeyModifiers, keymaps: Keymaps) {
         row.iter().map(|key| {
             let ke = match modifiers {
                 KeyModifiers::Shift => KeyEvent {
-                    code: KeyCode::Char(key.to_uppercase().chars().next().unwrap()),
+                    code: KeyCode::Char(shifted(key).chars().next().unwrap()),
                     modifiers: KeyModifiers::Shift,
                 },
                 _ => KeyEvent {

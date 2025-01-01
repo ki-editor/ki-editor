@@ -6,13 +6,13 @@ use Meaning::*;
 
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        Word_, Token, SrchC, MultC, OpenN, /****/ FindP, InstP, Up___, InstN, FindN,
+        Word_, Token, SrchC, MultC, OpenN, /****/ Mark_, InstP, Up___, InstN, CSrch,
     ],
     [
         Line_, Sytx_, Chng_, DeltN, VMode, /****/ Prev_, Left_, Down_, Right, Next_,
     ],
     [
-        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ Globl, First, Jump_, Last_, Mark_,
+        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ Globl, First, Jump_, Last_, SrchN,
     ],
 ];
 
@@ -21,10 +21,10 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         Char_, Trsfm, LstNc, Raise, OpenP, /****/ _____, RplcP, Join_, RplcN, _____,
     ],
     [
-        LineF, StyxF, ChngX, DeltP, _____, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
+        LineF, StyxF, ChngX, DeltP, _____, /****/ CrsrP, FindP, Break, FindN, CrsrN,
     ],
     [
-        Redo_, XAchr, RplcX, PsteP, PRplc, /****/ _____, _____, ToIdx, _____, _____,
+        Redo_, XAchr, RplcX, PsteP, PRplc, /****/ _____, DeDnt, ToIdx, Indnt, SrchP,
     ],
 ];
 
@@ -365,7 +365,7 @@ pub(crate) enum Meaning {
     XAchr,
 }
 
-fn shifted(c: &'static str) -> &'static str {
+pub fn shifted(c: &'static str) -> &'static str {
     match c {
         "." => ">",
         "," => "<",
