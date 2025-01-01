@@ -101,7 +101,7 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
     let mut vmode_keymaps = normal_keymaps.clone();
     vmode_keymaps.insert(0, editor.visual_mode_initialized_keymaps());
 
-    vec![
+    let sections = vec![
         KeymapPrintSection::new("Normal", &layout, KeyModifiers::None, &normal_keymaps),
         KeymapPrintSection::new(
             "Normal Shift",
@@ -140,7 +140,9 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
             KeyModifiers::Alt,
             &editor.insert_mode_keymap_legend_config().into(),
         ),
-    ]
+    ];
+
+    sections.into_iter().filter(|km| km.has_content()).collect()
 }
 
 /// Print an ASCII representation of the keymap.
@@ -153,49 +155,47 @@ pub fn print_keymap_table() -> anyhow::Result<()> {
 }
 
 fn print_single_keymap_table(keymap: &KeymapPrintSection) {
-    if keymap.has_content() {
-        println!("{}:", keymap.name);
+    println!("{}:", keymap.name);
 
-        let mut table = Table::new();
-        let table_rows = keymap.key_meanings.iter().map(|row| {
-            let mut cols: Vec<Cell> = row
-                .into_iter()
-                .map(|value| {
-                    let display = match value {
-                        Some(value) => value.to_string(),
-                        None => "".to_string(),
-                    };
+    let mut table = Table::new();
+    let table_rows = keymap.key_meanings.iter().map(|row| {
+        let mut cols: Vec<Cell> = row
+            .into_iter()
+            .map(|value| {
+                let display = match value {
+                    Some(value) => value.to_string(),
+                    None => "".to_string(),
+                };
 
-                    Cell::new(display).set_alignment(CellAlignment::Center)
-                })
-                .collect();
+                Cell::new(display).set_alignment(CellAlignment::Center)
+            })
+            .collect();
 
-            cols.insert(5, Cell::new(""));
+        cols.insert(5, Cell::new(""));
 
-            cols
-        });
+        cols
+    });
 
-        table
-            .add_rows(table_rows)
-            .set_constraints(vec![
-                Absolute(Fixed(8)),
-                Absolute(Fixed(8)),
-                Absolute(Fixed(8)),
-                Absolute(Fixed(8)),
-                Absolute(Fixed(8)),
-                Absolute(Fixed(1)),
-                Absolute(Fixed(8)),
-                Absolute(Fixed(8)),
-                Absolute(Fixed(8)),
-                Absolute(Fixed(8)),
-                Absolute(Fixed(8)),
-            ])
-            .load_preset(comfy_table::presets::UTF8_FULL)
-            .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
+    table
+        .add_rows(table_rows)
+        .set_constraints(vec![
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(1)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+        ])
+        .load_preset(comfy_table::presets::UTF8_FULL)
+        .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
 
-        println!("{}", table);
-        println!("");
-    }
+    println!("{}", table);
+    println!("");
 }
 
 /// Print a YAML representation of the keymap suitable for use with keymap drawer,
