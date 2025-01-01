@@ -152,11 +152,13 @@ pub(crate) fn cli() -> anyhow::Result<()> {
     }
 }
 
-use crate::components::editor::Editor;
-use crate::components::editor_keymap::{
-    shifted, Meaning, KEYMAP_CONTROL, KEYMAP_NORMAL, KEYMAP_NORMAL_SHIFTED, QWERTY,
+use crate::components::{
+    editor::Editor,
+    editor_keymap::{
+        shifted, Meaning, KEYMAP_CONTROL, KEYMAP_NORMAL, KEYMAP_NORMAL_SHIFTED, QWERTY,
+    },
+    keymap_legend::Keymaps,
 };
-use crate::components::keymap_legend::{KeymapLegendBody, Keymaps};
 use crate::context::Context;
 use comfy_table::{Cell, CellAlignment, ColumnConstraint::Absolute, Table, Width::Fixed};
 use crossterm::event::KeyCode;
@@ -165,14 +167,7 @@ use event::{KeyEvent, KeyModifiers};
 fn write_keymap_table() -> anyhow::Result<()> {
     let context = Context::default();
     let editor = Editor::from_text(None, "");
-    let normal_keymaps = editor.normal_mode_keymap_legend_config(&context);
-
-    let normal_keymaps: Vec<Keymaps> = match &normal_keymaps.body {
-        KeymapLegendBody::SingleSection { keymaps } => vec![keymaps.clone()],
-        KeymapLegendBody::MultipleSections { sections } => {
-            sections.iter().map(|s| s.keymaps.clone()).collect()
-        }
-    };
+    let normal_keymaps: Vec<Keymaps> = editor.normal_mode_keymap_legend_config(&context).into();
 
     print_single_keymap_table("Normal", KeyModifiers::None, &normal_keymaps);
     print_single_keymap_table("Shift", KeyModifiers::Shift, &normal_keymaps);
@@ -184,16 +179,11 @@ fn write_keymap_table() -> anyhow::Result<()> {
 
     print_single_keymap_table("V-mode", KeyModifiers::None, &vmode_keymaps);
 
-    let insert_mode_keymap = editor.insert_mode_keymap_legend_config();
-
-    let insert_mode_keymap: Vec<Keymaps> = match &insert_mode_keymap.body {
-        KeymapLegendBody::SingleSection { keymaps } => vec![keymaps.clone()],
-        KeymapLegendBody::MultipleSections { sections } => {
-            sections.iter().map(|s| s.keymaps.clone()).collect()
-        }
-    };
-
-    print_single_keymap_table("Insert", KeyModifiers::Alt, &insert_mode_keymap);
+    print_single_keymap_table(
+        "Insert",
+        KeyModifiers::Alt,
+        &editor.insert_mode_keymap_legend_config().into(),
+    );
 
     Ok(())
 }
@@ -215,9 +205,7 @@ fn print_single_keymap_table(name: &str, modifiers: KeyModifiers, keymaps: &Vec<
                         },
                     };
 
-                    let keymap = keymaps.iter().find_map(|p| p.get(&ke));
-
-                    match keymap {
+                    match keymaps.iter().find_map(|p| p.get(&ke)) {
                         Some(keymap) => keymap.short_description.clone(),
                         None => None,
                     }

@@ -245,6 +245,17 @@ impl KeymapLegendConfig {
     }
 }
 
+impl From<KeymapLegendConfig> for Vec<Keymaps> {
+    fn from(keymap_legend_config: KeymapLegendConfig) -> Self {
+        match &keymap_legend_config.body {
+            KeymapLegendBody::SingleSection { keymaps } => vec![keymaps.clone()],
+            KeymapLegendBody::MultipleSections { sections } => {
+                sections.iter().map(|s| s.keymaps.clone()).collect()
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymap {
     key: &'static str,
