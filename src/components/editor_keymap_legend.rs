@@ -495,12 +495,11 @@ impl Editor {
                         Dispatch::ToEditor(EnterVMode),
                     )
                 }))
-                .chain(
-                    self.search_current_selection_keymap(
-                        Scope::Local,
-                        IfCurrentNotFound::LookForward,
-                    ),
-                )
+                .chain(self.search_current_selection_keymap(
+                    KEYBOARD_LAYOUT.get_key(&Meaning::CSrch),
+                    Scope::Local,
+                    IfCurrentNotFound::LookForward,
+                ))
                 .collect_vec(),
             ),
         }
@@ -1086,6 +1085,7 @@ impl Editor {
 
     fn search_current_selection_keymap(
         &self,
+        key: &'static str,
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
     ) -> Option<Keymap> {
@@ -1093,7 +1093,7 @@ impl Editor {
             .slice(&self.selection_set.primary_selection().extended_range())
             .map(|search| {
                 Keymap::new_extended(
-                    KEYBOARD_LAYOUT.get_key(&Meaning::SrchC),
+                    key,
                     "search cur".to_string(),
                     "Search current selection".to_string(),
                     Dispatch::UpdateLocalSearchConfig {
@@ -1139,7 +1139,7 @@ impl Editor {
                         ),
                     ]
                     .into_iter()
-                    .chain(self.search_current_selection_keymap(scope, if_current_not_found))
+                    .chain(self.search_current_selection_keymap("c", scope, if_current_not_found))
                     .chain(config.last_search().map(|search| {
                         Keymap::new(
                             "p",
