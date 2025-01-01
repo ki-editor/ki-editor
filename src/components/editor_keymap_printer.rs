@@ -58,7 +58,15 @@ impl KeymapPrintSection {
                         };
 
                         match keymaps.iter().find_map(|p| p.get(&ke)) {
-                            Some(keymap) => keymap.short_description.clone(),
+                            // One may wonder why not simply return the short_description as it is
+                            // an Option<String> but by detecting None here and replacing it with
+                            // ??? we are able to see where we may not be providing a short
+                            // description in code.
+                            Some(keymap) => match keymap.short_description.clone() {
+                                Some(short) => Some(short),
+                                None => Some("???".to_string()),
+                            },
+                            // There truly is no key mapping for this key event.
                             None => None,
                         }
                     })
