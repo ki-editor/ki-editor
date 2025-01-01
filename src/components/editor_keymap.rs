@@ -40,7 +40,7 @@ pub const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
     ],
 ];
 
-type KeyboardLayout = [[&'static str; 10]; 3];
+pub type KeyboardLayout = [[&'static str; 10]; 3];
 
 pub const QWERTY: KeyboardLayout = [
     ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
