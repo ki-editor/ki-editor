@@ -103,7 +103,7 @@ pub(crate) struct Dropdown {
     title: String,
     filter: String,
     items: Vec<DropdownItem>,
-    pub filtered_item_groups: Vec<FilteredDropdownItemGroup>,
+    filtered_item_groups: Vec<FilteredDropdownItemGroup>,
     current_item_index: usize,
 }
 
@@ -477,6 +477,10 @@ impl Dropdown {
 
     pub(crate) fn items(&self) -> Vec<DropdownItem> {
         self.items.clone()
+    }
+
+    pub(crate) fn filtered_item_groups(&self) -> Vec<FilteredDropdownItemGroup> {
+        self.filtered_item_groups.clone()
     }
 
     pub(crate) fn set_current_item_index(&mut self, current_item_index: usize) {
@@ -1010,14 +1014,26 @@ pub(crate) struct DropdownRender {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FilteredDropdownItem {
     item_index: u32,
-    pub item: DropdownItem,
+    item: DropdownItem,
     fuzzy_score: u32,
     fuzzy_matched_char_indices: Vec<u32>,
+}
+
+impl FilteredDropdownItem {
+    pub(crate) fn item(&self) -> DropdownItem {
+        self.item.clone()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FilteredDropdownItemGroup {
     group_key: Option<String>,
-    pub items: Vec<FilteredDropdownItem>,
+    items: Vec<FilteredDropdownItem>,
     fuzzy_matched_char_indices: Vec<u32>,
+}
+
+impl FilteredDropdownItemGroup {
+    pub(crate) fn items(&self) -> Vec<FilteredDropdownItem> {
+        self.items.clone()
+    }
 }

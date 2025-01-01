@@ -26,8 +26,7 @@ use super::{
 /// Editor with auto-complete
 pub(crate) struct SuggestiveEditor {
     editor: Editor,
-    pub completion_dropdown: Dropdown,
-
+    completion_dropdown: Dropdown,
     trigger_characters: Vec<String>,
     filter: SuggestiveEditorFilter,
 }
@@ -201,6 +200,21 @@ impl SuggestiveEditor {
 
     pub(crate) fn completion_dropdown_current_item(&mut self) -> Option<DropdownItem> {
         self.completion_dropdown.current_item()
+    }
+
+    pub(crate) fn completion_all_filtered_dispatches(&self) -> Dispatches {
+        let mut final_dispatches = Dispatches::new(vec![]);
+
+        self.completion_dropdown
+            .filtered_item_groups()
+            .iter()
+            .for_each(|i| {
+                i.items().iter().for_each(|ci| {
+                    final_dispatches.extend(ci.item().dispatches);
+                })
+            });
+
+        final_dispatches
     }
 
     pub(crate) fn completion_dropdown_opened(&self) -> bool {

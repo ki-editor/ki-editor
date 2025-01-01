@@ -5,7 +5,7 @@ use my_proc_macros::key;
 use crate::{
     app::{Dispatch, DispatchPrompt, Dispatches, GlobalSearchFilterGlob, Scope},
     buffer::Buffer,
-    components::{editor::DispatchEditor, keymap_legend::Keymaps},
+    components::editor::DispatchEditor,
     context::Context,
     lsp::completion::Completion,
     selection::SelectionMode,
@@ -148,17 +148,7 @@ impl Component for Prompt {
         match event {
             key!("ctrl+o") if self.prompt_history_key == PromptHistoryKey::OpenFile => {
                 let mut final_dispatches = Dispatches::new(vec![Dispatch::CloseCurrentWindow]);
-
-                self.editor
-                    .completion_dropdown
-                    .filtered_item_groups
-                    .iter()
-                    .for_each(|i| {
-                        i.items.iter().for_each(|ci| {
-                            final_dispatches.extend(ci.item.dispatches.clone());
-                        })
-                    });
-
+                final_dispatches.extend(self.editor.completion_all_filtered_dispatches());
                 Ok(final_dispatches)
             }
             key!("esc") if self.editor().mode == Mode::Normal => {
