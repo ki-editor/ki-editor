@@ -1,13 +1,13 @@
-use crate::components::{
-    editor::Editor,
-    editor_keymap::{shifted, KeyboardLayout, KEYBOARD_LAYOUT},
+use crate::{
+    app::Dispatch::SetLastActionDescription,
+    components::{
+        editor::{Editor, Mode},
+        editor_keymap::{shifted, KeyboardLayout, KEYBOARD_LAYOUT},
+    },
+    context::Context,
 };
-use crate::context::Context;
-use crate::themes::vscode_light;
 use comfy_table::{Cell, CellAlignment, ColumnConstraint::Absolute, Table, Width::Fixed};
 use event::{parse_key_event, KeyModifiers};
-
-use super::editor::Mode;
 
 #[derive(Debug, Clone)]
 struct KeymapPrintSection {
@@ -56,20 +56,19 @@ impl KeymapPrintSection {
                             (modifiers.clone(), *key)
                         };
 
-                        let modifier_str = match modifier {
-                            KeyModifiers::Shift => "shift+",
-                            KeyModifiers::Alt => "alt+",
-                            KeyModifiers::Ctrl => "ctrl+",
-                            _ => "",
+                        let modifier_joiner = match modifier {
+                            KeyModifiers::None => "",
+                            _ => "+",
                         };
 
-                        let key_str = format!("{}{}", modifier_str, key);
+                        let key_str =
+                            format!("{}{}{}", modifiers.to_string(), modifier_joiner, key);
                         let key_event = parse_key_event(&key_str).ok()?;
                         let dispatches = editor.handle_key_event(&context, key_event).ok()?;
 
                         let dispatches = dispatches.into_vec();
                         dispatches.into_iter().find_map(|dispatch| match dispatch {
-                            crate::app::Dispatch::SetLastActionDescription {
+                            SetLastActionDescription {
                                 long_description,
                                 short_description,
                             } => Some(short_description.unwrap_or(long_description)),
@@ -80,6 +79,7 @@ impl KeymapPrintSection {
             })
             .collect()
     }
+
     fn shifted_modifier(key: &&'static str) -> KeyModifiers {
         match *key {
             "," => KeyModifiers::None,
