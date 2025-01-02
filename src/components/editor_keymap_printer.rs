@@ -181,13 +181,19 @@ pub fn print_keymap_drawer_yaml() -> anyhow::Result<()> {
         .for_each(print_keymap_drawer);
 
     println!("draw_config:");
+    println!("  key_w: 82");
+    println!("  key_h: 72");
     println!("  footer_text: Keymap for the <a href=\"https://ki-editor.github.io/ki-editor/\">Ki editor</a>");
 
     Ok(())
 }
 
 fn print_keymap_drawer(section: &KeymapPrintSection) {
-    let safe_name = section.name.replace(" ", "_").replace("-", "_");
+    let safe_name = section
+        .name
+        .replace(" ", "_")
+        .replace("-", "_")
+        .replace("+", "plus");
 
     println!("  {}:", safe_name);
     for row in section.key_meanings.iter() {
