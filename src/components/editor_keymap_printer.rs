@@ -1,12 +1,11 @@
 use crate::components::{
-    editor::{Editor, Mode},
+    editor::Editor,
     editor_keymap::{shifted, KeyboardLayout, KEYBOARD_LAYOUT},
-    keymap_legend::Keymaps,
 };
 use crate::context::Context;
+use crate::themes::vscode_light;
 use comfy_table::{Cell, CellAlignment, ColumnConstraint::Absolute, Table, Width::Fixed};
-use crossterm::event::KeyCode;
-use event::{KeyEvent, KeyModifiers};
+use event::{parse_key_event, KeyModifiers};
 
 #[derive(Debug, Clone)]
 struct KeymapPrintSection {
@@ -15,18 +14,12 @@ struct KeymapPrintSection {
 }
 
 impl KeymapPrintSection {
-    pub fn new(
-        name: &str,
-        keyboard_layout: &KeyboardLayout,
-        modifiers: KeyModifiers,
-        keymaps: &Vec<Keymaps>,
-    ) -> Self {
+    pub fn new(name: &str, keyboard_layout: &KeyboardLayout, modifiers: KeyModifiers) -> Self {
         KeymapPrintSection {
             name: name.to_string(),
             key_meanings: KeymapPrintSection::keyboard_layout_to_keymaps(
                 keyboard_layout,
                 modifiers,
-                keymaps,
             ),
         }
     }
@@ -40,44 +33,52 @@ impl KeymapPrintSection {
     fn keyboard_layout_to_keymaps(
         keyboard_layout: &KeyboardLayout,
         modifiers: KeyModifiers,
-        keymaps: &Vec<Keymaps>,
     ) -> Vec<Vec<Option<String>>> {
         keyboard_layout
             .iter()
             .map(|row| {
                 row.iter()
                     .map(|key| {
-                        let key_event = match modifiers {
-                            KeyModifiers::Shift => KeyEvent {
-                                code: KeyCode::Char(shifted(key).chars().next().unwrap()),
-                                modifiers: KeymapPrintSection::shifted_modifier(key),
-                            },
-                            _ => KeyEvent {
-                                code: KeyCode::Char(key.chars().next().unwrap()),
-                                modifiers: modifiers.clone(),
-                            },
+                        let mut editor = Editor::from_text(None, "");
+                        let context = Context::default();
+                        let (modifier, key) = if modifiers == KeyModifiers::Shift {
+                            (Self::shifted_modifier(key), shifted(key))
+                        } else {
+                            (modifiers.clone(), *key)
                         };
 
-                        match keymaps.iter().find_map(|keymap| keymap.get(&key_event)) {
-                            // One may wonder why not simply return the short_description as it is
-                            // an Option<String> but by detecting None here and replacing it with
-                            // ??? we are able to see where we may not be providing a short
-                            // description in code.
-                            Some(keymap) => match keymap.short_description.clone() {
-                                Some(short) => Some(short),
-                                None => Some("???".to_string()),
-                            },
-                            // There truly is no key mapping for this key event.
-                            None => None,
+                        let modifier_str = match modifier {
+                            KeyModifiers::Shift => "shift+",
+                            KeyModifiers::Alt => "alt+",
+                            KeyModifiers::Ctrl => "ctrl+",
+                            _ => "",
+                        };
+
+                        let key_str = format!("{}{}", modifier_str, key);
+                        let key_event = parse_key_event(&key_str).ok()?;
+                        let dispatches = editor.handle_key_event(&context, key_event).ok()?;
+
+                        let dispatches = dispatches.into_vec();
+                        let last_dispatch = dispatches.last()?;
+
+                        if let crate::app::Dispatch::SetLastActionDescription(_, Some(desc)) =
+                            last_dispatch
+                        {
+                            Some(desc.to_string())
+                        } else if let crate::app::Dispatch::SetLastActionDescription(_, None) =
+                            last_dispatch
+                        {
+                            Some("???".to_string())
+                        } else {
+                            None
                         }
                     })
                     .collect()
             })
             .collect()
     }
-
-    fn shifted_modifier(key: &'static str) -> KeyModifiers {
-        match key {
+    fn shifted_modifier(key: &&'static str) -> KeyModifiers {
+        match *key {
             "," => KeyModifiers::None,
             "." => KeyModifiers::None,
             "/" => KeyModifiers::None,
@@ -91,56 +92,15 @@ impl KeymapPrintSection {
 type KeymapPrintSections = Vec<KeymapPrintSection>;
 
 fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections {
-    let context = Context::default();
-    let mut editor = Editor::from_text(None, "");
-    let normal_keymaps: Vec<Keymaps> = editor.normal_mode_keymap_legend_config(&context).into();
-
-    editor.mode = Mode::MultiCursor;
-    let multicursor_keymaps: Vec<Keymaps> =
-        editor.normal_mode_keymap_legend_config(&context).into();
-
-    let mut vmode_keymaps = normal_keymaps.clone();
-    vmode_keymaps.insert(0, editor.visual_mode_initialized_keymaps());
-
     let sections: Vec<KeymapPrintSection> = [
-        KeymapPrintSection::new("Normal", &layout, KeyModifiers::None, &normal_keymaps),
-        KeymapPrintSection::new(
-            "Normal Shift",
-            &layout,
-            KeyModifiers::Shift,
-            &normal_keymaps,
-        ),
-        KeymapPrintSection::new(
-            "Normal Control",
-            &layout,
-            KeyModifiers::Ctrl,
-            &normal_keymaps,
-        ),
-        KeymapPrintSection::new(
-            "Normal Alternate",
-            &layout,
-            KeyModifiers::Alt,
-            &normal_keymaps,
-        ),
-        KeymapPrintSection::new(
-            "Multi-Cursor",
-            &layout,
-            KeyModifiers::None,
-            &multicursor_keymaps,
-        ),
-        KeymapPrintSection::new(
-            "Multi-Cursor Shift",
-            &layout,
-            KeyModifiers::Shift,
-            &multicursor_keymaps,
-        ),
-        KeymapPrintSection::new("V-mode", &layout, KeyModifiers::None, &vmode_keymaps),
-        KeymapPrintSection::new(
-            "Insert",
-            &layout,
-            KeyModifiers::Alt,
-            &editor.insert_mode_keymap_legend_config().into(),
-        ),
+        KeymapPrintSection::new("Normal", &layout, KeyModifiers::None),
+        KeymapPrintSection::new("Normal Shift", &layout, KeyModifiers::Shift),
+        KeymapPrintSection::new("Normal Control", &layout, KeyModifiers::Ctrl),
+        KeymapPrintSection::new("Normal Alternate", &layout, KeyModifiers::Alt),
+        KeymapPrintSection::new("Multi-Cursor", &layout, KeyModifiers::None),
+        KeymapPrintSection::new("Multi-Cursor Shift", &layout, KeyModifiers::Shift),
+        KeymapPrintSection::new("V-mode", &layout, KeyModifiers::None),
+        KeymapPrintSection::new("Insert", &layout, KeyModifiers::Alt),
     ]
     .to_vec();
 
