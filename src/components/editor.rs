@@ -368,6 +368,7 @@ impl Clone for Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
+            dirty: false,
         }
     }
 }
@@ -390,6 +391,9 @@ pub(crate) struct Editor {
     id: ComponentId,
     pub(crate) current_view_alignment: Option<ViewAlignment>,
     copied_text_history_offset: Counter,
+
+    /// Has this Editor changed it's buffer content since it has been read/saved?
+    dirty: bool,
 }
 
 #[derive(Default)]
@@ -538,6 +542,7 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
+            dirty: false,
         }
     }
 
@@ -555,6 +560,7 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
+            dirty: false,
         }
     }
 
@@ -1105,6 +1111,8 @@ impl Editor {
     }
 
     pub(crate) fn get_document_did_change_dispatch(&mut self) -> Dispatches {
+        self.dirty = true;
+
         [Dispatch::DocumentDidChange {
             component_id: self.id(),
             path: self.buffer().path(),
@@ -2159,6 +2167,10 @@ impl Editor {
     }
 
     pub(crate) fn save(&mut self) -> anyhow::Result<Dispatches> {
+        if !self.dirty {
+            return Ok(Default::default());
+        }
+
         let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())? else {
             return Ok(Default::default());
         };
@@ -2166,6 +2178,7 @@ impl Editor {
         self.clamp()?;
         self.cursor_keep_primary_only();
         self.enter_normal_mode()?;
+        self.dirty = false;
         Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent)
             .append(Dispatch::DocumentDidSave { path })
             .chain(self.get_document_did_change_dispatch())
