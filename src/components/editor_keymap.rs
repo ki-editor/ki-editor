@@ -29,6 +29,8 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
 ];
 
 pub const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
+    // TODO: where should we place Next Completion Item and Prev Completion Item
+    // I'm thinking of sacrificing Delete Token
     [
         _____, GBack, ScrlU, GForw, _____, /****/ DTknP, DWrdP, Up___, DWrdN, DTknN,
     ],
