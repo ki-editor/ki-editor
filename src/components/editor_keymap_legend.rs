@@ -779,8 +779,9 @@ impl Editor {
                 )]
                 .into_iter()
                 .chain(Some(if self.mode == Mode::MultiCursor {
-                    Keymap::new(
+                    Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::MultC),
+                        "cursor all sels".to_string(),
                         "Add cursor to all selections".to_string(),
                         Dispatch::ToEditor(DispatchEditor::CursorAddToAllSelections),
                     )
