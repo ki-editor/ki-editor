@@ -1016,7 +1016,7 @@ pub(crate) struct DropdownRender {
     pub(crate) info: Option<Info>,
 }
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct FilteredDropdownItem {
+struct FilteredDropdownItem {
     item_index: u32,
     item: DropdownItem,
     fuzzy_score: u32,
@@ -1024,7 +1024,7 @@ pub(crate) struct FilteredDropdownItem {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct FilteredDropdownItemGroup {
+struct FilteredDropdownItemGroup {
     group_key: Option<String>,
     items: Vec<FilteredDropdownItem>,
     fuzzy_matched_char_indices: Vec<u32>,
