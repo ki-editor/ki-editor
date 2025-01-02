@@ -89,6 +89,7 @@ pub(crate) enum StatusLineComponent {
     Mode,
     SelectionMode,
     LastDispatch,
+    LocalSearchConfig,
 }
 
 impl<T: Frontend> App<T> {
@@ -329,6 +330,9 @@ impl<T: Frontend> App<T> {
                                 .display_selection_mode(),
                         ),
                         StatusLineComponent::LastDispatch => self.last_action_description.clone(),
+                        StatusLineComponent::LocalSearchConfig => {
+                            Some(self.context.local_search_config().display())
+                        }
                     })
                     .join(" │ ")
             });
@@ -666,11 +670,13 @@ impl<T: Frontend> App<T> {
                 scope,
                 show_config_after_enter,
                 if_current_not_found,
+                run_search_after_config_updated,
             } => self.update_local_search_config(
                 update,
                 scope,
                 show_config_after_enter,
                 if_current_not_found,
+                run_search_after_config_updated,
             )?,
             Dispatch::UpdateGlobalSearchConfig {
                 update,
@@ -687,7 +693,12 @@ impl<T: Frontend> App<T> {
             Dispatch::ShowSearchConfig {
                 scope,
                 if_current_not_found,
-            } => self.show_search_config(scope, if_current_not_found),
+                run_search_after_config_updated,
+            } => self.show_search_config(
+                scope,
+                if_current_not_found,
+                run_search_after_config_updated,
+            ),
             Dispatch::OpenUpdateReplacementPrompt {
                 scope,
                 if_current_not_found,
@@ -824,12 +835,17 @@ impl<T: Frontend> App<T> {
         let mode = config.mode;
         self.open_prompt(
             PromptConfig {
-                title: format!("{:?} search ({})", scope, mode.display()),
+                title: format!(
+                    "{:?} search (config search = {})",
+                    scope,
+                    KEYBOARD_LAYOUT.get_key(&Meaning::CSrch)
+                ),
                 items: self.words(),
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                     scope,
                     show_config_after_enter: false,
                     if_current_not_found,
+                    run_search_after_config_updated: true,
                 },
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
@@ -1533,17 +1549,20 @@ impl<T: Frontend> App<T> {
         scope: Scope,
         show_legend: bool,
         if_current_not_found: IfCurrentNotFound,
+        run_search_after_config_updated: bool,
     ) -> Result<(), anyhow::Error> {
         self.context.update_local_search_config(update, scope);
-        match scope {
-            Scope::Local => self.local_search(if_current_not_found)?,
-            Scope::Global => {
-                self.global_search()?;
+        if run_search_after_config_updated {
+            match scope {
+                Scope::Local => self.local_search(if_current_not_found)?,
+                Scope::Global => {
+                    self.global_search()?;
+                }
             }
         }
 
         if show_legend {
-            self.show_search_config(scope, if_current_not_found);
+            self.show_search_config(scope, if_current_not_found, run_search_after_config_updated);
         }
         Ok(())
     }
@@ -1555,7 +1574,7 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         self.context.update_global_search_config(update)?;
         self.global_search()?;
-        self.show_search_config(Scope::Global, if_current_not_found);
+        self.show_search_config(Scope::Global, if_current_not_found, true);
         Ok(())
     }
 
@@ -1581,7 +1600,12 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    fn show_search_config(&mut self, scope: Scope, if_current_not_found: IfCurrentNotFound) {
+    fn show_search_config(
+        &mut self,
+        scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
+        run_search_after_config_updated: bool,
+    ) {
         fn show_checkbox(title: &str, checked: bool) -> String {
             format!("[{}] {title}", if checked { "X" } else { " " })
         }
@@ -1602,6 +1626,7 @@ impl<T: Frontend> App<T> {
                         scope,
                         show_config_after_enter: scope == Scope::Global,
                         if_current_not_found: IfCurrentNotFound::LookForward,
+                        run_search_after_config_updated,
                     },
                 )
             };
@@ -1627,7 +1652,7 @@ impl<T: Frontend> App<T> {
                         keymaps: Keymaps::new(
                             &[
                                 Keymap::new(
-                                    KEYBOARD_LAYOUT.get_key(&Meaning::SrchN),
+                                    "/",
                                     format!("Search = {}", local_search_config.search()),
                                     Dispatch::OpenUpdateSearchPrompt {
                                         scope,
@@ -1818,6 +1843,7 @@ impl<T: Frontend> App<T> {
                     scope,
                     show_config_after_enter: true,
                     if_current_not_found,
+                    run_search_after_config_updated: true,
                 },
                 items: self.words(),
                 enter_selects_first_matching_item: false,
@@ -2331,6 +2357,7 @@ pub(crate) enum Dispatch {
         scope: Scope,
         show_config_after_enter: bool,
         if_current_not_found: IfCurrentNotFound,
+        run_search_after_config_updated: bool,
     },
     UpdateGlobalSearchConfig {
         update: GlobalSearchConfigUpdate,
@@ -2343,6 +2370,7 @@ pub(crate) enum Dispatch {
     ShowSearchConfig {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
+        run_search_after_config_updated: bool,
     },
     OpenUpdateReplacementPrompt {
         scope: Scope,
@@ -2487,6 +2515,7 @@ pub(crate) enum DispatchPrompt {
         scope: Scope,
         show_config_after_enter: bool,
         if_current_not_found: IfCurrentNotFound,
+        run_search_after_config_updated: bool,
     },
     AddPath,
     MovePath {
@@ -2541,12 +2570,14 @@ impl DispatchPrompt {
                 scope,
                 show_config_after_enter,
                 if_current_not_found,
+                run_search_after_config_updated,
             } => Ok(Dispatches::new(
                 [Dispatch::UpdateLocalSearchConfig {
                     update: LocalSearchConfigUpdate::Search(text.to_string()),
                     scope,
                     show_config_after_enter,
                     if_current_not_found,
+                    run_search_after_config_updated: true,
                 }]
                 .to_vec(),
             )),
@@ -2597,6 +2628,7 @@ impl DispatchPrompt {
                     update: LocalSearchConfigUpdate::Replacement(text.to_owned()),
                     show_config_after_enter: true,
                     if_current_not_found,
+                    run_search_after_config_updated: true,
                 }]
                 .to_vec(),
             )),

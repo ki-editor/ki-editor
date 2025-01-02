@@ -1059,6 +1059,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 scope: Scope::Global,
                 show_config_after_enter: false,
                 if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
             }),
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
             Expect(Quickfixes(Box::new([
@@ -1206,6 +1207,7 @@ fn test_global_search_replace(
                 scope: Scope::Global,
                 show_config_after_enter: true,
                 if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
             }
         };
         let main_rs = s.main_rs();
@@ -1303,6 +1305,7 @@ fn quickfix_list() -> Result<(), anyhow::Error> {
                 scope: Scope::Global,
                 show_config_after_enter: false,
                 if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
             }
         };
         Box::new([
@@ -1951,6 +1954,7 @@ fn global_search_should_not_using_empty_pattern() -> anyhow::Result<()> {
                 scope: Scope::Global,
                 show_config_after_enter: true,
                 if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
             }),
             Expect(ExpectKind::Quickfixes(Box::new([]))),
         ])

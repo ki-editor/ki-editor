@@ -392,4 +392,8 @@ impl LocalSearchConfig {
     pub(crate) fn require_tree_sitter(&self) -> bool {
         self.mode == LocalSearchConfigMode::AstGrep
     }
+
+    pub(crate) fn display(&self) -> String {
+        self.mode.display()
+    }
 }
