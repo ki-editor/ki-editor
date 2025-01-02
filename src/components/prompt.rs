@@ -127,9 +127,11 @@ impl Component for Prompt {
     fn editor(&self) -> &Editor {
         self.editor.editor()
     }
+
     fn editor_mut(&mut self) -> &mut Editor {
         self.editor.editor_mut()
     }
+
     fn handle_dispatch_editor(
         &mut self,
         context: &mut Context,
@@ -137,6 +139,7 @@ impl Component for Prompt {
     ) -> anyhow::Result<Dispatches> {
         self.editor.handle_dispatch_editor(context, dispatch)
     }
+
     fn handle_key_event(
         &mut self,
         context: &Context,
@@ -158,6 +161,15 @@ impl Component for Prompt {
                     self.editor_mut().handle_key_event(context, event)
                 }
             }
+            key!("ctrl+o") if self.prompt_history_key == PromptHistoryKey::OpenFile => Ok(
+                Dispatches::one(Dispatch::CloseCurrentWindow).chain(Dispatches::new(
+                    self.editor
+                        .all_filtered_items()
+                        .into_iter()
+                        .flat_map(|item| item.dispatches.into_vec())
+                        .collect(),
+                )),
+            ),
             key!("enter") => {
                 let (line, dispatches) = if self.enter_selects_first_matching_item
                     && self.editor.completion_dropdown_current_item().is_some()

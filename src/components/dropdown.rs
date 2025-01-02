@@ -235,6 +235,14 @@ impl Dropdown {
         self.get_item_by_index(self.current_item_index)
     }
 
+    pub(crate) fn all_filtered_items(&self) -> Vec<DropdownItem> {
+        self.filtered_item_groups
+            .iter()
+            .flat_map(|group| &group.items)
+            .map(|item| item.item.clone())
+            .collect()
+    }
+
     fn get_item_by_index(&self, item_index: usize) -> Option<DropdownItem> {
         self.filtered_item_groups
             .iter()
