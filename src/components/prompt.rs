@@ -161,14 +161,15 @@ impl Component for Prompt {
                     self.editor_mut().handle_key_event(context, event)
                 }
             }
-            key!("ctrl+o") if self.prompt_history_key == PromptHistoryKey::OpenFile => {
-                let mut final_dispatches = Dispatches::new(vec![Dispatch::CloseCurrentWindow]);
-                self.editor
-                    .all_filtered_items()
-                    .into_iter()
-                    .for_each(|item| final_dispatches.extend(item.dispatches));
-                Ok(final_dispatches)
-            }
+            key!("ctrl+o") if self.prompt_history_key == PromptHistoryKey::OpenFile => Ok(
+                Dispatches::one(Dispatch::CloseCurrentWindow).chain(Dispatches::new(
+                    self.editor
+                        .all_filtered_items()
+                        .into_iter()
+                        .flat_map(|item| item.dispatches.into_vec())
+                        .collect(),
+                )),
+            ),
             key!("enter") => {
                 let (line, dispatches) = if self.enter_selects_first_matching_item
                     && self.editor.completion_dropdown_current_item().is_some()
