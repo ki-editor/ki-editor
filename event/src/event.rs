@@ -72,16 +72,8 @@ impl KeyEvent {
             // Add more cases as needed
             _ => String::from("Unknown"),
         };
-        use convert_case::{Case, Casing};
         let modifier = if self.modifiers != KeyModifiers::None {
-            Some(
-                format!("{:?}", self.modifiers)
-                    .to_case(Case::Lower)
-                    .split(" ")
-                    .collect::<Vec<_>>()
-                    .join("+")
-                    .to_string(),
-            )
+            Some(self.modifiers.to_string())
         } else {
             None
         };
@@ -117,6 +109,7 @@ pub enum KeyModifiers {
     CtrlAltShift,
     Unknown,
 }
+
 impl KeyModifiers {
     pub(crate) fn add_shift(self, shift: bool) -> KeyModifiers {
         use KeyModifiers::*;
@@ -130,6 +123,18 @@ impl KeyModifiers {
             CtrlAlt => CtrlAltShift,
             Unknown => Shift,
             _ => self,
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            KeyModifiers::None => "".to_string(),
+            _ => format!("{:?}", self)
+                .to_lowercase()
+                .split(" ")
+                .collect::<Vec<_>>()
+                .join("+")
+                .to_string(),
         }
     }
 }

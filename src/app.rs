@@ -78,6 +78,7 @@ pub(crate) struct App<T: Frontend> {
     file_path_history: History<CanonicalizedPath>,
     status_line_components: Vec<StatusLineComponent>,
     last_action_description: Option<String>,
+    last_action_short_description: Option<String>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
@@ -141,6 +142,7 @@ impl<T: Frontend> App<T> {
 
             status_line_components,
             last_action_description: None,
+            last_action_short_description: None,
         };
         Ok(app)
     }
@@ -752,8 +754,12 @@ impl<T: Frontend> App<T> {
             Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found) => {
                 self.use_last_non_contiguous_selection_mode(if_current_not_found)?
             }
-            Dispatch::SetLastActionDescription(description) => {
-                self.last_action_description = Some(description)
+            Dispatch::SetLastActionDescription {
+                long_description: description,
+                short_description,
+            } => {
+                self.last_action_description = Some(description);
+                self.last_action_short_description = short_description
             }
             Dispatch::OpenFilterSelectionsPrompt { maintain } => {
                 self.open_filter_selections_prompt(maintain)?
@@ -2412,7 +2418,10 @@ pub(crate) enum Dispatch {
     OpenPipeToShellPrompt,
     SetLastNonContiguousSelectionMode(Either<SelectionMode, GlobalMode>),
     UseLastNonContiguousSelectionMode(IfCurrentNotFound),
-    SetLastActionDescription(String),
+    SetLastActionDescription {
+        long_description: String,
+        short_description: Option<String>,
+    },
     OpenFilterSelectionsPrompt {
         maintain: bool,
     },
