@@ -8,6 +8,7 @@ use comfy_table::{Cell, CellAlignment, ColumnConstraint::Absolute, Table, Width:
 use crossterm::event::KeyCode;
 use event::{KeyEvent, KeyModifiers};
 
+#[derive(Debug, Clone)]
 struct KeymapPrintSection {
     name: String,
     key_meanings: Vec<Vec<Option<String>>>,
@@ -33,7 +34,7 @@ impl KeymapPrintSection {
     pub fn has_content(&self) -> bool {
         self.key_meanings
             .iter()
-            .any(|v| v.iter().any(Option::is_some))
+            .any(|meanings| meanings.iter().any(Option::is_some))
     }
 
     fn keyboard_layout_to_keymaps(
@@ -46,7 +47,7 @@ impl KeymapPrintSection {
             .map(|row| {
                 row.iter()
                     .map(|key| {
-                        let ke = match modifiers {
+                        let key_event = match modifiers {
                             KeyModifiers::Shift => KeyEvent {
                                 code: KeyCode::Char(shifted(key).chars().next().unwrap()),
                                 modifiers: KeymapPrintSection::shifted_modifier(key),
@@ -57,7 +58,7 @@ impl KeymapPrintSection {
                             },
                         };
 
-                        match keymaps.iter().find_map(|p| p.get(&ke)) {
+                        match keymaps.iter().find_map(|keymap| keymap.get(&key_event)) {
                             // One may wonder why not simply return the short_description as it is
                             // an Option<String> but by detecting None here and replacing it with
                             // ??? we are able to see where we may not be providing a short
@@ -101,7 +102,7 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
     let mut vmode_keymaps = normal_keymaps.clone();
     vmode_keymaps.insert(0, editor.visual_mode_initialized_keymaps());
 
-    let sections = vec![
+    let sections: Vec<KeymapPrintSection> = [
         KeymapPrintSection::new("Normal", &layout, KeyModifiers::None, &normal_keymaps),
         KeymapPrintSection::new(
             "Normal Shift",
@@ -140,7 +141,8 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
             KeyModifiers::Alt,
             &editor.insert_mode_keymap_legend_config().into(),
         ),
-    ];
+    ]
+    .to_vec();
 
     sections.into_iter().filter(|km| km.has_content()).collect()
 }
