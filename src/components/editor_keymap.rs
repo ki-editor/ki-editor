@@ -4,6 +4,12 @@ use std::collections::HashMap;
 use strum::IntoEnumIterator as _;
 use Meaning::*;
 
+pub const KEYMAP_SCORE: [[u8; 10]; 3] = [
+    [3, 2, 2, 3, 4, /****/ 4, 3, 2, 2, 3],
+    [2, 1, 1, 1, 3, /****/ 3, 1, 1, 1, 2],
+    [3, 3, 3, 3, 4, /****/ 4, 3, 3, 3, 3],
+];
+
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
         Word_, Token, SrchC, MultC, OpenN, /****/ FindP, InstP, Up___, InstN, FindN,
@@ -160,6 +166,17 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::ColemakDH => "COLEMAK_DH",
             KeyboardLayoutKind::ColemakDHSemiQuote => "COLEMAK_DH_SEMI_QUOTE",
             KeyboardLayoutKind::DvorakIU => "DVORAK_IU",
+        }
+    }
+
+    pub(crate) fn get_keyboard_layout(&self) -> &KeyboardLayout {
+        match self {
+            KeyboardLayoutKind::Qwerty => &QWERTY,
+            KeyboardLayoutKind::Dvorak => &DVORAK,
+            KeyboardLayoutKind::Colemak => &COLEMAK,
+            KeyboardLayoutKind::ColemakDH => &COLEMAK_DH,
+            KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
+            KeyboardLayoutKind::DvorakIU => &DVORAK_IU,
         }
     }
 
