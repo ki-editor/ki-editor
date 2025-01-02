@@ -64,9 +64,11 @@ pub(crate) struct Search {
 
 impl Default for Context {
     fn default() -> Self {
+        use crate::themes::vscode_light;
+
         Self {
             clipboard: Clipboard::new(),
-            theme: Theme::default(),
+            theme: vscode_light(),
             mode: None,
             #[cfg(test)]
             highlight_configs: crate::syntax_highlight::HighlightConfigs::new(),
@@ -85,6 +87,7 @@ impl Context {
     pub(crate) fn new(current_working_directory: CanonicalizedPath) -> Self {
         Self {
             current_working_directory,
+            theme: Theme::default(),
             ..Self::default()
         }
     }
