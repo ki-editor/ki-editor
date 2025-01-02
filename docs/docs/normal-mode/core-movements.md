@@ -90,6 +90,8 @@ This movement can also work with the Exchange mode to swap two syntax expression
 
 <TutorialFallback filename="jump"/>
 
+Note: All letters after the first will be selected based on key accessibility in the chosen keyboard layout.
+
 ## To Index
 
 Keybinding: `0`  

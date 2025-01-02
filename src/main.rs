@@ -81,6 +81,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
             StatusLineComponent::GitBranch,
             StatusLineComponent::Mode,
             StatusLineComponent::SelectionMode,
+            StatusLineComponent::LocalSearchConfig,
             StatusLineComponent::LastDispatch,
         ]
         .to_vec(),

@@ -4,6 +4,12 @@ use std::collections::HashMap;
 use strum::IntoEnumIterator as _;
 use Meaning::*;
 
+pub const KEYMAP_SCORE: [[u8; 10]; 3] = [
+    [3, 2, 2, 3, 4, /****/ 4, 3, 2, 2, 3],
+    [2, 1, 1, 1, 3, /****/ 3, 1, 1, 1, 2],
+    [3, 3, 3, 3, 4, /****/ 4, 3, 3, 3, 3],
+];
+
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
         Word_, Token, SrchC, MultC, OpenN, /****/ FindP, InstP, Up___, InstN, FindN,
@@ -29,6 +35,8 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
 ];
 
 pub const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
+    // TODO: where should we place Next Completion Item and Prev Completion Item
+    // I'm thinking of sacrificing Delete Token
     [
         _____, GBack, ScrlU, GForw, _____, /****/ DTknP, DWrdP, Up___, DWrdN, DTknN,
     ],
@@ -161,14 +169,14 @@ impl KeyboardLayoutKind {
         }
     }
 
-    pub(crate) const fn as_keyboard_layout(&self) -> &'static KeyboardLayout {
+    pub(crate) fn get_keyboard_layout(&self) -> &KeyboardLayout {
         match self {
             KeyboardLayoutKind::Qwerty => &QWERTY,
             KeyboardLayoutKind::Dvorak => &DVORAK,
-            KeyboardLayoutKind::DvorakIU => &DVORAK_IU,
             KeyboardLayoutKind::Colemak => &COLEMAK,
             KeyboardLayoutKind::ColemakDH => &COLEMAK_DH,
             KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
+            KeyboardLayoutKind::DvorakIU => &DVORAK_IU,
         }
     }
 

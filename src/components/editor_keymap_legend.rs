@@ -597,6 +597,7 @@ impl Editor {
                     Dispatch::ShowSearchConfig {
                         scope: Scope::Local,
                         if_current_not_found: IfCurrentNotFound::LookForward,
+                        run_search_after_config_updated: self.mode != Mode::Insert,
                     },
                 ),
             ]),
@@ -1096,6 +1097,7 @@ impl Editor {
                         if_current_not_found,
                         update: crate::app::LocalSearchConfigUpdate::Search(search.to_string()),
                         show_config_after_enter: false,
+                        run_search_after_config_updated: true,
                     },
                 )
             })
@@ -1121,6 +1123,7 @@ impl Editor {
                             Dispatch::ShowSearchConfig {
                                 scope,
                                 if_current_not_found,
+                                run_search_after_config_updated: true,
                             },
                         ),
                         Keymap::new_extended(
@@ -1146,6 +1149,7 @@ impl Editor {
                                     search.search.to_string(),
                                 ),
                                 show_config_after_enter: false,
+                                run_search_after_config_updated: true,
                             },
                         )
                     }))
