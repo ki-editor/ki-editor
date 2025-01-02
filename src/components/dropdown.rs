@@ -235,6 +235,14 @@ impl Dropdown {
         self.get_item_by_index(self.current_item_index)
     }
 
+    pub(crate) fn all_filtered_items(&self) -> Vec<DropdownItem> {
+        self.filtered_item_groups
+            .iter()
+            .flat_map(|group| &group.items)
+            .map(|item| item.item.clone())
+            .collect()
+    }
+
     fn get_item_by_index(&self, item_index: usize) -> Option<DropdownItem> {
         self.filtered_item_groups
             .iter()
@@ -477,10 +485,6 @@ impl Dropdown {
 
     pub(crate) fn items(&self) -> Vec<DropdownItem> {
         self.items.clone()
-    }
-
-    pub(crate) fn filtered_item_groups(&self) -> Vec<FilteredDropdownItemGroup> {
-        self.filtered_item_groups.clone()
     }
 
     pub(crate) fn set_current_item_index(&mut self, current_item_index: usize) {
@@ -1019,21 +1023,9 @@ pub(crate) struct FilteredDropdownItem {
     fuzzy_matched_char_indices: Vec<u32>,
 }
 
-impl FilteredDropdownItem {
-    pub(crate) fn item(&self) -> DropdownItem {
-        self.item.clone()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FilteredDropdownItemGroup {
     group_key: Option<String>,
     items: Vec<FilteredDropdownItem>,
     fuzzy_matched_char_indices: Vec<u32>,
-}
-
-impl FilteredDropdownItemGroup {
-    pub(crate) fn items(&self) -> Vec<FilteredDropdownItem> {
-        self.items.clone()
-    }
 }
