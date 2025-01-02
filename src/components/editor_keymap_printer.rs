@@ -7,6 +7,8 @@ use crate::themes::vscode_light;
 use comfy_table::{Cell, CellAlignment, ColumnConstraint::Absolute, Table, Width::Fixed};
 use event::{parse_key_event, KeyModifiers};
 
+use super::editor::Mode;
+
 #[derive(Debug, Clone)]
 struct KeymapPrintSection {
     name: String,
@@ -14,11 +16,16 @@ struct KeymapPrintSection {
 }
 
 impl KeymapPrintSection {
-    pub fn new(name: &str, keyboard_layout: &KeyboardLayout, modifiers: KeyModifiers) -> Self {
+    pub fn new(keyboard_layout: &KeyboardLayout, mode: Mode, modifiers: KeyModifiers) -> Self {
         KeymapPrintSection {
-            name: name.to_string(),
+            name: if modifiers == KeyModifiers::None {
+                format!("{mode:?}",)
+            } else {
+                format!("{mode:?} {:?}", modifiers)
+            },
             key_meanings: KeymapPrintSection::keyboard_layout_to_keymaps(
                 keyboard_layout,
+                mode,
                 modifiers,
             ),
         }
@@ -32,6 +39,7 @@ impl KeymapPrintSection {
 
     fn keyboard_layout_to_keymaps(
         keyboard_layout: &KeyboardLayout,
+        mode: Mode,
         modifiers: KeyModifiers,
     ) -> Vec<Vec<Option<String>>> {
         keyboard_layout
@@ -40,6 +48,7 @@ impl KeymapPrintSection {
                 row.iter()
                     .map(|key| {
                         let mut editor = Editor::from_text(None, "");
+                        editor.mode = mode.clone();
                         let context = Context::default();
                         let (modifier, key) = if modifiers == KeyModifiers::Shift {
                             (Self::shifted_modifier(key), shifted(key))
@@ -59,19 +68,13 @@ impl KeymapPrintSection {
                         let dispatches = editor.handle_key_event(&context, key_event).ok()?;
 
                         let dispatches = dispatches.into_vec();
-                        let last_dispatch = dispatches.last()?;
-
-                        if let crate::app::Dispatch::SetLastActionDescription(_, Some(desc)) =
-                            last_dispatch
-                        {
-                            Some(desc.to_string())
-                        } else if let crate::app::Dispatch::SetLastActionDescription(_, None) =
-                            last_dispatch
-                        {
-                            Some("???".to_string())
-                        } else {
-                            None
-                        }
+                        dispatches.into_iter().find_map(|dispatch| match dispatch {
+                            crate::app::Dispatch::SetLastActionDescription {
+                                long_description,
+                                short_description,
+                            } => Some(short_description.unwrap_or(long_description)),
+                            _ => None,
+                        })
                     })
                     .collect()
             })
@@ -92,19 +95,24 @@ impl KeymapPrintSection {
 type KeymapPrintSections = Vec<KeymapPrintSection>;
 
 fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections {
+    use KeyModifiers::*;
+    use Mode::*;
     let sections: Vec<KeymapPrintSection> = [
-        KeymapPrintSection::new("Normal", &layout, KeyModifiers::None),
-        KeymapPrintSection::new("Normal Shift", &layout, KeyModifiers::Shift),
-        KeymapPrintSection::new("Normal Control", &layout, KeyModifiers::Ctrl),
-        KeymapPrintSection::new("Normal Alternate", &layout, KeyModifiers::Alt),
-        KeymapPrintSection::new("Multi-Cursor", &layout, KeyModifiers::None),
-        KeymapPrintSection::new("Multi-Cursor Shift", &layout, KeyModifiers::Shift),
-        KeymapPrintSection::new("V-mode", &layout, KeyModifiers::None),
-        KeymapPrintSection::new("Insert", &layout, KeyModifiers::Alt),
+        KeymapPrintSection::new(&layout, Normal, None),
+        KeymapPrintSection::new(&layout, Normal, Shift),
+        KeymapPrintSection::new(&layout, Normal, Ctrl),
+        KeymapPrintSection::new(&layout, Normal, Alt),
+        KeymapPrintSection::new(&layout, MultiCursor, None),
+        KeymapPrintSection::new(&layout, MultiCursor, Shift),
+        KeymapPrintSection::new(&layout, V, None),
+        KeymapPrintSection::new(&layout, Insert, Alt),
     ]
     .to_vec();
 
-    sections.into_iter().filter(|km| km.has_content()).collect()
+    sections
+        .into_iter()
+        .filter(|section| section.has_content())
+        .collect()
 }
 
 /// Print an ASCII representation of the keymap.

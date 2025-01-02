@@ -743,7 +743,10 @@ impl<T: Frontend> App<T> {
             Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found) => {
                 self.use_last_non_contiguous_selection_mode(if_current_not_found)?
             }
-            Dispatch::SetLastActionDescription(description, short_description) => {
+            Dispatch::SetLastActionDescription {
+                long_description: description,
+                short_description,
+            } => {
                 self.last_action_description = Some(description);
                 self.last_action_short_description = short_description
             }
@@ -2387,7 +2390,10 @@ pub(crate) enum Dispatch {
     OpenPipeToShellPrompt,
     SetLastNonContiguousSelectionMode(Either<SelectionMode, GlobalMode>),
     UseLastNonContiguousSelectionMode(IfCurrentNotFound),
-    SetLastActionDescription(String, Option<String>),
+    SetLastActionDescription {
+        long_description: String,
+        short_description: Option<String>,
+    },
     OpenFilterSelectionsPrompt {
         maintain: bool,
     },

@@ -292,10 +292,10 @@ impl Keymap {
     }
 
     pub(crate) fn get_dispatches(&self) -> Dispatches {
-        Dispatches::one(self.dispatch.clone()).append(Dispatch::SetLastActionDescription(
-            self.description.clone(),
-            self.short_description.clone(),
-        ))
+        Dispatches::one(self.dispatch.clone()).append(Dispatch::SetLastActionDescription {
+            long_description: self.description.clone(),
+            short_description: self.short_description.clone(),
+        })
     }
 
     pub(crate) fn event(&self) -> &KeyEvent {
@@ -474,7 +474,10 @@ mod test_keymap_legend {
             Dispatches::new(vec![
                 Dispatch::CloseCurrentWindowAndFocusParent,
                 Dispatch::Custom("Spongebob".to_string()),
-                SetLastActionDescription("fifafofum".to_string(), None)
+                SetLastActionDescription {
+                    long_description: "fifafofum".to_string(),
+                    short_description: None
+                }
             ])
         )
     }
