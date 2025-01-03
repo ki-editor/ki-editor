@@ -764,6 +764,9 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenFilterSelectionsPrompt { maintain } => {
                 self.open_filter_selections_prompt(maintain)?
             }
+            Dispatch::ToPrompt(dispatch) => {
+                self.handle_dispatch_suggestive_editor_of_prompt(dispatch)?
+            }
         }
         Ok(())
     }
@@ -1943,6 +1946,23 @@ impl<T: Frontend> App<T> {
         self.handle_dispatches(dispatches)
     }
 
+    pub(crate) fn handle_dispatch_suggestive_editor_of_prompt(
+        &mut self,
+        dispatch: DispatchSuggestiveEditor,
+    ) -> anyhow::Result<()> {
+        let component = self
+            .layout
+            .get_component_by_kind(ComponentKind::Prompt)
+            .ok_or_else(|| anyhow::anyhow!("App::handle_dispatch_prompt Cannot find prompt"))?;
+        let dispatches = component
+            .borrow_mut()
+            .as_any_mut()
+            .downcast_mut::<Prompt>()
+            .ok_or_else(|| anyhow::anyhow!("App::handle_dispatch_prompt Failed to downcast"))?
+            .handle_dispatch_suggestive_editor(dispatch)?;
+        self.handle_dispatches(dispatches)
+    }
+
     #[cfg(test)]
     pub(crate) fn completion_dropdown_is_open(&self) -> bool {
         self.layout.completion_dropdown_is_open()
@@ -2425,6 +2445,7 @@ pub(crate) enum Dispatch {
     OpenFilterSelectionsPrompt {
         maintain: bool,
     },
+    ToPrompt(DispatchSuggestiveEditor),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

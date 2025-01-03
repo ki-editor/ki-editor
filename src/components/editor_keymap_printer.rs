@@ -1,13 +1,23 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{
     app::Dispatch::SetLastActionDescription,
+    buffer::Buffer,
     components::{
+        dropdown::DropdownItem,
         editor::{Editor, Mode},
         editor_keymap::{shifted, KeyboardLayout, KEYBOARD_LAYOUT},
     },
     context::Context,
+    lsp::completion::Completion,
 };
 use comfy_table::{Cell, CellAlignment, ColumnConstraint::Absolute, Table, Width::Fixed};
 use event::{parse_key_event, KeyModifiers};
+
+use super::{
+    component::Component,
+    suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
+};
 
 #[derive(Debug, Clone)]
 struct KeymapPrintSection {
@@ -47,8 +57,21 @@ impl KeymapPrintSection {
             .map(|row| {
                 row.iter()
                     .map(|key| {
-                        let mut editor = Editor::from_text(None, "");
-                        editor.mode = mode.clone();
+                        let mut editor = SuggestiveEditor::from_buffer(
+                            Rc::new(RefCell::new(Buffer::new(None, ""))),
+                            SuggestiveEditorFilter::CurrentLine,
+                        );
+                        // This is necessary for extracting Next/Prev Completion Item keybindings
+                        editor.set_completion(Completion {
+                            items: [
+                                DropdownItem::new("foo".to_string()),
+                                DropdownItem::new("bar".to_string()),
+                            ]
+                            .to_vec(),
+                            trigger_characters: vec![],
+                        });
+                        editor.editor_mut().mode = mode.clone();
+
                         let context = Context::default();
                         let (modifier, key) = if modifiers == KeyModifiers::Shift {
                             (Self::shifted_modifier(key), shifted(key))
@@ -65,6 +88,7 @@ impl KeymapPrintSection {
                             format!("{}{}{}", modifiers.to_string(), modifier_joiner, key);
                         let key_event = parse_key_event(&key_str).ok()?;
                         let dispatches = editor.handle_key_event(&context, key_event).ok()?;
+                        println!("Dispatches = {dispatches:#?}");
 
                         let dispatches = dispatches.into_vec();
                         dispatches.into_iter().find_map(|dispatch| match dispatch {

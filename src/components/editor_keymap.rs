@@ -35,16 +35,16 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
 ];
 
 pub const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
-    // TODO: where should we place Next Completion Item and Prev Completion Item
-    // I'm thinking of sacrificing Delete Token
+    // TODO: Implement Up Line and Down Line
+    // The cursor should be placed at the of the line
     [
-        _____, GBack, ScrlU, GForw, _____, /****/ DTknP, DWrdP, Up___, DWrdN, DTknN,
+        _____, GBack, ScrlU, GForw, _____, /****/ KilLP, LineP, LineU, LineN, KilLN,
     ],
     [
-        SView, BuffP, ScrlD, BuffN, _____, /****/ KilLP, CharP, Down_, CharN, KilLN,
+        SView, BuffP, ScrlD, BuffN, _____, /****/ DWrdP, CharP, LineD, CharN, _____,
     ],
     [
-        Undo_, WSwth, WClse, UPstE, _____, /****/ _____, LineP, _____, LineN, CSrch,
+        Undo_, WSwth, WClse, UPstE, _____, /****/ DTknP, CItmP, _____, CItmN, CSrch,
     ],
 ];
 
@@ -240,6 +240,10 @@ pub(crate) enum Meaning {
     ChngX,
     /// Change Surround
     Chng_,
+    /// Next Completion Item
+    CItmN,
+    /// Previous Completion Item
+    CItmP,
     /// Copy
     Copy_,
     /// Cycle primary select next
@@ -298,6 +302,10 @@ pub(crate) enum Meaning {
     Last_,
     /// Left
     Left_,
+    /// Line Up
+    LineU,
+    /// Line Down
+    LineD,
     /// Select full line
     LineF,
     /// Move to line end

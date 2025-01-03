@@ -15,7 +15,7 @@ use super::{
     component::Component,
     dropdown::DropdownItem,
     editor::{Editor, Mode},
-    suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
+    suggestive_editor::{DispatchSuggestiveEditor, SuggestiveEditor, SuggestiveEditorFilter},
 };
 
 pub(crate) struct Prompt {
@@ -195,7 +195,14 @@ impl Component for Prompt {
         }
     }
 }
-
+impl Prompt {
+    pub(crate) fn handle_dispatch_suggestive_editor(
+        &mut self,
+        dispatch: DispatchSuggestiveEditor,
+    ) -> anyhow::Result<Dispatches> {
+        self.editor.handle_dispatch(dispatch)
+    }
+}
 #[cfg(test)]
 mod test_prompt {
     use crate::{
