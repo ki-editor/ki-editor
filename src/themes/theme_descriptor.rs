@@ -32,14 +32,13 @@ impl From<ThemeDescriptor> for Theme {
 }
 
 pub(crate) fn all() -> Vec<ThemeDescriptor> {
-    let vscode_themes = vec![
+    let mut theme_descriptors: Vec<ThemeDescriptor> = [
         ThemeDescriptor::ThemeFn("VSCode (Light)".to_string(), vscode_light),
         ThemeDescriptor::ThemeFn("VSCode (Dark)".to_string(), vscode_dark),
-    ];
-    let zed_themes = from_zed_theme::theme_descriptors();
-
-    let mut theme_descriptors: Vec<ThemeDescriptor> =
-        vscode_themes.into_iter().chain(zed_themes).collect();
+    ]
+    .into_iter()
+    .chain(from_zed_theme::theme_descriptors())
+    .collect();
 
     theme_descriptors.sort_by(|a, b| a.name().cmp(b.name()));
     theme_descriptors
