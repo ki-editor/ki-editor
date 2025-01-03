@@ -2073,8 +2073,10 @@ impl<T: Frontend> App<T> {
                 on_enter: DispatchPrompt::Null,
                 items: crate::themes::theme_descriptor::all()
                     .into_iter()
-                    .map(|theme| {
+                    .enumerate()
+                    .map(|(index, theme)| {
                         DropdownItem::new(theme.name().to_string())
+                            .set_rank(Some(Box::from([index].to_vec())))
                             .set_dispatches(Dispatches::one(Dispatch::SetTheme(theme.into())))
                     })
                     .collect_vec(),
