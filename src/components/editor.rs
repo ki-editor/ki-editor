@@ -1,3 +1,19 @@
+use super::{
+    component::ComponentId,
+    dropdown::DropdownRender,
+    render_editor::Source,
+    suggestive_editor::{Decoration, Info},
+};
+use crate::{
+    app::{Dimension, Dispatch},
+    buffer::Buffer,
+    components::component::Component,
+    edit::{Action, ActionGroup, Edit, EditTransaction},
+    lsp::completion::PositionalEdit,
+    position::Position,
+    rectangle::Rectangle,
+    selection::{CharIndex, Selection, SelectionMode, SelectionSet},
+};
 use crate::{
     app::{Dispatches, RequestParams, Scope},
     buffer::Line,
@@ -9,40 +25,19 @@ use crate::{
     surround::EnclosureKind,
     transformation::{MyRegex, Transformation},
 };
-
+use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
+use event::KeyEvent;
+use itertools::{Either, Itertools};
+use my_proc_macros::key;
 use nonempty::NonEmpty;
+use ropey::Rope;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{
     cell::{Ref, RefCell, RefMut},
     ops::{Not, Range},
     rc::Rc,
 };
-
-use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
-use event::KeyEvent;
-use itertools::{Either, Itertools};
-use my_proc_macros::key;
-use ropey::Rope;
-
-use crate::{
-    app::{Dimension, Dispatch},
-    buffer::Buffer,
-    components::component::Component,
-    edit::{Action, ActionGroup, Edit, EditTransaction},
-    lsp::completion::PositionalEdit,
-    position::Position,
-    rectangle::Rectangle,
-    selection::{CharIndex, Selection, SelectionMode, SelectionSet},
-};
-
 use DispatchEditor::*;
-
-use super::{
-    component::ComponentId,
-    dropdown::DropdownRender,
-    render_editor::Source,
-    suggestive_editor::{Decoration, Info},
-};
 
 #[derive(PartialEq, Clone, Debug, Eq)]
 pub(crate) enum Mode {
@@ -61,6 +56,7 @@ pub(crate) struct Jump {
     pub(crate) character: char,
     pub(crate) selection: Selection,
 }
+
 const WINDOW_TITLE_HEIGHT: usize = 1;
 
 impl Component for Editor {
@@ -429,6 +425,7 @@ pub(crate) struct RegexHighlightRuleCaptureStyle {
     pub(crate) capture_name: &'static str,
     pub(crate) source: Source,
 }
+
 impl RegexHighlightRuleCaptureStyle {
     pub(crate) fn new(capture_name: &'static str, source: Source) -> Self {
         Self {
@@ -472,6 +469,7 @@ pub(crate) enum IfCurrentNotFound {
     LookForward,
     LookBackward,
 }
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Movement {
     Right,
