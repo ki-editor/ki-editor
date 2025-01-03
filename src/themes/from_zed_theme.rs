@@ -31,12 +31,12 @@ struct ZedThemeManiftest {
 pub fn theme_descriptors() -> Vec<ThemeDescriptor> {
     ZED_THEME_LINKS
         .iter()
-        .flat_map(theme_descriptor_from_zed_url)
+        .flat_map(|&url| theme_descriptor_from_zed_url(url))
         .flatten()
         .collect()
 }
 
-fn theme_descriptor_from_zed_url(url: &&str) -> anyhow::Result<Vec<ThemeDescriptor>> {
+fn theme_descriptor_from_zed_url(url: &str) -> anyhow::Result<Vec<ThemeDescriptor>> {
     let json_str = cache_download(
         url,
         "zed-themes",
@@ -228,13 +228,18 @@ impl From<Box<ThemeContent>> for Theme {
 
 #[cfg(test)]
 mod test_from_zed_theme {
+    use crate::themes::Theme;
+
     #[test]
     fn test() -> anyhow::Result<()> {
-        // TODO
         // Expect no failure
-        //super::from_zed_theme(
-        // "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
-        //)?;
+        let _: Vec<Theme> = super::theme_descriptor_from_zed_url(
+            "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
+        )?
+        .iter()
+        .map(|theme| (*theme).clone().into())
+        .collect();
+
         Ok(())
     }
 }
