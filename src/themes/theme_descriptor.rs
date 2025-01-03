@@ -22,10 +22,7 @@ impl From<ThemeDescriptor> for Theme {
         match theme_descriptor {
             ThemeDescriptor::ThemeFn(_, theme_fn) => theme_fn(),
             ThemeDescriptor::ZedThemeURLMap(name, url) => {
-                match from_zed_theme::from_url(name, url) {
-                    Ok(theme) => theme,
-                    Err(_) => vscode_light(),
-                }
+                from_zed_theme::from_url(name, url).unwrap_or_else(|_| vscode_light())
             }
         }
     }
