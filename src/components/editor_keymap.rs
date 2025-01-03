@@ -15,7 +15,7 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         Word_, Token, SrchC, MultC, OpenN, /****/ FindP, InstP, Up___, InstN, FindN,
     ],
     [
-        Line_, Sytx_, Chng_, DeltN, VMode, /****/ Left_, Prev_, Down_, Next_, Right,
+        Line_, Sytx_, DeltN, Chng_, VMode, /****/ Left_, Prev_, Down_, Next_, Right,
     ],
     [
         Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ Globl, First, Jump_, Last_, SrchN,
@@ -27,7 +27,7 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         Char_, Trsfm, Mark_, Raise, OpenP, /****/ _____, RplcP, Join_, RplcN, _____,
     ],
     [
-        LineF, StyxF, ChngX, DeltP, _____, /****/ _____, DeDnt, Break, Indnt, _____,
+        LineF, StyxF, DeltP, ChngX, _____, /****/ _____, DeDnt, Break, Indnt, _____,
     ],
     [
         Redo_, XAchr, RplcX, PsteP, PRplc, /****/ _____, CrsrP, ToIdx, CrsrN, SrchP,

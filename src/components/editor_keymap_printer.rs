@@ -88,8 +88,6 @@ impl KeymapPrintSection {
                             format!("{}{}{}", modifiers.to_string(), modifier_joiner, key);
                         let key_event = parse_key_event(&key_str).ok()?;
                         let dispatches = editor.handle_key_event(&context, key_event).ok()?;
-                        println!("Dispatches = {dispatches:#?}");
-
                         let dispatches = dispatches.into_vec();
                         dispatches.into_iter().find_map(|dispatch| match dispatch {
                             SetLastActionDescription {
