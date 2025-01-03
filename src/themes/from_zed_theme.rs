@@ -8,18 +8,18 @@ use shared::download::cache_download;
 use zed_theme::*;
 
 const ZED_THEME_LINKS: &[&str] = &[
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/gruvbox/gruvbox.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
+    "https://raw.githubusercontent.com/catppuccin/zed/main/themes/catppuccin-mauve.json",
+    "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai.json",
+    "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai_st3.json",
     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/andromeda/andromeda.json",
     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/atelier/atelier.json",
     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/ayu/ayu.json",
+    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/gruvbox/gruvbox.json",
+    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/rose_pine/rose_pine.json",
     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/sandcastle/sandcastle.json",
     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/solarized/solarized.json",
     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/summercamp/summercamp.json",
-    "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai.json",
-    "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai_st3.json",
-    "https://raw.githubusercontent.com/catppuccin/zed/main/themes/catppuccin-mauve.json",
 ];
 
 #[derive(serde::Deserialize)]
