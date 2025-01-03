@@ -971,7 +971,7 @@ fn first () {
             Editor(AlignViewTop),
             Expect(AppGrid(
                 "
- 🦀  src/main.rs
+ 🦀  src/main.rs [*]
 1│fn first () {
 5│  █ifth();
 6│}
@@ -983,7 +983,7 @@ fn first () {
             Editor(AlignViewBottom),
             Expect(AppGrid(
                 "
- 🦀  src/main.rs
+ 🦀  src/main.rs [*]
 1│fn first () {
 3│  third();
 4│  fourth(); // this line is long
@@ -1000,7 +1000,7 @@ fn first () {
             Editor(AlignViewBottom),
             Expect(AppGrid(
                 "
- 🦀  src/main.rs
+ 🦀  src/main.rs [*]
 1│fn first () {
 4│  fourth(); //
 ↪│this line is long

@@ -87,7 +87,8 @@ impl Component for Editor {
                     .display_relative_to(current_working_directory)
                     .unwrap_or_else(|_| path.display_absolute());
                 let icon = path.icon();
-                Some(format!(" {} {}", icon, string))
+                let dirty = if self.buffer().dirty() { " [*]" } else { "" };
+                Some(format!(" {} {}{}", icon, string, dirty))
             })
             .unwrap_or_else(|| "[No title]".to_string())
     }

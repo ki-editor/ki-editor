@@ -1182,7 +1182,7 @@ fn scroll_offset() -> anyhow::Result<()> {
                 height: 3,
             })),
             Editor(SetScrollOffset(2)),
-            Expect(EditorGrid("🦀  src/main.rs\n3│█amma\n4│lok")),
+            Expect(EditorGrid("🦀  src/main.rs [*]\n3│█amma\n4│lok")),
         ])
     })
 }
@@ -1250,7 +1250,7 @@ fn main() {
             // The "long" of "too long" is not shown, because it exceeded the view width
             Expect(EditorGrid(
                 "
-🦀  src/main.rs
+🦀  src/main.rs [*]
 1│fn main() {
 3│  █eta()
 4│}
@@ -1397,7 +1397,7 @@ fn main() {
             // because it is amongst the parent lines of the current selection
             Expect(EditorGrid(
                 "
-🦀  src/main.rs
+🦀  src/main.rs [*]
 2│fn main() {
 4│  let y = 2; //
 ↪│too long, wrapped
@@ -1449,7 +1449,7 @@ fn main() {
             Editor(SetScrollOffset(3)),
             Expect(EditorGrid(
                 "
-🦀  src/main.rs
+🦀  src/main.rs [*]
 2│fn main() {
 4│  let y = 2; //
 ↪│too long, wrapped
@@ -1683,7 +1683,7 @@ fn main() { // too long
             // The "long" of "too long" is not shown, because it exceeded the view width
             Expect(EditorGrid(
                 "
-🦀  src/main.rs
+🦀  src/main.rs [*]
 1│fn main() { // too
 3│  let █ar = baba;
 ↪│let wrapped = coco
@@ -1743,7 +1743,7 @@ fn main() { // too long
             Editor(MatchLiteral("let".to_string())),
             Expect(EditorGrid(
                 "
-🦀  src/main.rs
+🦀  src/main.rs [*]
 1│fn main() { // too
 ↪│ long
 2│  █et foo = 1;
@@ -1773,7 +1773,7 @@ fn empty_content_should_have_one_line() -> anyhow::Result<()> {
             })),
             Expect(EditorGrid(
                 "
-🦀  src/main.rs
+🦀  src/main.rs [*]
 1│█
 "
                 .trim(),
@@ -1886,7 +1886,7 @@ fn consider_unicode_width() -> anyhow::Result<()> {
             // Expect the cursor is on the letter 'a'
             // Expect an extra space is added between 'a' and the emoji
             // because, the unicode width of the emoji is 2
-            Expect(EditorGrid("🦀  src/main.rs\n1│👩  █bc\n\n\n\n\n\n\n")),
+            Expect(EditorGrid("🦀  src/main.rs [*]\n1│👩  █bc\n\n\n\n\n\n\n")),
         ])
     })
 }
@@ -1985,9 +1985,11 @@ fn modifying_editor_causes_dirty_state() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Expect(Not(Box::new(EditorIsDirty()))),
+            Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
             Expect(EditorIsDirty()),
+            Expect(CurrentComponentTitle(" 🦀 src/main.rs [*]")),
         ])
     })
 }
@@ -2001,8 +2003,10 @@ fn saving_editor_clears_dirty_state() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
             Expect(EditorIsDirty()),
+            Expect(CurrentComponentTitle(" 🦀 src/main.rs [*]")),
             Editor(Save),
             Expect(Not(Box::new(EditorIsDirty()))),
+            Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
         ])
     })
 }

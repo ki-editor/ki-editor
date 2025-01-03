@@ -748,7 +748,6 @@ impl Buffer {
     }
 
     /// Has the buffer changed since its last save?
-    #[cfg(test)]
     pub(crate) fn dirty(&self) -> bool {
         self.dirty
     }
