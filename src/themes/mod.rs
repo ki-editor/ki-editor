@@ -20,6 +20,7 @@ pub(crate) struct Theme {
     pub(crate) diagnostic: DiagnosticStyles,
     pub(crate) hunk: HunkStyles,
 }
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct HunkStyles {
     pub(crate) old_background: Color,
@@ -27,6 +28,7 @@ pub(crate) struct HunkStyles {
     pub(crate) old_emphasized_background: Color,
     pub(crate) new_emphasized_background: Color,
 }
+
 impl HunkStyles {
     fn dark() -> Self {
         Self {
@@ -36,6 +38,7 @@ impl HunkStyles {
             new_emphasized_background: hex!("#4E5A32"),
         }
     }
+
     fn light() -> Self {
         Self {
             new_background: hex!("#EBFEED"),
@@ -45,6 +48,7 @@ impl HunkStyles {
         }
     }
 }
+
 impl Theme {
     pub(crate) fn get_style(&self, source: &StyleKey) -> Style {
         match source {
@@ -173,6 +177,7 @@ pub(crate) struct SyntaxStyles {
     map: once_cell::sync::OnceCell<HashMap<&'static str, Style>>,
     groups: Vec<(HighlightName, Style)>,
 }
+
 impl SyntaxStyles {
     pub fn new(groups: &[(HighlightName, Style)]) -> Self {
         Self {
@@ -180,6 +185,7 @@ impl SyntaxStyles {
             map: once_cell::sync::OnceCell::new(),
         }
     }
+
     fn map(&self) -> &HashMap<&'static str, Style> {
         self.map.get_or_init(|| {
             self.groups
@@ -188,6 +194,7 @@ impl SyntaxStyles {
                 .collect()
         })
     }
+
     fn get_style(&self, highlight_group: &str) -> Option<Style> {
         let group = HighlightGroup::new(highlight_group);
         self.map()
@@ -213,6 +220,7 @@ mod test_syntax_styles {
             (Variable, fg(hex!("#abcdef"))),
         ])
     }
+
     #[test]
     fn test_get_style() {
         assert_eq!(
@@ -279,7 +287,6 @@ pub enum HighlightName {
     SyntaxKeyword,
     #[strum(serialize = "syntax.keyword.async")]
     SyntaxKeywordAsync,
-
     #[strum(serialize = "variable")]
     Variable,
     #[strum(serialize = "variable.builtin")]
