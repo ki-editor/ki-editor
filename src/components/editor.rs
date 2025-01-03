@@ -2163,26 +2163,19 @@ impl Editor {
     }
 
     fn do_save(&mut self, force: bool) -> anyhow::Result<Dispatches> {
-        let document_did_save_dispatch = if true {
-            let Some(path) = self
-                .buffer
-                .borrow_mut()
-                .save(self.selection_set.clone(), force)?
-            else {
-                return Ok(Default::default());
-            };
-
-            Some(Dispatch::DocumentDidSave { path })
-        } else {
-            None
+        let Some(path) = self
+            .buffer
+            .borrow_mut()
+            .save(self.selection_set.clone(), force)?
+        else {
+            return Ok(Default::default());
         };
 
         self.clamp()?;
         self.cursor_keep_primary_only();
         self.enter_normal_mode()?;
-
         Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent)
-            .append_some(document_did_save_dispatch)
+            .append(Dispatch::DocumentDidSave { path })
             .chain(self.get_document_did_change_dispatch())
             .append(Dispatch::RemainOnlyCurrentComponent)
             .append_some(if self.selection_set.mode.is_contiguous() {
