@@ -498,7 +498,7 @@ pub(crate) enum Movement {
 
 impl Editor {
     /// Returns if the editor is currently dirty or not.
-    #[test]
+    #[cfg(test)]
     pub(crate) fn dirty(&self) -> bool {
         self.dirty
     }
