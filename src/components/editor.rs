@@ -365,7 +365,6 @@ impl Clone for Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
-            dirty: false,
         }
     }
 }
@@ -388,9 +387,6 @@ pub(crate) struct Editor {
     id: ComponentId,
     pub(crate) current_view_alignment: Option<ViewAlignment>,
     copied_text_history_offset: Counter,
-
-    /// Has this Editor changed it's buffer content since it has been read/saved?
-    dirty: bool,
 }
 
 #[derive(Default)]
@@ -495,12 +491,6 @@ pub(crate) enum Movement {
 }
 
 impl Editor {
-    /// Returns if the editor is currently dirty or not.
-    #[cfg(test)]
-    pub(crate) fn dirty(&self) -> bool {
-        self.dirty
-    }
-
     /// Returns (hidden_parent_lines, visible_parent_lines)
     pub(crate) fn get_parent_lines(&self) -> anyhow::Result<(Vec<Line>, Vec<Line>)> {
         let position = self.get_cursor_position()?;
@@ -547,7 +537,6 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
-            dirty: false,
         }
     }
 
@@ -565,7 +554,6 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
-            dirty: false,
         }
     }
 
@@ -1116,8 +1104,6 @@ impl Editor {
     }
 
     pub(crate) fn get_document_did_change_dispatch(&mut self) -> Dispatches {
-        self.dirty = true;
-
         [Dispatch::DocumentDidChange {
             component_id: self.id(),
             path: self.buffer().path(),
@@ -2016,7 +2002,6 @@ impl Editor {
     }
 
     fn update_buffer(&mut self, s: &str) {
-        self.dirty = true;
         self.buffer.borrow_mut().update(s)
     }
 
@@ -2177,8 +2162,12 @@ impl Editor {
     }
 
     fn do_save(&mut self, force: bool) -> anyhow::Result<Dispatches> {
-        let document_did_save_dispatch = if force || self.dirty {
-            let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())? else {
+        let document_did_save_dispatch = if true {
+            let Some(path) = self
+                .buffer
+                .borrow_mut()
+                .save(self.selection_set.clone(), force)?
+            else {
                 return Ok(Default::default());
             };
 
@@ -2190,7 +2179,6 @@ impl Editor {
         self.clamp()?;
         self.cursor_keep_primary_only();
         self.enter_normal_mode()?;
-        self.dirty = false;
 
         Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent)
             .append_some(document_did_save_dispatch)

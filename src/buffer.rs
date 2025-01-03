@@ -39,6 +39,7 @@ pub(crate) struct Buffer {
     quickfix_list_items: Vec<QuickfixListItem>,
     decorations: Vec<Decoration>,
     selection_set_history: History<SelectionSet>,
+    dirty: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -72,6 +73,7 @@ impl Buffer {
             diagnostics: Vec::new(),
             quickfix_list_items: Vec::new(),
             selection_set_history: History::new(),
+            dirty: false,
         }
     }
 
@@ -89,8 +91,8 @@ impl Buffer {
     pub(crate) fn reload(&mut self) -> anyhow::Result<()> {
         if let Some(path) = self.path() {
             let updated_content = path.read()?;
-
             self.update_content(&updated_content, SelectionSet::default())?;
+            self.dirty = false;
         }
         Ok(())
     }
@@ -263,6 +265,7 @@ impl Buffer {
 
     pub(crate) fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
+        self.dirty = true;
     }
 
     pub(crate) fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
@@ -490,6 +493,7 @@ impl Buffer {
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
             .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
+        self.dirty = true;
 
         // Update all the positional spans (by using the char index ranges computed before the content is updated
         self.quickfix_list_items = quickfix_list_items_with_char_index_range
@@ -645,10 +649,17 @@ impl Buffer {
         None
     }
 
-    pub(crate) fn save_without_formatting(&mut self) -> anyhow::Result<Option<CanonicalizedPath>> {
-        if let Some(path) = &self.path.clone() {
-            path.write(&self.content())?;
+    pub(crate) fn save_without_formatting(
+        &mut self,
+        force: bool,
+    ) -> anyhow::Result<Option<CanonicalizedPath>> {
+        if !force && !self.dirty {
+            return Ok(None);
+        }
 
+        if let Some(path) = &self.path {
+            path.write(&self.content())?;
+            self.dirty = false;
             Ok(Some(path.clone()))
         } else {
             log::info!("Buffer has no path");
@@ -659,12 +670,15 @@ impl Buffer {
     pub(crate) fn save(
         &mut self,
         current_selection_set: SelectionSet,
+        force: bool,
     ) -> anyhow::Result<Option<CanonicalizedPath>> {
-        if let Some(formatted_content) = self.get_formatted_content() {
-            self.update_content(&formatted_content, current_selection_set)?;
+        if force || self.dirty {
+            if let Some(formatted_content) = self.get_formatted_content() {
+                self.update_content(&formatted_content, current_selection_set)?;
+            }
         }
 
-        self.save_without_formatting()
+        self.save_without_formatting(force)
     }
 
     fn update_content(
@@ -731,6 +745,12 @@ impl Buffer {
 
     pub(crate) fn marks(&self) -> Vec<CharIndexRange> {
         self.marks.clone()
+    }
+
+    /// Has the buffer changed since its last save?
+    #[cfg(test)]
+    pub(crate) fn dirty(&self) -> bool {
+        self.dirty
     }
 
     pub(crate) fn byte_to_position(&self, byte_index: usize) -> anyhow::Result<Position> {
@@ -1147,7 +1167,7 @@ fn f(
                 buffer.update(" fn main\n() {}");
 
                 // Save the buffer
-                buffer.save(SelectionSet::default()).unwrap();
+                buffer.save(SelectionSet::default(), false).unwrap();
 
                 // Expect the output is formatted
                 let saved_content = path.read().unwrap();
@@ -1175,7 +1195,7 @@ fn f(
                 let original = " fn main\n() {}";
                 buffer.update(original);
 
-                buffer.save(SelectionSet::default()).unwrap();
+                buffer.save(SelectionSet::default(), false).unwrap();
 
                 // Expect the buffer is formatted
                 assert_ne!(buffer.rope.to_string(), original);
@@ -1199,7 +1219,7 @@ fn f(
                 buffer.update("fn main() {");
 
                 // Save the buffer
-                buffer.save(SelectionSet::default()).unwrap();
+                buffer.save(SelectionSet::default(), false).unwrap();
 
                 // Expect the buffer remain unchanged,
                 // because the syntax node is invalid
@@ -1222,7 +1242,7 @@ fn f(
                 // but not to the formatter
                 assert!(!buffer.tree.as_ref().unwrap().root_node().has_error());
 
-                buffer.save(SelectionSet::default()).unwrap();
+                buffer.save(SelectionSet::default(), false).unwrap();
 
                 // Expect the buffer remain unchanged
                 assert_eq!(buffer.rope.to_string(), code);
