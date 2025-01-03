@@ -764,9 +764,7 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenFilterSelectionsPrompt { maintain } => {
                 self.open_filter_selections_prompt(maintain)?
             }
-            Dispatch::ToPrompt(dispatch) => {
-                self.handle_dispatch_suggestive_editor_of_prompt(dispatch)?
-            }
+            Dispatch::MoveToCompletionItem(direction) => self.move_to_completion_item(direction)?,
         }
         Ok(())
     }
@@ -1946,21 +1944,35 @@ impl<T: Frontend> App<T> {
         self.handle_dispatches(dispatches)
     }
 
-    pub(crate) fn handle_dispatch_suggestive_editor_of_prompt(
-        &mut self,
-        dispatch: DispatchSuggestiveEditor,
-    ) -> anyhow::Result<()> {
-        let component = self
+    pub(crate) fn move_to_completion_item(&mut self, direction: Direction) -> anyhow::Result<()> {
+        if let Some(component) = self.layout.get_component_by_kind(ComponentKind::Prompt) {
+            let dispatches = component
+                .borrow_mut()
+                .as_any_mut()
+                .downcast_mut::<Prompt>()
+                .ok_or_else(|| anyhow::anyhow!("App::move_to_completion_item Failed to downcast current component to Prompt"))?
+                .handle_dispatch_suggestive_editor(
+                    DispatchSuggestiveEditor::MoveToCompletionItem(direction),
+                )?;
+            self.handle_dispatches(dispatches)
+        } else if let Some(component) = self
             .layout
-            .get_component_by_kind(ComponentKind::Prompt)
-            .ok_or_else(|| anyhow::anyhow!("App::handle_dispatch_prompt Cannot find prompt"))?;
-        let dispatches = component
-            .borrow_mut()
-            .as_any_mut()
-            .downcast_mut::<Prompt>()
-            .ok_or_else(|| anyhow::anyhow!("App::handle_dispatch_prompt Failed to downcast"))?
-            .handle_dispatch_suggestive_editor(dispatch)?;
-        self.handle_dispatches(dispatches)
+            .get_component_by_kind(ComponentKind::SuggestiveEditor)
+        {
+            let dispatches = component
+                .borrow_mut()
+                .as_any_mut()
+                .downcast_mut::<SuggestiveEditor>()
+                .ok_or_else(|| anyhow::anyhow!("App::move_to_completion_item Failed to downcast current component to SuggestiveEditor"))?
+                .handle_dispatch(
+                    DispatchSuggestiveEditor::MoveToCompletionItem(direction),
+                )?;
+            self.handle_dispatches(dispatches)
+        } else {
+            Err(anyhow::anyhow!(
+                "The current component is neither Prompt or SuggestiveEditor, thus `App::move_to_completion_item` does nothing."
+            ))
+        }
     }
 
     #[cfg(test)]
@@ -2445,7 +2457,7 @@ pub(crate) enum Dispatch {
     OpenFilterSelectionsPrompt {
         maintain: bool,
     },
-    ToPrompt(DispatchSuggestiveEditor),
+    MoveToCompletionItem(Direction),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

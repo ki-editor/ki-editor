@@ -16,7 +16,7 @@ use my_proc_macros::key;
 use std::{cell::RefCell, rc::Rc};
 
 use super::dropdown::{Dropdown, DropdownConfig};
-use super::editor::{DispatchEditor, IfCurrentNotFound};
+use super::editor::{Direction, DispatchEditor, IfCurrentNotFound};
 use super::editor_keymap::{Meaning, KEYBOARD_LAYOUT};
 use super::keymap_legend::{Keymap, KeymapLegendSection, Keymaps};
 use super::{
@@ -83,13 +83,13 @@ impl Component for SuggestiveEditor {
                     KEYBOARD_LAYOUT.get_insert_key(&Meaning::CItmN),
                     "comp item >".to_string(),
                     "Next Completion Item".to_string(),
-                    Dispatch::ToPrompt(DispatchSuggestiveEditor::NextCompletionItem),
+                    Dispatch::MoveToCompletionItem(Direction::End),
                 ),
                 Keymap::new_extended(
                     KEYBOARD_LAYOUT.get_insert_key(&Meaning::CItmP),
                     "comp item <".to_string(),
                     "Previous Completion Item".to_string(),
-                    Dispatch::ToPrompt(DispatchSuggestiveEditor::PreviousCompletionItem),
+                    Dispatch::MoveToCompletionItem(Direction::Start),
                 ),
             ])
             .get(&event)
@@ -211,8 +211,12 @@ impl SuggestiveEditor {
             DispatchSuggestiveEditor::UpdateCurrentCompletionItem(completion_item) => {
                 Ok(self.update_current_completion_item(completion_item))
             }
-            DispatchSuggestiveEditor::NextCompletionItem => self.next_completion_item(),
-            DispatchSuggestiveEditor::PreviousCompletionItem => self.previous_completion_item(),
+            DispatchSuggestiveEditor::MoveToCompletionItem(Direction::End) => {
+                self.next_completion_item()
+            }
+            DispatchSuggestiveEditor::MoveToCompletionItem(Direction::Start) => {
+                self.previous_completion_item()
+            }
         }
     }
 
@@ -314,8 +318,7 @@ pub(crate) enum DispatchSuggestiveEditor {
     CompletionFilter(SuggestiveEditorFilter),
     Completion(Completion),
     UpdateCurrentCompletionItem(CompletionItem),
-    NextCompletionItem,
-    PreviousCompletionItem,
+    MoveToCompletionItem(Direction),
 }
 
 #[cfg(test)]
