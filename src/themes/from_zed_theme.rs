@@ -16,6 +16,8 @@ const ZED_THEME_CATPPUCCIN_URL: &str =
     "https://raw.githubusercontent.com/catppuccin/zed/main/themes/catppuccin-mauve.json";
 const ZED_THEME_GRUVBOX_URL: &str =
     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/gruvbox/gruvbox.json";
+const ZED_THEME_ONE_URL: &str =
+    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json";
 const ZED_THEME_MONOKAI_ST3_URL: &str =
     "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai_st3.json";
 const ZED_THEME_MONOKAI_URL: &str =
@@ -69,6 +71,8 @@ pub(crate) fn theme_descriptors() -> Vec<ThemeDescriptor> {
         ThemeDescriptor::ZedThemeURLMap("Gruvbox Light", ZED_THEME_GRUVBOX_URL),
         ThemeDescriptor::ZedThemeURLMap("Monokai", ZED_THEME_MONOKAI_URL),
         ThemeDescriptor::ZedThemeURLMap("Monokai-ST3", ZED_THEME_MONOKAI_ST3_URL),
+        ThemeDescriptor::ZedThemeURLMap("One Dark", ZED_THEME_ONE_URL),
+        ThemeDescriptor::ZedThemeURLMap("One Light", ZED_THEME_ONE_URL),
         ThemeDescriptor::ZedThemeURLMap("Rosé Pine Dawn", ZED_THEME_ROSE_PINE_URL),
         ThemeDescriptor::ZedThemeURLMap("Rosé Pine Moon", ZED_THEME_ROSE_PINE_URL),
         ThemeDescriptor::ZedThemeURLMap("Rosé Pine", ZED_THEME_ROSE_PINE_URL),
