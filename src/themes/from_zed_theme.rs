@@ -85,31 +85,23 @@ pub(crate) fn theme_descriptors() -> Vec<ThemeDescriptor> {
 }
 
 pub(crate) fn from_url(name: &'static str, url: &'static str) -> anyhow::Result<Theme> {
-    let json_str = cache_download(
-        url,
-        "zed-themes",
-        &std::path::PathBuf::from(url)
-            .file_name()
-            .unwrap_or_else(|| panic!("The url ({:?}) should contain file name.", url))
-            .to_string_lossy(),
-    )?;
+    let path = std::path::PathBuf::from(url);
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| anyhow::anyhow!("The url ({:?}) should contain a file name.", url))?
+        .to_string_lossy();
+    let json_str = cache_download(url, "zed-themes", &file_name)?;
+    let manifest: ZedThemeManiftest = serde_json5::from_str(&json_str).map_err(|error| {
+        anyhow::anyhow!("Cannot parse JSON downloaded from {url:?} due to:\n{error:#?}")
+    })?;
 
-    let manifest: ZedThemeManiftest = serde_json5::from_str(&json_str).unwrap_or_else(|error| {
-        panic!("Cannot parse JSON downloaded from {url:?} due to:\n{error:#?}")
-    });
-
-    let theme_content = manifest.themes.into_iter().find_map(|theme| {
-        if theme.name == name {
-            Some(theme)
-        } else {
-            None
-        }
-    });
-
-    match theme_content {
-        Some(theme) => Ok(theme.into()),
-        None => Err(anyhow::anyhow!("could not parse theme")),
-    }
+    Ok(manifest
+        .themes
+        .iter()
+        .find(|theme| theme.name == name)
+        .ok_or_else(|| anyhow::anyhow!("could not find theme '{}'", name))?
+        .clone()
+        .into())
 }
 
 impl From<ThemeContent> for Theme {
