@@ -2071,11 +2071,11 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 on_enter: DispatchPrompt::Null,
-                items: crate::themes::themes()?
+                items: crate::themes::theme_descriptor::all()
                     .into_iter()
                     .map(|theme| {
-                        DropdownItem::new(theme.name.to_string())
-                            .set_dispatches(Dispatches::one(Dispatch::SetTheme(theme.clone())))
+                        DropdownItem::new(theme.name().to_string())
+                            .set_dispatches(Dispatches::one(Dispatch::SetTheme(theme.into())))
                     })
                     .collect_vec(),
                 title: "Theme".to_string(),
