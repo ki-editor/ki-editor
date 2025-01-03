@@ -1828,7 +1828,7 @@ fn saving_should_not_destroy_mark_if_selections_not_modified() -> anyhow::Result
             Editor(MatchLiteral("bar".to_string())),
             Editor(ToggleMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
-            Editor(Save),
+            Editor(ForceSave),
             // Expect the content is formatted (second line dedented)
             Expect(CurrentComponentContent("// foo bar spim\nfn foo() {}\n")),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
@@ -1980,6 +1980,34 @@ fn entering_insert_mode_from_visual_mode() -> anyhow::Result<()> {
 }
 
 #[test]
+fn modifying_editor_causes_dirty_state() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Expect(Not(Box::new(EditorIsDirty()))),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("a a esc").to_vec())),
+            Expect(EditorIsDirty()),
+        ])
+    })
+}
+
+#[test]
+fn saving_editor_clears_dirty_state() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Expect(Not(Box::new(EditorIsDirty()))),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("a a esc").to_vec())),
+            Expect(EditorIsDirty()),
+            Editor(Save),
+            Expect(Not(Box::new(EditorIsDirty()))),
+        ])
+    })
+}
+
+#[test]
 fn after_save_select_current() -> anyhow::Result<()> {
     fn test(
         selection_mode: SelectionMode,
@@ -2003,7 +2031,7 @@ fn main() {
                     IfCurrentNotFound::LookForward,
                     selection_mode.clone(),
                 )),
-                Editor(Save),
+                Editor(ForceSave),
                 Expect(CurrentComponentContent(
                     "
 fn main() {

@@ -259,7 +259,8 @@ impl Component for Editor {
             ApplySyntaxHighlight => {
                 self.apply_syntax_highlighting(context)?;
             }
-            Save => return self.save(),
+            Save => return self.do_save(false),
+            ForceSave => return self.do_save(true),
             ReplaceCurrentSelectionWith(string) => {
                 return self.replace_current_selection_with(|_| Some(Rope::from_str(&string)))
             }
@@ -496,6 +497,11 @@ pub(crate) enum Movement {
 }
 
 impl Editor {
+    /// Returns if the editor is currently dirty or not.
+    pub(crate) fn dirty(&self) -> bool {
+        self.dirty
+    }
+
     /// Returns (hidden_parent_lines, visible_parent_lines)
     pub(crate) fn get_parent_lines(&self) -> anyhow::Result<(Vec<Line>, Vec<Line>)> {
         let position = self.get_cursor_position()?;
@@ -2011,6 +2017,7 @@ impl Editor {
     }
 
     fn update_buffer(&mut self, s: &str) {
+        self.dirty = true;
         self.buffer.borrow_mut().update(s)
     }
 
@@ -2167,20 +2174,27 @@ impl Editor {
     }
 
     pub(crate) fn save(&mut self) -> anyhow::Result<Dispatches> {
-        if !self.dirty {
-            return Ok(Default::default());
-        }
+        self.do_save(false)
+    }
 
-        let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())? else {
-            return Ok(Default::default());
+    fn do_save(&mut self, force: bool) -> anyhow::Result<Dispatches> {
+        let document_did_save_dispatch = if force || self.dirty {
+            let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())? else {
+                return Ok(Default::default());
+            };
+
+            Some(Dispatch::DocumentDidSave { path })
+        } else {
+            None
         };
 
         self.clamp()?;
         self.cursor_keep_primary_only();
         self.enter_normal_mode()?;
         self.dirty = false;
+
         Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent)
-            .append(Dispatch::DocumentDidSave { path })
+            .append_some(document_did_save_dispatch)
             .chain(self.get_document_did_change_dispatch())
             .append(Dispatch::RemainOnlyCurrentComponent)
             .append_some(if self.selection_set.mode.is_contiguous() {
@@ -3245,6 +3259,7 @@ pub(crate) enum DispatchEditor {
     Transform(Transformation),
     SetSelectionMode(IfCurrentNotFound, SelectionMode),
     Save,
+    ForceSave,
     FindOneChar(IfCurrentNotFound),
     MoveSelection(Movement),
     SwitchViewAlignment,
