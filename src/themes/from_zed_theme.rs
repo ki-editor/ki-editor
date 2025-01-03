@@ -275,18 +275,15 @@ impl From<ThemeContent> for Theme {
 
 #[cfg(test)]
 mod test_from_zed_theme {
-    // use crate::themes::Theme;
+    use crate::themes::Theme;
 
-    // #[test]
-    // fn test() -> anyhow::Result<()> {
-    // // Expect no failure
-    // let _: Vec<Theme> = super::theme_descriptor_from_zed_url(
-    // "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
-    // )?
-    // .iter()
-    // .map(|theme| (*theme).clone().into())
-    // .collect();
-    //
-    // Ok(())
-    // }
+    #[test]
+    fn ensure_all_zed_themes_parse() -> anyhow::Result<()> {
+        // Expect no failure
+        let _: Vec<Theme> = super::theme_descriptors()
+            .iter()
+            .map(|theme| (*theme).clone().into())
+            .collect();
+        Ok(())
+    }
 }
