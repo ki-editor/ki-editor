@@ -1,19 +1,18 @@
 use super::{from_zed_theme, vscode_dark, vscode_light, Theme};
-use zed_theme::ThemeContent;
 
 pub type ThemeFn = fn() -> Theme;
 
 #[derive(Clone, Debug)]
 pub enum ThemeDescriptor {
     ThemeFn(String, ThemeFn),
-    ZedTheme(String, Box<ThemeContent>),
+    ZedThemeURLMap(&'static str, &'static str),
 }
 
 impl ThemeDescriptor {
     pub(crate) fn name(&self) -> &str {
         match self {
             ThemeDescriptor::ThemeFn(name, _) => name,
-            ThemeDescriptor::ZedTheme(name, _) => name,
+            ThemeDescriptor::ZedThemeURLMap(name, _) => name,
         }
     }
 }
@@ -22,7 +21,12 @@ impl From<ThemeDescriptor> for Theme {
     fn from(theme_descriptor: ThemeDescriptor) -> Self {
         match theme_descriptor {
             ThemeDescriptor::ThemeFn(_, theme_fn) => theme_fn(),
-            ThemeDescriptor::ZedTheme(_, theme_content) => theme_content.into(),
+            ThemeDescriptor::ZedThemeURLMap(name, url) => {
+                match from_zed_theme::from_url(name, url) {
+                    Ok(theme) => theme,
+                    Err(_) => vscode_light(),
+                }
+            }
         }
     }
 }

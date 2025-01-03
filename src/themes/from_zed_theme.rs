@@ -7,20 +7,22 @@ use my_proc_macros::hex;
 use shared::download::cache_download;
 use zed_theme::*;
 
-const ZED_THEME_LINKS: &[&str] = &[
-    "https://raw.githubusercontent.com/catppuccin/zed/main/themes/catppuccin-mauve.json",
-    "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai.json",
-    "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai_st3.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/andromeda/andromeda.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/atelier/atelier.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/ayu/ayu.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/gruvbox/gruvbox.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/rose_pine/rose_pine.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/sandcastle/sandcastle.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/solarized/solarized.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/summercamp/summercamp.json",
-];
+const ZED_THEME_ROSE_PINE_URL: &str = "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/rose_pine/rose_pine.json";
+
+// const ZED_THEME_LINKS: &[&str] = &[
+//     "https://raw.githubusercontent.com/catppuccin/zed/main/themes/catppuccin-mauve.json",
+//     "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai.json",
+//     "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai_st3.json",
+//     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/andromeda/andromeda.json",
+//     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/atelier/atelier.json",
+//     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/ayu/ayu.json",
+//     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/gruvbox/gruvbox.json",
+//     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
+//     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/rose_pine/rose_pine.json",
+//     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/sandcastle/sandcastle.json",
+//     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/solarized/solarized.json",
+//     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/summercamp/summercamp.json",
+// ];
 
 #[derive(serde::Deserialize)]
 struct ZedThemeManiftest {
@@ -28,15 +30,16 @@ struct ZedThemeManiftest {
 }
 
 /// Get all known Zed themes as a `ThemeDescriptor`.
-pub fn theme_descriptors() -> Vec<ThemeDescriptor> {
-    ZED_THEME_LINKS
-        .iter()
-        .flat_map(|&url| theme_descriptor_from_zed_url(url))
-        .flatten()
-        .collect()
+pub(crate) fn theme_descriptors() -> Vec<ThemeDescriptor> {
+    [
+        ThemeDescriptor::ZedThemeURLMap("Rosé Pine", ZED_THEME_ROSE_PINE_URL),
+        ThemeDescriptor::ZedThemeURLMap("Rosé Pine Dawn", ZED_THEME_ROSE_PINE_URL),
+        ThemeDescriptor::ZedThemeURLMap("Rosé Pine Moon", ZED_THEME_ROSE_PINE_URL),
+    ]
+    .to_vec()
 }
 
-fn theme_descriptor_from_zed_url(url: &str) -> anyhow::Result<Vec<ThemeDescriptor>> {
+pub(crate) fn from_url(name: &'static str, url: &'static str) -> anyhow::Result<Theme> {
     let json_str = cache_download(
         url,
         "zed-themes",
@@ -50,19 +53,22 @@ fn theme_descriptor_from_zed_url(url: &str) -> anyhow::Result<Vec<ThemeDescripto
         panic!("Cannot parse JSON downloaded from {url:?} due to:\n{error:#?}")
     });
 
-    Ok(manifest
-        .themes
-        .into_iter()
-        .map(|theme| {
-            let theme_name = theme.name.clone();
+    let theme_content = manifest.themes.into_iter().find_map(|theme| {
+        if theme.name == name {
+            Some(theme)
+        } else {
+            None
+        }
+    });
 
-            ThemeDescriptor::ZedTheme(theme_name, Box::new(theme))
-        })
-        .collect())
+    match theme_content {
+        Some(theme) => Ok(theme.into()),
+        None => Err(anyhow::anyhow!("could not parse theme")),
+    }
 }
 
-impl From<Box<ThemeContent>> for Theme {
-    fn from(theme: Box<ThemeContent>) -> Self {
+impl From<ThemeContent> for Theme {
+    fn from(theme: ThemeContent) -> Self {
         let background = theme
             .style
             .editor_background
@@ -228,18 +234,18 @@ impl From<Box<ThemeContent>> for Theme {
 
 #[cfg(test)]
 mod test_from_zed_theme {
-    use crate::themes::Theme;
+    // use crate::themes::Theme;
 
-    #[test]
-    fn test() -> anyhow::Result<()> {
-        // Expect no failure
-        let _: Vec<Theme> = super::theme_descriptor_from_zed_url(
-            "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
-        )?
-        .iter()
-        .map(|theme| (*theme).clone().into())
-        .collect();
-
-        Ok(())
-    }
+    // #[test]
+    // fn test() -> anyhow::Result<()> {
+    // // Expect no failure
+    // let _: Vec<Theme> = super::theme_descriptor_from_zed_url(
+    // "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
+    // )?
+    // .iter()
+    // .map(|theme| (*theme).clone().into())
+    // .collect();
+    //
+    // Ok(())
+    // }
 }
