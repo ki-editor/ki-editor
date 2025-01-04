@@ -80,6 +80,7 @@ pub(crate) enum ExpectKind {
     CurrentComponentContent(&'static str),
     EditorCursorPosition(Position),
     EditorGridCursorPosition(Position),
+    EditorIsDirty(),
     CurrentMode(Mode),
     FileContent(CanonicalizedPath, String),
     FileContentEqual(CanonicalizedPath, CanonicalizedPath),
@@ -187,6 +188,7 @@ impl ExpectKind {
                 let (result, context) = expect_kind.get_result(app)?;
                 (!result, format!("NOT ({context})"))
             }
+            EditorIsDirty() => contextualize(&component.borrow().editor().buffer().dirty(), &true),
             CurrentMode(mode) => contextualize(&component.borrow().editor().mode, mode),
             EditorCursorPosition(position) => contextualize(
                 &component.borrow().editor().get_cursor_position().unwrap(),
@@ -969,7 +971,7 @@ fn first () {
             Editor(AlignViewTop),
             Expect(AppGrid(
                 "
- 🦀  src/main.rs
+ 🦀  src/main.rs [*]
 1│fn first () {
 5│  █ifth();
 6│}
@@ -981,7 +983,7 @@ fn first () {
             Editor(AlignViewBottom),
             Expect(AppGrid(
                 "
- 🦀  src/main.rs
+ 🦀  src/main.rs [*]
 1│fn first () {
 3│  third();
 4│  fourth(); // this line is long
@@ -998,7 +1000,7 @@ fn first () {
             Editor(AlignViewBottom),
             Expect(AppGrid(
                 "
- 🦀  src/main.rs
+ 🦀  src/main.rs [*]
 1│fn first () {
 4│  fourth(); //
 ↪│this line is long
