@@ -44,7 +44,7 @@ pub(crate) fn replace(
             let mut buffer = Buffer::from_path(&path, local_search_config.require_tree_sitter())?;
             let (modified, _) = buffer.replace(local_search_config.clone(), Default::default())?;
             if modified {
-                buffer.save_without_formatting()?;
+                buffer.save_without_formatting(false)?;
                 sender
                     .send(path)
                     .map_err(|err| log::info!("Error = {:?}", err))

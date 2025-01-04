@@ -3,6 +3,7 @@
 The space menu is a handy shortcut for (not restricted to):
 
 - Contextual actions
+- File and quit actions
 - Searching files/symbols
 - Multi-cursor management
 - Opening other components
@@ -12,6 +13,15 @@ The space menu can be brought up by pressing `space`.
 ## Contextual actions
 
 Contextual actions are actions that are only applicable within a specific context.
+
+## File and quit actions
+
+| Keybinding | Action                                           |
+| ---------- | ------------------------------------------------ |
+| `space`    | Write current file, even if no changes were made |
+| `w`        | Write all files                                  |
+| `q`        | Write all files and quit                         |
+| `Q`        | Quit _without_ writing unsaved files             |
 
 ### LSP Actions (only applicable in the main editor):
 

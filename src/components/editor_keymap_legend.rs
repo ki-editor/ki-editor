@@ -936,6 +936,11 @@ impl Editor {
                     .chain(Some(KeymapLegendSection {
                         title: "File/Quitting".to_string(),
                         keymaps: Keymaps::new(&[
+                            Keymap::new(
+                                "enter",
+                                "Force Write".to_string(),
+                                Dispatch::ToEditor(DispatchEditor::ForceSave),
+                            ),
                             Keymap::new("w", "Write All".to_string(), Dispatch::SaveAll),
                             Keymap::new(
                                 "q",
