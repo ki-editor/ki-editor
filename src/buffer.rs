@@ -74,15 +74,18 @@ impl Buffer {
             selection_set_history: History::new(),
         }
     }
+
     pub(crate) fn clear_quickfix_list_items(&mut self) {
         self.quickfix_list_items.clear()
     }
+
     pub(crate) fn update_quickfix_list_items(
         &mut self,
         quickfix_list_items: Vec<QuickfixListItem>,
     ) {
         self.quickfix_list_items = quickfix_list_items
     }
+
     pub(crate) fn reload(&mut self) -> anyhow::Result<()> {
         if let Some(path) = self.path() {
             let updated_content = path.read()?;
@@ -91,6 +94,7 @@ impl Buffer {
         }
         Ok(())
     }
+
     pub(crate) fn content(&self) -> String {
         self.rope.to_string()
     }
@@ -98,6 +102,7 @@ impl Buffer {
     pub(crate) fn decorations(&self) -> &Vec<Decoration> {
         &self.decorations
     }
+
     pub(crate) fn set_decorations(&mut self, decorations: &[Decoration]) {
         decorations.clone_into(&mut self.decorations)
     }
@@ -754,12 +759,14 @@ impl Buffer {
     ) -> anyhow::Result<CharIndexRange> {
         Ok((self.byte_to_char(range.start)?..self.byte_to_char(range.end)?).into())
     }
+
     pub(crate) fn position_range_to_char_index_range(
         &self,
         range: &Range<Position>,
     ) -> anyhow::Result<CharIndexRange> {
         Ok((self.position_to_char(range.start)?..self.position_to_char(range.end)?).into())
     }
+
     pub(crate) fn char_index_range_to_position_range(
         &self,
         range: CharIndexRange,
@@ -1062,6 +1069,7 @@ fn f(
             assert_eq!(buffer.content(), expected);
             Ok(())
         }
+
         #[test]
         fn literal_1() -> anyhow::Result<()> {
             test(
@@ -1239,6 +1247,7 @@ fn f(
 
             Ok(edit_transaction)
         }
+
         #[test]
         fn empty_line_removal() -> anyhow::Result<()> {
             let old = r#"
@@ -1376,6 +1385,7 @@ impl Applicable for Patch {
         Ok(self.state.clone())
     }
 }
+
 impl PartialEq for Patch {
     fn eq(&self, _other: &Self) -> bool {
         // Always return false, assuming that no two patches can be identical

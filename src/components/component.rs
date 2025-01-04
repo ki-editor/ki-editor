@@ -17,6 +17,7 @@ pub(crate) struct GetGridResult {
     pub(crate) grid: Grid,
     pub(crate) cursor: Option<Cursor>,
 }
+
 #[cfg(test)]
 impl std::fmt::Display for GetGridResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -67,10 +68,12 @@ impl From<&SetCursorStyle> for crossterm::cursor::SetCursorStyle {
         }
     }
 }
+
 impl Cursor {
     pub(crate) fn style(&self) -> &SetCursorStyle {
         &self.style
     }
+
     pub(crate) fn position(&self) -> &Position {
         &self.position
     }
@@ -83,12 +86,16 @@ impl Cursor {
         Cursor { position, ..self }
     }
 }
+
 pub trait Component: Any + AnyComponent {
     fn id(&self) -> ComponentId {
         self.editor().id()
     }
+
     fn editor(&self) -> &Editor;
+
     fn editor_mut(&mut self) -> &mut Editor;
+
     fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
         self.editor().get_grid(context, focused)
     }
