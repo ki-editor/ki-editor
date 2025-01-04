@@ -2078,11 +2078,11 @@ impl<T: Frontend> App<T> {
                 items: crate::themes::theme_descriptor::all()
                     .into_iter()
                     .enumerate()
-                    .map(|(index, theme)| {
-                        DropdownItem::new(theme.name().to_string())
+                    .map(|(index, theme_descriptor)| {
+                        DropdownItem::new(theme_descriptor.name().to_string())
                             .set_rank(Some(Box::from([index].to_vec())))
                             .set_dispatches(Dispatches::one(Dispatch::SetThemeFromDescriptor(
-                                theme,
+                                theme_descriptor,
                             )))
                     })
                     .collect_vec(),
