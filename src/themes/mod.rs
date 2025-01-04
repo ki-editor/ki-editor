@@ -121,8 +121,7 @@ Available themes are:
                     desired_theme_name, themes_list
                 );
             })
-            .clone()
-            .into()
+            .to_theme()
     }
 }
 

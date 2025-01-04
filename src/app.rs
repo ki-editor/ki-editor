@@ -711,7 +711,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::SetThemeFromDescriptor(theme_descriptor) => {
                 let context = std::mem::take(&mut self.context);
-                self.context = context.set_theme(theme_descriptor.into());
+                self.context = context.set_theme(theme_descriptor.to_theme());
             }
             #[cfg(test)]
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,

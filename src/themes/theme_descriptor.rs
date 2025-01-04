@@ -16,11 +16,9 @@ impl ThemeDescriptor {
             ThemeDescriptor::ZedThemeURLMap(name, _) => name,
         }
     }
-}
 
-impl From<ThemeDescriptor> for Theme {
-    fn from(theme_descriptor: ThemeDescriptor) -> Self {
-        match theme_descriptor {
+    pub(crate) fn to_theme(&self) -> Theme {
+        match self {
             ThemeDescriptor::ThemeFn(_, theme_fn) => theme_fn(),
             ThemeDescriptor::ZedThemeURLMap(name, url) => {
                 from_zed_theme::from_url(name, url).unwrap_or_else(|_| vscode_light())
