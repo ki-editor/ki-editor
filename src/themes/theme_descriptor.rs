@@ -1,4 +1,5 @@
 use super::{from_zed_theme, vscode_dark, vscode_light, Theme};
+use itertools::Itertools;
 
 pub type ThemeFn = fn() -> Theme;
 
@@ -29,14 +30,14 @@ impl From<ThemeDescriptor> for Theme {
 }
 
 pub(crate) fn all() -> Vec<ThemeDescriptor> {
-    let mut theme_descriptors: Vec<ThemeDescriptor> = [
+    let theme_descriptors: Vec<ThemeDescriptor> = [
         ThemeDescriptor::ThemeFn("VS Code (Light)".to_string(), vscode_light),
         ThemeDescriptor::ThemeFn("VS Code (Dark)".to_string(), vscode_dark),
     ]
     .into_iter()
     .chain(from_zed_theme::theme_descriptors())
+    .sorted_by_key(|theme| theme.name().to_owned())
     .collect();
 
-    theme_descriptors.sort_by(|a, b| a.name().cmp(b.name()));
     theme_descriptors
 }
