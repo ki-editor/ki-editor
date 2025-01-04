@@ -41,10 +41,10 @@ pub const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
         _____, GBack, ScrlU, GForw, _____, /****/ KilLP, LineP, LineU, LineN, KilLN,
     ],
     [
-        SView, BuffP, ScrlD, BuffN, _____, /****/ DWrdP, CharP, LineD, CharN, _____,
+        SView, BuffP, ScrlD, BuffN, _____, /****/ DWrdP, CItmP, LineD, CItmN, _____,
     ],
     [
-        Undo_, WSwth, WClse, UPstE, _____, /****/ DTknP, CItmP, _____, CItmN, CSrch,
+        Undo_, WSwth, WClse, UPstE, _____, /****/ DTknP, CharP, _____, CharN, CSrch,
     ],
 ];
 
