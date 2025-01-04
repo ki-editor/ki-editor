@@ -1153,6 +1153,14 @@ impl Editor {
                             },
                         )
                     }))
+                    .chain(
+                        [Keymap::new(
+                            "l",
+                            Direction::End.format_action("Last non-contiguous selection mode"),
+                            Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
+                        )]
+                        .to_vec(),
+                    )
                     .collect_vec(),
                 ),
             }
@@ -1185,11 +1193,6 @@ impl Editor {
                                 },
                             )),
                         },
-                    ),
-                    Keymap::new(
-                        "l",
-                        Direction::End.format_action("Last non-contiguous selection mode"),
-                        Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
                     ),
                 ]
                 .into_iter()
