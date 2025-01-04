@@ -245,10 +245,22 @@ impl KeymapLegendConfig {
     }
 }
 
+impl From<KeymapLegendConfig> for Vec<Keymaps> {
+    fn from(keymap_legend_config: KeymapLegendConfig) -> Self {
+        match &keymap_legend_config.body {
+            KeymapLegendBody::SingleSection { keymaps } => vec![keymaps.clone()],
+            KeymapLegendBody::MultipleSections { sections } => {
+                sections.iter().map(|s| s.keymaps.clone()).collect()
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymap {
     key: &'static str,
-    description: String,
+    pub short_description: Option<String>,
+    pub description: String,
     event: KeyEvent,
     dispatch: Dispatch,
 }
@@ -257,6 +269,22 @@ impl Keymap {
     pub(crate) fn new(key: &'static str, description: String, dispatch: Dispatch) -> Keymap {
         Keymap {
             key,
+            short_description: None,
+            description,
+            dispatch,
+            event: parse_key_event(key).unwrap(),
+        }
+    }
+
+    pub(crate) fn new_extended(
+        key: &'static str,
+        short_description: String,
+        description: String,
+        dispatch: Dispatch,
+    ) -> Keymap {
+        Keymap {
+            key,
+            short_description: Some(short_description),
             description,
             dispatch,
             event: parse_key_event(key).unwrap(),
@@ -264,8 +292,10 @@ impl Keymap {
     }
 
     pub(crate) fn get_dispatches(&self) -> Dispatches {
-        Dispatches::one(self.dispatch.clone())
-            .append(Dispatch::SetLastActionDescription(self.description.clone()))
+        Dispatches::one(self.dispatch.clone()).append(Dispatch::SetLastActionDescription {
+            long_description: self.description.clone(),
+            short_description: self.short_description.clone(),
+        })
     }
 
     pub(crate) fn event(&self) -> &KeyEvent {
@@ -444,7 +474,10 @@ mod test_keymap_legend {
             Dispatches::new(vec![
                 Dispatch::CloseCurrentWindowAndFocusParent,
                 Dispatch::Custom("Spongebob".to_string()),
-                SetLastActionDescription("fifafofum".to_string())
+                SetLastActionDescription {
+                    long_description: "fifafofum".to_string(),
+                    short_description: None
+                }
             ])
         )
     }

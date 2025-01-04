@@ -2,6 +2,7 @@ use crate::app::{Dispatch, Dispatches};
 use crate::context::{Context, GlobalMode};
 use crate::grid::StyleKey;
 use crate::selection::SelectionMode;
+use event::parse_key_event;
 use DispatchEditor::*;
 
 use crate::selection_range::SelectionRange;
@@ -15,7 +16,8 @@ use my_proc_macros::key;
 use std::{cell::RefCell, rc::Rc};
 
 use super::dropdown::{Dropdown, DropdownConfig};
-use super::editor::{DispatchEditor, IfCurrentNotFound};
+use super::editor::{Direction, DispatchEditor, IfCurrentNotFound};
+use super::editor_keymap::{Meaning, KEYBOARD_LAYOUT};
 use super::keymap_legend::{Keymap, KeymapLegendSection, Keymaps};
 use super::{
     component::Component,
@@ -75,15 +77,28 @@ impl Component for SuggestiveEditor {
         event: event::KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
+            if let Some(keymap) = Keymaps::new(&[
+                Keymap::new_extended(
+                    KEYBOARD_LAYOUT.get_insert_key(&Meaning::CItmN),
+                    "comp item >".to_string(),
+                    "Next Completion Item".to_string(),
+                    Dispatch::MoveToCompletionItem(Direction::End),
+                ),
+                Keymap::new_extended(
+                    KEYBOARD_LAYOUT.get_insert_key(&Meaning::CItmP),
+                    "comp item <".to_string(),
+                    "Previous Completion Item".to_string(),
+                    Dispatch::MoveToCompletionItem(Direction::Start),
+                ),
+            ])
+            .get(&event)
+            {
+                log::info!("dispatches = {:?}", keymap.get_dispatches());
+                return Ok(keymap.get_dispatches());
+            };
             match event {
-                key!("ctrl+n") | key!("down") => {
-                    self.completion_dropdown.next_item();
-                    return Ok(self.render_completion_dropdown(false));
-                }
-                key!("ctrl+p") | key!("up") => {
-                    self.completion_dropdown.previous_item();
-                    return Ok(self.render_completion_dropdown(false));
-                }
+                key!("down") => return self.next_completion_item(),
+                key!("up") => return self.previous_completion_item(),
                 key!("tab") => {
                     let current_item = self.completion_dropdown.current_item();
                     if let Some(completion) = current_item {
@@ -195,6 +210,12 @@ impl SuggestiveEditor {
             DispatchSuggestiveEditor::UpdateCurrentCompletionItem(completion_item) => {
                 Ok(self.update_current_completion_item(completion_item))
             }
+            DispatchSuggestiveEditor::MoveToCompletionItem(Direction::End) => {
+                self.next_completion_item()
+            }
+            DispatchSuggestiveEditor::MoveToCompletionItem(Direction::Start) => {
+                self.previous_completion_item()
+            }
         }
     }
 
@@ -216,6 +237,10 @@ impl SuggestiveEditor {
     }
 
     pub(crate) fn render_completion_dropdown(&self, ignore_insert_mode: bool) -> Dispatches {
+        log::info!(
+            "ignore_insert_mode = {ignore_insert_mode} mode = {:?}",
+            self.editor.mode
+        );
         if (!ignore_insert_mode && self.editor.mode != Mode::Insert)
             || self.completion_dropdown.no_matching_candidates()
         {
@@ -276,6 +301,18 @@ impl SuggestiveEditor {
             .update_current_item(completion_item.into());
         self.render_completion_dropdown(false)
     }
+
+    fn previous_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
+        self.completion_dropdown.previous_item();
+        return Ok(self.render_completion_dropdown(false));
+    }
+
+    fn next_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
+        self.completion_dropdown.next_item();
+        let dispatches = self.render_completion_dropdown(false);
+        log::info!("next_compl = {:?}", dispatches);
+        return Ok(self.render_completion_dropdown(false));
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -284,6 +321,7 @@ pub(crate) enum DispatchSuggestiveEditor {
     CompletionFilter(SuggestiveEditorFilter),
     Completion(Completion),
     UpdateCurrentCompletionItem(CompletionItem),
+    MoveToCompletionItem(Direction),
 }
 
 #[cfg(test)]
