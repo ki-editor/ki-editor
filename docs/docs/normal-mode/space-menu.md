@@ -21,7 +21,7 @@ Contextual actions are actions that are only applicable within a specific contex
 | `space`    | Write current file, even if no changes were made |
 | `w`        | Write all files                                  |
 | `q`        | Write all files and quit                         |
-| `Q`        | Quit _without_ writing files                     |
+| `Q`        | Quit _without_ writing unsaved files             |
 
 ### LSP Actions (only applicable in the main editor):
 
