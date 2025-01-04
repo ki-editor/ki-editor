@@ -274,7 +274,7 @@ mod test_from_zed_theme {
         // Expect no failure
         let _: Vec<Theme> = super::theme_descriptors()
             .iter()
-            .map(|theme| (*theme).clone().into())
+            .map(|theme| (*theme).to_theme())
             .collect();
         Ok(())
     }
