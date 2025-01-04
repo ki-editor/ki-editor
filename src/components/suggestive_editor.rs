@@ -2,7 +2,6 @@ use crate::app::{Dispatch, Dispatches};
 use crate::context::{Context, GlobalMode};
 use crate::grid::StyleKey;
 use crate::selection::SelectionMode;
-use event::parse_key_event;
 use DispatchEditor::*;
 
 use crate::selection_range::SelectionRange;

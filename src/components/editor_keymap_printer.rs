@@ -5,7 +5,7 @@ use crate::{
     buffer::Buffer,
     components::{
         dropdown::DropdownItem,
-        editor::{Editor, Mode},
+        editor::Mode,
         editor_keymap::{shifted, KeyboardLayout, KEYBOARD_LAYOUT},
     },
     context::Context,
