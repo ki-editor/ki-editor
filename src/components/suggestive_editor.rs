@@ -29,7 +29,6 @@ use super::{
 pub(crate) struct SuggestiveEditor {
     editor: Editor,
     completion_dropdown: Dropdown,
-
     trigger_characters: Vec<String>,
     filter: SuggestiveEditorFilter,
 }
@@ -222,6 +221,10 @@ impl SuggestiveEditor {
 
     pub(crate) fn completion_dropdown_current_item(&mut self) -> Option<DropdownItem> {
         self.completion_dropdown.current_item()
+    }
+
+    pub(crate) fn all_filtered_items(&mut self) -> Vec<DropdownItem> {
+        self.completion_dropdown.all_filtered_items()
     }
 
     pub(crate) fn completion_dropdown_opened(&self) -> bool {
