@@ -18,7 +18,7 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         Line_, Sytx_, DeltN, Chng_, VMode, /****/ Left_, Prev_, Down_, Next_, Right,
     ],
     [
-        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ Globl, First, Jump_, Last_, SrchN,
+        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ Globl, Jump_, First, Last_, SrchN,
     ],
 ];
 
