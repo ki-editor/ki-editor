@@ -3,7 +3,7 @@ use itertools::Itertools;
 
 pub type ThemeFn = fn() -> Theme;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ThemeDescriptor {
     ThemeFn(String, ThemeFn),
     ZedThemeURLMap(&'static str, &'static str),
