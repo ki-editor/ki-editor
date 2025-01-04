@@ -1,5 +1,6 @@
 pub mod from_zed_theme;
-pub mod vscode_dark;
+pub(crate) mod theme_descriptor;
+pub(crate) mod vscode_dark;
 pub(crate) mod vscode_light;
 use std::collections::HashMap;
 
@@ -20,6 +21,7 @@ pub(crate) struct Theme {
     pub(crate) diagnostic: DiagnosticStyles,
     pub(crate) hunk: HunkStyles,
 }
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct HunkStyles {
     pub(crate) old_background: Color,
@@ -27,6 +29,7 @@ pub(crate) struct HunkStyles {
     pub(crate) old_emphasized_background: Color,
     pub(crate) new_emphasized_background: Color,
 }
+
 impl HunkStyles {
     fn dark() -> Self {
         Self {
@@ -36,6 +39,7 @@ impl HunkStyles {
             new_emphasized_background: hex!("#4E5A32"),
         }
     }
+
     fn light() -> Self {
         Self {
             new_background: hex!("#EBFEED"),
@@ -45,6 +49,7 @@ impl HunkStyles {
         }
     }
 }
+
 impl Theme {
     pub(crate) fn get_style(&self, source: &StyleKey) -> Style {
         match source {
@@ -93,12 +98,14 @@ impl Theme {
 
 impl Default for Theme {
     fn default() -> Self {
-        parse_env(
+        let default_theme_descriptor = parse_env(
             "KI_EDITOR_THEME",
-            &themes().unwrap(),
-            |theme| &theme.name,
-            vscode_light(),
-        )
+            &theme_descriptor::all(),
+            |theme| theme.name(),
+            theme_descriptor::ThemeDescriptor::default(),
+        );
+
+        default_theme_descriptor.to_theme()
     }
 }
 
@@ -155,6 +162,7 @@ pub(crate) struct SyntaxStyles {
     map: once_cell::sync::OnceCell<HashMap<&'static str, Style>>,
     groups: Vec<(HighlightName, Style)>,
 }
+
 impl SyntaxStyles {
     pub fn new(groups: &[(HighlightName, Style)]) -> Self {
         Self {
@@ -162,6 +170,7 @@ impl SyntaxStyles {
             map: once_cell::sync::OnceCell::new(),
         }
     }
+
     fn map(&self) -> &HashMap<&'static str, Style> {
         self.map.get_or_init(|| {
             self.groups
@@ -170,6 +179,7 @@ impl SyntaxStyles {
                 .collect()
         })
     }
+
     fn get_style(&self, highlight_group: &str) -> Option<Style> {
         let group = HighlightGroup::new(highlight_group);
         self.map()
@@ -195,6 +205,7 @@ mod test_syntax_styles {
             (Variable, fg(hex!("#abcdef"))),
         ])
     }
+
     #[test]
     fn test_get_style() {
         assert_eq!(
@@ -261,7 +272,6 @@ pub enum HighlightName {
     SyntaxKeyword,
     #[strum(serialize = "syntax.keyword.async")]
     SyntaxKeywordAsync,
-
     #[strum(serialize = "variable")]
     Variable,
     #[strum(serialize = "variable.builtin")]
@@ -543,43 +553,5 @@ impl From<Color> for crossterm::style::Color {
             g: val.g,
             b: val.b,
         }
-    }
-}
-
-const ZED_THEME_LINKS: &[&str] = &[
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/gruvbox/gruvbox.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/andromeda/andromeda.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/atelier/atelier.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/ayu/ayu.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/rose_pine/rose_pine.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/sandcastle/sandcastle.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/solarized/solarized.json",
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/summercamp/summercamp.json",
-    "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai.json",
-    "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai_st3.json",
-    "https://raw.githubusercontent.com/catppuccin/zed/main/themes/catppuccin-mauve.json",
-];
-
-pub(crate) fn themes() -> anyhow::Result<Vec<Theme>> {
-    use rayon::prelude::*;
-
-    let zed_themes: Vec<_> = ZED_THEME_LINKS
-        .par_iter()
-        .map(|link| from_zed_theme::from_zed_theme(link))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(vec![vscode_dark().clone(), vscode_light().clone()]
-        .into_iter()
-        .chain(zed_themes.into_iter().flatten())
-        .collect_vec())
-}
-
-#[cfg(test)]
-mod test_theme {
-    #[test]
-    fn get_themes() -> anyhow::Result<()> {
-        // Expects no error
-        super::themes()?;
-        Ok(())
     }
 }

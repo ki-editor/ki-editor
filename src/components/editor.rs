@@ -88,7 +88,8 @@ impl Component for Editor {
                     .display_relative_to(current_working_directory)
                     .unwrap_or_else(|_| path.display_absolute());
                 let icon = path.icon();
-                Some(format!(" {} {}", icon, string))
+                let dirty = if self.buffer().dirty() { " [*]" } else { "" };
+                Some(format!(" {} {}{}", icon, string, dirty))
             })
             .unwrap_or_else(|| "[No title]".to_string())
     }
@@ -256,7 +257,8 @@ impl Component for Editor {
             ApplySyntaxHighlight => {
                 self.apply_syntax_highlighting(context)?;
             }
-            Save => return self.save(),
+            Save => return self.do_save(false),
+            ForceSave => return self.do_save(true),
             ReplaceCurrentSelectionWith(string) => {
                 return self.replace_current_selection_with(|_| Some(Rope::from_str(&string)))
             }
@@ -2165,7 +2167,15 @@ impl Editor {
     }
 
     pub(crate) fn save(&mut self) -> anyhow::Result<Dispatches> {
-        let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())? else {
+        self.do_save(false)
+    }
+
+    fn do_save(&mut self, force: bool) -> anyhow::Result<Dispatches> {
+        let Some(path) = self
+            .buffer
+            .borrow_mut()
+            .save(self.selection_set.clone(), force)?
+        else {
             return Ok(Default::default());
         };
 
@@ -3238,6 +3248,7 @@ pub(crate) enum DispatchEditor {
     Transform(Transformation),
     SetSelectionMode(IfCurrentNotFound, SelectionMode),
     Save,
+    ForceSave,
     FindOneChar(IfCurrentNotFound),
     MoveSelection(Movement),
     SwitchViewAlignment,

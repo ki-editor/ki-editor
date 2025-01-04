@@ -723,6 +723,10 @@ impl<T: Frontend> App<T> {
                 let context = std::mem::take(&mut self.context);
                 self.context = context.set_theme(theme.clone());
             }
+            Dispatch::SetThemeFromDescriptor(theme_descriptor) => {
+                let context = std::mem::take(&mut self.context);
+                self.context = context.set_theme(theme_descriptor.to_theme());
+            }
             #[cfg(test)]
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
             Dispatch::CloseDropdown => self.layout.close_dropdown(),
@@ -2136,11 +2140,15 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 on_enter: DispatchPrompt::Null,
-                items: crate::themes::themes()?
+                items: crate::themes::theme_descriptor::all()
                     .into_iter()
-                    .map(|theme| {
-                        DropdownItem::new(theme.name.to_string())
-                            .set_dispatches(Dispatches::one(Dispatch::SetTheme(theme.clone())))
+                    .enumerate()
+                    .map(|(index, theme_descriptor)| {
+                        DropdownItem::new(theme_descriptor.name().to_string())
+                            .set_rank(Some(Box::from([index].to_vec())))
+                            .set_dispatches(Dispatches::one(Dispatch::SetThemeFromDescriptor(
+                                theme_descriptor,
+                            )))
                     })
                     .collect_vec(),
                 title: "Theme".to_string(),
@@ -2304,6 +2312,7 @@ impl Dispatches {
 /// Dispatch are for child component to request action from the root node
 pub(crate) enum Dispatch {
     SetTheme(crate::themes::Theme),
+    SetThemeFromDescriptor(crate::themes::theme_descriptor::ThemeDescriptor),
     CloseCurrentWindow,
     OpenFilePicker(FilePickerKind),
     OpenSearchPrompt {
