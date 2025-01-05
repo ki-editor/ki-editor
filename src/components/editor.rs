@@ -217,7 +217,6 @@ impl Component for Editor {
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal),
             ToggleMark => self.toggle_marks(),
-            SetTag(tag) => self.set_tag(tag),
             EnterNormalMode => self.enter_normal_mode()?,
             CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
@@ -3308,7 +3307,6 @@ pub(crate) enum DispatchEditor {
     },
     Open(Direction),
     ToggleMark,
-    SetTag(Option<char>),
     EnterNormalMode,
     EnterExchangeMode,
     EnterReplaceMode,
