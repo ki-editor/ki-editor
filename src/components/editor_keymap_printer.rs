@@ -73,20 +73,9 @@ impl KeymapPrintSection {
                         editor.editor_mut().mode = mode.clone();
 
                         let context = Context::default();
-                        let (modifier, key) = if modifiers == KeyModifiers::Shift {
-                            (Self::shifted_modifier(key), shifted(key))
-                        } else {
-                            (modifiers.clone(), *key)
-                        };
-
-                        let modifier_joiner = match modifier {
-                            KeyModifiers::None => "",
-                            _ => "+",
-                        };
-
-                        let key_str =
-                            format!("{}{}{}", modifiers.to_string(), modifier_joiner, key);
-                        let key_event = parse_key_event(&key_str).ok()?;
+                        let key_event =
+                            parse_key_event(&Self::generate_key_string(modifiers.clone(), key))
+                                .ok()?;
                         let dispatches = editor.handle_key_event(&context, key_event).ok()?;
                         let dispatches = dispatches.into_vec();
                         dispatches.into_iter().find_map(|dispatch| match dispatch {
@@ -102,8 +91,27 @@ impl KeymapPrintSection {
             .collect()
     }
 
-    fn shifted_modifier(key: &&'static str) -> KeyModifiers {
-        match *key {
+    fn generate_key_string(modifiers: KeyModifiers, key: &'static str) -> String {
+        // The modifiers act differently with shifted ,./;' keys. They actually should not be Shift+,
+        // or Shift+., etc... but <, >, etc... This function will map the Shift modifier
+        // and characters correctly.
+
+        let (modifier, key) = if modifiers == KeyModifiers::Shift {
+            (Self::shifted_modifier(key), shifted(key))
+        } else {
+            (modifiers.clone(), key)
+        };
+
+        let modifier_joiner = match modifier {
+            KeyModifiers::None => "",
+            _ => "+",
+        };
+
+        format!("{}{}{}", modifier.to_string(), modifier_joiner, key)
+    }
+
+    fn shifted_modifier(key: &'static str) -> KeyModifiers {
+        match key {
             "," => KeyModifiers::None,
             "." => KeyModifiers::None,
             "/" => KeyModifiers::None,
