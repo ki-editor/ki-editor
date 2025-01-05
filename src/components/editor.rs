@@ -394,7 +394,6 @@ pub(crate) struct Editor {
     id: ComponentId,
     pub(crate) current_view_alignment: Option<ViewAlignment>,
     copied_text_history_offset: Counter,
-    /// Human assigned tag for quick editor jumping
     tag: Option<char>,
 }
 
@@ -1446,11 +1445,6 @@ impl Editor {
     pub(crate) fn set_tag(&mut self, tag: Option<char>) {
         self.tag = tag;
         self.mode = Mode::Normal;
-    }
-
-    /// Clear any tag assigned to this editor.
-    pub(crate) fn clear_tag(&mut self) {
-        self.tag = None
     }
 
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {
