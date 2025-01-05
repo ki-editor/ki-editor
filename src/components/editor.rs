@@ -88,7 +88,12 @@ impl Component for Editor {
                     .unwrap_or_else(|_| path.display_absolute());
                 let icon = path.icon();
                 let dirty = if self.buffer().dirty() { " [*]" } else { "" };
-                Some(format!(" {} {}{}", icon, string, dirty))
+                let tag = if let Some(tag) = self.tag {
+                    format!(" <{}>", tag)
+                } else {
+                    "".to_string()
+                };
+                Some(format!(" {} {}{}{}", icon, string, tag, dirty))
             })
             .unwrap_or_else(|| "[No title]".to_string())
     }
@@ -212,6 +217,7 @@ impl Component for Editor {
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal),
             ToggleMark => self.toggle_marks(),
+            SetTag(tag) => self.set_tag(tag),
             EnterNormalMode => self.enter_normal_mode()?,
             CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
@@ -366,6 +372,7 @@ impl Clone for Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
+            tag: None,
         }
     }
 }
@@ -388,6 +395,8 @@ pub(crate) struct Editor {
     id: ComponentId,
     pub(crate) current_view_alignment: Option<ViewAlignment>,
     copied_text_history_offset: Counter,
+    /// Human assigned tag for quick editor jumping
+    tag: Option<char>,
 }
 
 #[derive(Default)]
@@ -538,6 +547,7 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
+            tag: None,
         }
     }
 
@@ -555,6 +565,7 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
+            tag: None,
         }
     }
 
@@ -1425,6 +1436,22 @@ impl Editor {
             .selection_set
             .map(|selection| selection.extended_range());
         self.buffer_mut().save_marks(selections.into())
+    }
+
+    /// Retrieve the tag assigned, if any, to this editor.
+    pub(crate) fn tag(&self) -> Option<char> {
+        self.tag
+    }
+
+    /// Assign a tag to this editor.
+    fn set_tag(&mut self, tag: Option<char>) {
+        self.tag = tag;
+        self.mode = Mode::Normal;
+    }
+
+    /// Clear any tag assigned to this editor.
+    pub(crate) fn clear_tag(&mut self) {
+        self.tag = None
     }
 
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {
@@ -3281,6 +3308,7 @@ pub(crate) enum DispatchEditor {
     },
     Open(Direction),
     ToggleMark,
+    SetTag(Option<char>),
     EnterNormalMode,
     EnterExchangeMode,
     EnterReplaceMode,

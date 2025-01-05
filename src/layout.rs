@@ -310,6 +310,34 @@ impl Layout {
         Ok(())
     }
 
+    pub(crate) fn clear_editors_tagged(&mut self, tag_char: char) {
+        self.background_suggestive_editors
+            .iter()
+            .for_each(|(_, editor)| {
+                let mut borrowed = editor.borrow_mut();
+                let editor = borrowed.editor_mut();
+
+                if editor.tag() == Some(tag_char) {
+                    editor.clear_tag();
+                }
+            })
+    }
+
+    pub(crate) fn find_editor_tagged(&self, tag_char: char) -> Option<CanonicalizedPath> {
+        self.background_suggestive_editors
+            .iter()
+            .find_map(|(_, editor)| {
+                let borrowed = editor.borrow();
+                let editor = borrowed.editor();
+
+                if editor.tag() == Some(tag_char) {
+                    editor.path().clone()
+                } else {
+                    None
+                }
+            })
+    }
+
     #[cfg(test)]
     pub(crate) fn completion_dropdown_is_open(&self) -> bool {
         self.current_completion_dropdown().is_some()
