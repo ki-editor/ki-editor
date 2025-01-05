@@ -1880,23 +1880,23 @@ impl<T: Frontend> App<T> {
     }
 
     fn handle_jump_editor(&mut self, tag: char) -> anyhow::Result<()> {
-        let editor_with_tag = self.layout.find_editor_tagged(tag);
+        let tag_to_set = if let Some(editor_with_tag) = self.layout.find_editor_tagged(tag) {
+            let current_path = self.current_component().borrow().path();
+            if Some(editor_with_tag.clone()) == current_path {
+                None
+            } else {
+                self.open_file(&editor_with_tag, OpenFileOption::Focus)?;
 
-        // 1. If this editor has this tag, clear it.
-        if editor_with_tag == self.current_component().borrow().path() {
-            self.layout.clear_editors_tagged(tag);
-        }
-        // 2. If any editor has this tag, jump to it.
-        else if let Some(path) = editor_with_tag {
-            self.open_file(&path, OpenFileOption::Focus)?;
-        }
-        // 3. Assign this tag to this editor.
-        else {
-            self.current_component()
-                .borrow_mut()
-                .editor_mut()
-                .set_tag(Some(tag));
-        }
+                return Ok(());
+            }
+        } else {
+            Some(tag)
+        };
+
+        self.current_component()
+            .borrow_mut()
+            .editor_mut()
+            .set_tag(tag_to_set);
 
         Ok(())
     }
