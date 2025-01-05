@@ -985,9 +985,14 @@ impl<T: Frontend> App<T> {
             return Ok(matching_editor);
         }
 
-        let buffer = Buffer::from_path(path, true)?;
+        let mut buffer = Buffer::from_path(path, true)?;
         let language = buffer.language();
         let content = buffer.content();
+
+        if option == OpenFileOption::Background {
+            buffer.set_user(false);
+        }
+
         let buffer = Rc::new(RefCell::new(buffer));
         let editor = SuggestiveEditor::from_buffer(buffer, SuggestiveEditorFilter::CurrentWord);
         let component_id = editor.id();
