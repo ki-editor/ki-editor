@@ -986,13 +986,10 @@ impl<T: Frontend> App<T> {
         }
 
         let mut buffer = Buffer::from_path(path, true)?;
+        buffer.set_user(option.store_history());
+
         let language = buffer.language();
         let content = buffer.content();
-
-        if option == OpenFileOption::Background {
-            buffer.set_user(false);
-        }
-
         let buffer = Rc::new(RefCell::new(buffer));
         let editor = SuggestiveEditor::from_buffer(buffer, SuggestiveEditorFilter::CurrentWord);
         let component_id = editor.id();
