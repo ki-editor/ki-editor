@@ -314,9 +314,8 @@ impl Layout {
         self.background_suggestive_editors
             .iter()
             .find_map(|(_, editor)| {
-                let borrowed = editor.borrow();
-                let editor = borrowed.editor();
-
+                let suggestive_editor = editor.borrow();
+                let editor = suggestive_editor.editor();
                 if editor.tag() == Some(tag_char) {
                     editor.path().clone()
                 } else {
