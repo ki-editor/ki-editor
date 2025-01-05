@@ -736,6 +736,7 @@ impl<T: Frontend> App<T> {
             Dispatch::GoToPreviousFile => self.go_to_previous_file()?,
             Dispatch::GoToNextFile => self.go_to_next_file()?,
             Dispatch::CycleBuffer(direction) => self.cycle_buffer(direction)?,
+            Dispatch::JumpEditor(tag) => self.handle_jump_editor(tag)?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
             Dispatch::OpenThemePrompt => self.open_theme_prompt()?,
             Dispatch::SetLastNonContiguousSelectionMode(selection_mode) => self
@@ -1878,6 +1879,28 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
+    fn handle_jump_editor(&mut self, tag: char) -> anyhow::Result<()> {
+        let editor_with_tag = self.layout.find_editor_tagged(tag);
+
+        // 1. If this editor has this tag, clear it.
+        if editor_with_tag == self.current_component().borrow().path() {
+            self.layout.clear_editors_tagged(tag);
+        }
+        // 2. If any editor has this tag, jump to it.
+        else if let Some(path) = editor_with_tag {
+            self.open_file(&path, OpenFileOption::Focus)?;
+        }
+        // 3. Assign this tag to this editor.
+        else {
+            self.current_component()
+                .borrow_mut()
+                .editor_mut()
+                .set_tag(Some(tag));
+        }
+
+        Ok(())
+    }
+
     #[cfg(test)]
     pub(crate) fn get_current_component_content(&self) -> String {
         self.current_component().borrow().editor().content()
@@ -2383,6 +2406,7 @@ pub(crate) enum Dispatch {
     GoToPreviousFile,
     GoToNextFile,
     CycleBuffer(Direction),
+    JumpEditor(char),
     PushPromptHistory {
         key: PromptHistoryKey,
         line: String,

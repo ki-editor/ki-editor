@@ -89,7 +89,7 @@ impl Component for Editor {
                 let icon = path.icon();
                 let dirty = if self.buffer().dirty() { " [*]" } else { "" };
                 let tag = if let Some(tag) = self.tag {
-                    format!(" <{}>", tag)
+                    format!(" #{}", tag)
                 } else {
                     "".to_string()
                 };
@@ -1444,7 +1444,7 @@ impl Editor {
     }
 
     /// Assign a tag to this editor.
-    fn set_tag(&mut self, tag: Option<char>) {
+    pub(crate) fn set_tag(&mut self, tag: Option<char>) {
         self.tag = tag;
         self.mode = Mode::Normal;
     }
