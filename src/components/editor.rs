@@ -1436,12 +1436,10 @@ impl Editor {
         self.buffer_mut().save_marks(selections.into())
     }
 
-    /// Retrieve the tag assigned, if any, to this editor.
     pub(crate) fn tag(&self) -> Option<char> {
         self.tag
     }
 
-    /// Assign a tag to this editor.
     pub(crate) fn set_tag(&mut self, tag: Option<char>) {
         self.tag = tag;
         self.mode = Mode::Normal;
