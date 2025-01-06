@@ -279,6 +279,7 @@ impl Buffer {
     pub(crate) fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
         self.dirty = true;
+        self.system_opened = false;
     }
 
     pub(crate) fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
@@ -507,6 +508,7 @@ impl Buffer {
         self.rope
             .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
         self.dirty = true;
+        self.system_opened = false;
 
         // Update all the positional spans (by using the char index ranges computed before the content is updated
         self.quickfix_list_items = quickfix_list_items_with_char_index_range
@@ -666,16 +668,23 @@ impl Buffer {
         &mut self,
         force: bool,
     ) -> anyhow::Result<Option<CanonicalizedPath>> {
+        self.system_opened = false;
+        println!("saving file");
         if !force && !self.dirty {
+            println!("not dirty");
             return Ok(None);
         }
 
+        println!("self.path={:?}", &self.path);
+
         if let Some(path) = &self.path {
+            println!("writing file");
             path.write(&self.content())?;
             self.dirty = false;
             self.system_opened = false;
             Ok(Some(path.clone()))
         } else {
+            println!("buffer has no path");
             log::info!("Buffer has no path");
             Ok(None)
         }

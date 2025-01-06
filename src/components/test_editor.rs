@@ -3249,3 +3249,26 @@ fn visual_select_anchor_change_selection_mode() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn background_editor_not_in_buffer_list() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFileBackground(s.main_rs())),
+            Expect(OpenedFilesCount(0)),
+        ])
+    })
+}
+
+#[test]
+fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFileBackground(s.main_rs())),
+            Expect(OpenedFilesCount(0)),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("a a esc").to_vec())),
+            Expect(OpenedFilesCount(1)),
+        ])
+    })
+}

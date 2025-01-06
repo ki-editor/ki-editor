@@ -431,7 +431,10 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenFile(path) => {
                 self.open_file(&path, OpenFileOption::Focus)?;
             }
-
+            #[cfg(test)]
+            Dispatch::OpenFileBackground(path) => {
+                self.open_file(&path.try_into()?, OpenFileOption::Background)?;
+            }
             Dispatch::OpenFileFromPathBuf(path) => {
                 self.open_file(&path.try_into()?, OpenFileOption::Focus)?;
             }
@@ -2257,6 +2260,8 @@ pub(crate) enum Dispatch {
         if_current_not_found: IfCurrentNotFound,
     },
     OpenFile(CanonicalizedPath),
+    #[cfg(test)]
+    OpenFileBackground(CanonicalizedPath),
     OpenFileFromPathBuf(PathBuf),
     ShowGlobalInfo(Info),
     RequestCompletion,
