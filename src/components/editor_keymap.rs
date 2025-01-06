@@ -27,10 +27,10 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         WordF, ToknF, Char_, Trsfm, _____, /****/ _____, RplcP, Join_, RplcN, _____,
     ],
     [
-        LineF, StyxF, DeltP, ChngX, _____, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
+        LineF, StyxF, DeltP, ChngX, _____, /****/ ToIdx, DeDnt, Break, Indnt, _____,
     ],
     [
-        Redo_, Raise, RplcX, PsteP, PRplc, /****/ _____, ToIdx, OpenP, _____, SrchP,
+        Redo_, Raise, RplcX, PsteP, PRplc, /****/ _____, CrsrP, OpenP, CrsrN, SrchP,
     ],
     // Why is Raise placed at the same Position as Exchange?
     // Because Raise is a special-case of Exchange where the movement is Up
