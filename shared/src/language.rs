@@ -250,9 +250,9 @@ mod test_language {
     }
 
     #[test]
-    fn test_from_content() -> anyhow::Result<()> {
+    fn test_from_content_directive() -> anyhow::Result<()> {
         fn run_test_case(content: &str, expected_language_id: &'static str) -> anyhow::Result<()> {
-            let result = from_content(content).unwrap();
+            let result = from_content_directive(content).unwrap();
             assert_eq!(
                 result.tree_sitter_grammar_id().unwrap(),
                 expected_language_id
