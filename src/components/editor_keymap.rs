@@ -12,7 +12,7 @@ pub const KEYMAP_SCORE: [[u8; 10]; 3] = [
 
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        Word_, Token, SrchC, MultC, Mark_, /****/ FindP, InstP, Up___, InstN, FindN,
+        Word_, Tokn_, SrchC, MultC, Mark_, /****/ FindP, InstP, Up___, InstN, FindN,
     ],
     [
         Line_, Sytx_, DeltN, Chng_, VMode, /****/ Globl, Left_, Down_, Right, Jump_,
@@ -24,7 +24,7 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        Char_, Trsfm, _____, _____, _____, /****/ _____, RplcP, Join_, RplcN, _____,
+        WordF, ToknF, Char_, Trsfm, _____, /****/ _____, RplcP, Join_, RplcN, _____,
     ],
     [
         LineF, StyxF, DeltP, ChngX, _____, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
@@ -369,7 +369,9 @@ pub(crate) enum Meaning {
     /// GoToIndex
     ToIdx,
     /// Select Token
-    Token,
+    Tokn_,
+    /// Select Token Fine
+    ToknF,
     /// Transform
     Trsfm,
     /// Paste (End)
@@ -390,6 +392,8 @@ pub(crate) enum Meaning {
     WordP,
     /// Select Word
     Word_,
+    /// Select Word Fine
+    WordF,
     /// Swap cursor with anchor
     XAchr,
 }

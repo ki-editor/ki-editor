@@ -224,7 +224,7 @@ impl Editor {
                     )),
                 ),
                 Keymap::new_extended(
-                    KEYBOARD_LAYOUT.get_key(&Meaning::Token),
+                    KEYBOARD_LAYOUT.get_key(&Meaning::Tokn_),
                     "token".to_string(),
                     "Select Token".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(
@@ -234,6 +234,17 @@ impl Editor {
                                 NewToken { skip_symbols: true } => false,
                                 _ => true,
                             },
+                        },
+                    )),
+                ),
+                Keymap::new_extended(
+                    KEYBOARD_LAYOUT.get_key(&Meaning::ToknF),
+                    "token fine".to_string(),
+                    "Select Token Fine".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(
+                        IfCurrentNotFound::LookForward,
+                        NewToken {
+                            skip_symbols: false,
                         },
                     )),
                 ),
@@ -248,6 +259,17 @@ impl Editor {
                                 NewWord { skip_symbols: true } => false,
                                 _ => true,
                             },
+                        },
+                    )),
+                ),
+                Keymap::new_extended(
+                    KEYBOARD_LAYOUT.get_key(&Meaning::WordF),
+                    "word fine".to_string(),
+                    "Select Word Fine".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(
+                        IfCurrentNotFound::LookForward,
+                        NewWord {
+                            skip_symbols: false,
                         },
                     )),
                 ),
