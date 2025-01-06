@@ -313,14 +313,9 @@ impl Layout {
     pub(crate) fn find_editor_tagged(&self, tag_char: char) -> Option<CanonicalizedPath> {
         self.background_suggestive_editors
             .iter()
-            .find_map(|(_, editor)| {
-                let suggestive_editor = editor.borrow();
-                let editor = suggestive_editor.editor();
-                if editor.tag() == Some(tag_char) {
-                    editor.path().clone()
-                } else {
-                    None
-                }
+            .find_map(|(path, editor)| {
+                let editor_tag = editor.borrow().editor().tag();
+                (editor_tag == Some(tag_char)).then_some(path.clone())
             })
     }
 
