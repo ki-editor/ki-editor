@@ -311,6 +311,15 @@ impl Layout {
         Ok(())
     }
 
+    pub(crate) fn find_editor_tagged(&self, tag_char: char) -> Option<CanonicalizedPath> {
+        self.background_suggestive_editors
+            .iter()
+            .find_map(|(path, editor)| {
+                let editor_tag = editor.borrow().editor().tag();
+                (editor_tag == Some(tag_char)).then_some(path.clone())
+            })
+    }
+
     #[cfg(test)]
     pub(crate) fn completion_dropdown_is_open(&self) -> bool {
         self.current_completion_dropdown().is_some()
