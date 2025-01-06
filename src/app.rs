@@ -1880,24 +1880,28 @@ impl<T: Frontend> App<T> {
     }
 
     fn handle_jump_editor(&mut self, tag: char) -> anyhow::Result<()> {
-        let tag_to_set = if let Some(editor_with_tag) = self.layout.find_editor_tagged(tag) {
-            let current_path = self.current_component().borrow().path();
-            if Some(editor_with_tag.clone()) == current_path {
-                None
-            } else {
-                self.open_file(&editor_with_tag, OpenFileOption::Focus)?;
+        let new_tag = match self.layout.find_editor_tagged(tag) {
+            // Case 1: Found a non-current editor that has this tag
+            //    - Jump to it
+            Some(tagged_editor)
+                if Some(tagged_editor.clone()) != self.current_component().borrow().path() =>
+            {
+                self.open_file(&tagged_editor, OpenFileOption::Focus)?;
 
                 return Ok(());
             }
-        } else {
-            Some(tag)
+            // Case 2: Found current editor to have this tag
+            //    - Remove current editor's tag
+            Some(_) => None,
+            // Case 3: No editor found
+            //    - Add new tag to current editor
+            None => Some(tag),
         };
 
         self.current_component()
             .borrow_mut()
             .editor_mut()
-            .set_tag(tag_to_set);
-
+            .set_tag(new_tag);
         Ok(())
     }
 

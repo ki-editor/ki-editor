@@ -88,11 +88,10 @@ impl Component for Editor {
                     .unwrap_or_else(|_| path.display_absolute());
                 let icon = path.icon();
                 let dirty = if self.buffer().dirty() { " [*]" } else { "" };
-                let tag = if let Some(tag) = self.tag {
-                    format!(" #{}", tag)
-                } else {
-                    "".to_string()
-                };
+                let tag = self
+                    .tag
+                    .map_or_else(String::new, |tag| format!(" #{}", tag));
+
                 Some(format!(" {} {}{}{}", icon, string, tag, dirty))
             })
             .unwrap_or_else(|| "[No title]".to_string())
