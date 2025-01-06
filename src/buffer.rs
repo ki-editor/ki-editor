@@ -25,6 +25,16 @@ use std::{collections::HashSet, ops::Range};
 use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal2::{traverse, Order};
 
+/// Determines the buffer's owner. Ki distinguishes buffer ownership during switches.
+/// System-owned buffers (e.g., from LSP diagnostics or quicklist functions) are
+/// excluded from user-initiated buffer switching contexts to ensure only user-relevant
+/// buffers are displayed.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum BufferOwner {
+    User,
+    System,
+}
+
 #[derive(Clone)]
 pub(crate) struct Buffer {
     rope: Rope,
@@ -40,8 +50,7 @@ pub(crate) struct Buffer {
     decorations: Vec<Decoration>,
     selection_set_history: History<SelectionSet>,
     dirty: bool,
-    /// Was this buffer requested directly by the user for editing or by a system process?
-    system_opened: bool,
+    owner: BufferOwner,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -76,18 +85,18 @@ impl Buffer {
             quickfix_list_items: Vec::new(),
             selection_set_history: History::new(),
             dirty: false,
-            system_opened: true,
+            owner: BufferOwner::System,
         }
     }
 
-    /// Refer `Buffer::system_opened`
-    pub(crate) fn set_system_opened(&mut self, system_opened: bool) {
-        self.system_opened = system_opened;
+    /// Refer `BufferOwner`
+    pub(crate) fn set_owner(&mut self, owner: BufferOwner) {
+        self.owner = owner;
     }
 
-    /// Refer `Buffer::system_opened`
-    pub(crate) fn system_opened(&self) -> bool {
-        self.system_opened
+    /// Refer `BufferOwner`
+    pub(crate) fn owner(&self) -> BufferOwner {
+        self.owner
     }
 
     pub(crate) fn clear_quickfix_list_items(&mut self) {
@@ -279,7 +288,7 @@ impl Buffer {
     pub(crate) fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
         self.dirty = true;
-        self.system_opened = false;
+        self.owner = BufferOwner::User;
     }
 
     pub(crate) fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
@@ -508,7 +517,7 @@ impl Buffer {
         self.rope
             .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
         self.dirty = true;
-        self.system_opened = false;
+        self.owner = BufferOwner::User;
 
         // Update all the positional spans (by using the char index ranges computed before the content is updated
         self.quickfix_list_items = quickfix_list_items_with_char_index_range
@@ -668,7 +677,6 @@ impl Buffer {
         &mut self,
         force: bool,
     ) -> anyhow::Result<Option<CanonicalizedPath>> {
-        self.system_opened = false;
         if !force && !self.dirty {
             return Ok(None);
         }
@@ -676,7 +684,7 @@ impl Buffer {
         if let Some(path) = &self.path {
             path.write(&self.content())?;
             self.dirty = false;
-            self.system_opened = false;
+            self.owner = BufferOwner::User;
             Ok(Some(path.clone()))
         } else {
             log::info!("Buffer has no path");

@@ -1,5 +1,5 @@
 use crate::{
-    buffer::Buffer,
+    buffer::{Buffer, BufferOwner},
     clipboard::CopiedTexts,
     components::{
         component::{Component, ComponentId, GetGridResult},
@@ -990,7 +990,11 @@ impl<T: Frontend> App<T> {
         }
 
         let mut buffer = Buffer::from_path(path, true)?;
-        buffer.set_system_opened(!option.store_history());
+        buffer.set_owner(if option.store_history() {
+            BufferOwner::User
+        } else {
+            BufferOwner::System
+        });
 
         let language = buffer.language();
         let content = buffer.content();

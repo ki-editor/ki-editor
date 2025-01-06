@@ -2,7 +2,7 @@ use crate::quickfix_list::QuickfixList;
 use crate::ui_tree::{ComponentKind, KindedComponent, UiTree};
 use crate::{
     app::{Dimension, Dispatches},
-    buffer::Buffer,
+    buffer::{Buffer, BufferOwner},
     components::{
         component::{Component, ComponentId},
         editor::Editor,
@@ -219,7 +219,7 @@ impl Layout {
     pub(crate) fn get_opened_files(&self) -> Vec<CanonicalizedPath> {
         self.background_suggestive_editors
             .iter()
-            .filter(|(_, editor)| !editor.borrow().editor().buffer().system_opened())
+            .filter(|(_, editor)| editor.borrow().editor().buffer().owner() == BufferOwner::User)
             .map(|(path, _)| path.clone())
             .collect()
     }
