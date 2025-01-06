@@ -83,6 +83,20 @@ impl SelectionMode for LineFull {
             })
             .map(|range| current_selection.clone().set_range(range)))
     }
+
+    fn delete_forward(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.down(params)
+    }
+
+    fn delete_backward(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.up(params)
+    }
 }
 
 fn is_blank(buffer: &crate::buffer::Buffer, byte_range: &super::ByteRange) -> Option<bool> {
