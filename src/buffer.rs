@@ -669,22 +669,16 @@ impl Buffer {
         force: bool,
     ) -> anyhow::Result<Option<CanonicalizedPath>> {
         self.system_opened = false;
-        println!("saving file");
         if !force && !self.dirty {
-            println!("not dirty");
             return Ok(None);
         }
 
-        println!("self.path={:?}", &self.path);
-
         if let Some(path) = &self.path {
-            println!("writing file");
             path.write(&self.content())?;
             self.dirty = false;
             self.system_opened = false;
             Ok(Some(path.clone()))
         } else {
-            println!("buffer has no path");
             log::info!("Buffer has no path");
             Ok(None)
         }
