@@ -24,7 +24,7 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        WordF, ToknF, Char_, Trsfm, _____, /****/ _____, RplcP, Join_, RplcN, _____,
+        WordF, ToknF, Char_, _____, Trsfm, /****/ _____, RplcP, Join_, RplcN, _____,
     ],
     [
         LineF, StyxF, DeltP, ChngX, _____, /****/ ToIdx, DeDnt, Break, Indnt, _____,
