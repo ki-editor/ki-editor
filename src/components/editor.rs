@@ -89,7 +89,11 @@ impl Component for Editor {
                     .unwrap_or_else(|_| path.display_absolute());
                 let icon = path.icon();
                 let dirty = if self.buffer().dirty() { " [*]" } else { "" };
-                Some(format!(" {} {}{}", icon, string, dirty))
+                let tag = self
+                    .tag
+                    .map_or_else(String::new, |tag| format!(" #{}", tag));
+
+                Some(format!(" {} {}{}{}", icon, string, tag, dirty))
             })
             .unwrap_or_else(|| "[No title]".to_string())
     }
@@ -367,6 +371,7 @@ impl Clone for Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
+            tag: None,
         }
     }
 }
@@ -389,6 +394,7 @@ pub(crate) struct Editor {
     id: ComponentId,
     pub(crate) current_view_alignment: Option<ViewAlignment>,
     copied_text_history_offset: Counter,
+    tag: Option<char>,
 }
 
 #[derive(Default)]
@@ -539,6 +545,7 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
+            tag: None,
         }
     }
 
@@ -556,6 +563,7 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
+            tag: None,
         }
     }
 
@@ -1433,6 +1441,15 @@ impl Editor {
             .selection_set
             .map(|selection| selection.extended_range());
         self.buffer_mut().save_marks(selections.into())
+    }
+
+    pub(crate) fn tag(&self) -> Option<char> {
+        self.tag
+    }
+
+    pub(crate) fn set_tag(&mut self, tag: Option<char>) {
+        self.tag = tag;
+        self.mode = Mode::Normal;
     }
 
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {
