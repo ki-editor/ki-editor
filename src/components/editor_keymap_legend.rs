@@ -134,6 +134,31 @@ impl Editor {
                     "Go to next buffer".to_string(),
                     Dispatch::CycleBuffer(Direction::End),
                 ),
+                Keymap::new(
+                    "1",
+                    "Quick Jump - #1".to_string(),
+                    Dispatch::JumpEditor('1'),
+                ),
+                Keymap::new(
+                    "2",
+                    "Quick Jump - #2".to_string(),
+                    Dispatch::JumpEditor('2'),
+                ),
+                Keymap::new(
+                    "3",
+                    "Quick Jump - #3".to_string(),
+                    Dispatch::JumpEditor('3'),
+                ),
+                Keymap::new(
+                    "4",
+                    "Quick Jump - #4".to_string(),
+                    Dispatch::JumpEditor('4'),
+                ),
+                Keymap::new(
+                    "5",
+                    "Quick Jump - #5".to_string(),
+                    Dispatch::JumpEditor('5'),
+                ),
             ]),
         }
     }
