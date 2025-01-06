@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use super::SelectionMode;
 
 pub(crate) struct LineFull;
@@ -31,6 +33,64 @@ impl SelectionMode for LineFull {
                 }),
         ))
     }
+    fn right<'a>(
+        &self,
+        params: super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let buffer = params.buffer;
+        let current_selection = params.current_selection;
+        let current_selection_range =
+            buffer.char_index_range_to_byte_range(current_selection.range())?;
+        Ok(self
+            .iter_filtered(params)?
+            .skip_while(|byte_range| byte_range.range != current_selection_range)
+            .skip_while(|byte_range| is_blank(buffer, byte_range).unwrap_or(false))
+            .find_map(|byte_range| {
+                if is_blank(buffer, &byte_range)? {
+                    buffer
+                        .byte_range_to_char_index_range(&byte_range.range)
+                        .ok()
+                } else {
+                    None
+                }
+            })
+            .map(|range| current_selection.clone().set_range(range)))
+    }
+
+    fn left<'a>(
+        &self,
+        params: super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let buffer = params.buffer;
+        let current_selection = params.current_selection;
+        let current_selection_range =
+            buffer.char_index_range_to_byte_range(current_selection.range())?;
+        Ok(self
+            .iter_filtered(params)?
+            .take_while(|byte_range| byte_range.range != current_selection_range)
+            .collect_vec()
+            .into_iter()
+            .rev()
+            .skip_while(|byte_range| is_blank(buffer, byte_range).unwrap_or(false))
+            .find_map(|byte_range| {
+                if is_blank(buffer, &byte_range)? {
+                    buffer
+                        .byte_range_to_char_index_range(&byte_range.range)
+                        .ok()
+                } else {
+                    None
+                }
+            })
+            .map(|range| current_selection.clone().set_range(range)))
+    }
+}
+
+fn is_blank(buffer: &crate::buffer::Buffer, byte_range: &super::ByteRange) -> Option<bool> {
+    let range = buffer
+        .byte_range_to_char_index_range(&byte_range.range)
+        .ok()?;
+    let content = buffer.slice(&range).ok()?;
+    Some(content.chars().all(|c| c.is_whitespace()))
 }
 
 #[cfg(test)]

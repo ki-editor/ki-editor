@@ -392,12 +392,26 @@ impl SelectionSet {
 pub(crate) enum SelectionMode {
     // Regex
     EmptyLine,
+    #[deprecated(
+        note = "use `NewWord` instead. This should be removed when the positional-keymap branch is finalized"
+    )]
     Word,
+    NewWord {
+        skip_symbols: bool,
+    },
+    #[deprecated(
+        note = "use `NewToken` instead. This should be removed when the positional-keymap branch is finalized."
+    )]
     Token,
+    NewToken {
+        skip_symbols: bool,
+    },
     Line,
     Character,
     Custom,
-    Find { search: Search },
+    Find {
+        search: Search,
+    },
     // Syntax-tree
     SyntaxNode,
     SyntaxNodeFine,
@@ -409,7 +423,9 @@ pub(crate) enum SelectionMode {
     GitHunk(crate::git::DiffMode),
 
     // Local quickfix
-    LocalQuickfix { title: String },
+    LocalQuickfix {
+        title: String,
+    },
 
     // Mark
     Mark,
@@ -444,6 +460,12 @@ impl SelectionMode {
             }
             SelectionMode::Mark => "MARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
+            SelectionMode::NewWord { skip_symbols } => {
+                format!("WORD{}", if *skip_symbols { "" } else { " FINE" })
+            }
+            SelectionMode::NewToken { skip_symbols } => {
+                format!("TOKEN{}", if *skip_symbols { "" } else { " FINE" })
+            }
         }
     }
 
@@ -460,6 +482,12 @@ impl SelectionMode {
         };
         Ok(match self {
             SelectionMode::Word => Box::new(selection_mode::Word::new(buffer)?),
+            SelectionMode::NewWord { skip_symbols } => {
+                Box::new(selection_mode::WordNew::new(buffer, *skip_symbols)?)
+            }
+            SelectionMode::NewToken { skip_symbols } => {
+                Box::new(selection_mode::TokenNew::new(buffer, *skip_symbols)?)
+            }
             SelectionMode::Token => Box::new(selection_mode::Token::new(buffer)?),
             SelectionMode::Line => Box::new(selection_mode::LineTrimmed),
             SelectionMode::LineFull => Box::new(selection_mode::LineFull),
@@ -507,7 +535,9 @@ impl SelectionMode {
         matches!(
             self,
             SelectionMode::Word
+                | SelectionMode::NewWord { .. }
                 | SelectionMode::Token
+                | SelectionMode::NewToken { .. }
                 | SelectionMode::Line
                 | SelectionMode::LineFull
                 | SelectionMode::Character

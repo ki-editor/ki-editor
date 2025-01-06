@@ -57,18 +57,6 @@ impl Editor {
                     Dispatch::ToEditor(MoveSelection(Down)),
                 ),
                 Keymap::new_extended(
-                    KEYBOARD_LAYOUT.get_key(&Meaning::Next_),
-                    "next".to_string(),
-                    "Next".to_string(),
-                    Dispatch::ToEditor(MoveSelection(Next)),
-                ),
-                Keymap::new_extended(
-                    KEYBOARD_LAYOUT.get_key(&Meaning::Prev_),
-                    "prev".to_string(),
-                    "Previous".to_string(),
-                    Dispatch::ToEditor(MoveSelection(Previous)),
-                ),
-                Keymap::new_extended(
                     KEYBOARD_LAYOUT.get_key(&Meaning::First),
                     "first".to_string(),
                     "First".to_string(),
@@ -168,7 +156,13 @@ impl Editor {
                     KEYBOARD_LAYOUT.get_key(&Meaning::Line_),
                     "line".to_string(),
                     "Select Line".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+                    Dispatch::ToEditor(SetSelectionMode(
+                        IfCurrentNotFound::LookForward,
+                        match self.selection_set.mode {
+                            Line => LineFull,
+                            _ => Line,
+                        },
+                    )),
                 ),
                 Keymap::new_extended(
                     KEYBOARD_LAYOUT.get_key(&Meaning::LineF),
@@ -208,13 +202,29 @@ impl Editor {
                     KEYBOARD_LAYOUT.get_key(&Meaning::Token),
                     "token".to_string(),
                     "Select Token".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+                    Dispatch::ToEditor(SetSelectionMode(
+                        IfCurrentNotFound::LookForward,
+                        NewToken {
+                            skip_symbols: match self.selection_set.mode {
+                                NewToken { skip_symbols: true } => false,
+                                _ => true,
+                            },
+                        },
+                    )),
                 ),
                 Keymap::new_extended(
                     KEYBOARD_LAYOUT.get_key(&Meaning::Word_),
                     "word".to_string(),
                     "Select Word".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+                    Dispatch::ToEditor(SetSelectionMode(
+                        IfCurrentNotFound::LookForward,
+                        NewWord {
+                            skip_symbols: match self.selection_set.mode {
+                                NewWord { skip_symbols: true } => false,
+                                _ => true,
+                            },
+                        },
+                    )),
                 ),
                 Keymap::new_extended(
                     KEYBOARD_LAYOUT.get_key(&Meaning::Char_),

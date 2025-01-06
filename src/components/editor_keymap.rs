@@ -12,26 +12,28 @@ pub const KEYMAP_SCORE: [[u8; 10]; 3] = [
 
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        Word_, Token, SrchC, MultC, OpenN, /****/ FindP, InstP, Up___, InstN, FindN,
+        Word_, Token, SrchC, MultC, Mark_, /****/ FindP, InstP, Up___, InstN, FindN,
     ],
     [
-        Line_, Sytx_, DeltN, Chng_, VMode, /****/ Left_, Prev_, Down_, Next_, Right,
+        Line_, Sytx_, DeltN, Chng_, VMode, /****/ Globl, Left_, Down_, Right, Jump_,
     ],
     [
-        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ Globl, Jump_, First, Last_, SrchN,
+        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ XAchr, First, OpenN, Last_, SrchN,
     ],
 ];
 
 pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        Char_, Trsfm, Mark_, Raise, OpenP, /****/ _____, RplcP, Join_, RplcN, _____,
+        Char_, Trsfm, _____, _____, _____, /****/ _____, RplcP, Join_, RplcN, _____,
     ],
     [
         LineF, StyxF, DeltP, ChngX, _____, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
     ],
     [
-        Redo_, XAchr, RplcX, PsteP, PRplc, /****/ _____, ToIdx, _____, _____, SrchP,
+        Redo_, Raise, RplcX, PsteP, PRplc, /****/ _____, ToIdx, OpenP, _____, SrchP,
     ],
+    // Why is Raise placed at the same Position as Exchange?
+    // Because Raise is a special-case of Exchange where the movement is Up
 ];
 
 pub const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
