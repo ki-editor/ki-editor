@@ -1,7 +1,7 @@
 use super::{
     component::ComponentId,
     dropdown::DropdownRender,
-    editor_keymap::{shifted, KEYBOARD_LAYOUT, KEYMAP_SCORE},
+    editor_keymap::{shifted, shifted_char, KEYBOARD_LAYOUT, KEYMAP_SCORE},
     render_editor::Source,
     suggestive_editor::{Decoration, Info},
 };
@@ -692,17 +692,14 @@ impl Editor {
     }
 
     fn jump_characters() -> Vec<char> {
-        KEYBOARD_LAYOUT
+        let chars = KEYBOARD_LAYOUT
             .get_keyboard_layout()
             .iter()
             .flatten()
             .zip(KEYMAP_SCORE.iter().flatten())
             .sorted_by_key(|(_, score)| **score)
-            .flat_map(|(str, _)| {
-                let char = str.chars().next().unwrap();
-                [char, shifted(str).chars().next().unwrap()]
-            })
-            .collect()
+            .map(|(char, _)| char.chars().next().unwrap());
+        chars.clone().chain(chars.map(shifted_char)).collect()
     }
 
     pub(crate) fn get_selection_mode_trait_object(
