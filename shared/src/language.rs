@@ -192,6 +192,41 @@ pub(crate) fn from_filename(path: &CanonicalizedPath) -> Option<Language> {
         .map(|language| (*language).clone())
 }
 
+use regex::Regex;
+
+/// Detect the language from the first line of the file content.
+///
+/// Standard shebang format is checked as well as vim's `ft=` method and various
+/// other editors supporting `mode:`.
+///
+/// For example, a file opened that has any of the following first lines will be
+/// detected as bash.
+///
+/// - `#!/bin/bash`
+/// - `# vim: ft=bash`
+/// - `# mode: bash
+///
+/// Spaces and other content on the line do not matter.
+pub fn from_content_directive(content: &str) -> Option<Language> {
+    let first_line = content.lines().next()?;
+
+    let re = Regex::new(r"(?:(?:^#!.*/)|(?:mode:)|(?:ft\s*=))\s*(\w+)").unwrap();
+    let language_id = re
+        .captures(first_line)
+        .and_then(|captures| captures.get(1).map(|mode| mode.as_str().to_string()));
+
+    language_id.and_then(|id| {
+        LANGUAGES
+            .iter()
+            .find(|language| {
+                language
+                    .lsp_language_id
+                    .map_or(false, |lsp_id| lsp_id.0 == id)
+            })
+            .map(|language| (*language).clone())
+    })
+}
+
 #[cfg(test)]
 mod test_language {
     use super::*;
@@ -211,6 +246,27 @@ mod test_language {
         }
         run_test_case("hello.rs", "rust")?;
         run_test_case("justfile", "just")?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_content_directive() -> anyhow::Result<()> {
+        fn run_test_case(content: &str, expected_language_id: &'static str) -> anyhow::Result<()> {
+            let result = from_content_directive(content).unwrap();
+            assert_eq!(
+                result.tree_sitter_grammar_id().unwrap(),
+                expected_language_id
+            );
+            Ok(())
+        }
+
+        run_test_case("#!/bin/bash", "bash")?;
+        run_test_case("#!/usr/local/bin/bash", "bash")?;
+        run_test_case("// mode: python", "python")?;
+        run_test_case("-- tab_spaces: 5, mode: bash, use_tabs: false", "bash")?;
+        run_test_case("-- tab_spaces: 5, mode:bash, use_tabs: false", "bash")?;
+        run_test_case("-- vim: ft = bash", "bash")?;
+
         Ok(())
     }
 }
