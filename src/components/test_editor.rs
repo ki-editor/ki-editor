@@ -3249,3 +3249,35 @@ fn visual_select_anchor_change_selection_mode() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn toggle_editor_tag() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
+            App(HandleKeyEvent(key!("1"))),
+            Expect(CurrentComponentTitle(" 🦀 src/main.rs #1")),
+            App(HandleKeyEvent(key!("1"))),
+            Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
+        ])
+    })
+}
+
+#[test]
+fn jump_editor_tag() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            App(HandleKeyEvent(key!("1"))),
+            Expect(CurrentComponentTitle(" 🦀 src/main.rs #1")),
+            App(OpenFile(s.foo_rs())),
+            App(HandleKeyEvent(key!("2"))),
+            Expect(CurrentComponentTitle(" 🦀 src/foo.rs #2")),
+            App(HandleKeyEvent(key!("1"))),
+            Expect(CurrentComponentTitle(" 🦀 src/main.rs #1")),
+            App(HandleKeyEvent(key!("2"))),
+            Expect(CurrentComponentTitle(" 🦀 src/foo.rs #2")),
+        ])
+    })
+}
