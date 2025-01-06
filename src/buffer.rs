@@ -40,7 +40,8 @@ pub(crate) struct Buffer {
     decorations: Vec<Decoration>,
     selection_set_history: History<SelectionSet>,
     dirty: bool,
-    user: bool,
+    /// Was this buffer requested directly by the user for editing or by a system process?
+    system_opened: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -75,20 +76,18 @@ impl Buffer {
             quickfix_list_items: Vec::new(),
             selection_set_history: History::new(),
             dirty: false,
-            user: true,
+            system_opened: true,
         }
     }
 
-    pub(crate) fn set_user(&mut self, user: bool) {
-        self.user = user;
+    /// Refer `Buffer::system_opened`
+    pub(crate) fn set_system_opened(&mut self, system_opened: bool) {
+        self.system_opened = system_opened;
     }
 
-    /// Was this buffer requested directly by the user for editing?
-    ///
-    /// Scenarios where it was not, but opened anyway include Global Search, LSP
-    /// diagnostic tracking.
-    pub(crate) fn user(&self) -> bool {
-        self.user
+    /// Refer `Buffer::system_opened`
+    pub(crate) fn system_opened(&self) -> bool {
+        self.system_opened
     }
 
     pub(crate) fn clear_quickfix_list_items(&mut self) {
@@ -674,7 +673,7 @@ impl Buffer {
         if let Some(path) = &self.path {
             path.write(&self.content())?;
             self.dirty = false;
-            self.user = true;
+            self.system_opened = false;
             Ok(Some(path.clone()))
         } else {
             log::info!("Buffer has no path");

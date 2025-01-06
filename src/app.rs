@@ -986,7 +986,7 @@ impl<T: Frontend> App<T> {
         }
 
         let mut buffer = Buffer::from_path(path, true)?;
-        buffer.set_user(option.store_history());
+        buffer.set_system_opened(!option.store_history());
 
         let language = buffer.language();
         let content = buffer.content();

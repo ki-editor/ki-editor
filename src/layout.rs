@@ -219,7 +219,7 @@ impl Layout {
     pub(crate) fn get_opened_files(&self) -> Vec<CanonicalizedPath> {
         self.background_suggestive_editors
             .iter()
-            .filter(|(_, editor)| editor.borrow().editor().buffer().user())
+            .filter(|(_, editor)| !editor.borrow().editor().buffer().system_opened())
             .map(|(path, _)| path.clone())
             .collect()
     }
