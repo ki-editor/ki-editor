@@ -433,7 +433,7 @@ impl<T: Frontend> App<T> {
             }
             #[cfg(test)]
             Dispatch::OpenFileBackground(path) => {
-                self.open_file(&path.try_into()?, OpenFileOption::Background)?;
+                self.open_file(&path, OpenFileOption::Background)?;
             }
             Dispatch::OpenFileFromPathBuf(path) => {
                 self.open_file(&path.try_into()?, OpenFileOption::Focus)?;
