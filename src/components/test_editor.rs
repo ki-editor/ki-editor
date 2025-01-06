@@ -3262,10 +3262,11 @@ fn background_editor_not_in_buffer_list() -> anyhow::Result<()> {
 
 #[test]
 fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
-    execute_test(|s| {
+    execute_test(|_| {
         Box::new([
-            App(OpenFileBackground(s.main_rs())),
+            App(HandleKeyEvents(keys!("g / f o o : : f o o enter").to_vec())),
             Expect(OpenedFilesCount(0)),
+            Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
             Expect(OpenedFilesCount(1)),
@@ -3273,6 +3274,7 @@ fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
     })
 }
 
+#[test]
 fn toggle_editor_tag() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
