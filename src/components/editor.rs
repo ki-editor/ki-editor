@@ -1,7 +1,7 @@
 use super::{
     component::ComponentId,
     dropdown::DropdownRender,
-    editor_keymap::{KEYBOARD_LAYOUT, KEYMAP_SCORE},
+    editor_keymap::{shifted, KEYBOARD_LAYOUT, KEYMAP_SCORE},
     render_editor::Source,
     suggestive_editor::{Decoration, Info},
 };
@@ -698,7 +698,10 @@ impl Editor {
             .flatten()
             .zip(KEYMAP_SCORE.iter().flatten())
             .sorted_by_key(|(_, score)| **score)
-            .map(|(str, _)| str.chars().next().unwrap())
+            .flat_map(|(str, _)| {
+                let char = str.chars().next().unwrap();
+                [char, shifted(str).chars().next().unwrap()]
+            })
             .collect()
     }
 
