@@ -603,7 +603,7 @@ impl Buffer {
     ) -> anyhow::Result<Buffer> {
         let content = path.read()?;
         let language = if enable_tree_sitter {
-            language::from_path(path).or_else(|| language::from_content(&content))
+            language::from_path(path).or_else(|| language::from_content_directive(&content))
         } else {
             None
         };

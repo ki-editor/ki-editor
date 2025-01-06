@@ -207,7 +207,7 @@ use regex::Regex;
 /// - `# mode: bash
 ///
 /// Spaces and other content on the line do not matter.
-pub fn from_content(content: &str) -> Option<Language> {
+pub fn from_content_directive(content: &str) -> Option<Language> {
     let first_line = content.lines().next()?;
 
     let re = Regex::new(r"(?:(?:^#!.*/)|(?:mode:)|(?:ft\s*=))\s*(\w+)").unwrap();
