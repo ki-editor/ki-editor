@@ -672,13 +672,13 @@ impl Editor {
                         title: "GNU Readline movements".to_string(),
                         keymaps: Keymaps::new(&[
                             Keymap::new_extended(
-                                KEYBOARD_LAYOUT.get_insert_key(&Meaning::CharP),
+                                "left",
                                 "char ←".to_string(),
                                 "Move back a character".to_string(),
                                 Dispatch::ToEditor(MoveCharacterBack),
                             ),
                             Keymap::new_extended(
-                                KEYBOARD_LAYOUT.get_insert_key(&Meaning::CharN),
+                                "right",
                                 "char →".to_string(),
                                 "Move forward a character".to_string(),
                                 Dispatch::ToEditor(MoveCharacterForward),

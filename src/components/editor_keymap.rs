@@ -40,13 +40,13 @@ pub const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
     // TODO: Implement Up Line and Down Line
     // The cursor should be placed at the of the line
     [
-        _____, GBack, ScrlU, GForw, _____, /****/ KilLP, LineP, LineU, LineN, KilLN,
+        KilLP, LineP, LineU, LineN, KilLN, /****/ _____, _____, ScrlU, _____, _____,
     ],
     [
-        SView, BuffP, ScrlD, BuffN, _____, /****/ DWrdP, CItmP, LineD, CItmN, _____,
+        _____, CItmP, LineD, CItmN, _____, /****/ DWrdP, BuffP, ScrlD, BuffN, SView,
     ],
     [
-        Undo_, WSwth, WClse, UPstE, _____, /****/ DTknP, CharP, _____, CharN, CSrch,
+        Undo_, WSwth, WClse, UPstE, _____, /****/ DTknP, GBack, _____, GForw, CSrch,
     ],
 ];
 
