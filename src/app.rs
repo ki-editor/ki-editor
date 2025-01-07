@@ -17,7 +17,6 @@ use crate::{
     frontend::Frontend,
     git,
     grid::{Grid, LineUpdate},
-    history::History,
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
@@ -161,7 +160,7 @@ impl<T: Frontend> App<T> {
             if entry_path.as_ref().is_dir() {
                 self.layout.open_file_explorer();
             } else {
-                self.open_file(&entry_path, OpenFileOption::Focus)?;
+                self.open_file(&entry_path, BufferOwner::System, true)?;
             }
         }
 
@@ -424,14 +423,14 @@ impl<T: Frontend> App<T> {
             } => self.open_search_prompt(scope, if_current_not_found)?,
             Dispatch::OpenPipeToShellPrompt => self.open_pipe_to_shell_prompt()?,
             Dispatch::OpenFile(path) => {
-                self.open_file(&path, OpenFileOption::Focus)?;
+                self.open_file(&path, BufferOwner::System, true)?;
             }
             #[cfg(test)]
             Dispatch::OpenFileBackground(path) => {
-                self.open_file(&path, OpenFileOption::Background)?;
+                self.open_file(&path, BufferOwner::System, false)?;
             }
             Dispatch::OpenFileFromPathBuf(path) => {
-                self.open_file(&path.try_into()?, OpenFileOption::Focus)?;
+                self.open_file(&path.try_into()?, BufferOwner::User, true)?;
             }
 
             Dispatch::OpenFilePicker(kind) => {
@@ -971,20 +970,16 @@ impl<T: Frontend> App<T> {
     fn open_file(
         &mut self,
         path: &CanonicalizedPath,
-        option: OpenFileOption,
+        owner: BufferOwner,
+        focus: bool,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
-        // Check if the file is opened before
-        // so that we won't notify the LSP twice
-        if let Some(matching_editor) = self.layout.open_file(path, option.is_focus()) {
+        // Check if the file is opened before so that we won't notify the LSP twice
+        if let Some(matching_editor) = self.layout.open_file(path, focus) {
             return Ok(matching_editor);
         }
 
         let mut buffer = Buffer::from_path(path, true)?;
-        buffer.set_owner(if option.store_history() {
-            BufferOwner::User
-        } else {
-            BufferOwner::System
-        });
+        buffer.set_owner(owner);
 
         let language = buffer.language();
         let content = buffer.content();
@@ -995,11 +990,10 @@ impl<T: Frontend> App<T> {
 
         self.layout.add_suggestive_editor(component.clone());
 
-        if option.is_focus() {
+        if focus {
             self.layout
                 .replace_and_focus_current_suggestive_editor(component.clone())
         }
-
         if let Some(language) = language {
             self.request_syntax_highlight(component_id, language, content)?;
         }
@@ -1129,7 +1123,7 @@ impl<T: Frontend> App<T> {
         path: CanonicalizedPath,
         diagnostics: Vec<lsp_types::Diagnostic>,
     ) -> anyhow::Result<()> {
-        let component = self.open_file(&path, OpenFileOption::Background)?;
+        let component = self.open_file(&path, BufferOwner::System, false)?;
 
         component
             .borrow_mut()
@@ -1172,7 +1166,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn go_to_location(&mut self, Location { path, range }: &Location) -> Result<(), anyhow::Error> {
-        let component = self.open_file(path, OpenFileOption::Focus)?;
+        let component = self.open_file(path, BufferOwner::System, true)?;
         let dispatches = component
             .borrow_mut()
             .editor_mut()
@@ -1201,7 +1195,7 @@ impl<T: Frontend> App<T> {
                     .chunk_by(|item| item.location().path.clone())
                     .into_iter()
                     .map(|(path, items)| -> anyhow::Result<()> {
-                        let editor = self.open_file(&path, OpenFileOption::Background)?;
+                        let editor = self.open_file(&path, BufferOwner::System, true)?;
                         editor
                             .borrow_mut()
                             .editor_mut()
@@ -1234,7 +1228,7 @@ impl<T: Frontend> App<T> {
         // TODO: should we wrap this in a transaction so that if one of the edit/operation fails, the whole transaction fails?
         // Such that it won't leave the workspace in an half-edited messed up state
         for edit in workspace_edit.edits {
-            let component = self.open_file(&edit.path, OpenFileOption::Background)?;
+            let component = self.open_file(&edit.path, BufferOwner::System, false)?;
             let dispatches = component
                 .borrow_mut()
                 .editor_mut()
@@ -1858,7 +1852,7 @@ impl<T: Frontend> App<T> {
                     Direction::End => current_index + 1,
                 };
 
-                self.open_file(&files[next_index], OpenFileOption::Focus)?;
+                self.open_file(&files[next_index], BufferOwner::User, true)?;
             }
         }
         Ok(())
@@ -1871,7 +1865,7 @@ impl<T: Frontend> App<T> {
             Some(tagged_editor)
                 if Some(tagged_editor.clone()) != self.current_component().borrow().path() =>
             {
-                self.open_file(&tagged_editor, OpenFileOption::Focus)?;
+                self.open_file(&tagged_editor, BufferOwner::User, true)?;
 
                 return Ok(());
             }
@@ -2638,21 +2632,5 @@ impl DispatchPrompt {
                 }),
             )),
         }
-    }
-}
-
-#[derive(PartialEq)]
-enum OpenFileOption {
-    Focus,
-    FocusNoHistory,
-    Background,
-}
-impl OpenFileOption {
-    fn is_focus(&self) -> bool {
-        self != &OpenFileOption::Background
-    }
-
-    fn store_history(&self) -> bool {
-        self == &OpenFileOption::Focus
     }
 }
