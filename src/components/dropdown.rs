@@ -1,6 +1,8 @@
 use std::cmp::Reverse;
 
-use crate::{app::Dispatches, components::editor::Movement, position::Position};
+use crate::{
+    app::Dispatches, buffer::BufferOwner, components::editor::Movement, position::Position,
+};
 
 use itertools::Itertools;
 
@@ -89,7 +91,11 @@ impl From<CanonicalizedPath> for DropdownItem {
                 parent.try_display_relative()
             )
         }))
-        .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFile(value)))
+        .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFile(
+            value,
+            BufferOwner::User,
+            true,
+        )))
     }
 }
 

@@ -1,7 +1,10 @@
 use itertools::Itertools;
 use my_proc_macros::key;
 
-use crate::app::{Dispatch, Dispatches, YesNoPrompt};
+use crate::{
+    app::{Dispatch, Dispatches, YesNoPrompt},
+    buffer::BufferOwner,
+};
 use shared::canonicalized_path::CanonicalizedPath;
 
 use super::{
@@ -373,7 +376,7 @@ impl Component for FileExplorer {
                     match node.kind {
                         NodeKind::File => Ok([
                             Dispatch::CloseCurrentWindow,
-                            Dispatch::OpenFile(node.path.clone()),
+                            Dispatch::OpenFile(node.path.clone(), BufferOwner::User, true),
                         ]
                         .to_vec()
                         .into()),

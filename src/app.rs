@@ -422,15 +422,11 @@ impl<T: Frontend> App<T> {
                 if_current_not_found,
             } => self.open_search_prompt(scope, if_current_not_found)?,
             Dispatch::OpenPipeToShellPrompt => self.open_pipe_to_shell_prompt()?,
-            Dispatch::OpenFile(path) => {
-                self.open_file(&path, BufferOwner::System, true)?;
+            Dispatch::OpenFile(path, owner, focus) => {
+                self.open_file(&path, owner, focus)?;
             }
-            #[cfg(test)]
-            Dispatch::OpenFileBackground(path) => {
-                self.open_file(&path, BufferOwner::System, false)?;
-            }
-            Dispatch::OpenFileFromPathBuf(path) => {
-                self.open_file(&path.try_into()?, BufferOwner::User, true)?;
+            Dispatch::OpenFileFromPathBuf(path, owner, focus) => {
+                self.open_file(&path.try_into()?, owner, focus)?;
             }
 
             Dispatch::OpenFilePicker(kind) => {
@@ -951,7 +947,11 @@ impl<T: Frontend> App<T> {
                             format!("{} {}", shared::icons::get_icon_config().folder, relative,)
                         }))
                         .set_dispatches(Dispatches::one(
-                            crate::app::Dispatch::OpenFileFromPathBuf(path),
+                            crate::app::Dispatch::OpenFileFromPathBuf(
+                                path,
+                                BufferOwner::User,
+                                true,
+                            ),
                         ))
                     })
                     .collect_vec()
@@ -2260,10 +2260,8 @@ pub(crate) enum Dispatch {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
     },
-    OpenFile(CanonicalizedPath),
-    #[cfg(test)]
-    OpenFileBackground(CanonicalizedPath),
-    OpenFileFromPathBuf(PathBuf),
+    OpenFile(CanonicalizedPath, BufferOwner, bool),
+    OpenFileFromPathBuf(PathBuf, BufferOwner, bool),
     ShowGlobalInfo(Info),
     RequestCompletion,
     RequestSignatureHelp,
@@ -2601,7 +2599,11 @@ impl DispatchPrompt {
             }
             DispatchPrompt::OpenFile { working_directory } => {
                 let path = working_directory.join(text)?;
-                Ok(Dispatches::new(vec![Dispatch::OpenFile(path)]))
+                Ok(Dispatches::new(vec![Dispatch::OpenFile(
+                    path,
+                    BufferOwner::User,
+                    true,
+                )]))
             }
             DispatchPrompt::UpdateLocalSearchConfigReplacement {
                 scope,

@@ -5,7 +5,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 // TODO:
 // 1. Emoji not rendering properly
 
-use crate::{position::Position, recipes, rectangle::Rectangle, test_app::*};
+use crate::{buffer::BufferOwner, position::Position, recipes, rectangle::Rectangle, test_app::*};
 
 #[test]
 fn generate_recipes() -> anyhow::Result<()> {
@@ -59,7 +59,11 @@ fn generate_recipes() -> anyhow::Result<()> {
                                         })),
                                         App(AddPath(temp_path.clone())),
                                         AppLater(Box::new(move || {
-                                            OpenFile(temp_path.clone().try_into().unwrap())
+                                            OpenFile(
+                                                temp_path.clone().try_into().unwrap(),
+                                                BufferOwner::User,
+                                                true,
+                                            )
                                         })),
                                         Editor(SetRectangle(Rectangle {
                                             origin: Position::default(),
