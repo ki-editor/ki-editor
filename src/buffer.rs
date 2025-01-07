@@ -684,7 +684,6 @@ impl Buffer {
         if let Some(path) = &self.path {
             path.write(&self.content())?;
             self.dirty = false;
-            self.owner = BufferOwner::User;
             Ok(Some(path.clone()))
         } else {
             log::info!("Buffer has no path");
