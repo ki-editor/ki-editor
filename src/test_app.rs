@@ -1792,24 +1792,6 @@ fn closing_current_file_should_replace_current_window_with_another_file() -> any
 }
 
 #[test]
-fn file_path_history() -> anyhow::Result<()> {
-    {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile(s.main_rs())),
-                App(OpenFile(s.foo_rs())),
-                App(OpenFile(s.foo_rs())),
-                Expect(CurrentComponentPath(Some(s.foo_rs()))),
-                App(GoToPreviousFile),
-                Expect(CurrentComponentPath(Some(s.main_rs()))),
-                App(GoToNextFile),
-                Expect(CurrentComponentPath(Some(s.foo_rs()))),
-            ])
-        })
-    }
-}
-
-#[test]
 fn editor_info_should_always_come_after_dropdown() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

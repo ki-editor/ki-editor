@@ -73,8 +73,6 @@ pub(crate) struct App<T: Frontend> {
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
 
-    /// Used for navigating between opened files
-    file_path_history: History<CanonicalizedPath>,
     status_line_components: Vec<StatusLineComponent>,
     last_action_description: Option<String>,
 }
@@ -134,9 +132,6 @@ impl<T: Frontend> App<T> {
             frontend,
             syntax_highlight_request_sender: None,
             global_title: None,
-
-            file_path_history: History::new(),
-
             status_line_components,
             last_action_description: None,
         };
@@ -736,8 +731,6 @@ impl<T: Frontend> App<T> {
                 self.open_code_actions_prompt(code_actions)?;
             }
             Dispatch::OtherWindow => self.layout.cycle_window(),
-            Dispatch::GoToPreviousFile => self.go_to_previous_file()?,
-            Dispatch::GoToNextFile => self.go_to_next_file()?,
             Dispatch::CycleBuffer(direction) => self.cycle_buffer(direction)?,
             Dispatch::JumpEditor(tag) => self.handle_jump_editor(tag)?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
@@ -980,9 +973,6 @@ impl<T: Frontend> App<T> {
         path: &CanonicalizedPath,
         option: OpenFileOption,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
-        if option.store_history() {
-            self.file_path_history.push(path.clone())
-        }
         // Check if the file is opened before
         // so that we won't notify the LSP twice
         if let Some(matching_editor) = self.layout.open_file(path, option.is_focus()) {
@@ -1857,20 +1847,6 @@ impl<T: Frontend> App<T> {
             .collect_vec()
     }
 
-    fn go_to_previous_file(&mut self) -> anyhow::Result<()> {
-        if let Some(path) = self.file_path_history.undo() {
-            self.open_file(&path, OpenFileOption::FocusNoHistory)?;
-        }
-        Ok(())
-    }
-
-    fn go_to_next_file(&mut self) -> anyhow::Result<()> {
-        if let Some(path) = self.file_path_history.redo() {
-            self.open_file(&path, OpenFileOption::FocusNoHistory)?;
-        }
-        Ok(())
-    }
-
     fn cycle_buffer(&mut self, direction: Direction) -> anyhow::Result<()> {
         if let Some(current_file_path) = self.current_component().borrow().path() {
             let files = self.layout.get_opened_files();
@@ -2418,8 +2394,6 @@ pub(crate) enum Dispatch {
     OtherWindow,
     CloseCurrentWindowAndFocusParent,
     CloseEditorInfo,
-    GoToPreviousFile,
-    GoToNextFile,
     CycleBuffer(Direction),
     JumpEditor(char),
     PushPromptHistory {
