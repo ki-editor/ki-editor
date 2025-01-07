@@ -256,8 +256,10 @@ impl Editor {
                         IfCurrentNotFound::LookForward,
                         NewWord {
                             skip_symbols: match self.selection_set.mode {
-                                NewWord { skip_symbols: true } => false,
-                                _ => true,
+                                NewWord {
+                                    skip_symbols: false,
+                                } => true,
+                                _ => false,
                             },
                         },
                     )),
