@@ -12,25 +12,25 @@ pub const KEYMAP_SCORE: [[u8; 10]; 3] = [
 
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        Word_, Tokn_, SrchC, MultC, Mark_, /****/ FindP, InstP, Up___, InstN, FindN,
+        XAchr, SrchC, Word_, MultC, Mark_, /****/ FindP, InstP, Up___, InstN, FindN,
     ],
     [
-        Line_, Sytx_, DeltN, Chng_, VMode, /****/ Globl, Left_, Down_, Right, Jump_,
+        Line_, Tokn_, Sytx_, VMode, Globl, /****/ DeltN, Left_, Down_, Right, Jump_,
     ],
     [
-        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ XAchr, First, OpenN, Last_, SrchN,
+        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ Chng_, First, OpenN, Last_, SrchN,
     ],
 ];
 
 pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        WordF, ToknF, Char_, _____, Trsfm, /****/ _____, RplcP, Join_, RplcN, _____,
+        _____, Char_, WordF, _____, Trsfm, /****/ _____, RplcP, Join_, RplcN, _____,
     ],
     [
-        LineF, StyxF, DeltP, ChngX, _____, /****/ ToIdx, DeDnt, Break, Indnt, _____,
+        LineF, ToknF, StyxF, _____, _____, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
     ],
     [
-        Redo_, Raise, RplcX, PsteP, PRplc, /****/ _____, CrsrP, OpenP, CrsrN, SrchP,
+        Redo_, Raise, RplcX, PsteP, PRplc, /****/ ChngX, CrsrP, OpenP, CrsrN, SrchP,
     ],
     // Why is Raise placed at the same Position as Exchange?
     // Because Raise is a special-case of Exchange where the movement is Up
