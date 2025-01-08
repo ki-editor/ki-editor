@@ -3293,6 +3293,20 @@ fn background_editor_user_from_explorer() -> anyhow::Result<()> {
 }
 
 #[test]
+fn background_editor_closing_no_system_buffer() -> anyhow::Result<()> {
+    execute_test(|_| {
+        Box::new([
+            App(HandleKeyEvents(keys!("g / f o o enter").to_vec())),
+            Expect(CurrentComponentTitle(" 🦀 src/foo.rs")),
+            Expect(OpenedFilesCount(0)),
+            App(CloseCurrentWindow),
+            Expect(OpenedFilesCount(0)),
+            Expect(CurrentComponentTitle("[ROOT] (Cannot be saved)")),
+        ])
+    })
+}
+
+#[test]
 fn toggle_editor_tag() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

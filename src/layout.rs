@@ -80,8 +80,21 @@ impl Layout {
                 .background_suggestive_editors
                 .iter()
                 .skip_while(|(p, _)| p != &&path)
+                .skip_while(|(_, editor)| {
+                    editor.borrow().editor().buffer().owner() == BufferOwner::User
+                })
                 .nth(1)
-                .or_else(|| self.background_suggestive_editors.first())
+                .or_else(|| {
+                    self.background_suggestive_editors
+                        .first()
+                        .and_then(|(path, editor)| {
+                            if editor.borrow().editor().buffer().owner() == BufferOwner::User {
+                                Some((path, editor))
+                            } else {
+                                None
+                            }
+                        })
+                })
             {
                 self.replace_and_focus_current_suggestive_editor(editor.clone())
             } else {
