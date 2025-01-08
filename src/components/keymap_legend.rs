@@ -7,7 +7,6 @@ use my_proc_macros::key;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    buffer::BufferOwner,
     components::editor::RegexHighlightRuleCaptureStyle,
     grid::StyleKey,
     rectangle::Rectangle,
@@ -359,10 +358,9 @@ impl Component for KeymapLegend {
 
 #[cfg(test)]
 mod test_keymap_legend {
-    use crate::test_app::*;
-    use my_proc_macros::keys;
-
     use super::*;
+    use crate::{buffer::BufferOwner, test_app::*};
+    use my_proc_macros::keys;
 
     #[test]
     fn test_esc() -> anyhow::Result<()> {

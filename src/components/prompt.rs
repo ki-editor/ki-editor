@@ -4,7 +4,7 @@ use my_proc_macros::key;
 
 use crate::{
     app::{Dispatch, DispatchPrompt, Dispatches, GlobalSearchFilterGlob, Scope},
-    buffer::{Buffer, BufferOwner},
+    buffer::Buffer,
     components::editor::DispatchEditor,
     context::Context,
     lsp::completion::Completion,
@@ -211,6 +211,7 @@ impl Component for Prompt {
 #[cfg(test)]
 mod test_prompt {
     use crate::{
+        buffer::BufferOwner,
         components::{editor::Direction, suggestive_editor::Info},
         lsp::completion::CompletionItem,
         test_app::*,
