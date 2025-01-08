@@ -612,6 +612,7 @@ fn alted(c: &'static str) -> &'static str {
         "/" => "alt+/",
         ";" => "alt+;",
         "\"" => "alt+\"",
+        "'" => "alt+'",
         "[" => "alt+[",
         "]" => "alt+]",
         "1" => "alt+1",
