@@ -3256,6 +3256,16 @@ fn background_editor_not_in_buffer_list() -> anyhow::Result<()> {
 }
 
 #[test]
+fn background_editor_focused_not_in_buffer_list() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs(), BufferOwner::System, true)),
+            Expect(OpenedFilesCount(0)),
+        ])
+    })
+}
+
+#[test]
 fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
     execute_test(|_| {
         Box::new([
@@ -3264,6 +3274,19 @@ fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
             Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
+            Expect(OpenedFilesCount(1)),
+        ])
+    })
+}
+
+#[test]
+fn background_editor_user_from_explorer() -> anyhow::Result<()> {
+    execute_test(|_| {
+        Box::new([
+            App(HandleKeyEvents(
+                keys!("space f m a i n . r s enter").to_vec(),
+            )),
+            Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
             Expect(OpenedFilesCount(1)),
         ])
     })
