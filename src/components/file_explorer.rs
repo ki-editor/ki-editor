@@ -400,6 +400,7 @@ impl Component for FileExplorer {
 mod test_file_explorer {
     use my_proc_macros::{key, keys};
 
+    use crate::buffer::BufferOwner;
     use crate::test_app::*;
 
     #[test]
@@ -431,7 +432,7 @@ mod test_file_explorer {
     fn move_path() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
                 App(RevealInExplorer(s.main_rs())),
                 Expect(ComponentCount(1)),
                 App(HandleKeyEvents(keys!("space m").to_vec())),

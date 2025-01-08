@@ -4,7 +4,7 @@ use my_proc_macros::key;
 
 use crate::{
     app::{Dispatch, DispatchPrompt, Dispatches, GlobalSearchFilterGlob, Scope},
-    buffer::Buffer,
+    buffer::{Buffer, BufferOwner},
     components::editor::DispatchEditor,
     context::Context,
     lsp::completion::Completion,
@@ -230,7 +230,7 @@ mod test_prompt {
         ) {
             execute_test(|s| {
                 Box::new([
-                    App(OpenFile(s.main_rs())),
+                    App(OpenFile(s.main_rs(), BufferOwner::User, true)),
                     App(OpenPrompt {
                         current_line: Some("hello\nworld".to_string()),
                         key: PromptHistoryKey::Null,
@@ -269,7 +269,7 @@ mod test_prompt {
                 },
             };
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
                 App(open_prompt.clone()),
                 App(HandleKeyEvents(keys!("h e l l o enter").to_vec())),
                 App(open_prompt.clone()),
@@ -298,7 +298,7 @@ mod test_prompt {
     fn current_line() {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
                 App((OpenPrompt {
                     key: PromptHistoryKey::Null,
                     current_line: Some("spongebob squarepants".to_string()),
@@ -322,7 +322,7 @@ mod test_prompt {
     fn should_not_contain_newline_if_empty() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 App(Dispatch::OpenPrompt {
@@ -351,7 +351,7 @@ mod test_prompt {
         ) {
             execute_test(|s| {
                 Box::new([
-                    App(OpenFile(s.main_rs())),
+                    App(OpenFile(s.main_rs(), BufferOwner::User, true)),
                     App(OpenPrompt {
                         key: PromptHistoryKey::Null,
                         current_line: None,
@@ -495,7 +495,7 @@ mod test_prompt {
     fn suggestion_should_update_with_ctrl_k_and_ctrl_u() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 App(Dispatch::OpenPrompt {

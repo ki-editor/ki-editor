@@ -7,6 +7,7 @@ use my_proc_macros::key;
 
 use crate::{
     app::{Dispatch, Dispatches},
+    buffer::BufferOwner,
     components::editor::RegexHighlightRuleCaptureStyle,
     grid::StyleKey,
     rectangle::Rectangle,
@@ -367,7 +368,7 @@ mod test_keymap_legend {
     fn test_esc() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
                 App(ShowKeymapLegend(KeymapLegendConfig {
                     title: "".to_string(),
                     body: KeymapLegendBody::SingleSection {
