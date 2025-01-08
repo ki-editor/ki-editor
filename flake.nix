@@ -44,7 +44,16 @@
           src = ./.;
           strictDeps = true;
           doCheck = false;
-          buildInputs = [ pkgs.openssl ];
+          buildInputs = with pkgs; [
+            openssl
+          ] ++ lib.optionals stdenv.isDarwin [
+            darwin.apple_sdk.frameworks.Security
+            darwin.apple_sdk.frameworks.SystemConfiguration
+            darwin.apple_sdk.frameworks.CoreServices
+            darwin.apple_sdk.frameworks.CoreFoundation
+            darwin.apple_sdk.frameworks.CoreGraphics
+            darwin.apple_sdk.frameworks.AppKit
+          ];
           nativeBuildInputs = with pkgs; [
             pkg-config
             git
