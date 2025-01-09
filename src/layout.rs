@@ -81,7 +81,7 @@ impl Layout {
                 .iter()
                 .skip_while(|(p, _)| p != &&path)
                 .skip_while(|(_, editor)| {
-                    editor.borrow().editor().buffer().owner() == BufferOwner::User
+                    editor.borrow().editor().buffer().owner() == BufferOwner::System
                 })
                 .nth(1)
                 .or_else(|| {
