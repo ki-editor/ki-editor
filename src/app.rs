@@ -1843,16 +1843,24 @@ impl<T: Frontend> App<T> {
 
     fn cycle_buffer(&mut self, direction: Direction) -> anyhow::Result<()> {
         if let Some(current_file_path) = self.current_component().borrow().path() {
-            let files = self.layout.get_opened_files();
-            if let Some(current_index) = files.iter().position(|p| p == &current_file_path) {
+            let file_paths = self.layout.get_opened_files();
+            if let Some(current_index) = file_paths
+                .iter()
+                .position(|path| path == &current_file_path)
+            {
                 let next_index = match direction {
-                    Direction::Start if current_index == 0 => files.len() - 1,
+                    Direction::Start if current_index == 0 => file_paths.len() - 1,
                     Direction::Start => current_index - 1,
-                    Direction::End if current_index == files.len() - 1 => 0,
+                    Direction::End if current_index == file_paths.len() - 1 => 0,
                     Direction::End => current_index + 1,
                 };
-
-                self.open_file(&files[next_index], BufferOwner::User, true)?;
+                // We are doing defensive programming here
+                // to ensure that Ki editor never crashes
+                if let Some(path) = file_paths.get(next_index) {
+                    self.layout.open_file(path, true);
+                } else {
+                    return Err(anyhow::anyhow!("App::cycle_buffer: file_paths.get(next_index) should never return None unless next_index is computed errorneously."));
+                }
             }
         }
         Ok(())
@@ -1862,10 +1870,14 @@ impl<T: Frontend> App<T> {
         let new_tag = match self.layout.find_editor_tagged(tag) {
             // Case 1: Found a non-current editor that has this tag
             //    - Jump to it
-            Some(tagged_editor)
-                if Some(tagged_editor.clone()) != self.current_component().borrow().path() =>
+            Some(tagged_editor_path)
+                if Some(tagged_editor_path.clone()) != self.current_component().borrow().path() =>
             {
-                self.open_file(&tagged_editor, BufferOwner::User, true)?;
+                if self.layout.open_file(&tagged_editor_path, true).is_none() {
+                    return Err(anyhow::anyhow!(
+                        "App::handle_jump_editor: opening tagged_editor_path should never fail unless Layout::find_editor_tagged is errorneous."
+                    ));
+                };
 
                 return Ok(());
             }
