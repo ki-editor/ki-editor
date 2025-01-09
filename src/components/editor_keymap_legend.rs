@@ -696,7 +696,7 @@ impl Editor {
                                 Dispatch::ToEditor(DeleteWordBackward { short: false }),
                             ),
                             Keymap::new_extended(
-                                KEYBOARD_LAYOUT.get_insert_key(&Meaning::DWrdP),
+                                "alt+backspace",
                                 "delete word ←".to_string(),
                                 "Delete word backward".to_string(),
                                 Dispatch::ToEditor(DeleteWordBackward { short: true }),
