@@ -2620,7 +2620,7 @@ impl DispatchPrompt {
             DispatchPrompt::OpenFile { working_directory } => {
                 let path = working_directory.join(text)?;
                 Ok(Dispatches::new(vec![Dispatch::OpenFile {
-                    path: path,
+                    path,
                     owner: BufferOwner::User,
                     focus: true,
                 }]))
