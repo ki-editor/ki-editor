@@ -160,7 +160,7 @@ impl<T: Frontend> App<T> {
             if entry_path.as_ref().is_dir() {
                 self.layout.open_file_explorer();
             } else {
-                self.open_file(&entry_path, BufferOwner::System, true)?;
+                self.open_file(&entry_path, BufferOwner::User, true)?;
             }
         }
 
