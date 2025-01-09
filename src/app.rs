@@ -422,10 +422,10 @@ impl<T: Frontend> App<T> {
                 if_current_not_found,
             } => self.open_search_prompt(scope, if_current_not_found)?,
             Dispatch::OpenPipeToShellPrompt => self.open_pipe_to_shell_prompt()?,
-            Dispatch::OpenFile(path, owner, focus) => {
+            Dispatch::OpenFile { path, owner, focus } => {
                 self.open_file(&path, owner, focus)?;
             }
-            Dispatch::OpenFileFromPathBuf(path, owner, focus) => {
+            Dispatch::OpenFileFromPathBuf { path, owner, focus } => {
                 self.open_file(&path.try_into()?, owner, focus)?;
             }
 
@@ -947,11 +947,11 @@ impl<T: Frontend> App<T> {
                             format!("{} {}", shared::icons::get_icon_config().folder, relative,)
                         }))
                         .set_dispatches(Dispatches::one(
-                            crate::app::Dispatch::OpenFileFromPathBuf(
+                            crate::app::Dispatch::OpenFileFromPathBuf {
                                 path,
-                                BufferOwner::User,
-                                true,
-                            ),
+                                owner: BufferOwner::User,
+                                focus: true,
+                            },
                         ))
                     })
                     .collect_vec()
@@ -2272,8 +2272,16 @@ pub(crate) enum Dispatch {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
     },
-    OpenFile(CanonicalizedPath, BufferOwner, bool),
-    OpenFileFromPathBuf(PathBuf, BufferOwner, bool),
+    OpenFile {
+        path: CanonicalizedPath,
+        owner: BufferOwner,
+        focus: bool,
+    },
+    OpenFileFromPathBuf {
+        path: PathBuf,
+        owner: BufferOwner,
+        focus: bool,
+    },
     ShowGlobalInfo(Info),
     RequestCompletion,
     RequestSignatureHelp,
@@ -2611,11 +2619,11 @@ impl DispatchPrompt {
             }
             DispatchPrompt::OpenFile { working_directory } => {
                 let path = working_directory.join(text)?;
-                Ok(Dispatches::new(vec![Dispatch::OpenFile(
-                    path,
-                    BufferOwner::User,
-                    true,
-                )]))
+                Ok(Dispatches::new(vec![Dispatch::OpenFile {
+                    path: path,
+                    owner: BufferOwner::User,
+                    focus: true,
+                }]))
             }
             DispatchPrompt::UpdateLocalSearchConfigReplacement {
                 scope,

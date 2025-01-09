@@ -366,7 +366,11 @@ mod test_keymap_legend {
     fn test_esc() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 App(ShowKeymapLegend(KeymapLegendConfig {
                     title: "".to_string(),
                     body: KeymapLegendBody::SingleSection {

@@ -33,7 +33,11 @@ fn raise_bottom_node() -> anyhow::Result<()> {
     execute_test(|s| {
         let input = "fn main() { x + 1 }";
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(input.to_string())),
             Editor(MatchLiteral("x".to_string())),
             Editor(SetSelectionMode(
@@ -50,7 +54,11 @@ fn raise_bottom_node() -> anyhow::Result<()> {
 fn toggle_visual_mode() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
@@ -75,7 +83,11 @@ fn toggle_visual_mode() -> anyhow::Result<()> {
 fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(Delete(Direction::End)),
@@ -90,7 +102,11 @@ fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
 fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Editor(Delete(Direction::End)),
@@ -105,7 +121,11 @@ fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
 fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(MatchLiteral("}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
@@ -120,7 +140,11 @@ fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
 fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main(a:A,b:B) {}".to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -136,7 +160,11 @@ fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
 fn delete_should_kill_if_possible_5() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main(a:A,b:B) {}".to_string())),
             Editor(MatchLiteral("b:B".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -151,7 +179,11 @@ fn delete_should_kill_if_possible_5() -> anyhow::Result<()> {
 fn delete_should_not_kill_if_not_possible_1() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn maima() {}".to_string())),
             Editor(MatchLiteral("ma".to_string())),
             Editor(Delete(Direction::End)),
@@ -167,7 +199,11 @@ fn delete_should_not_kill_if_not_possible_1() -> anyhow::Result<()> {
 fn delete_should_not_kill_if_not_possible_2() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main(a:A) {}".to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -182,7 +218,11 @@ fn delete_should_not_kill_if_not_possible_2() -> anyhow::Result<()> {
 fn toggle_untoggle_mark() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("foo bar spam".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ToggleMark),
@@ -206,7 +246,11 @@ fn toggle_untoggle_mark() -> anyhow::Result<()> {
 fn test_delete_word_short_backward_from_end_of_file() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "fn snake_case(camelCase: String) {}".to_string(),
             )),
@@ -232,7 +276,11 @@ fn test_delete_word_short_backward_from_end_of_file() -> anyhow::Result<()> {
 fn test_delete_word_long() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("hello_world itsMe".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             // Go to the end of the file
@@ -252,7 +300,11 @@ fn test_delete_extended_selection() -> anyhow::Result<()> {
      -> anyhow::Result<()> {
         execute_test(move |s| {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("who lives in a pineapple".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Editor(MoveSelection(Right)),
@@ -273,7 +325,11 @@ fn test_delete_extended_selection() -> anyhow::Result<()> {
 fn test_delete_extended_selection_is_last_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("who lives in".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(MoveSelection(Right)),
@@ -291,7 +347,11 @@ fn test_delete_extended_selection_is_last_selection() -> anyhow::Result<()> {
 fn test_delete_extended_selection_is_first_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("who lives in".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
@@ -308,7 +368,11 @@ fn test_delete_extended_selection_is_first_selection() -> anyhow::Result<()> {
 fn test_delete_extended_selection_whole_file() -> anyhow::Result<()> {
     execute_test(move |s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("who lives in a pineapple".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(SelectAll),
@@ -323,7 +387,11 @@ fn test_delete_extended_selection_whole_file() -> anyhow::Result<()> {
 fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "fn snake_case(camelCase: String) {}".to_string(),
             )),
@@ -357,7 +425,11 @@ fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
 fn test_pipe_to_shell_1() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("snake_case".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(PipeToShell {
@@ -374,7 +446,11 @@ fn kill_line_to_end() -> anyhow::Result<()> {
     let input = "lala\nfoo bar spam\nyoyo";
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(input.to_string())),
             // Killing to the end of line WITH trailing newline character
             Editor(MatchLiteral("bar".to_string())),
@@ -397,7 +473,11 @@ fn kill_line_to_end() -> anyhow::Result<()> {
 fn kill_line_to_start() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("lala\nfoo bar spam\nyoyo".to_string())),
             // Killing to the start of line WITH leading newline character
             Editor(MatchLiteral("bar".to_string())),
@@ -423,7 +503,11 @@ fn kill_line_to_start() -> anyhow::Result<()> {
 fn undo_tree() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("\n".to_string())),
             Editor(Insert("a".to_string())),
             Editor(Insert("bc".to_string())),
@@ -453,7 +537,11 @@ fn undo_tree() -> anyhow::Result<()> {
 fn multi_exchange_sibling() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn f(x:a,y:b){} fn g(x:a,y:b){}".to_string())),
             Editor(MatchLiteral("fn f(x:a,y:b){}".to_string())),
             Expect(CurrentSelectedTexts(&["fn f(x:a,y:b){}"])),
@@ -482,7 +570,11 @@ fn multi_exchange_sibling() -> anyhow::Result<()> {
 fn update_mark_position() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("foo bar spim".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(MoveSelection(Right)),
@@ -517,7 +609,11 @@ fn update_mark_position() -> anyhow::Result<()> {
 fn move_to_line_start_end() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("hello\nnext line".to_string())),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(MoveToLineEnd),
@@ -534,7 +630,11 @@ fn move_to_line_start_end() -> anyhow::Result<()> {
 fn exchange_sibling() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main(x: usize, y: Vec<A>) {}".to_string())),
             // Select first statement
             Editor(MatchLiteral("x: usize".to_string())),
@@ -552,7 +652,11 @@ fn exchange_sibling() -> anyhow::Result<()> {
 fn exchange_sibling_2() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("use a;\nuse b;\nuse c;".to_string())),
             // Select first statement
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -570,7 +674,11 @@ fn exchange_sibling_2() -> anyhow::Result<()> {
 fn select_character() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Expect(CurrentSelectedTexts(&["f"])),
@@ -586,7 +694,11 @@ fn select_character() -> anyhow::Result<()> {
 fn raise() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main() { let x = a.b(c()); }".to_string())),
             Editor(MatchLiteral("c()".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -606,7 +718,11 @@ fn raise() -> anyhow::Result<()> {
 fn raise_preserve_current_node_structure() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main() { Some((a).b()) }".to_string())),
             Editor(MatchLiteral("(a).b()".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -620,7 +736,11 @@ fn raise_preserve_current_node_structure() -> anyhow::Result<()> {
 fn multi_raise() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
@@ -652,7 +772,11 @@ fn multi_raise() -> anyhow::Result<()> {
 fn open_before_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn x(a:A, b:B){}".trim().to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -674,7 +798,11 @@ fn open_before_selection() -> anyhow::Result<()> {
 fn open_before_use_min_gap() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 def main():
@@ -704,7 +832,11 @@ def main():
 fn open_after_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn x(a:A, b:B){}".trim().to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -727,7 +859,11 @@ fn open_after_selection() -> anyhow::Result<()> {
 fn open_after_use_max_gap() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 fn main() {
@@ -760,7 +896,11 @@ fn exchange_line() -> anyhow::Result<()> {
     execute_test(|s| {
         // Multiline source code
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 fn main() {
@@ -807,7 +947,11 @@ fn main() {
 fn exchange_character() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Editor(EnterExchangeMode),
@@ -827,7 +971,11 @@ fn exchange_character() -> anyhow::Result<()> {
 fn multi_insert() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("struct A(usize, char)".to_string())),
             Editor(MatchLiteral("usize".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -847,7 +995,11 @@ fn multi_insert() -> anyhow::Result<()> {
 fn paste_in_insert_mode_1() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
                 copied_texts: CopiedTexts::one("haha".to_string()),
@@ -870,7 +1022,11 @@ fn paste_in_insert_mode_1() -> anyhow::Result<()> {
 fn paste_in_insert_mode_2() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main(a:A,b:B){}".to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -893,7 +1049,11 @@ fn paste_in_insert_mode_2() -> anyhow::Result<()> {
 fn paste_after() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
                 copied_texts: CopiedTexts::one("haha".to_string()),
@@ -914,7 +1074,11 @@ fn paste_after() -> anyhow::Result<()> {
 fn paste_after_line() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 fn main() {
@@ -949,7 +1113,11 @@ fn smart_paste() -> anyhow::Result<()> {
     fn test(direction: Direction, expected_result: &'static str) -> Result<(), anyhow::Error> {
         execute_test(move |s| {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("fn main(a:A, b:B) {}".to_string())),
                 App(SetClipboardContent {
                     copied_texts: CopiedTexts::one("c:C".to_string()),
@@ -975,7 +1143,11 @@ fn smart_paste() -> anyhow::Result<()> {
 fn paste_before() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
                 copied_texts: CopiedTexts::one("haha".to_string()),
@@ -996,7 +1168,11 @@ fn paste_before() -> anyhow::Result<()> {
 fn replace_from_clipboard() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
@@ -1019,7 +1195,11 @@ fn replace_from_clipboard() -> anyhow::Result<()> {
 fn enter_newline() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("".to_string())),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("hello".to_string())),
@@ -1037,7 +1217,11 @@ fn enter_newline() -> anyhow::Result<()> {
 fn insert_mode_start() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnterInsertMode(Direction::Start)),
@@ -1051,7 +1235,11 @@ fn insert_mode_start() -> anyhow::Result<()> {
 fn insert_mode_end() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnterInsertMode(Direction::End)),
@@ -1065,7 +1253,11 @@ fn insert_mode_end() -> anyhow::Result<()> {
 fn highlight_kill() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(EnableSelectionExtension),
@@ -1081,7 +1273,11 @@ fn highlight_kill() -> anyhow::Result<()> {
 fn multicursor_add_all() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "mod m { fn a(j:J){} fn b(k:K,l:L){} fn c(m:M,n:N,o:O){} }".to_string(),
             )),
@@ -1105,7 +1301,11 @@ fn multicursor_add_all() -> anyhow::Result<()> {
 fn enter_normal_mode_should_highlight_one_character() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "fn\nmain()\n{ x.y(); x.y(); x.y(); }".to_string(),
             )),
@@ -1121,7 +1321,11 @@ fn enter_normal_mode_should_highlight_one_character() -> anyhow::Result<()> {
 fn highlight_change() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("hello world yo".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
@@ -1139,7 +1343,11 @@ fn highlight_change() -> anyhow::Result<()> {
 fn scroll_page() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("1\n2 hey\n3".to_string())),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
@@ -1169,7 +1377,11 @@ fn scroll_page() -> anyhow::Result<()> {
 fn scroll_offset() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("alpha\nbeta\ngamma\nlok".to_string())),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
@@ -1186,7 +1398,11 @@ fn scroll_offset() -> anyhow::Result<()> {
 fn jump() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "Who lives on sea shore?\n yonky donkey".to_string(),
             )),
@@ -1219,7 +1435,11 @@ fn jump() -> anyhow::Result<()> {
 fn jump_to_hidden_parent_lines() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 fn main() {
@@ -1267,7 +1487,11 @@ fn main() {
 fn highlight_and_jump() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "Who lives on sea shore?\n yonky donkey".to_string(),
             )),
@@ -1297,7 +1521,11 @@ fn highlight_and_jump() -> anyhow::Result<()> {
 fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("who who who who".to_string())),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
@@ -1319,7 +1547,11 @@ fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
 fn switch_view_alignment() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "abcde"
                     .split("")
@@ -1363,7 +1595,11 @@ fn get_grid_parent_line() -> anyhow::Result<()> {
     let width = 20;
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 // hello
@@ -1487,7 +1723,11 @@ fn main() {
 fn test_wrapped_lines() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 // hello world\n hey
@@ -1522,7 +1762,11 @@ fn diagnostics_range_updated_by_edit() -> anyhow::Result<()> {
     execute_test(|s| {
         let hello = &"hello";
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main() { let x = 123 }".trim().to_string())),
             App(HandleLspNotification(LspNotification::PublishDiagnostics(
                 lsp_types::PublishDiagnosticsParams {
@@ -1564,7 +1808,11 @@ fn diagnostics_range_updated_by_edit() -> anyhow::Result<()> {
 fn quickfix_list_items_updated_by_edit() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 fn main() { 
@@ -1619,7 +1867,11 @@ fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
     execute_test(|s| {
         let theme = Theme::default();
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             App(SetTheme(theme.clone())),
             Editor(SetContent("fn main() { let x = 123 }".trim().to_string())),
             Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
@@ -1649,7 +1901,11 @@ fn syntax_highlighting() -> anyhow::Result<()> {
     execute_test(|s| {
         let theme = Theme::default();
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             App(SetTheme(theme.clone())),
             Editor(SetContent(
                 "
@@ -1759,7 +2015,11 @@ fn main() { // too long
 fn empty_content_should_have_one_line() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("".to_string())),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
@@ -1781,7 +2041,11 @@ fn empty_content_should_have_one_line() -> anyhow::Result<()> {
 fn update_mark_position_with_undo_and_redo() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("foo bar spim".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(MoveSelection(Right)),
@@ -1817,7 +2081,11 @@ fn saving_should_not_destroy_mark_if_selections_not_modified() -> anyhow::Result
 
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(input.to_string())),
             Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
             Editor(MatchLiteral("bar".to_string())),
@@ -1839,7 +2107,11 @@ fn saving_should_not_destroy_mark_if_selections_not_modified() -> anyhow::Result
 fn surround() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
             App(HandleKeyEvents(keys!("v s (").to_vec())),
@@ -1852,7 +2124,11 @@ fn surround() -> anyhow::Result<()> {
 fn swap_cursor_with_anchor() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main() { x.y() }  // hello ".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Editor(SwapCursorWithAnchor),
@@ -1870,7 +2146,11 @@ fn consider_unicode_width() -> anyhow::Result<()> {
     let content = "👩 abc";
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             App(TerminalDimensionChanged(crate::app::Dimension {
                 height: 10,
                 // Set width longer than content so that there's no wrapping
@@ -1890,7 +2170,11 @@ fn consider_unicode_width() -> anyhow::Result<()> {
 fn delete_backward() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("hello world yo".to_string())),
             Editor(MatchLiteral("world".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
@@ -1929,7 +2213,11 @@ fn next_prev_after_current_selection_is_deleted() -> anyhow::Result<()> {
     let run_test = |next: bool| {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("1 a 2 b 3 c".to_string())),
                 Editor(MatchLiteral(if next { "1" } else { "3" }.to_string())),
                 Editor(SetSelectionMode(
@@ -1959,7 +2247,11 @@ fn next_prev_after_current_selection_is_deleted() -> anyhow::Result<()> {
 fn entering_insert_mode_from_visual_mode() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("hello world hey".to_string())),
             Editor(MatchLiteral("world".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
@@ -1978,7 +2270,11 @@ fn entering_insert_mode_from_visual_mode() -> anyhow::Result<()> {
 fn modifying_editor_causes_dirty_state() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Expect(Not(Box::new(EditorIsDirty()))),
             Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
             Editor(EnterInsertMode(Direction::Start)),
@@ -1993,7 +2289,11 @@ fn modifying_editor_causes_dirty_state() -> anyhow::Result<()> {
 fn saving_editor_clears_dirty_state() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Expect(Not(Box::new(EditorIsDirty()))),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
@@ -2014,7 +2314,11 @@ fn after_save_select_current() -> anyhow::Result<()> {
     ) -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent(
                     "
 fn main() {
@@ -2066,7 +2370,11 @@ fn main() {
 fn undo_till_empty_should_not_crash_in_insert_mode() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("".to_string())),
             App(SetClipboardContent {
                 copied_texts: CopiedTexts::one("foo".to_string()),
@@ -2088,7 +2396,11 @@ fn undo_till_empty_should_not_crash_in_insert_mode() -> anyhow::Result<()> {
 fn selection_set_history() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Expect(CurrentSelectedTexts(&["mod foo;"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
@@ -2105,7 +2417,11 @@ fn selection_set_history() -> Result<(), anyhow::Error> {
 fn select_surround_inside_with_multiwidth_character() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("(hello (w🦀orld))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
             Editor(SelectSurround {
@@ -2122,7 +2438,11 @@ fn select_surround_inside_with_multiwidth_character() -> Result<(), anyhow::Erro
 fn select_surround_inside() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
             App(HandleKeyEvents(keys!("v i (").to_vec())),
@@ -2136,7 +2456,11 @@ fn select_surround_inside() -> Result<(), anyhow::Error> {
 fn select_surround_around() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
             App(HandleKeyEvents(keys!("v a (").to_vec())),
@@ -2150,7 +2474,11 @@ fn select_surround_around() -> Result<(), anyhow::Error> {
 fn select_surround_inside_same_symbols() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("hello 'world'".to_string())),
             Editor(MatchLiteral("rl".to_string())),
             Editor(DeleteSurround(crate::surround::EnclosureKind::SingleQuotes)),
@@ -2164,7 +2492,11 @@ fn select_surround_inside_same_symbols() -> Result<(), anyhow::Error> {
 fn delete_surround() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
             App(HandleKeyEvents(keys!("v d (").to_vec())),
@@ -2179,7 +2511,11 @@ fn delete_surround() -> Result<(), anyhow::Error> {
 fn change_surround_selection_not_on_enclosure() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
             App(HandleKeyEvents(keys!("v c ( {").to_vec())),
@@ -2194,7 +2530,11 @@ fn change_surround_selection_not_on_enclosure() -> Result<(), anyhow::Error> {
 fn change_surround_selection_on_enclosure() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("(hello)".to_string())),
             Editor(MatchLiteral("(hello)".to_string())),
             App(HandleKeyEvents(keys!("v c ( {").to_vec())),
@@ -2216,7 +2556,11 @@ fn replace_with_pattern() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             {
                 Box::new([
-                    App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                    App(OpenFile {
+                        path: s.main_rs(),
+                        owner: BufferOwner::User,
+                        focus: true,
+                    }),
                     Editor(SetContent(content.to_string())),
                     App(UpdateLocalSearchConfig {
                         update: LocalSearchConfigUpdate::Mode(mode),
@@ -2279,7 +2623,11 @@ fn move_left_right() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("ho".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 Editor(MoveCharacterForward),
@@ -2303,7 +2651,11 @@ fn yank_ring() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent(
                     "
 a1 a2 a3
@@ -2384,7 +2736,11 @@ fn multi_cursor_insert() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("hello world".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Editor(EnterMultiCursorMode),
@@ -2406,7 +2762,11 @@ fn movement_current_look_forward_backward() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("hello world is good".to_string())),
                 Editor(MatchLiteral("hello".to_string())),
                 Editor(ToggleMark),
@@ -2429,7 +2789,11 @@ fn search_backward() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent(
                     "
 .to_string(),
@@ -2454,7 +2818,11 @@ fn selection_set_history_updates_upon_edit() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("foo bar spam".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
                 Editor(MoveSelection(Last)),
@@ -2475,7 +2843,11 @@ fn show_current_tree_sitter_node_sexp() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("fn main() {}".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
                 Editor(ShowCurrentTreeSitterNodeSexp),
@@ -2493,7 +2865,11 @@ fn yank_paste_extended_selection() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("who lives in a".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Editor(EnableSelectionExtension),
@@ -2522,7 +2898,11 @@ fn last_contiguous_selection_mode() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("who lives in a".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
                 Editor(ToggleMark),
@@ -2545,7 +2925,11 @@ fn last_contiguous_selection_mode() -> Result<(), anyhow::Error> {
 fn test_indent_dedent() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 fn main() {
@@ -2586,7 +2970,11 @@ fn main() {
 fn test_dedent_in_column_mode() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fom".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Expect(CurrentSelectedTexts(&["f"])),
@@ -2604,7 +2992,11 @@ fn test_dedent_in_column_mode() -> anyhow::Result<()> {
 fn test_over_dedent() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 fn main() {
@@ -2627,7 +3019,11 @@ foo()
 fn cycle_primary_selection_forward() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("foo bar spam".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(CursorAddToAllSelections),
@@ -2646,7 +3042,11 @@ fn cycle_primary_selection_forward() -> anyhow::Result<()> {
 fn cycle_primary_selection_backward() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("foo bar spam".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(CursorAddToAllSelections),
@@ -2665,7 +3065,11 @@ fn cycle_primary_selection_backward() -> anyhow::Result<()> {
 fn cycle_primary_selection_should_based_on_range_order() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("foo bar spam".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(MoveSelection(Last)),
@@ -2687,7 +3091,11 @@ fn cycle_primary_selection_should_based_on_range_order() -> anyhow::Result<()> {
 fn insert_mode_enter_auto_indent() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 foo bar
@@ -2711,7 +3119,11 @@ foo bar
 fn delete_line_should_not_dedent_next_line() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 foo bar
@@ -2734,7 +3146,11 @@ foo bar
 fn delete_multiple_lines_should_not_dedent_next_line() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 foo bar
@@ -2760,7 +3176,11 @@ foo bar
 fn expand_to_nearest_enclosure_1_inside() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("hello (world yo)".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(MoveSelection(Next)),
@@ -2774,7 +3194,11 @@ fn expand_to_nearest_enclosure_1_inside() -> anyhow::Result<()> {
 fn expand_to_nearest_enclosure_1_inside_2() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("hello (world yo)".to_string())),
             Editor(MatchLiteral("yo".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
@@ -2788,7 +3212,11 @@ fn expand_to_nearest_enclosure_1_inside_2() -> anyhow::Result<()> {
 fn expand_to_nearest_enclosure_2_around() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("hello ((world_yo))".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(MoveSelection(Next)),
@@ -2805,7 +3233,11 @@ fn expand_to_nearest_enclosure_2_around() -> anyhow::Result<()> {
 fn expand_to_nearest_enclosure_3_nested_brackets() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("{hello (world yo)}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(MoveSelection(Next)),
@@ -2819,7 +3251,11 @@ fn expand_to_nearest_enclosure_3_nested_brackets() -> anyhow::Result<()> {
 fn expand_to_nearest_enclosure_4_brackets_and_quotes() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("hello '{World Foo} bar'".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(MoveSelection(Next)),
@@ -2841,7 +3277,11 @@ fn expand_to_nearest_enclosure_4_brackets_and_quotes() -> anyhow::Result<()> {
 fn expand_to_nearest_enclosure_5() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("'hello world' (foo bar 'spam baz')".to_string())),
             Editor(MatchLiteral("foo".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
@@ -2855,7 +3295,11 @@ fn expand_to_nearest_enclosure_5() -> anyhow::Result<()> {
 fn expand_to_nearest_enclosure_6_with_escaped_quotes() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 r#"result1.query.contains("\"require\" @keyword.import")"#.to_string(),
             )),
@@ -2871,7 +3315,11 @@ fn expand_to_nearest_enclosure_6_with_escaped_quotes() -> anyhow::Result<()> {
 fn expand_to_nearest_enclosure_7_cursor_on_open_enclosure() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(r#"foo bar (hello world)"#.to_string())),
             Editor(MatchLiteral("(".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
@@ -2885,7 +3333,11 @@ fn expand_to_nearest_enclosure_7_cursor_on_open_enclosure() -> anyhow::Result<()
 fn expand_to_nearest_enclosure_8_cursor_on_close_enclosure() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(r#"foo bar (hello world)"#.to_string())),
             Editor(MatchLiteral(")".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
@@ -2899,7 +3351,11 @@ fn expand_to_nearest_enclosure_8_cursor_on_close_enclosure() -> anyhow::Result<(
 fn split_selections() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 fooz bar fooy
@@ -2935,7 +3391,11 @@ foov foou bar
 fn select_current_line_when_cursor_is_at_last_space_of_current_line() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("abc \n yo".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Editor(MoveSelection(Last)),
@@ -2955,7 +3415,11 @@ fn select_current_line_when_cursor_is_at_last_space_of_current_line() -> anyhow:
 fn first_last_char() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("babyHelloCamp".to_string())),
             Editor(MatchLiteral("Hello".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
@@ -2971,7 +3435,11 @@ fn first_last_char() -> anyhow::Result<()> {
 fn first_last_word() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("hello HTTPNetworkRequest yo".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(MoveSelection(Next)),
@@ -2988,7 +3456,11 @@ fn first_last_word() -> anyhow::Result<()> {
 fn first_last_token() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("who lives in\na pineapple".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(MoveSelection(Last)),
@@ -3004,7 +3476,11 @@ fn first_last_token() -> anyhow::Result<()> {
 fn exchange_till_last() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "fn main(foo: T, apple: T, banana: T, coffee: T) {}".to_string(),
             )),
@@ -3024,7 +3500,11 @@ fn exchange_till_last() -> anyhow::Result<()> {
 fn exchange_till_first() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "fn main(foo: T, apple: T, banana: T, coffee: T) {}".to_string(),
             )),
@@ -3044,7 +3524,11 @@ fn exchange_till_first() -> anyhow::Result<()> {
 fn add_cursor_till_first() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "fn main(foo: T, apple: T, banana: T, coffee: T) {}".to_string(),
             )),
@@ -3062,7 +3546,11 @@ fn add_cursor_till_first() -> anyhow::Result<()> {
 fn add_cursor_till_last() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "fn main(foo: T, apple: T, banana: T, coffee: T) {}".to_string(),
             )),
@@ -3084,7 +3572,11 @@ fn add_cursor_till_last() -> anyhow::Result<()> {
 fn delete_cursor_forward() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "fn main(foo: T, apple: T, coffee: T) {}".to_string(),
             )),
@@ -3112,7 +3604,11 @@ fn delete_cursor_forward() -> anyhow::Result<()> {
 fn delete_cursor_backward() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "fn main(foo: T, apple: T, coffee: T) {}".to_string(),
             )),
@@ -3140,7 +3636,11 @@ fn delete_cursor_backward() -> anyhow::Result<()> {
 fn break_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("hello world\n\tbar spam".to_string())),
             Editor(MatchLiteral("spam".to_string())),
             Editor(BreakSelection),
@@ -3155,7 +3655,11 @@ fn break_selection() -> anyhow::Result<()> {
 fn syntax_node_move_right_should_move_to_non_overlapping_node() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("fn main(a: A, b: B) {}".to_string())),
             Editor(MatchLiteral("a: A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
@@ -3169,7 +3673,11 @@ fn syntax_node_move_right_should_move_to_non_overlapping_node() -> anyhow::Resul
 fn delete_empty_lines() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 hello
@@ -3193,7 +3701,11 @@ yo"
 fn next_previous_line() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent(
                 "
 foo
@@ -3232,7 +3744,11 @@ bam
 fn visual_select_anchor_change_selection_mode() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Editor(SetContent("helloWorld fooBar".trim().to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Expect(CurrentSelectedTexts(&["helloWorld"])),
@@ -3249,7 +3765,11 @@ fn visual_select_anchor_change_selection_mode() -> anyhow::Result<()> {
 fn background_editor_not_in_buffer_list() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::System, false)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::System,
+                focus: false,
+            }),
             Expect(OpenedFilesCount(0)),
         ])
     })
@@ -3259,7 +3779,11 @@ fn background_editor_not_in_buffer_list() -> anyhow::Result<()> {
 fn background_editor_focused_not_in_buffer_list() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::System, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::System,
+                focus: true,
+            }),
             Expect(OpenedFilesCount(0)),
         ])
     })
@@ -3310,7 +3834,11 @@ fn background_editor_closing_no_system_buffer() -> anyhow::Result<()> {
 fn toggle_editor_tag() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
             App(HandleKeyEvent(key!("1"))),
             Expect(CurrentComponentTitle(" 🦀 src/main.rs #1")),
@@ -3324,10 +3852,18 @@ fn toggle_editor_tag() -> anyhow::Result<()> {
 fn jump_editor_tag() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             App(HandleKeyEvent(key!("1"))),
             Expect(CurrentComponentTitle(" 🦀 src/main.rs #1")),
-            App(OpenFile(s.foo_rs(), BufferOwner::User, true)),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             App(HandleKeyEvent(key!("2"))),
             Expect(CurrentComponentTitle(" 🦀 src/foo.rs #2")),
             App(HandleKeyEvent(key!("1"))),

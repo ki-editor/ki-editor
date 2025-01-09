@@ -376,7 +376,11 @@ impl Component for FileExplorer {
                     match node.kind {
                         NodeKind::File => Ok([
                             Dispatch::CloseCurrentWindow,
-                            Dispatch::OpenFile(node.path.clone(), BufferOwner::User, true),
+                            Dispatch::OpenFile {
+                                path: node.path.clone(),
+                                owner: BufferOwner::User,
+                                focus: true,
+                            },
                         ]
                         .to_vec()
                         .into()),
@@ -432,7 +436,11 @@ mod test_file_explorer {
     fn move_path() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs(), BufferOwner::User, true)),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 App(RevealInExplorer(s.main_rs())),
                 Expect(ComponentCount(1)),
                 App(HandleKeyEvents(keys!("space m").to_vec())),

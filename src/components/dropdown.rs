@@ -91,11 +91,11 @@ impl From<CanonicalizedPath> for DropdownItem {
                 parent.try_display_relative()
             )
         }))
-        .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFile(
-            value,
-            BufferOwner::User,
-            true,
-        )))
+        .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFile {
+            path: value,
+            owner: BufferOwner::User,
+            focus: true,
+        }))
     }
 }
 

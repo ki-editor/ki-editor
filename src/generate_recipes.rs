@@ -58,12 +58,10 @@ fn generate_recipes() -> anyhow::Result<()> {
                                             height: height as u16,
                                         })),
                                         App(AddPath(temp_path.clone())),
-                                        AppLater(Box::new(move || {
-                                            OpenFile(
-                                                temp_path.clone().try_into().unwrap(),
-                                                BufferOwner::User,
-                                                true,
-                                            )
+                                        AppLater(Box::new(move || OpenFile {
+                                            path: temp_path.clone().try_into().unwrap(),
+                                            owner: BufferOwner::User,
+                                            focus: true,
                                         })),
                                         Editor(SetRectangle(Rectangle {
                                             origin: Position::default(),
