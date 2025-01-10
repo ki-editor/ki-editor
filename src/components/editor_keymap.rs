@@ -12,7 +12,7 @@ pub const KEYMAP_SCORE: [[u8; 10]; 3] = [
 
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        XAchr, SrchC, Word_, MultC, Mark_, /****/ FindP, InstP, Up___, InstN, FindN,
+        XAchr, Word_, SrchC, MultC, Mark_, /****/ FindP, InstP, Up___, InstN, FindN,
     ],
     [
         Line_, Tokn_, Sytx_, VMode, Globl, /****/ DeltN, Left_, Down_, Right, Jump_,
@@ -24,7 +24,7 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        _____, Char_, WordF, _____, Trsfm, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
+        _____, WordF, Char_, _____, Trsfm, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
     ],
     [
         LineF, ToknF, StyxF, SSEnd, _____, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
