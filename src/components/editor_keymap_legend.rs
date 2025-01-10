@@ -404,21 +404,6 @@ impl Editor {
                     ]
                     .to_vec()
                 })
-                .chain(Some(if self.selection_set.is_extended() {
-                    Keymap::new_extended(
-                        KEYBOARD_LAYOUT.get_key(&Meaning::Exchg),
-                        "swap sel end".to_string(),
-                        "Switch extended selection end".to_string(),
-                        Dispatch::ToEditor(SwapExtensionDirection),
-                    )
-                } else {
-                    Keymap::new_extended(
-                        KEYBOARD_LAYOUT.get_key(&Meaning::Exchg),
-                        "exchng".to_string(),
-                        "Enter Exchange mode".to_string(),
-                        Dispatch::ToEditor(EnterExchangeMode),
-                    )
-                }))
                 .chain([
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::OpenP),
@@ -489,6 +474,12 @@ impl Editor {
                         "dedent".to_string(),
                         "Dedent".to_string(),
                         Dispatch::ToEditor(Dedent),
+                    ),
+                    Keymap::new_extended(
+                        KEYBOARD_LAYOUT.get_key(&Meaning::SSEnd),
+                        "swap sel end".to_string(),
+                        "Switch extended selection end".to_string(),
+                        Dispatch::ToEditor(SwapExtensionDirection),
                     ),
                 ])
                 .chain(Some(if self.selection_set.is_extended() {
@@ -814,11 +805,19 @@ impl Editor {
     pub(crate) fn keymap_movement_actions(&self) -> KeymapLegendSection {
         KeymapLegendSection {
             keymaps: Keymaps::new(
-                &[Keymap::new(
-                    "~",
-                    "Replace".to_string(),
-                    Dispatch::ToEditor(EnterReplaceMode),
-                )]
+                &[
+                    Keymap::new(
+                        "~",
+                        "Replace".to_string(),
+                        Dispatch::ToEditor(EnterReplaceMode),
+                    ),
+                    Keymap::new_extended(
+                        KEYBOARD_LAYOUT.get_key(&Meaning::Exchg),
+                        "exchng".to_string(),
+                        "Enter Exchange mode".to_string(),
+                        Dispatch::ToEditor(EnterExchangeMode),
+                    ),
+                ]
                 .into_iter()
                 .chain(Some(if self.mode == Mode::MultiCursor {
                     Keymap::new_extended(

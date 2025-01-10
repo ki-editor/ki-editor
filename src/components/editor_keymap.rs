@@ -27,7 +27,7 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         _____, Char_, WordF, _____, Trsfm, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
     ],
     [
-        LineF, ToknF, StyxF, _____, _____, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
+        LineF, ToknF, StyxF, SSEnd, _____, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
     ],
     [
         Redo_, Raise, RplcX, PsteP, PRplc, /****/ OpenP, ChngX, _____, _____, SrchP,
@@ -396,6 +396,7 @@ pub(crate) enum Meaning {
     WordF,
     /// Swap cursor with anchor
     XAchr,
+    SSEnd,
 }
 
 pub fn shifted(c: &'static str) -> &'static str {
