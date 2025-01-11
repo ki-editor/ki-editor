@@ -980,7 +980,6 @@ foo ha"
             }]
             .to_vec(),
         },
-        // TODO: continue updating recipes from here
         RecipeGroup {
             filename: "regex",
             recipes: [Recipe {
@@ -988,7 +987,7 @@ foo ha"
                 content: "a (foo ba) bar".trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("/ backslash ( . * backslash ) enter ' x"),
+                events: keys!("/ backslash ( . * backslash ) enter alt+/ x"),
                 expectations: &[CurrentSelectedTexts(&["(foo ba)"])],
                 terminal_height: Some(7),
                 similar_vim_combos: &[],
@@ -1003,7 +1002,7 @@ foo ha"
                 content: "foBa x fo_ba x fo ba x fo-ba".trim(),
                 file_extension: "js",
                 prepare_events: &[],
-                events: keys!("/ f o space b a enter ' n l"),
+                events: keys!("/ f o space b a enter alt+/ n l"),
                 expectations: &[CurrentSelectedTexts(&["fo-ba"])],
                 terminal_height: Some(7),
                 similar_vim_combos: &[],
@@ -1018,7 +1017,7 @@ foo ha"
                 content: "f(1+1); f(x); f('f()')".trim(),
                 file_extension: "js",
                 prepare_events: &[],
-                events: keys!("/ f ( $ X ) enter ' a"),
+                events: keys!("/ f ( $ X ) enter alt+/ a"),
                 expectations: &[CurrentSelectedTexts(&["f(1+1)"])],
                 terminal_height: Some(7),
                 similar_vim_combos: &[],
@@ -1034,7 +1033,7 @@ foo ha"
                     content: "fo ba fo ba".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w * l"),
+                    events: keys!("w e l"),
                     expectations: &[CurrentSelectedTexts(&["fo"])],
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
@@ -1054,7 +1053,7 @@ foo
                     .trim(),
                     file_extension: "js",
                     prepare_events: &[],
-                    events: keys!("s * l"),
+                    events: keys!("d e l"),
                     expectations: &[CurrentSelectedTexts(&["foo\n  .bar()"])],
                     terminal_height: Some(14),
                     similar_vim_combos: &[],
@@ -1106,7 +1105,7 @@ pub(crate) fn get_selection_mode_trait_object(
 "#,
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("' n / s e l e c t i o n space m o d e enter ' r f o o space b a r enter ctrl+c q q ctrl+r q o"),
+                    events: keys!("alt+/ n / s e l e c t i o n space m o d e enter alt+/ r f o o space b a r enter esc esc r r B r m"),
                     expectations: &[],
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -1117,7 +1116,7 @@ pub(crate) fn get_selection_mode_trait_object(
                     content: "fo x fo x fo".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("/ f o enter q l esc ' r b a enter ctrl+c ctrl+r"),
+                    events: keys!("/ f o enter r l esc alt+/ r b a enter esc esc B"),
                     expectations: &[CurrentComponentContent("ba x ba x fo")],
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
@@ -1126,6 +1125,7 @@ pub(crate) fn get_selection_mode_trait_object(
             ]
             .to_vec(),
         },
+        // TODO: continue updating recipes from here
         RecipeGroup {
             filename: "replace-all",
             recipes: [
