@@ -72,12 +72,38 @@ mod test_word {
     use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
 
     #[test]
-    fn case_1() {
+    fn skip_symbols() {
         let buffer = Buffer::new(
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
         );
         WordNew::new(&buffer, true).unwrap().assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[
+                (0..5, "snake"),
+                (6..10, "case"),
+                (11..16, "camel"),
+                (16..20, "Case"),
+                (21..27, "Pascal"),
+                (27..31, "Case"),
+                (32..37, "UPPER"),
+                (38..43, "SNAKE"),
+                (49..52, "123"),
+                (57..61, "HTTP"),
+                (61..68, "Network"),
+                (69..70, "X"),
+            ],
+        );
+    }
+
+    #[test]
+    fn no_skip_symbols() {
+        let buffer = Buffer::new(
+            None,
+            "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
+        );
+        WordNew::new(&buffer, false).unwrap().assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -107,7 +133,7 @@ mod test_word {
     }
 
     #[test]
-    fn case_2() {
+    fn consecutive_uppercase_letters() {
         let buffer = Buffer::new(None, "XMLParser JSONObject HTMLElement");
         WordNew::new(&buffer, true).unwrap().assert_all_selections(
             &buffer,

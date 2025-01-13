@@ -73,7 +73,15 @@ impl KeyEvent {
             _ => String::from("Unknown"),
         };
         let modifier = if self.modifiers != KeyModifiers::None {
-            Some(self.modifiers.to_string())
+            use convert_case::{Case, Casing};
+            Some(
+                format!("{:?}", self.modifiers)
+                    .to_case(Case::Lower)
+                    .split(" ")
+                    .collect::<Vec<_>>()
+                    .join("+")
+                    .to_string(),
+            )
         } else {
             None
         };

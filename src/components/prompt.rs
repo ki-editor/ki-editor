@@ -455,9 +455,9 @@ mod test_prompt {
                 }),
                 App(HandleKeyEvents(keys!("f o o _").to_vec())),
                 Expect(EditorInfoContent("foo_bar")),
-                App(HandleKeyEvents(keys!("ctrl+u z a m").to_vec())),
+                App(HandleKeyEvents(keys!("alt+q z a m").to_vec())),
                 Expect(EditorInfoContent("zazam")),
-                App(HandleKeyEvents(keys!("ctrl+u q").to_vec())),
+                App(HandleKeyEvents(keys!("alt+q q").to_vec())),
                 Expect(EditorInfoContent("boque")),
                 App(HandleKeyEvents(keys!("esc esc").to_vec())),
                 Expect(EditorInfoContent("back to square one")),
@@ -499,7 +499,7 @@ mod test_prompt {
     }
 
     #[test]
-    fn suggestion_should_update_with_ctrl_k_and_ctrl_u() -> Result<(), anyhow::Error> {
+    fn suggestion_should_update_with_alt_q_and_alt_t() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile(s.main_rs())),
@@ -527,16 +527,16 @@ mod test_prompt {
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 // Expect only 'Patrick' remains in the completion dropdown
                 Expect(CompletionDropdownContent("Patrick")),
-                // Clear 'pa' using ctrl+u
-                App(HandleKeyEvent(key!("ctrl+u"))),
+                // Clear 'pa' using alt+q
+                App(HandleKeyEvent(key!("alt+q"))),
                 // Expect all items are shown again
                 Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
                 //
                 //
-                // Perform the same test for ctrl+k
+                // Perform the same test for alt+t
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 Expect(CompletionDropdownContent("Patrick")),
-                App(HandleKeyEvents(keys!("ctrl+a ctrl+k").to_vec())),
+                App(HandleKeyEvents(keys!("alt+w alt+t").to_vec())),
                 Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
             ])
         })

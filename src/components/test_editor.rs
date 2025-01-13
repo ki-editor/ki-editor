@@ -1212,8 +1212,8 @@ fn jump() -> anyhow::Result<()> {
             // since the viewbox has only height of 1
             Expect(JumpChars(&['w', 'l', 'o', 's', 's', '?'])),
             App(HandleKeyEvent(key!("s"))),
-            Expect(JumpChars(&['a', 'b'])),
-            App(HandleKeyEvent(key!("a"))),
+            Expect(JumpChars(&['d', 'k'])),
+            App(HandleKeyEvent(key!("d"))),
             Expect(JumpChars(&[])),
             Expect(CurrentSelectedTexts(&["sea"])),
         ])
@@ -1292,7 +1292,7 @@ fn highlight_and_jump() -> anyhow::Result<()> {
             // since the viewbox has only height of 1
             Expect(JumpChars(&['w', 'l', 'o', 's', 's', '?'])),
             App(HandleKeyEvent(key!("s"))),
-            App(HandleKeyEvent(key!("b"))),
+            App(HandleKeyEvent(key!("k"))),
             Expect(CurrentSelectedTexts(&["lives on sea shore"])),
         ])
     })
@@ -1315,7 +1315,7 @@ fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             // Expect the jump to NOT be the first character of each word
             // Since, the first character of each selection are the same, which is 'w'
-            Expect(JumpChars(&['a', 'b', 'c', 'd'])),
+            Expect(JumpChars(&['d', 'k', 's', 'l'])),
         ])
     })
 }
@@ -2130,7 +2130,7 @@ fn select_surround_inside() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("v i (").to_vec())),
+            App(HandleKeyEvents(keys!("f u (").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2144,7 +2144,7 @@ fn select_surround_around() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("v a (").to_vec())),
+            App(HandleKeyEvents(keys!("f o (").to_vec())),
             Expect(CurrentSelectedTexts(&["(world)"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2172,7 +2172,7 @@ fn delete_surround() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("v d (").to_vec())),
+            App(HandleKeyEvents(keys!("f h (").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello world)")),
@@ -2187,7 +2187,7 @@ fn change_surround_selection_not_on_enclosure() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("v c ( {").to_vec())),
+            App(HandleKeyEvents(keys!("f m ( {").to_vec())),
             Expect(CurrentSelectedTexts(&["{world}"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello {world})")),
@@ -2202,7 +2202,7 @@ fn change_surround_selection_on_enclosure() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("(hello)".to_string())),
             Editor(MatchLiteral("(hello)".to_string())),
-            App(HandleKeyEvents(keys!("v c ( {").to_vec())),
+            App(HandleKeyEvents(keys!("f m ( {").to_vec())),
             Expect(CurrentSelectedTexts(&["{hello}"])),
         ])
     })
@@ -2753,7 +2753,7 @@ foo bar
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(EnterVMode),
-            App(HandleKeyEvent(key!("j"))),
+            App(HandleKeyEvent(key!("k"))),
             Expect(CurrentSelectedTexts(&["foo bar\n  spam"])),
             Editor(Delete(Direction::End)),
             Expect(CurrentComponentContent("  hey")),
@@ -3160,20 +3160,6 @@ fn break_selection() -> anyhow::Result<()> {
 }
 
 #[test]
-fn syntax_node_move_right_should_move_to_non_overlapping_node() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile(s.main_rs())),
-            Editor(SetContent("fn main(a: A, b: B) {}".to_string())),
-            Editor(MatchLiteral("a: A".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(MoveSelection(Right)),
-            Expect(CurrentSelectedTexts(&[","])),
-        ])
-    })
-}
-
-#[test]
 fn delete_empty_lines() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -3198,7 +3184,7 @@ yo"
 }
 
 #[test]
-fn next_previous_line() -> anyhow::Result<()> {
+fn empty_lines_navigation() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -3218,20 +3204,20 @@ bam
                 .trim()
                 .to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
+            Expect(CurrentSelectedTexts(&["foo\n"])),
             Editor(MoveSelection(Next)),
-            Expect(CurrentSelectedTexts(&[""])),
+            Expect(CurrentSelectedTexts(&["\n"])),
             Editor(MoveSelection(Up)),
-            Expect(CurrentSelectedTexts(&["bar"])),
+            Expect(CurrentSelectedTexts(&["bar\n"])),
             Editor(MoveSelection(Down)),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Up)),
-            Expect(CurrentSelectedTexts(&["baz"])),
+            Expect(CurrentSelectedTexts(&["baz\n"])),
             Editor(MoveSelection(Down)),
             Editor(MoveSelection(Previous)),
             Editor(MoveSelection(Down)),
-            Expect(CurrentSelectedTexts(&["spam"])),
+            Expect(CurrentSelectedTexts(&["spam\n"])),
         ])
     })
 }

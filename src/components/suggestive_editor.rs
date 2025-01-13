@@ -732,9 +732,9 @@ mod test_suggestive_editor {
                 Expect(CompletionDropdownSelectedItem("Spongebob")),
                 App(HandleKeyEvent(key!("up"))),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
-                App(HandleKeyEvent(key!("ctrl+n"))),
+                App(HandleKeyEvent(key!("alt+f"))),
                 Expect(CompletionDropdownSelectedItem("Spongebob")),
-                App(HandleKeyEvent(key!("ctrl+p"))),
+                App(HandleKeyEvent(key!("alt+s"))),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
             ])
         })

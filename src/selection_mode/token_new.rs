@@ -77,13 +77,13 @@ impl SelectionMode for TokenNew {
 }
 
 #[cfg(test)]
-mod test_word {
+mod test_token {
     use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
 
     use super::*;
 
     #[test]
-    fn case_1() {
+    fn skip_symbols() {
         let buffer = Buffer::new(
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE kebab-case ->() 123 <_>",
@@ -98,14 +98,37 @@ mod test_word {
                 (32..43, "UPPER_SNAKE"),
                 (44..54, "kebab-case"),
                 (55..56, "-"),
-                (56..57, ">"),
-                (57..58, "("),
-                (58..59, ")"),
                 (60..63, "123"),
-                (64..65, "<"),
                 (65..66, "_"),
-                (66..67, ">"),
             ],
         );
+    }
+    #[test]
+    fn no_skip_symbols() {
+        let buffer = Buffer::new(
+            None,
+            "snake_case camelCase PascalCase UPPER_SNAKE kebab-case ->() 123 <_>",
+        );
+        TokenNew::new(&buffer, false)
+            .unwrap()
+            .assert_all_selections(
+                &buffer,
+                Selection::default(),
+                &[
+                    (0..10, "snake_case"),
+                    (11..20, "camelCase"),
+                    (21..31, "PascalCase"),
+                    (32..43, "UPPER_SNAKE"),
+                    (44..54, "kebab-case"),
+                    (55..56, "-"),
+                    (56..57, ">"),
+                    (57..58, "("),
+                    (58..59, ")"),
+                    (60..63, "123"),
+                    (64..65, "<"),
+                    (65..66, "_"),
+                    (66..67, ">"),
+                ],
+            );
     }
 }

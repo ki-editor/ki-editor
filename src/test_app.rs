@@ -1621,7 +1621,7 @@ fn should_be_able_to_handle_key_event_even_when_no_file_is_opened() -> anyhow::R
     execute_test(|_| {
         Box::new([
             Expect(CurrentComponentContent("")),
-            App(HandleKeyEvents(keys!("i h e l l o").to_vec())),
+            App(HandleKeyEvents(keys!("u h e l l o").to_vec())),
             Expect(CurrentComponentContent("hello")),
         ])
     })
@@ -1666,7 +1666,7 @@ fn cycle_window() -> anyhow::Result<()> {
                 SuggestiveEditor(DispatchSuggestiveEditor::Completion(completion.clone())),
                 Expect(ComponentCount(3)),
                 // Move to the next completion item (which is 'Spongebob squarepants')
-                App(HandleKeyEvent(key!("ctrl+n"))),
+                App(HandleKeyEvent(key!("alt+f"))),
                 Expect(CurrentComponentContent("")),
                 App(OtherWindow),
                 Expect(ComponentCount(3)),
