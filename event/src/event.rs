@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt};
 
 #[derive(Debug)]
 pub enum Event {
@@ -27,10 +27,15 @@ impl From<crossterm::event::Event> for Event {
 /// on combined modifier keys like Ctrl+Alt+Shift.
 ///
 /// The `crossterm` crate does not support this out of the box.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct KeyEvent {
     pub code: crossterm::event::KeyCode,
     pub modifiers: KeyModifiers,
+}
+impl fmt::Debug for KeyEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.display())
+    }
 }
 impl KeyEvent {
     pub const fn new(key: crossterm::event::KeyCode, modifiers: KeyModifiers) -> KeyEvent {

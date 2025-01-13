@@ -455,9 +455,9 @@ mod test_prompt {
                 }),
                 App(HandleKeyEvents(keys!("f o o _").to_vec())),
                 Expect(EditorInfoContent("foo_bar")),
-                App(HandleKeyEvents(keys!("alt+q z a m").to_vec())),
+                App(HandleKeyEvents(keys!("alt+a z a m").to_vec())),
                 Expect(EditorInfoContent("zazam")),
-                App(HandleKeyEvents(keys!("alt+q q").to_vec())),
+                App(HandleKeyEvents(keys!("alt+a q").to_vec())),
                 Expect(EditorInfoContent("boque")),
                 App(HandleKeyEvents(keys!("esc esc").to_vec())),
                 Expect(EditorInfoContent("back to square one")),
@@ -527,16 +527,16 @@ mod test_prompt {
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 // Expect only 'Patrick' remains in the completion dropdown
                 Expect(CompletionDropdownContent("Patrick")),
-                // Clear 'pa' using alt+q
-                App(HandleKeyEvent(key!("alt+q"))),
+                // Clear 'pa' using alt+a
+                App(HandleKeyEvent(key!("alt+a"))),
                 // Expect all items are shown again
                 Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
                 //
                 //
-                // Perform the same test for alt+t
+                // Perform the same test for alt+g
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 Expect(CompletionDropdownContent("Patrick")),
-                App(HandleKeyEvents(keys!("alt+w alt+t").to_vec())),
+                App(HandleKeyEvents(keys!("alt+w alt+g").to_vec())),
                 Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
             ])
         })
