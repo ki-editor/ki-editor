@@ -15,25 +15,25 @@ pub const KEYMAP_SCORE: [[u8; 10]; 3] = [
 
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        XAchr, Word_, SrchC, MultC, Mark_, /****/ FindP, InstP, Up___, InstN, FindN,
+        SrchN, Word_, SrchC, MultC, Mark_, /****/ FindP, InstP, Up___, InstN, FindN,
     ],
     [
         Line_, Tokn_, Sytx_, VMode, Globl, /****/ DeltN, Left_, Down_, Right, Jump_,
     ],
     [
-        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ OpenN, Chng_, First, Last_, SrchN,
+        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ OpenN, Chng_, First, Last_, XAchr,
     ],
 ];
 
 pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        _____, WordF, Char_, _____, Trsfm, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
+        SrchP, WordF, Char_, _____, Trsfm, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
     ],
     [
-        LineF, ToknF, StyxF, SSEnd, _____, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
+        LineF, ToknF, StyxF, _____, _____, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
     ],
     [
-        Redo_, Raise, RplcX, PsteP, PRplc, /****/ OpenP, ChngX, _____, _____, SrchP,
+        Redo_, Raise, RplcX, PsteP, PRplc, /****/ OpenP, ChngX, _____, _____, SSEnd,
     ],
     // Why is Raise placed at the same Position as Exchange?
     // Because Raise is a special-case of Exchange where the movement is Up
@@ -43,13 +43,13 @@ pub const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
     // TODO: Implement Up Line and Down Line
     // The cursor should be placed at the of the line
     [
-        KilLP, LineP, LineU, LineN, KilLN, /****/ _____, _____, ScrlU, _____, _____,
+        CSrch, LineP, LineU, LineN, _____, /****/ _____, _____, ScrlU, _____, _____,
     ],
     [
-        _____, CItmP, LineD, CItmN, _____, /****/ DWrdP, BuffP, ScrlD, BuffN, SView,
+        KilLP, CItmP, LineD, CItmN, KilLN, /****/ DWrdP, BuffP, ScrlD, BuffN, SView,
     ],
     [
-        Undo_, WSwth, WClse, UPstE, _____, /****/ DTknP, GBack, _____, GForw, CSrch,
+        Undo_, WSwth, WClse, UPstE, _____, /****/ DTknP, GBack, _____, GForw, _____,
     ],
 ];
 
