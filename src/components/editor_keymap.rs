@@ -5,9 +5,12 @@ use strum::IntoEnumIterator as _;
 use Meaning::*;
 
 pub const KEYMAP_SCORE: [[u8; 10]; 3] = [
-    [3, 2, 2, 3, 4, /****/ 4, 3, 2, 2, 3],
-    [2, 1, 1, 1, 3, /****/ 3, 1, 1, 1, 2],
-    [3, 3, 3, 3, 4, /****/ 4, 3, 3, 3, 3],
+    // 01 = Easiest to access
+    // 15 = Hardest to access
+    // Left side (1-15)        Right side (1-15)
+    [13, 08, 06, 09, 14, /*|*/ 14, 09, 06, 08, 13], // Top row
+    [04, 02, 01, 03, 05, /*|*/ 05, 03, 01, 02, 04], // Home row
+    [10, 11, 12, 07, 15, /*|*/ 15, 07, 12, 11, 10], // Bottom row
 ];
 
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
