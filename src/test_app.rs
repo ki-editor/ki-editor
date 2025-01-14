@@ -571,7 +571,9 @@ fn copy_replace() -> anyhow::Result<()> {
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                SelectionMode::Token,
+                SelectionMode::Token {
+                    skip_symbols: false,
+                },
             )),
             Editor(Copy {
                 use_system_clipboard: false,
@@ -599,7 +601,10 @@ fn cut_replace() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token { skip_symbols: true },
+            )),
             Editor(ChangeCut {
                 use_system_clipboard: false,
             }),
@@ -624,7 +629,12 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token {
+                    skip_symbols: false,
+                },
+            )),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
@@ -655,7 +665,9 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
             )),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                SelectionMode::Token,
+                SelectionMode::Token {
+                    skip_symbols: false,
+                },
             )),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Movement::Right)),
@@ -689,7 +701,9 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             )),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                SelectionMode::Token,
+                SelectionMode::Token {
+                    skip_symbols: false,
+                },
             )),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Movement::Right)),
@@ -732,7 +746,7 @@ fn multi_paste() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["let x = S(spongebob_squarepants);"])),
             Editor(CursorAddToAllSelections),
             Editor(MoveSelection(Movement::Down)),
-            Editor(MoveSelection(Movement::Next)),
+            Editor(MoveSelection(Movement::Right)),
             Expect(CurrentSelectedTexts(&["S(spongebob_squarepants)", "S(b)"])),
             Editor(ChangeCut {
                 use_system_clipboard: false,
@@ -786,7 +800,9 @@ fn signature_help() -> anyhow::Result<()> {
             )),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                SelectionMode::Token,
+                SelectionMode::Token {
+                    skip_symbols: false,
+                },
             )),
             Expect(CurrentMode(Mode::Normal)),
             //
@@ -1018,10 +1034,20 @@ fn global_marks() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Word {
+                    skip_symbols: false,
+                },
+            )),
             Editor(ToggleMark),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Word {
+                    skip_symbols: false,
+                },
+            )),
             Editor(ToggleMark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Mark,
@@ -1795,24 +1821,6 @@ fn closing_current_file_should_replace_current_window_with_another_file() -> any
 }
 
 #[test]
-fn file_path_history() -> anyhow::Result<()> {
-    {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile(s.main_rs())),
-                App(OpenFile(s.foo_rs())),
-                App(OpenFile(s.foo_rs())),
-                Expect(CurrentComponentPath(Some(s.foo_rs()))),
-                App(GoToPreviousFile),
-                Expect(CurrentComponentPath(Some(s.main_rs()))),
-                App(GoToNextFile),
-                Expect(CurrentComponentPath(Some(s.foo_rs()))),
-            ])
-        })
-    }
-}
-
-#[test]
 fn editor_info_should_always_come_after_dropdown() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -2034,7 +2042,10 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    Token { skip_symbols: true },
+                )),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,
@@ -2081,7 +2092,10 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    Token { skip_symbols: true },
+                )),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,

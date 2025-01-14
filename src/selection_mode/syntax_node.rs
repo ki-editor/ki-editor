@@ -118,18 +118,6 @@ impl SelectionMode for SyntaxNode {
             Ok(Box::new(std::iter::empty()))
         }
     }
-    fn delete_forward(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.next(params)
-    }
-    fn delete_backward(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.previous(params)
-    }
 }
 
 impl SyntaxNode {

@@ -4,13 +4,13 @@ use std::collections::HashMap;
 use strum::IntoEnumIterator as _;
 use Meaning::*;
 
-pub const KEYMAP_SCORE: [[u8; 10]; 3] = [
-    // 01 = Easiest to access
-    // 15 = Hardest to access
-    // Left side (1-15)        Right side (1-15)
-    [13, 08, 06, 09, 14, /*|*/ 14, 09, 06, 08, 13], // Top row
-    [04, 02, 01, 03, 05, /*|*/ 05, 03, 01, 02, 04], // Home row
-    [10, 11, 12, 07, 15, /*|*/ 15, 07, 12, 11, 10], // Bottom row
+pub const KEYMAP_SCORE: [[char; 10]; 3] = [
+    // a = Easiest to access
+    // o = Hardest to access
+    // Left side (a-o)        Right side (a-o)
+    ['m', 'h', 'f', 'i', 'n', /*|*/ 'n', 'i', 'f', 'h', 'm'], // Top row
+    ['d', 'b', 'a', 'c', 'e', /*|*/ 'e', 'c', 'a', 'b', 'd'], // Home row
+    ['j', 'k', 'l', 'g', 'o', /*|*/ 'o', 'g', 'l', 'k', 'j'], // Bottom row
 ];
 
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
@@ -235,10 +235,6 @@ pub(crate) enum Meaning {
     BuffP,
     /// Configure Search
     CSrch,
-    /// Move to next char
-    CharN,
-    /// Move to previous char
-    CharP,
     /// Select Character
     Char_,
     /// Change Cut
@@ -255,12 +251,8 @@ pub(crate) enum Meaning {
     CrsrN,
     /// Cycle primary selection prev
     CrsrP,
-    /// Delete token forward
-    DTknN,
     /// Delete token backward
     DTknP,
-    /// Delete word forward
-    DWrdN,
     /// Delete word backward
     DWrdP,
     /// Dedent
@@ -273,10 +265,6 @@ pub(crate) enum Meaning {
     Down_,
     /// Switch extended selection end
     Exchg,
-    /// File next
-    FileN,
-    /// File previous
-    FileP,
     /// Local find forward
     FindN,
     /// Local find backward
@@ -319,22 +307,16 @@ pub(crate) enum Meaning {
     LineP,
     /// Select Line
     Line_,
-    /// Select last non-contiguous selection mode
-    LstNc,
     /// Mark
     Mark_,
     /// Multi Cursor
     MultC,
-    /// Next
-    Next_,
     /// Open (Next)
     OpenN,
     /// Open (Prev)
     OpenP,
     /// Replace with pattern
     PRplc,
-    /// Previous
-    Prev_,
     /// Paste end
     PsteN,
     /// Paste previous
@@ -389,10 +371,6 @@ pub(crate) enum Meaning {
     WClse,
     /// Switch window
     WSwth,
-    /// Move to next word
-    WordN,
-    /// Move to previous word
-    WordP,
     /// Select Word
     Word_,
     /// Select Word Fine
@@ -554,57 +532,6 @@ pub fn shifted_char(c: char) -> char {
         'X' => 'X',
         'Y' => 'Y',
         'Z' => 'Z',
-        c => c, // return unchanged if no shift mapping exists
-    }
-}
-
-fn controlled(c: &'static str) -> &'static str {
-    match c {
-        "." => "ctrl+.",
-        "," => "ctrl+,",
-        "/" => "ctrl+/",
-        ";" => "ctrl+;",
-        "\"" => "ctrl+\"",
-        "[" => "ctrl+[",
-        "]" => "ctrl+]",
-        "1" => "ctrl+1",
-        "2" => "ctrl+2",
-        "3" => "ctrl+3",
-        "4" => "ctrl+4",
-        "5" => "ctrl+5",
-        "6" => "ctrl+6",
-        "7" => "ctrl+7",
-        "8" => "ctrl+8",
-        "9" => "ctrl+9",
-        "0" => "ctrl+0",
-        "-" => "ctrl+-",
-        "=" => "ctrl+=",
-        "a" => "ctrl+a",
-        "b" => "ctrl+b",
-        "c" => "ctrl+c",
-        "d" => "ctrl+d",
-        "e" => "ctrl+e",
-        "f" => "ctrl+f",
-        "g" => "ctrl+g",
-        "h" => "ctrl+h",
-        "i" => "ctrl+i",
-        "j" => "ctrl+j",
-        "k" => "ctrl+k",
-        "l" => "ctrl+l",
-        "m" => "ctrl+m",
-        "n" => "ctrl+n",
-        "o" => "ctrl+o",
-        "p" => "ctrl+p",
-        "q" => "ctrl+q",
-        "r" => "ctrl+r",
-        "s" => "ctrl+s",
-        "t" => "ctrl+t",
-        "u" => "ctrl+u",
-        "v" => "ctrl+v",
-        "w" => "ctrl+w",
-        "x" => "ctrl+x",
-        "y" => "ctrl+y",
-        "z" => "ctrl+z",
         c => c, // return unchanged if no shift mapping exists
     }
 }

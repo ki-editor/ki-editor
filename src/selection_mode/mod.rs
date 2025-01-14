@@ -15,9 +15,7 @@ pub(crate) mod local_quickfix;
 pub(crate) mod regex;
 pub(crate) mod syntax_node;
 pub(crate) mod token;
-pub(crate) mod token_new;
 pub(crate) mod word;
-pub(crate) mod word_new;
 pub(crate) use self::regex::Regex;
 pub(crate) use ast_grep::AstGrep;
 pub(crate) use character::Character;
@@ -35,10 +33,8 @@ use std::ops::Range;
 pub(crate) use syntax_node::SyntaxNode;
 pub(crate) use syntax_token::SyntaxToken;
 pub(crate) use token::Token;
-pub(crate) use token_new::TokenNew;
 pub(crate) use top_node::TopNode;
 pub(crate) use word::Word;
-pub(crate) use word_new::WordNew;
 
 use crate::{
     buffer::Buffer,
@@ -201,8 +197,6 @@ pub trait SelectionMode {
             Movement::Up => convert(self.up(params)),
             Movement::Down => convert(self.down(params)),
             Movement::Expand => self.expand(params),
-            Movement::Next => convert(self.next(params)),
-            Movement::Previous => convert(self.previous(params)),
             Movement::DeleteBackward => convert(self.delete_backward(params)),
             Movement::DeleteForward => convert(self.delete_forward(params)),
         }
@@ -362,14 +356,6 @@ pub trait SelectionMode {
         Ok(Some(ApplyMovementResult::from_selection(
             selection.clone().set_range(range),
         )))
-    }
-
-    fn next(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.right(params)
-    }
-
-    fn previous(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.left(params)
     }
 
     fn up(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {

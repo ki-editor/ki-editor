@@ -1,7 +1,7 @@
 use super::{
     component::ComponentId,
     dropdown::DropdownRender,
-    editor_keymap::{shifted, shifted_char, KEYBOARD_LAYOUT, KEYMAP_SCORE},
+    editor_keymap::{shifted_char, KEYBOARD_LAYOUT, KEYMAP_SCORE},
     render_editor::Source,
     suggestive_editor::{Decoration, Info},
 };
@@ -483,8 +483,6 @@ pub(crate) enum IfCurrentNotFound {
 pub(crate) enum Movement {
     Right,
     Left,
-    Next,
-    Previous,
     Last,
     Current(IfCurrentNotFound),
     Up,
@@ -718,7 +716,9 @@ impl Editor {
         if use_current_selection_mode {
             self.selection_set.mode.clone()
         } else {
-            SelectionMode::Word
+            SelectionMode::Word {
+                skip_symbols: false,
+            }
         }
         .to_selection_mode_trait_object(&self.buffer(), selection, &self.cursor_direction)
     }
@@ -1750,7 +1750,7 @@ impl Editor {
                         };
                         let first = selection_mode.first(params.clone()).ok()??.range();
                         // Find the before current selection
-                        let before_current = selection_mode.previous(params).ok()??.range();
+                        let before_current = selection_mode.left(params).ok()??.range();
                         let first_range = current_selection.range();
                         let second_range: CharIndexRange =
                             (first.start()..before_current.end()).into();
@@ -1797,7 +1797,7 @@ impl Editor {
                         // Select from the first until before current
                         let last = selection_mode.last(params.clone()).ok()??.range();
                         // Find the before current selection
-                        let after_current = selection_mode.next(params).ok()??.range();
+                        let after_current = selection_mode.right(params).ok()??.range();
                         let first_range = current_selection.range();
                         let second_range: CharIndexRange =
                             (after_current.start()..last.end()).into();
@@ -1828,8 +1828,8 @@ impl Editor {
             )
         };
         match movement {
-            Movement::First => while let Ok(true) = add_selection(&Movement::Previous) {},
-            Movement::Last => while let Ok(true) = add_selection(&Movement::Next) {},
+            Movement::First => while let Ok(true) = add_selection(&Movement::Left) {},
+            Movement::Last => while let Ok(true) = add_selection(&Movement::Right) {},
             other_movement => {
                 add_selection(other_movement)?;
             }
@@ -1920,9 +1920,13 @@ impl Editor {
                             &self.buffer(),
                             &current_selection.clone().set_range((start..start).into()),
                             &if short {
-                                SelectionMode::Word
+                                SelectionMode::Word {
+                                    skip_symbols: false,
+                                }
                             } else {
-                                SelectionMode::Token
+                                SelectionMode::Token {
+                                    skip_symbols: false,
+                                }
                             },
                             &movement,
                             &self.cursor_direction,

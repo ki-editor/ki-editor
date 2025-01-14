@@ -110,9 +110,7 @@ fn generate_recipes() -> anyhow::Result<()> {
                             similar_vim_combos: recipe.similar_vim_combos,
                         })
                     };
-                    run().map_err(|err: anyhow::Error| {
-                        format!("{} {}", recipe.description, err.to_string())
-                    })
+                    run().map_err(|err: anyhow::Error| format!("{} {err}", recipe.description,))
                 })
                 .partition_map(|result| match result {
                     Ok(recipe_output) => Either::Right(recipe_output),

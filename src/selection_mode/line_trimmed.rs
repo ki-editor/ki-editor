@@ -1,5 +1,3 @@
-use itertools::Itertools;
-
 use crate::components::editor::IfCurrentNotFound;
 
 use super::{SelectionMode, SelectionModeParams};

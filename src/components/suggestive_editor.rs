@@ -303,14 +303,14 @@ impl SuggestiveEditor {
 
     fn previous_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
         self.completion_dropdown.previous_item();
-        return Ok(self.render_completion_dropdown(false));
+        Ok(self.render_completion_dropdown(false))
     }
 
     fn next_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
         self.completion_dropdown.next_item();
         let dispatches = self.render_completion_dropdown(false);
         log::info!("next_compl = {:?}", dispatches);
-        return Ok(self.render_completion_dropdown(false));
+        Ok(self.render_completion_dropdown(false))
     }
 }
 

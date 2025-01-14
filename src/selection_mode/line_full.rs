@@ -33,9 +33,9 @@ impl SelectionMode for LineFull {
                 }),
         ))
     }
-    fn right<'a>(
+    fn right(
         &self,
-        params: super::SelectionModeParams<'a>,
+        params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
@@ -57,9 +57,9 @@ impl SelectionMode for LineFull {
             .map(|range| current_selection.clone().set_range(range)))
     }
 
-    fn left<'a>(
+    fn left(
         &self,
-        params: super::SelectionModeParams<'a>,
+        params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;

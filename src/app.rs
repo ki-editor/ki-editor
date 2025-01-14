@@ -747,8 +747,6 @@ impl<T: Frontend> App<T> {
                 self.open_code_actions_prompt(code_actions)?;
             }
             Dispatch::OtherWindow => self.layout.cycle_window(),
-            Dispatch::GoToPreviousFile => self.go_to_previous_file()?,
-            Dispatch::GoToNextFile => self.go_to_next_file()?,
             Dispatch::CycleBuffer(direction) => self.cycle_buffer(direction)?,
             Dispatch::JumpEditor(tag) => self.handle_jump_editor(tag)?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
@@ -843,8 +841,6 @@ impl<T: Frontend> App<T> {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<()> {
-        let config = self.context.get_local_search_config(scope);
-        let mode = config.mode;
         self.open_prompt(
             PromptConfig {
                 title: format!(
@@ -1882,20 +1878,6 @@ impl<T: Frontend> App<T> {
             .collect_vec()
     }
 
-    fn go_to_previous_file(&mut self) -> anyhow::Result<()> {
-        if let Some(path) = self.file_path_history.undo() {
-            self.open_file(&path, OpenFileOption::FocusNoHistory)?;
-        }
-        Ok(())
-    }
-
-    fn go_to_next_file(&mut self) -> anyhow::Result<()> {
-        if let Some(path) = self.file_path_history.redo() {
-            self.open_file(&path, OpenFileOption::FocusNoHistory)?;
-        }
-        Ok(())
-    }
-
     fn cycle_buffer(&mut self, direction: Direction) -> anyhow::Result<()> {
         if let Some(current_file_path) = self.current_component().borrow().path() {
             let files = self.layout.get_opened_files();
@@ -2474,8 +2456,6 @@ pub(crate) enum Dispatch {
     OtherWindow,
     CloseCurrentWindowAndFocusParent,
     CloseEditorInfo,
-    GoToPreviousFile,
-    GoToNextFile,
     CycleBuffer(Direction),
     JumpEditor(char),
     PushPromptHistory {
@@ -2656,7 +2636,7 @@ impl DispatchPrompt {
                     scope,
                     show_config_after_enter,
                     if_current_not_found,
-                    run_search_after_config_updated: true,
+                    run_search_after_config_updated,
                 }]
                 .to_vec(),
             )),
@@ -2734,7 +2714,6 @@ impl DispatchPrompt {
 #[derive(PartialEq)]
 enum OpenFileOption {
     Focus,
-    FocusNoHistory,
     Background,
 }
 impl OpenFileOption {

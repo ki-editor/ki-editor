@@ -223,7 +223,7 @@ impl Editor {
                     "Select Token".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
-                        NewToken { skip_symbols: true },
+                        Token { skip_symbols: true },
                     )),
                 ),
                 Keymap::new_extended(
@@ -232,7 +232,7 @@ impl Editor {
                     "Select Token Fine".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
-                        NewToken {
+                        Token {
                             skip_symbols: false,
                         },
                     )),
@@ -243,7 +243,7 @@ impl Editor {
                     "Select Word Fine".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
-                        NewWord {
+                        Word {
                             skip_symbols: false,
                         },
                     )),
@@ -254,7 +254,7 @@ impl Editor {
                     "Select Word".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
-                        NewWord { skip_symbols: true },
+                        Word { skip_symbols: true },
                     )),
                 ),
                 Keymap::new_extended(
@@ -1201,7 +1201,7 @@ impl Editor {
                     .chain(
                         [Keymap::new(
                             "l",
-                            Direction::End.format_action("Last non-contiguous selection mode"),
+                            "Last non-contiguous selection mode".to_string(),
                             Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
                         )]
                         .to_vec(),

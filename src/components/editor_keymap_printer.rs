@@ -128,14 +128,14 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
     use KeyModifiers::*;
     use Mode::*;
     let sections: Vec<KeymapPrintSection> = [
-        KeymapPrintSection::new(&layout, Normal, None),
-        KeymapPrintSection::new(&layout, Normal, Shift),
-        KeymapPrintSection::new(&layout, Normal, Ctrl),
-        KeymapPrintSection::new(&layout, Normal, Alt),
-        KeymapPrintSection::new(&layout, MultiCursor, None),
-        KeymapPrintSection::new(&layout, MultiCursor, Shift),
-        KeymapPrintSection::new(&layout, V, None),
-        KeymapPrintSection::new(&layout, Insert, Alt),
+        KeymapPrintSection::new(layout, Normal, None),
+        KeymapPrintSection::new(layout, Normal, Shift),
+        KeymapPrintSection::new(layout, Normal, Ctrl),
+        KeymapPrintSection::new(layout, Normal, Alt),
+        KeymapPrintSection::new(layout, MultiCursor, None),
+        KeymapPrintSection::new(layout, MultiCursor, Shift),
+        KeymapPrintSection::new(layout, V, None),
+        KeymapPrintSection::new(layout, Insert, Alt),
     ]
     .to_vec();
 
@@ -160,7 +160,7 @@ fn print_single_keymap_table(keymap: &KeymapPrintSection) {
     let mut table = Table::new();
     let table_rows = keymap.key_meanings.iter().map(|row| {
         let mut cols: Vec<Cell> = row
-            .into_iter()
+            .iter()
             .map(|value| {
                 let display = match value {
                     Some(value) => value.to_string(),
@@ -195,7 +195,7 @@ fn print_single_keymap_table(keymap: &KeymapPrintSection) {
         .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
 
     println!("{}", table);
-    println!("");
+    println!();
 }
 
 /// Print a YAML representation of the keymap suitable for use with keymap drawer,
