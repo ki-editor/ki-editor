@@ -1621,7 +1621,7 @@ hello_world
             content: "fo world fo where".trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("q f o enter z d p l"),
+            events: keys!("q f o enter z d p r"),
             expectations: &[CurrentSelectedTexts(&["fo"])],
             terminal_height: None,
             similar_vim_combos: &[],
