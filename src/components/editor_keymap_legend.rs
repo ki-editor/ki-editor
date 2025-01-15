@@ -1160,53 +1160,31 @@ impl Editor {
             KeymapLegendSection {
                 title: "Text".to_string(),
                 keymaps: Keymaps::new(
-                    &[
-                        Keymap::new_extended(
-                            "f",
-                            "cfg search".to_string(),
-                            "Configure Search".to_string(),
-                            Dispatch::ShowSearchConfig {
-                                scope,
-                                if_current_not_found,
-                                run_search_after_config_updated: true,
-                            },
-                        ),
-                        Keymap::new_extended(
-                            "s",
-                            "search →".to_string(),
-                            "Search".to_string(),
-                            Dispatch::OpenSearchPrompt {
-                                scope,
-                                if_current_not_found,
-                            },
-                        ),
-                    ]
-                    .into_iter()
-                    .chain(self.search_current_selection_keymap("c", scope, if_current_not_found))
-                    .chain(config.last_search().map(|search| {
-                        Keymap::new(
-                            "p",
-                            "Search (using previous search)".to_string(),
-                            Dispatch::UpdateLocalSearchConfig {
-                                scope,
-                                if_current_not_found,
-                                update: crate::app::LocalSearchConfigUpdate::Search(
-                                    search.search.to_string(),
-                                ),
-                                show_config_after_enter: false,
-                                run_search_after_config_updated: true,
-                            },
+                    &[].into_iter()
+                        .chain(config.last_search().map(|search| {
+                            Keymap::new(
+                                KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::PSrch),
+                                "Search (using previous search)".to_string(),
+                                Dispatch::UpdateLocalSearchConfig {
+                                    scope,
+                                    if_current_not_found,
+                                    update: crate::app::LocalSearchConfigUpdate::Search(
+                                        search.search.to_string(),
+                                    ),
+                                    show_config_after_enter: false,
+                                    run_search_after_config_updated: true,
+                                },
+                            )
+                        }))
+                        .chain(
+                            [Keymap::new(
+                                KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LNcSM),
+                                "Last non-contiguous selection mode".to_string(),
+                                Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
+                            )]
+                            .to_vec(),
                         )
-                    }))
-                    .chain(
-                        [Keymap::new(
-                            "l",
-                            "Last non-contiguous selection mode".to_string(),
-                            Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
-                        )]
-                        .to_vec(),
-                    )
-                    .collect_vec(),
+                        .collect_vec(),
                 ),
             }
         };
@@ -1215,7 +1193,7 @@ impl Editor {
             keymaps: Keymaps::new(
                 &[
                     Keymap::new(
-                        "m",
+                        KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::Mark_),
                         "Mark".to_string(),
                         match scope {
                             Scope::Global => Dispatch::SetQuickfixList(QuickfixListType::Mark),
@@ -1225,7 +1203,7 @@ impl Editor {
                         },
                     ),
                     Keymap::new(
-                        "q",
+                        KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::Qkfix),
                         "Quickfix".to_string(),
                         match scope {
                             Scope::Global => Dispatch::SetGlobalMode(Some(
@@ -1243,12 +1221,12 @@ impl Editor {
                 .into_iter()
                 .chain(
                     [
-                        ("g", DiffMode::UnstagedAgainstCurrentBranch),
-                        ("G", DiffMode::UnstagedAgainstMainBranch),
+                        (Meaning::GHnkC, DiffMode::UnstagedAgainstCurrentBranch),
+                        (Meaning::GHnkM, DiffMode::UnstagedAgainstMainBranch),
                     ]
-                    .map(|(key, diff_mode)| {
+                    .map(|(meaning, diff_mode)| {
                         Keymap::new(
-                            key,
+                            KEYBOARD_LAYOUT.get_find_keymap(scope, &meaning),
                             format!("Git hunk ({})", diff_mode.display()),
                             match scope {
                                 Scope::Global => Dispatch::GetRepoGitHunks(diff_mode),
@@ -1265,16 +1243,20 @@ impl Editor {
         };
         let diagnostics_keymaps = {
             let keymaps = [
-                ("a", "All", DiagnosticSeverityRange::All),
-                ("e", "Error", DiagnosticSeverityRange::Error),
-                ("h", "Hint", DiagnosticSeverityRange::Hint),
-                ("I", "Information", DiagnosticSeverityRange::Information),
-                ("w", "Warning", DiagnosticSeverityRange::Warning),
+                (Meaning::DgAll, "All", DiagnosticSeverityRange::All),
+                (Meaning::DgErr, "Error", DiagnosticSeverityRange::Error),
+                (Meaning::DgHnt, "Hint", DiagnosticSeverityRange::Hint),
+                (
+                    Meaning::DgInf,
+                    "Information",
+                    DiagnosticSeverityRange::Information,
+                ),
+                (Meaning::DgWrn, "Warning", DiagnosticSeverityRange::Warning),
             ]
             .into_iter()
-            .map(|(char, description, severity)| {
+            .map(|(meaning, description, severity)| {
                 Keymap::new(
-                    char,
+                    KEYBOARD_LAYOUT.get_find_keymap(scope, &meaning),
                     description.to_string(),
                     match scope {
                         Scope::Local => Dispatch::ToEditor(SetSelectionMode(
@@ -1296,22 +1278,22 @@ impl Editor {
         let lsp_keymaps = {
             let keymaps = Keymaps::new(&[
                 Keymap::new(
-                    "d",
+                    KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LDefn),
                     "Definitions".to_string(),
                     Dispatch::RequestDefinitions(scope),
                 ),
                 Keymap::new(
-                    "D",
+                    KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LDecl),
                     "Declarations".to_string(),
                     Dispatch::RequestDeclarations(scope),
                 ),
                 Keymap::new(
-                    "i",
+                    KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LImpl),
                     "Implementations".to_string(),
                     Dispatch::RequestImplementations(scope),
                 ),
                 Keymap::new(
-                    "r",
+                    KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LRfrE),
                     "References".to_string(),
                     Dispatch::RequestReferences {
                         include_declaration: false,
@@ -1319,7 +1301,7 @@ impl Editor {
                     },
                 ),
                 Keymap::new(
-                    "R",
+                    KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LRfrI),
                     "References (include declaration)".to_string(),
                     Dispatch::RequestReferences {
                         include_declaration: true,
@@ -1327,7 +1309,7 @@ impl Editor {
                     },
                 ),
                 Keymap::new(
-                    "t",
+                    KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LType),
                     "Type Definitions".to_string(),
                     Dispatch::RequestTypeDefinitions(scope),
                 ),
@@ -1338,36 +1320,72 @@ impl Editor {
                 keymaps,
             }
         };
-        let local_keymaps = match scope {
+        let scope_specific_keymaps = match scope {
             Scope::Local => Some(KeymapLegendSection {
                 title: "Local only".to_string(),
                 keymaps: Keymaps::new(
-                    &[("n", "Natural Number", r"\d+")]
-                        .into_iter()
-                        .map(|(key, description, regex)| {
-                            let search = Search {
-                                search: regex.to_string(),
-                                mode: LocalSearchConfigMode::Regex(RegexConfig {
-                                    escaped: false,
-                                    match_whole_word: false,
-                                    case_sensitive: false,
-                                }),
-                            };
-                            let dispatch = Dispatch::ToEditor(SetSelectionMode(
-                                if_current_not_found,
-                                Find { search },
-                            ));
-                            Keymap::new(key, description.to_string(), dispatch)
-                        })
-                        .chain([Keymap::new(
-                            "o",
-                            "One character".to_string(),
-                            Dispatch::ToEditor(FindOneChar(if_current_not_found)),
-                        )])
-                        .collect_vec(),
+                    &[(
+                        KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::NtrlN),
+                        "Natural Number",
+                        r"\d+",
+                    )]
+                    .into_iter()
+                    .map(|(key, description, regex)| {
+                        let search = Search {
+                            search: regex.to_string(),
+                            mode: LocalSearchConfigMode::Regex(RegexConfig {
+                                escaped: false,
+                                match_whole_word: false,
+                                case_sensitive: false,
+                            }),
+                        };
+                        let dispatch = Dispatch::ToEditor(SetSelectionMode(
+                            if_current_not_found,
+                            Find { search },
+                        ));
+                        Keymap::new(key, description.to_string(), dispatch)
+                    })
+                    .chain([Keymap::new(
+                        KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::OneCh),
+                        "One character".to_string(),
+                        Dispatch::ToEditor(FindOneChar(if_current_not_found)),
+                    )])
+                    .collect_vec(),
                 ),
             }),
-            Scope::Global => None,
+            Scope::Global => Some(KeymapLegendSection {
+                title: "Global only".to_string(),
+                keymaps: Keymaps::new(
+                    &[
+                        Keymap::new_extended(
+                            KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::CSrch),
+                            "cfg search".to_string(),
+                            "Configure Search".to_string(),
+                            Dispatch::ShowSearchConfig {
+                                scope,
+                                if_current_not_found,
+                                run_search_after_config_updated: true,
+                            },
+                        ),
+                        Keymap::new_extended(
+                            KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::Srch_),
+                            "search →".to_string(),
+                            "Search".to_string(),
+                            Dispatch::OpenSearchPrompt {
+                                scope,
+                                if_current_not_found,
+                            },
+                        ),
+                    ]
+                    .into_iter()
+                    .chain(self.search_current_selection_keymap(
+                        KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::SrchC),
+                        scope,
+                        if_current_not_found,
+                    ))
+                    .collect_vec(),
+                ),
+            }),
         };
         KeymapLegendConfig {
             title: format!(
@@ -1384,7 +1402,7 @@ impl Editor {
                     .chain(Some(misc_keymaps))
                     .chain(Some(diagnostics_keymaps))
                     .chain(Some(lsp_keymaps))
-                    .chain(local_keymaps)
+                    .chain(scope_specific_keymaps)
                     .collect_vec(),
             },
         }

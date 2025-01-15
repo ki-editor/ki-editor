@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use strum::IntoEnumIterator as _;
 use Meaning::*;
 
+use crate::app::Scope;
+
 pub const KEYMAP_SCORE: [[char; 10]; 3] = [
     // a = Easiest to access
     // o = Hardest to access
@@ -18,10 +20,10 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         SrchN, Word_, SrchC, MultC, Mark_, /****/ FindP, InstP, Up___, InstN, FindN,
     ],
     [
-        Line_, Tokn_, Sytx_, VMode, Globl, /****/ DeltN, Left_, Down_, Right, Jump_,
+        Line_, Tokn_, Sytx_, VMode, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
     ],
     [
-        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ OpenN, Chng_, First, Last_, XAchr,
+        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ Globl, Chng_, First, Last_, XAchr,
     ],
 ];
 
@@ -30,10 +32,10 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         SrchP, WordF, Char_, _____, Trsfm, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
     ],
     [
-        LineF, ToknF, StyxF, _____, _____, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
+        LineF, ToknF, StyxF, _____, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
     ],
     [
-        Redo_, Raise, RplcX, PsteP, PRplc, /****/ OpenP, ChngX, _____, _____, SSEnd,
+        Redo_, Raise, RplcX, PsteP, PRplc, /****/ _____, ChngX, _____, _____, SSEnd,
     ],
     // Why is Raise placed at the same Position as Exchange?
     // Because Raise is a special-case of Exchange where the movement is Up
@@ -50,6 +52,56 @@ pub const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
     ],
     [
         Undo_, WSwth, WClse, UPstE, _____, /****/ DTknP, GBack, _____, GForw, _____,
+    ],
+];
+
+/// Why only the left-side is used for Find Local/Global keybindings?
+/// This is to enable hand-alteration, as Find Local (Prev/Next) and Find Global
+/// are both located on the right-side.
+pub const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
+    [
+        OneCh, PSrch, NtrlN, LNcSM, Mark_, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        LImpl, LDefn, LType, LRfrE, Qkfix, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+pub const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        LDecl, _____, _____, LRfrI, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
+/// This keymap should be almost identical with that of Find Local
+pub const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
+    [
+        Srch_, PSrch, SrchC, LNcSM, Mark_, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        LImpl, LDefn, LType, LRfrE, Qkfix, /****/ CSrch, _____, _____, _____, _____,
+    ],
+];
+pub const KEYMAP_FIND_GLOBAL_SHIFTED: [[Meaning; 10]; 3] = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, LDecl, _____, LRfrI, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -101,6 +153,8 @@ struct KeySet {
     shifted: HashMap<Meaning, &'static str>,
     normal_control: HashMap<Meaning, &'static str>,
     insert_control: HashMap<Meaning, &'static str>,
+    find_local: HashMap<Meaning, &'static str>,
+    find_global: HashMap<Meaning, &'static str>,
 }
 
 impl KeySet {
@@ -129,6 +183,30 @@ impl KeySet {
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten().map(alted)),
+            ),
+            find_local: HashMap::from_iter(
+                KEYMAP_FIND_LOCAL
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten())
+                    .chain(
+                        KEYMAP_FIND_LOCAL_SHIFTED
+                            .into_iter()
+                            .flatten()
+                            .zip(layout.into_iter().flatten().map(shifted)),
+                    ),
+            ),
+            find_global: HashMap::from_iter(
+                KEYMAP_FIND_GLOBAL
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten())
+                    .chain(
+                        KEYMAP_FIND_GLOBAL_SHIFTED
+                            .into_iter()
+                            .flatten()
+                            .zip(layout.into_iter().flatten().map(shifted)),
+                    ),
             ),
         }
     }
@@ -186,14 +264,7 @@ impl KeyboardLayoutKind {
     }
 
     pub(crate) fn get_key(&self, meaning: &Meaning) -> &'static str {
-        let keyset = match self {
-            KeyboardLayoutKind::Qwerty => &QWERTY_KEYSET,
-            KeyboardLayoutKind::Dvorak => &DVORAK_KEYSET,
-            KeyboardLayoutKind::Colemak => &COLEMAK_KEYSET,
-            KeyboardLayoutKind::ColemakDH => &COLEMAK_DH_KEYSET,
-            KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
-            KeyboardLayoutKind::DvorakIU => &DVORAK_IU_KEYSET,
-        };
+        let keyset = self.get_keyset();
         keyset
             .normal
             .get(meaning)
@@ -204,19 +275,39 @@ impl KeyboardLayoutKind {
     }
 
     pub(crate) fn get_insert_key(&self, meaning: &Meaning) -> &'static str {
-        let keyset = match self {
+        let keyset = self.get_keyset();
+        keyset
+            .insert_control
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
+    }
+
+    pub(crate) fn get_find_keymap(&self, scope: Scope, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        match scope {
+            Scope::Local => keyset
+                .find_local
+                .get(meaning)
+                .cloned()
+                .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}")),
+            Scope::Global => keyset
+                .find_global
+                .get(meaning)
+                .cloned()
+                .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}")),
+        }
+    }
+
+    fn get_keyset(&self) -> &Lazy<KeySet> {
+        match self {
             KeyboardLayoutKind::Qwerty => &QWERTY_KEYSET,
             KeyboardLayoutKind::Dvorak => &DVORAK_KEYSET,
             KeyboardLayoutKind::Colemak => &COLEMAK_KEYSET,
             KeyboardLayoutKind::ColemakDH => &COLEMAK_DH_KEYSET,
             KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
             KeyboardLayoutKind::DvorakIU => &DVORAK_IU_KEYSET,
-        };
-        keyset
-            .insert_control
-            .get(meaning)
-            .cloned()
-            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
+        }
     }
 }
 
@@ -377,9 +468,47 @@ pub(crate) enum Meaning {
     WordF,
     /// Swap cursor with anchor
     XAchr,
+    /// Swap Selection End
     SSEnd,
+    /// Search (directionless)
+    Srch_,
+    /// Search (using previous search)
+    PSrch,
+    /// Last non-contiguous selection mode
+    LNcSM,
+    /// Quickfix
+    Qkfix,
+    /// Git Hunk (against current branch)
+    GHnkC,
+    /// Git Hunk (against main branch)
+    GHnkM,
+    /// Diagnostic All
+    DgAll,
+    /// Diagnostic Error
+    DgErr,
+    /// Diagnostic Hint
+    DgHnt,
+    /// Diagnostic Warning
+    DgWrn,
+    /// Diagonstic Info
+    DgInf,
+    /// LSP Definitions
+    LDefn,
+    /// LSP Declarations
+    LDecl,
+    /// Lsp Implementations
+    LImpl,
+    /// Lsp References (exclude declaration)
+    LRfrE,
+    /// Lsp Referencs (include declaration)
+    LRfrI,
+    /// Lsp Type Definition
+    LType,
+    /// Natural Number
+    NtrlN,
+    /// One Character
+    OneCh,
 }
-
 pub fn shifted(c: &'static str) -> &'static str {
     match c {
         "." => ">",

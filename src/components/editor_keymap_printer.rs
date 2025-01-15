@@ -6,13 +6,14 @@ use crate::{
     components::{
         dropdown::DropdownItem,
         editor::Mode,
-        editor_keymap::{shifted, KeyboardLayout, KEYBOARD_LAYOUT},
+        editor_keymap::{shifted, KeyboardLayout, Meaning, KEYBOARD_LAYOUT},
     },
     context::Context,
     lsp::completion::Completion,
 };
 use comfy_table::{Cell, CellAlignment, ColumnConstraint::Absolute, Table, Width::Fixed};
-use event::{parse_key_event, KeyModifiers};
+use event::{parse_key_event, KeyEvent, KeyModifiers};
+use itertools::Itertools;
 
 use super::{
     component::Component,
@@ -26,7 +27,12 @@ struct KeymapPrintSection {
 }
 
 impl KeymapPrintSection {
-    pub fn new(keyboard_layout: &KeyboardLayout, mode: Mode, modifiers: KeyModifiers) -> Self {
+    pub fn new(
+        keyboard_layout: &KeyboardLayout,
+        mode: Mode,
+        modifiers: KeyModifiers,
+        initial_key_events: Option<Vec<String>>,
+    ) -> Self {
         KeymapPrintSection {
             name: if modifiers == KeyModifiers::None {
                 format!("{mode:?}",)
@@ -37,6 +43,12 @@ impl KeymapPrintSection {
                 keyboard_layout,
                 mode,
                 modifiers,
+                initial_key_events.map(|key_events| {
+                    key_events
+                        .into_iter()
+                        .map(|key_event| parse_key_event(&key_event).unwrap())
+                        .collect_vec()
+                }),
             ),
         }
     }
@@ -51,6 +63,7 @@ impl KeymapPrintSection {
         keyboard_layout: &KeyboardLayout,
         mode: Mode,
         modifiers: KeyModifiers,
+        initial_key_events: Option<Vec<KeyEvent>>,
     ) -> Vec<Vec<Option<String>>> {
         keyboard_layout
             .iter()
@@ -71,8 +84,13 @@ impl KeymapPrintSection {
                             trigger_characters: vec![],
                         });
                         editor.editor_mut().mode = mode.clone();
-
                         let context = Context::default();
+                        for key_event in initial_key_events.clone().unwrap_or_default() {
+                            let _ = editor
+                                .editor_mut()
+                                .handle_key_event(&context, key_event)
+                                .unwrap();
+                        }
                         let key_event =
                             parse_key_event(&Self::generate_key_string(modifiers.clone(), key))
                                 .ok()?;
@@ -128,14 +146,21 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
     use KeyModifiers::*;
     use Mode::*;
     let sections: Vec<KeymapPrintSection> = [
-        KeymapPrintSection::new(layout, Normal, None),
-        KeymapPrintSection::new(layout, Normal, Shift),
-        KeymapPrintSection::new(layout, Normal, Ctrl),
-        KeymapPrintSection::new(layout, Normal, Alt),
-        KeymapPrintSection::new(layout, MultiCursor, None),
-        KeymapPrintSection::new(layout, MultiCursor, Shift),
-        KeymapPrintSection::new(layout, V, None),
-        KeymapPrintSection::new(layout, Insert, Alt),
+        KeymapPrintSection::new(layout, Normal, None, Option::None),
+        KeymapPrintSection::new(layout, Normal, Shift, Option::None),
+        KeymapPrintSection::new(layout, Normal, Ctrl, Option::None),
+        KeymapPrintSection::new(layout, Normal, Alt, Option::None),
+        KeymapPrintSection::new(layout, MultiCursor, None, Option::None),
+        KeymapPrintSection::new(layout, MultiCursor, Shift, Option::None),
+        KeymapPrintSection::new(layout, V, None, Option::None),
+        KeymapPrintSection::new(layout, Insert, Alt, Option::None),
+        // Global keymap
+        KeymapPrintSection::new(
+            layout,
+            Normal,
+            None,
+            Option::Some([KEYBOARD_LAYOUT.get_key(&Meaning::Globl).to_string()].to_vec()),
+        ),
     ]
     .to_vec();
 
