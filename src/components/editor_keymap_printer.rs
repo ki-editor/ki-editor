@@ -10,8 +10,14 @@ use crate::{
     },
     context::Context,
     lsp::completion::Completion,
+    themes::Theme,
 };
-use comfy_table::{Cell, CellAlignment, ColumnConstraint::Absolute, Table, Width::Fixed};
+use comfy_table::{
+    Cell, CellAlignment, Color,
+    ColumnConstraint::{self, Absolute},
+    Table,
+    Width::{self, Fixed},
+};
 use event::{parse_key_event, KeyEvent, KeyModifiers};
 use itertools::Itertools;
 
@@ -80,13 +86,14 @@ impl KeymapPrintSection {
                                             Some(description.clone())
                                         } else if key_event.replace("shift+", "") == shifted(*cell)
                                         {
-                                            Some(format!("⇧ {description}"))
+                                            Some(format!("⇧ {description}  "))
                                         } else if key_event.replace("alt+", "") == alted(*cell) {
-                                            Some(format!("⌥ {description}"))
+                                            Some(format!("⌥ {description}  "))
                                         } else {
                                             None
                                         }
                                     })
+                                    .sorted()
                                     .collect_vec()
                                     .join("\n"),
                             )
@@ -184,7 +191,7 @@ impl KeymapPrintSection {
     }
 
     pub(crate) fn display(&self, terminal_width: u16) -> String {
-        let column_width = terminal_width / 11;
+        let max_column_width = terminal_width / 11;
         let mut table = Table::new();
         let table_rows = self.key_meanings.iter().map(|row| {
             let mut cols: Vec<Cell> = row
@@ -199,26 +206,39 @@ impl KeymapPrintSection {
                 })
                 .collect();
 
-            cols.insert(5, Cell::new(""));
+            cols.insert(5, Cell::new("-"));
 
             cols
         });
 
+        let get_column_constraint = |column_index: usize| {
+            let min_width = self
+                .key_meanings
+                .iter()
+                .filter_map(|row| row.get(column_index))
+                .flatten()
+                .map(|content| content.len())
+                .max()
+                .unwrap_or_default() as u16;
+            ColumnConstraint::LowerBoundary(Width::Fixed(min_width.min(max_column_width)))
+        };
+
         table
             .add_rows(table_rows)
             .set_constraints(vec![
-                Absolute(Fixed(column_width)),
-                Absolute(Fixed(column_width)),
-                Absolute(Fixed(column_width)),
-                Absolute(Fixed(column_width)),
-                Absolute(Fixed(column_width)),
+                get_column_constraint(0),
+                get_column_constraint(1),
+                get_column_constraint(2),
+                get_column_constraint(3),
+                get_column_constraint(4),
                 Absolute(Fixed(1)),
-                Absolute(Fixed(column_width)),
-                Absolute(Fixed(column_width)),
-                Absolute(Fixed(column_width)),
-                Absolute(Fixed(column_width)),
-                Absolute(Fixed(column_width)),
+                get_column_constraint(5),
+                get_column_constraint(6),
+                get_column_constraint(7),
+                get_column_constraint(8),
+                get_column_constraint(9),
             ])
+            .set_width(terminal_width)
             .load_preset(comfy_table::presets::UTF8_FULL)
             .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
 

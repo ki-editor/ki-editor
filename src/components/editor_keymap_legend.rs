@@ -1157,7 +1157,7 @@ impl Editor {
                         .chain(config.last_search().map(|search| {
                             Keymap::new(
                                 KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::PSrch),
-                                "Search (using previous search)".to_string(),
+                                "Search Prev".to_string(),
                                 Dispatch::UpdateLocalSearchConfig {
                                     scope,
                                     if_current_not_found,
@@ -1172,7 +1172,7 @@ impl Editor {
                         .chain(
                             [Keymap::new(
                                 KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LNcSM),
-                                "Last non-contiguous selection mode".to_string(),
+                                "Same".to_string(),
                                 Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
                             )]
                             .to_vec(),
@@ -1197,7 +1197,7 @@ impl Editor {
                     ),
                     Keymap::new(
                         KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::Qkfix),
-                        "Quickfix".to_string(),
+                        "Qfix".to_string(),
                         match scope {
                             Scope::Global => Dispatch::SetGlobalMode(Some(
                                 crate::context::GlobalMode::QuickfixListItem,
@@ -1220,7 +1220,13 @@ impl Editor {
                     .map(|(meaning, diff_mode)| {
                         Keymap::new(
                             KEYBOARD_LAYOUT.get_find_keymap(scope, &meaning),
-                            format!("Git hunk ({})", diff_mode.display()),
+                            format!(
+                                "Hunk{}",
+                                match diff_mode {
+                                    DiffMode::UnstagedAgainstMainBranch => "^",
+                                    DiffMode::UnstagedAgainstCurrentBranch => "@",
+                                }
+                            ),
                             match scope {
                                 Scope::Global => Dispatch::GetRepoGitHunks(diff_mode),
                                 Scope::Local => Dispatch::ToEditor(SetSelectionMode(
@@ -1236,15 +1242,11 @@ impl Editor {
         };
         let diagnostics_keymaps = {
             let keymaps = [
-                (Meaning::DgAll, "All", DiagnosticSeverityRange::All),
+                (Meaning::DgAll, "Diags", DiagnosticSeverityRange::All),
                 (Meaning::DgErr, "Error", DiagnosticSeverityRange::Error),
                 (Meaning::DgHnt, "Hint", DiagnosticSeverityRange::Hint),
-                (
-                    Meaning::DgInf,
-                    "Information",
-                    DiagnosticSeverityRange::Information,
-                ),
-                (Meaning::DgWrn, "Warning", DiagnosticSeverityRange::Warning),
+                (Meaning::DgInf, "Info", DiagnosticSeverityRange::Information),
+                (Meaning::DgWrn, "Warn", DiagnosticSeverityRange::Warning),
             ]
             .into_iter()
             .map(|(meaning, description, severity)| {
@@ -1272,22 +1274,22 @@ impl Editor {
             let keymaps = Keymaps::new(&[
                 Keymap::new(
                     KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LDefn),
-                    "Definitions".to_string(),
+                    "Def".to_string(),
                     Dispatch::RequestDefinitions(scope),
                 ),
                 Keymap::new(
                     KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LDecl),
-                    "Declarations".to_string(),
+                    "Decl".to_string(),
                     Dispatch::RequestDeclarations(scope),
                 ),
                 Keymap::new(
                     KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LImpl),
-                    "Implementations".to_string(),
+                    "Impl".to_string(),
                     Dispatch::RequestImplementations(scope),
                 ),
                 Keymap::new(
                     KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LRfrE),
-                    "References".to_string(),
+                    "Ref-".to_string(),
                     Dispatch::RequestReferences {
                         include_declaration: false,
                         scope,
@@ -1295,7 +1297,7 @@ impl Editor {
                 ),
                 Keymap::new(
                     KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LRfrI),
-                    "References (include declaration)".to_string(),
+                    "Ref+".to_string(),
                     Dispatch::RequestReferences {
                         include_declaration: true,
                         scope,
@@ -1303,7 +1305,7 @@ impl Editor {
                 ),
                 Keymap::new(
                     KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LType),
-                    "Type Definitions".to_string(),
+                    "Type".to_string(),
                     Dispatch::RequestTypeDefinitions(scope),
                 ),
             ]);
@@ -1319,7 +1321,7 @@ impl Editor {
                 keymaps: Keymaps::new(
                     &[(
                         KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::NtrlN),
-                        "Natural Number",
+                        "Int",
                         r"\d+",
                     )]
                     .into_iter()
@@ -1340,7 +1342,7 @@ impl Editor {
                     })
                     .chain([Keymap::new(
                         KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::OneCh),
-                        "One character".to_string(),
+                        "One".to_string(),
                         Dispatch::ToEditor(FindOneChar(if_current_not_found)),
                     )])
                     .collect_vec(),
