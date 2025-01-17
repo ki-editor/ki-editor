@@ -76,18 +76,12 @@ impl KeymapPrintSection {
                                             .short_description
                                             .clone()
                                             .unwrap_or_else(|| keymap.description.clone());
-                                        let compare_key_event = |modifier: &str| {
-                                            key_event.contains(modifier)
-                                                && key_event
-                                                    .replace(&format!("{modifier}+"), "")
-                                                    .to_lowercase()
-                                                    == cell.to_lowercase()
-                                        };
                                         if key_event == **cell {
                                             Some(description.clone())
-                                        } else if key_event == shifted(*cell) {
+                                        } else if key_event.replace("shift+", "") == shifted(*cell)
+                                        {
                                             Some(format!("⇧ {description}"))
-                                        } else if key_event == alted(*cell) {
+                                        } else if key_event.replace("alt+", "") == alted(*cell) {
                                             Some(format!("⌥ {description}"))
                                         } else {
                                             None
