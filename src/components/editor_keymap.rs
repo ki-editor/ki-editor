@@ -6,7 +6,7 @@ use Meaning::*;
 
 use crate::app::Scope;
 
-pub const KEYMAP_SCORE: [[char; 10]; 3] = [
+pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
     // a = Easiest to access
     // o = Hardest to access
     // Left side (a-o)        Right side (a-o)
@@ -15,7 +15,7 @@ pub const KEYMAP_SCORE: [[char; 10]; 3] = [
     ['j', 'k', 'l', 'g', 'o', /*|*/ 'o', 'g', 'l', 'k', 'j'], // Bottom row
 ];
 
-pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
+pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
         SrchN, Word_, SrchC, MultC, Mark_, /****/ FindP, InstP, Up___, InstN, FindN,
     ],
@@ -27,7 +27,7 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     ],
 ];
 
-pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
+pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
         SrchP, WordF, Char_, _____, Trsfm, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
     ],
@@ -41,7 +41,7 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     // Because Raise is a special-case of Exchange where the movement is Up
 ];
 
-pub const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
+pub(crate) const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
     // TODO: Implement Up Line and Down Line
     // The cursor should be placed at the of the line
     [
@@ -58,9 +58,9 @@ pub const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
 /// Why only the left-side is used for Find Local/Global keybindings?
 /// This is to enable hand-alteration, as Find Local (Prev/Next) and Find Global
 /// are both located on the right-side.
-pub const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
+pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
     [
-        OneCh, PSrch, NtrlN, LNcSM, Mark_, /****/ _____, _____, _____, _____, _____,
+        OneCh, PSrch, NtrlN, LNcSM, Mark_, /****/ _____, _____, _____, _____, L2Fnd,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
@@ -69,7 +69,7 @@ pub const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
         LImpl, LDefn, LType, LRfrE, Qkfix, /****/ _____, _____, _____, _____, _____,
     ],
 ];
-pub const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
+pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
@@ -82,7 +82,7 @@ pub const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
 ];
 
 /// This keymap should be almost identical with that of Find Local
-pub const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
+pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
     [
         Srch_, PSrch, SrchC, LNcSM, Mark_, /****/ _____, _____, _____, _____, _____,
     ],
@@ -93,7 +93,8 @@ pub const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
         LImpl, LDefn, LType, LRfrE, Qkfix, /****/ CSrch, _____, _____, _____, _____,
     ],
 ];
-pub const KEYMAP_FIND_GLOBAL_SHIFTED: [[Meaning; 10]; 3] = [
+pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
+pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
@@ -105,15 +106,15 @@ pub const KEYMAP_FIND_GLOBAL_SHIFTED: [[Meaning; 10]; 3] = [
     ],
 ];
 
-pub type KeyboardLayout = [[&'static str; 10]; 3];
+pub(crate) type KeyboardLayout = [[&'static str; 10]; 3];
 
-pub const QWERTY: KeyboardLayout = [
+pub(crate) const QWERTY: KeyboardLayout = [
     ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
     ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
     ["z", "x", "c", "v", "b", "n", "m", ",", ".", "/"],
 ];
 
-pub const DVORAK: KeyboardLayout = [
+pub(crate) const DVORAK: KeyboardLayout = [
     ["'", ",", ".", "p", "y", "f", "g", "c", "r", "l"],
     ["a", "o", "e", "u", "i", "d", "h", "t", "n", "s"],
     [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
@@ -121,20 +122,20 @@ pub const DVORAK: KeyboardLayout = [
 
 /// I and U swapped.
 /// Refer https://www.reddit.com/r/dvorak/comments/tfz53r/have_anyone_tried_swapping_u_with_i/
-pub const DVORAK_IU: KeyboardLayout = [
+pub(crate) const DVORAK_IU: KeyboardLayout = [
     ["'", ",", ".", "p", "y", "f", "g", "c", "r", "l"],
     ["a", "o", "e", "i", "u", "d", "h", "t", "n", "s"],
     [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
 ];
 
-pub const COLEMAK: KeyboardLayout = [
+pub(crate) const COLEMAK: KeyboardLayout = [
     ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
     ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
     ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
 ];
 
 /// Refer https://colemakmods.github.io/mod-dh/
-pub const COLEMAK_DH: KeyboardLayout = [
+pub(crate) const COLEMAK_DH: KeyboardLayout = [
     ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
     ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
     ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
@@ -142,7 +143,7 @@ pub const COLEMAK_DH: KeyboardLayout = [
 
 /// Semi-colon and Quote are swapped
 /// Refer https://colemakmods.github.io/mod-dh/
-pub const COLEMAK_DH_SEMI_QUOTE: KeyboardLayout = [
+pub(crate) const COLEMAK_DH_SEMI_QUOTE: KeyboardLayout = [
     ["q", "w", "f", "p", "b", "j", "l", "u", "y", "'"],
     ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
     ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
@@ -508,8 +509,10 @@ pub(crate) enum Meaning {
     NtrlN,
     /// One Character
     OneCh,
+    /// Level 2 Find
+    L2Fnd,
 }
-pub fn shifted(c: &'static str) -> &'static str {
+pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {
         "." => ">",
         "," => "<",
@@ -587,7 +590,7 @@ pub fn shifted(c: &'static str) -> &'static str {
     }
 }
 
-pub fn shifted_char(c: char) -> char {
+pub(crate) fn shifted_char(c: char) -> char {
     match c {
         '.' => '>',
         ',' => '<',
@@ -665,7 +668,7 @@ pub fn shifted_char(c: char) -> char {
     }
 }
 
-fn alted(c: &'static str) -> &'static str {
+pub(crate) fn alted(c: &'static str) -> &'static str {
     match c {
         "." => "alt+.",
         "," => "alt+,",

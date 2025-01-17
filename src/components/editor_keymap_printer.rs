@@ -17,17 +17,19 @@ use itertools::Itertools;
 
 use super::{
     component::Component,
+    editor_keymap::{alted, KeyboardMeaningLayout},
+    keymap_legend::Keymap,
     suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
 };
 
 #[derive(Debug, Clone)]
-struct KeymapPrintSection {
+pub(crate) struct KeymapPrintSection {
     name: String,
     key_meanings: Vec<Vec<Option<String>>>,
 }
 
 impl KeymapPrintSection {
-    pub fn new(
+    pub(crate) fn new(
         keyboard_layout: &KeyboardLayout,
         mode: Mode,
         modifiers: KeyModifiers,
@@ -53,7 +55,55 @@ impl KeymapPrintSection {
         }
     }
 
-    pub fn has_content(&self) -> bool {
+    pub(crate) fn from_keymaps(
+        name: String,
+        keymaps: &[Keymap],
+        keyboard_layout: &KeyboardLayout,
+    ) -> Self {
+        KeymapPrintSection {
+            name,
+            key_meanings: keyboard_layout
+                .into_iter()
+                .map(|row| {
+                    row.iter()
+                        .map(|cell| {
+                            Some(
+                                keymaps
+                                    .iter()
+                                    .filter_map(|keymap| {
+                                        let key_event = keymap.event().display();
+                                        let description = keymap
+                                            .short_description
+                                            .clone()
+                                            .unwrap_or_else(|| keymap.description.clone());
+                                        let compare_key_event = |modifier: &str| {
+                                            key_event.contains(modifier)
+                                                && key_event
+                                                    .replace(&format!("{modifier}+"), "")
+                                                    .to_lowercase()
+                                                    == cell.to_lowercase()
+                                        };
+                                        if key_event == **cell {
+                                            Some(description.clone())
+                                        } else if key_event == shifted(*cell) {
+                                            Some(format!("⇧ {description}"))
+                                        } else if key_event == alted(*cell) {
+                                            Some(format!("⌥ {description}"))
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect_vec()
+                                    .join("\n"),
+                            )
+                        })
+                        .collect()
+                })
+                .collect(),
+        }
+    }
+
+    pub(crate) fn has_content(&self) -> bool {
         self.key_meanings
             .iter()
             .any(|meanings| meanings.iter().any(Option::is_some))
@@ -138,6 +188,48 @@ impl KeymapPrintSection {
             _ => KeyModifiers::Shift,
         }
     }
+
+    pub(crate) fn display(&self, terminal_width: u16) -> String {
+        let column_width = terminal_width / 11;
+        let mut table = Table::new();
+        let table_rows = self.key_meanings.iter().map(|row| {
+            let mut cols: Vec<Cell> = row
+                .iter()
+                .map(|value| {
+                    let display = match value {
+                        Some(value) => value.to_string(),
+                        None => "".to_string(),
+                    };
+
+                    Cell::new(display).set_alignment(CellAlignment::Center)
+                })
+                .collect();
+
+            cols.insert(5, Cell::new(""));
+
+            cols
+        });
+
+        table
+            .add_rows(table_rows)
+            .set_constraints(vec![
+                Absolute(Fixed(column_width)),
+                Absolute(Fixed(column_width)),
+                Absolute(Fixed(column_width)),
+                Absolute(Fixed(column_width)),
+                Absolute(Fixed(column_width)),
+                Absolute(Fixed(1)),
+                Absolute(Fixed(column_width)),
+                Absolute(Fixed(column_width)),
+                Absolute(Fixed(column_width)),
+                Absolute(Fixed(column_width)),
+                Absolute(Fixed(column_width)),
+            ])
+            .load_preset(comfy_table::presets::UTF8_FULL)
+            .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
+
+        format!("{}", table)
+    }
 }
 
 type KeymapPrintSections = Vec<KeymapPrintSection>;
@@ -171,7 +263,7 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
 }
 
 /// Print an ASCII representation of the keymap.
-pub fn print_keymap_table() -> anyhow::Result<()> {
+pub(crate) fn print_keymap_table() -> anyhow::Result<()> {
     collect_keymap_print_sections(KEYBOARD_LAYOUT.get_keyboard_layout())
         .iter()
         .for_each(print_single_keymap_table);
@@ -182,42 +274,11 @@ pub fn print_keymap_table() -> anyhow::Result<()> {
 fn print_single_keymap_table(keymap: &KeymapPrintSection) {
     println!("{}:", keymap.name);
 
-    let mut table = Table::new();
-    let table_rows = keymap.key_meanings.iter().map(|row| {
-        let mut cols: Vec<Cell> = row
-            .iter()
-            .map(|value| {
-                let display = match value {
-                    Some(value) => value.to_string(),
-                    None => "".to_string(),
-                };
-
-                Cell::new(display).set_alignment(CellAlignment::Center)
-            })
-            .collect();
-
-        cols.insert(5, Cell::new(""));
-
-        cols
-    });
-
-    table
-        .add_rows(table_rows)
-        .set_constraints(vec![
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(1)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-            Absolute(Fixed(8)),
-        ])
-        .load_preset(comfy_table::presets::UTF8_FULL)
-        .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
+    let table = keymap.display(
+        crossterm::terminal::size()
+            .map(|(terminal_width, _)| terminal_width / 11)
+            .unwrap_or(8),
+    );
 
     println!("{}", table);
     println!();
@@ -225,7 +286,7 @@ fn print_single_keymap_table(keymap: &KeymapPrintSection) {
 
 /// Print a YAML representation of the keymap suitable for use with keymap drawer,
 /// https://keymap-drawer.streamlit.app
-pub fn print_keymap_drawer_yaml() -> anyhow::Result<()> {
+pub(crate) fn print_keymap_drawer_yaml() -> anyhow::Result<()> {
     println!("layout:");
     println!("  qmk_keyboard: corne_rotated");
     println!("  layout_name: LAYOUT_split_3x5_3");

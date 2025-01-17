@@ -15,6 +15,8 @@ use crate::{
 use super::{
     component::Component,
     editor::{Direction, Editor, Mode, RegexHighlightRule},
+    editor_keymap::KEYBOARD_LAYOUT,
+    editor_keymap_printer::KeymapPrintSection,
     render_editor::Source,
 };
 
@@ -39,7 +41,15 @@ const BETWEEN_KEY_AND_DESCRIPTION: &str = " → ";
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymaps(Vec<Keymap>);
 impl Keymaps {
-    fn display(&self, indent: usize, width: usize) -> String {
+    fn display(&self, indent: usize, width: usize, terminal_width: u16) -> String {
+        KeymapPrintSection::from_keymaps(
+            "".to_string(),
+            &self.0,
+            KEYBOARD_LAYOUT.get_keyboard_layout(),
+        )
+        .display(terminal_width)
+    }
+    fn display_old(&self, indent: usize, width: usize) -> String {
         let width = width.saturating_sub(indent);
         let max_key_width = self
             .0
@@ -135,16 +145,18 @@ pub(crate) struct KeymapLegendSection {
 }
 
 impl KeymapLegendBody {
-    fn display(&self, width: usize) -> String {
+    fn display(&self, width: usize, terminal_width: u16) -> String {
         match self {
-            KeymapLegendBody::SingleSection { keymaps } => keymaps.display(0, width),
+            KeymapLegendBody::SingleSection { keymaps } => {
+                keymaps.display(0, width, terminal_width)
+            }
             KeymapLegendBody::MultipleSections { sections } => Keymaps(
                 sections
                     .iter()
                     .flat_map(|section| section.keymaps.0.clone())
                     .collect_vec(),
             )
-            .display(0, width),
+            .display(0, width, terminal_width),
         }
     }
 
@@ -160,8 +172,8 @@ impl KeymapLegendBody {
 }
 
 impl KeymapLegendConfig {
-    fn display(&self, width: usize) -> String {
-        self.body.display(width)
+    fn display(&self, width: usize, terminal_width: u16) -> String {
+        self.body.display(width, terminal_width)
     }
 
     pub(crate) fn keymaps(&self) -> Vec<&Keymap> {
@@ -332,8 +344,10 @@ impl KeymapLegend {
         KeymapLegend { editor, config }
     }
 
-    fn refresh(&mut self) {
-        let content = self.config.display(self.editor.rectangle().width as usize);
+    fn refresh(&mut self, terminal_width: u16) {
+        let content = self
+            .config
+            .display(self.editor.rectangle().width as usize, terminal_width);
         self.editor_mut().set_content(&content).unwrap_or_default();
     }
 }
@@ -344,8 +358,8 @@ impl Component for KeymapLegend {
     }
 
     fn set_rectangle(&mut self, rectangle: Rectangle) {
+        self.refresh(rectangle.width);
         self.editor_mut().set_rectangle(rectangle);
-        self.refresh()
     }
 
     fn editor_mut(&mut self) -> &mut Editor {
@@ -425,7 +439,7 @@ mod test_keymap_legend {
             .to_vec(),
         );
         let width = 53;
-        let actual = keymaps.display(2, width).to_string();
+        let actual = keymaps.display(2, width, 19).to_string();
         let expected = "
   a → Aloha                b → Bomb
   c → Caterpillar          d → D
@@ -446,7 +460,7 @@ mod test_keymap_legend {
             .to_vec(),
         );
         let width = 53;
-        let actual = keymaps.display(2, width).to_string();
+        let actual = keymaps.display(2, width, 19).to_string();
         let expected = "
       a → Aloha                b → Bomb
   space → Gogagg               c → Caterpillar"
