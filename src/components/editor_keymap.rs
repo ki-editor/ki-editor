@@ -106,6 +106,18 @@ pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
     ],
 ];
 
+pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, SQuot, DQuot, BckTk, _____, /****/ _____, Paren, Brckt, Brace, Anglr,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
 pub(crate) type KeyboardLayout = [[&'static str; 10]; 3];
 
 pub(crate) const QWERTY: KeyboardLayout = [
@@ -156,6 +168,7 @@ struct KeySet {
     insert_control: HashMap<Meaning, &'static str>,
     find_local: HashMap<Meaning, &'static str>,
     find_global: HashMap<Meaning, &'static str>,
+    surround: HashMap<Meaning, &'static str>,
 }
 
 impl KeySet {
@@ -199,6 +212,18 @@ impl KeySet {
             ),
             find_global: HashMap::from_iter(
                 KEYMAP_FIND_GLOBAL
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten())
+                    .chain(
+                        KEYMAP_FIND_GLOBAL_SHIFTED
+                            .into_iter()
+                            .flatten()
+                            .zip(layout.into_iter().flatten().map(shifted)),
+                    ),
+            ),
+            surround: HashMap::from_iter(
+                KEYMAP_SURROUND
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten())
@@ -298,6 +323,15 @@ impl KeyboardLayoutKind {
                 .cloned()
                 .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}")),
         }
+    }
+
+    pub(crate) fn get_surround_keymap(&self, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        keyset
+            .surround
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
     fn get_keyset(&self) -> &Lazy<KeySet> {
@@ -511,6 +545,20 @@ pub(crate) enum Meaning {
     OneCh,
     /// Level 2 Find
     L2Fnd,
+    /// Parenthesis
+    Paren,
+    /// Curly Braces
+    Brace,
+    /// Square Brackets
+    Brckt,
+    /// Angular Bracket
+    Anglr,
+    /// Single quote
+    SQuot,
+    /// Double quote
+    DQuot,
+    /// Backtick
+    BckTk,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

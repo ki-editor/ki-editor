@@ -946,13 +946,6 @@ impl Editor {
                             ),
                         ]),
                     },
-                    KeymapLegendSection {
-                        title: "Surround".to_string(),
-                        keymaps: generate_enclosures_keymaps(|enclosure| {
-                            let (open, close) = enclosure.open_close_symbols_str();
-                            Dispatch::ToEditor(Surround(open.to_string(), close.to_string()))
-                        }),
-                    },
                 ]
                 .to_vec(),
             },
@@ -1489,19 +1482,23 @@ impl Editor {
 fn generate_enclosures_keymaps(get_dispatch: impl Fn(EnclosureKind) -> Dispatch) -> Keymaps {
     Keymaps::new(
         &[
-            EnclosureKind::AngularBrackets,
-            EnclosureKind::Parentheses,
-            EnclosureKind::SquareBrackets,
-            EnclosureKind::CurlyBraces,
-            EnclosureKind::DoubleQuotes,
-            EnclosureKind::SingleQuotes,
-            EnclosureKind::Backticks,
+            (Meaning::Anglr, EnclosureKind::AngularBrackets),
+            (Meaning::Paren, EnclosureKind::Parentheses),
+            (Meaning::Brckt, EnclosureKind::SquareBrackets),
+            (Meaning::Brace, EnclosureKind::CurlyBraces),
+            (Meaning::DQuot, EnclosureKind::DoubleQuotes),
+            (Meaning::SQuot, EnclosureKind::SingleQuotes),
+            (Meaning::BckTk, EnclosureKind::Backticks),
         ]
         .into_iter()
-        .map(|enclosure| {
-            let (key, _) = enclosure.open_close_symbols_str();
+        .map(|(meaning, enclosure)| {
+            let (open, close) = enclosure.open_close_symbols_str();
             let description = enclosure.to_str();
-            Keymap::new(key, description.to_string(), get_dispatch(enclosure))
+            Keymap::new(
+                KEYBOARD_LAYOUT.get_surround_keymap(&meaning),
+                format!("{open} {close}"),
+                get_dispatch(enclosure),
+            )
         })
         .collect_vec(),
     )
