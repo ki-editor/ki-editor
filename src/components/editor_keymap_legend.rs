@@ -1128,7 +1128,7 @@ impl Editor {
             .map(|search| {
                 Keymap::new_extended(
                     key,
-                    "search cur".to_string(),
+                    "🔍 This".to_string(),
                     "Search current selection".to_string(),
                     Dispatch::UpdateLocalSearchConfig {
                         scope,
@@ -1157,7 +1157,7 @@ impl Editor {
                         .chain(config.last_search().map(|search| {
                             Keymap::new(
                                 KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::PSrch),
-                                "Search Prev".to_string(),
+                                "🔍 Last".to_string(),
                                 Dispatch::UpdateLocalSearchConfig {
                                     scope,
                                     if_current_not_found,
@@ -1242,11 +1242,15 @@ impl Editor {
         };
         let diagnostics_keymaps = {
             let keymaps = [
-                (Meaning::DgAll, "Diags", DiagnosticSeverityRange::All),
-                (Meaning::DgErr, "Error", DiagnosticSeverityRange::Error),
-                (Meaning::DgHnt, "Hint", DiagnosticSeverityRange::Hint),
-                (Meaning::DgInf, "Info", DiagnosticSeverityRange::Information),
-                (Meaning::DgWrn, "Warn", DiagnosticSeverityRange::Warning),
+                (Meaning::DgAll, "⚪ All", DiagnosticSeverityRange::All),
+                (Meaning::DgErr, "🔴 Error", DiagnosticSeverityRange::Error),
+                (Meaning::DgHnt, "🟢 Hint", DiagnosticSeverityRange::Hint),
+                (
+                    Meaning::DgInf,
+                    "🔵 Info",
+                    DiagnosticSeverityRange::Information,
+                ),
+                (Meaning::DgWrn, "🟡 Warn", DiagnosticSeverityRange::Warning),
             ]
             .into_iter()
             .map(|(meaning, description, severity)| {
@@ -1354,7 +1358,7 @@ impl Editor {
                     &[
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::CSrch),
-                            "cfg search".to_string(),
+                            "🔍 Config".to_string(),
                             "Configure Search".to_string(),
                             Dispatch::ShowSearchConfig {
                                 scope,
@@ -1364,7 +1368,7 @@ impl Editor {
                         ),
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::Srch_),
-                            "search →".to_string(),
+                            "🔍".to_string(),
                             "Search".to_string(),
                             Dispatch::OpenSearchPrompt {
                                 scope,
