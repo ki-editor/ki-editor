@@ -45,7 +45,7 @@ pub(crate) const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
     // TODO: Implement Up Line and Down Line
     // The cursor should be placed at the of the line
     [
-        CSrch, LineP, LineU, LineN, _____, /****/ _____, _____, ScrlU, _____, _____,
+        CSrch, LineP, LineU, LineN, _____, /****/ _____, _____, ScrlU, SHelp, _____,
     ],
     [
         KilLP, CItmP, LineD, CItmN, KilLN, /****/ DWrdP, BuffP, ScrlD, BuffN, SView,
@@ -559,6 +559,8 @@ pub(crate) enum Meaning {
     DQuot,
     /// Backtick
     BckTk,
+    /// Show Help
+    SHelp,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

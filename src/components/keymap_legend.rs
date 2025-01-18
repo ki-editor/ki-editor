@@ -10,6 +10,7 @@ use crate::{
     components::editor::RegexHighlightRuleCaptureStyle,
     grid::StyleKey,
     rectangle::Rectangle,
+    themes::Theme,
 };
 
 use super::{
@@ -41,10 +42,10 @@ const BETWEEN_KEY_AND_DESCRIPTION: &str = " → ";
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymaps(Vec<Keymap>);
 impl Keymaps {
-    fn display(&self, indent: usize, width: usize, terminal_width: u16) -> String {
+    fn display(&self, terminal_width: u16) -> String {
         KeymapPrintSection::from_keymaps(
             "".to_string(),
-            &self.0,
+            &self,
             KEYBOARD_LAYOUT.get_keyboard_layout(),
         )
         .display(terminal_width)
@@ -108,6 +109,10 @@ impl Keymaps {
     pub(crate) fn get(&self, event: &KeyEvent) -> std::option::Option<&Keymap> {
         self.0.iter().find(|key| &key.event == event)
     }
+
+    pub(crate) fn iter(&self) -> std::slice::Iter<'_, Keymap> {
+        self.0.iter()
+    }
 }
 
 fn dedent(s: &str) -> String {
@@ -147,16 +152,14 @@ pub(crate) struct KeymapLegendSection {
 impl KeymapLegendBody {
     fn display(&self, width: usize, terminal_width: u16) -> String {
         match self {
-            KeymapLegendBody::SingleSection { keymaps } => {
-                keymaps.display(0, width, terminal_width)
-            }
+            KeymapLegendBody::SingleSection { keymaps } => keymaps.display(terminal_width),
             KeymapLegendBody::MultipleSections { sections } => Keymaps(
                 sections
                     .iter()
                     .flat_map(|section| section.keymaps.0.clone())
                     .collect_vec(),
             )
-            .display(0, width, terminal_width),
+            .display(terminal_width),
         }
     }
 
@@ -176,7 +179,7 @@ impl KeymapLegendConfig {
         self.body.display(width, terminal_width)
     }
 
-    pub(crate) fn keymaps(&self) -> Vec<&Keymap> {
+    pub(crate) fn keymaps(&self) -> Keymaps {
         let keymaps = self.body.keymaps();
         #[cfg(test)]
         {
@@ -192,11 +195,12 @@ impl KeymapLegendConfig {
                 panic!("Conflicting keymaps detected:\n\n{conflicting_keymaps:#?}");
             }
         }
-        keymaps
+        Keymaps::new(&keymaps.into_iter().cloned().collect_vec())
     }
 
     fn get_regex_highlight_rules(&self) -> Vec<RegexHighlightRule> {
         self.keymaps()
+            .0
             .into_iter()
             .flat_map(|keymap| {
                 let keymap_key = RegexHighlightRule {
@@ -313,6 +317,21 @@ impl Keymap {
     pub(crate) fn event(&self) -> &KeyEvent {
         &self.event
     }
+
+    pub(crate) fn override_keymap(
+        self,
+        keymap_override: Option<super::editor_keymap_legend::KeymapOverride>,
+    ) -> Keymap {
+        match keymap_override {
+            Some(keymap_override) => Self {
+                short_description: Some(keymap_override.description.to_string()),
+                description: keymap_override.description.to_string(),
+                dispatch: keymap_override.dispatch,
+                ..self
+            },
+            None => self,
+        }
+    }
 }
 
 impl KeymapLegend {
@@ -320,6 +339,7 @@ impl KeymapLegend {
         // Check for duplicate keys
         let duplicates = config
             .keymaps()
+            .0
             .into_iter()
             .duplicates_by(|keymap| keymap.key)
             .collect_vec();
@@ -358,7 +378,7 @@ impl Component for KeymapLegend {
     }
 
     fn set_rectangle(&mut self, rectangle: Rectangle) {
-        self.refresh(rectangle.width);
+        self.refresh(rectangle.width); // TODO: pass theme from App.rs
         self.editor_mut().set_rectangle(rectangle);
     }
 
@@ -439,7 +459,7 @@ mod test_keymap_legend {
             .to_vec(),
         );
         let width = 53;
-        let actual = keymaps.display(2, width, 19).to_string();
+        let actual = keymaps.display(19).to_string();
         let expected = "
   a → Aloha                b → Bomb
   c → Caterpillar          d → D
@@ -460,7 +480,7 @@ mod test_keymap_legend {
             .to_vec(),
         );
         let width = 53;
-        let actual = keymaps.display(2, width, 19).to_string();
+        let actual = keymaps.display(19).to_string();
         let expected = "
       a → Aloha                b → Bomb
   space → Gogagg               c → Caterpillar"

@@ -1,4 +1,5 @@
 use crossterm::event::KeyCode;
+use my_proc_macros::key;
 use SelectionMode::*;
 
 use convert_case::Case;
@@ -286,7 +287,10 @@ impl Editor {
             ]),
         }
     }
-    pub(crate) fn keymap_actions(&self) -> KeymapLegendSection {
+    pub(crate) fn keymap_actions(
+        &self,
+        normal_mode_override: NormalModeOverride,
+    ) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Action".to_string(),
             keymaps: Keymaps::new(
@@ -376,31 +380,36 @@ impl Editor {
                             "change".to_string(),
                             "Change".to_string(),
                             Dispatch::ToEditor(Change),
-                        ),
+                        )
+                        .override_keymap(normal_mode_override.change),
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_key(&Meaning::DeltN),
                             "delete→".to_string(),
                             Direction::End.format_action("Delete"),
                             Dispatch::ToEditor(Delete(Direction::End)),
-                        ),
+                        )
+                        .override_keymap(normal_mode_override.delete),
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_key(&Meaning::DeltP),
                             "delete ←".to_string(),
                             Direction::Start.format_action("Delete"),
                             Dispatch::ToEditor(Delete(Direction::Start)),
-                        ),
+                        )
+                        .override_keymap(normal_mode_override.delete_backward),
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_key(&Meaning::InstP),
                             "insert ←".to_string(),
                             Direction::Start.format_action("Insert"),
                             Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
-                        ),
+                        )
+                        .override_keymap(normal_mode_override.insert),
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_key(&Meaning::InstN),
                             "insert→".to_string(),
                             Direction::End.format_action("Insert"),
                             Dispatch::ToEditor(EnterInsertMode(Direction::End)),
-                        ),
+                        )
+                        .override_keymap(normal_mode_override.append),
                     ]
                     .to_vec()
                 })
@@ -496,6 +505,7 @@ impl Editor {
                         Direction::End.format_action("Open"),
                         Dispatch::ToEditor(Open(Direction::End)),
                     )
+                    .override_keymap(normal_mode_override.open)
                 }))
                 .chain(Some(if self.selection_set.is_extended() {
                     Keymap::new_extended(
@@ -632,6 +642,12 @@ impl Editor {
                         run_search_after_config_updated: self.mode != Mode::Insert,
                     },
                 ),
+                Keymap::new_extended(
+                    KEYBOARD_LAYOUT.get_key(&Meaning::SHelp),
+                    "Help".to_string(),
+                    "Help".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::ShowHelp),
+                ),
             ]),
         }
     }
@@ -749,8 +765,7 @@ impl Editor {
 
     pub(crate) fn handle_insert_mode(&mut self, event: KeyEvent) -> anyhow::Result<Dispatches> {
         if let Some(dispatches) = self
-            .insert_mode_keymap_legend_config()
-            .keymaps()
+            .insert_mode_keymaps()
             .iter()
             .find(|keymap| &event == keymap.event())
             .map(|keymap| keymap.get_dispatches())
@@ -860,16 +875,21 @@ impl Editor {
         }
     }
 
-    pub(crate) fn normal_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub(crate) fn normal_mode_keymap_legend_config(
+        &self,
+        context: &Context,
+        title: &'static str,
+        normal_mode_override: NormalModeOverride,
+    ) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "Normal mode".to_string(),
+            title: title.to_string(),
             body: KeymapLegendBody::MultipleSections {
                 sections: [
                     self.keymap_core_movements(),
                     self.keymap_movement_actions(),
                     self.keymap_other_movements(),
                     self.keymap_selection_modes(context),
-                    self.keymap_actions(),
+                    self.keymap_actions(normal_mode_override),
                     self.keymap_clipboard_related_actions(false),
                     self.keymap_others(context),
                     self.keymap_universal(),
@@ -879,88 +899,142 @@ impl Editor {
         }
     }
 
-    pub(crate) fn normal_mode_keymaps(&self, context: &Context) -> Keymaps {
-        Keymaps::new(
-            &self
-                .normal_mode_keymap_legend_config(context)
-                .keymaps()
-                .into_iter()
-                .cloned()
-                .collect_vec(),
-        )
+    pub(crate) fn normal_mode_keymaps(
+        &self,
+        context: &Context,
+        normal_mode_override: NormalModeOverride,
+    ) -> Keymaps {
+        self.normal_mode_keymap_legend_config(context, "Normal", normal_mode_override)
+            .keymaps()
     }
-    pub(crate) fn visual_mode_initialized_keymaps(&self) -> Keymaps {
-        Keymaps::new(
-            &self
-                .visual_mode_initialized_keymap_legend_config()
-                .keymaps()
-                .into_iter()
-                .cloned()
-                .collect_vec(),
-        )
-    }
-    fn visual_mode_initialized_keymap_legend_config(&self) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Visual Mode Initialized".to_string(),
-            body: KeymapLegendBody::MultipleSections {
-                sections: [
-                    KeymapLegendSection {
-                        title: "Select".to_string(),
-                        keymaps: Keymaps::new(&[
-                            Keymap::new_extended(
-                                KEYBOARD_LAYOUT.get_key(&Meaning::InstN),
-                                "sel around".to_string(),
-                                "Select Around".to_string(),
-                                Dispatch::ShowKeymapLegend(
-                                    self.select_surround_keymap_legend_config(SurroundKind::Around),
-                                ),
-                            ),
-                            Keymap::new_extended(
-                                KEYBOARD_LAYOUT.get_key(&Meaning::InstP),
-                                "sel inside".to_string(),
-                                "Select Inside".to_string(),
-                                Dispatch::ShowKeymapLegend(
-                                    self.select_surround_keymap_legend_config(SurroundKind::Inside),
-                                ),
-                            ),
-                        ]),
-                    },
-                    KeymapLegendSection {
-                        title: "Action".to_string(),
-                        keymaps: Keymaps::new(&[
-                            Keymap::new_extended(
-                                KEYBOARD_LAYOUT.get_key(&Meaning::Chng_),
-                                "change surnd".to_string(),
-                                "Change Surround".to_string(),
-                                Dispatch::ShowKeymapLegend(
-                                    self.change_surround_from_keymap_legend_config(),
-                                ),
-                            ),
-                            Keymap::new_extended(
-                                KEYBOARD_LAYOUT.get_key(&Meaning::DeltN),
-                                "delete surnd".to_string(),
-                                "Delete Surround".to_string(),
-                                Dispatch::ShowKeymapLegend(
-                                    self.delete_surround_keymap_legend_config(),
-                                ),
-                            ),
-                        ]),
-                    },
-                ]
-                .to_vec(),
+
+    pub(crate) fn multicursor_mode_keymap_legend_config(
+        &self,
+        context: &Context,
+    ) -> KeymapLegendConfig {
+        self.normal_mode_keymap_legend_config(
+            context,
+            "Multicursor",
+            NormalModeOverride {
+                insert: Some(KeymapOverride {
+                    description: "Keep Match",
+                    dispatch: Dispatch::OpenFilterSelectionsPrompt { maintain: true },
+                }),
+                append: Some(KeymapOverride {
+                    description: "Remove Match",
+                    dispatch: Dispatch::OpenFilterSelectionsPrompt { maintain: false },
+                }),
+                change: Some(KeymapOverride {
+                    description: "Keep Primary Cursor",
+                    dispatch: Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
+                }),
+                delete: Some(KeymapOverride {
+                    description: "Delete Cursor →",
+                    dispatch: Dispatch::ToEditor(DeleteCurrentCursor(Direction::Start)),
+                }),
+                delete_backward: Some(KeymapOverride {
+                    description: "Delete Cursor ←",
+                    dispatch: Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
+                }),
+                ..Default::default()
             },
-        }
+        )
+    }
+    pub(crate) fn v_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+        self.normal_mode_keymap_legend_config(
+            context,
+            "V-mode",
+            NormalModeOverride {
+                insert: Some(KeymapOverride {
+                    description: "Select Inside",
+                    dispatch: Dispatch::ShowKeymapLegend(
+                        self.select_surround_keymap_legend_config(SurroundKind::Inside),
+                    ),
+                }),
+                append: Some(KeymapOverride {
+                    description: "Select Around",
+                    dispatch: Dispatch::ShowKeymapLegend(
+                        self.select_surround_keymap_legend_config(SurroundKind::Around),
+                    ),
+                }),
+                delete: Some(KeymapOverride {
+                    description: "Delete Surround",
+                    dispatch: Dispatch::ShowKeymapLegend(
+                        self.delete_surround_keymap_legend_config(),
+                    ),
+                }),
+                change: Some(KeymapOverride {
+                    description: "Change Surround",
+                    dispatch: Dispatch::ShowKeymapLegend(
+                        self.change_surround_from_keymap_legend_config(),
+                    ),
+                }),
+                open: Some(KeymapOverride {
+                    description: "Surround",
+                    dispatch: Dispatch::ShowKeymapLegend(self.surround_keymap_legend_config()),
+                }),
+                ..Default::default()
+            },
+        )
     }
     pub(crate) fn handle_normal_mode(
         &mut self,
         context: &Context,
         event: KeyEvent,
+        normal_mode_override: NormalModeOverride,
     ) -> anyhow::Result<Dispatches> {
-        if let Some(keymap) = self.normal_mode_keymaps(context).get(&event) {
+        if let Some(keymap) = self
+            .normal_mode_keymaps(context, normal_mode_override)
+            .get(&event)
+        {
             return Ok(keymap.get_dispatches());
         }
         log::info!("unhandled event: {:?}", event);
         Ok(vec![].into())
+    }
+
+    pub(crate) fn handle_v_mode(
+        &mut self,
+        context: &Context,
+        event: KeyEvent,
+    ) -> anyhow::Result<Dispatches> {
+        self.mode = Mode::Normal;
+
+        self.enable_selection_extension();
+        if let Some(keymap) = self
+            .v_mode_keymap_legend_config(context)
+            .keymaps()
+            .get(&event)
+        {
+            return Ok(keymap.get_dispatches());
+        }
+        log::info!("unhandled event: {:?}", event);
+        Ok(vec![].into())
+    }
+
+    pub(crate) fn handle_multi_cursor_mode(
+        &mut self,
+        context: &Context,
+        key_event: KeyEvent,
+    ) -> Result<Dispatches, anyhow::Error> {
+        match key_event {
+            key!("esc") => {
+                self.mode = Mode::Normal;
+                Ok(Default::default())
+            }
+
+            other => {
+                if let Some(keymap) = self
+                    .v_mode_keymap_legend_config(context)
+                    .keymaps()
+                    .get(&other)
+                {
+                    return Ok(keymap.get_dispatches());
+                } else {
+                    Ok(Default::default())
+                }
+            }
+        }
     }
 
     pub(crate) fn transform_keymap_legend_config(&self) -> KeymapLegendConfig {
@@ -1469,6 +1543,21 @@ impl Editor {
             },
         }
     }
+}
+
+#[derive(Default)]
+pub(crate) struct NormalModeOverride {
+    pub(crate) change: Option<KeymapOverride>,
+    pub(crate) delete: Option<KeymapOverride>,
+    pub(crate) insert: Option<KeymapOverride>,
+    pub(crate) append: Option<KeymapOverride>,
+    pub(crate) open: Option<KeymapOverride>,
+    pub(crate) delete_backward: Option<KeymapOverride>,
+}
+
+pub(crate) struct KeymapOverride {
+    pub(crate) description: &'static str,
+    pub(crate) dispatch: Dispatch,
 }
 
 fn generate_enclosures_keymaps(get_dispatch: impl Fn(EnclosureKind) -> Dispatch) -> Keymaps {

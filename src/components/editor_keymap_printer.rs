@@ -5,15 +5,14 @@ use crate::{
     buffer::Buffer,
     components::{
         dropdown::DropdownItem,
-        editor::Mode,
-        editor_keymap::{shifted, KeyboardLayout, Meaning, KEYBOARD_LAYOUT},
+        editor::{Editor, Mode},
+        editor_keymap::{shifted, KeyboardLayout, KEYBOARD_LAYOUT},
     },
     context::Context,
     lsp::completion::Completion,
-    themes::Theme,
 };
 use comfy_table::{
-    Cell, CellAlignment, Color,
+    Cell, CellAlignment,
     ColumnConstraint::{self, Absolute},
     Table,
     Width::{self, Fixed},
@@ -23,8 +22,8 @@ use itertools::Itertools;
 
 use super::{
     component::Component,
-    editor_keymap::{alted, KeyboardMeaningLayout},
-    keymap_legend::Keymap,
+    editor_keymap::alted,
+    keymap_legend::Keymaps,
     suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
 };
 
@@ -35,35 +34,9 @@ pub(crate) struct KeymapPrintSection {
 }
 
 impl KeymapPrintSection {
-    pub(crate) fn new(
-        keyboard_layout: &KeyboardLayout,
-        mode: Mode,
-        modifiers: KeyModifiers,
-        initial_key_events: Option<Vec<String>>,
-    ) -> Self {
-        KeymapPrintSection {
-            name: if modifiers == KeyModifiers::None {
-                format!("{mode:?}",)
-            } else {
-                format!("{mode:?} {:?}", modifiers)
-            },
-            key_meanings: KeymapPrintSection::keyboard_layout_to_keymaps(
-                keyboard_layout,
-                mode,
-                modifiers,
-                initial_key_events.map(|key_events| {
-                    key_events
-                        .into_iter()
-                        .map(|key_event| parse_key_event(&key_event).unwrap())
-                        .collect_vec()
-                }),
-            ),
-        }
-    }
-
     pub(crate) fn from_keymaps(
         name: String,
-        keymaps: &[Keymap],
+        keymaps: &Keymaps,
         keyboard_layout: &KeyboardLayout,
     ) -> Self {
         KeymapPrintSection {
@@ -87,7 +60,7 @@ impl KeymapPrintSection {
                                         } else if key_event.replace("shift+", "") == shifted(*cell)
                                         {
                                             Some(format!("⇧ {description}"))
-                                        } else if key_event.replace("alt+", "") == alted(*cell) {
+                                        } else if key_event == alted(*cell) {
                                             Some(format!("⌥ {description}"))
                                         } else {
                                             None
@@ -251,21 +224,31 @@ type KeymapPrintSections = Vec<KeymapPrintSection>;
 fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections {
     use KeyModifiers::*;
     use Mode::*;
+    let editor = Editor::from_text(Option::None, "");
     let sections: Vec<KeymapPrintSection> = [
-        KeymapPrintSection::new(layout, Normal, None, Option::None),
-        KeymapPrintSection::new(layout, Normal, Shift, Option::None),
-        KeymapPrintSection::new(layout, Normal, Ctrl, Option::None),
-        KeymapPrintSection::new(layout, Normal, Alt, Option::None),
-        KeymapPrintSection::new(layout, MultiCursor, None, Option::None),
-        KeymapPrintSection::new(layout, MultiCursor, Shift, Option::None),
-        KeymapPrintSection::new(layout, V, None, Option::None),
-        KeymapPrintSection::new(layout, Insert, Alt, Option::None),
-        // Global keymap
-        KeymapPrintSection::new(
+        KeymapPrintSection::from_keymaps(
+            "Insert".to_string(),
+            &editor.insert_mode_keymaps(),
             layout,
-            Normal,
-            None,
-            Option::Some([KEYBOARD_LAYOUT.get_key(&Meaning::Globl).to_string()].to_vec()),
+        ),
+        KeymapPrintSection::from_keymaps(
+            "Normal".to_string(),
+            &editor.normal_mode_keymaps(&Context::default(), Default::default()),
+            layout,
+        ),
+        KeymapPrintSection::from_keymaps(
+            "V-mode".to_string(),
+            &editor
+                .v_mode_keymap_legend_config(&Context::default())
+                .keymaps(),
+            layout,
+        ),
+        KeymapPrintSection::from_keymaps(
+            "Multicursor Mode".to_string(),
+            &editor
+                .multicursor_mode_keymap_legend_config(&Context::default())
+                .keymaps(),
+            layout,
         ),
     ]
     .to_vec();
