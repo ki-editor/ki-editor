@@ -66,7 +66,9 @@ impl KeymapPrintSection {
                                             None
                                         }
                                     })
-                                    .sorted_by_key(|str| !str.starts_with("⇧"))
+                                    .sorted_by_key(|str| {
+                                        (!str.starts_with("⌥"), !str.starts_with("⇧"))
+                                    })
                                     .collect_vec()
                                     .join("\n"),
                             )

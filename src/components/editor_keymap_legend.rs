@@ -93,7 +93,7 @@ impl Editor {
             keymaps: Keymaps::new(&[
                 Keymap::new_extended(
                     KEYBOARD_LAYOUT.get_key(&Meaning::XAchr),
-                    "⇄ Anchor".to_string(),
+                    "⇋ Anchor".to_string(),
                     "Swap cursor with anchor".to_string(),
                     Dispatch::ToEditor(DispatchEditor::SwapCursorWithAnchor),
                 ),
@@ -377,7 +377,7 @@ impl Editor {
                     [
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_key(&Meaning::Chng_),
-                            "change".to_string(),
+                            "Change".to_string(),
                             "Change".to_string(),
                             Dispatch::ToEditor(Change),
                         )
@@ -486,7 +486,7 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::SSEnd),
-                        "⇄ End".to_string(),
+                        "⇋ End".to_string(),
                         "Switch extended selection end".to_string(),
                         Dispatch::ToEditor(SwapExtensionDirection),
                     ),
@@ -570,7 +570,7 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::RplcX),
-                        "Replace X".to_string(),
+                        "Replace".to_string(),
                         format!("{}{}", "Replace Cut", extra),
                         Dispatch::ToEditor(ReplaceWithCopiedText {
                             use_system_clipboard,
@@ -607,19 +607,19 @@ impl Editor {
             keymaps: Keymaps::new(&[
                 Keymap::new_extended(
                     KEYBOARD_LAYOUT.get_key(&Meaning::WClse),
-                    "close window".to_string(),
+                    "❌ Window".to_string(),
                     "Close current window".to_string(),
                     Dispatch::CloseCurrentWindow,
                 ),
                 Keymap::new_extended(
                     KEYBOARD_LAYOUT.get_key(&Meaning::SView),
-                    "switch view".to_string(),
+                    "⇋ Alignment".to_string(),
                     "Switch view alignment".to_string(),
                     Dispatch::ToEditor(SwitchViewAlignment),
                 ),
                 Keymap::new_extended(
                     KEYBOARD_LAYOUT.get_key(&Meaning::WSwth),
-                    "switch window".to_string(),
+                    "⇋ Window".to_string(),
                     "Switch window".to_string(),
                     Dispatch::OtherWindow,
                 ),
@@ -634,7 +634,7 @@ impl Editor {
                 ),
                 Keymap::new_extended(
                     KEYBOARD_LAYOUT.get_key(&Meaning::CSrch),
-                    "config search".to_string(),
+                    "🔍 Config".to_string(),
                     "Configure Search".to_string(),
                     Dispatch::ShowSearchConfig {
                         scope: Scope::Local,
@@ -828,8 +828,8 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::Exchg),
-                        "exchng".to_string(),
-                        "Enter Exchange mode".to_string(),
+                        "Swap".to_string(),
+                        "Enter Swap mode".to_string(),
                         Dispatch::ToEditor(EnterExchangeMode),
                     ),
                 ]
@@ -946,13 +946,13 @@ impl Editor {
             "V-mode",
             NormalModeOverride {
                 insert: Some(KeymapOverride {
-                    description: "Select Inside",
+                    description: "Inside",
                     dispatch: Dispatch::ShowKeymapLegend(
                         self.select_surround_keymap_legend_config(SurroundKind::Inside),
                     ),
                 }),
                 append: Some(KeymapOverride {
-                    description: "Select Around",
+                    description: "Around",
                     dispatch: Dispatch::ShowKeymapLegend(
                         self.select_surround_keymap_legend_config(SurroundKind::Around),
                     ),
