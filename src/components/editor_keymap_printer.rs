@@ -86,14 +86,14 @@ impl KeymapPrintSection {
                                             Some(description.clone())
                                         } else if key_event.replace("shift+", "") == shifted(*cell)
                                         {
-                                            Some(format!("⇧ {description}  "))
+                                            Some(format!("⇧ {description}"))
                                         } else if key_event.replace("alt+", "") == alted(*cell) {
-                                            Some(format!("⌥ {description}  "))
+                                            Some(format!("⌥ {description}"))
                                         } else {
                                             None
                                         }
                                     })
-                                    .sorted()
+                                    .sorted_by_key(|str| !str.starts_with("⇧"))
                                     .collect_vec()
                                     .join("\n"),
                             )
