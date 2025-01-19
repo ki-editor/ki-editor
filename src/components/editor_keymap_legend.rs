@@ -533,18 +533,14 @@ impl Editor {
     }
 
     fn keymap_clipboard_related_actions(&self, use_system_clipboard: bool) -> KeymapLegendSection {
-        let extra = if use_system_clipboard {
-            " (system clipboard)"
-        } else {
-            ""
-        };
+        let extra = if use_system_clipboard { " +" } else { "" };
         KeymapLegendSection {
             title: "Clipboard-related actions".to_string(),
             keymaps: Keymaps::new(
                 &[
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::ChngX),
-                        "Change X".to_string(),
+                        format!("{}{}", "Change X", extra),
                         format!("{}{}", "Change Cut", extra),
                         Dispatch::ToEditor(ChangeCut {
                             use_system_clipboard,
@@ -552,7 +548,7 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::PsteN),
-                        "paste→".to_string(),
+                        format!("paste→{extra}"),
                         format!("{}{}", Direction::End.format_action("Paste"), extra),
                         Dispatch::ToEditor(Paste {
                             direction: Direction::End,
@@ -561,7 +557,7 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::PsteP),
-                        "paste ←".to_string(),
+                        format!("paste ←{extra}"),
                         format!("{}{}", Direction::Start.format_action("Paste"), extra),
                         Dispatch::ToEditor(Paste {
                             direction: Direction::Start,
@@ -570,7 +566,7 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::RplcX),
-                        "Replace".to_string(),
+                        format!("Replace X{extra}"),
                         format!("{}{}", "Replace Cut", extra),
                         Dispatch::ToEditor(ReplaceWithCopiedText {
                             use_system_clipboard,
@@ -579,7 +575,7 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::Copy_),
-                        "Copy".to_string(),
+                        format!("{}{}", "Copy", extra),
                         format!("{}{}", "Copy", extra),
                         Dispatch::ToEditor(Copy {
                             use_system_clipboard,
@@ -587,7 +583,7 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::Rplc_),
-                        "Replace".to_string(),
+                        format!("{}{}", "Replace", extra),
                         format!("{}{}", "Replace", extra),
                         Dispatch::ToEditor(ReplaceWithCopiedText {
                             use_system_clipboard,
@@ -797,16 +793,6 @@ impl Editor {
                     "space",
                     "Search (List)".to_string(),
                     Dispatch::ShowKeymapLegend(self.space_keymap_legend_config(context)),
-                ),
-                Keymap::new(
-                    "\\",
-                    "Clipboard-related actions (use system clipboard)".to_string(),
-                    Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                        title: "Clipboard-related actions (use system clipboard)".to_string(),
-                        body: KeymapLegendBody::SingleSection {
-                            keymaps: self.keymap_clipboard_related_actions(true).keymaps,
-                        },
-                    }),
                 ),
                 Keymap::new(
                     "esc",
@@ -1095,8 +1081,16 @@ impl Editor {
                         title: "Pick".to_string(),
                         keymaps: Keymaps::new(
                             &[
-                                ("b", "Buffer", FilePickerKind::Opened),
-                                ("f", "File", FilePickerKind::NonGitIgnored),
+                                (
+                                    KEYBOARD_LAYOUT.get_space_keymap(&Meaning::Buffr),
+                                    "Buffer",
+                                    FilePickerKind::Opened,
+                                ),
+                                (
+                                    KEYBOARD_LAYOUT.get_space_keymap(&Meaning::File_),
+                                    "File",
+                                    FilePickerKind::NonGitIgnored,
+                                ),
                             ]
                             .into_iter()
                             .map(|(key, description, kind)| {
@@ -1108,8 +1102,14 @@ impl Editor {
                             })
                             .chain(
                                 [
-                                    ("g", DiffMode::UnstagedAgainstCurrentBranch),
-                                    ("G", DiffMode::UnstagedAgainstMainBranch),
+                                    (
+                                        KEYBOARD_LAYOUT.get_space_keymap(&Meaning::GitFC),
+                                        DiffMode::UnstagedAgainstCurrentBranch,
+                                    ),
+                                    (
+                                        KEYBOARD_LAYOUT.get_space_keymap(&Meaning::GitFM),
+                                        DiffMode::UnstagedAgainstMainBranch,
+                                    ),
                                 ]
                                 .into_iter()
                                 .map(|(key, diff_mode)| {
@@ -1123,12 +1123,12 @@ impl Editor {
                                 }),
                             )
                             .chain(Some(Keymap::new(
-                                "s",
+                                KEYBOARD_LAYOUT.get_space_keymap(&Meaning::Symbl),
                                 "Symbol".to_string(),
                                 Dispatch::RequestDocumentSymbols,
                             )))
                             .chain(Some(Keymap::new(
-                                "t",
+                                KEYBOARD_LAYOUT.get_space_keymap(&Meaning::Theme),
                                 "Theme".to_string(),
                                 Dispatch::OpenThemePrompt,
                             )))
@@ -1139,19 +1139,19 @@ impl Editor {
                         title: "Misc".to_string(),
                         keymaps: Keymaps::new(&[
                             Keymap::new(
-                                "e",
+                                KEYBOARD_LAYOUT.get_space_keymap(&Meaning::Explr),
                                 "Explorer".to_string(),
                                 Dispatch::RevealInExplorer(self.path().unwrap_or_else(|| {
                                     context.current_working_directory().clone()
                                 })),
                             ),
                             Keymap::new(
-                                "z",
+                                KEYBOARD_LAYOUT.get_space_keymap(&Meaning::UndoT),
                                 "Undo Tree".to_string(),
                                 Dispatch::ToEditor(DispatchEditor::EnterUndoTreeMode),
                             ),
                             Keymap::new(
-                                "x",
+                                KEYBOARD_LAYOUT.get_space_keymap(&Meaning::TSNSx),
                                 "TS Node Sexp".to_string(),
                                 Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
                             ),
@@ -1165,9 +1165,21 @@ impl Editor {
                                 "Force Save".to_string(),
                                 Dispatch::ToEditor(DispatchEditor::ForceSave),
                             ),
-                            Keymap::new("w", "Save All".to_string(), Dispatch::SaveAll),
-                            Keymap::new("q", "Save All Quit".to_string(), Dispatch::SaveQuitAll),
-                            Keymap::new("Q", "Quit No Save".to_string(), Dispatch::QuitAll),
+                            Keymap::new(
+                                KEYBOARD_LAYOUT.get_space_keymap(&Meaning::SaveA),
+                                "Save All".to_string(),
+                                Dispatch::SaveAll,
+                            ),
+                            Keymap::new(
+                                KEYBOARD_LAYOUT.get_space_keymap(&Meaning::QSave),
+                                "Save All Quit".to_string(),
+                                Dispatch::SaveQuitAll,
+                            ),
+                            Keymap::new(
+                                KEYBOARD_LAYOUT.get_space_keymap(&Meaning::QNSav),
+                                "Quit No Save".to_string(),
+                                Dispatch::QuitAll,
+                            ),
                         ]),
                     }))
                     .chain(Some(KeymapLegendSection {
@@ -1178,6 +1190,7 @@ impl Editor {
                             Dispatch::ToEditor(DispatchEditor::ShowKeymapLegendHelp),
                         )]),
                     }))
+                    .chain(Some(self.keymap_clipboard_related_actions(true)))
                     .collect(),
             },
         }

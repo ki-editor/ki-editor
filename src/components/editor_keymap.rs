@@ -118,6 +118,30 @@ pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
     ],
 ];
 
+pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
+    [
+        QSave, SaveA, Explr, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LRnme, LCdAc, _____,
+    ],
+    [
+        UndoT, TSNSx, Copy_, PsteN, Rplc_, /****/ _____, ChngX, _____, _____, _____,
+    ],
+];
+
+pub(crate) const KEYMAP_SPACE_SHIFTED: KeyboardMeaningLayout = [
+    [
+        QNSav, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
 pub(crate) type KeyboardLayout = [[&'static str; 10]; 3];
 
 pub(crate) const QWERTY: KeyboardLayout = [
@@ -169,6 +193,7 @@ struct KeySet {
     find_local: HashMap<Meaning, &'static str>,
     find_global: HashMap<Meaning, &'static str>,
     surround: HashMap<Meaning, &'static str>,
+    space: HashMap<Meaning, &'static str>,
 }
 
 impl KeySet {
@@ -229,6 +254,18 @@ impl KeySet {
                     .zip(layout.into_iter().flatten())
                     .chain(
                         KEYMAP_FIND_GLOBAL_SHIFTED
+                            .into_iter()
+                            .flatten()
+                            .zip(layout.into_iter().flatten().map(shifted)),
+                    ),
+            ),
+            space: HashMap::from_iter(
+                KEYMAP_SPACE
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten())
+                    .chain(
+                        KEYMAP_SPACE_SHIFTED
                             .into_iter()
                             .flatten()
                             .zip(layout.into_iter().flatten().map(shifted)),
@@ -323,6 +360,15 @@ impl KeyboardLayoutKind {
                 .cloned()
                 .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}")),
         }
+    }
+
+    pub(crate) fn get_space_keymap(&self, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        keyset
+            .space
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
     pub(crate) fn get_surround_keymap(&self, meaning: &Meaning) -> &'static str {
@@ -561,6 +607,36 @@ pub(crate) enum Meaning {
     BckTk,
     /// Show Help
     SHelp,
+    /// Quit No Save
+    QNSav,
+    /// Quit Save
+    QSave,
+    /// Save All
+    SaveA,
+    /// File Explorer
+    Explr,
+    /// LSP Rename
+    LRnme,
+    /// Pick Theme
+    Theme,
+    /// Pick Symbol
+    Symbl,
+    /// Pick File
+    File_,
+    /// Pick Git Status File (against current branch)
+    GitFC,
+    /// Pick Git Status File (against main branch)
+    GitFM,
+    /// LSP Hover
+    LHovr,
+    /// Undo Tree
+    UndoT,
+    /// TS Node Sexp
+    TSNSx,
+    /// LSP Code Actions
+    LCdAc,
+    /// Pick Buffers
+    Buffr,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {
