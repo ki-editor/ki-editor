@@ -278,7 +278,7 @@ Why?
                     content: "hello world".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("a f j"),
+                    events: keys!("a f g j"),
                     expectations: &[CurrentComponentContent("(hello world)")],
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -548,7 +548,7 @@ impl<C> Iterator for PostorderTraverse<C>
                     content: "def foo(bar: Bar, spam: Spam): pass",
                     file_extension: "py",
                     prepare_events: keys!("q s p a m enter"),
-                    events: keys!("d n x esc N y"),
+                    events: keys!("d g x esc G y"),
                     expectations: &[CurrentComponentContent("def foo(bar: Bar, spam: Spam, y, x): pass")],
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -565,7 +565,7 @@ function foo() {
 ".trim(),
                     file_extension: "js",
                     prepare_events: keys!("q l e t space y enter"),
-                    events: keys!("d n l e t space z"),
+                    events: keys!("d g l e t space z"),
                     expectations: &[CurrentComponentContent("function foo() {
   let x = hello();
   let y = hey()
@@ -584,7 +584,7 @@ fn foo() {
 }".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w n x esc N y"),
+                    events: keys!("w g x esc G y"),
                     expectations: &[CurrentComponentContent("fn foo() {
     y
     x
@@ -833,11 +833,11 @@ fn foo() {
                     .trim(),
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("a k f u { r a"),
+                    events: keys!("a k f u l r a"),
                     expectations: &[CurrentSelectedTexts(&["bar();", "spam();", "baz();"])],
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
-                    only: false,
+                    only: true,
                 },
                 Recipe {
                     description: "Nested spliting",

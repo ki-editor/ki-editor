@@ -446,30 +446,7 @@ mod test_keymap_legend {
     }
 
     #[test]
-    fn test_display_1() {
-        let keymaps = Keymaps(
-            [
-                Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
-                Keymap::new("b", "Bomb".to_string(), Dispatch::Null),
-                Keymap::new("c", "Caterpillar".to_string(), Dispatch::Null),
-                Keymap::new("d", "D".to_string(), Dispatch::Null),
-                Keymap::new("e", "Elephant".to_string(), Dispatch::Null),
-                Keymap::new("space", "Gogagg".to_string(), Dispatch::Null),
-            ]
-            .to_vec(),
-        );
-        let width = 53;
-        let actual = keymaps.display(19).to_string();
-        let expected = "
-  a → Aloha                b → Bomb
-  c → Caterpillar          d → D
-  e → Elephant         space → Gogagg"
-            .trim_matches('\n');
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_display_2() {
+    fn test_display() {
         let keymaps = Keymaps(
             [
                 Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
@@ -482,8 +459,13 @@ mod test_keymap_legend {
         let width = 53;
         let actual = keymaps.display(19).to_string();
         let expected = "
-      a → Aloha                b → Bomb
-  space → Gogagg               c → Caterpillar"
+╭───────┬───┬─────────────┬───┬──────┬───┬───┬───┬───┬───┬───╮
+│       ┆   ┆             ┆   ┆      ┆ - ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│ Aloha ┆   ┆             ┆   ┆      ┆ - ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│       ┆   ┆ Caterpillar ┆   ┆ Bomb ┆ - ┆   ┆   ┆   ┆   ┆   │
+╰───────┴───┴─────────────┴───┴──────┴───┴───┴───┴───┴───┴───╯"
             .trim_matches('\n');
         assert_eq!(actual, expected);
     }
