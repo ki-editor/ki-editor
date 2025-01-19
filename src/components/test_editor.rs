@@ -2265,7 +2265,7 @@ fn select_surround_inside() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("f u (").to_vec())),
+            App(HandleKeyEvents(keys!("f u j").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2279,7 +2279,7 @@ fn select_surround_around() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("f o (").to_vec())),
+            App(HandleKeyEvents(keys!("f o j").to_vec())),
             Expect(CurrentSelectedTexts(&["(world)"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2307,7 +2307,7 @@ fn delete_surround() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("f h (").to_vec())),
+            App(HandleKeyEvents(keys!("f h j").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello world)")),
@@ -2322,7 +2322,7 @@ fn change_surround_selection_not_on_enclosure() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("f m ( {").to_vec())),
+            App(HandleKeyEvents(keys!("f m j l").to_vec())),
             Expect(CurrentSelectedTexts(&["{world}"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello {world})")),
@@ -2337,7 +2337,7 @@ fn change_surround_selection_on_enclosure() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("(hello)".to_string())),
             Editor(MatchLiteral("(hello)".to_string())),
-            App(HandleKeyEvents(keys!("f m ( {").to_vec())),
+            App(HandleKeyEvents(keys!("f m j l").to_vec())),
             Expect(CurrentSelectedTexts(&["{hello}"])),
         ])
     })
