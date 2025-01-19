@@ -533,14 +533,15 @@ impl Editor {
     }
 
     fn keymap_clipboard_related_actions(&self, use_system_clipboard: bool) -> KeymapLegendSection {
-        let extra = if use_system_clipboard { " +" } else { "" };
+        let extra = if use_system_clipboard { "+ " } else { "" };
+        let format = |description: &str| format!("{extra}{description}");
         KeymapLegendSection {
             title: "Clipboard-related actions".to_string(),
             keymaps: Keymaps::new(
                 &[
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::ChngX),
-                        format!("{}{}", "Change X", extra),
+                        format("Change X"),
                         format!("{}{}", "Change Cut", extra),
                         Dispatch::ToEditor(ChangeCut {
                             use_system_clipboard,
@@ -548,7 +549,7 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::PsteN),
-                        format!("paste→{extra}"),
+                        format("paste→{extra}"),
                         format!("{}{}", Direction::End.format_action("Paste"), extra),
                         Dispatch::ToEditor(Paste {
                             direction: Direction::End,
@@ -557,7 +558,7 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::PsteP),
-                        format!("paste ←{extra}"),
+                        format("paste ←{extra}"),
                         format!("{}{}", Direction::Start.format_action("Paste"), extra),
                         Dispatch::ToEditor(Paste {
                             direction: Direction::Start,
@@ -566,7 +567,7 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::RplcX),
-                        format!("Replace X{extra}"),
+                        format("Replace X{extra}"),
                         format!("{}{}", "Replace Cut", extra),
                         Dispatch::ToEditor(ReplaceWithCopiedText {
                             use_system_clipboard,
@@ -575,7 +576,7 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::Copy_),
-                        format!("{}{}", "Copy", extra),
+                        format("Copy"),
                         format!("{}{}", "Copy", extra),
                         Dispatch::ToEditor(Copy {
                             use_system_clipboard,
@@ -583,7 +584,7 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::Rplc_),
-                        format!("{}{}", "Replace", extra),
+                        format("Replace"),
                         format!("{}{}", "Replace", extra),
                         Dispatch::ToEditor(ReplaceWithCopiedText {
                             use_system_clipboard,

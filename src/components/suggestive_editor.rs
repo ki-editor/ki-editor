@@ -150,26 +150,38 @@ impl Component for SuggestiveEditor {
         [KeymapLegendSection {
             title: "LSP".to_string(),
             keymaps: Keymaps::new(&[
-                Keymap::new("c", "Code Actions".to_string(), {
-                    let cursor_char_index = self.editor().get_cursor_char_index();
-                    Dispatch::RequestCodeAction {
-                        diagnostics: self
-                            .editor()
-                            .buffer()
-                            .diagnostics()
-                            .into_iter()
-                            .filter_map(|diagnostic| {
-                                if diagnostic.range.contains(&cursor_char_index) {
-                                    diagnostic.original_value.clone()
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect_vec(),
-                    }
-                }),
-                Keymap::new("h", "Hover".to_string(), Dispatch::RequestHover),
-                Keymap::new("r", "Rename".to_string(), Dispatch::PrepareRename),
+                Keymap::new(
+                    KEYBOARD_LAYOUT.get_space_keymap(&Meaning::LCdAc),
+                    "Code Actions".to_string(),
+                    {
+                        let cursor_char_index = self.editor().get_cursor_char_index();
+                        Dispatch::RequestCodeAction {
+                            diagnostics: self
+                                .editor()
+                                .buffer()
+                                .diagnostics()
+                                .into_iter()
+                                .filter_map(|diagnostic| {
+                                    if diagnostic.range.contains(&cursor_char_index) {
+                                        diagnostic.original_value.clone()
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect_vec(),
+                        }
+                    },
+                ),
+                Keymap::new(
+                    KEYBOARD_LAYOUT.get_space_keymap(&Meaning::LHovr),
+                    "Hover".to_string(),
+                    Dispatch::RequestHover,
+                ),
+                Keymap::new(
+                    KEYBOARD_LAYOUT.get_space_keymap(&Meaning::LRnme),
+                    "Rename".to_string(),
+                    Dispatch::PrepareRename,
+                ),
             ]),
         }]
         .to_vec()
