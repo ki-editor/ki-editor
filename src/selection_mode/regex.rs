@@ -39,21 +39,6 @@ impl Regex {
             content: buffer.rope().to_string(),
         })
     }
-
-    pub(crate) fn new(buffer: &Buffer, pattern: &str) -> anyhow::Result<Self> {
-        let regex = get_regex(
-            pattern,
-            RegexConfig {
-                escaped: false,
-                case_sensitive: false,
-                match_whole_word: false,
-            },
-        )?;
-        Ok(Self {
-            regex,
-            content: buffer.rope().to_string(),
-        })
-    }
 }
 
 impl SelectionMode for Regex {

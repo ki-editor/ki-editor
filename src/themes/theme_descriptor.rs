@@ -27,6 +27,12 @@ impl ThemeDescriptor {
     }
 }
 
+impl Default for ThemeDescriptor {
+    fn default() -> Self {
+        ThemeDescriptor::ThemeFn("VS Code (Light)".to_string(), vscode_light)
+    }
+}
+
 pub(crate) fn all() -> Vec<ThemeDescriptor> {
     let theme_descriptors: Vec<ThemeDescriptor> = [
         ThemeDescriptor::ThemeFn("VS Code (Light)".to_string(), vscode_light),

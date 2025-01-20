@@ -43,43 +43,7 @@ impl SelectionMode for SyntaxNode {
         self.select_vertical(params, true)
             .map(|result| result.map(|result| result.selection))
     }
-    fn left(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let buffer = params.buffer;
-        let current_selection = params.current_selection;
-        let node = buffer
-            .get_current_node(current_selection, false)?
-            .ok_or(anyhow::anyhow!(
-                "SyntaxNode::iter: Cannot find Treesitter language"
-            ))?;
-        let node = node.prev_sibling();
-        Ok(node.and_then(|node| {
-            ByteRange::new(node.byte_range())
-                .to_selection(params.buffer, params.current_selection)
-                .ok()
-        }))
-    }
     fn right(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let buffer = params.buffer;
-        let current_selection = params.current_selection;
-        let node = buffer
-            .get_current_node(current_selection, false)?
-            .ok_or(anyhow::anyhow!(
-                "SyntaxNode::iter: Cannot find Treesitter language"
-            ))?;
-        let node = node.next_sibling();
-        Ok(node.and_then(|node| {
-            ByteRange::new(node.byte_range())
-                .to_selection(params.buffer, params.current_selection)
-                .ok()
-        }))
-    }
-    fn next(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
@@ -101,7 +65,7 @@ impl SelectionMode for SyntaxNode {
                 .ok()
         }))
     }
-    fn previous(
+    fn left(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
@@ -153,18 +117,6 @@ impl SelectionMode for SyntaxNode {
         } else {
             Ok(Box::new(std::iter::empty()))
         }
-    }
-    fn delete_forward(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.next(params)
-    }
-    fn delete_backward(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.previous(params)
     }
 }
 

@@ -62,11 +62,11 @@ impl<T: Applicable> UndoTree<T> {
         match movement {
             Movement::Right => self.redo(target),
             Movement::Left => self.undo(target),
-            Movement::Next => {
+            Movement::Down => {
                 self.go_to_history_branch(target, Direction::End)?;
                 Ok(None)
             }
-            Movement::Previous => {
+            Movement::Up => {
                 self.go_to_history_branch(target, Direction::Start)?;
                 Ok(None)
             }
