@@ -23,6 +23,7 @@ use super::{
 pub(crate) struct KeymapLegend {
     editor: Editor,
     config: KeymapLegendConfig,
+    show_shift_alt_keys: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,13 +43,15 @@ const BETWEEN_KEY_AND_DESCRIPTION: &str = " → ";
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymaps(Vec<Keymap>);
 impl Keymaps {
-    fn display_positional(&self, terminal_width: u16) -> String {
-        KeymapPrintSection::from_keymaps(
+    fn display_positional(&self, terminal_width: u16, show_shift_alt_keys: bool) -> String {
+        let table = KeymapPrintSection::from_keymaps(
             "".to_string(),
             self,
             KEYBOARD_LAYOUT.get_keyboard_layout(),
         )
-        .display(terminal_width)
+        .display(terminal_width, show_shift_alt_keys);
+
+        format!("Press space to toggle alt/shift keys.\n{table}")
     }
     fn display_mnemonic(&self, indent: usize, width: usize) -> String {
         let width = width.saturating_sub(indent);
@@ -150,16 +153,18 @@ pub(crate) struct KeymapLegendSection {
 }
 
 impl KeymapLegendBody {
-    fn display(&self, width: u16) -> String {
+    fn display(&self, width: u16, show_shift_alt_keys: bool) -> String {
         match self {
-            KeymapLegendBody::SingleSection { keymaps } => keymaps.display_positional(width),
+            KeymapLegendBody::SingleSection { keymaps } => {
+                keymaps.display_positional(width, show_shift_alt_keys)
+            }
             KeymapLegendBody::MultipleSections { sections } => Keymaps(
                 sections
                     .iter()
                     .flat_map(|section| section.keymaps.0.clone())
                     .collect_vec(),
             )
-            .display_positional(width),
+            .display_positional(width, show_shift_alt_keys),
             KeymapLegendBody::Mnemonic(keymaps) => keymaps.display_mnemonic(0, width as usize),
         }
     }
@@ -177,8 +182,8 @@ impl KeymapLegendBody {
 }
 
 impl KeymapLegendConfig {
-    fn display(&self, width: u16) -> String {
-        self.body.display(width)
+    fn display(&self, width: u16, show_shift_alt_keys: bool) -> String {
+        self.body.display(width, show_shift_alt_keys)
     }
 
     pub(crate) fn keymaps(&self) -> Keymaps {
@@ -335,6 +340,21 @@ impl Keymap {
             None => self,
         }
     }
+
+    pub(crate) fn display(&self) -> String {
+        let key_event = self.event().display();
+        let description = self
+            .short_description
+            .clone()
+            .unwrap_or_else(|| self.description.clone());
+        if key_event.contains("shift+") {
+            format!("⇧ {description}")
+        } else if key_event.contains("alt+") {
+            format!("⌥ {description}")
+        } else {
+            description.clone()
+        }
+    }
 }
 
 impl KeymapLegend {
@@ -364,11 +384,17 @@ impl KeymapLegend {
         editor.set_title(config.title.clone());
         let _ = editor.enter_insert_mode(Direction::End).unwrap_or_default();
         editor.set_regex_highlight_rules(config.get_regex_highlight_rules());
-        KeymapLegend { editor, config }
+        KeymapLegend {
+            editor,
+            config,
+            show_shift_alt_keys: false,
+        }
     }
 
     fn refresh(&mut self) {
-        let content = self.config.display(self.editor.rectangle().width);
+        let content = self
+            .config
+            .display(self.editor.rectangle().width, self.show_shift_alt_keys);
         self.editor_mut().set_content(&content).unwrap_or_default();
     }
 }
@@ -397,6 +423,10 @@ impl Component for KeymapLegend {
             match &event {
                 key!("esc") => {
                     self.editor.enter_normal_mode()?;
+                    Ok(Default::default())
+                }
+                key!("space") => {
+                    self.show_shift_alt_keys = !self.show_shift_alt_keys;
                     Ok(Default::default())
                 }
                 key!("ctrl+c") => Ok(Dispatches::one(Dispatch::CloseCurrentWindow)),
@@ -480,7 +510,7 @@ mod test_keymap_legend {
             ]
             .to_vec(),
         );
-        let actual = keymaps.display_positional(19).to_string();
+        let actual = keymaps.display_positional(19, true).to_string();
         let expected = "
 ╭───────┬───┬─────────────┬───┬──────┬───┬───┬───┬───┬───┬───╮
 │       ┆   ┆             ┆   ┆      ┆ - ┆   ┆   ┆   ┆   ┆   │

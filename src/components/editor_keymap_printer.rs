@@ -13,12 +13,52 @@ use comfy_table::{
 };
 use itertools::Itertools;
 
-use super::{editor_keymap::alted, keymap_legend::Keymaps};
+use super::{
+    editor_keymap::alted,
+    keymap_legend::{Keymap, Keymaps},
+};
 
 #[derive(Debug, Clone)]
 pub(crate) struct KeymapPrintSection {
     name: String,
-    key_meanings: Vec<Vec<Option<String>>>,
+    keys: Vec<Vec<Key>>,
+}
+
+#[derive(Debug, Clone)]
+struct Key {
+    normal: Option<Keymap>,
+    shifted: Option<Keymap>,
+    alted: Option<Keymap>,
+}
+impl Key {
+    fn has_content(&self) -> bool {
+        self.normal.is_some() || self.shifted.is_some() || self.alted.is_some()
+    }
+
+    fn display(&self, show_shift_alt_keys: bool) -> String {
+        if show_shift_alt_keys {
+            [
+                self.alted
+                    .as_ref()
+                    .map(|key| key.display())
+                    .unwrap_or_default(),
+                self.shifted
+                    .as_ref()
+                    .map(|key| key.display())
+                    .unwrap_or_default(),
+                self.normal
+                    .as_ref()
+                    .map(|key| key.display())
+                    .unwrap_or_default(),
+            ]
+            .join("\n")
+        } else {
+            self.normal
+                .as_ref()
+                .map(|key| key.display())
+                .unwrap_or_default()
+        }
+    }
 }
 
 impl KeymapPrintSection {
@@ -29,36 +69,25 @@ impl KeymapPrintSection {
     ) -> Self {
         KeymapPrintSection {
             name,
-            key_meanings: keyboard_layout
+            keys: keyboard_layout
                 .iter()
                 .map(|row| {
                     row.iter()
-                        .map(|cell| {
-                            Some(
-                                keymaps
-                                    .iter()
-                                    .filter_map(|keymap| {
-                                        let key_event = keymap.event().display();
-                                        let description = keymap
-                                            .short_description
-                                            .clone()
-                                            .unwrap_or_else(|| keymap.description.clone());
-                                        if key_event == **cell {
-                                            Some(description.clone())
-                                        } else if key_event.replace("shift+", "") == shifted(cell) {
-                                            Some(format!("⇧ {description}"))
-                                        } else if key_event == alted(cell) {
-                                            Some(format!("⌥ {description}"))
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                    .sorted_by_key(|str| {
-                                        (!str.starts_with("⌥"), !str.starts_with("⇧"))
-                                    })
-                                    .collect_vec()
-                                    .join("\n"),
-                            )
+                        .map(|cell| Key {
+                            normal: keymaps
+                                .iter()
+                                .find(|keymap| keymap.event().display() == *cell)
+                                .cloned(),
+                            shifted: keymaps
+                                .iter()
+                                .find(|keymap| {
+                                    keymap.event().display().replace("shift+", "") == shifted(cell)
+                                })
+                                .cloned(),
+                            alted: keymaps
+                                .iter()
+                                .find(|keymap| keymap.event().display() == alted(cell))
+                                .cloned(),
                         })
                         .collect()
                 })
@@ -67,23 +96,19 @@ impl KeymapPrintSection {
     }
 
     pub(crate) fn has_content(&self) -> bool {
-        self.key_meanings
+        self.keys
             .iter()
-            .any(|meanings| meanings.iter().any(Option::is_some))
+            .any(|keys| keys.iter().any(|key| key.has_content()))
     }
 
-    pub(crate) fn display(&self, terminal_width: u16) -> String {
+    pub(crate) fn display(&self, terminal_width: u16, show_shift_alt_keys: bool) -> String {
         let max_column_width = terminal_width / 11;
         let mut table = Table::new();
-        let table_rows = self.key_meanings.iter().map(|row| {
+        let table_rows = self.keys.iter().map(|row| {
             let mut cols: Vec<Cell> = row
                 .iter()
-                .map(|value| {
-                    let display = match value {
-                        Some(value) => value.to_string(),
-                        None => "".to_string(),
-                    };
-
+                .map(|key| {
+                    let display = key.display(show_shift_alt_keys);
                     Cell::new(display).set_alignment(CellAlignment::Center)
                 })
                 .collect();
@@ -95,11 +120,10 @@ impl KeymapPrintSection {
 
         let get_column_constraint = |column_index: usize| {
             let min_width = self
-                .key_meanings
+                .keys
                 .iter()
                 .filter_map(|row| row.get(column_index))
-                .flatten()
-                .map(|content| content.len())
+                .map(|key| key.display(show_shift_alt_keys).len())
                 .max()
                 .unwrap_or_default() as u16;
             ColumnConstraint::LowerBoundary(Width::Fixed(min_width.min(max_column_width)))
@@ -182,6 +206,7 @@ fn print_single_keymap_table(keymap: &KeymapPrintSection) {
         crossterm::terminal::size()
             .map(|(terminal_width, _)| terminal_width / 11)
             .unwrap_or(8),
+        true,
     );
 
     println!("{}", table);
@@ -216,14 +241,8 @@ fn print_keymap_drawer(section: &KeymapPrintSection) {
         .replace("+", "plus");
 
     println!("  {}:", safe_name);
-    for row in section.key_meanings.iter() {
-        let row_strings: Vec<&str> = row
-            .iter()
-            .map(|meaning| match meaning {
-                Some(display) => display,
-                None => "",
-            })
-            .collect();
+    for row in section.keys.iter() {
+        let row_strings: Vec<String> = row.iter().map(|key| key.display(true)).collect();
 
         println!("    - [\"{}\"]", row_strings.join("\", \""));
     }
