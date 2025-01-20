@@ -1,5 +1,5 @@
 use crate::{
-    buffer::Buffer,
+    buffer::{Buffer, BufferOwner},
     clipboard::CopiedTexts,
     components::{
         component::{Component, ComponentId, GetGridResult},
@@ -17,7 +17,6 @@ use crate::{
     frontend::Frontend,
     git,
     grid::{Grid, LineUpdate},
-    history::History,
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
@@ -73,8 +72,6 @@ pub(crate) struct App<T: Frontend> {
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
 
-    /// Used for navigating between opened files
-    file_path_history: History<CanonicalizedPath>,
     status_line_components: Vec<StatusLineComponent>,
     last_action_description: Option<String>,
 }
@@ -134,9 +131,6 @@ impl<T: Frontend> App<T> {
             frontend,
             syntax_highlight_request_sender: None,
             global_title: None,
-
-            file_path_history: History::new(),
-
             status_line_components,
             last_action_description: None,
         };
@@ -166,7 +160,7 @@ impl<T: Frontend> App<T> {
             if entry_path.as_ref().is_dir() {
                 self.layout.open_file_explorer();
             } else {
-                self.open_file(&entry_path, OpenFileOption::Focus)?;
+                self.open_file(&entry_path, BufferOwner::User, true)?;
             }
         }
 
@@ -428,12 +422,11 @@ impl<T: Frontend> App<T> {
                 if_current_not_found,
             } => self.open_search_prompt(scope, if_current_not_found)?,
             Dispatch::OpenPipeToShellPrompt => self.open_pipe_to_shell_prompt()?,
-            Dispatch::OpenFile(path) => {
-                self.open_file(&path, OpenFileOption::Focus)?;
+            Dispatch::OpenFile { path, owner, focus } => {
+                self.open_file(&path, owner, focus)?;
             }
-
-            Dispatch::OpenFileFromPathBuf(path) => {
-                self.open_file(&path.try_into()?, OpenFileOption::Focus)?;
+            Dispatch::OpenFileFromPathBuf { path, owner, focus } => {
+                self.open_file(&path.try_into()?, owner, focus)?;
             }
 
             Dispatch::OpenFilePicker(kind) => {
@@ -733,8 +726,6 @@ impl<T: Frontend> App<T> {
                 self.open_code_actions_prompt(code_actions)?;
             }
             Dispatch::OtherWindow => self.layout.cycle_window(),
-            Dispatch::GoToPreviousFile => self.go_to_previous_file()?,
-            Dispatch::GoToNextFile => self.go_to_next_file()?,
             Dispatch::CycleBuffer(direction) => self.cycle_buffer(direction)?,
             Dispatch::JumpEditor(tag) => self.handle_jump_editor(tag)?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
@@ -956,7 +947,11 @@ impl<T: Frontend> App<T> {
                             format!("{} {}", shared::icons::get_icon_config().folder, relative,)
                         }))
                         .set_dispatches(Dispatches::one(
-                            crate::app::Dispatch::OpenFileFromPathBuf(path),
+                            crate::app::Dispatch::OpenFileFromPathBuf {
+                                path,
+                                owner: BufferOwner::User,
+                                focus: true,
+                            },
                         ))
                     })
                     .collect_vec()
@@ -975,18 +970,17 @@ impl<T: Frontend> App<T> {
     fn open_file(
         &mut self,
         path: &CanonicalizedPath,
-        option: OpenFileOption,
+        owner: BufferOwner,
+        focus: bool,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
-        if option.store_history() {
-            self.file_path_history.push(path.clone())
-        }
-        // Check if the file is opened before
-        // so that we won't notify the LSP twice
-        if let Some(matching_editor) = self.layout.open_file(path, option.is_focus()) {
+        // Check if the file is opened before so that we won't notify the LSP twice
+        if let Some(matching_editor) = self.layout.open_file(path, focus) {
             return Ok(matching_editor);
         }
 
-        let buffer = Buffer::from_path(path, true)?;
+        let mut buffer = Buffer::from_path(path, true)?;
+        buffer.set_owner(owner);
+
         let language = buffer.language();
         let content = buffer.content();
         let buffer = Rc::new(RefCell::new(buffer));
@@ -996,11 +990,10 @@ impl<T: Frontend> App<T> {
 
         self.layout.add_suggestive_editor(component.clone());
 
-        if option.is_focus() {
+        if focus {
             self.layout
                 .replace_and_focus_current_suggestive_editor(component.clone())
         }
-
         if let Some(language) = language {
             self.request_syntax_highlight(component_id, language, content)?;
         }
@@ -1130,7 +1123,7 @@ impl<T: Frontend> App<T> {
         path: CanonicalizedPath,
         diagnostics: Vec<lsp_types::Diagnostic>,
     ) -> anyhow::Result<()> {
-        let component = self.open_file(&path, OpenFileOption::Background)?;
+        let component = self.open_file(&path, BufferOwner::System, false)?;
 
         component
             .borrow_mut()
@@ -1173,7 +1166,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn go_to_location(&mut self, Location { path, range }: &Location) -> Result<(), anyhow::Error> {
-        let component = self.open_file(path, OpenFileOption::Focus)?;
+        let component = self.open_file(path, BufferOwner::System, true)?;
         let dispatches = component
             .borrow_mut()
             .editor_mut()
@@ -1202,7 +1195,7 @@ impl<T: Frontend> App<T> {
                     .chunk_by(|item| item.location().path.clone())
                     .into_iter()
                     .map(|(path, items)| -> anyhow::Result<()> {
-                        let editor = self.open_file(&path, OpenFileOption::Background)?;
+                        let editor = self.open_file(&path, BufferOwner::System, true)?;
                         editor
                             .borrow_mut()
                             .editor_mut()
@@ -1235,7 +1228,7 @@ impl<T: Frontend> App<T> {
         // TODO: should we wrap this in a transaction so that if one of the edit/operation fails, the whole transaction fails?
         // Such that it won't leave the workspace in an half-edited messed up state
         for edit in workspace_edit.edits {
-            let component = self.open_file(&edit.path, OpenFileOption::Background)?;
+            let component = self.open_file(&edit.path, BufferOwner::System, false)?;
             let dispatches = component
                 .borrow_mut()
                 .editor_mut()
@@ -1848,32 +1841,26 @@ impl<T: Frontend> App<T> {
             .collect_vec()
     }
 
-    fn go_to_previous_file(&mut self) -> anyhow::Result<()> {
-        if let Some(path) = self.file_path_history.undo() {
-            self.open_file(&path, OpenFileOption::FocusNoHistory)?;
-        }
-        Ok(())
-    }
-
-    fn go_to_next_file(&mut self) -> anyhow::Result<()> {
-        if let Some(path) = self.file_path_history.redo() {
-            self.open_file(&path, OpenFileOption::FocusNoHistory)?;
-        }
-        Ok(())
-    }
-
     fn cycle_buffer(&mut self, direction: Direction) -> anyhow::Result<()> {
         if let Some(current_file_path) = self.current_component().borrow().path() {
-            let files = self.layout.get_opened_files();
-            if let Some(current_index) = files.iter().position(|p| p == &current_file_path) {
+            let file_paths = self.layout.get_opened_files();
+            if let Some(current_index) = file_paths
+                .iter()
+                .position(|path| path == &current_file_path)
+            {
                 let next_index = match direction {
-                    Direction::Start if current_index == 0 => files.len() - 1,
+                    Direction::Start if current_index == 0 => file_paths.len() - 1,
                     Direction::Start => current_index - 1,
-                    Direction::End if current_index == files.len() - 1 => 0,
+                    Direction::End if current_index == file_paths.len() - 1 => 0,
                     Direction::End => current_index + 1,
                 };
-
-                self.open_file(&files[next_index], OpenFileOption::Focus)?;
+                // We are doing defensive programming here
+                // to ensure that Ki editor never crashes
+                if let Some(path) = file_paths.get(next_index) {
+                    self.layout.open_file(path, true);
+                } else {
+                    return Err(anyhow::anyhow!("App::cycle_buffer: file_paths.get(next_index) should never return None unless next_index is computed errorneously."));
+                }
             }
         }
         Ok(())
@@ -1883,10 +1870,14 @@ impl<T: Frontend> App<T> {
         let new_tag = match self.layout.find_editor_tagged(tag) {
             // Case 1: Found a non-current editor that has this tag
             //    - Jump to it
-            Some(tagged_editor)
-                if Some(tagged_editor.clone()) != self.current_component().borrow().path() =>
+            Some(tagged_editor_path)
+                if Some(tagged_editor_path.clone()) != self.current_component().borrow().path() =>
             {
-                self.open_file(&tagged_editor, OpenFileOption::Focus)?;
+                if self.layout.open_file(&tagged_editor_path, true).is_none() {
+                    return Err(anyhow::anyhow!(
+                        "App::handle_jump_editor: opening tagged_editor_path should never fail unless Layout::find_editor_tagged is errorneous."
+                    ));
+                };
 
                 return Ok(());
             }
@@ -2281,8 +2272,16 @@ pub(crate) enum Dispatch {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
     },
-    OpenFile(CanonicalizedPath),
-    OpenFileFromPathBuf(PathBuf),
+    OpenFile {
+        path: CanonicalizedPath,
+        owner: BufferOwner,
+        focus: bool,
+    },
+    OpenFileFromPathBuf {
+        path: PathBuf,
+        owner: BufferOwner,
+        focus: bool,
+    },
     ShowGlobalInfo(Info),
     RequestCompletion,
     RequestSignatureHelp,
@@ -2407,8 +2406,6 @@ pub(crate) enum Dispatch {
     OtherWindow,
     CloseCurrentWindowAndFocusParent,
     CloseEditorInfo,
-    GoToPreviousFile,
-    GoToNextFile,
     CycleBuffer(Direction),
     JumpEditor(char),
     PushPromptHistory {
@@ -2622,7 +2619,11 @@ impl DispatchPrompt {
             }
             DispatchPrompt::OpenFile { working_directory } => {
                 let path = working_directory.join(text)?;
-                Ok(Dispatches::new(vec![Dispatch::OpenFile(path)]))
+                Ok(Dispatches::new(vec![Dispatch::OpenFile {
+                    path,
+                    owner: BufferOwner::User,
+                    focus: true,
+                }]))
             }
             DispatchPrompt::UpdateLocalSearchConfigReplacement {
                 scope,
@@ -2653,21 +2654,5 @@ impl DispatchPrompt {
                 }),
             )),
         }
-    }
-}
-
-#[derive(PartialEq)]
-enum OpenFileOption {
-    Focus,
-    FocusNoHistory,
-    Background,
-}
-impl OpenFileOption {
-    fn is_focus(&self) -> bool {
-        self != &OpenFileOption::Background
-    }
-
-    fn store_history(&self) -> bool {
-        self == &OpenFileOption::Focus
     }
 }

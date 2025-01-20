@@ -73,6 +73,17 @@ For example, the search query `stb 'wild` matches `wild-serbian-bear-tiger` and 
 
 Because [every component is a buffer/editor](../core-concepts.md#2-every-component-is-a-buffereditor), fuzzy search logic is also used for filtering LSP completions.
 
+### Buffer Behavior
+
+The buffer navigation, including the Buffer List and Previous/Next Buffer options, displays only files
+that have been directly opened or edited by the user. Files that are merely displayed, such as those
+from search results or diagnostic messages, do not automatically become part of the buffer list.
+
+For example, if you rename a symbol in `file1.rs` and this causes an error in `file2.rs`, `file2.rs`
+will be shown when navigating diagnostic messages. However, unless you edit `file2.rs`, it will not be
+added to the buffer list. Similarly, if you search your project and view results in multiple files,
+these files will not be included in the buffer list unless you edit them.
+
 ## Opening other components
 
 | Keybinding | Action                                   |

@@ -119,12 +119,6 @@ impl Editor {
                     Dispatch::ToEditor(GoForward),
                 ),
                 Keymap::new(
-                    "{",
-                    "Go to previous file".to_string(),
-                    Dispatch::GoToPreviousFile,
-                ),
-                Keymap::new("}", "Go to next file".to_string(), Dispatch::GoToNextFile),
-                Keymap::new(
                     "-",
                     "Go to previous buffer".to_string(),
                     Dispatch::CycleBuffer(Direction::Start),
