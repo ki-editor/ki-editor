@@ -6,6 +6,7 @@ use crate::{
         dropdown::{DropdownItem, DropdownRender},
         editor::{Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement},
         editor_keymap::{Meaning, KEYBOARD_LAYOUT},
+        file_explorer::FileExplorer,
         keymap_legend::{
             Keymap, KeymapLegendBody, KeymapLegendConfig, KeymapLegendSection, Keymaps,
         },
@@ -627,10 +628,10 @@ impl<T: Frontend> App<T> {
             Dispatch::QuitAll => self.quit_all()?,
             Dispatch::SaveQuitAll => self.save_quit_all()?,
             Dispatch::RevealInExplorer(path) => self.reveal_path_in_explorer(&path)?,
-            Dispatch::OpenYesNoPrompt(prompt) => self.open_yes_no_prompt(prompt)?,
-            Dispatch::OpenMoveFilePrompt(path) => self.open_move_file_prompt(path)?,
-            Dispatch::OpenCopyFilePrompt(path) => self.open_copy_file_prompt(path)?,
-            Dispatch::OpenAddPathPrompt(path) => self.open_add_path_prompt(path)?,
+            Dispatch::OpenMoveFilePrompt => self.open_move_file_prompt()?,
+            Dispatch::OpenDuplicateFilePrompt => self.open_copy_file_prompt()?,
+            Dispatch::OpenAddPathPrompt => self.open_add_path_prompt()?,
+            Dispatch::OpenDeleteFilePrompt => self.open_delete_file_prompt()?,
             Dispatch::DeletePath(path) => self.delete_path(&path)?,
             Dispatch::Null => {
                 // do nothing
@@ -864,49 +865,83 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    fn open_add_path_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                title: "Add path".to_string(),
-                on_enter: DispatchPrompt::AddPath,
-                items: Vec::new(),
-                enter_selects_first_matching_item: false,
-                leaves_current_line_empty: false,
-                fire_dispatches_on_change: None,
-            },
-            PromptHistoryKey::AddPath,
-            Some(path.display_absolute()),
-        )
+    fn get_file_explorer_current_path(&mut self) -> anyhow::Result<Option<CanonicalizedPath>> {
+        self.current_component()
+            .borrow_mut()
+            .as_any_mut()
+            .downcast_mut::<FileExplorer>()
+            .and_then(|file_explorer| file_explorer.get_current_path().transpose())
+            .transpose()
     }
 
-    fn open_move_file_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                title: "Move path".to_string(),
-                on_enter: DispatchPrompt::MovePath { from: path.clone() },
-                items: Vec::new(),
-                enter_selects_first_matching_item: false,
-                leaves_current_line_empty: false,
-                fire_dispatches_on_change: None,
-            },
-            PromptHistoryKey::MovePath,
-            Some(path.display_absolute()),
-        )
+    fn open_delete_file_prompt(&mut self) -> anyhow::Result<()> {
+        if let Some(path) = self.get_file_explorer_current_path()? {
+            self.open_yes_no_prompt(YesNoPrompt {
+                title: format!("Delete \"{}\"?", path.display_absolute()),
+                yes: Box::new(Dispatch::DeletePath(path.clone())),
+            })
+        } else {
+            Ok(())
+        }
     }
 
-    fn open_copy_file_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                title: "Copy current file to a new path".to_string(),
-                on_enter: DispatchPrompt::CopyFile { from: path.clone() },
-                items: Vec::new(),
-                enter_selects_first_matching_item: false,
-                leaves_current_line_empty: false,
-                fire_dispatches_on_change: None,
-            },
-            PromptHistoryKey::CopyFile,
-            Some(path.display_absolute()),
-        )
+    fn open_add_path_prompt(&mut self) -> anyhow::Result<()> {
+        if let Some(path) = self.get_file_explorer_current_path()? {
+            self.open_prompt(
+                PromptConfig {
+                    title: "Add path".to_string(),
+                    on_enter: DispatchPrompt::AddPath,
+                    items: Vec::new(),
+                    enter_selects_first_matching_item: false,
+                    leaves_current_line_empty: false,
+                    fire_dispatches_on_change: None,
+                },
+                PromptHistoryKey::AddPath,
+                Some(path.display_absolute()),
+            )
+        } else {
+            Ok(())
+        }
+    }
+
+    fn open_move_file_prompt(&mut self) -> anyhow::Result<()> {
+        let path = self.get_file_explorer_current_path()?;
+        if let Some(path) = path {
+            self.open_prompt(
+                PromptConfig {
+                    title: "Move path".to_string(),
+                    on_enter: DispatchPrompt::MovePath { from: path.clone() },
+                    items: Vec::new(),
+                    enter_selects_first_matching_item: false,
+                    leaves_current_line_empty: false,
+                    fire_dispatches_on_change: None,
+                },
+                PromptHistoryKey::MovePath,
+                Some(path.display_absolute()),
+            )
+        } else {
+            Ok(())
+        }
+    }
+
+    fn open_copy_file_prompt(&mut self) -> anyhow::Result<()> {
+        let path = self.get_file_explorer_current_path()?;
+        if let Some(path) = path {
+            self.open_prompt(
+                PromptConfig {
+                    title: format!("Duplicate '{}' to", path.display_absolute()),
+                    on_enter: DispatchPrompt::CopyFile { from: path.clone() },
+                    items: Vec::new(),
+                    enter_selects_first_matching_item: false,
+                    leaves_current_line_empty: false,
+                    fire_dispatches_on_change: None,
+                },
+                PromptHistoryKey::CopyFile,
+                Some(path.display_absolute()),
+            )
+        } else {
+            Ok(())
+        }
     }
 
     fn open_symbol_picker(&mut self, symbols: Symbols) -> anyhow::Result<()> {
@@ -1351,7 +1386,7 @@ impl<T: Frontend> App<T> {
 
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
         self.handle_dispatch(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-            title: "Prompt".to_string(),
+            title: prompt.title.to_string(),
             body: KeymapLegendBody::MultipleSections {
                 sections: [KeymapLegendSection {
                     title: prompt.title,
@@ -1653,113 +1688,61 @@ impl<T: Frontend> App<T> {
         };
         self.show_keymap_legend(KeymapLegendConfig {
             title: format!("Configure Search ({:?})", scope),
-            body: KeymapLegendBody::MultipleSections {
-                sections: [
-                    KeymapLegendSection {
-                        title: "Inputs".to_string(),
-                        keymaps: Keymaps::new(
-                            &[
-                                Keymap::new(
-                                    "/",
-                                    format!("Search = {}", local_search_config.search()),
-                                    Dispatch::OpenUpdateSearchPrompt {
-                                        scope,
-                                        if_current_not_found,
-                                    },
-                                ),
-                                Keymap::new(
-                                    "r",
-                                    format!("Replacement = {}", local_search_config.replacement()),
-                                    Dispatch::OpenUpdateReplacementPrompt {
-                                        scope,
-                                        if_current_not_found,
-                                    },
-                                ),
-                            ]
-                            .into_iter()
-                            .chain(
-                                global_search_confing
-                                    .map(|config| {
-                                        [
-                                            Keymap::new(
-                                                "I",
-                                                format!(
-                                                    "Include files (glob) = {}",
-                                                    config
-                                                        .include_glob()
-                                                        .map(|glob| glob.to_string())
-                                                        .unwrap_or_default()
-                                                ),
-                                                Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
-                                                    filter_glob: GlobalSearchFilterGlob::Include,
-                                                    if_current_not_found,
-                                                },
-                                            ),
-                                            Keymap::new(
-                                                "E",
-                                                format!(
-                                                    "Exclude files (glob) = {}",
-                                                    config
-                                                        .exclude_glob()
-                                                        .map(|glob| glob.to_string())
-                                                        .unwrap_or_default()
-                                                ),
-                                                Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
-                                                    filter_glob: GlobalSearchFilterGlob::Exclude,
-                                                    if_current_not_found,
-                                                },
-                                            ),
-                                        ]
-                                        .to_vec()
-                                    })
-                                    .unwrap_or_default(),
-                            )
-                            .collect_vec(),
-                        ),
-                    },
-                    KeymapLegendSection {
-                        title: "Mode".to_string(),
-                        keymaps: Keymaps::new(&[
-                            update_mode_keymap(
-                                "a",
-                                "AST Grep".to_string(),
-                                LocalSearchConfigMode::AstGrep,
-                                local_search_config.mode == LocalSearchConfigMode::AstGrep,
-                            ),
-                            update_mode_keymap(
-                                "n",
-                                "Naming Convention Agnostic".to_string(),
-                                LocalSearchConfigMode::NamingConventionAgnostic,
-                                local_search_config.mode
-                                    == LocalSearchConfigMode::NamingConventionAgnostic,
-                            ),
-                            update_mode_keymap(
-                                "l",
-                                "Literal".to_string(),
-                                LocalSearchConfigMode::Regex(RegexConfig {
-                                    escaped: true,
-                                    ..regex.unwrap_or_default()
-                                }),
-                                regex.map(|regex| regex.escaped).unwrap_or(false),
-                            ),
-                            update_mode_keymap(
-                                "x",
-                                "Regex".to_string(),
-                                LocalSearchConfigMode::Regex(RegexConfig {
-                                    escaped: false,
-                                    ..regex.unwrap_or_default()
-                                }),
-                                regex.map(|regex| !regex.escaped).unwrap_or(false),
-                            ),
-                        ]),
-                    },
+            body: KeymapLegendBody::Mnemonic(Keymaps::new(
+                &[
+                    Keymap::new(
+                        "/",
+                        format!("Search = {}", local_search_config.search()),
+                        Dispatch::OpenUpdateSearchPrompt {
+                            scope,
+                            if_current_not_found,
+                        },
+                    ),
+                    Keymap::new(
+                        "r",
+                        format!("Replacement = {}", local_search_config.replacement()),
+                        Dispatch::OpenUpdateReplacementPrompt {
+                            scope,
+                            if_current_not_found,
+                        },
+                    ),
+                    update_mode_keymap(
+                        "a",
+                        "AST Grep".to_string(),
+                        LocalSearchConfigMode::AstGrep,
+                        local_search_config.mode == LocalSearchConfigMode::AstGrep,
+                    ),
+                    update_mode_keymap(
+                        "n",
+                        "Naming Convention Agnostic".to_string(),
+                        LocalSearchConfigMode::NamingConventionAgnostic,
+                        local_search_config.mode == LocalSearchConfigMode::NamingConventionAgnostic,
+                    ),
+                    update_mode_keymap(
+                        "l",
+                        "Literal".to_string(),
+                        LocalSearchConfigMode::Regex(RegexConfig {
+                            escaped: true,
+                            ..regex.unwrap_or_default()
+                        }),
+                        regex.map(|regex| regex.escaped).unwrap_or(false),
+                    ),
+                    update_mode_keymap(
+                        "x",
+                        "Regex".to_string(),
+                        LocalSearchConfigMode::Regex(RegexConfig {
+                            escaped: false,
+                            ..regex.unwrap_or_default()
+                        }),
+                        regex.map(|regex| !regex.escaped).unwrap_or(false),
+                    ),
+                    Keymap::new("R", "Replace all".to_string(), Dispatch::Replace { scope }),
                 ]
                 .into_iter()
-                .chain(regex.map(|regex| {
-                    KeymapLegendSection {
-                        title: "Options".to_string(),
-                        keymaps: Keymaps::new(
-                            &[
+                .chain(
+                    regex
+                        .map(|regex| {
+                            [
                                 update_mode_keymap(
                                     "c",
                                     "Case-sensitive".to_string(),
@@ -1799,21 +1782,49 @@ impl<T: Frontend> App<T> {
                                     regex.match_whole_word && regex.case_sensitive,
                                 ),
                             ]
-                            .into_iter()
-                            .collect_vec(),
-                        ),
-                    }
-                }))
-                .chain(Some(KeymapLegendSection {
-                    title: "Actions".to_string(),
-                    keymaps: Keymaps::new(&[Keymap::new(
-                        "R",
-                        "Replace all".to_string(),
-                        Dispatch::Replace { scope },
-                    )]),
-                }))
-                .collect(),
-            },
+                            .to_vec()
+                        })
+                        .unwrap_or_default(),
+                )
+                .chain(
+                    global_search_confing
+                        .map(|config| {
+                            [
+                                Keymap::new(
+                                    "I",
+                                    format!(
+                                        "Include files (glob) = {}",
+                                        config
+                                            .include_glob()
+                                            .map(|glob| glob.to_string())
+                                            .unwrap_or_default()
+                                    ),
+                                    Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
+                                        filter_glob: GlobalSearchFilterGlob::Include,
+                                        if_current_not_found,
+                                    },
+                                ),
+                                Keymap::new(
+                                    "E",
+                                    format!(
+                                        "Exclude files (glob) = {}",
+                                        config
+                                            .exclude_glob()
+                                            .map(|glob| glob.to_string())
+                                            .unwrap_or_default()
+                                    ),
+                                    Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
+                                        filter_glob: GlobalSearchFilterGlob::Exclude,
+                                        if_current_not_found,
+                                    },
+                                ),
+                            ]
+                            .to_vec()
+                        })
+                        .unwrap_or_default(),
+                )
+                .collect_vec(),
+            )),
         })
     }
 
@@ -2374,10 +2385,9 @@ pub(crate) enum Dispatch {
     QuitAll,
     SaveQuitAll,
     RevealInExplorer(CanonicalizedPath),
-    OpenYesNoPrompt(YesNoPrompt),
-    OpenMoveFilePrompt(CanonicalizedPath),
-    OpenCopyFilePrompt(CanonicalizedPath),
-    OpenAddPathPrompt(CanonicalizedPath),
+    OpenMoveFilePrompt,
+    OpenDuplicateFilePrompt,
+    OpenAddPathPrompt,
     DeletePath(CanonicalizedPath),
     Null,
     MoveFile {
@@ -2475,6 +2485,7 @@ pub(crate) enum Dispatch {
         maintain: bool,
     },
     MoveToCompletionItem(Direction),
+    OpenDeleteFilePrompt,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

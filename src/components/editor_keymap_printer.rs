@@ -1,15 +1,9 @@
-use std::{cell::RefCell, rc::Rc};
-
 use crate::{
-    app::Dispatch::SetLastActionDescription,
-    buffer::Buffer,
     components::{
-        dropdown::DropdownItem,
-        editor::{Editor, Mode},
+        editor::Editor,
         editor_keymap::{shifted, KeyboardLayout, KEYBOARD_LAYOUT},
     },
     context::Context,
-    lsp::completion::Completion,
 };
 use comfy_table::{
     Cell, CellAlignment,
@@ -17,15 +11,9 @@ use comfy_table::{
     Table,
     Width::{self, Fixed},
 };
-use event::{parse_key_event, KeyEvent, KeyModifiers};
 use itertools::Itertools;
 
-use super::{
-    component::Component,
-    editor_keymap::alted,
-    keymap_legend::Keymaps,
-    suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
-};
+use super::{editor_keymap::alted, keymap_legend::Keymaps};
 
 #[derive(Debug, Clone)]
 pub(crate) struct KeymapPrintSection {
@@ -42,7 +30,7 @@ impl KeymapPrintSection {
         KeymapPrintSection {
             name,
             key_meanings: keyboard_layout
-                .into_iter()
+                .iter()
                 .map(|row| {
                     row.iter()
                         .map(|cell| {
@@ -57,10 +45,9 @@ impl KeymapPrintSection {
                                             .unwrap_or_else(|| keymap.description.clone());
                                         if key_event == **cell {
                                             Some(description.clone())
-                                        } else if key_event.replace("shift+", "") == shifted(*cell)
-                                        {
+                                        } else if key_event.replace("shift+", "") == shifted(cell) {
                                             Some(format!("⇧ {description}"))
-                                        } else if key_event == alted(*cell) {
+                                        } else if key_event == alted(cell) {
                                             Some(format!("⌥ {description}"))
                                         } else {
                                             None
@@ -83,86 +70,6 @@ impl KeymapPrintSection {
         self.key_meanings
             .iter()
             .any(|meanings| meanings.iter().any(Option::is_some))
-    }
-
-    fn keyboard_layout_to_keymaps(
-        keyboard_layout: &KeyboardLayout,
-        mode: Mode,
-        modifiers: KeyModifiers,
-        initial_key_events: Option<Vec<KeyEvent>>,
-    ) -> Vec<Vec<Option<String>>> {
-        keyboard_layout
-            .iter()
-            .map(|row| {
-                row.iter()
-                    .map(|key| {
-                        let mut editor = SuggestiveEditor::from_buffer(
-                            Rc::new(RefCell::new(Buffer::new(None, ""))),
-                            SuggestiveEditorFilter::CurrentLine,
-                        );
-                        // This is necessary for extracting Next/Prev Completion Item keybindings
-                        editor.set_completion(Completion {
-                            items: [
-                                DropdownItem::new("foo".to_string()),
-                                DropdownItem::new("bar".to_string()),
-                            ]
-                            .to_vec(),
-                            trigger_characters: vec![],
-                        });
-                        editor.editor_mut().mode = mode.clone();
-                        let context = Context::default();
-                        for key_event in initial_key_events.clone().unwrap_or_default() {
-                            let _ = editor
-                                .editor_mut()
-                                .handle_key_event(&context, key_event)
-                                .unwrap();
-                        }
-                        let key_event =
-                            parse_key_event(&Self::generate_key_string(modifiers.clone(), key))
-                                .ok()?;
-                        let dispatches = editor.handle_key_event(&context, key_event).ok()?;
-                        let dispatches = dispatches.into_vec();
-                        dispatches.into_iter().find_map(|dispatch| match dispatch {
-                            SetLastActionDescription {
-                                long_description,
-                                short_description,
-                            } => Some(short_description.unwrap_or(long_description)),
-                            _ => None,
-                        })
-                    })
-                    .collect()
-            })
-            .collect()
-    }
-
-    fn generate_key_string(modifiers: KeyModifiers, key: &'static str) -> String {
-        // The modifiers act differently with shifted ,./;' keys. They actually should not be Shift+,
-        // or Shift+., etc... but <, >, etc... This function will map the Shift modifier
-        // and characters correctly.
-
-        let (modifier, key) = if modifiers == KeyModifiers::Shift {
-            (Self::shifted_modifier(key), shifted(key))
-        } else {
-            (modifiers.clone(), key)
-        };
-
-        let modifier_joiner = match modifier {
-            KeyModifiers::None => "",
-            _ => "+",
-        };
-
-        format!("{}{}{}", modifier.to_string(), modifier_joiner, key)
-    }
-
-    fn shifted_modifier(key: &'static str) -> KeyModifiers {
-        match key {
-            "," => KeyModifiers::None,
-            "." => KeyModifiers::None,
-            "/" => KeyModifiers::None,
-            ";" => KeyModifiers::None,
-            "'" => KeyModifiers::None,
-            _ => KeyModifiers::Shift,
-        }
     }
 
     pub(crate) fn display(&self, terminal_width: u16) -> String {
@@ -224,8 +131,6 @@ impl KeymapPrintSection {
 type KeymapPrintSections = Vec<KeymapPrintSection>;
 
 fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections {
-    use KeyModifiers::*;
-    use Mode::*;
     let editor = Editor::from_text(Option::None, "");
     let sections: Vec<KeymapPrintSection> = [
         KeymapPrintSection::from_keymaps(

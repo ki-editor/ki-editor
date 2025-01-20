@@ -289,7 +289,7 @@ impl Editor {
     }
     pub(crate) fn keymap_actions(
         &self,
-        normal_mode_override: NormalModeOverride,
+        normal_mode_override: &NormalModeOverride,
     ) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Action".to_string(),
@@ -381,35 +381,35 @@ impl Editor {
                             "Change".to_string(),
                             Dispatch::ToEditor(Change),
                         )
-                        .override_keymap(normal_mode_override.change),
+                        .override_keymap(normal_mode_override.change.as_ref()),
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_key(&Meaning::DeltN),
                             "delete→".to_string(),
                             Direction::End.format_action("Delete"),
                             Dispatch::ToEditor(Delete(Direction::End)),
                         )
-                        .override_keymap(normal_mode_override.delete),
+                        .override_keymap(normal_mode_override.delete.as_ref()),
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_key(&Meaning::DeltP),
                             "delete ←".to_string(),
                             Direction::Start.format_action("Delete"),
                             Dispatch::ToEditor(Delete(Direction::Start)),
                         )
-                        .override_keymap(normal_mode_override.delete_backward),
+                        .override_keymap(normal_mode_override.delete_backward.as_ref()),
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_key(&Meaning::InstP),
                             "insert ←".to_string(),
                             Direction::Start.format_action("Insert"),
                             Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
                         )
-                        .override_keymap(normal_mode_override.insert),
+                        .override_keymap(normal_mode_override.insert.as_ref()),
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_key(&Meaning::InstN),
                             "insert→".to_string(),
                             Direction::End.format_action("Insert"),
                             Dispatch::ToEditor(EnterInsertMode(Direction::End)),
                         )
-                        .override_keymap(normal_mode_override.append),
+                        .override_keymap(normal_mode_override.append.as_ref()),
                     ]
                     .to_vec()
                 })
@@ -505,7 +505,7 @@ impl Editor {
                         Direction::End.format_action("Open"),
                         Dispatch::ToEditor(Open(Direction::End)),
                     )
-                    .override_keymap(normal_mode_override.open)
+                    .override_keymap(normal_mode_override.open.as_ref())
                 }))
                 .chain(Some(if self.selection_set.is_extended() {
                     Keymap::new_extended(
@@ -532,7 +532,11 @@ impl Editor {
         }
     }
 
-    fn keymap_clipboard_related_actions(&self, use_system_clipboard: bool) -> KeymapLegendSection {
+    fn keymap_clipboard_related_actions(
+        &self,
+        use_system_clipboard: bool,
+        normal_mode_override: NormalModeOverride,
+    ) -> KeymapLegendSection {
         let extra = if use_system_clipboard { "+ " } else { "" };
         let format = |description: &str| format!("{extra}{description}");
         KeymapLegendSection {
@@ -549,16 +553,17 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::PsteN),
-                        format("paste→{extra}"),
+                        format("paste→"),
                         format!("{}{}", Direction::End.format_action("Paste"), extra),
                         Dispatch::ToEditor(Paste {
                             direction: Direction::End,
                             use_system_clipboard,
                         }),
-                    ),
+                    )
+                    .override_keymap(normal_mode_override.paste.clone().as_ref()),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::PsteP),
-                        format("paste ←{extra}"),
+                        format("paste ←"),
                         format!("{}{}", Direction::Start.format_action("Paste"), extra),
                         Dispatch::ToEditor(Paste {
                             direction: Direction::Start,
@@ -567,7 +572,7 @@ impl Editor {
                     ),
                     Keymap::new_extended(
                         KEYBOARD_LAYOUT.get_key(&Meaning::RplcX),
-                        format("Replace X{extra}"),
+                        format("Replace X"),
                         format!("{}{}", "Replace Cut", extra),
                         Dispatch::ToEditor(ReplaceWithCopiedText {
                             use_system_clipboard,
@@ -590,7 +595,8 @@ impl Editor {
                             use_system_clipboard,
                             cut: false,
                         }),
-                    ),
+                    )
+                    .override_keymap(normal_mode_override.replace.as_ref()),
                 ]
                 .into_iter()
                 .collect_vec(),
@@ -866,8 +872,12 @@ impl Editor {
         &self,
         context: &Context,
         title: &'static str,
-        normal_mode_override: NormalModeOverride,
+        normal_mode_override: Option<NormalModeOverride>,
     ) -> KeymapLegendConfig {
+        let normal_mode_override = normal_mode_override
+            .clone()
+            .or_else(|| self.normal_mode_override.clone())
+            .unwrap_or_default();
         KeymapLegendConfig {
             title: title.to_string(),
             body: KeymapLegendBody::MultipleSections {
@@ -876,8 +886,8 @@ impl Editor {
                     self.keymap_movement_actions(),
                     self.keymap_other_movements(),
                     self.keymap_selection_modes(context),
-                    self.keymap_actions(normal_mode_override),
-                    self.keymap_clipboard_related_actions(false),
+                    self.keymap_actions(&normal_mode_override),
+                    self.keymap_clipboard_related_actions(false, normal_mode_override),
                     self.keymap_others(context),
                     self.keymap_universal(),
                 ]
@@ -889,7 +899,7 @@ impl Editor {
     pub(crate) fn normal_mode_keymaps(
         &self,
         context: &Context,
-        normal_mode_override: NormalModeOverride,
+        normal_mode_override: Option<NormalModeOverride>,
     ) -> Keymaps {
         self.normal_mode_keymap_legend_config(context, "Normal", normal_mode_override)
             .keymaps()
@@ -902,7 +912,7 @@ impl Editor {
         self.normal_mode_keymap_legend_config(
             context,
             "Multicursor",
-            NormalModeOverride {
+            Some(NormalModeOverride {
                 insert: Some(KeymapOverride {
                     description: "Keep Match",
                     dispatch: Dispatch::OpenFilterSelectionsPrompt { maintain: true },
@@ -924,14 +934,14 @@ impl Editor {
                     dispatch: Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
                 }),
                 ..Default::default()
-            },
+            }),
         )
     }
     pub(crate) fn v_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         self.normal_mode_keymap_legend_config(
             context,
             "V-mode",
-            NormalModeOverride {
+            Some(NormalModeOverride {
                 insert: Some(KeymapOverride {
                     description: "Inside",
                     dispatch: Dispatch::ShowKeymapLegend(
@@ -961,14 +971,14 @@ impl Editor {
                     dispatch: Dispatch::ShowKeymapLegend(self.surround_keymap_legend_config()),
                 }),
                 ..Default::default()
-            },
+            }),
         )
     }
     pub(crate) fn handle_normal_mode(
         &mut self,
         context: &Context,
         event: KeyEvent,
-        normal_mode_override: NormalModeOverride,
+        normal_mode_override: Option<NormalModeOverride>,
     ) -> anyhow::Result<Dispatches> {
         if let Some(keymap) = self
             .normal_mode_keymaps(context, normal_mode_override)
@@ -1016,7 +1026,7 @@ impl Editor {
                     .keymaps()
                     .get(&other)
                 {
-                    return Ok(keymap.get_dispatches());
+                    Ok(keymap.get_dispatches())
                 } else {
                     Ok(Default::default())
                 }
@@ -1191,7 +1201,9 @@ impl Editor {
                             Dispatch::ToEditor(DispatchEditor::ShowKeymapLegendHelp),
                         )]),
                     }))
-                    .chain(Some(self.keymap_clipboard_related_actions(true)))
+                    .chain(Some(
+                        self.keymap_clipboard_related_actions(true, Default::default()),
+                    ))
                     .collect(),
             },
         }
@@ -1559,7 +1571,7 @@ impl Editor {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub(crate) struct NormalModeOverride {
     pub(crate) change: Option<KeymapOverride>,
     pub(crate) delete: Option<KeymapOverride>,
@@ -1567,8 +1579,11 @@ pub(crate) struct NormalModeOverride {
     pub(crate) append: Option<KeymapOverride>,
     pub(crate) open: Option<KeymapOverride>,
     pub(crate) delete_backward: Option<KeymapOverride>,
+    pub(crate) paste: Option<KeymapOverride>,
+    pub(crate) replace: Option<KeymapOverride>,
 }
 
+#[derive(Clone)]
 pub(crate) struct KeymapOverride {
     pub(crate) description: &'static str,
     pub(crate) dispatch: Dispatch,
@@ -1588,7 +1603,6 @@ fn generate_enclosures_keymaps(get_dispatch: impl Fn(EnclosureKind) -> Dispatch)
         .into_iter()
         .map(|(meaning, enclosure)| {
             let (open, close) = enclosure.open_close_symbols_str();
-            let description = enclosure.to_str();
             Keymap::new(
                 KEYBOARD_LAYOUT.get_surround_keymap(&meaning),
                 format!("{open} {close}"),

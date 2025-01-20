@@ -2,6 +2,7 @@ use super::{
     component::ComponentId,
     dropdown::DropdownRender,
     editor_keymap::{shifted_char, KEYBOARD_LAYOUT, KEYMAP_SCORE},
+    editor_keymap_legend::NormalModeOverride,
     render_editor::Source,
     suggestive_editor::{Decoration, Info},
 };
@@ -373,6 +374,7 @@ impl Clone for Editor {
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
             tag: None,
+            normal_mode_override: self.normal_mode_override.clone(),
         }
     }
 }
@@ -396,6 +398,7 @@ pub(crate) struct Editor {
     pub(crate) current_view_alignment: Option<ViewAlignment>,
     copied_text_history_offset: Counter,
     tag: Option<char>,
+    pub(crate) normal_mode_override: Option<NormalModeOverride>,
 }
 
 #[derive(Default)]
@@ -545,6 +548,7 @@ impl Editor {
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
             tag: None,
+            normal_mode_override: None,
         }
     }
 
@@ -563,6 +567,7 @@ impl Editor {
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
             tag: None,
+            normal_mode_override: None,
         }
     }
 
@@ -3236,6 +3241,10 @@ impl Editor {
             _ => self.normal_mode_keymap_legend_config(context, "Normal", Default::default()),
         };
         Ok(Dispatches::one(Dispatch::ShowKeymapLegend(config)))
+    }
+
+    pub(crate) fn set_normal_mode_override(&mut self, normal_mode_override: NormalModeOverride) {
+        self.normal_mode_override = Some(normal_mode_override)
     }
 }
 
