@@ -79,22 +79,10 @@ impl Layout {
             if let Some((_, editor)) = self
                 .background_suggestive_editors
                 .iter()
-                .skip_while(|(p, _)| p != &&path)
                 .skip_while(|(_, editor)| {
                     editor.borrow().editor().buffer().owner() == BufferOwner::System
                 })
-                .nth(1)
-                .or_else(|| {
-                    self.background_suggestive_editors
-                        .first()
-                        .and_then(|(path, editor)| {
-                            if editor.borrow().editor().buffer().owner() == BufferOwner::User {
-                                Some((path, editor))
-                            } else {
-                                None
-                            }
-                        })
-                })
+                .next()
             {
                 self.replace_and_focus_current_suggestive_editor(editor.clone())
             } else {
