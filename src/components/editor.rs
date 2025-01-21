@@ -332,6 +332,10 @@ impl Component for Editor {
             DeleteCurrentCursor(direction) => self.delete_current_cursor(direction),
             BreakSelection => return self.break_selection(),
             ShowHelp => return self.show_help(context),
+            HandleEsc => {
+                self.mode = Mode::Normal;
+                return Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent));
+            }
         }
         Ok(Default::default())
     }
@@ -3354,6 +3358,7 @@ pub(crate) enum DispatchEditor {
     DeleteCurrentCursor(Direction),
     BreakSelection,
     ShowHelp,
+    HandleEsc,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

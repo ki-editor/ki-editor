@@ -123,7 +123,7 @@ pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
         QSave, SaveA, Explr, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LRnme, LCdAc, _____,
+        Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LRnme, LCdAc, Pipe_,
     ],
     [
         UndoT, TSNSx, Copy_, PsteN, Rplc_, /****/ _____, ChngX, _____, _____, _____,
@@ -769,6 +769,8 @@ pub(crate) enum Meaning {
     Yes__,
     /// No
     No___,
+    /// Pipe selection to shell
+    Pipe_,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {
