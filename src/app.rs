@@ -7,9 +7,7 @@ use crate::{
         editor::{Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement},
         editor_keymap::{Meaning, KEYBOARD_LAYOUT},
         file_explorer::FileExplorer,
-        keymap_legend::{
-            Keymap, KeymapLegendBody, KeymapLegendConfig, KeymapLegendSection, Keymaps,
-        },
+        keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
         prompt::{Prompt, PromptConfig, PromptHistoryKey},
         suggestive_editor::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
@@ -1387,16 +1385,10 @@ impl<T: Frontend> App<T> {
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
         self.handle_dispatch(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
             title: prompt.title.to_string(),
-            body: KeymapLegendBody::MultipleSections {
-                sections: [KeymapLegendSection {
-                    title: prompt.title,
-                    keymaps: Keymaps::new(&[
-                        Keymap::new("y", "Yes".to_string(), *prompt.yes),
-                        Keymap::new("n", "No".to_string(), Dispatch::Null),
-                    ]),
-                }]
-                .to_vec(),
-            },
+            body: KeymapLegendBody::Mnemonic(Keymaps::new(&[
+                Keymap::new("y", "Yes".to_string(), *prompt.yes),
+                Keymap::new("n", "No".to_string(), Dispatch::Null),
+            ])),
         }))
     }
 

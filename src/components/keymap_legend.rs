@@ -34,9 +34,8 @@ pub(crate) struct KeymapLegendConfig {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum KeymapLegendBody {
-    SingleSection { keymaps: Keymaps },
+    Positional(Keymaps),
     Mnemonic(Keymaps),
-    MultipleSections { sections: Vec<KeymapLegendSection> },
 }
 const BETWEEN_KEY_AND_DESCRIPTION: &str = " → ";
 
@@ -146,36 +145,19 @@ fn dedent(s: &str) -> String {
     dedented_lines.join("\n")
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct KeymapLegendSection {
-    pub(crate) title: String,
-    pub(crate) keymaps: Keymaps,
-}
-
 impl KeymapLegendBody {
     fn display(&self, width: u16, show_shift_alt_keys: bool) -> String {
         match self {
-            KeymapLegendBody::SingleSection { keymaps } => {
+            KeymapLegendBody::Positional(keymaps) => {
                 keymaps.display_positional(width, show_shift_alt_keys)
             }
-            KeymapLegendBody::MultipleSections { sections } => Keymaps(
-                sections
-                    .iter()
-                    .flat_map(|section| section.keymaps.0.clone())
-                    .collect_vec(),
-            )
-            .display_positional(width, show_shift_alt_keys),
             KeymapLegendBody::Mnemonic(keymaps) => keymaps.display_mnemonic(0, width as usize),
         }
     }
 
     fn keymaps(&self) -> Vec<&Keymap> {
         match self {
-            KeymapLegendBody::SingleSection { keymaps } => keymaps.0.iter().collect_vec(),
-            KeymapLegendBody::MultipleSections { sections } => sections
-                .iter()
-                .flat_map(|section| section.keymaps.0.iter())
-                .collect_vec(),
+            KeymapLegendBody::Positional(keymaps) => keymaps.0.iter().collect_vec(),
             KeymapLegendBody::Mnemonic(keymaps) => keymaps.0.iter().collect_vec(),
         }
     }
@@ -271,10 +253,7 @@ impl KeymapLegendConfig {
 impl From<KeymapLegendConfig> for Vec<Keymaps> {
     fn from(keymap_legend_config: KeymapLegendConfig) -> Self {
         match &keymap_legend_config.body {
-            KeymapLegendBody::SingleSection { keymaps } => vec![keymaps.clone()],
-            KeymapLegendBody::MultipleSections { sections } => {
-                sections.iter().map(|s| s.keymaps.clone()).collect()
-            }
+            KeymapLegendBody::Positional(keymaps) => vec![keymaps.clone()],
             KeymapLegendBody::Mnemonic(keymaps) => vec![keymaps.clone()],
         }
     }
@@ -465,9 +444,7 @@ mod test_keymap_legend {
                 App(OpenFile(s.main_rs())),
                 App(ShowKeymapLegend(KeymapLegendConfig {
                     title: "".to_string(),
-                    body: KeymapLegendBody::SingleSection {
-                        keymaps: Keymaps::new(&[]),
-                    },
+                    body: KeymapLegendBody::Positional(Keymaps::new(&[])),
                 })),
                 App(HandleKeyEvent(key!("esc"))),
                 App(HandleKeyEvent(key!("esc"))),
@@ -505,13 +482,15 @@ mod test_keymap_legend {
             [
                 Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
                 Keymap::new("b", "Bomb".to_string(), Dispatch::Null),
-                Keymap::new("space", "Gogagg".to_string(), Dispatch::Null),
+                Keymap::new("F", "Foo".to_string(), Dispatch::Null),
                 Keymap::new("c", "Caterpillar".to_string(), Dispatch::Null),
+                Keymap::new("alt+g", "Gogagg".to_string(), Dispatch::Null),
             ]
             .to_vec(),
         );
-        let actual = keymaps.display_positional(19, true).to_string();
+        let actual = keymaps.display_positional(19, false).to_string();
         let expected = "
+Press space to toggle alt/shift keys.
 ╭───────┬───┬─────────────┬───┬──────┬───┬───┬───┬───┬───┬───╮
 │       ┆   ┆             ┆   ┆      ┆ - ┆   ┆   ┆   ┆   ┆   │
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
@@ -521,19 +500,36 @@ mod test_keymap_legend {
 ╰───────┴───┴─────────────┴───┴──────┴───┴───┴───┴───┴───┴───╯"
             .trim_matches('\n');
         assert_eq!(actual, expected);
+
+        let actual = keymaps.display_positional(19, true).to_string();
+        let expected = "
+Press space to toggle alt/shift keys.
+╭───────┬───┬─────────────┬───────┬──────────┬───┬───┬───┬───┬───┬───╮
+│       ┆   ┆             ┆       ┆          ┆ - ┆   ┆   ┆   ┆   ┆   │
+│       ┆   ┆             ┆       ┆          ┆   ┆   ┆   ┆   ┆   ┆   │
+│       ┆   ┆             ┆       ┆          ┆   ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│       ┆   ┆             ┆       ┆ ⌥ Gogagg ┆ - ┆   ┆   ┆   ┆   ┆   │
+│       ┆   ┆             ┆ ⇧ Foo ┆          ┆   ┆   ┆   ┆   ┆   ┆   │
+│ Aloha ┆   ┆             ┆       ┆          ┆   ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│       ┆   ┆             ┆       ┆          ┆ - ┆   ┆   ┆   ┆   ┆   │
+│       ┆   ┆             ┆       ┆          ┆   ┆   ┆   ┆   ┆   ┆   │
+│       ┆   ┆ Caterpillar ┆       ┆   Bomb   ┆   ┆   ┆   ┆   ┆   ┆   │
+╰───────┴───┴─────────────┴───────┴──────────┴───┴───┴───┴───┴───┴───╯"
+            .trim_matches('\n');
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn should_intercept_key_event_defined_in_config() {
         let mut keymap_legend = KeymapLegend::new(KeymapLegendConfig {
             title: "Test".to_string(),
-            body: KeymapLegendBody::SingleSection {
-                keymaps: Keymaps::new(&[Keymap::new(
-                    "s",
-                    "fifafofum".to_string(),
-                    Dispatch::Custom("Spongebob".to_string()),
-                )]),
-            },
+            body: KeymapLegendBody::Positional(Keymaps::new(&[Keymap::new(
+                "s",
+                "fifafofum".to_string(),
+                Dispatch::Custom("Spongebob".to_string()),
+            )])),
         });
 
         let dispatches = keymap_legend.handle_events(keys!("s")).unwrap();
@@ -564,7 +560,7 @@ mod test_keymap_legend {
         );
         let regexes = KeymapLegendConfig {
             title: "".to_string(),
-            body: KeymapLegendBody::SingleSection { keymaps },
+            body: KeymapLegendBody::Positional(keymaps),
         }
         .get_regex_highlight_rules()
         .into_iter()

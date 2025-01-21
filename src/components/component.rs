@@ -8,7 +8,7 @@ use crate::{context::Context, grid::Grid, position::Position, rectangle::Rectang
 
 use super::{
     editor::{DispatchEditor, Editor},
-    keymap_legend::KeymapLegendSection,
+    keymap_legend::Keymap,
 };
 
 // dyn_clone::clone_trait_object!(Component);
@@ -185,7 +185,7 @@ pub trait Component: Any + AnyComponent {
 
     /// This should be different for every component.
     /// because the default context menu is not applicable in the File Explorer.
-    fn contextual_keymaps(&self) -> Vec<KeymapLegendSection> {
+    fn contextual_keymaps(&self) -> Vec<Keymap> {
         Default::default()
     }
 }

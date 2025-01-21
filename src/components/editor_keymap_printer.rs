@@ -1,3 +1,7 @@
+use super::{
+    editor_keymap::alted,
+    keymap_legend::{Keymap, Keymaps},
+};
 use crate::{
     components::{
         editor::Editor,
@@ -10,12 +14,6 @@ use comfy_table::{
     ColumnConstraint::{self, Absolute},
     Table,
     Width::{self, Fixed},
-};
-use itertools::Itertools;
-
-use super::{
-    editor_keymap::alted,
-    keymap_legend::{Keymap, Keymaps},
 };
 
 #[derive(Debug, Clone)]

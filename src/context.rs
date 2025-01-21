@@ -9,7 +9,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 use crate::{
     app::{GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate, Scope},
     clipboard::{Clipboard, CopiedTexts},
-    components::{keymap_legend::KeymapLegendSection, prompt::PromptHistoryKey},
+    components::{keymap_legend::Keymap, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
     quickfix_list::DiagnosticSeverityRange,
     selection::SelectionMode,
@@ -27,7 +27,7 @@ pub(crate) struct Context {
     local_search_config: LocalSearchConfig,
     global_search_config: GlobalSearchConfig,
     quickfix_list_state: Option<QuickfixListState>,
-    contextual_keymaps: Vec<KeymapLegendSection>,
+    contextual_keymaps: Vec<Keymap>,
     prompt_histories: HashMap<PromptHistoryKey, IndexSet<String>>,
     last_non_contiguous_selection_mode: Option<Either<SelectionMode, GlobalMode>>,
 }
@@ -215,11 +215,11 @@ impl Context {
         })
     }
 
-    pub(crate) fn contextual_keymaps(&self) -> Vec<KeymapLegendSection> {
+    pub(crate) fn contextual_keymaps(&self) -> Vec<Keymap> {
         self.contextual_keymaps.clone()
     }
 
-    pub(crate) fn set_contextual_keymaps(&mut self, contextual_keymaps: Vec<KeymapLegendSection>) {
+    pub(crate) fn set_contextual_keymaps(&mut self, contextual_keymaps: Vec<Keymap>) {
         self.contextual_keymaps = contextual_keymaps
     }
 
