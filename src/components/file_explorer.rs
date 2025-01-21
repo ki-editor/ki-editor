@@ -422,7 +422,7 @@ mod test_file_explorer {
                 App(OpenFile(s.main_rs())),
                 App(RevealInExplorer(s.main_rs())),
                 Expect(ComponentCount(1)),
-                App(HandleKeyEvents(keys!("space m").to_vec())),
+                App(HandleKeyEvents(keys!("m").to_vec())),
                 Expect(ComponentCount(2)),
                 Expect(CurrentComponentTitle("Move path")),
                 Editor(Insert("/hello/world.rs".to_string())),

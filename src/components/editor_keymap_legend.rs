@@ -251,13 +251,13 @@ impl Editor {
             ),
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::Char_),
-                "char".to_string(),
+                "Char".to_string(),
                 "Select Character".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             ),
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::FindP),
-                "find ←".to_string(),
+                "Find ←".to_string(),
                 "(Local) - Backward".to_string(),
                 Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
                     context,
@@ -267,7 +267,7 @@ impl Editor {
             ),
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::FindN),
-                "find→".to_string(),
+                "Find →".to_string(),
                 "Find (Local) - Forward".to_string(),
                 Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
                     context,
@@ -334,13 +334,13 @@ impl Editor {
                 ),
                 Keymap::new_extended(
                     KEYBOARD_LAYOUT.get_key(&Meaning::DeltN),
-                    "delete curs→".to_string(),
+                    "Delete curs →".to_string(),
                     Direction::End.format_action("Delete primary cursor"),
                     Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
                 ),
                 Keymap::new_extended(
                     KEYBOARD_LAYOUT.get_key(&Meaning::DeltP),
-                    "delete curs ←".to_string(),
+                    "Delete curs ←".to_string(),
                     Direction::Start.format_action("Delete primary cursor"),
                     Dispatch::ToEditor(DeleteCurrentCursor(Direction::Start)),
                 ),
@@ -369,14 +369,14 @@ impl Editor {
                 .override_keymap(normal_mode_override.change.as_ref()),
                 Keymap::new_extended(
                     KEYBOARD_LAYOUT.get_key(&Meaning::DeltN),
-                    "delete→".to_string(),
+                    Direction::End.format_action("Delete"),
                     Direction::End.format_action("Delete"),
                     Dispatch::ToEditor(Delete(Direction::End)),
                 )
                 .override_keymap(normal_mode_override.delete.as_ref()),
                 Keymap::new_extended(
                     KEYBOARD_LAYOUT.get_key(&Meaning::DeltP),
-                    "delete ←".to_string(),
+                    Direction::Start.format_action("Delete"),
                     Direction::Start.format_action("Delete"),
                     Dispatch::ToEditor(Delete(Direction::Start)),
                 )
@@ -401,10 +401,17 @@ impl Editor {
         .chain([
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::OpenP),
-                "open ←".to_string(),
+                "Open ←".to_string(),
                 Direction::Start.format_action("Open"),
                 Dispatch::ToEditor(Open(Direction::Start)),
             ),
+            Keymap::new_extended(
+                KEYBOARD_LAYOUT.get_key(&Meaning::OpenN),
+                "Open →".to_string(),
+                Direction::End.format_action("Open"),
+                Dispatch::ToEditor(Open(Direction::End)),
+            )
+            .override_keymap(normal_mode_override.open.as_ref()),
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::Undo_),
                 "undo".to_string(),
@@ -476,22 +483,6 @@ impl Editor {
                 Dispatch::ToEditor(SwapExtensionDirection),
             ),
         ])
-        .chain(Some(if self.selection_set.is_extended() {
-            Keymap::new_extended(
-                KEYBOARD_LAYOUT.get_key(&Meaning::OpenN),
-                "surund".to_string(),
-                "Surround".to_string(),
-                Dispatch::ShowKeymapLegend(self.surround_keymap_legend_config()),
-            )
-        } else {
-            Keymap::new_extended(
-                KEYBOARD_LAYOUT.get_key(&Meaning::OpenN),
-                "open→".to_string(),
-                Direction::End.format_action("Open"),
-                Dispatch::ToEditor(Open(Direction::End)),
-            )
-            .override_keymap(normal_mode_override.open.as_ref())
-        }))
         .chain(Some(if self.selection_set.is_extended() {
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::VMode),
@@ -620,12 +611,6 @@ impl Editor {
                     if_current_not_found: IfCurrentNotFound::LookForward,
                     run_search_after_config_updated: self.mode != Mode::Insert,
                 },
-            ),
-            Keymap::new_extended(
-                KEYBOARD_LAYOUT.get_key(&Meaning::SHelp),
-                "Help".to_string(),
-                "Help".to_string(),
-                Dispatch::ToEditor(DispatchEditor::ShowHelp),
             ),
         ]
         .to_vec()
@@ -805,24 +790,6 @@ impl Editor {
             )
         }))
         .collect_vec()
-    }
-
-    pub(crate) fn help_keymap_legend_config(&self) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Help".to_string(),
-            body: KeymapLegendBody::Positional(Keymaps::new(&[
-                Keymap::new(
-                    "i",
-                    "Show help: Insert mode".to_string(),
-                    Dispatch::ToEditor(ShowKeymapLegendInsertMode),
-                ),
-                Keymap::new(
-                    "n",
-                    "Show help: Normal mode".to_string(),
-                    Dispatch::ToEditor(ShowKeymapLegendNormalMode),
-                ),
-            ])),
-        }
     }
 
     pub(crate) fn normal_mode_keymap_legend_config(
@@ -1117,11 +1084,6 @@ impl Editor {
                         KEYBOARD_LAYOUT.get_space_keymap(&Meaning::QNSav),
                         "Quit No Save".to_string(),
                         Dispatch::QuitAll,
-                    ),
-                    Keymap::new(
-                        "?",
-                        "Help".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::ShowKeymapLegendHelp),
                     ),
                 ])
                 .collect_vec(),

@@ -270,27 +270,6 @@ impl Component for Editor {
             SelectLineAt(index) => return Ok(self.select_line_at(index)?.into_vec().into()),
             EnterMultiCursorMode => self.enter_multicursor_mode(),
             Surround(open, close) => return self.enclose(open, close),
-            ShowKeymapLegendInsertMode => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.insert_mode_keymap_legend_config(),
-                )]
-                .to_vec()
-                .into())
-            }
-            ShowKeymapLegendHelp => {
-                return Ok(
-                    [Dispatch::ShowKeymapLegend(self.help_keymap_legend_config())]
-                        .to_vec()
-                        .into(),
-                )
-            }
-            ShowKeymapLegendNormalMode => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.normal_mode_keymap_legend_config(context, "Normal", Default::default()),
-                )]
-                .to_vec()
-                .into())
-            }
             EnterReplaceMode => self.enter_replace_mode(),
             Paste {
                 direction,
@@ -352,7 +331,6 @@ impl Component for Editor {
             EnterNewline => return self.enter_newline(),
             DeleteCurrentCursor(direction) => self.delete_current_cursor(direction),
             BreakSelection => return self.break_selection(),
-            ShowHelp => return self.show_help(context),
         }
         Ok(Default::default())
     }
@@ -471,8 +449,8 @@ impl Direction {
 
     pub(crate) fn format_action(&self, action: &str) -> String {
         match self {
-            Direction::Start => format!("◁ {action}"),
-            Direction::End => format!("{action} ▷"),
+            Direction::Start => format!("← {action}"),
+            Direction::End => format!("{action} →"),
         }
     }
 }
@@ -3233,16 +3211,6 @@ impl Editor {
         self.insert_mode_keymap_legend_config().keymaps()
     }
 
-    fn show_help(&self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let config = match &self.mode {
-            Mode::Insert => self.insert_mode_keymap_legend_config(),
-            Mode::MultiCursor => self.multicursor_mode_keymap_legend_config(context),
-            Mode::V => self.v_mode_keymap_legend_config(context),
-            _ => self.normal_mode_keymap_legend_config(context, "Normal", Default::default()),
-        };
-        Ok(Dispatches::one(Dispatch::ShowKeymapLegend(config)))
-    }
-
     pub(crate) fn set_normal_mode_override(&mut self, normal_mode_override: NormalModeOverride) {
         self.normal_mode_override = Some(normal_mode_override)
     }
@@ -3343,8 +3311,6 @@ pub(crate) enum DispatchEditor {
     ReplaceCurrentSelectionWith(String),
     TryReplaceCurrentLongWord(String),
     SelectLineAt(usize),
-    ShowKeymapLegendNormalMode,
-    ShowKeymapLegendInsertMode,
     Paste {
         direction: Direction,
         use_system_clipboard: bool,
@@ -3352,7 +3318,6 @@ pub(crate) enum DispatchEditor {
     SwapCursorWithAnchor,
     MoveCharacterBack,
     MoveCharacterForward,
-    ShowKeymapLegendHelp,
     DeleteSurround(EnclosureKind),
     ChangeSurround {
         from: EnclosureKind,
@@ -3378,7 +3343,6 @@ pub(crate) enum DispatchEditor {
     EnterNewline,
     DeleteCurrentCursor(Direction),
     BreakSelection,
-    ShowHelp,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
