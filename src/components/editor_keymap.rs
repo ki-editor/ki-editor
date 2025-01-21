@@ -142,6 +142,18 @@ pub(crate) const KEYMAP_SPACE_SHIFTED: KeyboardMeaningLayout = [
     ],
 ];
 
+pub(crate) const KEYMAP_SEARCH_CONFIG: KeyboardMeaningLayout = [
+    [
+        Srch_, Rplcm, _____, _____, _____, /****/ _____, InFGb, _____, ExFGb, _____,
+    ],
+    [
+        ASTGp, NCAgn, Litrl, Regex, _____, /****/ _____, CaStv, Strct, Flexi, MaWWd,
+    ],
+    [
+        _____, _____, _____, _____, RplcA, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
 pub(crate) type KeyboardLayout = [[&'static str; 10]; 3];
 
 pub(crate) const QWERTY: KeyboardLayout = [
@@ -194,6 +206,7 @@ struct KeySet {
     find_global: HashMap<Meaning, &'static str>,
     surround: HashMap<Meaning, &'static str>,
     space: HashMap<Meaning, &'static str>,
+    search_config: HashMap<Meaning, &'static str>,
 }
 
 impl KeySet {
@@ -270,6 +283,12 @@ impl KeySet {
                             .flatten()
                             .zip(layout.into_iter().flatten().map(shifted)),
                     ),
+            ),
+            search_config: HashMap::from_iter(
+                KEYMAP_SEARCH_CONFIG
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten()),
             ),
         }
     }
@@ -366,6 +385,15 @@ impl KeyboardLayoutKind {
         let keyset = self.get_keyset();
         keyset
             .space
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
+    }
+
+    pub(crate) fn get_search_config_keymap(&self, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        keyset
+            .search_config
             .get(meaning)
             .cloned()
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
@@ -637,6 +665,30 @@ pub(crate) enum Meaning {
     LCdAc,
     /// Pick Buffers
     Buffr,
+    /// Set Replacement
+    Rplcm,
+    /// Include File Glob
+    InFGb,
+    /// Exclude File Glob
+    ExFGb,
+    /// AST Grep
+    ASTGp,
+    /// Naming Convention Agnostic
+    NCAgn,
+    /// Literal
+    Litrl,
+    /// Regex
+    Regex,
+    /// Replace All
+    RplcA,
+    /// Case-sensitive
+    CaStv,
+    /// Strict
+    Strct,
+    /// Flexible
+    Flexi,
+    /// Match Whole Word
+    MaWWd,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

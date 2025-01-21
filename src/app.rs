@@ -1691,7 +1691,7 @@ impl<T: Frontend> App<T> {
             body: KeymapLegendBody::Mnemonic(Keymaps::new(
                 &[
                     Keymap::new(
-                        "/",
+                        KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::Srch_),
                         format!("Search = {}", local_search_config.search()),
                         Dispatch::OpenUpdateSearchPrompt {
                             scope,
@@ -1699,7 +1699,7 @@ impl<T: Frontend> App<T> {
                         },
                     ),
                     Keymap::new(
-                        "r",
+                        KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::Rplcm),
                         format!("Replacement = {}", local_search_config.replacement()),
                         Dispatch::OpenUpdateReplacementPrompt {
                             scope,
@@ -1707,19 +1707,19 @@ impl<T: Frontend> App<T> {
                         },
                     ),
                     update_mode_keymap(
-                        "a",
+                        KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::ASTGp),
                         "AST Grep".to_string(),
                         LocalSearchConfigMode::AstGrep,
                         local_search_config.mode == LocalSearchConfigMode::AstGrep,
                     ),
                     update_mode_keymap(
-                        "n",
+                        KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::NCAgn),
                         "Naming Convention Agnostic".to_string(),
                         LocalSearchConfigMode::NamingConventionAgnostic,
                         local_search_config.mode == LocalSearchConfigMode::NamingConventionAgnostic,
                     ),
                     update_mode_keymap(
-                        "l",
+                        KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::Litrl),
                         "Literal".to_string(),
                         LocalSearchConfigMode::Regex(RegexConfig {
                             escaped: true,
@@ -1728,7 +1728,7 @@ impl<T: Frontend> App<T> {
                         regex.map(|regex| regex.escaped).unwrap_or(false),
                     ),
                     update_mode_keymap(
-                        "x",
+                        KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::Regex),
                         "Regex".to_string(),
                         LocalSearchConfigMode::Regex(RegexConfig {
                             escaped: false,
@@ -1736,7 +1736,11 @@ impl<T: Frontend> App<T> {
                         }),
                         regex.map(|regex| !regex.escaped).unwrap_or(false),
                     ),
-                    Keymap::new("R", "Replace all".to_string(), Dispatch::Replace { scope }),
+                    Keymap::new(
+                        KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::RplcA),
+                        "Replace all".to_string(),
+                        Dispatch::Replace { scope },
+                    ),
                 ]
                 .into_iter()
                 .chain(
@@ -1744,7 +1748,7 @@ impl<T: Frontend> App<T> {
                         .map(|regex| {
                             [
                                 update_mode_keymap(
-                                    "c",
+                                    KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::CaStv),
                                     "Case-sensitive".to_string(),
                                     LocalSearchConfigMode::Regex(RegexConfig {
                                         case_sensitive: !regex.case_sensitive,
@@ -1753,16 +1757,17 @@ impl<T: Frontend> App<T> {
                                     regex.case_sensitive,
                                 ),
                                 update_mode_keymap(
-                                    "w",
-                                    "Match whole word".to_string(),
+                                    KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::Strct),
+                                    "Strict".to_string(),
                                     LocalSearchConfigMode::Regex(RegexConfig {
-                                        match_whole_word: !regex.match_whole_word,
+                                        match_whole_word: true,
+                                        case_sensitive: true,
                                         ..regex
                                     }),
-                                    regex.match_whole_word,
+                                    regex.match_whole_word && regex.case_sensitive,
                                 ),
                                 update_mode_keymap(
-                                    "f",
+                                    KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::Flexi),
                                     "Flexible".to_string(),
                                     LocalSearchConfigMode::Regex(RegexConfig {
                                         match_whole_word: false,
@@ -1772,14 +1777,13 @@ impl<T: Frontend> App<T> {
                                     !regex.match_whole_word && !regex.case_sensitive,
                                 ),
                                 update_mode_keymap(
-                                    "s",
-                                    "Strict".to_string(),
+                                    KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::MaWWd),
+                                    "Match whole word".to_string(),
                                     LocalSearchConfigMode::Regex(RegexConfig {
-                                        match_whole_word: true,
-                                        case_sensitive: true,
+                                        match_whole_word: !regex.match_whole_word,
                                         ..regex
                                     }),
-                                    regex.match_whole_word && regex.case_sensitive,
+                                    regex.match_whole_word,
                                 ),
                             ]
                             .to_vec()
@@ -1791,7 +1795,7 @@ impl<T: Frontend> App<T> {
                         .map(|config| {
                             [
                                 Keymap::new(
-                                    "I",
+                                    KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::InFGb),
                                     format!(
                                         "Include files (glob) = {}",
                                         config
@@ -1805,7 +1809,7 @@ impl<T: Frontend> App<T> {
                                     },
                                 ),
                                 Keymap::new(
-                                    "E",
+                                    KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::ExFGb),
                                     format!(
                                         "Exclude files (glob) = {}",
                                         config
