@@ -154,6 +154,18 @@ pub(crate) const KEYMAP_SEARCH_CONFIG: KeyboardMeaningLayout = [
     ],
 ];
 
+pub(crate) const KEYMAP_TRANSFORM: KeyboardMeaningLayout = [
+    [
+        _____, USnke, Pscal, _____, _____, /****/ _____, _____, UKbab, Upper, _____,
+    ],
+    [
+        _____, Snke_, Camel, _____, _____, /****/ _____, Wrap_, Kbab_, Lower, Title,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
 pub(crate) type KeyboardLayout = [[&'static str; 10]; 3];
 
 pub(crate) const QWERTY: KeyboardLayout = [
@@ -207,6 +219,7 @@ struct KeySet {
     surround: HashMap<Meaning, &'static str>,
     space: HashMap<Meaning, &'static str>,
     search_config: HashMap<Meaning, &'static str>,
+    transform: HashMap<Meaning, &'static str>,
 }
 
 impl KeySet {
@@ -286,6 +299,12 @@ impl KeySet {
             ),
             search_config: HashMap::from_iter(
                 KEYMAP_SEARCH_CONFIG
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten()),
+            ),
+            transform: HashMap::from_iter(
+                KEYMAP_TRANSFORM
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten()),
@@ -403,6 +422,15 @@ impl KeyboardLayoutKind {
         let keyset = self.get_keyset();
         keyset
             .surround
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
+    }
+
+    pub(crate) fn get_transform_key(&self, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        keyset
+            .transform
             .get(meaning)
             .cloned()
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
@@ -689,6 +717,26 @@ pub(crate) enum Meaning {
     Flexi,
     /// Match Whole Word
     MaWWd,
+    /// UPPER_SNAKE_CASE
+    USnke,
+    /// PascalCase
+    Pscal,
+    /// UPPER-KEBAB-CASE
+    UKbab,
+    /// UPPER CASE
+    Upper,
+    /// Title Case
+    Title,
+    /// snake_case
+    Snke_,
+    /// camelCase
+    Camel,
+    /// Wrap
+    Wrap_,
+    /// kebab-case
+    Kbab_,
+    /// lower case
+    Lower,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

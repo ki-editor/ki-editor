@@ -964,27 +964,26 @@ impl Editor {
 
             body: KeymapLegendBody::Positional(Keymaps::new(
                 &[
-                    ("a", "aLtErNaTiNg CaSe", Case::Toggle),
-                    ("c", "camelCase", Case::Camel),
-                    ("l", "lower case", Case::Lower),
-                    ("k", "kebab-case", Case::Kebab),
-                    ("K", "Upper-Kebab", Case::UpperKebab),
-                    ("p", "PascalCase", Case::Pascal),
-                    ("s", "snake_case", Case::Snake),
-                    ("S", "UPPER_SNAKE_CASE", Case::UpperSnake),
-                    ("t", "Title Case", Case::Title),
-                    ("u", "UPPER CASE", Case::Upper),
+                    (Meaning::Camel, "camelCase", Case::Camel),
+                    (Meaning::Lower, "lower case", Case::Lower),
+                    (Meaning::Kbab_, "kebab-case", Case::Kebab),
+                    (Meaning::UKbab, "Upper-Kebab", Case::UpperKebab),
+                    (Meaning::Pscal, "PascalCase", Case::Pascal),
+                    (Meaning::Snke_, "snake_case", Case::Snake),
+                    (Meaning::USnke, "UPPER_SNAKE_CASE", Case::UpperSnake),
+                    (Meaning::Title, "Title Case", Case::Title),
+                    (Meaning::Upper, "UPPER CASE", Case::Upper),
                 ]
                 .into_iter()
-                .map(|(key, description, case)| {
+                .map(|(meaning, description, case)| {
                     Keymap::new(
-                        key,
+                        KEYBOARD_LAYOUT.get_transform_key(&meaning),
                         description.to_string(),
                         Dispatch::ToEditor(Transform(Transformation::Case(case))),
                     )
                 })
                 .chain(Some(Keymap::new(
-                    "w",
+                    KEYBOARD_LAYOUT.get_transform_key(&Meaning::Wrap_),
                     "Wrap".to_string(),
                     Dispatch::ToEditor(Transform(Transformation::Wrap)),
                 )))
