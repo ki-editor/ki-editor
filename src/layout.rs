@@ -2,7 +2,7 @@ use crate::quickfix_list::QuickfixList;
 use crate::ui_tree::{ComponentKind, KindedComponent, UiTree};
 use crate::{
     app::{Dimension, Dispatches},
-    buffer::Buffer,
+    buffer::{Buffer, BufferOwner},
     components::{
         component::{Component, ComponentId},
         editor::Editor,
@@ -79,9 +79,7 @@ impl Layout {
             if let Some((_, editor)) = self
                 .background_suggestive_editors
                 .iter()
-                .skip_while(|(p, _)| p != &&path)
-                .nth(1)
-                .or_else(|| self.background_suggestive_editors.first())
+                .find(|(_, editor)| editor.borrow().editor().buffer().owner() == BufferOwner::User)
             {
                 self.replace_and_focus_current_suggestive_editor(editor.clone())
             } else {
@@ -219,6 +217,7 @@ impl Layout {
     pub(crate) fn get_opened_files(&self) -> Vec<CanonicalizedPath> {
         self.background_suggestive_editors
             .iter()
+            .filter(|(_, editor)| editor.borrow().editor().buffer().owner() == BufferOwner::User)
             .map(|(path, _)| path.clone())
             .collect()
     }
