@@ -84,7 +84,7 @@ Recommended selection modes:
 1. Word
 1. Token
 
-This movement can also work with the Exchange mode to swap two syntax expressions that are far apart.
+This movement can also work with the Swap mode to swap two syntax expressions that are far apart.
 
 [^1]: hop.nvim, leap.nvim, lightspeed.nvim etc.
 

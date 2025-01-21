@@ -1388,7 +1388,7 @@ impl std::fmt::Display for Patch {
 impl std::fmt::Display for BufferState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // TODO: this should describe the action
-        // For example, "kill", "exchange", "insert"
+        // For example, "kill", "swap", "insert"
         f.write_str("")
     }
 }

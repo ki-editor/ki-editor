@@ -434,10 +434,10 @@ def foo():
             .to_vec(),
         },
         RecipeGroup {
-            filename: "exchange",
+            filename: "swap",
             recipes: [
                 Recipe {
-                    description: "Exchange sibling node (JSON)",
+                    description: "Swap sibling node (JSON)",
                     content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                     file_extension: "json",
                     prepare_events: keys!("w l"),
@@ -451,7 +451,7 @@ def foo():
                     only: false,
                 },
                 Recipe {
-                    description: "Exchange sibling node (XML)",
+                    description: "Swap sibling node (XML)",
                     content: "<x><y>foo</y><div/></x>".trim(),
                     file_extension: "xml",
                     prepare_events: keys!("w l l l"),
@@ -465,7 +465,7 @@ def foo():
                     only: false,
                 },
                 Recipe {
-                    description: "Exchange till the first",
+                    description: "Swap till the first",
                     content: "fn main(foo: F, bar: B, spam: S, zap: Z) {}".trim(),
                     file_extension: "rs",
                     prepare_events: keys!("q s p a m enter"),
@@ -479,7 +479,7 @@ def foo():
                     only: false,
                 },
                 Recipe {
-                    description: "Exchange till the last",
+                    description: "Swap till the last",
                     content: "fn main(foo: F, bar: B, spam: S, zap: Z) {}".trim(),
                     file_extension: "rs",
                     prepare_events: keys!("q b a r enter"),
@@ -493,7 +493,7 @@ def foo():
                     only: false,
                 },
                 Recipe {
-                    description: "Exchange distant expressions using jump",
+                    description: "Swap distant expressions using jump",
                     content: "if(condition) { x(bar(baz)) } else { 'hello world' }".trim(),
                     file_extension: "js",
                     prepare_events: keys!("q x enter"),
@@ -506,7 +506,7 @@ def foo():
                     only: false,
                 },
                 Recipe {
-                    description: "Exchange body of if-else",
+                    description: "Swap body of if-else",
                     content: r#"
 impl<C> Iterator for PostorderTraverse<C>
     if c.goto_next_sibling() {

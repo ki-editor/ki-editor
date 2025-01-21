@@ -37,8 +37,8 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
         Redo_, Raise, RplcX, PsteP, PRplc, /****/ _____, ChngX, _____, _____, SSEnd,
     ],
-    // Why is Raise placed at the same Position as Exchange?
-    // Because Raise is a special-case of Exchange where the movement is Up
+    // Why is Raise placed at the same Position as Swap?
+    // Because Raise is a special-case of Swap where the movement is Up
 ];
 
 pub(crate) const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [

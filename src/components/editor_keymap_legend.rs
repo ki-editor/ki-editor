@@ -770,7 +770,7 @@ impl Editor {
                 KEYBOARD_LAYOUT.get_key(&Meaning::Exchg),
                 "Swap".to_string(),
                 "Enter Swap mode".to_string(),
-                Dispatch::ToEditor(EnterExchangeMode),
+                Dispatch::ToEditor(EnterSwapMode),
             ),
         ]
         .into_iter()

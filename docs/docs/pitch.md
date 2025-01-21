@@ -44,7 +44,7 @@ Notice how `comma` is added automatically.
 
 ### 2.3 Swap
 
-To swap an AST node, press `s`, then `x` (Exchange mode), and press `n` (Next) or `N` (Previous).
+To swap an AST node, press `s`, then `x` (Swap mode), and press `n` (Next) or `N` (Previous).
 
 ## 3. First-class syntactic navigation
 

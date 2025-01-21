@@ -505,7 +505,7 @@ fn undo_tree() -> anyhow::Result<()> {
 }
 
 #[test]
-fn multi_exchange_sibling() -> anyhow::Result<()> {
+fn multi_swap_sibling() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -523,7 +523,7 @@ fn multi_exchange_sibling() -> anyhow::Result<()> {
             Editor(MoveSelection(Down)),
             Expect(CurrentSelectedTexts(&["x:a", "x:a"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(EnterExchangeMode),
+            Editor(EnterSwapMode),
             Editor(MoveSelection(Right)),
             Expect(CurrentComponentContent("fn f(y:b,x:a){} fn g(y:b,x:a){}")),
             Expect(CurrentSelectedTexts(&["x:a", "x:a"])),
@@ -601,7 +601,7 @@ fn move_to_line_start_end() -> anyhow::Result<()> {
 }
 
 #[test]
-fn exchange_sibling() -> anyhow::Result<()> {
+fn swap_sibling() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -609,7 +609,7 @@ fn exchange_sibling() -> anyhow::Result<()> {
             // Select first statement
             Editor(MatchLiteral("x: usize".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(EnterExchangeMode),
+            Editor(EnterSwapMode),
             Editor(MoveSelection(Right)),
             Expect(CurrentComponentContent("fn main(y: Vec<A>, x: usize) {}")),
             Editor(MoveSelection(Left)),
@@ -619,7 +619,7 @@ fn exchange_sibling() -> anyhow::Result<()> {
 }
 
 #[test]
-fn exchange_sibling_2() -> anyhow::Result<()> {
+fn swap_sibling_2() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -627,7 +627,7 @@ fn exchange_sibling_2() -> anyhow::Result<()> {
             // Select first statement
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["use a;"])),
-            Editor(EnterExchangeMode),
+            Editor(EnterSwapMode),
             Editor(MoveSelection(Right)),
             Expect(CurrentComponentContent("use b;\nuse a;\nuse c;")),
             Editor(MoveSelection(Right)),
@@ -836,7 +836,7 @@ fn main() {
 }
 
 #[test]
-fn exchange_line() -> anyhow::Result<()> {
+fn swap_line() -> anyhow::Result<()> {
     execute_test(|s| {
         // Multiline source code
         Box::new([
@@ -860,7 +860,7 @@ fn main() {
 }"
                 .trim(),
             )),
-            Editor(EnterExchangeMode),
+            Editor(EnterSwapMode),
             Editor(MoveSelection(Right)),
             Expect(CurrentComponentContent(
                 "
@@ -884,13 +884,13 @@ fn main() {
 }
 
 #[test]
-fn exchange_character() -> anyhow::Result<()> {
+fn swap_character() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
-            Editor(EnterExchangeMode),
+            Editor(EnterSwapMode),
             Editor(MoveSelection(Right)),
             Expect(CurrentComponentContent("nf main() { let x = 1; }")),
             Editor(MoveSelection(Right)),
@@ -3248,7 +3248,7 @@ fn first_last_token() -> anyhow::Result<()> {
 }
 
 #[test]
-fn exchange_till_last() -> anyhow::Result<()> {
+fn swap_till_last() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -3258,7 +3258,7 @@ fn exchange_till_last() -> anyhow::Result<()> {
             Editor(MatchLiteral("apple: T".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["apple: T"])),
-            Editor(EnterExchangeMode),
+            Editor(EnterSwapMode),
             Editor(MoveSelection(Last)),
             Expect(CurrentComponentContent(
                 "fn main(foo: T, banana: T, coffee: T, apple: T) {}",
@@ -3268,7 +3268,7 @@ fn exchange_till_last() -> anyhow::Result<()> {
 }
 
 #[test]
-fn exchange_till_first() -> anyhow::Result<()> {
+fn swap_till_first() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -3278,7 +3278,7 @@ fn exchange_till_first() -> anyhow::Result<()> {
             Editor(MatchLiteral("banana: T".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["banana: T"])),
-            Editor(EnterExchangeMode),
+            Editor(EnterSwapMode),
             Editor(MoveSelection(First)),
             Expect(CurrentComponentContent(
                 "fn main(banana: T, foo: T, apple: T, coffee: T) {}",

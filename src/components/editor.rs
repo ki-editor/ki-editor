@@ -47,7 +47,7 @@ pub(crate) enum Mode {
     Insert,
     MultiCursor,
     FindOneChar(IfCurrentNotFound),
-    Exchange,
+    Swap,
     UndoTree,
     Replace,
     V,
@@ -221,7 +221,7 @@ impl Component for Editor {
             EnterNormalMode => self.enter_normal_mode()?,
             CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
-            EnterExchangeMode => self.enter_exchange_mode(),
+            EnterSwapMode => self.enter_swap_mode(),
             ReplacePattern { config } => {
                 let selection_set = self.selection_set.clone();
                 let (_, selection_set) = self.buffer_mut().replace(config, selection_set)?;
@@ -1200,7 +1200,7 @@ impl Editor {
                         Mode::FindOneChar(if_current_not_found) => {
                             self.handle_find_one_char_mode(*if_current_not_found, key_event)
                         }
-                        Mode::Exchange => {
+                        Mode::Swap => {
                             self.handle_normal_mode(context, key_event, Default::default())
                         }
                         Mode::UndoTree => {
@@ -1424,7 +1424,7 @@ impl Editor {
                 movement,
                 self.selection_set.mode.clone(),
             ),
-            Mode::Exchange => self.exchange(movement),
+            Mode::Swap => self.swap(movement),
             Mode::Replace => self.replace_with_movement(&movement),
             Mode::UndoTree => self.navigate_undo_tree(movement),
             Mode::MultiCursor => self.add_cursor(&movement).map(|_| Default::default()),
@@ -1599,7 +1599,7 @@ impl Editor {
                 .collect::<Result<Vec<_>, _>>()?;
 
             // Why don't we just use `tree.root_node().has_error()` instead?
-            // Because I assume we want to be able to exchange even if some part of the tree
+            // Because I assume we want to be able to swap even if some part of the tree
             // contains error
             if !selection_mode.is_node()
                 || (!text_at_next_selection.to_string().trim().is_empty()
@@ -1638,7 +1638,7 @@ impl Editor {
         }
     }
 
-    fn make_exchange_action_groups(
+    fn make_swap_action_groups(
         first_selection: &Selection,
         first_selection_range: CharIndexRange,
         first_selection_text: Rope,
@@ -1690,7 +1690,7 @@ impl Editor {
             let text_at_next_selection: Rope = buffer.slice(&next_selection.extended_range())?;
 
             Ok(EditTransaction::from_action_groups(
-                Self::make_exchange_action_groups(
+                Self::make_swap_action_groups(
                     current_selection,
                     current_selection_range,
                     text_at_current_selection,
@@ -1713,17 +1713,17 @@ impl Editor {
         self.apply_edit_transaction(EditTransaction::merge(edit_transactions))
     }
 
-    pub(crate) fn exchange(&mut self, movement: Movement) -> anyhow::Result<Dispatches> {
+    pub(crate) fn swap(&mut self, movement: Movement) -> anyhow::Result<Dispatches> {
         match movement {
-            Movement::Last => self.exchange_till_last(),
-            Movement::First => self.exchange_till_first(),
+            Movement::Last => self.swap_till_last(),
+            Movement::First => self.swap_till_first(),
             _ => self.replace_faultlessly(&self.selection_set.mode.clone(), movement),
         }
     }
 
-    /// Exchanges the current selection with the text range from
+    /// Swaps the current selection with the text range from
     /// the first occurrence until just before the current selection.
-    fn exchange_till_first(&mut self) -> anyhow::Result<Dispatches> {
+    fn swap_till_first(&mut self) -> anyhow::Result<Dispatches> {
         let selection_mode = self.selection_set.mode.clone();
         let edit_transaction = {
             let buffer = self.buffer.borrow();
@@ -1750,8 +1750,8 @@ impl Editor {
                         let first_range = current_selection.range();
                         let second_range: CharIndexRange =
                             (first.start()..before_current.end()).into();
-                        // Exchange the range with the last selection
-                        Some(Self::make_exchange_action_groups(
+                        // Swap the range with the last selection
+                        Some(Self::make_swap_action_groups(
                             current_selection,
                             first_range,
                             buffer.slice(&first_range).ok()?,
@@ -1768,9 +1768,9 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    /// Exchanges the current selection with the text range from
+    /// Swaps the current selection with the text range from
     /// just after the current selection until the last occurrence.    
-    fn exchange_till_last(&mut self) -> anyhow::Result<Dispatches> {
+    fn swap_till_last(&mut self) -> anyhow::Result<Dispatches> {
         let selection_mode = self.selection_set.mode.clone();
         let edit_transaction = {
             let buffer = self.buffer.borrow();
@@ -1797,8 +1797,8 @@ impl Editor {
                         let first_range = current_selection.range();
                         let second_range: CharIndexRange =
                             (after_current.start()..last.end()).into();
-                        // Exchange the range with the last selection
-                        Some(Self::make_exchange_action_groups(
+                        // Swap the range with the last selection
+                        Some(Self::make_swap_action_groups(
                             current_selection,
                             first_range,
                             buffer.slice(&first_range).ok()?,
@@ -2299,7 +2299,7 @@ impl Editor {
             Mode::Insert => "INSERT",
             Mode::MultiCursor => "MULTI CURSOR",
             Mode::FindOneChar(_) => "FIND ONE CHAR",
-            Mode::Exchange => "EXCHANGE",
+            Mode::Swap => "SWAP",
             Mode::UndoTree => "UNDO TREE",
             Mode::Replace => "REPLACE",
             Mode::V => "V",
@@ -2543,8 +2543,8 @@ impl Editor {
         Ok(result.into())
     }
 
-    fn enter_exchange_mode(&mut self) {
-        self.mode = Mode::Exchange
+    fn enter_swap_mode(&mut self) {
+        self.mode = Mode::Swap
     }
 
     fn kill_line(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
@@ -3287,7 +3287,7 @@ pub(crate) enum DispatchEditor {
     Open(Direction),
     ToggleMark,
     EnterNormalMode,
-    EnterExchangeMode,
+    EnterSwapMode,
     EnterReplaceMode,
     EnterMultiCursorMode,
     CursorAddToAllSelections,
