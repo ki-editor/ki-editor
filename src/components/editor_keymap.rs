@@ -166,6 +166,18 @@ pub(crate) const KEYMAP_TRANSFORM: KeyboardMeaningLayout = [
     ],
 ];
 
+pub(crate) const KEYMAP_YES_NO: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, Yes__, _____, _____, /****/ _____, _____, No___, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
 pub(crate) type KeyboardLayout = [[&'static str; 10]; 3];
 
 pub(crate) const QWERTY: KeyboardLayout = [
@@ -220,6 +232,7 @@ struct KeySet {
     space: HashMap<Meaning, &'static str>,
     search_config: HashMap<Meaning, &'static str>,
     transform: HashMap<Meaning, &'static str>,
+    yes_no: HashMap<Meaning, &'static str>,
 }
 
 impl KeySet {
@@ -305,6 +318,12 @@ impl KeySet {
             ),
             transform: HashMap::from_iter(
                 KEYMAP_TRANSFORM
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten()),
+            ),
+            yes_no: HashMap::from_iter(
+                KEYMAP_YES_NO
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten()),
@@ -431,6 +450,15 @@ impl KeyboardLayoutKind {
         let keyset = self.get_keyset();
         keyset
             .transform
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
+    }
+
+    pub(crate) fn get_yes_no_key(&self, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        keyset
+            .yes_no
             .get(meaning)
             .cloned()
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
@@ -737,6 +765,10 @@ pub(crate) enum Meaning {
     Kbab_,
     /// lower case
     Lower,
+    /// Yes
+    Yes__,
+    /// No
+    No___,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

@@ -1385,9 +1385,17 @@ impl<T: Frontend> App<T> {
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
         self.handle_dispatch(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
             title: prompt.title.to_string(),
-            body: KeymapLegendBody::Mnemonic(Keymaps::new(&[
-                Keymap::new("y", "Yes".to_string(), *prompt.yes),
-                Keymap::new("n", "No".to_string(), Dispatch::Null),
+            body: KeymapLegendBody::Positional(Keymaps::new(&[
+                Keymap::new(
+                    KEYBOARD_LAYOUT.get_yes_no_key(&Meaning::Yes__),
+                    "Yes".to_string(),
+                    *prompt.yes,
+                ),
+                Keymap::new(
+                    KEYBOARD_LAYOUT.get_yes_no_key(&Meaning::No___),
+                    "No".to_string(),
+                    Dispatch::Null,
+                ),
             ])),
         }))
     }
