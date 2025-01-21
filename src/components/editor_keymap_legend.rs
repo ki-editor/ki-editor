@@ -1,5 +1,4 @@
 use crossterm::event::KeyCode;
-use my_proc_macros::key;
 use SelectionMode::*;
 
 use convert_case::Case;
@@ -612,6 +611,12 @@ impl Editor {
                     run_search_after_config_updated: self.mode != Mode::Insert,
                 },
             ),
+            Keymap::new_extended(
+                KEYBOARD_LAYOUT.get_insert_key(&Meaning::SHelp),
+                "Help".to_string(),
+                "Help".to_string(),
+                Dispatch::ToEditor(DispatchEditor::ShowHelp),
+            ),
         ]
         .to_vec()
     }
@@ -898,66 +903,6 @@ impl Editor {
             }),
         )
     }
-    pub(crate) fn handle_normal_mode(
-        &mut self,
-        context: &Context,
-        event: KeyEvent,
-        normal_mode_override: Option<NormalModeOverride>,
-    ) -> anyhow::Result<Dispatches> {
-        if let Some(keymap) = self
-            .normal_mode_keymaps(context, normal_mode_override)
-            .get(&event)
-        {
-            return Ok(keymap.get_dispatches());
-        }
-        log::info!("unhandled event: {:?}", event);
-        Ok(vec![].into())
-    }
-
-    pub(crate) fn handle_v_mode(
-        &mut self,
-        context: &Context,
-        event: KeyEvent,
-    ) -> anyhow::Result<Dispatches> {
-        self.mode = Mode::Normal;
-
-        self.enable_selection_extension();
-        if let Some(keymap) = self
-            .v_mode_keymap_legend_config(context)
-            .keymaps()
-            .get(&event)
-        {
-            return Ok(keymap.get_dispatches());
-        }
-        log::info!("unhandled event: {:?}", event);
-        Ok(vec![].into())
-    }
-
-    pub(crate) fn handle_multi_cursor_mode(
-        &mut self,
-        context: &Context,
-        key_event: KeyEvent,
-    ) -> Result<Dispatches, anyhow::Error> {
-        match key_event {
-            key!("esc") => {
-                self.mode = Mode::Normal;
-                Ok(Default::default())
-            }
-
-            other => {
-                if let Some(keymap) = self
-                    .v_mode_keymap_legend_config(context)
-                    .keymaps()
-                    .get(&other)
-                {
-                    Ok(keymap.get_dispatches())
-                } else {
-                    Ok(Default::default())
-                }
-            }
-        }
-    }
-
     pub(crate) fn transform_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Transform".to_string(),

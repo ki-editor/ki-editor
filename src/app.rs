@@ -90,6 +90,7 @@ pub(crate) enum StatusLineComponent {
     SelectionMode,
     LastDispatch,
     LocalSearchConfig,
+    Help,
 }
 
 impl<T: Frontend> App<T> {
@@ -333,6 +334,10 @@ impl<T: Frontend> App<T> {
                         StatusLineComponent::LastDispatch => self.last_action_description.clone(),
                         StatusLineComponent::LocalSearchConfig => {
                             Some(self.context.local_search_config().display())
+                        }
+                        StatusLineComponent::Help => {
+                            let key = KEYBOARD_LAYOUT.get_insert_key(&Meaning::SHelp);
+                            Some(format!("Help ({key})"))
                         }
                     })
                     .join(" │ ")

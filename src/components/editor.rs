@@ -331,6 +331,7 @@ impl Component for Editor {
             EnterNewline => return self.enter_newline(),
             DeleteCurrentCursor(direction) => self.delete_current_cursor(direction),
             BreakSelection => return self.break_selection(),
+            ShowHelp => return self.show_help(context),
         }
         Ok(Default::default())
     }
@@ -1190,27 +1191,18 @@ impl Editor {
             HandleEventResult::Ignored(key_event) => {
                 if let Some(jumps) = self.jumps.take() {
                     self.handle_jump_mode(context, key_event, jumps)
+                } else if let Mode::Insert = self.mode {
+                    return self.handle_insert_mode(key_event);
+                } else if let Mode::FindOneChar(_) = self.mode {
+                    self.handle_find_one_char_mode(IfCurrentNotFound::LookForward, key_event)
                 } else {
-                    match &self.mode {
-                        Mode::Normal => {
-                            self.handle_normal_mode(context, key_event, Default::default())
-                        }
-                        Mode::Insert => self.handle_insert_mode(key_event),
-                        Mode::MultiCursor => self.handle_multi_cursor_mode(context, key_event),
-                        Mode::FindOneChar(if_current_not_found) => {
-                            self.handle_find_one_char_mode(*if_current_not_found, key_event)
-                        }
-                        Mode::Swap => {
-                            self.handle_normal_mode(context, key_event, Default::default())
-                        }
-                        Mode::UndoTree => {
-                            self.handle_normal_mode(context, key_event, Default::default())
-                        }
-                        Mode::Replace => {
-                            self.handle_normal_mode(context, key_event, Default::default())
-                        }
-                        Mode::V => self.handle_v_mode(context, key_event),
+                    let keymap_legend_config = self.get_current_keymap_legend_config(context);
+
+                    if let Some(keymap) = keymap_legend_config.keymaps().get(&key_event) {
+                        return Ok(keymap.get_dispatches());
                     }
+                    log::info!("unhandled event: {:?}", key_event);
+                    Ok(vec![].into())
                 }
             }
             HandleEventResult::Handled(dispatches) => Ok(dispatches),
@@ -3214,6 +3206,24 @@ impl Editor {
     pub(crate) fn set_normal_mode_override(&mut self, normal_mode_override: NormalModeOverride) {
         self.normal_mode_override = Some(normal_mode_override)
     }
+
+    fn show_help(&self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        Ok(Dispatches::one(Dispatch::ShowKeymapLegend(
+            self.get_current_keymap_legend_config(context),
+        )))
+    }
+
+    fn get_current_keymap_legend_config(
+        &self,
+        context: &Context,
+    ) -> super::keymap_legend::KeymapLegendConfig {
+        match self.mode {
+            Mode::Insert => self.insert_mode_keymap_legend_config(),
+            Mode::MultiCursor => self.multicursor_mode_keymap_legend_config(context),
+            Mode::V => self.v_mode_keymap_legend_config(context),
+            _ => self.normal_mode_keymap_legend_config(context, "Normal", None),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3343,6 +3353,7 @@ pub(crate) enum DispatchEditor {
     EnterNewline,
     DeleteCurrentCursor(Direction),
     BreakSelection,
+    ShowHelp,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
