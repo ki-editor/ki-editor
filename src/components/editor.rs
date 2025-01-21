@@ -333,6 +333,7 @@ impl Component for Editor {
             BreakSelection => return self.break_selection(),
             ShowHelp => return self.show_help(context),
             HandleEsc => {
+                self.disable_selection_extension();
                 self.mode = Mode::Normal;
                 return Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent));
             }
@@ -1175,6 +1176,7 @@ impl Editor {
     }
 
     pub(crate) fn enter_v_mode(&mut self) {
+        self.enable_selection_extension();
         self.mode = Mode::V
     }
 
@@ -1203,6 +1205,9 @@ impl Editor {
                     let keymap_legend_config = self.get_current_keymap_legend_config(context);
 
                     if let Some(keymap) = keymap_legend_config.keymaps().get(&key_event) {
+                        if let Mode::V = self.mode {
+                            self.mode = Mode::Normal
+                        }
                         return Ok(keymap.get_dispatches());
                     }
                     log::info!("unhandled event: {:?}", key_event);
