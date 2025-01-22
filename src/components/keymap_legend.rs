@@ -321,18 +321,9 @@ impl Keymap {
     }
 
     pub(crate) fn display(&self) -> String {
-        let key_event = self.event().display();
-        let description = self
-            .short_description
+        self.short_description
             .clone()
-            .unwrap_or_else(|| self.description.clone());
-        if key_event.contains("shift+") {
-            format!("⇧ {description}")
-        } else if key_event.contains("alt+") {
-            format!("⌥ {description}")
-        } else {
-            description.clone()
-        }
+            .unwrap_or_else(|| self.description.clone())
     }
 }
 

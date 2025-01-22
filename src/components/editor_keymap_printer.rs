@@ -111,7 +111,14 @@ impl KeymapPrintSection {
                 })
                 .collect();
 
-            cols.insert(5, Cell::new("-"));
+            cols.insert(
+                5,
+                Cell::new(if show_shift_alt_keys {
+                    "⌥\n⇧\n∅"
+                } else {
+                    "∅"
+                }),
+            );
 
             cols
         });
