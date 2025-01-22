@@ -1,7 +1,10 @@
 use itertools::Itertools;
 use my_proc_macros::key;
 
-use crate::app::{Dispatch, Dispatches};
+use crate::{
+    app::{Dispatch, Dispatches},
+    buffer::BufferOwner,
+};
 use shared::canonicalized_path::CanonicalizedPath;
 
 use super::{
@@ -364,7 +367,11 @@ impl Component for FileExplorer {
                     match node.kind {
                         NodeKind::File => Ok([
                             Dispatch::CloseCurrentWindow,
-                            Dispatch::OpenFile(node.path.clone()),
+                            Dispatch::OpenFile {
+                                path: node.path.clone(),
+                                owner: BufferOwner::User,
+                                focus: true,
+                            },
                         ]
                         .to_vec()
                         .into()),
@@ -388,6 +395,7 @@ impl Component for FileExplorer {
 mod test_file_explorer {
     use my_proc_macros::{key, keys};
 
+    use crate::buffer::BufferOwner;
     use crate::test_app::*;
 
     #[test]
@@ -419,7 +427,11 @@ mod test_file_explorer {
     fn move_path() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 App(RevealInExplorer(s.main_rs())),
                 Expect(ComponentCount(1)),
                 App(HandleKeyEvents(keys!("m").to_vec())),

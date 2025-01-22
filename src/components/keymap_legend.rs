@@ -432,16 +432,19 @@ impl Component for KeymapLegend {
 
 #[cfg(test)]
 mod test_keymap_legend {
-    use crate::test_app::*;
-    use my_proc_macros::keys;
-
     use super::*;
+    use crate::{buffer::BufferOwner, test_app::*};
+    use my_proc_macros::keys;
 
     #[test]
     fn test_esc() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 App(ShowKeymapLegend(KeymapLegendConfig {
                     title: "".to_string(),
                     body: KeymapLegendBody::Positional(Keymaps::new(&[])),
