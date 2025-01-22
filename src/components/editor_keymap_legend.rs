@@ -442,22 +442,14 @@ impl Editor {
                 "Switch extended selection end".to_string(),
                 Dispatch::ToEditor(SwapExtensionDirection),
             ),
-        ])
-        .chain(Some(if self.selection_set.is_extended() {
-            Keymap::new_extended(
-                KEYBOARD_LAYOUT.get_key(&Meaning::VMode),
-                "select all".to_string(),
-                "Select all".to_string(),
-                Dispatch::ToEditor(SelectAll),
-            )
-        } else {
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::VMode),
                 "V-mode".to_string(),
                 "Enter V Mode".to_string(),
                 Dispatch::ToEditor(EnterVMode),
             )
-        }))
+            .override_keymap(normal_mode_override.v.as_ref()),
+        ])
         .chain(self.search_current_selection_keymap(
             KEYBOARD_LAYOUT.get_key(&Meaning::SrchC),
             Scope::Local,
@@ -725,7 +717,10 @@ impl Editor {
         .to_vec()
     }
 
-    pub(crate) fn keymap_movement_actions(&self) -> Vec<Keymap> {
+    pub(crate) fn keymap_movement_actions(
+        &self,
+        normal_mode_override: &NormalModeOverride,
+    ) -> Vec<Keymap> {
         [
             Keymap::new(
                 "~",
@@ -738,23 +733,15 @@ impl Editor {
                 "Enter Swap mode".to_string(),
                 Dispatch::ToEditor(EnterSwapMode),
             ),
-        ]
-        .into_iter()
-        .chain(Some(if self.mode == Mode::MultiCursor {
-            Keymap::new_extended(
-                KEYBOARD_LAYOUT.get_key(&Meaning::MultC),
-                "Cursor All".to_string(),
-                "Add cursor to all selections".to_string(),
-                Dispatch::ToEditor(DispatchEditor::CursorAddToAllSelections),
-            )
-        } else {
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::MultC),
                 "Multi Curs".to_string(),
                 "Enter Multi-cursor mode".to_string(),
                 Dispatch::ToEditor(EnterMultiCursorMode),
             )
-        }))
+            .override_keymap(normal_mode_override.multicursor.clone().as_ref()),
+        ]
+        .into_iter()
         .collect_vec()
     }
 
@@ -774,7 +761,7 @@ impl Editor {
                 &self
                     .keymap_core_movements()
                     .into_iter()
-                    .chain(self.keymap_movement_actions())
+                    .chain(self.keymap_movement_actions(&normal_mode_override))
                     .chain(self.keymap_other_movements())
                     .chain(self.keymap_selection_modes(context))
                     .chain(self.keymap_actions(&normal_mode_override))
@@ -812,16 +799,20 @@ impl Editor {
                     dispatch: Dispatch::OpenFilterSelectionsPrompt { maintain: false },
                 }),
                 change: Some(KeymapOverride {
-                    description: "Keep Primary Cursor",
+                    description: "Keep Prime Curs",
                     dispatch: Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
                 }),
                 delete: Some(KeymapOverride {
-                    description: "Delete Cursor →",
+                    description: "Delete Curs →",
                     dispatch: Dispatch::ToEditor(DeleteCurrentCursor(Direction::Start)),
                 }),
                 delete_backward: Some(KeymapOverride {
-                    description: "Delete Cursor ←",
+                    description: "Delete Curs ←",
                     dispatch: Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
+                }),
+                multicursor: Some(KeymapOverride {
+                    description: "Curs All",
+                    dispatch: Dispatch::ToEditor(CursorAddToAllSelections),
                 }),
                 ..Default::default()
             }),
@@ -859,6 +850,10 @@ impl Editor {
                 open: Some(KeymapOverride {
                     description: "Surround",
                     dispatch: Dispatch::ShowKeymapLegend(self.surround_keymap_legend_config()),
+                }),
+                v: Some(KeymapOverride {
+                    description: "Select All",
+                    dispatch: Dispatch::ToEditor(SelectAll),
                 }),
                 ..Default::default()
             }),
@@ -1326,6 +1321,8 @@ pub(crate) struct NormalModeOverride {
     pub(crate) delete_backward: Option<KeymapOverride>,
     pub(crate) paste: Option<KeymapOverride>,
     pub(crate) replace: Option<KeymapOverride>,
+    pub(crate) v: Option<KeymapOverride>,
+    pub(crate) multicursor: Option<KeymapOverride>,
 }
 
 #[derive(Clone)]
