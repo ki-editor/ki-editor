@@ -356,6 +356,7 @@ fn test_delete_extended_selection_whole_file() -> anyhow::Result<()> {
                     skip_symbols: false,
                 },
             )),
+            Editor(MoveSelection(Right)),
             Editor(SelectAll),
             Editor(Delete(Direction::End)),
             Expect(CurrentComponentContent("")),

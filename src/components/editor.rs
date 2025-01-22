@@ -210,6 +210,7 @@ impl Component for Editor {
             SelectAll => return self.select_all(context),
             SetContent(content) => self.set_content(&content)?,
             EnableSelectionExtension => self.enable_selection_extension(),
+            DisableSelectionExtension => self.disable_selection_extension(),
             EnterVMode => self.enter_v_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction),
@@ -2439,8 +2440,9 @@ impl Editor {
         self.handle_dispatch_editors(
             context,
             [
+                DisableSelectionExtension,
                 (MoveSelection(Movement::First)),
-                (EnableSelectionExtension),
+                EnableSelectionExtension,
                 (MoveSelection(Movement::Last)),
             ]
             .to_vec(),
@@ -3279,6 +3281,7 @@ pub(crate) enum DispatchEditor {
     #[cfg(test)]
     SetRectangle(Rectangle),
     EnableSelectionExtension,
+    DisableSelectionExtension,
     EnterVMode,
     Change,
     ChangeCut {
