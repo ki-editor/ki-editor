@@ -728,7 +728,7 @@ impl Editor {
                 Dispatch::ToEditor(EnterReplaceMode),
             ),
             Keymap::new_extended(
-                KEYBOARD_LAYOUT.get_key(&Meaning::Exchg),
+                KEYBOARD_LAYOUT.get_key(&Meaning::Swap_),
                 "Swap".to_string(),
                 "Enter Swap mode".to_string(),
                 Dispatch::ToEditor(EnterSwapMode),
