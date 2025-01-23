@@ -126,7 +126,7 @@ pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
         Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LRnme, LCdAc, Pipe_,
     ],
     [
-        UndoT, TSNSx, Copy_, PsteN, Rplc_, /****/ _____, ChngX, _____, _____, _____,
+        UndoT, Rplc_, Copy_, PsteN, TSNSx, /****/ _____, ChngX, _____, _____, _____,
     ],
 ];
 
