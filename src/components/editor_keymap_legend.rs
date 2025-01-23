@@ -32,37 +32,37 @@ impl Editor {
         [
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::Left_),
-                "←".to_string(),
+                "◀".to_string(),
                 "Left".to_string(),
                 Dispatch::ToEditor(MoveSelection(Movement::Left)),
             ),
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::Right),
-                "→".to_string(),
+                "▶".to_string(),
                 "Right".to_string(),
                 Dispatch::ToEditor(MoveSelection(Right)),
             ),
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::Up___),
-                "↑".to_string(),
+                "▲".to_string(),
                 "Up".to_string(),
                 Dispatch::ToEditor(MoveSelection(Up)),
             ),
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::Down_),
-                "↓".to_string(),
+                "▼".to_string(),
                 "Down".to_string(),
                 Dispatch::ToEditor(MoveSelection(Down)),
             ),
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::First),
-                "First".to_string(),
+                "◀◀".to_string(),
                 "First".to_string(),
                 Dispatch::ToEditor(MoveSelection(Movement::First)),
             ),
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::Last_),
-                "Last".to_string(),
+                "▶▶".to_string(),
                 "Last".to_string(),
                 Dispatch::ToEditor(MoveSelection(Movement::Last)),
             ),
@@ -1068,7 +1068,7 @@ impl Editor {
             ),
             Keymap::new(
                 KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::Qkfix),
-                "Qfix".to_string(),
+                "Quickfix".to_string(),
                 match scope {
                     Scope::Global => {
                         Dispatch::SetGlobalMode(Some(crate::context::GlobalMode::QuickfixListItem))

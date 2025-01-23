@@ -186,6 +186,11 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
                 .keymaps(),
             layout,
         ),
+        KeymapPrintSection::from_keymaps(
+            "Movements".to_string(),
+            &Keymaps::new(&editor.keymap_core_movements()),
+            layout,
+        ),
     ]
     .to_vec();
 
