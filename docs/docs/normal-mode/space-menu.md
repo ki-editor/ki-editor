@@ -56,7 +56,7 @@ Contextual actions are actions that are only applicable within a specific contex
 | s          | LSP Symbols                              |
 | t          | Themes                                   |
 
-[^1]: See more at [Git hunk](./selection-modes/local-global/misc.md#git-hunk)
+[^1]: See more at [Git hunk](./selection-modes/secondary/misc.md#git-hunk)
 [^2]: This is very useful when you want to get the modified/added files commited into the current branch that you are working on.
 
 Searching is powered by [Helix's Nucleo](https://github.com/helix-editor/nucleo), and some [fzf](https://github.com/junegunn/fzf?tab=readme-ov-file#search-syntax)-esque search syntax works here:

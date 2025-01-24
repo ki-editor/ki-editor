@@ -44,6 +44,7 @@ pub(crate) mod ui_tree;
 pub(crate) mod undo_tree;
 mod utils;
 
+mod env;
 use std::{rc::Rc, sync::Mutex};
 
 use anyhow::Context;
@@ -76,10 +77,12 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         sender,
         receiver,
         [
+            StatusLineComponent::Help,
             StatusLineComponent::CurrentWorkingDirectory,
             StatusLineComponent::GitBranch,
             StatusLineComponent::Mode,
             StatusLineComponent::SelectionMode,
+            StatusLineComponent::LocalSearchConfig,
             StatusLineComponent::LastDispatch,
         ]
         .to_vec(),

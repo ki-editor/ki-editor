@@ -232,8 +232,8 @@ pub(crate) enum DiffMode {
 impl DiffMode {
     pub(crate) fn display(&self) -> String {
         match self {
-            DiffMode::UnstagedAgainstMainBranch => "against main branch".to_string(),
-            DiffMode::UnstagedAgainstCurrentBranch => "against current branch".to_string(),
+            DiffMode::UnstagedAgainstMainBranch => "^".to_string(),
+            DiffMode::UnstagedAgainstCurrentBranch => "@".to_string(),
         }
     }
 }
