@@ -67,7 +67,7 @@ For example, consider the following Javascript code:
 hello(x, y);
 ```
 
-Assuming the current selection mode is [Syntax Node](../selection-modes/syntax-node-based.md#syntax-node), and the current selection is `y`, and the
+Assuming the current selection mode is [Syntax Node](../selection-modes/primary.md#syntax-node), and the current selection is `y`, and the
 copied text is `z`, performing a `p` results in the following:
 
 ```js

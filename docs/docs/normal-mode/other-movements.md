@@ -22,7 +22,7 @@ For example, if the current selection is `hello world`, then the cursor sits on 
 
 The anchor serves as a visual aid, making it easier to recognize when the selection range has been modified.
 
-This is especially necessary when using selection modes such as [Fine Syntax Node](./selection-modes/syntax-node-based.md#fine-syntax-node), where occasionally, the start of a selection remains the same while the end of it changes.
+This is especially necessary when using selection modes such as [Fine Syntax Node](./selection-modes/primary.md#fine-syntax-node), where occasionally, the start of a selection remains the same while the end of it changes.
 
 Usefulness of `%`:
 
@@ -41,7 +41,7 @@ Keybindings:
 - `ctrl+i`/`tab`: Go forward
 
 `ctrl+o` is useful when you messed up the current selection, especially when you are
-using [Syntax Node](./selection-modes/syntax-node-based.md#syntax-node), and
+using [Syntax Node](./selection-modes/primary.md#syntax-node), and
 expanding the current selection to parent node.
 
 Simply press `ctrl+o` to restore the selection to the previous state.  

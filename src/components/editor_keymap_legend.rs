@@ -248,7 +248,7 @@ impl Editor {
         .to_vec()
     }
 
-    pub(crate) fn keymap_other_selection_modes(&self, context: &Context) -> Vec<Keymap> {
+    pub(crate) fn keymap_secondary_selection_modes_init(&self, context: &Context) -> Vec<Keymap> {
         [
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::FindP),
@@ -770,7 +770,7 @@ impl Editor {
                     .chain(self.keymap_movement_actions(&normal_mode_override))
                     .chain(self.keymap_other_movements())
                     .chain(self.keymap_primary_selection_modes(context))
-                    .chain(self.keymap_other_selection_modes(context))
+                    .chain(self.keymap_secondary_selection_modes_init(context))
                     .chain(self.keymap_actions(&normal_mode_override))
                     .chain(self.keymap_clipboard_related_actions(false, normal_mode_override))
                     .chain(self.keymap_others(context))
