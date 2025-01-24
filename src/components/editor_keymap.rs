@@ -17,7 +17,7 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchN, Word_, SrchC, MultC, Swap_, /****/ FindP, InstP, Up___, InstN, FindN,
+        SrchN, WordF, SrchC, MultC, Swap_, /****/ FindP, InstP, Up___, InstN, FindN,
     ],
     [
         Line_, Tokn_, Sytx_, VMode, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
@@ -29,10 +29,10 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SrchP, WordF, Char_, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
+        SrchP, Word_, Char_, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
     ],
     [
-        LineF, ToknF, StyxF, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
+        LineF, FTokn, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
     ],
     [
         Redo_, PRplc, RplcX, PsteP, _____, /****/ _____, ChngX, _____, _____, SSEnd,
@@ -150,7 +150,7 @@ pub(crate) const KEYMAP_SEARCH_CONFIG: KeyboardMeaningLayout = [
         ASTGp, NCAgn, Litrl, Regex, _____, /****/ _____, CaStv, Strct, Flexi, MaWWd,
     ],
     [
-        _____, _____, _____, _____, RplcA, /****/ _____, _____, _____, _____, _____,
+        _____, RplcA, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -603,16 +603,16 @@ pub(crate) enum Meaning {
     SrchN,
     /// Search (local) previous
     SrchP,
+    /// Select Fine Syntax Node
+    FStyx,
     /// Select Syntax Node
-    StyxF,
-    /// Select Syntax
     Sytx_,
     /// GoToIndex
     ToIdx,
     /// Select Token
     Tokn_,
-    /// Select Token Fine
-    ToknF,
+    /// Select Fine Token
+    FTokn,
     /// Transform
     Trsfm,
     /// Paste (End)
@@ -629,7 +629,7 @@ pub(crate) enum Meaning {
     WSwth,
     /// Select Word
     Word_,
-    /// Select Word Fine
+    /// Select Fine Word
     WordF,
     /// Swap cursor with anchor
     XAchr,

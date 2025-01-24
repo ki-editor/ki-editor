@@ -427,7 +427,7 @@ impl SelectionMode {
             SelectionMode::Character => "COLUMN".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::SyntaxNode => "SYNTAX NODE".to_string(),
-            SelectionMode::SyntaxNodeFine => "SYNTAX NODE FINE".to_string(),
+            SelectionMode::SyntaxNodeFine => "FINE SYNTAX NODE".to_string(),
             SelectionMode::Find { search } => {
                 format!("{} {:?}", search.mode.display(), search.search)
             }
@@ -441,10 +441,10 @@ impl SelectionMode {
             SelectionMode::Mark => "MARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
             SelectionMode::Word { skip_symbols } => {
-                format!("WORD{}", if *skip_symbols { "" } else { " FINE" })
+                format!("{}WORD", if *skip_symbols { "" } else { "FINE " })
             }
             SelectionMode::Token { skip_symbols } => {
-                format!("TOKEN{}", if *skip_symbols { "" } else { " FINE" })
+                format!("{}TOKEN", if *skip_symbols { "" } else { "FINE " })
             }
         }
     }

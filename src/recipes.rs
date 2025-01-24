@@ -601,20 +601,6 @@ fn foo() {
             filename: "word",
             recipes: [
                 Recipe {
-                    description: "Word Fine",
-                    content: "
-camelCase , kebab-case snake_case
-"
-                    .trim(),
-                    file_extension: "md",
-                    prepare_events: &[],
-                    events: keys!("w l l l l l j j j j j"),
-                    expectations: &[CurrentSelectedTexts(&["camel"])],
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-                Recipe {
                     description: "Word (skip symbols)",
                     content: "
 HTTPNetwork 88 kebab-case 
@@ -645,6 +631,26 @@ snake_case 99 PascalCase
             .to_vec(),
         },
         RecipeGroup {
+            filename: "fine-word",
+            recipes: [
+                Recipe {
+                    description: "Fine Word",
+                    content: "
+camelCase , kebab-case snake_case
+"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w l l l l l j j j j j"),
+                    expectations: &[CurrentSelectedTexts(&["camel"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
             filename: "Token",
             recipes: [
                 Recipe {
@@ -663,27 +669,33 @@ snake_case + PascalCase
                     only: false,
                 },
                 Recipe {
-                    description: "Token Fine",
-                    content: "
-camelCase , kebab-case 
-snake_case + PascalCase
-"
-                    .trim(),
-                    file_extension: "md",
-                    prepare_events: &[],
-                    events: keys!("s l l k j j i"),
-                    expectations: &[CurrentSelectedTexts(&["camelCase"])],
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-                Recipe {
                     description: "Token: first/last movement (line boundary)",
                     content: "The quick brown fox jumps\nOver the lazy dog today...".trim(),
                     file_extension: "md",
                     prepare_events: &[],
                     events: keys!("s . k , i ."),
                     expectations: &[CurrentSelectedTexts(&["jumps"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "token-fine",
+            recipes: [
+                Recipe {
+                    description: "Fine Token Movements",
+                    content: "
+camelCase ,  kebab-case 
+snake_case + PascalCase
+"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("S l l k j j i"),
+                    expectations: &[CurrentSelectedTexts(&["camelCase"])],
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
@@ -837,7 +849,7 @@ fn foo() {
                     expectations: &[CurrentSelectedTexts(&["bar();", "spam();", "baz();"])],
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
                 Recipe {
                     description: "Nested spliting",

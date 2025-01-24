@@ -191,6 +191,11 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
             &Keymaps::new(&editor.keymap_core_movements()),
             layout,
         ),
+        KeymapPrintSection::from_keymaps(
+            "Primary Selection Modes".to_string(),
+            &Keymaps::new(&editor.keymap_primary_selection_modes(&Context::default())),
+            layout,
+        ),
     ]
     .to_vec();
 

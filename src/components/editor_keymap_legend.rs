@@ -169,7 +169,7 @@ impl Editor {
         .to_vec()
     }
 
-    pub(crate) fn keymap_selection_modes(&self, context: &Context) -> Vec<Keymap> {
+    pub(crate) fn keymap_primary_selection_modes(&self, context: &Context) -> Vec<Keymap> {
         [
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::Line_),
@@ -184,23 +184,13 @@ impl Editor {
                 Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
             ),
             Keymap::new_extended(
-                KEYBOARD_LAYOUT.get_key(&Meaning::Globl),
-                "Global".to_string(),
-                "Find (Global)".to_string(),
-                Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
-                    context,
-                    Scope::Global,
-                    IfCurrentNotFound::LookForward,
-                )),
-            ),
-            Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::Sytx_),
                 "Syntax".to_string(),
                 "Select Syntax Node".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             ),
             Keymap::new_extended(
-                KEYBOARD_LAYOUT.get_key(&Meaning::StyxF),
+                KEYBOARD_LAYOUT.get_key(&Meaning::FStyx),
                 "Syntax*".to_string(),
                 "Select Syntax Node*".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(
@@ -218,7 +208,7 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                KEYBOARD_LAYOUT.get_key(&Meaning::ToknF),
+                KEYBOARD_LAYOUT.get_key(&Meaning::FTokn),
                 "Token*".to_string(),
                 "Select Token*".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(
@@ -229,8 +219,8 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                KEYBOARD_LAYOUT.get_key(&Meaning::Word_),
-                "Word".to_string(),
+                KEYBOARD_LAYOUT.get_key(&Meaning::WordF),
+                "Word*".to_string(),
                 "Select Word*".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
@@ -240,8 +230,8 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                KEYBOARD_LAYOUT.get_key(&Meaning::WordF),
-                "Word*".to_string(),
+                KEYBOARD_LAYOUT.get_key(&Meaning::Word_),
+                "Word".to_string(),
                 "Select Word".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
@@ -254,6 +244,12 @@ impl Editor {
                 "Select Character".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             ),
+        ]
+        .to_vec()
+    }
+
+    pub(crate) fn keymap_other_selection_modes(&self, context: &Context) -> Vec<Keymap> {
+        [
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::FindP),
                 Direction::Start.format_action("Find"),
@@ -271,6 +267,16 @@ impl Editor {
                 Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
                     context,
                     Scope::Local,
+                    IfCurrentNotFound::LookForward,
+                )),
+            ),
+            Keymap::new_extended(
+                KEYBOARD_LAYOUT.get_key(&Meaning::Globl),
+                "Global".to_string(),
+                "Find (Global)".to_string(),
+                Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
+                    context,
+                    Scope::Global,
                     IfCurrentNotFound::LookForward,
                 )),
             ),
@@ -763,7 +769,8 @@ impl Editor {
                     .into_iter()
                     .chain(self.keymap_movement_actions(&normal_mode_override))
                     .chain(self.keymap_other_movements())
-                    .chain(self.keymap_selection_modes(context))
+                    .chain(self.keymap_primary_selection_modes(context))
+                    .chain(self.keymap_other_selection_modes(context))
                     .chain(self.keymap_actions(&normal_mode_override))
                     .chain(self.keymap_clipboard_related_actions(false, normal_mode_override))
                     .chain(self.keymap_others(context))
