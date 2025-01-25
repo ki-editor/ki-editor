@@ -4,48 +4,13 @@ sidebar_position: 4
 
 import { TutorialFallback } from '@site/src/components/TutorialFallback';
 
-# Text Search
-
-This is one of the most useful selection modes.
-
-## Actions
-
-### 1. Open search prompt
-
-Keybindings:
-
-- `/`: Search forward if no match under cursor
-- `?`: Search backward if no match under cursor
-
-### 2. Search current selection
-
-Keybinding: `*`
-
-<TutorialFallback filename="search-current-selection"/>
-
-### 3. Search using previous search term
-
-Keybinding: `p`
-
-### 4. Configure search
-
-Keybinding: `'`
-
-By default, search uses Literal mode.
-
-Other modes can be toggled/chosen by opening the search configurator.
-
-## Configuration
-
-The following modes/options are configurable in the configurator.
+# Search Config
 
 ## Modes
 
 There are 4 search modes, and only one of them can be chosen at any time.
 
 ### 1. Literal
-
-Keybinding: `l`
 
 The default and the most commonly used search mode. In this mode, every
 characters are treated verbatim, a `(` means a `(`, it does not mean the start
@@ -55,8 +20,6 @@ of a capture group.
 
 ### 2. Regex
 
-Keybinding: `x`
-
 This is powered by the [Fancy Regex](https://github.com/fancy-regex/fancy-regex) engine,
 where features such as look-around and backtracking are supported.
 
@@ -64,15 +27,11 @@ where features such as look-around and backtracking are supported.
 
 ### 3. AST-Grep
 
-Keybinding: `a`
-
 This is based on [AST Grep](https://github.com/ast-grep/ast-grep), useful for structural search and replacement.
 
 <TutorialFallback filename="ast-grep"/>
 
 ### 4. Naming Convention Agnostic
-
-Keybinding: `n`
 
 Naming convention as in `camelCase` or `snake_case`, not upper-case or lower-case.
 
@@ -98,7 +57,7 @@ For example, searching `hello world` in this mode matches (non-exhaustive):
 
 etc.
 
-This is most powerful when used with [Replace with Pattern](../actions/index.md#replace-with-pattern).
+This is most powerful when used with [Replace with Pattern](actions/index.md#replace-with-pattern).
 
 <TutorialFallback filename="naming-convention-agnostic"/>
 
@@ -109,15 +68,11 @@ These options are only applicable in Literal or Regex mode.
 
 ### 1. Match whole word
 
-Keybinding: `w`
-
 When turned on, the search will be restricted to match word boundary (`\b`). For example, `hello` will not match itself in `helloWorld`, it will only match standalone `hello`s.
 
 <TutorialFallback filename="match-whole-word"/>
 
 ### 2. Case-sensitive
-
-Keybinding: `c`
 
 When turned on, the uppercase or lowercase of each alphabet of the search becomes important. For example, `hello` will not match `Hello`.
 
@@ -125,13 +80,9 @@ When turned on, the uppercase or lowercase of each alphabet of the search become
 
 ### 3. Strict
 
-Keybinding: `s`
-
 This is a shortcut for **enabling** both Case-sensitive and Match Whole Word.
 
 ### 4. Flexible
-
-Keybinding: `f`
 
 This is a shortcut for **disabling** both Case-sensitive and Match Whole Word.
 
@@ -158,4 +109,4 @@ This is a global action that replaces all matches with the replacement pattern[^
 
 <TutorialFallback filename="replace-all"/>
 
-[^1]: See more at [Replace with Pattern](../actions/index.md#replace-with-pattern)
+[^1]: See more at [Replace with Pattern](actions/index.md#replace-with-pattern)

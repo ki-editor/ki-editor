@@ -81,7 +81,7 @@ This is useful when you want to retrieve earlier copies.
 Keybinding: `ctrl+r`
 
 This replaces the current selection using the search pattern and replacement
-pattern specified in the [Text Search Configuration](../selection-modes/search.md#configuration).
+pattern specified in the [Text Search Configuration](../search-config.md).
 
 For example:
 
@@ -154,3 +154,16 @@ Notes:
 
 1. Undo/redo works for multi-cursors as well
 2. The current implementation is naive, it undoes/redoes character-by-character, instead of chunk-by-chunk, so it can be mildly frustrating
+
+### Open search prompt
+
+Keybindings:
+
+- `/`: Search forward if no match under cursor
+- `?`: Search backward if no match under cursor
+
+### Search current selection
+
+<TutorialFallback filename="search-current-selection"/>
+
+### Search using previous search term
