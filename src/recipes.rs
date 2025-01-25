@@ -743,7 +743,7 @@ snake
                     content: "count > 0 ? x + 2 : y / z".trim(),
                     file_extension: "js",
                     prepare_events: keys!("q x enter"),
-                    events: keys!("d X"),
+                    events: keys!("d T"),
                     expectations: &[
                         CurrentSelectedTexts(&["x + 2"]),
                         CurrentComponentContent("x + 2"),
@@ -764,7 +764,7 @@ snake
                         .trim(),
                     file_extension: "js",
                     prepare_events: keys!("q < c h i l d enter"),
-                    events: keys!("d X"),
+                    events: keys!("d T"),
                     expectations: &[
                         CurrentSelectedTexts(&["<Child x={y}/>"]),
                         CurrentComponentContent("<GParent>\n    <Child x={y}/>\n</GParent>"),
@@ -782,7 +782,7 @@ app.post('/admin', () => {
                     .trim(),
                     file_extension: "js",
                     prepare_events: keys!("q r o u t e r enter"),
-                    events: keys!("d X X"),
+                    events: keys!("d T T"),
                     expectations: &[
                         CurrentSelectedTexts(&["router.route(foo, bar)"]),
                         CurrentComponentContent("app.post('/admin', () => router.route(foo, bar))"),
@@ -796,7 +796,7 @@ app.post('/admin', () => {
                     content: r#"{"hello": {"world": [123], "foo": null}}"#.trim(),
                     file_extension: "js",
                     prepare_events: keys!("q 1 2 3 enter"),
-                    events: keys!("d X X"),
+                    events: keys!("d T T"),
                     expectations: &[
                         CurrentSelectedTexts(&["123"]),
                         CurrentComponentContent(r#"{"hello": 123}"#),

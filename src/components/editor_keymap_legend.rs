@@ -87,12 +87,6 @@ impl Editor {
     pub(crate) fn keymap_other_movements(&self) -> Vec<Keymap> {
         [
             Keymap::new_extended(
-                KEYBOARD_LAYOUT.get_key(&Meaning::XAchr),
-                "⇋ Anchor".to_string(),
-                "Swap cursor with anchor".to_string(),
-                Dispatch::ToEditor(DispatchEditor::SwapCursorWithAnchor),
-            ),
-            Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::CrsrP),
                 Direction::Start.format_action("Curs"),
                 Direction::Start.format_action("Cycle primary selection"),
@@ -164,6 +158,18 @@ impl Editor {
                 "5",
                 "Quick Jump - #5".to_string(),
                 Dispatch::JumpEditor('5'),
+            ),
+            Keymap::new_extended(
+                KEYBOARD_LAYOUT.get_key(&Meaning::SSEnd),
+                "⇋ End".to_string(),
+                "Switch extended selection end".to_string(),
+                Dispatch::ToEditor(SwapExtensionDirection),
+            ),
+            Keymap::new_extended(
+                KEYBOARD_LAYOUT.get_key(&Meaning::XAchr),
+                "⇋ Anchor".to_string(),
+                "Swap cursor with anchor".to_string(),
+                Dispatch::ToEditor(DispatchEditor::SwapCursorWithAnchor),
             ),
         ]
         .to_vec()
@@ -442,25 +448,13 @@ impl Editor {
                 "Dedent".to_string(),
                 Dispatch::ToEditor(Dedent),
             ),
-            Keymap::new_extended(
-                KEYBOARD_LAYOUT.get_key(&Meaning::SSEnd),
-                "⇋ End".to_string(),
-                "Switch extended selection end".to_string(),
-                Dispatch::ToEditor(SwapExtensionDirection),
-            ),
-            Keymap::new_extended(
-                KEYBOARD_LAYOUT.get_key(&Meaning::VMode),
-                "V-mode".to_string(),
-                "Enter V Mode".to_string(),
-                Dispatch::ToEditor(EnterVMode),
-            )
-            .override_keymap(normal_mode_override.v.as_ref()),
         ])
         .chain(self.search_current_selection_keymap(
             KEYBOARD_LAYOUT.get_key(&Meaning::SrchC),
             Scope::Local,
             IfCurrentNotFound::LookForward,
         ))
+        .chain(self.keymap_clipboard_related_actions(false, normal_mode_override.clone()))
         .collect_vec()
     }
 
@@ -746,6 +740,13 @@ impl Editor {
                 Dispatch::ToEditor(EnterMultiCursorMode),
             )
             .override_keymap(normal_mode_override.multicursor.clone().as_ref()),
+            Keymap::new_extended(
+                KEYBOARD_LAYOUT.get_key(&Meaning::VMode),
+                "V-mode".to_string(),
+                "Enter V Mode".to_string(),
+                Dispatch::ToEditor(EnterVMode),
+            )
+            .override_keymap(normal_mode_override.v.as_ref()),
         ]
         .into_iter()
         .collect_vec()
@@ -772,7 +773,6 @@ impl Editor {
                     .chain(self.keymap_primary_selection_modes(context))
                     .chain(self.keymap_secondary_selection_modes_init(context))
                     .chain(self.keymap_actions(&normal_mode_override))
-                    .chain(self.keymap_clipboard_related_actions(false, normal_mode_override))
                     .chain(self.keymap_others(context))
                     .chain(self.keymap_universal())
                     .collect_vec(),
