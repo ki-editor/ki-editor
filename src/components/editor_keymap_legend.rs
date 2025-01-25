@@ -254,7 +254,7 @@ impl Editor {
                 KEYBOARD_LAYOUT.get_key(&Meaning::FindP),
                 Direction::Start.format_action("Find"),
                 "Find (Local) - Backward".to_string(),
-                Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
+                Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
                     context,
                     Scope::Local,
                     IfCurrentNotFound::LookBackward,
@@ -264,7 +264,7 @@ impl Editor {
                 KEYBOARD_LAYOUT.get_key(&Meaning::FindN),
                 Direction::End.format_action("Find"),
                 "Find (Local) - Forward".to_string(),
-                Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
+                Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
                     context,
                     Scope::Local,
                     IfCurrentNotFound::LookForward,
@@ -274,7 +274,7 @@ impl Editor {
                 KEYBOARD_LAYOUT.get_key(&Meaning::Globl),
                 "Global".to_string(),
                 "Find (Global)".to_string(),
-                Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
+                Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
                     context,
                     Scope::Global,
                     IfCurrentNotFound::LookForward,
@@ -1014,7 +1014,7 @@ impl Editor {
             .map(|search| {
                 Keymap::new_extended(
                     key,
-                    "🔍 This".to_string(),
+                    "This".to_string(),
                     "Search current selection".to_string(),
                     Dispatch::UpdateLocalSearchConfig {
                         scope,
@@ -1028,7 +1028,7 @@ impl Editor {
             .ok()
     }
 
-    pub(crate) fn find_keymap_legend_config(
+    pub(crate) fn secondary_selection_modes_keymap_legend_config(
         &self,
         context: &Context,
         scope: Scope,
@@ -1037,27 +1037,51 @@ impl Editor {
         let search_keymaps = {
             let config = context.get_local_search_config(scope);
             [].into_iter()
-                .chain(config.last_search().map(|search| {
-                    Keymap::new(
-                        KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::PSrch),
-                        "🔍 Last".to_string(),
-                        Dispatch::UpdateLocalSearchConfig {
-                            scope,
-                            if_current_not_found,
-                            update: crate::app::LocalSearchConfigUpdate::Search(
-                                search.search.to_string(),
-                            ),
-                            show_config_after_enter: false,
-                            run_search_after_config_updated: true,
-                        },
-                    )
-                }))
                 .chain(
-                    [Keymap::new(
-                        KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::LNcSM),
-                        "Same".to_string(),
-                        Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
-                    )]
+                    [
+                        Keymap::new_extended(
+                            KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::CSrch),
+                            "Config".to_string(),
+                            "Configure Search".to_string(),
+                            Dispatch::ShowSearchConfig {
+                                scope,
+                                if_current_not_found,
+                                run_search_after_config_updated: true,
+                            },
+                        ),
+                        Keymap::new(
+                            KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::PSrch),
+                            "Last".to_string(),
+                            Dispatch::UpdateLocalSearchConfig {
+                                scope,
+                                if_current_not_found,
+                                update: crate::app::LocalSearchConfigUpdate::Search(
+                                    config
+                                        .last_search()
+                                        .map(|search| search.search.to_string())
+                                        .unwrap_or_default(),
+                                ),
+                                show_config_after_enter: false,
+                                run_search_after_config_updated: true,
+                            },
+                        ),
+                        Keymap::new(
+                            KEYBOARD_LAYOUT.get_find_keymap(
+                                scope,
+                                &match (scope, if_current_not_found) {
+                                    (Scope::Local, IfCurrentNotFound::LookForward) => {
+                                        Meaning::FindN
+                                    }
+                                    (Scope::Local, IfCurrentNotFound::LookBackward) => {
+                                        Meaning::FindP
+                                    }
+                                    (Scope::Global, _) => Meaning::Globl,
+                                },
+                            ),
+                            "Repeat".to_string(),
+                            Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
+                        ),
+                    ]
                     .to_vec(),
                 )
                 .collect_vec()
@@ -1111,15 +1135,11 @@ impl Editor {
         )
         .collect_vec();
         let diagnostics_keymaps = [
-            (Meaning::DgAll, "⚪ All", DiagnosticSeverityRange::All),
-            (Meaning::DgErr, "🔴 Error", DiagnosticSeverityRange::Error),
-            (Meaning::DgHnt, "🟢 Hint", DiagnosticSeverityRange::Hint),
-            (
-                Meaning::DgInf,
-                "🔵 Info",
-                DiagnosticSeverityRange::Information,
-            ),
-            (Meaning::DgWrn, "🟡 Warn", DiagnosticSeverityRange::Warning),
+            (Meaning::DgAll, "All", DiagnosticSeverityRange::All),
+            (Meaning::DgErr, "Error", DiagnosticSeverityRange::Error),
+            (Meaning::DgHnt, "Hint", DiagnosticSeverityRange::Hint),
+            (Meaning::DgInf, "Info", DiagnosticSeverityRange::Information),
+            (Meaning::DgWrn, "Warn", DiagnosticSeverityRange::Warning),
         ]
         .into_iter()
         .map(|(meaning, description, severity)| {
@@ -1202,27 +1222,15 @@ impl Editor {
                 Dispatch::ToEditor(FindOneChar(if_current_not_found)),
             )])
             .collect_vec(),
-            Scope::Global => [
-                Keymap::new_extended(
-                    KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::CSrch),
-                    "🔍 Config".to_string(),
-                    "Configure Search".to_string(),
-                    Dispatch::ShowSearchConfig {
-                        scope,
-                        if_current_not_found,
-                        run_search_after_config_updated: true,
-                    },
-                ),
-                Keymap::new_extended(
-                    KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::Srch_),
-                    "Search".to_string(),
-                    "Search".to_string(),
-                    Dispatch::OpenSearchPrompt {
-                        scope,
-                        if_current_not_found,
-                    },
-                ),
-            ]
+            Scope::Global => [Keymap::new_extended(
+                KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::Srch_),
+                "Search".to_string(),
+                "Search".to_string(),
+                Dispatch::OpenSearchPrompt {
+                    scope,
+                    if_current_not_found,
+                },
+            )]
             .into_iter()
             .chain(self.search_current_selection_keymap(
                 KEYBOARD_LAYOUT.get_find_keymap(scope, &Meaning::SrchC),

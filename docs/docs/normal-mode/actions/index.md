@@ -81,7 +81,7 @@ This is useful when you want to retrieve earlier copies.
 Keybinding: `ctrl+r`
 
 This replaces the current selection using the search pattern and replacement
-pattern specified in the [Text Search Configuration](../selection-modes/secondary/text-search.md#configuration).
+pattern specified in the [Text Search Configuration](../selection-modes/search.md#configuration).
 
 For example:
 

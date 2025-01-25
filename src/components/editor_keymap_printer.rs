@@ -1,8 +1,10 @@
 use super::{
+    editor::IfCurrentNotFound,
     editor_keymap::alted,
     keymap_legend::{Keymap, Keymaps},
 };
 use crate::{
+    app::Scope,
     components::{
         editor::Editor,
         editor_keymap::{shifted, KeyboardLayout, KEYBOARD_LAYOUT},
@@ -199,6 +201,39 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
         KeymapPrintSection::from_keymaps(
             "Secondary Selection Modes Init".to_string(),
             &Keymaps::new(&editor.keymap_secondary_selection_modes_init(&Context::default())),
+            layout,
+        ),
+        KeymapPrintSection::from_keymaps(
+            "Secondary Selection Modes (Local Forward)".to_string(),
+            &editor
+                .secondary_selection_modes_keymap_legend_config(
+                    &Context::default(),
+                    Scope::Local,
+                    IfCurrentNotFound::LookForward,
+                )
+                .keymaps(),
+            layout,
+        ),
+        KeymapPrintSection::from_keymaps(
+            "Secondary Selection Modes (Local Backward)".to_string(),
+            &editor
+                .secondary_selection_modes_keymap_legend_config(
+                    &Context::default(),
+                    Scope::Local,
+                    IfCurrentNotFound::LookBackward,
+                )
+                .keymaps(),
+            layout,
+        ),
+        KeymapPrintSection::from_keymaps(
+            "Secondary Selection Modes (Global)".to_string(),
+            &editor
+                .secondary_selection_modes_keymap_legend_config(
+                    &Context::default(),
+                    Scope::Global,
+                    IfCurrentNotFound::LookForward,
+                )
+                .keymaps(),
             layout,
         ),
     ]

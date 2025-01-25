@@ -60,7 +60,7 @@ pub(crate) const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
 /// are both located on the right-side.
 pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
     [
-        OneCh, PSrch, NtrlN, LNcSM, Qkfix, /****/ _____, _____, _____, _____, L2Fnd,
+        OneCh, PSrch, NtrlN, CSrch, Qkfix, /****/ FindP, _____, _____, _____, FindN,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
@@ -84,13 +84,13 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// This keymap should be almost identical with that of Find Local
 pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
     [
-        Srch_, PSrch, SrchC, LNcSM, Qkfix, /****/ _____, _____, _____, _____, _____,
+        Srch_, PSrch, SrchC, CSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ CSrch, _____, _____, _____, _____,
+        LImpl, LDefn, LType, LRfrE, Mark_, /****/ Globl, _____, _____, _____, _____,
     ],
 ];
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
@@ -639,8 +639,6 @@ pub(crate) enum Meaning {
     Srch_,
     /// Search (using previous search)
     PSrch,
-    /// Last non-contiguous selection mode
-    LNcSM,
     /// Quickfix
     Qkfix,
     /// Git Hunk (against current branch)
@@ -673,8 +671,6 @@ pub(crate) enum Meaning {
     NtrlN,
     /// One Character
     OneCh,
-    /// Level 2 Find
-    L2Fnd,
     /// Parenthesis
     Paren,
     /// Curly Braces

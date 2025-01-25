@@ -1,3 +1,7 @@
+---
+sidebar_position: 3
+---
+
 # Secondary
 
 Secondary selection modes are also non-contiguous selection modes.
@@ -12,13 +16,9 @@ For example, when searching for text:
 - Local search finds matches only in your current file
 - Global search finds matches in all project files"
 
-There are 3 categories of Secondary selection modes:
-
-1. [Text Search](./text-search.md)
-1. [LSP-based](./lsp-based.md)
-1. [Misc](./misc.md)
-
 ## Keymap
+
+### Initialization
 
 Most secondary selection modes are nested below the 3 keybindings below,
 with the exception of Search and Seacrh Current, which are placed on the
@@ -50,22 +50,202 @@ Notice that the keybindings here are all located on the right side of the keyboa
 this is because all the secondary selection modes are placed on the left side of the
 keyboard, which allows for efficient execution via hand-alternation.
 
-## Shortcut (`;`)
+There are 3 sets of keymap for secondary selection modes:
 
-All selection modes under this Local/Global category are non-contiguous,
-and since they require at least two keypresses, Ki provides a shortcut:
+1. Local (Forward)
+2. Local (Backward)
+3. Global
 
-> To set the current selection mode back to the last non-contiguous selection modes,
-> press `;`.
+They are almost identical except:
 
-For example, after you searched for a term (either locally or globally),
-and you've changed to another contiguous selection mode (such as Word),
-pressing `;` will set the selection mode back to the term search.
+1. `One` and `Int` are only applicable for the Local keymaps
+2. `Search` and `This` are only applicable for the Global keymap
+3. Position of `Repeat` is different all 3 keymaps to enable easy combo:  
+   a. To repeat the last secondary selection backward, press `y` (Qwerty) twice  
+   b. To repeat the last secondary selection forward, press `p` (Qwerty) twice  
+   c. To repeat the last secondary selection globally, press `n` (Qwerty) twice
 
-## Quickfix List
+### Local (Forward)
 
-After applying a global selection mode:
+```
+╭──────┬───────┬──────┬────────┬──────────┬───┬───┬───┬───┬───┬────────╮
+│      ┆       ┆      ┆        ┆          ┆ ⌥ ┆   ┆   ┆   ┆   ┆        │
+│      ┆       ┆      ┆        ┆          ┆ ⇧ ┆   ┆   ┆   ┆   ┆        │
+│  One ┆  Last ┆  Int ┆ Config ┆ Quickfix ┆ ∅ ┆   ┆   ┆   ┆   ┆ Repeat │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┤
+│      ┆       ┆      ┆        ┆          ┆ ⌥ ┆   ┆   ┆   ┆   ┆        │
+│      ┆       ┆      ┆  Info  ┆   Hunk^  ┆ ⇧ ┆   ┆   ┆   ┆   ┆        │
+│  All ┆ Error ┆ Warn ┆  Hint  ┆   Hunk@  ┆ ∅ ┆   ┆   ┆   ┆   ┆        │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┤
+│      ┆       ┆      ┆        ┆          ┆ ⌥ ┆   ┆   ┆   ┆   ┆        │
+│      ┆  Decl ┆      ┆  Ref+  ┆          ┆ ⇧ ┆   ┆   ┆   ┆   ┆        │
+│ Impl ┆  Def  ┆ Type ┆  Ref-  ┆   Mark   ┆ ∅ ┆   ┆   ┆   ┆   ┆        │
+╰──────┴───────┴──────┴────────┴──────────┴───┴───┴───┴───┴───┴────────╯
+```
 
-1. Matching items will be populated into the Quickfix List
-2. The global mode will be set to Quickfix, where movements will navigate the list
-3. Pressing `esc` will close the Quickfix List and change the current editor selection mode to Local Quickfix
+### Local (Backward)
+
+Note: only showing difference
+
+```
+╭──────┬───────┬──────┬──────┬──────────┬───┬────────┬───┬───┬───┬───╮
+│      ┆       ┆      ┆      ┆          ┆ ⌥ ┆        ┆   ┆   ┆   ┆   │
+│      ┆       ┆      ┆      ┆          ┆ ⇧ ┆        ┆   ┆   ┆   ┆   │
+│      ┆       ┆      ┆      ┆          ┆ ∅ ┆ Repeat ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│      ┆       ┆      ┆      ┆          ┆ ⌥ ┆        ┆   ┆   ┆   ┆   │
+│      ┆       ┆      ┆      ┆          ┆ ⇧ ┆        ┆   ┆   ┆   ┆   │
+│      ┆       ┆      ┆      ┆          ┆ ∅ ┆        ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│      ┆       ┆      ┆      ┆          ┆ ⌥ ┆        ┆   ┆   ┆   ┆   │
+│      ┆       ┆      ┆      ┆          ┆ ⇧ ┆        ┆   ┆   ┆   ┆   │
+│      ┆       ┆      ┆      ┆          ┆ ∅ ┆        ┆   ┆   ┆   ┆   │
+╰──────┴───────┴──────┴──────┴──────────┴───┴────────┴───┴───┴───┴───╯
+```
+
+### Global
+
+Note: only showing differences
+
+```
+╭────────┬───────┬─────────┬───────────┬──────────┬───┬────────┬───┬───┬───┬───╮
+│        ┆       ┆         ┆           ┆          ┆ ⌥ ┆        ┆   ┆   ┆   ┆   │
+│        ┆       ┆         ┆           ┆          ┆ ⇧ ┆        ┆   ┆   ┆   ┆   │
+│ Search ┆       ┆   This  ┆           ┆          ┆ ∅ ┆        ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│        ┆       ┆         ┆           ┆          ┆ ⌥ ┆        ┆   ┆   ┆   ┆   │
+│        ┆       ┆         ┆           ┆          ┆ ⇧ ┆        ┆   ┆   ┆   ┆   │
+│        ┆       ┆         ┆           ┆          ┆ ∅ ┆        ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│        ┆       ┆         ┆           ┆          ┆ ⌥ ┆        ┆   ┆   ┆   ┆   │
+│        ┆       ┆         ┆           ┆          ┆ ⇧ ┆        ┆   ┆   ┆   ┆   │
+│        ┆       ┆         ┆           ┆          ┆ ∅ ┆ Repeat ┆   ┆   ┆   ┆   │
+╰────────┴───────┴─────────┴───────────┴──────────┴───┴────────┴───┴───┴───┴───╯
+```
+
+## Search-related
+
+### `One`
+
+Find one character, this is simlar to Vim's `f`/`t`.
+
+### `Last`
+
+Repeat the last search.
+
+### `Config`
+
+Configure search settings.
+
+### `Int`
+
+Integer. Useful for jumping to numbers.
+
+## LSP Diagnostics
+
+### `All`
+
+All diagnostics.
+
+### `Error`
+
+Only Diagnostics Error.
+
+### `Warn`
+
+Only Diagnostics Warning.
+
+### `Hint`
+
+Only Diagnostics Hint.
+
+### `Info`
+
+Only Diagnostics Information.
+
+## LSP Location
+
+### `Impl`
+
+Implementation.
+
+### `Decl`
+
+Declaration.
+
+### `Def`
+
+Definition.
+
+### `Type`
+
+Type definition.
+
+### `Ref-`/`Ref+`
+
+`Ref-`: References excluding declaration  
+`Ref+`: References including declaration
+
+In most cases, the Goto selection modes do not make sense in the Local (current
+file) context, however `r` and `R` are exceptional, because finding local
+references are very useful, especially when used in conjunction with Multi-
+cursor.
+
+## Misc
+
+### `Repeat`
+
+Repeats the last used secondary selection mode, this is particularly valuable when dealing with scenarios where standard multi-cursor operations are insufficient due to varying modification requirements.
+
+#### Example
+
+When removing unused imports:
+
+```python
+from math import cos  # Unused import 'cos'
+from datetime import datetime, date  # Unused import 'date'
+```
+
+In this case, we need t
+
+- Delete entire first line
+- Remove only 'date' from second line
+
+The `Repeat` command lets you reuse the last selection mode without manual reactivation, making these varied modifications more efficient.
+
+### `Quickfix`
+
+When getting selections using the Global mode, the matches will be stored into
+the Quickfix List.
+
+The quickfix selection mode behaves slightly differently in the Global/Local context:
+
+| Context | Meaning                                                              |
+| ------- | -------------------------------------------------------------------- |
+| Global  | Navigate using the current quickfix list                             |
+| Local   | Use matches of the current quickfix list that is of the current file |
+
+#### When is global quickfix useful?
+
+When you entered another selection mode but wish to use back the quickfix list.
+
+#### When is local quickfix useful?
+
+When you wanted to use Multi-cursor with the quickfix matches of the current file.
+
+### `Hunk@`/`Hunk^`
+
+`@` means compare against current branch.  
+`^` means compare against main/master branch.
+
+Git hunks are the diffs of the current Git repository.
+
+It is computed by comparing the current file contents with the content on the latest commit of the current/main branch.
+
+This is useful when you want to navigate to your recent changes, but forgot where they are.
+
+### `Marks`
+
+Mark is a powerful feature that allows you to jump to files that contain marks (which can be toggled).
+
+It also allows you to swap two sections of the same file.

@@ -1,5 +1,5 @@
 ---
-sidebar_position: 1
+sidebar_position: 4
 ---
 
 import { TutorialFallback } from '@site/src/components/TutorialFallback';
@@ -98,7 +98,7 @@ For example, searching `hello world` in this mode matches (non-exhaustive):
 
 etc.
 
-This is most powerful when used with [Replace with Pattern](../../actions/index.md#replace-with-pattern).
+This is most powerful when used with [Replace with Pattern](../actions/index.md#replace-with-pattern).
 
 <TutorialFallback filename="naming-convention-agnostic"/>
 
@@ -158,4 +158,4 @@ This is a global action that replaces all matches with the replacement pattern[^
 
 <TutorialFallback filename="replace-all"/>
 
-[^1]: See more at [Replace with Pattern](../../actions/index.md#replace-with-pattern)
+[^1]: See more at [Replace with Pattern](../actions/index.md#replace-with-pattern)
