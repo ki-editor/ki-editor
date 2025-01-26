@@ -1,7 +1,9 @@
 use super::{
     editor::IfCurrentNotFound,
     editor_keymap::alted,
-    editor_keymap_legend::extend_mode_normal_mode_override,
+    editor_keymap_legend::{
+        extend_mode_normal_mode_override, multicursor_mode_normal_mode_override,
+    },
     file_explorer::file_explorer_normal_mode_override,
     keymap_legend::{Keymap, Keymaps},
 };
@@ -177,20 +179,6 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
             layout,
         ),
         KeymapPrintSection::from_keymaps(
-            "V-mode".to_string(),
-            &editor
-                .extend_mode_keymap_legend_config(&Context::default())
-                .keymaps(),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Multicursor Mode".to_string(),
-            &editor
-                .multicursor_mode_keymap_legend_config(&Context::default())
-                .keymaps(),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
             "Movements".to_string(),
             &Keymaps::new(&editor.keymap_core_movements()),
             layout,
@@ -261,8 +249,20 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
             layout,
         ),
         KeymapPrintSection::from_keymaps(
-            "V-mode Surround".to_string(),
+            "Extend".to_string(),
             &Keymaps::new(&editor.keymap_overridable(&extend_mode_normal_mode_override(), true)),
+            layout,
+        ),
+        KeymapPrintSection::from_keymaps(
+            "Sub Modes".to_string(),
+            &Keymaps::new(&editor.keymap_sub_modes(&Default::default())),
+            layout,
+        ),
+        KeymapPrintSection::from_keymaps(
+            "Multi-cursor".to_string(),
+            &Keymaps::new(
+                &editor.keymap_overridable(&multicursor_mode_normal_mode_override(), true),
+            ),
             layout,
         ),
     ]
