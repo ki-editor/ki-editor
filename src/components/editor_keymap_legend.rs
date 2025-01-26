@@ -1452,11 +1452,11 @@ pub(crate) fn multicursor_mode_normal_mode_override() -> NormalModeOverride {
         }),
         delete: Some(KeymapOverride {
             description: "Delete Curs →",
-            dispatch: Dispatch::ToEditor(DeleteCurrentCursor(Direction::Start)),
+            dispatch: Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
         }),
         delete_backward: Some(KeymapOverride {
             description: "Delete Curs ←",
-            dispatch: Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
+            dispatch: Dispatch::ToEditor(DeleteCurrentCursor(Direction::Start)),
         }),
         multicursor: Some(KeymapOverride {
             description: "Curs All",
