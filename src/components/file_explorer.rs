@@ -18,6 +18,31 @@ pub(crate) struct FileExplorer {
     tree: Tree,
 }
 
+pub(crate) fn file_explorer_normal_mode_override() -> NormalModeOverride {
+    NormalModeOverride {
+        append: Some(KeymapOverride {
+            description: "Add Path",
+            dispatch: Dispatch::OpenAddPathPrompt,
+        }),
+        change: Some(KeymapOverride {
+            description: "Move Path",
+            dispatch: Dispatch::OpenMoveFilePrompt,
+        }),
+        delete: Some(KeymapOverride {
+            description: "Delete Path",
+            dispatch: Dispatch::OpenDeleteFilePrompt,
+        }),
+        replace: Some(KeymapOverride {
+            description: "Refresh",
+            dispatch: Dispatch::RefreshFileExplorer,
+        }),
+        paste: Some(KeymapOverride {
+            description: "Dup Path",
+            dispatch: Dispatch::OpenDuplicateFilePrompt,
+        }),
+        ..Default::default()
+    }
+}
 impl FileExplorer {
     pub(crate) fn new(path: &CanonicalizedPath) -> anyhow::Result<Self> {
         let tree = Tree::new(path)?;
@@ -28,29 +53,7 @@ impl FileExplorer {
             &format!("{}\n", text),
         );
         editor.set_title("File Explorer".to_string());
-        editor.set_normal_mode_override(NormalModeOverride {
-            append: Some(KeymapOverride {
-                description: "Add Path",
-                dispatch: Dispatch::OpenAddPathPrompt,
-            }),
-            change: Some(KeymapOverride {
-                description: "Move Path",
-                dispatch: Dispatch::OpenMoveFilePrompt,
-            }),
-            delete: Some(KeymapOverride {
-                description: "Delete Path",
-                dispatch: Dispatch::OpenDeleteFilePrompt,
-            }),
-            replace: Some(KeymapOverride {
-                description: "Refresh",
-                dispatch: Dispatch::RefreshFileExplorer,
-            }),
-            paste: Some(KeymapOverride {
-                description: "Dup Path",
-                dispatch: Dispatch::OpenDuplicateFilePrompt,
-            }),
-            ..Default::default()
-        });
+        editor.set_normal_mode_override(file_explorer_normal_mode_override());
         Ok(Self { editor, tree })
     }
 

@@ -1,6 +1,7 @@
 use super::{
     editor::IfCurrentNotFound,
     editor_keymap::alted,
+    file_explorer::file_explorer_normal_mode_override,
     keymap_legend::{Keymap, Keymaps},
 };
 use crate::{
@@ -251,6 +252,11 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
             &editor
                 .space_keymap_legend_config(&Default::default())
                 .keymaps(),
+            layout,
+        ),
+        KeymapPrintSection::from_keymaps(
+            "File Explorer Actions".to_string(),
+            &Keymaps::new(&editor.keymap_actions(&file_explorer_normal_mode_override())),
             layout,
         ),
     ]
