@@ -123,10 +123,10 @@ pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
         QSave, SaveA, Explr, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LRnme, LCdAc, Pipe_,
+        Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LCdAc, Pipe_, _____,
     ],
     [
-        UndoT, Rplc_, Copy_, PsteN, TSNSx, /****/ _____, ChngX, _____, _____, _____,
+        UndoT, _____, _____, _____, TSNSx, /****/ _____, LRnme, _____, _____, _____,
     ],
 ];
 

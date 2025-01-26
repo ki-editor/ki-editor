@@ -13,19 +13,19 @@ The space menu can be brought up by pressing `space`.
 ## Keymap
 
 ```
-╭───────────────┬───────────┬─────────────┬───────────┬──────────────┬───┬───┬────────────┬────────┬──────────────┬──────╮
-│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆        ┆              ┆      │
-│  Quit No Save ┆           ┆             ┆           ┆              ┆ ⇧ ┆   ┆            ┆        ┆              ┆      │
-│ Save All Quit ┆  Save All ┆   Explorer  ┆           ┆              ┆ ∅ ┆   ┆            ┆        ┆              ┆      │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌┤
-│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆        ┆              ┆      │
-│               ┆           ┆             ┆           ┆ Git status ^ ┆ ⇧ ┆   ┆            ┆        ┆              ┆      │
-│     Theme     ┆   Symbol  ┆    Buffer   ┆    File   ┆ Git status @ ┆ ∅ ┆   ┆    Hover   ┆ Rename ┆ Code Actions ┆ Pipe │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌┤
-│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆        ┆              ┆      │
-│               ┆           ┆ + Replace X ┆ + Paste ← ┆              ┆ ⇧ ┆   ┆ + Change X ┆        ┆              ┆      │
-│   Undo Tree   ┆ + Replace ┆    + Copy   ┆ + Paste → ┆ TS Node Sexp ┆ ∅ ┆   ┆            ┆        ┆              ┆      │
-╰───────────────┴───────────┴─────────────┴───────────┴──────────────┴───┴───┴────────────┴────────┴──────────────┴──────╯
+╭───────────────┬───────────┬─────────────┬───────────┬──────────────┬───┬───┬────────────┬──────────────┬──────┬───╮
+│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆              ┆      ┆   │
+│  Quit No Save ┆           ┆             ┆           ┆              ┆ ⇧ ┆   ┆            ┆              ┆      ┆   │
+│ Save All Quit ┆  Save All ┆   Explorer  ┆           ┆              ┆ ∅ ┆   ┆            ┆              ┆      ┆   │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌┤
+│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆              ┆      ┆   │
+│               ┆           ┆             ┆           ┆ Git status ^ ┆ ⇧ ┆   ┆            ┆              ┆      ┆   │
+│     Theme     ┆   Symbol  ┆    Buffer   ┆    File   ┆ Git status @ ┆ ∅ ┆   ┆    Hover   ┆ Code Actions ┆ Pipe ┆   │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌┤
+│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆              ┆      ┆   │
+│               ┆           ┆ + Replace X ┆ + Paste ← ┆              ┆ ⇧ ┆   ┆ + Change X ┆              ┆      ┆   │
+│   Undo Tree   ┆ + Replace ┆    + Copy   ┆ + Paste → ┆ TS Node Sexp ┆ ∅ ┆   ┆   Rename   ┆              ┆      ┆   │
+╰───────────────┴───────────┴─────────────┴───────────┴──────────────┴───┴───┴────────────┴──────────────┴──────┴───╯
 ```
 
 ### LSP Actions (only applicable in the main editor):
@@ -93,6 +93,7 @@ that they uses the system clipboard instead of the editor clipboard, and their l
 
 ## Misc
 
-| Label  | Meaning                                                                                         |
-| ------ | ----------------------------------------------------------------------------------------------- |
-| `Pipe` | Pipe current selection(s) to a shell command, replace the current selection(s) with the STDOUT. |
+| Label          | Meaning                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------- |
+| `Pipe`         | Pipe current selection(s) to a shell command, replace the current selection(s) with the STDOUT. |
+| `TS Node Sexp` | Show the Tree-sitter node S-expression of the current selection.                                |
