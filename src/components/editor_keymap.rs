@@ -20,7 +20,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         SrchN, WordF, SrchC, MultC, Swap_, /****/ FindP, InstP, Up___, InstN, FindN,
     ],
     [
-        Line_, Tokn_, Sytx_, VMode, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
+        Line_, Tokn_, Sytx_, Extnd, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
     ],
     [
         Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ Globl, Chng_, First, Last_, XAchr,
@@ -622,7 +622,7 @@ pub(crate) enum Meaning {
     /// Up
     Up___,
     /// V-mode
-    VMode,
+    Extnd,
     /// Close current window
     WClse,
     /// Switch window

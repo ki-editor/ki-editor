@@ -9,7 +9,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 use crate::{
     app::{GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate, Scope},
     clipboard::{Clipboard, CopiedTexts},
-    components::{keymap_legend::Keymap, prompt::PromptHistoryKey},
+    components::prompt::PromptHistoryKey,
     list::grep::RegexConfig,
     quickfix_list::DiagnosticSeverityRange,
     selection::SelectionMode,

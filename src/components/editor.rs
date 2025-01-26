@@ -50,7 +50,7 @@ pub(crate) enum Mode {
     Swap,
     UndoTree,
     Replace,
-    V,
+    Extend,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -211,7 +211,7 @@ impl Component for Editor {
             SetContent(content) => self.set_content(&content)?,
             EnableSelectionExtension => self.enable_selection_extension(),
             DisableSelectionExtension => self.disable_selection_extension(),
-            EnterVMode => self.enter_v_mode(),
+            EnterExtendMode => self.enter_extend_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction),
             Delete(direction) => return self.delete(direction, None),
@@ -1176,9 +1176,9 @@ impl Editor {
             .to_char_index(&self.cursor_direction)
     }
 
-    pub(crate) fn enter_v_mode(&mut self) {
+    pub(crate) fn enter_extend_mode(&mut self) {
         self.enable_selection_extension();
-        self.mode = Mode::V
+        self.mode = Mode::Extend
     }
 
     pub(crate) fn enable_selection_extension(&mut self) {
@@ -1206,7 +1206,7 @@ impl Editor {
                     let keymap_legend_config = self.get_current_keymap_legend_config(context);
 
                     if let Some(keymap) = keymap_legend_config.keymaps().get(&key_event) {
-                        if let Mode::V = self.mode {
+                        if let Mode::Extend = self.mode {
                             self.mode = Mode::Normal
                         }
                         return Ok(keymap.get_dispatches());
@@ -2304,7 +2304,7 @@ impl Editor {
             Mode::Swap => "SWAP",
             Mode::UndoTree => "UNDO TREE",
             Mode::Replace => "REPLACE",
-            Mode::V => "V",
+            Mode::Extend => "EXTEND",
         }
         .to_string();
         format!("{prefix}{core}")
@@ -3231,7 +3231,7 @@ impl Editor {
         match self.mode {
             Mode::Insert => self.insert_mode_keymap_legend_config(),
             Mode::MultiCursor => self.multicursor_mode_keymap_legend_config(context),
-            Mode::V => self.v_mode_keymap_legend_config(context),
+            Mode::Extend => self.extend_mode_keymap_legend_config(context),
             _ => self.normal_mode_keymap_legend_config(context, "Normal", None),
         }
     }
@@ -3282,7 +3282,7 @@ pub(crate) enum DispatchEditor {
     SetRectangle(Rectangle),
     EnableSelectionExtension,
     DisableSelectionExtension,
-    EnterVMode,
+    EnterExtendMode,
     Change,
     ChangeCut {
         use_system_clipboard: bool,

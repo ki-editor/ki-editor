@@ -1,6 +1,7 @@
 use super::{
     editor::IfCurrentNotFound,
     editor_keymap::alted,
+    editor_keymap_legend::extend_mode_normal_mode_override,
     file_explorer::file_explorer_normal_mode_override,
     keymap_legend::{Keymap, Keymaps},
 };
@@ -178,7 +179,7 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
         KeymapPrintSection::from_keymaps(
             "V-mode".to_string(),
             &editor
-                .v_mode_keymap_legend_config(&Context::default())
+                .extend_mode_keymap_legend_config(&Context::default())
                 .keymaps(),
             layout,
         ),
@@ -239,7 +240,7 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
         ),
         KeymapPrintSection::from_keymaps(
             "Actions".to_string(),
-            &Keymaps::new(&editor.keymap_actions(&Default::default())),
+            &Keymaps::new(&editor.keymap_actions(&Default::default(), false)),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
@@ -256,7 +257,12 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
         ),
         KeymapPrintSection::from_keymaps(
             "File Explorer Actions".to_string(),
-            &Keymaps::new(&editor.keymap_actions(&file_explorer_normal_mode_override())),
+            &Keymaps::new(&editor.keymap_overridable(&file_explorer_normal_mode_override(), true)),
+            layout,
+        ),
+        KeymapPrintSection::from_keymaps(
+            "V-mode Surround".to_string(),
+            &Keymaps::new(&editor.keymap_overridable(&extend_mode_normal_mode_override(), true)),
             layout,
         ),
     ]

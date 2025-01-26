@@ -308,15 +308,22 @@ impl Keymap {
     pub(crate) fn override_keymap(
         self,
         keymap_override: Option<&super::editor_keymap_legend::KeymapOverride>,
-    ) -> Keymap {
+        none_if_no_override: bool,
+    ) -> Option<Keymap> {
         match keymap_override {
-            Some(keymap_override) => Self {
+            Some(keymap_override) => Some(Self {
                 short_description: Some(keymap_override.description.to_string()),
                 description: keymap_override.description.to_string(),
                 dispatch: keymap_override.dispatch.clone(),
                 ..self
-            },
-            None => self,
+            }),
+            None => {
+                if none_if_no_override {
+                    None
+                } else {
+                    Some(self)
+                }
+            }
         }
     }
 

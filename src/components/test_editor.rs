@@ -3349,7 +3349,7 @@ foo bar
                 .to_string(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(EnterVMode),
+            Editor(EnterExtendMode),
             App(HandleKeyEvent(key!("k"))),
             Expect(CurrentSelectedTexts(&["foo bar\n  spam"])),
             Editor(Delete(Direction::End)),
@@ -3982,7 +3982,7 @@ fn visual_select_anchor_change_selection_mode() -> anyhow::Result<()> {
                 },
             )),
             Expect(CurrentSelectedTexts(&["helloWorld"])),
-            Editor(EnterVMode),
+            Editor(EnterExtendMode),
             App(HandleKeyEvent(key!("l"))),
             Expect(CurrentSelectedTexts(&["helloWorld fooBar"])),
             Editor(SetSelectionMode(
