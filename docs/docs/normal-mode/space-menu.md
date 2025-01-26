@@ -10,53 +10,44 @@ The space menu is a handy shortcut for (not restricted to):
 
 The space menu can be brought up by pressing `space`.
 
-## Contextual actions
+## Keymap
 
-Contextual actions are actions that are only applicable within a specific context.
-
-## File and quit actions
-
-| Keybinding | Action                                           |
-| ---------- | ------------------------------------------------ |
-| `space`    | Write current file, even if no changes were made |
-| `w`        | Write all files                                  |
-| `q`        | Write all files and quit                         |
-| `Q`        | Quit _without_ writing unsaved files             |
+```
+╭───────────────┬───────────┬─────────────┬───────────┬──────────────┬───┬───┬────────────┬────────┬──────────────┬──────╮
+│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆        ┆              ┆      │
+│  Quit No Save ┆           ┆             ┆           ┆              ┆ ⇧ ┆   ┆            ┆        ┆              ┆      │
+│ Save All Quit ┆  Save All ┆   Explorer  ┆           ┆              ┆ ∅ ┆   ┆            ┆        ┆              ┆      │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌┤
+│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆        ┆              ┆      │
+│               ┆           ┆             ┆           ┆ Git status ^ ┆ ⇧ ┆   ┆            ┆        ┆              ┆      │
+│     Theme     ┆   Symbol  ┆    Buffer   ┆    File   ┆ Git status @ ┆ ∅ ┆   ┆    Hover   ┆ Rename ┆ Code Actions ┆ Pipe │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌┤
+│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆        ┆              ┆      │
+│               ┆           ┆ + Replace X ┆ + Paste ← ┆              ┆ ⇧ ┆   ┆ + Change X ┆        ┆              ┆      │
+│   Undo Tree   ┆ + Replace ┆    + Copy   ┆ + Paste → ┆ TS Node Sexp ┆ ∅ ┆   ┆            ┆        ┆              ┆      │
+╰───────────────┴───────────┴─────────────┴───────────┴──────────────┴───┴───┴────────────┴────────┴──────────────┴──────╯
+```
 
 ### LSP Actions (only applicable in the main editor):
 
-| Keybinding | Action                |
-| ---------- | --------------------- |
-| `c`        | Request code actions  |
-| `h`        | Request hover info    |
-| `r`        | Rename current symbol |
-
-### File Explorer Actions:
-
-| Keybinding | Action                                                           |
-| ---------- | ---------------------------------------------------------------- |
-| `a`        | Add a new file/folder under the current path [^1]                |
-| `c`        | Copy current file to a new path                                  |
-| `d`        | Delete current file/folder                                       |
-| `m`        | Move (or rename) the current file/folder [^2]                    |
-| `r`        | Refresh the [file explorer](../components/file-explorer.md) [^3] |
-
-[^1]: To add a folder, append `/` to the file name. Can be nested, and new directories will be created as required.
-[^2]: Works like `mkdir -p`, it will create new directories when required.
-[^3]: This is necessary sometimes because the file system is modified by external factors, and Ki does not watch for file changes.
+| Label          | Action                |
+| -------------- | --------------------- |
+| `Code Actions` | Request code actions  |
+| `Hover`        | Request hover info    |
+| `Rename`       | Rename current symbol |
 
 ## Pickers
 
-| Keybinding | Object                                   |
-| ---------- | ---------------------------------------- |
-| b          | Buffers (opened files)                   |
-| f          | Files (Not git ignored)                  |
-| g          | Git status (against current branch) [^1] |
-| G          | Git status (against main branch) [^2]    |
-| s          | LSP Symbols                              |
-| t          | Themes                                   |
+| Label          | Object                                   |
+| -------------- | ---------------------------------------- |
+| `Buffer`       | Buffers (opened files)                   |
+| `File`         | Files (Not git ignored)                  |
+| `Git status @` | Git status (against current branch) [^1] |
+| `Git status ^` | Git status (against main branch) [^2]    |
+| `Symbol`       | LSP Symbols                              |
+| `Theme`        | [Themes](../themes.md)                   |
 
-[^1]: See more at [Git hunk](./selection-modes/secondary/misc.md#git-hunk)
+[^1]: See more at [Git hunk](./selection-modes/secondary/index.md#git-hunk)
 [^2]: This is very useful when you want to get the modified/added files commited into the current branch that you are working on.
 
 Searching is powered by [Helix's Nucleo](https://github.com/helix-editor/nucleo), and some [fzf](https://github.com/junegunn/fzf?tab=readme-ov-file#search-syntax)-esque search syntax works here:
@@ -71,6 +62,8 @@ Search terms can be separated by space, which means AND, and their order is unim
 
 For example, the search query `stb 'wild` matches `wild-serbian-bear-tiger` and also `stubbornly_wild`.
 
+Also, you can use the initals to search for a file, for example, `ekl` matches `editor_keymap_legend.rs`.
+
 Because [every component is a buffer/editor](../core-concepts.md#2-every-component-is-a-buffereditor), fuzzy search logic is also used for filtering LSP completions.
 
 ### Buffer Behavior
@@ -84,15 +77,22 @@ will be shown when navigating diagnostic messages. However, unless you edit `fil
 added to the buffer list. Similarly, if you search your project and view results in multiple files,
 these files will not be included in the buffer list unless you edit them.
 
-## Opening other components
+## Other components
 
-| Keybinding | Action                                   |
-| ---------- | ---------------------------------------- |
-| `e`        | Reveal current file in file **e**xplorer |
-| `z`        | Opens the Undo Tree [^1]                 |
+| Label       | Action                               |
+| ----------- | ------------------------------------ |
+| `Explorer`  | Reveal current file in file explorer |
+| `Undo Tree` | Opens the Undo Tree [^1]             |
 
 [^1]: This is an obscure feature, although it is functional, it is hardly useful, because the undo history is too granular (character-by-character), see [undo/redo](../universal-keybindings.md#undoredo).
 
-## Picking themes
+## System Clipboard Actions
 
-See more at [Themes](../themes.md)
+These actions are the same as the actions [here](./actions/index.md#clipboard), except
+that they uses the system clipboard instead of the editor clipboard, and their labels prefixed by `+`.
+
+## Misc
+
+| Label  | Meaning                                                                                         |
+| ------ | ----------------------------------------------------------------------------------------------- |
+| `Pipe` | Pipe current selection(s) to a shell command, replace the current selection(s) with the STDOUT. |

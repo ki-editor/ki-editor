@@ -220,8 +220,6 @@ impl<T: Frontend> App<T> {
     fn handle_event(&mut self, event: Event) -> anyhow::Result<bool> {
         // Pass event to focused window
         let component = self.current_component();
-        self.context
-            .set_contextual_keymaps(component.borrow().contextual_keymaps());
         match event {
             Event::Resize(columns, rows) => {
                 self.resize(Dimension {

@@ -6,10 +6,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{context::Context, grid::Grid, position::Position, rectangle::Rectangle};
 
-use super::{
-    editor::{DispatchEditor, Editor},
-    keymap_legend::Keymap,
-};
+use super::editor::{DispatchEditor, Editor};
 
 // dyn_clone::clone_trait_object!(Component);
 //
@@ -181,12 +178,6 @@ pub trait Component: Any + AnyComponent {
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
         self.editor_mut().handle_dispatch_editor(context, dispatch)
-    }
-
-    /// This should be different for every component.
-    /// because the default context menu is not applicable in the File Explorer.
-    fn contextual_keymaps(&self) -> Vec<Keymap> {
-        Default::default()
     }
 }
 

@@ -27,7 +27,6 @@ pub(crate) struct Context {
     local_search_config: LocalSearchConfig,
     global_search_config: GlobalSearchConfig,
     quickfix_list_state: Option<QuickfixListState>,
-    contextual_keymaps: Vec<Keymap>,
     prompt_histories: HashMap<PromptHistoryKey, IndexSet<String>>,
     last_non_contiguous_selection_mode: Option<Either<SelectionMode, GlobalMode>>,
 }
@@ -74,7 +73,6 @@ impl Default for Context {
             local_search_config: LocalSearchConfig::default(),
             global_search_config: GlobalSearchConfig::default(),
             quickfix_list_state: Default::default(),
-            contextual_keymaps: Default::default(),
             prompt_histories: Default::default(),
             last_non_contiguous_selection_mode: None,
         }
@@ -213,14 +211,6 @@ impl Context {
             source,
             current_item_index: 0,
         })
-    }
-
-    pub(crate) fn contextual_keymaps(&self) -> Vec<Keymap> {
-        self.contextual_keymaps.clone()
-    }
-
-    pub(crate) fn set_contextual_keymaps(&mut self, contextual_keymaps: Vec<Keymap>) {
-        self.contextual_keymaps = contextual_keymaps
     }
 
     pub(crate) fn push_history_prompt(&mut self, key: PromptHistoryKey, line: String) {

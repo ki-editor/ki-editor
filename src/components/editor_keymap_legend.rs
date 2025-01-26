@@ -175,7 +175,7 @@ impl Editor {
         .to_vec()
     }
 
-    pub(crate) fn keymap_primary_selection_modes(&self, context: &Context) -> Vec<Keymap> {
+    pub(crate) fn keymap_primary_selection_modes(&self) -> Vec<Keymap> {
         [
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::Line_),
@@ -770,7 +770,7 @@ impl Editor {
                     .into_iter()
                     .chain(self.keymap_movement_actions(&normal_mode_override))
                     .chain(self.keymap_other_movements())
-                    .chain(self.keymap_primary_selection_modes(context))
+                    .chain(self.keymap_primary_selection_modes())
                     .chain(self.keymap_secondary_selection_modes_init(context))
                     .chain(self.keymap_actions(&normal_mode_override))
                     .chain(self.keymap_others(context))
@@ -900,7 +900,7 @@ impl Editor {
         }
     }
 
-    fn space_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub(crate) fn space_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Space".to_string(),
 
@@ -951,7 +951,6 @@ impl Editor {
                     "Theme".to_string(),
                     Dispatch::OpenThemePrompt,
                 )))
-                .chain(context.contextual_keymaps())
                 .chain(self.keymap_clipboard_related_actions(true, Default::default()))
                 .chain([
                     Keymap::new(
@@ -996,6 +995,37 @@ impl Editor {
                         KEYBOARD_LAYOUT.get_space_keymap(&Meaning::Pipe_),
                         "Pipe".to_string(),
                         Dispatch::OpenPipeToShellPrompt,
+                    ),
+                    Keymap::new(
+                        KEYBOARD_LAYOUT.get_space_keymap(&Meaning::LCdAc),
+                        "Code Actions".to_string(),
+                        {
+                            let cursor_char_index = self.get_cursor_char_index();
+                            Dispatch::RequestCodeAction {
+                                diagnostics: self
+                                    .buffer()
+                                    .diagnostics()
+                                    .into_iter()
+                                    .filter_map(|diagnostic| {
+                                        if diagnostic.range.contains(&cursor_char_index) {
+                                            diagnostic.original_value.clone()
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect_vec(),
+                            }
+                        },
+                    ),
+                    Keymap::new(
+                        KEYBOARD_LAYOUT.get_space_keymap(&Meaning::LHovr),
+                        "Hover".to_string(),
+                        Dispatch::RequestHover,
+                    ),
+                    Keymap::new(
+                        KEYBOARD_LAYOUT.get_space_keymap(&Meaning::LRnme),
+                        "Rename".to_string(),
+                        Dispatch::PrepareRename,
                     ),
                 ])
                 .collect_vec(),

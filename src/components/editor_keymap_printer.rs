@@ -195,7 +195,7 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
         ),
         KeymapPrintSection::from_keymaps(
             "Primary Selection Modes".to_string(),
-            &Keymaps::new(&editor.keymap_primary_selection_modes(&Context::default())),
+            &Keymaps::new(&editor.keymap_primary_selection_modes()),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
@@ -244,6 +244,13 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
         KeymapPrintSection::from_keymaps(
             "Other movements".to_string(),
             &Keymaps::new(&editor.keymap_other_movements()),
+            layout,
+        ),
+        KeymapPrintSection::from_keymaps(
+            "Space".to_string(),
+            &editor
+                .space_keymap_legend_config(&Default::default())
+                .keymaps(),
             layout,
         ),
     ]
