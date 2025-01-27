@@ -24,6 +24,15 @@ Until a method of basic configuration is decided upon, the theme for Ki can be c
 `KI_EDITOR_THEME`. The theme defaults to "VS Code (Light)". You can find a list of known themes by launching `ki` and
 using the Pick Theme option, `SPACE t`.
 
+For configuring keyboard layout, use `KI_EDITOR_KEYBOARD`, with the following possible values:
+
+1. `qwerty` (Default)
+1. `dvorak`
+1. `colemak`
+1. `colemak_dh`
+1. `colemak_dh_semi_quote`
+1. `dvorak_iu`
+
 [^1]: For example, see [dwm](https://wiki.archlinux.org/title/dwm#Configuration) and [Xmonad](https://xmonad.org/TUTORIAL.html)
 [^2]: Neovim usually let's you glide through until it commits kamikaze
 [^3]: Rant: [TOML does not endorse an official formatter](https://github.com/toml-lang/toml/issues/532#issuecomment-384313745)
