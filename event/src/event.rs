@@ -139,7 +139,7 @@ impl KeyModifiers {
         }
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn display(&self) -> String {
         match self {
             KeyModifiers::None => "".to_string(),
             _ => format!("{:?}", self)
