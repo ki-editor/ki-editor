@@ -409,7 +409,7 @@ impl Editor {
             Scope::Local,
             IfCurrentNotFound::LookForward,
         ))
-        .chain(self.keymap_actions_overridable(&normal_mode_override, none_if_no_override))
+        .chain(self.keymap_actions_overridable(normal_mode_override, none_if_no_override))
         .chain(self.keymap_clipboard_related_actions(false, normal_mode_override.clone()))
         .collect_vec()
     }
