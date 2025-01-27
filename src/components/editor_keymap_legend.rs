@@ -577,11 +577,11 @@ impl Editor {
         .collect_vec()
     }
 
-    fn keymap_universal(&self) -> Vec<Keymap> {
+    pub(crate) fn keymap_universal(&self) -> Vec<Keymap> {
         [
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::WClse),
-                "❌ Window".to_string(),
+                "Close".to_string(),
                 "Close current window".to_string(),
                 Dispatch::CloseCurrentWindow,
             ),
@@ -608,7 +608,7 @@ impl Editor {
             ),
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::CSrch),
-                "🔍 Config".to_string(),
+                "Config".to_string(),
                 "Configure Search".to_string(),
                 Dispatch::ShowSearchConfig {
                     scope: Scope::Local,

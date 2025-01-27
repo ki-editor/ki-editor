@@ -48,6 +48,11 @@ For example, the actions on the position of `m` on QWERTY roughly relate to the 
 | Extend        | Change Surround |
 | Space Menu    | LSP Rename      |
 
+### D. Travel Distance Optimization
+
+The placement of actions are also guided by their ubiquity, more commonly used actions
+will placed on better positions such as the homerow.
+
 ## 3. Every component is a buffer/editor
 
 This is also a core philosophy of Emacs and Vim, however in the recent modal editors such as Kakoune, Neovim, and Helix, they took another approach (the standard GUI approach) where every component is different.

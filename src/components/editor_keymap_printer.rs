@@ -271,6 +271,11 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
             &completion_item_keymaps(),
             layout,
         ),
+        KeymapPrintSection::from_keymaps(
+            "Universal Keymap".to_string(),
+            &Keymaps::new(&editor.keymap_universal()),
+            layout,
+        ),
     ]
     .to_vec();
 
