@@ -45,13 +45,13 @@ pub(crate) const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
     // TODO: Implement Up Line and Down Line
     // The cursor should be placed at the of the line
     [
-        CSrch, LineP, LineU, LineN, _____, /****/ _____, GBack, ScrlU, GForw, _____,
+        _____, CSrch, LineU, _____, _____, /****/ _____, GBack, ScrlU, GForw, _____,
     ],
     [
-        KilLP, CItmP, LineD, CItmN, KilLN, /****/ DWrdP, BuffP, ScrlD, BuffN, SView,
+        KilLP, LineP, LineD, LineN, KilLN, /****/ DTknP, BuffP, ScrlD, BuffN, SView,
     ],
     [
-        Undo_, _____, WClse, UPstE, _____, /****/ DTknP, SHelp, _____, _____, WSwth,
+        Undo_, _____, WClse, UPstE, _____, /****/ _____, SHelp, _____, _____, WSwth,
     ],
 ];
 
@@ -60,7 +60,7 @@ pub(crate) const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
 /// are both located on the right-side.
 pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
     [
-        OneCh, PSrch, NtrlN, CSrch, Qkfix, /****/ FindP, _____, _____, _____, FindN,
+        OneCh, CSrch, NtrlN, PSrch, Qkfix, /****/ FindP, _____, _____, _____, FindN,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
@@ -84,7 +84,7 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// This keymap should be almost identical with that of Find Local
 pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
     [
-        Srch_, PSrch, SrchC, CSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
+        Srch_, CSrch, SrchC, PSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
@@ -509,8 +509,6 @@ pub(crate) enum Meaning {
     CrsrP,
     /// Delete token backward
     DTknP,
-    /// Delete word backward
-    DWrdP,
     /// Dedent
     DeDnt,
     /// Delete end

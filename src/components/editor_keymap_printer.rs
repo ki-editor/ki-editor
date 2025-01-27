@@ -6,6 +6,7 @@ use super::{
     },
     file_explorer::file_explorer_normal_mode_override,
     keymap_legend::{Keymap, Keymaps},
+    suggestive_editor::completion_item_keymaps,
 };
 use crate::{
     app::Scope,
@@ -170,7 +171,7 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
     let sections: Vec<KeymapPrintSection> = [
         KeymapPrintSection::from_keymaps(
             "Insert".to_string(),
-            &editor.insert_mode_keymaps(),
+            &editor.insert_mode_keymaps(false),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
@@ -263,6 +264,11 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
             &Keymaps::new(
                 &editor.keymap_overridable(&multicursor_mode_normal_mode_override(), true),
             ),
+            layout,
+        ),
+        KeymapPrintSection::from_keymaps(
+            "Completion Items".to_string(),
+            &completion_item_keymaps(),
             layout,
         ),
     ]

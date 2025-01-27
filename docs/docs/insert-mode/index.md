@@ -7,44 +7,55 @@ sidebar_position: 6
 In this mode, Ki functions like the usual editor, where pressing keys on
 the keyboard types them into the current opened file.
 
-## Completion dropdown keybindings
+## Completion dropdown
 
 The following keybindings only work when the completion dropdown is opened.
 
-| Keybinding       | Meaning          |
-| ---------------- | ---------------- |
-| `ctrl+n`         | Next item        |
-| `ctrl+p`         | Previous item    |
-| `tab`            | Use current item |
+```
+╭───┬───┬───┬───┬───┬───┬───┬───┬────────┬─────────────┬───╮
+│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆   ┆   ┆ ← Comp ┆             ┆   │
+│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆   ┆   ┆        ┆             ┆   │
+│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆        ┆             ┆   │
+├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┤
+│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆   ┆   ┆ Comp → ┆ Select Comp ┆   │
+│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆   ┆   ┆        ┆             ┆   │
+│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆        ┆             ┆   │
+├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┤
+│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆   ┆   ┆        ┆             ┆   │
+│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆   ┆   ┆        ┆             ┆   │
+│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆        ┆             ┆   │
+╰───┴───┴───┴───┴───┴───┴───┴───┴────────┴─────────────┴───╯
+```
 
+| Label         | Meaning                        |
+| ------------- | ------------------------------ |
+| `Comp →`      | Next completion item           |
+| `← Comp`      | Previous completion item       |
+| `Select Comp` | Select current completion item |
 
-## GNU Readline Keybindings
+## Other
 
-Although [Normal Mode](../normal-mode/index.md) is the main sauce of Ki, it also
-implements a subset of [GNU Readline Keybindings](https://www.gnu.org/software/bash/manual/html_node/Bindable-Readline-Commands.html).
+```
+╭─────────────┬────────┬───┬────────┬─────────────┬───┬────────────────┬───┬───┬───┬───╮
+│             ┆        ┆   ┆        ┆             ┆ ⌥ ┆                ┆   ┆   ┆   ┆   │
+│             ┆        ┆   ┆        ┆             ┆ ⇧ ┆                ┆   ┆   ┆   ┆   │
+│             ┆        ┆   ┆        ┆             ┆ ∅ ┆                ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│ Kill Line ← ┆ Line ← ┆   ┆ Line → ┆ Kill Line → ┆ ⌥ ┆ Delete Token ← ┆   ┆   ┆   ┆   │
+│             ┆        ┆   ┆        ┆             ┆ ⇧ ┆                ┆   ┆   ┆   ┆   │
+│             ┆        ┆   ┆        ┆             ┆ ∅ ┆                ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│             ┆        ┆   ┆        ┆             ┆ ⌥ ┆                ┆   ┆   ┆   ┆   │
+│             ┆        ┆   ┆        ┆             ┆ ⇧ ┆                ┆   ┆   ┆   ┆   │
+│             ┆        ┆   ┆        ┆             ┆ ∅ ┆                ┆   ┆   ┆   ┆   │
+╰─────────────┴────────┴───┴────────┴─────────────┴───┴────────────────┴───┴───┴───┴───╯
+```
 
-I highly recommend every terminal user to learn these keybindings, as they work
-in almost every terminal UI (TUI) application, for example:
-
-- macOS native textbox
-- fish
-- bash
-- zsh
-- pgcli
-- emacs
-- mongosh
-
-Implemented keybindings [^1]:
-
-| Keybinding      | Meaning                  |
-| --------------- | ------------------------ |
-| `ctrl+b`        | Move back a character    |
-| `ctrl+f`        | Move forward a character |
-| `ctrl+a`        | Move to line start       |
-| `ctrl+e`        | Move to line end         |
-| `ctrl+k`        | Kill line forward        |
-| `ctrl+u`        | Kill line backward       |
-| `ctrl+w`        | Delete token backward    |
-| `alt+backspace` | Delete word backward     |
-
-[^1]: Not every unimplemented keybinding is incompatible/meaningless with/in Ki, but because I do not have time for them, so feel free to submit PR!
+| Label/Keybinding | Meaning               |
+| ---------------- | --------------------- |
+| `Line ←`         | Move to line start    |
+| `Line →`         | Move to line end      |
+| `Kill Line ←`    | Kill line backward    |
+| `Kill Line →`    | Kill line forward     |
+| `Delete Token ←` | Delete token backward |
+| `alt+backspace`  | Delete word backward  |

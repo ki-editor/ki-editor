@@ -3210,8 +3210,12 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    pub(crate) fn insert_mode_keymaps(&self) -> super::keymap_legend::Keymaps {
-        self.insert_mode_keymap_legend_config().keymaps()
+    pub(crate) fn insert_mode_keymaps(
+        &self,
+        include_universal_keymaps: bool,
+    ) -> super::keymap_legend::Keymaps {
+        self.insert_mode_keymap_legend_config(include_universal_keymaps)
+            .keymaps()
     }
 
     pub(crate) fn set_normal_mode_override(&mut self, normal_mode_override: NormalModeOverride) {
@@ -3229,7 +3233,7 @@ impl Editor {
         context: &Context,
     ) -> super::keymap_legend::KeymapLegendConfig {
         match self.mode {
-            Mode::Insert => self.insert_mode_keymap_legend_config(),
+            Mode::Insert => self.insert_mode_keymap_legend_config(true),
             Mode::MultiCursor => self.multicursor_mode_keymap_legend_config(context),
             Mode::Extend => self.extend_mode_keymap_legend_config(context),
             _ => self.normal_mode_keymap_legend_config(context, "Normal", None),

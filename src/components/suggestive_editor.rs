@@ -76,37 +76,15 @@ impl Component for SuggestiveEditor {
         event: event::KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
-            if let Some(keymap) = Keymaps::new(&[
-                Keymap::new_extended(
-                    KEYBOARD_LAYOUT.get_insert_key(&Meaning::CItmN),
-                    "comp item >".to_string(),
-                    "Next Completion Item".to_string(),
-                    Dispatch::MoveToCompletionItem(Direction::End),
-                ),
-                Keymap::new_extended(
-                    KEYBOARD_LAYOUT.get_insert_key(&Meaning::CItmP),
-                    "comp item <".to_string(),
-                    "Previous Completion Item".to_string(),
-                    Dispatch::MoveToCompletionItem(Direction::Start),
-                ),
-            ])
-            .get(&event)
-            {
+            // TODO: this should combine with scroll up/down
+            if let Some(keymap) = completion_item_keymaps().get(&event) {
                 log::info!("dispatches = {:?}", keymap.get_dispatches());
                 return Ok(keymap.get_dispatches());
             };
             match event {
                 key!("down") => return self.next_completion_item(),
                 key!("up") => return self.previous_completion_item(),
-                key!("tab") => {
-                    let current_item = self.completion_dropdown.current_item();
-                    if let Some(completion) = current_item {
-                        self.completion_dropdown.set_items(Vec::new());
-                        return Ok(
-                            Dispatches::one(Dispatch::CloseDropdown).chain(completion.dispatches)
-                        );
-                    }
-                }
+                key!("tab") => return self.select_completion_item(),
 
                 _ => {}
             }
@@ -186,6 +164,7 @@ impl SuggestiveEditor {
             DispatchSuggestiveEditor::MoveToCompletionItem(Direction::Start) => {
                 self.previous_completion_item()
             }
+            DispatchSuggestiveEditor::SelectCompletionItem => self.select_completion_item(),
         }
     }
 
@@ -283,6 +262,16 @@ impl SuggestiveEditor {
         log::info!("next_compl = {:?}", dispatches);
         Ok(self.render_completion_dropdown(false))
     }
+
+    fn select_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
+        let current_item = self.completion_dropdown.current_item();
+        if let Some(completion) = current_item {
+            self.completion_dropdown.set_items(Vec::new());
+            Ok(Dispatches::one(Dispatch::CloseDropdown).chain(completion.dispatches))
+        } else {
+            Ok(Default::default())
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -292,6 +281,7 @@ pub(crate) enum DispatchSuggestiveEditor {
     Completion(Completion),
     UpdateCurrentCompletionItem(CompletionItem),
     MoveToCompletionItem(Direction),
+    SelectCompletionItem,
 }
 
 #[cfg(test)]
@@ -1062,4 +1052,27 @@ impl Decoration {
             ..self
         }
     }
+}
+
+pub(crate) fn completion_item_keymaps() -> Keymaps {
+    Keymaps::new(&[
+        Keymap::new_extended(
+            KEYBOARD_LAYOUT.get_insert_key(&Meaning::ScrlD),
+            Direction::End.format_action("Comp"),
+            "Next Completion Item".to_string(),
+            Dispatch::MoveToCompletionItem(Direction::End),
+        ),
+        Keymap::new_extended(
+            KEYBOARD_LAYOUT.get_insert_key(&Meaning::ScrlU),
+            Direction::Start.format_action("Comp"),
+            "Previous Completion Item".to_string(),
+            Dispatch::MoveToCompletionItem(Direction::Start),
+        ),
+        Keymap::new_extended(
+            KEYBOARD_LAYOUT.get_insert_key(&Meaning::BuffN),
+            "Select Comp".to_string(),
+            "Select Completion Item".to_string(),
+            Dispatch::SelectCompletionItem,
+        ),
+    ])
 }

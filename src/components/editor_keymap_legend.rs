@@ -505,7 +505,7 @@ impl Editor {
             ),
             Keymap::new_extended(
                 KEYBOARD_LAYOUT.get_key(&Meaning::PsteP),
-                format("Paste ←"),
+                format!("{}{}", Direction::Start.format_action("Paste"), extra),
                 format!("{}{}", Direction::Start.format_action("Paste"), extra),
                 Dispatch::ToEditor(Paste {
                     direction: Direction::Start,
@@ -626,7 +626,10 @@ impl Editor {
         .to_vec()
     }
 
-    pub(crate) fn insert_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+    pub(crate) fn insert_mode_keymap_legend_config(
+        &self,
+        include_universal_keymaps: bool,
+    ) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Insert mode keymaps".to_string(),
             body: KeymapLegendBody::Positional(Keymaps::new(
@@ -721,7 +724,11 @@ impl Editor {
                     ),
                 ]
                 .into_iter()
-                .chain(self.keymap_universal())
+                .chain(if include_universal_keymaps {
+                    self.keymap_universal()
+                } else {
+                    Default::default()
+                })
                 .collect_vec(),
             )),
         }
@@ -729,7 +736,7 @@ impl Editor {
 
     pub(crate) fn handle_insert_mode(&mut self, event: KeyEvent) -> anyhow::Result<Dispatches> {
         if let Some(dispatches) = self
-            .insert_mode_keymaps()
+            .insert_mode_keymaps(true)
             .iter()
             .find(|keymap| &event == keymap.event())
             .map(|keymap| keymap.get_dispatches())
