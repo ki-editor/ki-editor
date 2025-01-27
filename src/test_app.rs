@@ -1841,7 +1841,7 @@ fn cycle_window() -> anyhow::Result<()> {
                 SuggestiveEditor(DispatchSuggestiveEditor::Completion(completion.clone())),
                 Expect(ComponentCount(3)),
                 // Move to the next completion item (which is 'Spongebob squarepants')
-                App(HandleKeyEvent(key!("alt+f"))),
+                App(HandleKeyEvent(key!("alt+k"))),
                 Expect(CurrentComponentContent("")),
                 App(OtherWindow),
                 Expect(ComponentCount(3)),

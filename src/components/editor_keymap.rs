@@ -45,10 +45,10 @@ pub(crate) const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
     // TODO: Implement Up Line and Down Line
     // The cursor should be placed at the of the line
     [
-        _____, CSrch, LineU, _____, _____, /****/ _____, GBack, ScrlU, GForw, _____,
+        KilLP, CSrch, LineU, _____, KilLN, /****/ _____, GBack, ScrlU, GForw, _____,
     ],
     [
-        KilLP, LineP, LineD, LineN, KilLN, /****/ DTknP, BuffP, ScrlD, BuffN, SView,
+        _____, LineP, LineD, LineN, OpenM, /****/ DTknP, BuffP, ScrlD, BuffN, SView,
     ],
     [
         Undo_, _____, WClse, UPstE, _____, /****/ _____, SHelp, _____, _____, WSwth,
@@ -497,10 +497,6 @@ pub(crate) enum Meaning {
     ChngX,
     /// Change Surround
     Chng_,
-    /// Next Completion Item
-    CItmN,
-    /// Previous Completion Item
-    CItmP,
     /// Copy
     Copy_,
     /// Cycle primary select next
@@ -765,6 +761,8 @@ pub(crate) enum Meaning {
     No___,
     /// Pipe selection to shell
     Pipe_,
+    /// Open matching files
+    OpenM,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

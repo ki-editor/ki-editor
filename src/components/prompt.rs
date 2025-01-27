@@ -15,6 +15,7 @@ use super::{
     component::Component,
     dropdown::DropdownItem,
     editor::{Editor, Mode},
+    editor_keymap::{Meaning, KEYBOARD_LAYOUT},
     suggestive_editor::{DispatchSuggestiveEditor, SuggestiveEditor, SuggestiveEditorFilter},
 };
 
@@ -161,15 +162,6 @@ impl Component for Prompt {
                     self.editor_mut().handle_key_event(context, event)
                 }
             }
-            key!("ctrl+o") if self.prompt_history_key == PromptHistoryKey::OpenFile => Ok(
-                Dispatches::one(Dispatch::CloseCurrentWindow).chain(Dispatches::new(
-                    self.editor
-                        .all_filtered_items()
-                        .into_iter()
-                        .flat_map(|item| item.dispatches.into_vec())
-                        .collect(),
-                )),
-            ),
             key!("enter") => {
                 let (line, dispatches) = if self.enter_selects_first_matching_item
                     && self.editor.completion_dropdown_current_item().is_some()
@@ -190,6 +182,19 @@ impl Component for Prompt {
                         key: self.prompt_history_key,
                         line,
                     }))
+            }
+            _ if self.prompt_history_key == PromptHistoryKey::OpenFile
+                && event.display() == KEYBOARD_LAYOUT.get_key(&Meaning::OpenM) =>
+            {
+                Ok(
+                    Dispatches::one(Dispatch::CloseCurrentWindow).chain(Dispatches::new(
+                        self.editor
+                            .all_filtered_items()
+                            .into_iter()
+                            .flat_map(|item| item.dispatches.into_vec())
+                            .collect(),
+                    )),
+                )
             }
             _ => {
                 let dispatches = self.editor.handle_key_event(context, event)?;
@@ -553,7 +558,7 @@ mod test_prompt {
                 // Expect only 'Patrick' remains in the completion dropdown
                 Expect(CompletionDropdownContent("Patrick")),
                 // Clear 'pa' using alt+a
-                App(HandleKeyEvent(key!("alt+a"))),
+                App(HandleKeyEvent(key!("alt+q"))),
                 // Expect all items are shown again
                 Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
                 //
@@ -561,7 +566,7 @@ mod test_prompt {
                 // Perform the same test for alt+g
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 Expect(CompletionDropdownContent("Patrick")),
-                App(HandleKeyEvents(keys!("alt+w alt+g").to_vec())),
+                App(HandleKeyEvents(keys!("alt+s alt+t").to_vec())),
                 Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
             ])
         })
