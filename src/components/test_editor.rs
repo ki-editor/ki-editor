@@ -4108,3 +4108,23 @@ fn jump_editor_tag() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn git_hunk_should_compare_against_buffer_content_not_file_content() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(Insert("hello".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                GitHunk(crate::git::DiffMode::UnstagedAgainstCurrentBranch),
+            )),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentSelectedTexts(&["hellomod foo;\n"])),
+        ])
+    })
+}

@@ -9,7 +9,7 @@ use crate::{
         editor::{Direction, Movement},
         suggestive_editor::Info,
     },
-    context::{LocalSearchConfigMode, Search},
+    context::{Context, LocalSearchConfigMode, Search},
     non_empty_extensions::{NonEmptyTryCollectOption, NonEmptyTryCollectResult},
     position::Position,
     quickfix_list::DiagnosticSeverityRange,
@@ -106,10 +106,18 @@ impl SelectionSet {
         mode: &SelectionMode,
         direction: &Movement,
         cursor_direction: &Direction,
+        context: &Context,
     ) -> anyhow::Result<Option<SelectionSet>> {
         let Some(selections) = self
             .map(|selection| {
-                Selection::get_selection_(buffer, selection, mode, direction, cursor_direction)
+                Selection::get_selection_(
+                    buffer,
+                    selection,
+                    mode,
+                    direction,
+                    cursor_direction,
+                    context,
+                )
             })
             .try_collect()?
             .try_collect()
@@ -130,6 +138,7 @@ impl SelectionSet {
         buffer: &Buffer,
         direction: &Movement,
         cursor_direction: &Direction,
+        context: &Context,
     ) -> anyhow::Result<bool> {
         let initial_selections_length = self.selections.len();
         let last_selection = &self
@@ -143,6 +152,7 @@ impl SelectionSet {
             &self.mode,
             direction,
             cursor_direction,
+            context,
         )? {
             let new_selection = new_selection.selection;
 
@@ -175,12 +185,13 @@ impl SelectionSet {
         &self,
         buffer: &Buffer,
         cursor_direction: &Direction,
+        context: &Context,
     ) -> anyhow::Result<Option<NonEmpty<Selection>>> {
         if let Some((head, tail)) = self
             .map(|selection| {
                 let object = self
                     .mode
-                    .to_selection_mode_trait_object(buffer, selection, cursor_direction)
+                    .to_selection_mode_trait_object(buffer, selection, cursor_direction, context)
                     .ok()?;
 
                 let iter = object
@@ -217,8 +228,9 @@ impl SelectionSet {
         &mut self,
         buffer: &Buffer,
         cursor_direction: &Direction,
+        context: &Context,
     ) -> anyhow::Result<()> {
-        if let Some(selections) = self.all_selections(buffer, cursor_direction)? {
+        if let Some(selections) = self.all_selections(buffer, cursor_direction, context)? {
             self.selections = selections;
             self.cursor_index = 0;
         };
@@ -454,6 +466,7 @@ impl SelectionMode {
         buffer: &Buffer,
         current_selection: &Selection,
         cursor_direction: &Direction,
+        context: &Context,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
         let params = SelectionModeParams {
             buffer,
@@ -495,7 +508,7 @@ impl SelectionMode {
                 Box::new(selection_mode::Diagnostic::new(*severity, params))
             }
             SelectionMode::GitHunk(diff_mode) => {
-                Box::new(selection_mode::GitHunk::new(diff_mode, buffer)?)
+                Box::new(selection_mode::GitHunk::new(diff_mode, buffer, context)?)
             }
             SelectionMode::Mark => Box::new(selection_mode::Mark),
             SelectionMode::LocalQuickfix { .. } => {
@@ -616,9 +629,14 @@ impl Selection {
         mode: &SelectionMode,
         direction: &Movement,
         cursor_direction: &Direction,
+        context: &Context,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        let selection_mode =
-            mode.to_selection_mode_trait_object(buffer, current_selection, cursor_direction)?;
+        let selection_mode = mode.to_selection_mode_trait_object(
+            buffer,
+            current_selection,
+            cursor_direction,
+            context,
+        )?;
 
         let params = SelectionModeParams {
             buffer,
