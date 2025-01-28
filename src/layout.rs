@@ -554,5 +554,5 @@ impl Layout {
     }
 }
 fn layout_kind() -> (LayoutKind, f32) {
-    (LayoutKind::Tall, 0.70)
+    (LayoutKind::Wide, 0.70)
 }
