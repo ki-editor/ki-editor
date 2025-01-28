@@ -197,8 +197,6 @@ pub trait SelectionMode {
             Movement::Up => convert(self.up(params)),
             Movement::Down => convert(self.down(params)),
             Movement::Expand => self.expand(params),
-            Movement::Next => convert(self.next(params)),
-            Movement::Previous => convert(self.previous(params)),
             Movement::DeleteBackward => convert(self.delete_backward(params)),
             Movement::DeleteForward => convert(self.delete_forward(params)),
         }
@@ -358,14 +356,6 @@ pub trait SelectionMode {
         Ok(Some(ApplyMovementResult::from_selection(
             selection.clone().set_range(range),
         )))
-    }
-
-    fn next(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.right(params)
-    }
-
-    fn previous(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.left(params)
     }
 
     fn up(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {

@@ -4,11 +4,10 @@ sidebar_position: 5
 
 # Modes
 
-In Ki, there are 3 major modes:
+In Ki, there are 2 major modes:
 
 1. Insert mode
 2. Normal mode (default)
-3. V mode
 
 ## Insert Mode
 
@@ -21,7 +20,7 @@ In Normal mode, the keys on the keyboards are assigned special meanings.
 
 ## To get started
 
-To enter Insert mode, press `i` or `a`.
+To enter Insert mode, press `u` or `o`.
 
 To enter Normal mode, press `esc`.
 

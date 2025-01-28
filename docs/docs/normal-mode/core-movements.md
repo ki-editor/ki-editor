@@ -6,65 +6,71 @@ import {TutorialFallback} from '@site/src/components/TutorialFallback';
 
 # Core Movements
 
+## Intro
+
 Core Movements is one of the main concepts in Ki, because it is standardized for
 every [selection modes](./selection-modes/index.md).
 
 There are 9 movements in total:
 
-1. [Left/Right](#leftright)
-1. [Up/Down](#updown)
-1. [First/Last](#firstlast)
+1. [Left/Right](#--leftright)
+1. [Up/Down](#--updown)
+1. [First/Last](#--firstlast)
 1. [Jump](#jump)
-1. [To Index](#to-index)
+1. [To Index](#index-jump-to-index)
 1. [Current](#current)
 
-## Left/Right
+## Keymap
 
-Keybinding: `h`/`l`  
-Memory aid:
+```
+╭───┬───┬───┬───┬───┬───┬───┬───┬────┬────┬───────╮
+│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆   ┆   ┆    ┆    ┆       │
+│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆   ┆   ┆    ┆    ┆       │
+│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆  ▲ ┆    ┆       │
+├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌┼╌╌╌╌┼╌╌╌╌╌╌╌┤
+│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆   ┆   ┆    ┆    ┆       │
+│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆   ┆   ┆    ┆    ┆ Index │
+│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆ ◀ ┆  ▼ ┆  ▶ ┆  Jump │
+├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌┼╌╌╌╌┼╌╌╌╌╌╌╌┤
+│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆   ┆   ┆    ┆    ┆       │
+│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆   ┆   ┆    ┆    ┆       │
+│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆ ◀◀ ┆ ▶▶ ┆       │
+╰───┴───┴───┴───┴───┴───┴───┴───┴────┴────┴───────╯
+```
 
-- h stands for higher, which means "move to the selection on the left".
-- l stands for lower, which means "move to the selection on the right".
+### `◀` `▶` Left/Right
 
-## Up/Down
+Left/Right means move to the previous/next selection of the current selection mode.
 
-Keybinding: `k`/`j`  
-Memory aid:
+For example:
 
-- k means king, which means "move to the nearest selection above the current line".
-- j means jack, which means "move to the nearest selection below the current line".
+| Selection Mode | Meaning                     |
+| -------------- | --------------------------- |
+| Syntax Node    | Next/Previous named sibling |
+| Full Line      | Next/Previous empty line    |
 
-## Next/Previous
+### `▲` `▼` Up/Down
 
-Keybinding: `n`/`b`
+Up/Down means move to the nearest selection above/below the current line, except for
+the following selection modes:
 
-These movemest similar to the 4 movements above, however, they are not restricted to vertical or horizontal movements.
-They are assigned special meaning in different selection modes.
+| Selection Mode | Meaning                             |
+| -------------- | ----------------------------------- |
+| Syntax Node    | Parent or First-Sibling             |
+| Quickfix       | To first item of next/previous file |
 
-| Selection Mode   | Meaning                             |
-| ---------------- | ----------------------------------- |
-| Syntax Node      | Next/Previous named sibling         |
-| Quickfix         | To first item of next/previous file |
-| Token & Word     | Next/Previous unit skipping symbols |
-| Line & Full Line | Next/Previous empty line            |
-
-## First/Last
-
-Keybinding: `,`/`.`  
-Memory aid: `,`/`.` looks like `<`/`>` on the keyboard
+### `◀◀` `▶▶` First/Last
 
 | Selection Mode   | Meaning                                  |
 | ---------------- | ---------------------------------------- |
 | Syntax Node      | First/Last named sibling                 |
 | Quickfix         | First/Last item                          |
+| Char             | First/Last char in the current word      |
 | Word             | First/Last word in the current token     |
 | Token            | First/Last token in the current sentence |
 | Line & Full Line | First/Last line of the current file      |
 
-## Jump
-
-Keybinding: `f`  
-Reason: This keybinding is used by Vimium.
+### `Jump`
 
 This is my favorite movement, which is inspired by [Vim Easymotion](https://github.com/easymotion/vim-easymotion) and friends [^1].
 
@@ -84,28 +90,27 @@ Recommended selection modes:
 1. Word
 1. Token
 
-This movement can also work with the Exchange mode to swap two syntax expressions that are far apart.
+This movement can also work with the Swap mode to swap two syntax expressions that are far apart.
 
 [^1]: hop.nvim, leap.nvim, lightspeed.nvim etc.
 
 <TutorialFallback filename="jump"/>
 
-## To Index
+Note: All letters after the first will be selected based on key accessibility in the chosen keyboard layout.
 
-Keybinding: `0`  
-Memory aid:
+### `Index` Jump to Index
 
-- `0` is related to the index.
-
-When `0` is pressed, you will be prompted to key in a numerical index (where 1 represents first), and it will jump the current selection to the nth selection of the current selection mode.
+When this is activated, you will be prompted to key in a 1-based index, which after Enter
+will take you to the nth selection of the current selection mode.
 
 Recommended selection modes:
 
 1. Line (For going to a specific line number)
+2. Char (For going to a specific column number)
 
-## Current
+### Current
 
-This is not really a movement, since it's not "moving" the selections per se.
+This is not really a movement, since its not "moving" the selections per se.
 
 There's no specific keybinding for Current because it is triggered whenever a
 selection mode is chosen.

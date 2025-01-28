@@ -14,7 +14,7 @@
 
 [^1]:
     The default keybindings for structural navigation in Helix are hard to access: `alt+n`, `alt+p`, `alt+i` and `alt+o`.
-    Also, there's no easy way to [revert to previous selection](../normal-mode/other-movements.md#go-backforward), which is crucial for structural manipulation.
+    Also, there's no easy way to [revert to previous selection](../normal-mode/other-movements.md#-selectselect-), which is crucial for structural manipulation.
 
 [^2]: Not all GNU Readline keybindings are implemented, but they are welcomed.
 [^3]: Extensive support in Prompt, but minimal support in Editor.
@@ -52,14 +52,14 @@ The following table demonstrates the incoherence of Helix keybindings [^5]:
 
 As you can see, there's no single logical categorization for these keymaps, they are either lowercase-uppercase, normal-alt, left-right bracket, or outright unexplainable.
 
-> In Ki, all of these boil down to `h` and `l` only!
+> In Ki, all of these boil down to `j` and `l` only!
 
 Ok, how is this possible? It's possible because you have to choose your selection mode first before you move.
 
 For example:
 
-1. If you want to move to the next word, you enter the Word selection mode (by pressing `w`) first before pressing `l` (move to next selection).
-2. If you want to move to the next line, you enter the Line selection mode (by pressing `e`) first before pressing `l`
+1. If you want to move to the next word, you enter the Word selection mode first before pressing `l` (move to next selection).
+2. If you want to move to the next line, you enter the Line selection mode first before pressing `l`
 
 You only have to memorize the movement keybindings once, and then the selection mode keybindings, and you will be able to explore new ways of navigation on your own.
 

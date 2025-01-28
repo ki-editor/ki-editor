@@ -391,9 +391,8 @@ impl SelectionSet {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) enum SelectionMode {
     // Regex
-    EmptyLine,
-    Word,
-    Token,
+    Word { skip_symbols: bool },
+    Token { skip_symbols: bool },
     Line,
     Character,
     Custom,
@@ -423,12 +422,9 @@ impl SelectionMode {
 
     pub(crate) fn display(&self) -> String {
         match self {
-            SelectionMode::Word => "WORD".to_string(),
-            SelectionMode::Token => "TOKEN".to_string(),
-            SelectionMode::EmptyLine => "EMPTY LINE".to_string(),
             SelectionMode::Line => "LINE".to_string(),
             SelectionMode::LineFull => "FULL LINE".to_string(),
-            SelectionMode::Character => "COLUMN".to_string(),
+            SelectionMode::Character => "CHAR".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::SyntaxNode => "SYNTAX NODE".to_string(),
             SelectionMode::SyntaxNodeFine => "FINE SYNTAX NODE".to_string(),
@@ -440,10 +436,16 @@ impl SelectionMode {
                 format!("DIAGNOSTIC:{}", severity)
             }
             SelectionMode::GitHunk(diff_mode) => {
-                format!("GIT HUNK ({})", diff_mode.display()).to_string()
+                format!("GIT HUNK {}", diff_mode.display()).to_string()
             }
             SelectionMode::Mark => "MARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
+            SelectionMode::Word { skip_symbols } => {
+                format!("{}WORD", if *skip_symbols { "" } else { "FINE " })
+            }
+            SelectionMode::Token { skip_symbols } => {
+                format!("{}TOKEN", if *skip_symbols { "" } else { "FINE " })
+            }
         }
     }
 
@@ -459,8 +461,12 @@ impl SelectionMode {
             cursor_direction,
         };
         Ok(match self {
-            SelectionMode::Word => Box::new(selection_mode::Word::new(buffer)?),
-            SelectionMode::Token => Box::new(selection_mode::Token::new(buffer)?),
+            SelectionMode::Word { skip_symbols } => {
+                Box::new(selection_mode::Word::new(buffer, *skip_symbols)?)
+            }
+            SelectionMode::Token { skip_symbols } => {
+                Box::new(selection_mode::Token::new(buffer, *skip_symbols)?)
+            }
             SelectionMode::Line => Box::new(selection_mode::LineTrimmed),
             SelectionMode::LineFull => Box::new(selection_mode::LineFull),
             SelectionMode::Character => {
@@ -492,7 +498,6 @@ impl SelectionMode {
                 Box::new(selection_mode::GitHunk::new(diff_mode, buffer)?)
             }
             SelectionMode::Mark => Box::new(selection_mode::Mark),
-            SelectionMode::EmptyLine => Box::new(selection_mode::Regex::new(buffer, r"(?m)^\s*$")?),
             SelectionMode::LocalQuickfix { .. } => {
                 Box::new(selection_mode::LocalQuickfix::new(params))
             }
@@ -500,14 +505,10 @@ impl SelectionMode {
     }
 
     pub(crate) fn is_contiguous(&self) -> bool {
-        #[cfg(test)]
-        if matches!(self, SelectionMode::Token) {
-            return true;
-        }
         matches!(
             self,
-            SelectionMode::Word
-                | SelectionMode::Token
+            SelectionMode::Word { .. }
+                | SelectionMode::Token { .. }
                 | SelectionMode::Line
                 | SelectionMode::LineFull
                 | SelectionMode::Character
@@ -527,8 +528,8 @@ impl SelectionMode {
         match self {
             SelectionMode::Line => Movement::Up,
             SelectionMode::LineFull => Movement::Up,
-            SelectionMode::SyntaxNodeFine => Movement::Previous,
-            SelectionMode::SyntaxNode => Movement::Previous,
+            SelectionMode::SyntaxNodeFine => Movement::Left,
+            SelectionMode::SyntaxNode => Movement::Left,
             _ => Movement::Left,
         }
     }
@@ -537,8 +538,8 @@ impl SelectionMode {
         match self {
             SelectionMode::Line => Movement::Down,
             SelectionMode::LineFull => Movement::Down,
-            SelectionMode::SyntaxNodeFine => Movement::Next,
-            SelectionMode::SyntaxNode => Movement::Next,
+            SelectionMode::SyntaxNodeFine => Movement::Right,
+            SelectionMode::SyntaxNode => Movement::Right,
             _ => Movement::Right,
         }
     }

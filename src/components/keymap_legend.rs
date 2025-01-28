@@ -15,12 +15,15 @@ use crate::{
 use super::{
     component::Component,
     editor::{Direction, Editor, Mode, RegexHighlightRule},
+    editor_keymap::KEYBOARD_LAYOUT,
+    editor_keymap_printer::KeymapPrintSection,
     render_editor::Source,
 };
 
 pub(crate) struct KeymapLegend {
     editor: Editor,
     config: KeymapLegendConfig,
+    show_shift_alt_keys: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -31,15 +34,25 @@ pub(crate) struct KeymapLegendConfig {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum KeymapLegendBody {
-    SingleSection { keymaps: Keymaps },
-    MultipleSections { sections: Vec<KeymapLegendSection> },
+    Positional(Keymaps),
+    Mnemonic(Keymaps),
 }
 const BETWEEN_KEY_AND_DESCRIPTION: &str = " → ";
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymaps(Vec<Keymap>);
 impl Keymaps {
-    fn display(&self, indent: usize, width: usize) -> String {
+    fn display_positional(&self, terminal_width: u16, show_shift_alt_keys: bool) -> String {
+        let table = KeymapPrintSection::from_keymaps(
+            "".to_string(),
+            self,
+            KEYBOARD_LAYOUT.get_keyboard_layout(),
+        )
+        .display(terminal_width, show_shift_alt_keys);
+
+        format!("Press space to toggle alt/shift keys.\n{table}")
+    }
+    fn display_mnemonic(&self, indent: usize, width: usize) -> String {
         let width = width.saturating_sub(indent);
         let max_key_width = self
             .0
@@ -98,6 +111,10 @@ impl Keymaps {
     pub(crate) fn get(&self, event: &KeyEvent) -> std::option::Option<&Keymap> {
         self.0.iter().find(|key| &key.event == event)
     }
+
+    pub(crate) fn iter(&self) -> std::slice::Iter<'_, Keymap> {
+        self.0.iter()
+    }
 }
 
 fn dedent(s: &str) -> String {
@@ -128,43 +145,30 @@ fn dedent(s: &str) -> String {
     dedented_lines.join("\n")
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct KeymapLegendSection {
-    pub(crate) title: String,
-    pub(crate) keymaps: Keymaps,
-}
-
 impl KeymapLegendBody {
-    fn display(&self, width: usize) -> String {
+    fn display(&self, width: u16, show_shift_alt_keys: bool) -> String {
         match self {
-            KeymapLegendBody::SingleSection { keymaps } => keymaps.display(0, width),
-            KeymapLegendBody::MultipleSections { sections } => Keymaps(
-                sections
-                    .iter()
-                    .flat_map(|section| section.keymaps.0.clone())
-                    .collect_vec(),
-            )
-            .display(0, width),
+            KeymapLegendBody::Positional(keymaps) => {
+                keymaps.display_positional(width, show_shift_alt_keys)
+            }
+            KeymapLegendBody::Mnemonic(keymaps) => keymaps.display_mnemonic(0, width as usize),
         }
     }
 
     fn keymaps(&self) -> Vec<&Keymap> {
         match self {
-            KeymapLegendBody::SingleSection { keymaps } => keymaps.0.iter().collect_vec(),
-            KeymapLegendBody::MultipleSections { sections } => sections
-                .iter()
-                .flat_map(|section| section.keymaps.0.iter())
-                .collect_vec(),
+            KeymapLegendBody::Positional(keymaps) => keymaps.0.iter().collect_vec(),
+            KeymapLegendBody::Mnemonic(keymaps) => keymaps.0.iter().collect_vec(),
         }
     }
 }
 
 impl KeymapLegendConfig {
-    fn display(&self, width: usize) -> String {
-        self.body.display(width)
+    fn display(&self, width: u16, show_shift_alt_keys: bool) -> String {
+        self.body.display(width, show_shift_alt_keys)
     }
 
-    pub(crate) fn keymaps(&self) -> Vec<&Keymap> {
+    pub(crate) fn keymaps(&self) -> Keymaps {
         let keymaps = self.body.keymaps();
         #[cfg(test)]
         {
@@ -180,11 +184,12 @@ impl KeymapLegendConfig {
                 panic!("Conflicting keymaps detected:\n\n{conflicting_keymaps:#?}");
             }
         }
-        keymaps
+        Keymaps::new(&keymaps.into_iter().cloned().collect_vec())
     }
 
     fn get_regex_highlight_rules(&self) -> Vec<RegexHighlightRule> {
         self.keymaps()
+            .0
             .into_iter()
             .flat_map(|keymap| {
                 let keymap_key = RegexHighlightRule {
@@ -245,10 +250,20 @@ impl KeymapLegendConfig {
     }
 }
 
+impl From<KeymapLegendConfig> for Vec<Keymaps> {
+    fn from(keymap_legend_config: KeymapLegendConfig) -> Self {
+        match &keymap_legend_config.body {
+            KeymapLegendBody::Positional(keymaps) => vec![keymaps.clone()],
+            KeymapLegendBody::Mnemonic(keymaps) => vec![keymaps.clone()],
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymap {
     key: &'static str,
-    description: String,
+    pub short_description: Option<String>,
+    pub description: String,
     event: KeyEvent,
     dispatch: Dispatch,
 }
@@ -257,6 +272,22 @@ impl Keymap {
     pub(crate) fn new(key: &'static str, description: String, dispatch: Dispatch) -> Keymap {
         Keymap {
             key,
+            short_description: None,
+            description,
+            dispatch,
+            event: parse_key_event(key).unwrap(),
+        }
+    }
+
+    pub(crate) fn new_extended(
+        key: &'static str,
+        short_description: String,
+        description: String,
+        dispatch: Dispatch,
+    ) -> Keymap {
+        Keymap {
+            key,
+            short_description: Some(short_description),
             description,
             dispatch,
             event: parse_key_event(key).unwrap(),
@@ -264,12 +295,42 @@ impl Keymap {
     }
 
     pub(crate) fn get_dispatches(&self) -> Dispatches {
-        Dispatches::one(self.dispatch.clone())
-            .append(Dispatch::SetLastActionDescription(self.description.clone()))
+        Dispatches::one(self.dispatch.clone()).append(Dispatch::SetLastActionDescription {
+            long_description: self.description.clone(),
+            short_description: self.short_description.clone(),
+        })
     }
 
     pub(crate) fn event(&self) -> &KeyEvent {
         &self.event
+    }
+
+    pub(crate) fn override_keymap(
+        self,
+        keymap_override: Option<&super::editor_keymap_legend::KeymapOverride>,
+        none_if_no_override: bool,
+    ) -> Option<Keymap> {
+        match keymap_override {
+            Some(keymap_override) => Some(Self {
+                short_description: Some(keymap_override.description.to_string()),
+                description: keymap_override.description.to_string(),
+                dispatch: keymap_override.dispatch.clone(),
+                ..self
+            }),
+            None => {
+                if none_if_no_override {
+                    None
+                } else {
+                    Some(self)
+                }
+            }
+        }
+    }
+
+    pub(crate) fn display(&self) -> String {
+        self.short_description
+            .clone()
+            .unwrap_or_else(|| self.description.clone())
     }
 }
 
@@ -278,6 +339,7 @@ impl KeymapLegend {
         // Check for duplicate keys
         let duplicates = config
             .keymaps()
+            .0
             .into_iter()
             .duplicates_by(|keymap| keymap.key)
             .collect_vec();
@@ -299,11 +361,17 @@ impl KeymapLegend {
         editor.set_title(config.title.clone());
         let _ = editor.enter_insert_mode(Direction::End).unwrap_or_default();
         editor.set_regex_highlight_rules(config.get_regex_highlight_rules());
-        KeymapLegend { editor, config }
+        KeymapLegend {
+            editor,
+            config,
+            show_shift_alt_keys: false,
+        }
     }
 
     fn refresh(&mut self) {
-        let content = self.config.display(self.editor.rectangle().width as usize);
+        let content = self
+            .config
+            .display(self.editor.rectangle().width, self.show_shift_alt_keys);
         self.editor_mut().set_content(&content).unwrap_or_default();
     }
 }
@@ -314,8 +382,8 @@ impl Component for KeymapLegend {
     }
 
     fn set_rectangle(&mut self, rectangle: Rectangle) {
+        self.refresh(); // TODO: pass theme from App.rs
         self.editor_mut().set_rectangle(rectangle);
-        self.refresh()
     }
 
     fn editor_mut(&mut self) -> &mut Editor {
@@ -332,6 +400,10 @@ impl Component for KeymapLegend {
             match &event {
                 key!("esc") => {
                     self.editor.enter_normal_mode()?;
+                    Ok(Default::default())
+                }
+                key!("space") => {
+                    self.show_shift_alt_keys = !self.show_shift_alt_keys;
                     Ok(Default::default())
                 }
                 key!("ctrl+c") => Ok(Dispatches::one(Dispatch::CloseCurrentWindow)),
@@ -373,9 +445,7 @@ mod test_keymap_legend {
                 }),
                 App(ShowKeymapLegend(KeymapLegendConfig {
                     title: "".to_string(),
-                    body: KeymapLegendBody::SingleSection {
-                        keymaps: Keymaps::new(&[]),
-                    },
+                    body: KeymapLegendBody::Positional(Keymaps::new(&[])),
                 })),
                 App(HandleKeyEvent(key!("esc"))),
                 App(HandleKeyEvent(key!("esc"))),
@@ -385,7 +455,7 @@ mod test_keymap_legend {
     }
 
     #[test]
-    fn test_display_1() {
+    fn test_display_mnemonic() {
         let keymaps = Keymaps(
             [
                 Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
@@ -398,7 +468,7 @@ mod test_keymap_legend {
             .to_vec(),
         );
         let width = 53;
-        let actual = keymaps.display(2, width).to_string();
+        let actual = keymaps.display_mnemonic(2, width).to_string();
         let expected = "
   a → Aloha                b → Bomb
   c → Caterpillar          d → D
@@ -408,22 +478,49 @@ mod test_keymap_legend {
     }
 
     #[test]
-    fn test_display_2() {
+    fn test_display_positional() {
         let keymaps = Keymaps(
             [
                 Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
                 Keymap::new("b", "Bomb".to_string(), Dispatch::Null),
-                Keymap::new("space", "Gogagg".to_string(), Dispatch::Null),
+                Keymap::new("F", "Foo".to_string(), Dispatch::Null),
                 Keymap::new("c", "Caterpillar".to_string(), Dispatch::Null),
+                Keymap::new("alt+g", "Gogagg".to_string(), Dispatch::Null),
             ]
             .to_vec(),
         );
-        let width = 53;
-        let actual = keymaps.display(2, width).to_string();
+        let actual = keymaps.display_positional(19, false).to_string();
         let expected = "
-      a → Aloha                b → Bomb
-  space → Gogagg               c → Caterpillar"
-            .trim_matches('\n');
+Press space to toggle alt/shift keys.
+╭───────┬───┬─────────────┬───┬──────┬───┬───┬───┬───┬───┬───╮
+│       ┆   ┆             ┆   ┆      ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│ Aloha ┆   ┆             ┆   ┆      ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│       ┆   ┆ Caterpillar ┆   ┆ Bomb ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+╰───────┴───┴─────────────┴───┴──────┴───┴───┴───┴───┴───┴───╯
+"
+        .trim_matches('\n');
+        assert_eq!(actual, expected);
+
+        let actual = keymaps.display_positional(19, true).to_string();
+        let expected = "
+Press space to toggle alt/shift keys.
+╭───────┬───┬─────────────┬─────┬────────┬───┬───┬───┬───┬───┬───╮
+│       ┆   ┆             ┆     ┆        ┆ ⌥ ┆   ┆   ┆   ┆   ┆   │
+│       ┆   ┆             ┆     ┆        ┆ ⇧ ┆   ┆   ┆   ┆   ┆   │
+│       ┆   ┆             ┆     ┆        ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│       ┆   ┆             ┆     ┆ Gogagg ┆ ⌥ ┆   ┆   ┆   ┆   ┆   │
+│       ┆   ┆             ┆ Foo ┆        ┆ ⇧ ┆   ┆   ┆   ┆   ┆   │
+│ Aloha ┆   ┆             ┆     ┆        ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│       ┆   ┆             ┆     ┆        ┆ ⌥ ┆   ┆   ┆   ┆   ┆   │
+│       ┆   ┆             ┆     ┆        ┆ ⇧ ┆   ┆   ┆   ┆   ┆   │
+│       ┆   ┆ Caterpillar ┆     ┆  Bomb  ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+╰───────┴───┴─────────────┴─────┴────────┴───┴───┴───┴───┴───┴───╯
+"
+        .trim_matches('\n');
         assert_eq!(actual, expected);
     }
 
@@ -431,13 +528,11 @@ mod test_keymap_legend {
     fn should_intercept_key_event_defined_in_config() {
         let mut keymap_legend = KeymapLegend::new(KeymapLegendConfig {
             title: "Test".to_string(),
-            body: KeymapLegendBody::SingleSection {
-                keymaps: Keymaps::new(&[Keymap::new(
-                    "s",
-                    "fifafofum".to_string(),
-                    Dispatch::Custom("Spongebob".to_string()),
-                )]),
-            },
+            body: KeymapLegendBody::Positional(Keymaps::new(&[Keymap::new(
+                "s",
+                "fifafofum".to_string(),
+                Dispatch::Custom("Spongebob".to_string()),
+            )])),
         });
 
         let dispatches = keymap_legend.handle_events(keys!("s")).unwrap();
@@ -447,7 +542,10 @@ mod test_keymap_legend {
             Dispatches::new(vec![
                 Dispatch::CloseCurrentWindowAndFocusParent,
                 Dispatch::Custom("Spongebob".to_string()),
-                SetLastActionDescription("fifafofum".to_string())
+                SetLastActionDescription {
+                    long_description: "fifafofum".to_string(),
+                    short_description: None
+                }
             ])
         )
     }
@@ -465,7 +563,7 @@ mod test_keymap_legend {
         );
         let regexes = KeymapLegendConfig {
             title: "".to_string(),
-            body: KeymapLegendBody::SingleSection { keymaps },
+            body: KeymapLegendBody::Positional(keymaps),
         }
         .get_regex_highlight_rules()
         .into_iter()

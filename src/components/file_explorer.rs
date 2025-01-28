@@ -2,7 +2,7 @@ use itertools::Itertools;
 use my_proc_macros::key;
 
 use crate::{
-    app::{Dispatch, Dispatches, YesNoPrompt},
+    app::{Dispatch, Dispatches},
     buffer::BufferOwner,
 };
 use shared::canonicalized_path::CanonicalizedPath;
@@ -10,7 +10,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 use super::{
     component::Component,
     editor::Editor,
-    keymap_legend::{Keymap, Keymaps},
+    editor_keymap_legend::{KeymapOverride, NormalModeOverride},
 };
 
 pub(crate) struct FileExplorer {
@@ -18,6 +18,31 @@ pub(crate) struct FileExplorer {
     tree: Tree,
 }
 
+pub(crate) fn file_explorer_normal_mode_override() -> NormalModeOverride {
+    NormalModeOverride {
+        append: Some(KeymapOverride {
+            description: "Add Path",
+            dispatch: Dispatch::OpenAddPathPrompt,
+        }),
+        change: Some(KeymapOverride {
+            description: "Move Path",
+            dispatch: Dispatch::OpenMoveFilePrompt,
+        }),
+        delete: Some(KeymapOverride {
+            description: "Delete Path",
+            dispatch: Dispatch::OpenDeleteFilePrompt,
+        }),
+        replace: Some(KeymapOverride {
+            description: "Refresh",
+            dispatch: Dispatch::RefreshFileExplorer,
+        }),
+        paste: Some(KeymapOverride {
+            description: "Dup Path",
+            dispatch: Dispatch::OpenDuplicateFilePrompt,
+        }),
+        ..Default::default()
+    }
+}
 impl FileExplorer {
     pub(crate) fn new(path: &CanonicalizedPath) -> anyhow::Result<Self> {
         let tree = Tree::new(path)?;
@@ -28,6 +53,7 @@ impl FileExplorer {
             &format!("{}\n", text),
         );
         editor.set_title("File Explorer".to_string());
+        editor.set_normal_mode_override(file_explorer_normal_mode_override());
         Ok(Self { editor, tree })
     }
 
@@ -57,6 +83,11 @@ impl FileExplorer {
     fn get_current_node(&self) -> anyhow::Result<Option<Node>> {
         let position = self.editor().get_cursor_position()?;
         Ok(self.tree.get(position.line))
+    }
+
+    pub(crate) fn get_current_path(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
+        self.get_current_node()
+            .map(|node| node.map(|node| node.path))
     }
 }
 
@@ -328,43 +359,6 @@ impl Component for FileExplorer {
         &mut self.editor
     }
 
-    fn contextual_keymaps(&self) -> Vec<super::keymap_legend::KeymapLegendSection> {
-        self.get_current_node()
-            .ok()
-            .flatten()
-            .map(|node| super::keymap_legend::KeymapLegendSection {
-                title: "File Explorer".to_string(),
-                keymaps: Keymaps::new(&[
-                    Keymap::new(
-                        "a",
-                        "Add file (or postfix with / for folder)".to_string(),
-                        Dispatch::OpenAddPathPrompt(node.path.clone()),
-                    ),
-                    Keymap::new(
-                        "c",
-                        "Copy file".to_string(),
-                        Dispatch::OpenCopyFilePrompt(node.path.clone()),
-                    ),
-                    Keymap::new(
-                        "d",
-                        "Delete path".to_string(),
-                        Dispatch::OpenYesNoPrompt(YesNoPrompt {
-                            title: format!("Delete \"{}\"?", node.path.display_absolute()),
-                            yes: Box::new(Dispatch::DeletePath(node.path.clone())),
-                        }),
-                    ),
-                    Keymap::new(
-                        "m",
-                        "Move path".to_string(),
-                        Dispatch::OpenMoveFilePrompt(node.path.clone()),
-                    ),
-                    Keymap::new("r", "Refresh".to_string(), Dispatch::RefreshFileExplorer),
-                ]),
-            })
-            .into_iter()
-            .collect()
-    }
-
     fn handle_key_event(
         &mut self,
         context: &crate::context::Context,
@@ -443,7 +437,7 @@ mod test_file_explorer {
                 }),
                 App(RevealInExplorer(s.main_rs())),
                 Expect(ComponentCount(1)),
-                App(HandleKeyEvents(keys!("space m").to_vec())),
+                App(HandleKeyEvents(keys!("m").to_vec())),
                 Expect(ComponentCount(2)),
                 Expect(CurrentComponentTitle("Move path")),
                 Editor(Insert("/hello/world.rs".to_string())),

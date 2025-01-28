@@ -2,38 +2,75 @@ import {TutorialFallback} from '@site/src/components/TutorialFallback';
 
 # Actions
 
+## Keymap
+
+```
+╭──────────┬───────────┬───────────┬───────────┬────────┬───┬──────────┬───────────┬───────┬───────────┬───╮
+│          ┆           ┆           ┆           ┆        ┆ ⌥ ┆          ┆           ┆       ┆           ┆   │
+│ ← Search ┆           ┆           ┆           ┆  Raise ┆ ⇧ ┆          ┆ ← Replace ┆  Join ┆ Replace → ┆   │
+│ Search → ┆           ┆    This   ┆           ┆        ┆ ∅ ┆          ┆  ← Insert ┆       ┆  Insert → ┆   │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┤
+│          ┆           ┆           ┆           ┆        ┆ ⌥ ┆          ┆           ┆       ┆           ┆   │
+│          ┆           ┆           ┆ Transform ┆ ← Open ┆ ⇧ ┆ ← Delete ┆   Dedent  ┆ Break ┆   Indent  ┆   │
+│          ┆           ┆           ┆           ┆ Open → ┆ ∅ ┆ Delete → ┆           ┆       ┆           ┆   │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┤
+│          ┆           ┆           ┆           ┆        ┆ ⌥ ┆          ┆           ┆       ┆           ┆   │
+│   Redo   ┆ Replace # ┆ Replace X ┆  Paste ←  ┆        ┆ ⇧ ┆          ┆  Change X ┆       ┆           ┆   │
+│   Undo   ┆  Replace  ┆    Copy   ┆  Paste →  ┆  Mark  ┆ ∅ ┆          ┆   Change  ┆       ┆           ┆   │
+╰──────────┴───────────┴───────────┴───────────┴────────┴───┴──────────┴───────────┴───────┴───────────┴───╯
+```
+
 ## Notes for reading
 
 1. When "selection" is mentioned, you should read it as "selection(s)", because
    these actions work with multiple cursors.
 
-## Enter [insert mode](../../insert-mode/index.md)
+## Search
 
-Keybindings:
+### `← Search`/`Search →`
 
-- `i`: Enter insert mode before selection
-- `a`: Enter insert mode after selection
+Open search prompt.
 
-## Open
+### `This`
 
-Keybindings:
+Search this selection.
 
-- `o`: Open after selection
-- `O`: Open before selection
+<TutorialFallback filename="search-current-selection"/>
+
+## Modifications
+
+### `Raise`
+
+This is one of my favorite actions, it only works for [syntax node](../selection-modes/primary.md#syntax) selection modes.
+
+This replaces the parent node of the current node, with the current node.
+
+<TutorialFallback filename="raise"/>
+
+Note: Raise should never cause any syntax errors, if it does that's a bug.
+
+### `← Replace`/`Replace →`
+
+Replace current selection with previous/next copied text in the clipboard history.
+
+This is similar to [Yanking Earlier Kills](https://www.gnu.org/software/emacs/manual/html_node/emacs/Earlier-Kills.html) in Emacs.
+
+This is useful when you want to retrieve earlier copies.
+
+### `← Open`/`Open →`
+
+Open before/after selection.
 
 If the current selection mode is not Syntax Node,
-then `o`/`O` inserts a newline with the respective indent after/before the current line.
+then Open inserts a newline with the respective indent after/before the current line.
 
-Otherwise, it inserts a gap before/after the current selection, and enter Insert mode.
+Otherwise, it inserts a gap before/after the current selection, and then enter Insert mode.
 
 <TutorialFallback filename="open"/>
 
-## Delete
+### `← Delete`/`Delete →`
 
-Keybindings:
-
-- `d`: Delete until next selection
-- `D`: Delete until previous selection
+Delete until previous/next selection.
 
 This deletes the current selection(s), however, if the current selection mode is
 [contiguous](../selection-modes/index.md#contiguity), it will delete until the
@@ -48,7 +85,7 @@ For example, consider the following Javascript code:
 hello(x, y);
 ```
 
-Assuming the current selection mode is [Syntax Node](../selection-modes/syntax-node-based.md#syntax-node), and the current selection is `x`, pressing `d` results in the following:
+Assuming the current selection mode is [Syntax Node](../selection-modes/primary.md#syntax), and the current selection is `x`, pressing `d` results in the following:
 
 ```js
 hello(y);
@@ -56,32 +93,16 @@ hello(y);
 
 <TutorialFallback filename="delete"/>
 
-## Change
+### `Change`
 
-Keybindings:
+This deletes the current selected text, and enter [Insert mode](../../insert-mode/index.md).
 
-- `c`: Change
+### `Replace #`
 
-This deletes the current selected text, and enter [Insert mode
-](../../insert-mode/index.md).
-
-## Replace with previous/next copied text
-
-Keybindings:
-
-- `ctrl+n`: Replace current selection with next copied text in the clipboard history
-- `ctrl+p`: Replace current selection with previous copied text in the clipboard history
-
-This is similar to [Yanking Earlier Kills](https://www.gnu.org/software/emacs/manual/html_node/emacs/Earlier-Kills.html) in Emacs.
-
-This is useful when you want to retrieve earlier copies.
-
-## Replace with pattern
-
-Keybinding: `ctrl+r`
+Replace with pattern.
 
 This replaces the current selection using the search pattern and replacement
-pattern specified in the [Text Search Configuration](../selection-modes/local-global/text-search.md#configuration).
+pattern specified in the [Text Search Configuration](../search-config.md).
 
 For example:
 
@@ -94,29 +115,13 @@ For example:
 
 <TutorialFallback filename="replace-with-pattern"/>
 
-## Raise
-
-Keybinding: `^`
-
-This is one of my favorite actions, it only works for [syntax node](../selection-modes/syntax-node-based.md#syntax-node) selection modes.
-
-This replaces the parent node of the current node, with the current node.
-
-<TutorialFallback filename="raise"/>
-
-Note: Raise should never cause any syntax errors, if it does that's a bug.
-
-## Join
-
-Keybinding: `J`
+### `Join`
 
 Joins multiple lines within the current selection(s) into a single line.
 
 <TutorialFallback filename="join"/>
 
-## Break
-
-Keybinding: `K`
+### `Break`
 
 Break the current selection(s) to the next line, with the indentation of the current line.
 
@@ -124,9 +129,11 @@ This is a shortcut of `i enter esc`.
 
 <TutorialFallback filename="break"/>
 
-## Transform
+### `Dedent`/`Indent`
 
-Keybinding: `!`
+Dedent/Indent the current selection by 4 spaces.
+
+### `Transform`
 
 Transformative actions are nested under here, such as (non-exhaustive):
 
@@ -134,23 +141,109 @@ Transformative actions are nested under here, such as (non-exhaustive):
 - `l`: Convert to `lower case`
 - `s`: Convert to `snake_case`
 
-## Save
+## Meta
 
-Keybinding: `enter`  
-Reason: The `esc enter` combo is sweet.
+### [`← Insert`/`Insert →`](../../insert-mode/index.md)
 
-Upon saving, formatting will be applied if possible.
+Enter insert mode before/after selection.
 
-After formatting, the [Current](../core-movements.md#current) movement will be executed, to reduce disorientation caused by the misplaced selection due to content changes.
+### `Mark`
 
-## Undo/Redo
+Toggles a bookmark at the current selection, allowing you to navigate elsewhere
+in the codebase while maintaining a reference to your focal point without
+memorizing its exact location.
 
-Keybindings:
-
-- `u`: Undo
-- `U`: Redo
+### `Undo`/`Redo`
 
 Notes:
 
 1. Undo/redo works for multi-cursors as well
 2. The current implementation is naive, it undoes/redoes character-by-character, instead of chunk-by-chunk, so it can be mildly frustrating
+
+### Save
+
+Keybinding: `enter`
+
+Upon saving, formatting will be applied if possible.
+
+After formatting, the [Current](../core-movements.md#current) movement will be executed, to reduce disorientation caused by the misplaced selection due to content changes.
+
+## Clipboard
+
+There are two kinds of clipboards:
+
+1. The editor clipboard
+2. The system clipboard
+
+By default, the editor clipboard is used, to use the system clipboard, press
+`space` before pressing the keybindings of the following actions.
+
+The editor clipboard works for multiple cursors, the text of each cursor can be
+copied to and pasted from the editor clipboard respectively.
+
+The system clipboard however does not support multiple cursors.
+When there are multiple cursors:
+
+- Copy joins every selection into a single string and then place it in the system clipboard
+- Paste uses the same string from the system clipboard for every cursor
+
+Note: when new content are copied to the system clipboard, it will also be
+copied to the editor clipboard.
+
+### `Copy`
+
+This action copies the current selected text.
+
+Copy behaves differently depending on the number of cursors.
+
+When there is more than one cursor, the selected texts of each cursor will be
+copied to the cursor-specific clipboard.
+
+### `Paste ←`/`Paste →`
+
+Paste before/after selection.
+
+This action pastes the content from the clipboard (either the system clipboard or
+cursor-specific clipboard) after/before the current selection.
+
+Notes:
+
+- It does not replace the current selection.
+- The pasted text will be selected.
+
+#### Smart Paste
+
+Smart Paste will be executed when the selection mode is [contiguous](../selection-modes/index.md#contiguity).
+
+Smart Paste works by analyzing the gap between the current selection and the
+previous/next selection, then insert the gap before/after the pasted text.
+
+For example, consider the following Javascript code:
+
+```js
+hello(x, y);
+```
+
+Assuming the current selection mode is [Syntax Node](../selection-modes/primary.md#syntax), and the current selection is `y`, and the
+copied text is `z`, performing a `p` results in the following:
+
+```js
+hello(x, y, z);
+```
+
+<TutorialFallback filename="paste"/>
+
+### `Change X`
+
+This is similar to [Change](#change), but it copies the deleted text into the system clipboard.  
+Like `ctrl+x` in Windows and `cmd+x` in macOS.
+
+### `Replace`
+
+This replaces the current selected text with the copied text.
+
+### `Replace X`
+
+Replace Cut, swaps the current selection with the content in the clipboard.
+
+<TutorialFallback filename="replace-cut"/>

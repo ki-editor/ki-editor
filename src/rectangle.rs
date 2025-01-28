@@ -468,6 +468,7 @@ impl Rectangle {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LayoutKind {
     Tall,
+    #[allow(unused)]
     Wide,
 }
 

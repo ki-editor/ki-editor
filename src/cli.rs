@@ -1,3 +1,4 @@
+use crate::components::editor_keymap_printer;
 use clap::{Args, Parser, Subcommand};
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -39,6 +40,11 @@ enum Commands {
     },
     /// Prints the log file path
     Log,
+    /// Display the keymap in various formats
+    Keymap {
+        #[command(subcommand)]
+        command: KeymapFormat,
+    },
     /// Run Ki in the given path, treating the path as the working directory
     In(InArgs),
 }
@@ -67,6 +73,14 @@ enum HighlightQuery {
     Clean,
     /// Prints the cache path
     CachePath,
+}
+
+#[derive(Subcommand)]
+enum KeymapFormat {
+    /// Display as YAML for use with Keymap Drawer
+    KeymapDrawer,
+    /// Display as an ASCII table
+    Table,
 }
 
 fn run_edit_command(args: EditArgs) -> anyhow::Result<()> {
@@ -120,6 +134,16 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                     "{}",
                     CanonicalizedPath::try_from(grammar::default_log_file())?.display_absolute(),
                 );
+                Ok(())
+            }
+            Commands::Keymap { command } => {
+                match command {
+                    KeymapFormat::Table => editor_keymap_printer::print_keymap_table()?,
+                    KeymapFormat::KeymapDrawer => {
+                        editor_keymap_printer::print_keymap_drawer_yaml()?
+                    }
+                }
+
                 Ok(())
             }
             Commands::In(args) => crate::run(crate::RunConfig {
