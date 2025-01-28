@@ -38,7 +38,7 @@ For example, if the current selection is `hello world`, then the cursor sits on 
 
 The anchor serves as a visual aid, making it easier to recognize when the selection range has been modified.
 
-This is especially necessary when using selection modes such as [Fine Syntax Node](./selection-modes/primary.md#fine-syntax-node), where occasionally, the start of a selection remains the same while the end of it changes.
+This is especially necessary when using selection modes such as [Fine Syntax Node](./selection-modes/primary.md#syntax-1), where occasionally, the start of a selection remains the same while the end of it changes.
 
 Usefulness:
 
@@ -63,7 +63,7 @@ This is similar to Vim's Visual Mode `o`.
 Go to the previous/next selection. This is similar to Vim's `ctrl+o`/`ctrl+i`, but it onlys work within a file.
 
 This is useful when you messed up the current selection, especially when you are
-using [Syntax Node](./selection-modes/primary.md#syntax-node), and
+using [Syntax Node](./selection-modes/primary.md#syntax), and
 expanding the current selection to parent node.
 
 Use `← Select` to restore the selection to the previous state.  

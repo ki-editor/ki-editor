@@ -23,4 +23,4 @@ fn main() -> usize {
 
 To make that work, surround `123` with curly brackets (by pressing `v s {` [^1]) before raising.
 
-[^1]: See [Surround](./extend-mode#surround-related-actions)
+[^1]: See [Surround](./sub-modes/extend-mode#surround-related-actions)

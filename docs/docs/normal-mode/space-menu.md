@@ -47,7 +47,7 @@ The space menu can be brought up by pressing `space`.
 | `Symbol`       | LSP Symbols                              |
 | `Theme`        | [Themes](../themes.md)                   |
 
-[^1]: See more at [Git hunk](./selection-modes/secondary/index.md#git-hunk)
+[^1]: See more at [Git hunk](./selection-modes/secondary/index.md#hunkhunk)
 [^2]: This is very useful when you want to get the modified/added files commited into the current branch that you are working on.
 
 Searching is powered by [Helix's Nucleo](https://github.com/helix-editor/nucleo), and some [fzf](https://github.com/junegunn/fzf?tab=readme-ov-file#search-syntax)-esque search syntax works here:
@@ -64,7 +64,7 @@ For example, the search query `stb 'wild` matches `wild-serbian-bear-tiger` and 
 
 Also, you can use the initals to search for a file, for example, `ekl` matches `editor_keymap_legend.rs`.
 
-Because [every component is a buffer/editor](../core-concepts.md#2-every-component-is-a-buffereditor), fuzzy search logic is also used for filtering LSP completions.
+Because [every component is a buffer/editor](../core-concepts.md#3-every-component-is-a-buffereditor), fuzzy search logic is also used for filtering LSP completions.
 
 ### Buffer Behavior
 

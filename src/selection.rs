@@ -424,7 +424,7 @@ impl SelectionMode {
         match self {
             SelectionMode::Line => "LINE".to_string(),
             SelectionMode::LineFull => "FULL LINE".to_string(),
-            SelectionMode::Character => "COLUMN".to_string(),
+            SelectionMode::Character => "CHAR".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::SyntaxNode => "SYNTAX NODE".to_string(),
             SelectionMode::SyntaxNodeFine => "FINE SYNTAX NODE".to_string(),
@@ -436,7 +436,7 @@ impl SelectionMode {
                 format!("DIAGNOSTIC:{}", severity)
             }
             SelectionMode::GitHunk(diff_mode) => {
-                format!("GIT HUNK ({})", diff_mode.display()).to_string()
+                format!("GIT HUNK {}", diff_mode.display()).to_string()
             }
             SelectionMode::Mark => "MARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),

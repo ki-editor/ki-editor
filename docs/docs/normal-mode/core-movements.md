@@ -6,16 +6,18 @@ import {TutorialFallback} from '@site/src/components/TutorialFallback';
 
 # Core Movements
 
+## Intro
+
 Core Movements is one of the main concepts in Ki, because it is standardized for
 every [selection modes](./selection-modes/index.md).
 
 There are 9 movements in total:
 
-1. [Left/Right](#leftright)
-1. [Up/Down](#updown)
-1. [First/Last](#firstlast)
+1. [Left/Right](#--leftright)
+1. [Up/Down](#--updown)
+1. [First/Last](#--firstlast)
 1. [Jump](#jump)
-1. [To Index](#to-index)
+1. [To Index](#index-jump-to-index)
 1. [Current](#current)
 
 ## Keymap
@@ -36,7 +38,7 @@ There are 9 movements in total:
 ╰───┴───┴───┴───┴───┴───┴───┴───┴────┴────┴───────╯
 ```
 
-## `◀` `▶` Left/Right
+### `◀` `▶` Left/Right
 
 Left/Right means move to the previous/next selection of the current selection mode.
 
@@ -47,7 +49,7 @@ For example:
 | Syntax Node    | Next/Previous named sibling |
 | Full Line      | Next/Previous empty line    |
 
-## `▲` `▼` Up/Down
+### `▲` `▼` Up/Down
 
 Up/Down means move to the nearest selection above/below the current line, except for
 the following selection modes:
@@ -57,7 +59,7 @@ the following selection modes:
 | Syntax Node    | Parent or First-Sibling             |
 | Quickfix       | To first item of next/previous file |
 
-## `◀◀` `▶▶` First/Last
+### `◀◀` `▶▶` First/Last
 
 | Selection Mode   | Meaning                                  |
 | ---------------- | ---------------------------------------- |
@@ -68,7 +70,7 @@ the following selection modes:
 | Token            | First/Last token in the current sentence |
 | Line & Full Line | First/Last line of the current file      |
 
-## Jump
+### `Jump`
 
 This is my favorite movement, which is inspired by [Vim Easymotion](https://github.com/easymotion/vim-easymotion) and friends [^1].
 
@@ -96,7 +98,7 @@ This movement can also work with the Swap mode to swap two syntax expressions th
 
 Note: All letters after the first will be selected based on key accessibility in the chosen keyboard layout.
 
-## `Index` Jump to Index
+### `Index` Jump to Index
 
 When this is activated, you will be prompted to key in a 1-based index, which after Enter
 will take you to the nth selection of the current selection mode.
@@ -106,7 +108,7 @@ Recommended selection modes:
 1. Line (For going to a specific line number)
 2. Char (For going to a specific column number)
 
-## Current
+### Current
 
 This is not really a movement, since its not "moving" the selections per se.
 

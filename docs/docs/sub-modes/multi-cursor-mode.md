@@ -4,7 +4,7 @@ import {TutorialFallback} from '@site/src/components/TutorialFallback';
 
 ## Intro
 
-Multi-cursor mode works through two main mechanisms: [Movement](../normal-mode/core-movements.md) and [Selection Mode](./selection-modes).
+Multi-cursor mode works through two main mechanisms: [Movement](../normal-mode/core-movements.md) and [Selection Mode](../normal-mode/selection-modes/index.md).
 
 Unlike other editors where there are specific keybindings for adding cursors in specific ways,
 Ki gives you the freedom to add cursors by either:

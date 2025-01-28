@@ -6,12 +6,6 @@ import {TutorialFallback} from '@site/src/components/TutorialFallback';
 
 # Primary
 
-## Contiguity
-
-Primary selection modes are contiguous, which means there are no meaningful gaps between each of the selections.
-
-A gap is meaningful if it's neither whitespaces only nor separators like `,` or `;`.
-
 ## Keymap
 
 ```
@@ -30,7 +24,9 @@ A gap is meaningful if it's neither whitespaces only nor separators like `,` or 
 ╰───────┴────────┴─────────┴───┴───┴───┴───┴───┴───┴───┴───╯
 ```
 
-## `Syntax` Syntax Node (Coarse)
+## `Syntax`
+
+Syntax Node (Coarse).
 
 This selection mode is powered by [Tree-sitter](https://github.com/tree-sitter).
 
@@ -82,7 +78,9 @@ See more at [https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-an
 
 <TutorialFallback filename="syntax-node"/>
 
-## `Syntax*` Fine Syntax Node
+## `Syntax*`
+
+Fine Syntax Node.
 
 | Movement                                       | Meaning                                          |
 | ---------------------------------------------- | ------------------------------------------------ |
@@ -106,7 +104,7 @@ However, if we use `S` instead, the selection will remain as `hello`, and pressi
 
 [^1]: See [Largest Node](#largest-node)
 
-## `Line` Line
+## `Line`
 
 In this selection mode, the selection is trimmed, which means that the leading
 and trailing spaces of each line are not selected.
@@ -125,11 +123,15 @@ This is also practical in the [File Explorer](../../components/file-explorer.md)
 
 <TutorialFallback filename="line"/>
 
-## `Line*` Full Line
+## `Line*`
+
+Full Line.
 
 Same as [Line](#line), however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.
 
-## `Token` Token (skip symbols)
+## `Token`
+
+Token (skip symbols).
 
 Each unit is a sequence of alphanumeric characters including `-` and `_`.
 
@@ -137,13 +139,15 @@ Each unit is a sequence of alphanumeric characters including `-` and `_`.
 
 [^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 
-## `Token*` Fine Token
+## `Token*`
+
+Fine Token.
 
 This is similar to Token, but does not skip symbols.
 
 <TutorialFallback filename="token-fine"/>
 
-## `Word` Word
+## `Word`
 
 This selects word within a token.
 
@@ -153,16 +157,20 @@ This is useful for renaming identifiers, especially if we only want to change a 
 
 <TutorialFallback filename="word"/>
 
-## `Word*` Fine Word
+## `Word*`
 
-This is similar to [Word](#word-word), except that it does not skip symbols.
+Fine Word.
+
+This is similar to [Word](#word), except that it does not skip symbols.
 
 <TutorialFallback filename="fine-word"/>
 
-## `Char` Character
+## `Char`
 
-In this selection mode, the movements behave like the usual editor, where [Left/Right](./../core-movements.md#leftright) means left/right, and so on.
+Character.
 
-[First/Last](./../core-movements.md#firstlast) means the first/last character of the current word.
+In this selection mode, the movements behave like the usual editor, where [Left/Right](./../core-movements.md#--leftright) means left/right, and so on.
+
+[First/Last](./../core-movements.md#--firstlast) means the first/last character of the current word.
 
 <TutorialFallback filename="char"/>

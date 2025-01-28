@@ -36,14 +36,14 @@ leads to one of the following:
 
 This is a group of actions that is related to "surround" or "enclosures".
 
-| Label             | Action                                                                                                                                                                        |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Around`          | Select around `<x>`                                                                                                                                                           |
-| `Inside`          | Select inside `<x>`                                                                                                                                                           |
-| `Delete Surround` | Delete surrounding `<x>`                                                                                                                                                      |
-| `Change Surround` | Change surrounding `<x>` to `<y>`                                                                                                                                             |
-| `Surround`        | Surround current selection with `<x>`                                                                                                                                         |
-| `Select All`      | Select the from first until the last selection of the current selection mode (use with [Line](../normal-mode/selection-modes/primary.md#line-line) to select the whole file). |
+| Label             | Action                                                                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Around`          | Select around `<x>`                                                                                                                                                      |
+| `Inside`          | Select inside `<x>`                                                                                                                                                      |
+| `Delete Surround` | Delete surrounding `<x>`                                                                                                                                                 |
+| `Change Surround` | Change surrounding `<x>` to `<y>`                                                                                                                                        |
+| `Surround`        | Surround current selection with `<x>`                                                                                                                                    |
+| `Select All`      | Select the from first until the last selection of the current selection mode (use with [Line](../normal-mode/selection-modes/primary.md#line) to select the whole file). |
 
 `<x>` or `<y>` can be one of the following:
 

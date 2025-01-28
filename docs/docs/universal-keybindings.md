@@ -59,7 +59,7 @@ Note: when the current window is closed, all of its children will be unmounted (
 
 ### `Paste →`
 
-Although there's already a [Paste](./normal-mode/actions/index.md#paste) action
+Although there's already a [Paste](./normal-mode/actions/index.md#paste-paste-) action
 in Normal mode, `alt+v` is more efficient sometimes than hopping between
 Insert mode and Normal mode for minuscule changes.
 
