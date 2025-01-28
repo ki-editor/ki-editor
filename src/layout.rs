@@ -43,7 +43,7 @@ impl Layout {
         terminal_dimension: Dimension,
         working_directory: &CanonicalizedPath,
     ) -> anyhow::Result<Layout> {
-        let (layout_kind, ratio) = layout_kind(&terminal_dimension);
+        let (layout_kind, ratio) = layout_kind();
         let (rectangles, borders) = Rectangle::generate(layout_kind, 1, ratio, terminal_dimension);
         let tree = UiTree::new();
         Ok(Layout {
@@ -111,7 +111,7 @@ impl Layout {
     }
 
     pub(crate) fn recalculate_layout(&mut self) {
-        let (layout_kind, ratio) = layout_kind(&self.terminal_dimension);
+        let (layout_kind, ratio) = layout_kind();
 
         let (rectangles, borders) = Rectangle::generate(
             layout_kind,
@@ -553,12 +553,6 @@ impl Layout {
         self.tree.remove_current_child(ComponentKind::EditorInfo);
     }
 }
-fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {
-    const MAIN_PANEL_MIN_WIDTH: u16 = 100;
-    const RIGHT_PANEL_MIN_WIDTH: u16 = 50;
-    if terminal_dimension.width > MAIN_PANEL_MIN_WIDTH + RIGHT_PANEL_MIN_WIDTH {
-        (LayoutKind::Tall, 0.70)
-    } else {
-        (LayoutKind::Wide, 0.80)
-    }
+fn layout_kind() -> (LayoutKind, f32) {
+    (LayoutKind::Tall, 0.70)
 }
