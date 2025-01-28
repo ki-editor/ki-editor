@@ -5,7 +5,7 @@ use crate::{
         component::{Component, ComponentId, GetGridResult},
         dropdown::{DropdownItem, DropdownRender},
         editor::{Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement},
-        editor_keymap::{Meaning, KEYBOARD_LAYOUT},
+        editor_keymap::{KeyboardLayoutKind, Meaning},
         file_explorer::FileExplorer,
         keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
         prompt::{Prompt, PromptConfig, PromptHistoryKey},
@@ -48,6 +48,7 @@ use std::{
         Mutex,
     },
 };
+use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
 pub(crate) struct App<T: Frontend> {
@@ -88,6 +89,7 @@ pub(crate) enum StatusLineComponent {
     LastDispatch,
     LocalSearchConfig,
     Help,
+    KeyboardLayout,
 }
 
 impl<T: Frontend> App<T> {
@@ -250,6 +252,10 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
+    fn keyboard_layout_kind(&self) -> &KeyboardLayoutKind {
+        self.context.keyboard_layout_kind()
+    }
+
     pub(crate) fn get_screen(&mut self) -> Result<Screen, anyhow::Error> {
         // Recalculate layout before each render
         self.layout.recalculate_layout();
@@ -328,8 +334,11 @@ impl<T: Frontend> App<T> {
                             Some(self.context.local_search_config().display())
                         }
                         StatusLineComponent::Help => {
-                            let key = KEYBOARD_LAYOUT.get_insert_key(&Meaning::SHelp);
+                            let key = self.keyboard_layout_kind().get_insert_key(&Meaning::SHelp);
                             Some(format!("Help ({key})"))
+                        }
+                        StatusLineComponent::KeyboardLayout => {
+                            Some(self.keyboard_layout_kind().display().to_string())
                         }
                     })
                     .join(" │ ")
@@ -768,6 +777,10 @@ impl<T: Frontend> App<T> {
             Dispatch::SelectCompletionItem => self.handle_dispatch_suggestive_editor(
                 DispatchSuggestiveEditor::SelectCompletionItem,
             )?,
+            Dispatch::SetKeyboardLayoutKind(keyboard_layout_kind) => {
+                self.context.set_keyboard_layout_kind(keyboard_layout_kind)
+            }
+            Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_prompt()?,
         }
         Ok(())
     }
@@ -846,7 +859,7 @@ impl<T: Frontend> App<T> {
                 title: format!(
                     "{:?} search (config search = {})",
                     scope,
-                    KEYBOARD_LAYOUT.get_key(&Meaning::CSrch)
+                    self.keyboard_layout_kind().get_key(&Meaning::CSrch)
                 ),
                 items: self.words(),
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
@@ -1315,7 +1328,8 @@ impl<T: Frontend> App<T> {
     }
 
     fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
-        self.layout.show_keymap_legend(keymap_legend_config)
+        self.layout
+            .show_keymap_legend(keymap_legend_config, &self.context)
     }
 
     fn global_replace(&mut self) -> anyhow::Result<()> {
@@ -1390,12 +1404,12 @@ impl<T: Frontend> App<T> {
             title: prompt.title.to_string(),
             body: KeymapLegendBody::Positional(Keymaps::new(&[
                 Keymap::new(
-                    KEYBOARD_LAYOUT.get_yes_no_key(&Meaning::Yes__),
+                    self.keyboard_layout_kind().get_yes_no_key(&Meaning::Yes__),
                     "Yes".to_string(),
                     *prompt.yes,
                 ),
                 Keymap::new(
-                    KEYBOARD_LAYOUT.get_yes_no_key(&Meaning::No___),
+                    self.keyboard_layout_kind().get_yes_no_key(&Meaning::No___),
                     "No".to_string(),
                     Dispatch::Null,
                 ),
@@ -1694,7 +1708,8 @@ impl<T: Frontend> App<T> {
             body: KeymapLegendBody::Mnemonic(Keymaps::new(
                 &[
                     Keymap::new(
-                        KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::Srch_),
+                        self.keyboard_layout_kind()
+                            .get_search_config_keymap(&Meaning::Srch_),
                         format!("Search = {}", local_search_config.search()),
                         Dispatch::OpenUpdateSearchPrompt {
                             scope,
@@ -1702,7 +1717,8 @@ impl<T: Frontend> App<T> {
                         },
                     ),
                     Keymap::new(
-                        KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::Rplcm),
+                        self.keyboard_layout_kind()
+                            .get_search_config_keymap(&Meaning::Rplcm),
                         format!("Replacement = {}", local_search_config.replacement()),
                         Dispatch::OpenUpdateReplacementPrompt {
                             scope,
@@ -1710,19 +1726,22 @@ impl<T: Frontend> App<T> {
                         },
                     ),
                     update_mode_keymap(
-                        KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::ASTGp),
+                        self.keyboard_layout_kind()
+                            .get_search_config_keymap(&Meaning::ASTGp),
                         "AST Grep".to_string(),
                         LocalSearchConfigMode::AstGrep,
                         local_search_config.mode == LocalSearchConfigMode::AstGrep,
                     ),
                     update_mode_keymap(
-                        KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::NCAgn),
+                        self.keyboard_layout_kind()
+                            .get_search_config_keymap(&Meaning::NCAgn),
                         "Naming Convention Agnostic".to_string(),
                         LocalSearchConfigMode::NamingConventionAgnostic,
                         local_search_config.mode == LocalSearchConfigMode::NamingConventionAgnostic,
                     ),
                     update_mode_keymap(
-                        KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::Litrl),
+                        self.keyboard_layout_kind()
+                            .get_search_config_keymap(&Meaning::Litrl),
                         "Literal".to_string(),
                         LocalSearchConfigMode::Regex(RegexConfig {
                             escaped: true,
@@ -1731,7 +1750,8 @@ impl<T: Frontend> App<T> {
                         regex.map(|regex| regex.escaped).unwrap_or(false),
                     ),
                     update_mode_keymap(
-                        KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::Regex),
+                        self.keyboard_layout_kind()
+                            .get_search_config_keymap(&Meaning::Regex),
                         "Regex".to_string(),
                         LocalSearchConfigMode::Regex(RegexConfig {
                             escaped: false,
@@ -1740,7 +1760,8 @@ impl<T: Frontend> App<T> {
                         regex.map(|regex| !regex.escaped).unwrap_or(false),
                     ),
                     Keymap::new(
-                        KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::RplcA),
+                        self.keyboard_layout_kind()
+                            .get_search_config_keymap(&Meaning::RplcA),
                         "Replace all".to_string(),
                         Dispatch::Replace { scope },
                     ),
@@ -1751,7 +1772,8 @@ impl<T: Frontend> App<T> {
                         .map(|regex| {
                             [
                                 update_mode_keymap(
-                                    KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::CaStv),
+                                    self.keyboard_layout_kind()
+                                        .get_search_config_keymap(&Meaning::CaStv),
                                     "Case-sensitive".to_string(),
                                     LocalSearchConfigMode::Regex(RegexConfig {
                                         case_sensitive: !regex.case_sensitive,
@@ -1760,7 +1782,8 @@ impl<T: Frontend> App<T> {
                                     regex.case_sensitive,
                                 ),
                                 update_mode_keymap(
-                                    KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::Strct),
+                                    self.keyboard_layout_kind()
+                                        .get_search_config_keymap(&Meaning::Strct),
                                     "Strict".to_string(),
                                     LocalSearchConfigMode::Regex(RegexConfig {
                                         match_whole_word: true,
@@ -1770,7 +1793,8 @@ impl<T: Frontend> App<T> {
                                     regex.match_whole_word && regex.case_sensitive,
                                 ),
                                 update_mode_keymap(
-                                    KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::Flexi),
+                                    self.keyboard_layout_kind()
+                                        .get_search_config_keymap(&Meaning::Flexi),
                                     "Flexible".to_string(),
                                     LocalSearchConfigMode::Regex(RegexConfig {
                                         match_whole_word: false,
@@ -1780,7 +1804,8 @@ impl<T: Frontend> App<T> {
                                     !regex.match_whole_word && !regex.case_sensitive,
                                 ),
                                 update_mode_keymap(
-                                    KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::MaWWd),
+                                    self.keyboard_layout_kind()
+                                        .get_search_config_keymap(&Meaning::MaWWd),
                                     "Match whole word".to_string(),
                                     LocalSearchConfigMode::Regex(RegexConfig {
                                         match_whole_word: !regex.match_whole_word,
@@ -1798,7 +1823,8 @@ impl<T: Frontend> App<T> {
                         .map(|config| {
                             [
                                 Keymap::new(
-                                    KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::InFGb),
+                                    self.keyboard_layout_kind()
+                                        .get_search_config_keymap(&Meaning::InFGb),
                                     format!(
                                         "Include files (glob) = {}",
                                         config
@@ -1812,7 +1838,8 @@ impl<T: Frontend> App<T> {
                                     },
                                 ),
                                 Keymap::new(
-                                    KEYBOARD_LAYOUT.get_search_config_keymap(&Meaning::ExFGb),
+                                    self.keyboard_layout_kind()
+                                        .get_search_config_keymap(&Meaning::ExFGb),
                                     format!(
                                         "Exclude files (glob) = {}",
                                         config
@@ -2182,6 +2209,27 @@ impl<T: Frontend> App<T> {
         )
     }
 
+    fn open_keyboard_layout_prompt(&mut self) -> anyhow::Result<()> {
+        self.open_prompt(
+            PromptConfig {
+                on_enter: DispatchPrompt::Null,
+                items: KeyboardLayoutKind::iter()
+                    .map(|keyboard_layout| {
+                        DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
+                            Dispatches::one(Dispatch::SetKeyboardLayoutKind(keyboard_layout)),
+                        )
+                    })
+                    .collect_vec(),
+                title: "Keyboard Layout".to_string(),
+                enter_selects_first_matching_item: true,
+                leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
+            },
+            PromptHistoryKey::Theme,
+            None,
+        )
+    }
+
     fn update_current_completion_item(
         &mut self,
         completion_item: CompletionItem,
@@ -2494,6 +2542,8 @@ pub(crate) enum Dispatch {
     MoveToCompletionItem(Direction),
     OpenDeleteFilePrompt,
     SelectCompletionItem,
+    SetKeyboardLayoutKind(KeyboardLayoutKind),
+    OpenKeyboardLayoutPrompt,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

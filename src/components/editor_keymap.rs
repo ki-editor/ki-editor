@@ -120,7 +120,7 @@ pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
     [
-        QSave, SaveA, Explr, _____, _____, /****/ _____, _____, _____, _____, _____,
+        QSave, SaveA, Explr, _____, KeybL, /****/ _____, _____, _____, _____, _____,
     ],
     [
         Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LCdAc, Pipe_, _____,
@@ -350,7 +350,7 @@ pub(crate) static KEYBOARD_LAYOUT: Lazy<KeyboardLayoutKind> = Lazy::new(|| {
     )
 });
 
-#[derive(Debug, Clone, strum_macros::EnumIter)]
+#[derive(Debug, Clone, strum_macros::EnumIter, PartialEq, Eq)]
 pub(crate) enum KeyboardLayoutKind {
     Qwerty,
     Dvorak,
@@ -361,7 +361,7 @@ pub(crate) enum KeyboardLayoutKind {
 }
 
 impl KeyboardLayoutKind {
-    const fn as_str(&self) -> &'static str {
+    pub(crate) const fn as_str(&self) -> &'static str {
         match self {
             KeyboardLayoutKind::Qwerty => "QWERTY",
             KeyboardLayoutKind::Dvorak => "DVORAK",
@@ -369,6 +369,17 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::ColemakDH => "COLEMAK_DH",
             KeyboardLayoutKind::ColemakDHSemiQuote => "COLEMAK_DH_SEMI_QUOTE",
             KeyboardLayoutKind::DvorakIU => "DVORAK_IU",
+        }
+    }
+
+    pub(crate) const fn display(&self) -> &'static str {
+        match self {
+            KeyboardLayoutKind::Qwerty => "Qwerty",
+            KeyboardLayoutKind::Dvorak => "Dvorak",
+            KeyboardLayoutKind::Colemak => "Colemak",
+            KeyboardLayoutKind::ColemakDH => "Colemak-DH",
+            KeyboardLayoutKind::ColemakDHSemiQuote => "Colemak-DH Semi Quote",
+            KeyboardLayoutKind::DvorakIU => "Dvorak IU",
         }
     }
 
@@ -701,6 +712,8 @@ pub(crate) enum Meaning {
     GitFC,
     /// Pick Git Status File (against main branch)
     GitFM,
+    /// Pick Keyboard Layout
+    KeybL,
     /// LSP Hover
     LHovr,
     /// Undo Tree

@@ -8,6 +8,7 @@ use my_proc_macros::key;
 use crate::{
     app::{Dispatch, Dispatches},
     components::editor::RegexHighlightRuleCaptureStyle,
+    context::Context,
     grid::StyleKey,
     rectangle::Rectangle,
 };
@@ -15,7 +16,7 @@ use crate::{
 use super::{
     component::Component,
     editor::{Direction, Editor, Mode, RegexHighlightRule},
-    editor_keymap::KEYBOARD_LAYOUT,
+    editor_keymap::KeyboardLayoutKind,
     editor_keymap_printer::KeymapPrintSection,
     render_editor::Source,
 };
@@ -24,6 +25,7 @@ pub(crate) struct KeymapLegend {
     editor: Editor,
     config: KeymapLegendConfig,
     show_shift_alt_keys: bool,
+    keymap_layout_kind: super::editor_keymap::KeyboardLayoutKind,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,11 +44,16 @@ const BETWEEN_KEY_AND_DESCRIPTION: &str = " → ";
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymaps(Vec<Keymap>);
 impl Keymaps {
-    fn display_positional(&self, terminal_width: u16, show_shift_alt_keys: bool) -> String {
+    fn display_positional(
+        &self,
+        keyboard_layout_kind: &KeyboardLayoutKind,
+        terminal_width: u16,
+        show_shift_alt_keys: bool,
+    ) -> String {
         let table = KeymapPrintSection::from_keymaps(
             "".to_string(),
             self,
-            KEYBOARD_LAYOUT.get_keyboard_layout(),
+            keyboard_layout_kind.get_keyboard_layout(),
         )
         .display(terminal_width, show_shift_alt_keys);
 
@@ -146,10 +153,15 @@ fn dedent(s: &str) -> String {
 }
 
 impl KeymapLegendBody {
-    fn display(&self, width: u16, show_shift_alt_keys: bool) -> String {
+    fn display(
+        &self,
+        keyboard_layout_kind: &KeyboardLayoutKind,
+        width: u16,
+        show_shift_alt_keys: bool,
+    ) -> String {
         match self {
             KeymapLegendBody::Positional(keymaps) => {
-                keymaps.display_positional(width, show_shift_alt_keys)
+                keymaps.display_positional(keyboard_layout_kind, width, show_shift_alt_keys)
             }
             KeymapLegendBody::Mnemonic(keymaps) => keymaps.display_mnemonic(0, width as usize),
         }
@@ -164,8 +176,14 @@ impl KeymapLegendBody {
 }
 
 impl KeymapLegendConfig {
-    fn display(&self, width: u16, show_shift_alt_keys: bool) -> String {
-        self.body.display(width, show_shift_alt_keys)
+    fn display(
+        &self,
+        keyboard_layout_kind: &KeyboardLayoutKind,
+        width: u16,
+        show_shift_alt_keys: bool,
+    ) -> String {
+        self.body
+            .display(keyboard_layout_kind, width, show_shift_alt_keys)
     }
 
     pub(crate) fn keymaps(&self) -> Keymaps {
@@ -335,7 +353,7 @@ impl Keymap {
 }
 
 impl KeymapLegend {
-    pub(crate) fn new(config: KeymapLegendConfig) -> KeymapLegend {
+    pub(crate) fn new(config: KeymapLegendConfig, context: &Context) -> KeymapLegend {
         // Check for duplicate keys
         let duplicates = config
             .keymaps()
@@ -365,13 +383,16 @@ impl KeymapLegend {
             editor,
             config,
             show_shift_alt_keys: false,
+            keymap_layout_kind: context.keyboard_layout_kind().clone(),
         }
     }
 
     fn refresh(&mut self) {
-        let content = self
-            .config
-            .display(self.editor.rectangle().width, self.show_shift_alt_keys);
+        let content = self.config.display(
+            &self.keymap_layout_kind,
+            self.editor.rectangle().width,
+            self.show_shift_alt_keys,
+        );
         self.editor_mut().set_content(&content).unwrap_or_default();
     }
 }
@@ -489,7 +510,10 @@ mod test_keymap_legend {
             ]
             .to_vec(),
         );
-        let actual = keymaps.display_positional(19, false).to_string();
+        let context = Context::default();
+        let actual = keymaps
+            .display_positional(context.keyboard_layout_kind(), 19, false)
+            .to_string();
         let expected = "
 Press space to toggle alt/shift keys.
 ╭───────┬───┬─────────────┬───┬──────┬───┬───┬───┬───┬───┬───╮
@@ -503,7 +527,9 @@ Press space to toggle alt/shift keys.
         .trim_matches('\n');
         assert_eq!(actual, expected);
 
-        let actual = keymaps.display_positional(19, true).to_string();
+        let actual = keymaps
+            .display_positional(context.keyboard_layout_kind(), 19, true)
+            .to_string();
         let expected = "
 Press space to toggle alt/shift keys.
 ╭───────┬───┬─────────────┬─────┬────────┬───┬───┬───┬───┬───┬───╮
@@ -526,14 +552,17 @@ Press space to toggle alt/shift keys.
 
     #[test]
     fn should_intercept_key_event_defined_in_config() {
-        let mut keymap_legend = KeymapLegend::new(KeymapLegendConfig {
-            title: "Test".to_string(),
-            body: KeymapLegendBody::Positional(Keymaps::new(&[Keymap::new(
-                "s",
-                "fifafofum".to_string(),
-                Dispatch::Custom("Spongebob".to_string()),
-            )])),
-        });
+        let mut keymap_legend = KeymapLegend::new(
+            KeymapLegendConfig {
+                title: "Test".to_string(),
+                body: KeymapLegendBody::Positional(Keymaps::new(&[Keymap::new(
+                    "s",
+                    "fifafofum".to_string(),
+                    Dispatch::Custom("Spongebob".to_string()),
+                )])),
+            },
+            &Context::default(),
+        );
 
         let dispatches = keymap_legend.handle_events(keys!("s")).unwrap();
 

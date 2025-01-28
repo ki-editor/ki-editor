@@ -5,11 +5,12 @@ use globset::Glob;
 use indexmap::IndexSet;
 use itertools::{Either, Itertools};
 use shared::canonicalized_path::CanonicalizedPath;
+use strum::IntoEnumIterator;
 
 use crate::{
     app::{GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate, Scope},
     clipboard::{Clipboard, CopiedTexts},
-    components::prompt::PromptHistoryKey,
+    components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
     quickfix_list::DiagnosticSeverityRange,
     selection::SelectionMode,
@@ -29,6 +30,7 @@ pub(crate) struct Context {
     quickfix_list_state: Option<QuickfixListState>,
     prompt_histories: HashMap<PromptHistoryKey, IndexSet<String>>,
     last_non_contiguous_selection_mode: Option<Either<SelectionMode, GlobalMode>>,
+    keyboard_layout_kind: KeyboardLayoutKind,
 }
 
 pub(crate) struct QuickfixListState {
@@ -75,6 +77,15 @@ impl Default for Context {
             quickfix_list_state: Default::default(),
             prompt_histories: Default::default(),
             last_non_contiguous_selection_mode: None,
+            keyboard_layout_kind: {
+                use KeyboardLayoutKind::*;
+                crate::env::parse_env(
+                    "KI_EDITOR_KEYBOARD",
+                    &KeyboardLayoutKind::iter().collect_vec(),
+                    |layout| layout.as_str(),
+                    Qwerty,
+                )
+            },
         }
     }
 }
@@ -254,6 +265,14 @@ impl Context {
         &self,
     ) -> Option<&Either<crate::selection::SelectionMode, GlobalMode>> {
         self.last_non_contiguous_selection_mode.as_ref()
+    }
+
+    pub(crate) fn keyboard_layout_kind(&self) -> &KeyboardLayoutKind {
+        &self.keyboard_layout_kind
+    }
+
+    pub(crate) fn set_keyboard_layout_kind(&mut self, keyboard_layout_kind: KeyboardLayoutKind) {
+        self.keyboard_layout_kind = keyboard_layout_kind
     }
 }
 
