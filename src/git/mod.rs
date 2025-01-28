@@ -144,8 +144,12 @@ impl FileDiff {
 }
 
 pub trait GitOperation {
-    fn file_diff(&self, diff_mode: &DiffMode, repo: &CanonicalizedPath)
-        -> anyhow::Result<FileDiff>;
+    fn file_diff(
+        &self,
+        current_content: &str,
+        diff_mode: &DiffMode,
+        repo: &CanonicalizedPath,
+    ) -> anyhow::Result<FileDiff>;
     fn content_at_last_commit(
         &self,
         diff_mode: &DiffMode,
@@ -156,14 +160,14 @@ pub trait GitOperation {
 impl GitOperation for CanonicalizedPath {
     fn file_diff(
         &self,
+        current_content: &str,
         diff_mode: &DiffMode,
         repo_path: &CanonicalizedPath,
     ) -> anyhow::Result<FileDiff> {
         if let Ok(latest_committed_content) =
             self.content_at_last_commit(diff_mode, &repo_path.try_into()?)
         {
-            let current_content = self.read()?;
-            let hunks = Hunk::get(&latest_committed_content, &current_content);
+            let hunks = Hunk::get(&latest_committed_content, current_content);
 
             Ok(FileDiff {
                 path: self.clone(),
