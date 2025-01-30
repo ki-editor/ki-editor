@@ -12,7 +12,7 @@ use crate::{
     app::Scope,
     components::{
         editor::Editor,
-        editor_keymap::{shifted, KeyboardLayout, KEYBOARD_LAYOUT},
+        editor_keymap::{shifted, KeyboardLayout},
     },
     context::Context,
 };
@@ -279,7 +279,7 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
         ),
         KeymapPrintSection::from_keymaps(
             "Completion Items".to_string(),
-            &completion_item_keymaps(),
+            &completion_item_keymaps(&context),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
@@ -298,9 +298,13 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
 
 /// Print an ASCII representation of the keymap.
 pub(crate) fn print_keymap_table() -> anyhow::Result<()> {
-    collect_keymap_print_sections(KEYBOARD_LAYOUT.get_keyboard_layout())
-        .iter()
-        .for_each(print_single_keymap_table);
+    collect_keymap_print_sections(
+        Context::default()
+            .keyboard_layout_kind()
+            .get_keyboard_layout(),
+    )
+    .iter()
+    .for_each(print_single_keymap_table);
 
     Ok(())
 }
@@ -327,9 +331,13 @@ pub(crate) fn print_keymap_drawer_yaml() -> anyhow::Result<()> {
     println!("  layout_name: LAYOUT_split_3x5_3");
     println!("layers:");
 
-    collect_keymap_print_sections(KEYBOARD_LAYOUT.get_keyboard_layout())
-        .iter()
-        .for_each(print_keymap_drawer);
+    collect_keymap_print_sections(
+        Context::default()
+            .keyboard_layout_kind()
+            .get_keyboard_layout(),
+    )
+    .iter()
+    .for_each(print_keymap_drawer);
 
     println!("draw_config:");
     println!("  key_w: 82");

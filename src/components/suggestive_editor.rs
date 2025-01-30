@@ -16,7 +16,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::dropdown::{Dropdown, DropdownConfig};
 use super::editor::{Direction, DispatchEditor, IfCurrentNotFound};
-use super::editor_keymap::{Meaning, KEYBOARD_LAYOUT};
+use super::editor_keymap::Meaning;
 use super::keymap_legend::{Keymap, Keymaps};
 use super::{
     component::Component,
@@ -76,8 +76,7 @@ impl Component for SuggestiveEditor {
         event: event::KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
-            // TODO: this should combine with scroll up/down
-            if let Some(keymap) = completion_item_keymaps().get(&event) {
+            if let Some(keymap) = completion_item_keymaps(context).get(&event) {
                 log::info!("dispatches = {:?}", keymap.get_dispatches());
                 return Ok(keymap.get_dispatches());
             };
@@ -1054,22 +1053,28 @@ impl Decoration {
     }
 }
 
-pub(crate) fn completion_item_keymaps() -> Keymaps {
+pub(crate) fn completion_item_keymaps(context: &Context) -> Keymaps {
     Keymaps::new(&[
         Keymap::new_extended(
-            KEYBOARD_LAYOUT.get_insert_key(&Meaning::ScrlD),
+            context
+                .keyboard_layout_kind()
+                .get_insert_key(&Meaning::ScrlD),
             Direction::End.format_action("Comp"),
             "Next Completion Item".to_string(),
             Dispatch::MoveToCompletionItem(Direction::End),
         ),
         Keymap::new_extended(
-            KEYBOARD_LAYOUT.get_insert_key(&Meaning::ScrlU),
+            context
+                .keyboard_layout_kind()
+                .get_insert_key(&Meaning::ScrlU),
             Direction::Start.format_action("Comp"),
             "Previous Completion Item".to_string(),
             Dispatch::MoveToCompletionItem(Direction::Start),
         ),
         Keymap::new_extended(
-            KEYBOARD_LAYOUT.get_insert_key(&Meaning::BuffN),
+            context
+                .keyboard_layout_kind()
+                .get_insert_key(&Meaning::BuffN),
             "Select Comp".to_string(),
             "Select Completion Item".to_string(),
             Dispatch::SelectCompletionItem,

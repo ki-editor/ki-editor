@@ -1,7 +1,5 @@
-use itertools::Itertools as _;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
-use strum::IntoEnumIterator as _;
 use Meaning::*;
 
 use crate::app::Scope;
@@ -339,16 +337,6 @@ static COLEMAK_DH_SEMI_QUOTE_KEYSET: Lazy<KeySet> =
     Lazy::new(|| KeySet::from(COLEMAK_DH_SEMI_QUOTE));
 static DVORAK_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK));
 static DVORAK_IU_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK_IU));
-
-pub(crate) static KEYBOARD_LAYOUT: Lazy<KeyboardLayoutKind> = Lazy::new(|| {
-    use KeyboardLayoutKind::*;
-    crate::env::parse_env(
-        "KI_EDITOR_KEYBOARD",
-        &KeyboardLayoutKind::iter().collect_vec(),
-        |layout| layout.as_str(),
-        Qwerty,
-    )
-});
 
 #[derive(Debug, Clone, strum_macros::EnumIter, PartialEq, Eq)]
 pub(crate) enum KeyboardLayoutKind {

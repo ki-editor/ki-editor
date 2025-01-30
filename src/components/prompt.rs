@@ -15,7 +15,7 @@ use super::{
     component::Component,
     dropdown::DropdownItem,
     editor::{Editor, Mode},
-    editor_keymap::{Meaning, KEYBOARD_LAYOUT},
+    editor_keymap::Meaning,
     suggestive_editor::{DispatchSuggestiveEditor, SuggestiveEditor, SuggestiveEditorFilter},
 };
 
@@ -184,7 +184,7 @@ impl Component for Prompt {
                     }))
             }
             _ if self.prompt_history_key == PromptHistoryKey::OpenFile
-                && event.display() == KEYBOARD_LAYOUT.get_key(&Meaning::OpenM) =>
+                && event.display() == context.keyboard_layout_kind().get_key(&Meaning::OpenM) =>
             {
                 Ok(
                     Dispatches::one(Dispatch::CloseCurrentWindow).chain(Dispatches::new(
