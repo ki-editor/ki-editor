@@ -1,7 +1,7 @@
 use super::{
     component::ComponentId,
     dropdown::DropdownRender,
-    editor_keymap::{shifted_char, KEYBOARD_LAYOUT, KEYMAP_SCORE},
+    editor_keymap::{shifted_char, KEYMAP_SCORE},
     editor_keymap_legend::NormalModeOverride,
     render_editor::Source,
     suggestive_editor::{Decoration, Info},
@@ -463,6 +463,13 @@ impl Direction {
             Direction::End => format!("{action} →"),
         }
     }
+
+    pub(crate) fn to_if_current_not_found(&self) -> IfCurrentNotFound {
+        match self {
+            Direction::Start => IfCurrentNotFound::LookBackward,
+            Direction::End => IfCurrentNotFound::LookForward,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
@@ -696,8 +703,9 @@ impl Editor {
         }
     }
 
-    fn jump_characters() -> Vec<char> {
-        let chars = KEYBOARD_LAYOUT
+    fn jump_characters(context: &Context) -> Vec<char> {
+        let chars = context
+            .keyboard_layout_kind()
             .get_keyboard_layout()
             .iter()
             .flatten()
@@ -734,7 +742,7 @@ impl Editor {
         use_current_selection_mode: bool,
         context: &Context,
     ) -> anyhow::Result<()> {
-        let chars = Self::jump_characters();
+        let chars = Self::jump_characters(context);
 
         let object =
             self.get_selection_mode_trait_object(selection, use_current_selection_mode, context)?;
@@ -1220,12 +1228,12 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
-        match self.handle_universal_key(key_event)? {
+        match self.handle_universal_key(key_event, context)? {
             HandleEventResult::Ignored(key_event) => {
                 if let Some(jumps) = self.jumps.take() {
                     self.handle_jump_mode(context, key_event, jumps)
                 } else if let Mode::Insert = self.mode {
-                    return self.handle_insert_mode(key_event);
+                    return self.handle_insert_mode(key_event, context);
                 } else if let Mode::FindOneChar(_) = self.mode {
                     self.handle_find_one_char_mode(
                         IfCurrentNotFound::LookForward,
@@ -1277,7 +1285,7 @@ impl Editor {
                         self.jumps = Some(
                             matching_jumps
                                 .into_iter()
-                                .zip(Self::jump_characters().into_iter().cycle())
+                                .zip(Self::jump_characters(context).into_iter().cycle())
                                 .map(|(jump, character)| Jump {
                                     character,
                                     ..jump.clone()
@@ -3314,8 +3322,9 @@ impl Editor {
     pub(crate) fn insert_mode_keymaps(
         &self,
         include_universal_keymaps: bool,
+        context: &Context,
     ) -> super::keymap_legend::Keymaps {
-        self.insert_mode_keymap_legend_config(include_universal_keymaps)
+        self.insert_mode_keymap_legend_config(include_universal_keymaps, context)
             .keymaps()
     }
 
@@ -3334,7 +3343,7 @@ impl Editor {
         context: &Context,
     ) -> super::keymap_legend::KeymapLegendConfig {
         match self.mode {
-            Mode::Insert => self.insert_mode_keymap_legend_config(true),
+            Mode::Insert => self.insert_mode_keymap_legend_config(true, context),
             Mode::MultiCursor => self.multicursor_mode_keymap_legend_config(context),
             Mode::Extend => self.extend_mode_keymap_legend_config(context),
             _ => self.normal_mode_keymap_legend_config(context, "Normal", None),

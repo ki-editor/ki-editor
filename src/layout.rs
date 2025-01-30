@@ -1,3 +1,4 @@
+use crate::context::Context;
 use crate::quickfix_list::QuickfixList;
 use crate::ui_tree::{ComponentKind, KindedComponent, UiTree};
 use crate::{
@@ -200,11 +201,18 @@ impl Layout {
         self.show_info_on(self.tree.root_id(), info, ComponentKind::GlobalInfo)
     }
 
-    pub(crate) fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
+    pub(crate) fn show_keymap_legend(
+        &mut self,
+        keymap_legend_config: KeymapLegendConfig,
+        context: &Context,
+    ) {
         self.tree.append_component_to_current(
             KindedComponent::new(
                 ComponentKind::KeymapLegend,
-                Rc::new(RefCell::new(KeymapLegend::new(keymap_legend_config))),
+                Rc::new(RefCell::new(KeymapLegend::new(
+                    keymap_legend_config,
+                    context,
+                ))),
             ),
             true,
         )

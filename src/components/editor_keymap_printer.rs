@@ -12,7 +12,7 @@ use crate::{
     app::Scope,
     components::{
         editor::Editor,
-        editor_keymap::{shifted, KeyboardLayout, KEYBOARD_LAYOUT},
+        editor_keymap::{shifted, KeyboardLayout},
     },
     context::Context,
 };
@@ -168,37 +168,38 @@ type KeymapPrintSections = Vec<KeymapPrintSection>;
 
 fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections {
     let editor = Editor::from_text(Option::None, "");
+    let context = Context::default();
     let sections: Vec<KeymapPrintSection> = [
         KeymapPrintSection::from_keymaps(
             "Insert".to_string(),
-            &editor.insert_mode_keymaps(false),
+            &editor.insert_mode_keymaps(false, &context),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
             "Normal".to_string(),
-            &editor.normal_mode_keymaps(&Context::default(), Default::default()),
+            &editor.normal_mode_keymaps(&context, Default::default()),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
             "Movements".to_string(),
-            &Keymaps::new(&editor.keymap_core_movements()),
+            &Keymaps::new(&editor.keymap_core_movements(&context)),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
             "Primary Selection Modes".to_string(),
-            &Keymaps::new(&editor.keymap_primary_selection_modes()),
+            &Keymaps::new(&editor.keymap_primary_selection_modes(&context)),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
             "Secondary Selection Modes Init".to_string(),
-            &Keymaps::new(&editor.keymap_secondary_selection_modes_init(&Context::default())),
+            &Keymaps::new(&editor.keymap_secondary_selection_modes_init(&context)),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
             "Secondary Selection Modes (Local Forward)".to_string(),
             &editor
                 .secondary_selection_modes_keymap_legend_config(
-                    &Context::default(),
+                    &context,
                     Scope::Local,
                     IfCurrentNotFound::LookForward,
                 )
@@ -209,7 +210,7 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
             "Secondary Selection Modes (Local Backward)".to_string(),
             &editor
                 .secondary_selection_modes_keymap_legend_config(
-                    &Context::default(),
+                    &context,
                     Scope::Local,
                     IfCurrentNotFound::LookBackward,
                 )
@@ -220,7 +221,7 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
             "Secondary Selection Modes (Global)".to_string(),
             &editor
                 .secondary_selection_modes_keymap_legend_config(
-                    &Context::default(),
+                    &context,
                     Scope::Global,
                     IfCurrentNotFound::LookForward,
                 )
@@ -229,12 +230,12 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
         ),
         KeymapPrintSection::from_keymaps(
             "Actions".to_string(),
-            &Keymaps::new(&editor.keymap_actions(&Default::default(), false)),
+            &Keymaps::new(&editor.keymap_actions(&Default::default(), false, &context)),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
             "Other movements".to_string(),
-            &Keymaps::new(&editor.keymap_other_movements()),
+            &Keymaps::new(&editor.keymap_other_movements(&context)),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
@@ -246,34 +247,44 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
         ),
         KeymapPrintSection::from_keymaps(
             "File Explorer Actions".to_string(),
-            &Keymaps::new(&editor.keymap_overridable(&file_explorer_normal_mode_override(), true)),
+            &Keymaps::new(&editor.keymap_overridable(
+                &file_explorer_normal_mode_override(),
+                true,
+                &context,
+            )),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
             "Extend".to_string(),
-            &Keymaps::new(&editor.keymap_overridable(&extend_mode_normal_mode_override(), true)),
+            &Keymaps::new(&editor.keymap_overridable(
+                &extend_mode_normal_mode_override(&context),
+                true,
+                &context,
+            )),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
             "Sub Modes".to_string(),
-            &Keymaps::new(&editor.keymap_sub_modes(&Default::default())),
+            &Keymaps::new(&editor.keymap_sub_modes(&Default::default(), &context)),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
             "Multi-cursor".to_string(),
-            &Keymaps::new(
-                &editor.keymap_overridable(&multicursor_mode_normal_mode_override(), true),
-            ),
+            &Keymaps::new(&editor.keymap_overridable(
+                &multicursor_mode_normal_mode_override(),
+                true,
+                &context,
+            )),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
             "Completion Items".to_string(),
-            &completion_item_keymaps(),
+            &completion_item_keymaps(&context),
             layout,
         ),
         KeymapPrintSection::from_keymaps(
             "Universal Keymap".to_string(),
-            &Keymaps::new(&editor.keymap_universal()),
+            &Keymaps::new(&editor.keymap_universal(&context)),
             layout,
         ),
     ]
@@ -287,9 +298,13 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
 
 /// Print an ASCII representation of the keymap.
 pub(crate) fn print_keymap_table() -> anyhow::Result<()> {
-    collect_keymap_print_sections(KEYBOARD_LAYOUT.get_keyboard_layout())
-        .iter()
-        .for_each(print_single_keymap_table);
+    collect_keymap_print_sections(
+        Context::default()
+            .keyboard_layout_kind()
+            .get_keyboard_layout(),
+    )
+    .iter()
+    .for_each(print_single_keymap_table);
 
     Ok(())
 }
@@ -316,9 +331,13 @@ pub(crate) fn print_keymap_drawer_yaml() -> anyhow::Result<()> {
     println!("  layout_name: LAYOUT_split_3x5_3");
     println!("layers:");
 
-    collect_keymap_print_sections(KEYBOARD_LAYOUT.get_keyboard_layout())
-        .iter()
-        .for_each(print_keymap_drawer);
+    collect_keymap_print_sections(
+        Context::default()
+            .keyboard_layout_kind()
+            .get_keyboard_layout(),
+    )
+    .iter()
+    .for_each(print_keymap_drawer);
 
     println!("draw_config:");
     println!("  key_w: 82");

@@ -16,14 +16,14 @@ The space menu can be brought up by pressing `space`.
 ╭───────────────┬───────────┬─────────────┬───────────┬──────────────┬───┬───┬────────────┬──────────────┬──────┬───╮
 │               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆              ┆      ┆   │
 │  Quit No Save ┆           ┆             ┆           ┆              ┆ ⇧ ┆   ┆            ┆              ┆      ┆   │
-│ Save All Quit ┆  Save All ┆   Explorer  ┆           ┆              ┆ ∅ ┆   ┆            ┆              ┆      ┆   │
+│ Save All Quit ┆  Save All ┆   Explorer  ┆           ┆   Keyboard   ┆ ∅ ┆   ┆            ┆              ┆      ┆   │
 ├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌┤
 │               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆              ┆      ┆   │
 │               ┆           ┆             ┆           ┆ Git status ^ ┆ ⇧ ┆   ┆            ┆              ┆      ┆   │
 │     Theme     ┆   Symbol  ┆    Buffer   ┆    File   ┆ Git status @ ┆ ∅ ┆   ┆    Hover   ┆ Code Actions ┆ Pipe ┆   │
 ├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌┤
 │               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆              ┆      ┆   │
-│               ┆           ┆ + Replace X ┆ + Paste ← ┆              ┆ ⇧ ┆   ┆ + Change X ┆              ┆      ┆   │
+│               ┆           ┆ + Replace X ┆ ← Paste+  ┆              ┆ ⇧ ┆   ┆ + Change X ┆              ┆      ┆   │
 │   Undo Tree   ┆ + Replace ┆    + Copy   ┆ + Paste → ┆ TS Node Sexp ┆ ∅ ┆   ┆   Rename   ┆              ┆      ┆   │
 ╰───────────────┴───────────┴─────────────┴───────────┴──────────────┴───┴───┴────────────┴──────────────┴──────┴───╯
 ```
@@ -46,6 +46,7 @@ The space menu can be brought up by pressing `space`.
 | `Git status ^` | Git status (against main branch) [^2]    |
 | `Symbol`       | LSP Symbols                              |
 | `Theme`        | [Themes](../themes.md)                   |
+| `Keyboard`     | Keyboard Layout                          |
 
 [^1]: See more at [Git hunk](./selection-modes/secondary/index.md#hunkhunk)
 [^2]: This is very useful when you want to get the modified/added files commited into the current branch that you are working on.
