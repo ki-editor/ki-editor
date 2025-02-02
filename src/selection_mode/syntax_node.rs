@@ -16,6 +16,38 @@ impl SelectionMode for SyntaxNode {
         &'a self,
         params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
+        let buffer = params.buffer;
+        let current_selection = params.current_selection;
+        let node = buffer
+            .get_current_node(current_selection, false)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter.get_current_node: Cannot find Treesitter language"
+            ))?;
+        let Some(node) = node.parent() else {
+            return Ok(Box::new(std::iter::empty()));
+        };
+        let mut cursor = params
+            .buffer
+            .tree()
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter.tree: Cannot find Treesitter language"
+            ))?
+            .walk();
+        let vector = if self.coarse {
+            node.named_children(&mut cursor).collect_vec()
+        } else {
+            node.children(&mut cursor).collect_vec()
+        };
+        Ok(Box::new(
+            vector
+                .into_iter()
+                .map(|node| ByteRange::new(node.byte_range())),
+        ))
+    }
+    fn jumps_iter<'a>(
+        &'a self,
+        params: super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         if self.coarse {
             TopNode.iter(params)
         } else {

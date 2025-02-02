@@ -414,13 +414,20 @@ pub trait SelectionMode {
             .collect();
 
         Ok(self
-            .iter_filtered(params.clone())?
+            .jumps_iter(params.clone())?
             .filter(|range| {
                 byte_ranges
                     .iter()
                     .any(|byte_range| byte_range.contains(&range.range.start))
             })
             .collect())
+    }
+
+    fn jumps_iter<'a>(
+        &'a self,
+        params: SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
+        self.iter_filtered(params)
     }
 
     fn jumps(

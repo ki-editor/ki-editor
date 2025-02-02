@@ -341,9 +341,15 @@ impl Component for Editor {
                 self.mode = Mode::Normal;
                 return Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent));
             }
+            ToggleFold(fold) => self.toggle_fold(fold),
         }
         Ok(Default::default())
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum Fold {
+    CurrentSelectionMode,
 }
 
 impl Clone for Editor {
@@ -363,6 +369,7 @@ impl Clone for Editor {
             copied_text_history_offset: Default::default(),
             tag: None,
             normal_mode_override: self.normal_mode_override.clone(),
+            fold: self.fold.clone(),
         }
     }
 }
@@ -387,6 +394,7 @@ pub(crate) struct Editor {
     copied_text_history_offset: Counter,
     tag: Option<char>,
     pub(crate) normal_mode_override: Option<NormalModeOverride>,
+    pub(crate) fold: Option<Fold>,
 }
 
 #[derive(Default)]
@@ -544,6 +552,7 @@ impl Editor {
             copied_text_history_offset: Default::default(),
             tag: None,
             normal_mode_override: None,
+            fold: None,
         }
     }
 
@@ -563,6 +572,7 @@ impl Editor {
             copied_text_history_offset: Default::default(),
             tag: None,
             normal_mode_override: None,
+            fold: None,
         }
     }
 
@@ -3349,6 +3359,13 @@ impl Editor {
             _ => self.normal_mode_keymap_legend_config(context, "Normal", None),
         }
     }
+
+    fn toggle_fold(&mut self, fold: Fold) {
+        self.fold = match &self.fold {
+            Some(current_fold) if &fold == current_fold => None,
+            _ => Some(fold),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3481,6 +3498,7 @@ pub(crate) enum DispatchEditor {
     BreakSelection,
     ShowHelp,
     HandleEsc,
+    ToggleFold(Fold),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

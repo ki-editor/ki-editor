@@ -5,7 +5,7 @@ use lsp_types::DiagnosticSeverity;
 
 use crate::{
     app::Dimension,
-    buffer::Buffer,
+    buffer::{Buffer, Line},
     char_index_range::CharIndexRange,
     components::{
         component::{Component, Cursor, SetCursorStyle},
@@ -19,7 +19,10 @@ use crate::{
     themes::Theme,
 };
 
-use super::{component::GetGridResult, editor::Editor};
+use super::{
+    component::GetGridResult,
+    editor::{Editor, Fold},
+};
 
 use StyleKey::*;
 
@@ -193,6 +196,26 @@ impl Editor {
                 source: Source::StyleKey(decoration.style_key().clone()),
             })
         });
+
+        let hidden_parent_lines = match self.fold {
+            Some(Fold::CurrentSelectionMode) => self
+                .possible_selections(self.selection_set.primary_selection(), context)
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|byte_range| buffer.byte_to_position(byte_range.range().start).ok())
+                .unique_by(|position| position.line)
+                .filter_map(|start_position| {
+                    Some(Line {
+                        origin_position: start_position,
+                        line: start_position.line,
+                        content: buffer
+                            .get_line_by_line_index(start_position.line)?
+                            .to_string(),
+                    })
+                })
+                .collect_vec(),
+            None => hidden_parent_lines,
+        };
 
         let hidden_parent_line_ranges = hidden_parent_lines
             .iter()
@@ -395,7 +418,10 @@ impl Editor {
         // highlighting the entire file becomes sluggish when the file has more than a thousand lines.
 
         let title_grid = Grid::new(Dimension {
-            height: editor.dimension().height - grid.rows.len() as u16,
+            height: editor
+                .dimension()
+                .height
+                .saturating_sub(grid.rows.len() as u16),
             width: editor.dimension().width,
         })
         .render_content(
@@ -442,6 +468,21 @@ impl Editor {
             },
             [line_range].to_vec(),
         )
+    }
+
+    pub(crate) fn possible_selections(
+        &self,
+        selection: &Selection,
+        context: &Context,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        Ok(self
+            .get_selection_mode_trait_object(selection, true, context)?
+            .iter_filtered(selection_mode::SelectionModeParams {
+                buffer: &self.buffer(),
+                current_selection: selection,
+                cursor_direction: &self.cursor_direction,
+            })?
+            .collect())
     }
 }
 

@@ -19,7 +19,8 @@ use crate::{
 
 use super::{
     editor::{
-        Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Mode, SurroundKind,
+        Direction, DispatchEditor, Editor, Fold, HandleEventResult, IfCurrentNotFound, Mode,
+        SurroundKind,
     },
     editor_keymap::*,
     keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
@@ -1123,6 +1124,13 @@ impl Editor {
                             .get_space_keymap(&Meaning::LRnme),
                         "Rename".to_string(),
                         Dispatch::PrepareRename,
+                    ),
+                    Keymap::new(
+                        context
+                            .keyboard_layout_kind()
+                            .get_space_keymap(&Meaning::FoldS),
+                        "Rename".to_string(),
+                        Dispatch::ToEditor(DispatchEditor::ToggleFold(Fold::CurrentSelectionMode)),
                     ),
                 ])
                 .collect_vec(),
