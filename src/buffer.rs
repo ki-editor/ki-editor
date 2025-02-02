@@ -1017,6 +1017,13 @@ impl Buffer {
         debug_assert!(start <= end);
         Ok(start..end)
     }
+
+    pub(crate) fn line_to_position(&self, line: usize) -> anyhow::Result<Position> {
+        Ok(Position {
+            line,
+            column: self.rope.try_line_to_char(line).unwrap_or(0),
+        })
+    }
 }
 
 #[cfg(test)]

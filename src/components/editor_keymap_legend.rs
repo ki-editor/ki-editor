@@ -1129,7 +1129,7 @@ impl Editor {
                         context
                             .keyboard_layout_kind()
                             .get_space_keymap(&Meaning::FoldS),
-                        "Rename".to_string(),
+                        "Fold Sel".to_string(),
                         Dispatch::ToEditor(DispatchEditor::ToggleFold(Fold::CurrentSelectionMode)),
                     ),
                 ])

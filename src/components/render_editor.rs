@@ -17,6 +17,7 @@ use crate::{
     selection_mode::{self, ByteRange},
     style::Style,
     themes::Theme,
+    utils::{distribute_items, get_non_consecutive_nums},
 };
 
 use super::{
@@ -58,10 +59,8 @@ impl Editor {
         let theme = context.theme();
 
         let possible_selections = self
-            .possible_selections_in_line_number_range(
-                self.selection_set.primary_selection(),
-                context,
-            )
+            .possible_selections(self.selection_set.primary_selection(), context)
+            // .possible_selections_in_line_number_range( self.selection_set.primary_selection(), context, )
             .unwrap_or_default()
             .into_iter()
             .map(|range| HighlightSpan {
@@ -198,22 +197,48 @@ impl Editor {
         });
 
         let hidden_parent_lines = match self.fold {
-            Some(Fold::CurrentSelectionMode) => self
-                .possible_selections(self.selection_set.primary_selection(), context)
-                .unwrap_or_default()
-                .into_iter()
-                .filter_map(|byte_range| buffer.byte_to_position(byte_range.range().start).ok())
-                .unique_by(|position| position.line)
-                .filter_map(|start_position| {
-                    Some(Line {
-                        origin_position: start_position,
-                        line: start_position.line,
-                        content: buffer
-                            .get_line_by_line_index(start_position.line)?
-                            .to_string(),
+            Some(Fold::CurrentSelectionMode) => {
+                // TODO: add test case for this
+                let possible_selections = self
+                    .possible_selections(self.selection_set.primary_selection(), context)
+                    .unwrap_or_default();
+                let possible_selections_length = possible_selections.len();
+                let context_lines_lengths = distribute_items(
+                    // Need to minus `height` by `possible_selections_length`
+                    // because the magnitude of each `context_lines_length` should include
+                    // the height (which is 1) of the non-contextual line
+                    (height as usize).saturating_sub(possible_selections_length),
+                    possible_selections_length,
+                );
+                possible_selections
+                    .into_iter()
+                    .filter_map(|byte_range| buffer.byte_to_line(byte_range.range().start).ok())
+                    .unique()
+                    .zip(context_lines_lengths)
+                    .flat_map(|(line, context_lines_length)| {
+                        let (lower_context_lines_length, upper_context_lines_length) =
+                            distribute_items(context_lines_length, 2)
+                                .into_iter()
+                                .collect_tuple()
+                                .unwrap();
+                        let upper_context_lines_length = upper_context_lines_length
+                            + lower_context_lines_length.saturating_sub(line);
+                        line.saturating_sub(lower_context_lines_length as usize)
+                            ..line.saturating_add(upper_context_lines_length) + 1
                     })
-                })
-                .collect_vec(),
+                    .unique()
+                    .filter_map(|line_index| {
+                        let start_position = buffer.line_to_position(line_index).ok()?;
+                        Some(Line {
+                            origin_position: start_position,
+                            line: start_position.line,
+                            content: buffer
+                                .get_line_by_line_index(start_position.line)?
+                                .to_string(),
+                        })
+                    })
+                    .collect_vec()
+            }
             None => hidden_parent_lines,
         };
 
@@ -349,11 +374,17 @@ impl Editor {
                 .into_iter()
                 .map(|hidden_parent_line_range| Boundary::new(&buffer, hidden_parent_line_range))
                 .collect_vec();
-            let updates = hidden_parent_lines
-                .iter()
+            let non_consecutive_lines = get_non_consecutive_nums(
+                &hidden_parent_lines
+                    .iter()
+                    .map(|line| line.line)
+                    .collect_vec(),
+            );
+            let updates = non_consecutive_lines
+                .into_iter()
                 .map(|line| HighlightSpan {
                     source: Source::StyleKey(StyleKey::ParentLine),
-                    range: HighlightSpanRange::Line(line.line),
+                    range: HighlightSpanRange::Line(line),
                     set_symbol: None,
                     is_cursor: false,
                 })
