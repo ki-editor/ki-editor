@@ -92,6 +92,9 @@ impl Theme {
             StyleKey::KeymapKey => self.ui.keymap_key,
             StyleKey::UiFuzzyMatchedChar => self.ui.fuzzy_matched_char,
             StyleKey::ParentLine => Style::new().background_color(self.ui.parent_lines_background),
+            StyleKey::UiPrimarySelectionSecondaryCursor => {
+                self.ui.secondary_selection_secondary_cursor
+            }
         }
     }
 }
@@ -474,6 +477,9 @@ pub(crate) struct Color {
 }
 
 impl Color {
+    pub fn display(&self) -> String {
+        format!("({},{},{})", self.r, self.g, self.b)
+    }
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self {
             r,

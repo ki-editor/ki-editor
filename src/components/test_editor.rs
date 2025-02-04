@@ -25,8 +25,8 @@ use my_proc_macros::{hex, key, keys};
 
 use SelectionMode::*;
 
-use super::editor::IfCurrentNotFound;
 use super::editor::SurroundKind;
+use super::editor::{Fold, IfCurrentNotFound};
 
 #[test]
 fn raise_bottom_node() -> anyhow::Result<()> {
@@ -4125,6 +4125,92 @@ fn git_hunk_should_compare_against_buffer_content_not_file_content() -> anyhow::
             )),
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["hellomod foo;\n"])),
+        ])
+    })
+}
+
+#[test]
+fn fold_one_cursor() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::new(0, 0),
+                width: 50,
+                height: 10,
+            })),
+            Editor(SetContent("foo\nbar".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(ToggleFold(Fold::Cursor)),
+            Expect(GridCellStyleKey(
+                Position::new(2, 0 + 2),
+                Some(StyleKey::UiPrimarySelectionAnchors),
+            )),
+            Expect(GridCellStyleKey(
+                Position::new(2, 1 + 2),
+                Some(StyleKey::UiPrimarySelectionAnchors),
+            )),
+            Expect(GridCellStyleKey(
+                Position::new(2, 2 + 2),
+                Some(StyleKey::UiPrimarySelectionSecondaryCursor),
+            )),
+        ])
+    })
+}
+#[test]
+fn fold_two_cursors() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::new(0, 0),
+                width: 50,
+                height: 10,
+            })),
+            Editor(SetContent("foo\nfoo".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(EnterMultiCursorMode),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["foo", "foo"])),
+            Editor(ToggleFold(Fold::Cursor)),
+            Editor(CyclePrimarySelection(Direction::End)),
+            Editor(CyclePrimarySelection(Direction::End)),
+            Expect(GridCellStyleKey(
+                Position::new(1, 0 + 2),
+                Some(StyleKey::UiSecondarySelectionAnchors),
+            )),
+            Expect(GridCellStyleKey(
+                Position::new(1, 1 + 2),
+                Some(StyleKey::UiSecondarySelectionAnchors),
+            )),
+            Expect(GridCellStyleKey(
+                Position::new(1, 2 + 2),
+                Some(StyleKey::UiSecondarySelectionAnchors),
+            )),
+            Expect(GridCellStyleKey(
+                Position::new(2, 0 + 2),
+                Some(StyleKey::UiPrimarySelectionAnchors),
+            )),
+            Expect(GridCellStyleKey(
+                Position::new(2, 1 + 2),
+                Some(StyleKey::UiPrimarySelectionAnchors),
+            )),
+            Expect(GridCellStyleKey(
+                Position::new(2, 2 + 2),
+                Some(StyleKey::UiPrimarySelectionSecondaryCursor),
+            )),
         ])
     })
 }

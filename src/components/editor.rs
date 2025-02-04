@@ -59,7 +59,7 @@ pub(crate) struct Jump {
     pub(crate) selection: Selection,
 }
 
-const WINDOW_TITLE_HEIGHT: usize = 1;
+pub(crate) const WINDOW_TITLE_HEIGHT: usize = 1;
 
 impl Component for Editor {
     fn id(&self) -> ComponentId {
@@ -350,6 +350,8 @@ impl Component for Editor {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Fold {
     CurrentSelectionMode,
+    Cursor,
+    Mark,
 }
 
 impl Clone for Editor {

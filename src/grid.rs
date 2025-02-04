@@ -56,7 +56,7 @@ impl Cell {
 
     fn apply_update(&self, update: CellUpdate) -> Cell {
         Cell {
-            symbol: update.symbol.clone().unwrap_or(self.symbol.clone()),
+            symbol: update.symbol.clone().unwrap_or_else(|| self.symbol.clone()),
             foreground_color: update
                 .style
                 .foreground_color
@@ -67,7 +67,7 @@ impl Cell {
                 .unwrap_or(self.background_color),
             line: update.style.line.or(self.line),
             is_cursor: update.is_cursor,
-            source: update.source.or(self.source.clone()),
+            source: update.source.or_else(|| self.source.clone()),
             is_bold: update.style.is_bold || self.is_bold,
         }
     }
@@ -594,6 +594,7 @@ pub(crate) enum StyleKey {
     KeymapKey,
     UiFuzzyMatchedChar,
     ParentLine,
+    UiPrimarySelectionSecondaryCursor,
 }
 
 /// TODO: in the future, tab size should be configurable

@@ -118,7 +118,7 @@ pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
     [
-        QSave, SaveA, Explr, _____, KeybL, /****/ _____, _____, FoldS, _____, _____,
+        QSave, SaveA, Explr, _____, KeybL, /****/ _____, FoldS, FoldC, FoldM, _____,
     ],
     [
         Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LCdAc, Pipe_, _____,
@@ -766,6 +766,10 @@ pub(crate) enum Meaning {
     OpenM,
     /// Fold based on current selection mode
     FoldS,
+    /// Fold based on cursors
+    FoldC,
+    /// Fold based on marks
+    FoldM,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

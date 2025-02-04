@@ -1132,6 +1132,20 @@ impl Editor {
                         "Fold Sel".to_string(),
                         Dispatch::ToEditor(DispatchEditor::ToggleFold(Fold::CurrentSelectionMode)),
                     ),
+                    Keymap::new(
+                        context
+                            .keyboard_layout_kind()
+                            .get_space_keymap(&Meaning::FoldC),
+                        "Fold Curs".to_string(),
+                        Dispatch::ToEditor(DispatchEditor::ToggleFold(Fold::Cursor)),
+                    ),
+                    Keymap::new(
+                        context
+                            .keyboard_layout_kind()
+                            .get_space_keymap(&Meaning::FoldM),
+                        "Fold Mark".to_string(),
+                        Dispatch::ToEditor(DispatchEditor::ToggleFold(Fold::Mark)),
+                    ),
                 ])
                 .collect_vec(),
             )),

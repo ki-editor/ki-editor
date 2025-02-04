@@ -9,7 +9,7 @@ use crate::{
     char_index_range::CharIndexRange,
     components::{
         component::{Component, Cursor, SetCursorStyle},
-        editor::Mode,
+        editor::{Mode, WINDOW_TITLE_HEIGHT},
     },
     context::Context,
     grid::{CellUpdate, Grid, LineUpdate, RenderContentLineNumber, StyleKey},
@@ -17,7 +17,7 @@ use crate::{
     selection_mode::{self, ByteRange},
     style::Style,
     themes::Theme,
-    utils::{distribute_items, get_non_consecutive_nums},
+    utils::get_non_consecutive_nums,
 };
 
 use super::{
@@ -58,17 +58,20 @@ impl Editor {
 
         let theme = context.theme();
 
-        let possible_selections = self
-            .possible_selections(self.selection_set.primary_selection(), context)
-            // .possible_selections_in_line_number_range( self.selection_set.primary_selection(), context, )
-            .unwrap_or_default()
-            .into_iter()
-            .map(|range| HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::ByteRange(range.range().clone()),
-                source: Source::StyleKey(UiPossibleSelection),
-            });
+        let possible_selections = if self.selection_set.mode.is_contiguous() {
+            Default::default()
+        } else {
+            self.possible_selections(self.selection_set.primary_selection(), context)
+                // .possible_selections_in_line_number_range( self.selection_set.primary_selection(), context, )
+                .unwrap_or_default()
+        }
+        .into_iter()
+        .map(|range| HighlightSpan {
+            set_symbol: None,
+            is_cursor: false,
+            range: HighlightSpanRange::ByteRange(range.range().clone()),
+            source: Source::StyleKey(UiPossibleSelection),
+        });
 
         let marks = buffer.marks().into_iter().map(|mark| HighlightSpan {
             set_symbol: None,
@@ -91,10 +94,14 @@ impl Editor {
                 range: HighlightSpanRange::CharIndexRange(anchor),
                 source: Source::StyleKey(UiPrimarySelectionAnchors),
             });
-        let primary_selection_primary_cursor = buffer
-            .char_to_position(selection.to_char_index(&editor.cursor_direction))
-            .ok()
-            .map(|position| CellUpdate::new(position).set_is_cursor(true));
+        let primary_selection_primary_cursor = if focused {
+            buffer
+                .char_to_position(selection.to_char_index(&editor.cursor_direction))
+                .ok()
+                .map(|position| CellUpdate::new(position).set_is_cursor(true))
+        } else {
+            None
+        };
 
         let primary_selection_secondary_cursor = if self.mode == Mode::Insert {
             None
@@ -105,7 +112,7 @@ impl Editor {
                 range: HighlightSpanRange::CharIndex(
                     selection.to_char_index(&editor.cursor_direction.reverse()),
                 ),
-                source: Source::Style(theme.ui.primary_selection_secondary_cursor),
+                source: Source::StyleKey(StyleKey::UiPrimarySelectionSecondaryCursor),
             })
         };
 
@@ -196,37 +203,47 @@ impl Editor {
             })
         });
 
-        let hidden_parent_lines = match self.fold {
-            Some(Fold::CurrentSelectionMode) => {
+        let hidden_parent_lines = match &self.fold {
+            Some(fold) => {
                 // TODO: add test case for this
-                let possible_selections = self
-                    .possible_selections(self.selection_set.primary_selection(), context)
-                    .unwrap_or_default();
-                let possible_selections_length = possible_selections.len();
-                let context_lines_lengths = distribute_items(
-                    // Need to minus `height` by `possible_selections_length`
-                    // because the magnitude of each `context_lines_length` should include
-                    // the height (which is 1) of the non-contextual line
-                    (height as usize).saturating_sub(possible_selections_length),
-                    possible_selections_length,
+                let possible_selections = match fold {
+                    Fold::CurrentSelectionMode => self
+                        .possible_selections(self.selection_set.primary_selection(), context)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|byte_range| byte_range.range().clone())
+                        .collect_vec(),
+                    Fold::Cursor => self
+                        .selection_set
+                        .map(|selection| selection.extended_range())
+                        .into_iter()
+                        .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
+                        .collect_vec(),
+                    Fold::Mark => self
+                        .buffer()
+                        .marks()
+                        .into_iter()
+                        .chain(Some(
+                            self.selection_set.primary_selection().extended_range(),
+                        ))
+                        .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
+                        .collect_vec(),
+                }
+                .into_iter()
+                .filter_map(|byte_range| buffer.byte_to_line(byte_range.start).ok())
+                .unique()
+                .collect_vec();
+                let line_numbers = possible_selections.clone();
+                let viewport_sections = sections_divider::divide_viewport(
+                    &line_numbers,
+                    height as usize,
+                    buffer.len_lines().saturating_sub(1),
                 );
-                possible_selections
+                viewport_sections
                     .into_iter()
-                    .filter_map(|byte_range| buffer.byte_to_line(byte_range.range().start).ok())
+                    .flat_map(|viewport_section| viewport_section.range_vec().into_iter())
                     .unique()
-                    .zip(context_lines_lengths)
-                    .flat_map(|(line, context_lines_length)| {
-                        let (lower_context_lines_length, upper_context_lines_length) =
-                            distribute_items(context_lines_length, 2)
-                                .into_iter()
-                                .collect_tuple()
-                                .unwrap();
-                        let upper_context_lines_length = upper_context_lines_length
-                            + lower_context_lines_length.saturating_sub(line);
-                        line.saturating_sub(lower_context_lines_length as usize)
-                            ..line.saturating_add(upper_context_lines_length) + 1
-                    })
-                    .unique()
+                    .sorted()
                     .filter_map(|line_index| {
                         let start_position = buffer.line_to_position(line_index).ok()?;
                         Some(Line {
@@ -297,6 +314,7 @@ impl Editor {
                 let captures = rule.regex.captures(&content)?;
                 let get_highlight_span = |name: &'static str, source: Source| {
                     let match_ = captures.name(name)?;
+
                     Some(HighlightSpan {
                         source,
                         range: HighlightSpanRange::ByteRange(match_.range()),
@@ -342,33 +360,6 @@ impl Editor {
             .chain(custom_regex_highlights)
             .chain(regex_highlight_rules)
             .collect_vec();
-        let visible_lines_updates = {
-            let boundaries = [Boundary::new(&buffer, visible_line_range)];
-            updates
-                .iter()
-                .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
-                .chain(primary_selection_primary_cursor)
-                .collect_vec()
-        };
-
-        let visible_lines_grid = visible_lines_grid.render_content(
-            &visible_lines.map(|(_, line)| line).join(""),
-            RenderContentLineNumber::LineNumber {
-                start_line_index: scroll_offset as usize,
-                max_line_number: len_lines as usize,
-            },
-            visible_lines_updates
-                .clone()
-                .into_iter()
-                .map(|cell_update| CellUpdate {
-                    position: cell_update.position.move_up(scroll_offset as usize),
-                    ..cell_update
-                })
-                .collect_vec(),
-            Vec::new(),
-            theme,
-        );
-
         let hidden_parent_lines_grid = {
             let boundaries = hidden_parent_line_ranges
                 .into_iter()
@@ -388,7 +379,7 @@ impl Editor {
                     set_symbol: None,
                     is_cursor: false,
                 })
-                .chain(updates)
+                .chain(updates.clone())
                 .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
                 .collect_vec();
             hidden_parent_lines.into_iter().fold(
@@ -396,6 +387,7 @@ impl Editor {
                 |grid, line| {
                     let updates = updates
                         .iter()
+                        .chain(&primary_selection_primary_cursor)
                         .filter_map(|update| {
                             if update.position.line == line.line {
                                 Some(update.clone().set_position_line(0))
@@ -418,15 +410,46 @@ impl Editor {
             )
         };
 
-        let cursor_beyond_view_bottom =
-            if let Some(cursor_position) = visible_lines_grid.get_cursor_position() {
-                cursor_position
+        let grid = if self.fold.is_some() {
+            let hidden_parent_lines_length = hidden_parent_lines_grid.rows.len();
+            hidden_parent_lines_grid.merge_vertical(Grid::new(Dimension {
+                height: height.saturating_sub(hidden_parent_lines_length as u16),
+                width,
+            }))
+        } else {
+            let visible_lines_updates = {
+                let boundaries = [Boundary::new(&buffer, visible_line_range)];
+                updates
+                    .iter()
+                    .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
+                    .chain(primary_selection_primary_cursor)
+                    .collect_vec()
+            };
+            let visible_lines_grid = visible_lines_grid.render_content(
+                &visible_lines.map(|(_, line)| line).join(""),
+                RenderContentLineNumber::LineNumber {
+                    start_line_index: scroll_offset as usize,
+                    max_line_number: len_lines as usize,
+                },
+                visible_lines_updates
+                    .clone()
+                    .into_iter()
+                    .map(|cell_update| CellUpdate {
+                        position: cell_update.position.move_up(scroll_offset as usize),
+                        ..cell_update
+                    })
+                    .collect_vec(),
+                Vec::new(),
+                theme,
+            );
+            let cursor_beyond_view_bottom =
+                if let Some(cursor_position) = visible_lines_grid.get_cursor_position() {
+                    cursor_position
                     .line
                     .saturating_sub(height.saturating_sub(1).saturating_sub(top_offset) as usize)
-            } else {
-                0
-            };
-        let grid = {
+                } else {
+                    0
+                };
             let visible_lines_grid = visible_lines_grid.clamp_top(cursor_beyond_view_bottom);
             let clamp_bottom_by = visible_lines_grid
                 .dimension()
@@ -435,9 +458,11 @@ impl Editor {
                 .saturating_add(top_offset)
                 .saturating_sub(cursor_beyond_view_bottom as u16);
             let bottom = visible_lines_grid.clamp_bottom(clamp_bottom_by);
-
             hidden_parent_lines_grid.merge_vertical(bottom)
         };
+
+        debug_assert_eq!(grid.rows.len(), height as usize);
+        debug_assert!(grid.rows.iter().all(|row| row.len() == width as usize));
         let window_title_style = if focused {
             theme.ui.window_title_focused
         } else {
@@ -449,10 +474,7 @@ impl Editor {
         // highlighting the entire file becomes sluggish when the file has more than a thousand lines.
 
         let title_grid = Grid::new(Dimension {
-            height: editor
-                .dimension()
-                .height
-                .saturating_sub(grid.rows.len() as u16),
+            height: WINDOW_TITLE_HEIGHT as u16,
             width: editor.dimension().width,
         })
         .render_content(
@@ -733,5 +755,293 @@ mod test_range_search {
         let items = vec![(0..5), (3..8), (7..10), (9..15)];
         let result = filter_items_by_range(&items, 6, 12, |r| r.clone());
         assert_eq!(result, &[(3..8), (7..10), (9..15)]);
+    }
+}
+mod sections_divider {
+
+    use std::collections::HashSet;
+
+    use itertools::Itertools;
+
+    use crate::utils::distribute_items;
+
+    #[derive(Debug, PartialEq, Eq, Clone)]
+    pub(crate) struct ViewportSection {
+        start: usize, // Inclusive
+        end: usize,   // Inclusive
+    }
+    impl ViewportSection {
+        fn range_set(&self) -> HashSet<usize> {
+            (self.start..self.end + 1).collect()
+        }
+
+        pub(crate) fn range_vec(&self) -> Vec<usize> {
+            (self.start..self.end + 1).collect()
+        }
+    }
+
+    pub(crate) fn divide_viewport(
+        line_numbers: &[usize],
+        viewport_height: usize,
+        max_line_index: usize,
+    ) -> Vec<ViewportSection> {
+        debug_assert!(line_numbers
+            .iter()
+            .all(|line_number| *line_number <= max_line_index));
+        let line_numbers = line_numbers
+            .into_iter()
+            .map(|line_number| *line_number)
+            .unique()
+            .sorted()
+            .collect_vec();
+
+        if line_numbers.is_empty() {
+            return Vec::new();
+        }
+
+        if viewport_height <= line_numbers.len() {
+            return line_numbers
+                .iter()
+                .map(|line_number| ViewportSection {
+                    start: *line_number,
+                    end: *line_number,
+                })
+                .collect();
+        }
+
+        let possible_selections_length = line_numbers.len();
+        let context_lines_lengths = distribute_items(
+            // Need to minus `viewport_height` by `possible_selections_length`
+            // because the magnitude of each `context_lines_length` should include
+            // the height (which is 1) of the non-contextual line
+            (viewport_height as usize).saturating_sub(possible_selections_length),
+            possible_selections_length,
+        );
+        // println!("context_lines_lengths = {context_lines_lengths:?}");
+        let sections = line_numbers
+            .into_iter()
+            .zip(context_lines_lengths)
+            .map(|(line_index, context_lines_length)| {
+                let (lower_context_lines_length, upper_context_lines_length) =
+                    distribute_items(context_lines_length, 2)
+                        .into_iter()
+                        .collect_tuple()
+                        .unwrap();
+                let lower_context_lines_length = lower_context_lines_length
+                    + upper_context_lines_length
+                        .saturating_sub(max_line_index.saturating_sub(line_index));
+                let upper_context_lines_length = upper_context_lines_length
+                    + lower_context_lines_length.saturating_sub(line_index);
+                ViewportSection {
+                    start: line_index.saturating_sub(lower_context_lines_length as usize),
+                    end: line_index.saturating_add(upper_context_lines_length),
+                }
+            })
+            .collect_vec();
+
+        // Merge overlapping sections
+        sections.into_iter().fold(vec![], |accum, current_section| {
+            if let Some((last_section, init)) = accum.split_last() {
+                let last_range_set = last_section.range_set();
+                let current_range_set = current_section.range_set();
+                let intersected_lines = last_range_set
+                    .intersection(&current_range_set)
+                    .collect_vec();
+                if intersected_lines.is_empty() {
+                    init.into_iter()
+                        .map(|section| section.clone())
+                        .chain(Some(last_section.clone()))
+                        .chain(Some(current_section))
+                        .collect()
+                } else {
+                    let (start_extension, end_extension) =
+                        distribute_items(intersected_lines.len(), 2)
+                            .into_iter()
+                            .collect_tuple()
+                            .unwrap();
+                    let merged_section = ViewportSection {
+                        start: last_section.start.saturating_sub(start_extension),
+                        end: current_section.end.saturating_add(end_extension),
+                    };
+                    init.into_iter()
+                        .map(|section| section.clone())
+                        .chain(Some(merged_section))
+                        .collect()
+                }
+            } else {
+                accum.into_iter().chain(Some(current_section)).collect_vec()
+            }
+        })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use quickcheck::{Arbitrary, Gen};
+        use quickcheck_macros::quickcheck;
+
+        use super::*;
+
+        #[test]
+        fn prioritize_above_over_bottom_for_uneven_split() {
+            let result = divide_viewport(&[10], 4, 100);
+            // Two above line 10
+            // One belowe line 10
+            assert_eq!(result, vec![ViewportSection { start: 8, end: 11 }]);
+        }
+
+        #[test]
+        fn test_single_cursor_line() {
+            let result = divide_viewport(&[10], 5, 100);
+            assert_eq!(result, vec![ViewportSection { start: 8, end: 12 }]);
+        }
+
+        #[test]
+        fn test_duplicate_lines() {
+            let result = divide_viewport(&[10, 10, 10], 5, 100);
+            assert_eq!(result, vec![ViewportSection { start: 8, end: 12 }]);
+        }
+
+        #[test]
+        fn test_adjacent_lines_merged() {
+            let result = divide_viewport(&[10, 11], 5, 100);
+            assert_eq!(result, vec![ViewportSection { start: 8, end: 12 }]);
+        }
+
+        #[test]
+        fn test_distant_lines_split() {
+            let result = divide_viewport(&[10, 20], 6, 100);
+            assert_eq!(
+                result,
+                vec![
+                    ViewportSection { start: 9, end: 11 },
+                    ViewportSection { start: 19, end: 21 }
+                ]
+            );
+        }
+
+        #[test]
+        fn test_smaller_line_numbers_receive_larger_portions_on_uneven_division() {
+            let result = divide_viewport(&[10, 11, 12, 13], 6, 100);
+            assert_eq!(result, vec![ViewportSection { start: 9, end: 14 }]);
+        }
+
+        #[test]
+        fn test_first_line_edge_case() {
+            let result = divide_viewport(&[0], 4, 100);
+            assert_eq!(result, vec![ViewportSection { start: 0, end: 3 }]);
+        }
+
+        #[test]
+        fn test_last_line_edge_case() {
+            let result = divide_viewport(&[99], 4, 100);
+            assert_eq!(
+                result,
+                vec![ViewportSection {
+                    start: 97,
+                    end: 100
+                }]
+            );
+        }
+
+        #[test]
+        fn test_mixed_edge_cases() {
+            let result = divide_viewport(&[0, 1, 98, 99], 8, 100);
+            assert_eq!(
+                result,
+                vec![
+                    ViewportSection { start: 0, end: 2 },
+                    ViewportSection { start: 97, end: 99 }
+                ]
+            );
+        }
+
+        #[test]
+        fn test_even_distribution() {
+            let result = divide_viewport(&[10, 20, 30], 9, 100);
+            assert_eq!(
+                result,
+                vec![
+                    ViewportSection { start: 9, end: 11 },
+                    ViewportSection { start: 19, end: 21 },
+                    ViewportSection { start: 29, end: 31 }
+                ]
+            );
+        }
+
+        #[test]
+        fn test_sections_within_viewport() {
+            let viewport_height = 8;
+            let lines = vec![5, 6, 15];
+            let result = divide_viewport(&lines, viewport_height, 100);
+
+            let total_lines: usize = result
+                .iter()
+                .map(|section| section.end - section.start + 1)
+                .sum();
+            assert!(
+                total_lines <= viewport_height,
+                "Total lines {} exceeds viewport height {}",
+                total_lines,
+                viewport_height
+            );
+        }
+
+        #[test]
+        fn trial() {
+            let lines = vec![2, 7, 9];
+            let result = divide_viewport(&lines, 9, 6);
+
+            assert_eq!(
+                result,
+                vec![
+                    ViewportSection { start: 1, end: 3 },
+                    ViewportSection { start: 5, end: 9 }
+                ]
+            )
+        }
+
+        #[derive(Debug, Clone)]
+        struct Input {
+            max_line_index: usize,
+            viewport_height: usize,
+            line_numbers: Vec<usize>,
+        }
+
+        impl Arbitrary for Input {
+            fn arbitrary(g: &mut Gen) -> Self {
+                let viewport_height = (usize::arbitrary(g) % 10).max(1);
+
+                // `max_line_index` should be always larger than `viewport_height`
+                // for this specific quickcheck test case
+                let max_line_index = (usize::arbitrary(g) % 10).max(viewport_height);
+
+                let line_numbers_length = (usize::arbitrary(g) % (viewport_height + 1)).max(1);
+                let line_numbers = (0..line_numbers_length)
+                    .map(|_| usize::arbitrary(g) % (max_line_index + 1))
+                    .collect_vec();
+
+                Input {
+                    max_line_index,
+                    line_numbers,
+                    viewport_height,
+                }
+            }
+        }
+        #[quickcheck]
+        fn sum_of_viewport_sections_height_should_equal_viewport_height(input: Input) -> bool {
+            let Input {
+                max_line_index,
+                viewport_height,
+                line_numbers,
+            } = input;
+            let sections = divide_viewport(&line_numbers, viewport_height, max_line_index);
+            // println!("sections = {sections:?}");
+
+            let sum: usize = sections
+                .into_iter()
+                .map(|section| section.range_set().len())
+                .sum();
+            sum == viewport_height
+        }
     }
 }
