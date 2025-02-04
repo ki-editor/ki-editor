@@ -4130,7 +4130,7 @@ fn git_hunk_should_compare_against_buffer_content_not_file_content() -> anyhow::
 }
 
 #[test]
-fn fold_one_cursor() -> anyhow::Result<()> {
+fn fold_styling() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -4164,8 +4164,11 @@ fn fold_one_cursor() -> anyhow::Result<()> {
         ])
     })
 }
+
 #[test]
-fn fold_two_cursors() -> anyhow::Result<()> {
+/// When Fold by Mark is activated
+/// All the marks should be always visible
+fn fold_by_mark() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -4176,40 +4179,166 @@ fn fold_two_cursors() -> anyhow::Result<()> {
             Editor(SetRectangle(Rectangle {
                 origin: Position::new(0, 0),
                 width: 50,
-                height: 10,
+                height: 4,
             })),
-            Editor(SetContent("foo\nfoo".to_string())),
+            Editor(SetContent(
+                "
+beta
+mark-x
+phi
+mark-y
+zeta
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("mark-x".to_string())),
+            Editor(ToggleMark),
+            Editor(MatchLiteral("mark-y".to_string())),
+            Editor(ToggleMark),
+            Editor(MatchLiteral("zeta".to_string())),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+3│phi
+4│mark-y
+5│zeta
+"
+                .trim(),
+            )),
+            Editor(ToggleFold(Fold::Mark)),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+2│mark-x
+4│mark-y
+5│zeta
+"
+                .trim(),
+            )),
+            Editor(MatchLiteral("phi".to_string())),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+2│mark-x
+3│phi
+4│mark-y
+"
+                .trim(),
+            )),
+            Editor(MatchLiteral("beta".to_string())),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│beta
+2│mark-x
+4│mark-y
+"
+                .trim(),
+            )),
+        ])
+    })
+}
+
+/// Fold by current selection mode
+#[test]
+fn fold_by_current_selection_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::new(0, 0),
+                width: 50,
+                height: 4,
+            })),
+            Editor(SetContent(
+                "
+fn main() {
+}
+fn bar() {
+}
+fn spam() {
+}
+"
+                .trim()
+                .to_string(),
+            )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Expect(CurrentSelectedTexts(&["foo"])),
-            Editor(EnterMultiCursorMode),
-            Editor(MoveSelection(Down)),
-            Expect(CurrentSelectedTexts(&["foo", "foo"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(CurrentSelectedTexts(&["fn main() {\n}"])),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│fn main() {
+2│}
+3│fn bar() {
+"
+                .trim(),
+            )),
+            Editor(ToggleFold(Fold::CurrentSelectionMode)),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│fn main() {
+3│fn bar() {
+5│fn spam() {
+"
+                .trim(),
+            )),
+        ])
+    })
+}
+
+/// Fold by cursors
+#[test]
+fn fold_by_cursors() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::new(0, 0),
+                width: 50,
+                height: 4,
+            })),
+            Editor(SetContent(
+                "
+foo
+x
+foo
+x
+foo
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("foo".to_string())),
+            Editor(CursorAddToAllSelections),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│foo
+2│x
+3│foo
+"
+                .trim(),
+            )),
             Editor(ToggleFold(Fold::Cursor)),
-            Editor(CyclePrimarySelection(Direction::End)),
-            Editor(CyclePrimarySelection(Direction::End)),
-            Expect(GridCellStyleKey(
-                Position::new(1, 0 + 2),
-                Some(StyleKey::UiSecondarySelectionAnchors),
-            )),
-            Expect(GridCellStyleKey(
-                Position::new(1, 1 + 2),
-                Some(StyleKey::UiSecondarySelectionAnchors),
-            )),
-            Expect(GridCellStyleKey(
-                Position::new(1, 2 + 2),
-                Some(StyleKey::UiSecondarySelectionAnchors),
-            )),
-            Expect(GridCellStyleKey(
-                Position::new(2, 0 + 2),
-                Some(StyleKey::UiPrimarySelectionAnchors),
-            )),
-            Expect(GridCellStyleKey(
-                Position::new(2, 1 + 2),
-                Some(StyleKey::UiPrimarySelectionAnchors),
-            )),
-            Expect(GridCellStyleKey(
-                Position::new(2, 2 + 2),
-                Some(StyleKey::UiPrimarySelectionSecondaryCursor),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│foo
+3│foo
+5│foo
+"
+                .trim(),
             )),
         ])
     })
