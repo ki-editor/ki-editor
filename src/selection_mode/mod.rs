@@ -414,7 +414,7 @@ pub trait SelectionMode {
             .collect();
 
         Ok(self
-            .jumps_iter(params.clone())?
+            .iter(params.clone())?
             .filter(|range| {
                 byte_ranges
                     .iter()
@@ -423,7 +423,7 @@ pub trait SelectionMode {
             .collect())
     }
 
-    fn jumps_iter<'a>(
+    fn iter_folded<'a>(
         &'a self,
         params: SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {

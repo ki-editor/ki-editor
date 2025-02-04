@@ -12,7 +12,7 @@ pub(crate) struct SyntaxNode {
 }
 
 impl SelectionMode for SyntaxNode {
-    fn iter<'a>(
+    fn iter_folded<'a>(
         &'a self,
         params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
@@ -44,7 +44,7 @@ impl SelectionMode for SyntaxNode {
                 .map(|node| ByteRange::new(node.byte_range())),
         ))
     }
-    fn jumps_iter<'a>(
+    fn iter<'a>(
         &'a self,
         params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
