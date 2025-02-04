@@ -477,9 +477,6 @@ pub(crate) struct Color {
 }
 
 impl Color {
-    pub fn display(&self) -> String {
-        format!("({},{},{})", self.r, self.g, self.b)
-    }
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self {
             r,
