@@ -371,15 +371,9 @@ impl Editor {
                     .map(|line| line.line)
                     .collect_vec(),
             );
-            let updates = non_consecutive_lines
+            let updates = updates
+                .clone()
                 .into_iter()
-                .map(|line| HighlightSpan {
-                    source: Source::StyleKey(StyleKey::ParentLine),
-                    range: HighlightSpanRange::Line(line),
-                    set_symbol: None,
-                    is_cursor: false,
-                })
-                .chain(updates.clone())
                 .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
                 .collect_vec();
             hidden_parent_lines.into_iter().fold(
@@ -396,6 +390,15 @@ impl Editor {
                             }
                         })
                         .collect_vec();
+                    let line_updates = if non_consecutive_lines.contains(&line.line) {
+                        [LineUpdate {
+                            line_index: 0,
+                            style: Style::new().background_color(theme.ui.parent_lines_background),
+                        }]
+                        .to_vec()
+                    } else {
+                        Default::default()
+                    };
                     grid.merge_vertical(Grid::new(Dimension { height: 1, width }).render_content(
                         &line.content,
                         RenderContentLineNumber::LineNumber {
@@ -403,7 +406,7 @@ impl Editor {
                             max_line_number: len_lines as usize,
                         },
                         updates,
-                        Default::default(),
+                        line_updates,
                         theme,
                     ))
                 },
@@ -763,13 +766,69 @@ mod sections_divider {
 
     use itertools::Itertools;
 
-    use crate::utils::distribute_items;
+    use crate::{components::render_editor::calculate_distribution, utils::distribute_items};
 
     #[derive(Debug, PartialEq, Eq, Clone)]
     pub(crate) struct ViewportSection {
-        start: usize, // Inclusive
-        end: usize,   // Inclusive
+        /// Inclusive
+        start: usize,
+        /// Inclusive
+        end: usize,
     }
+    #[derive(Debug, PartialEq, Eq, Clone)]
+    pub(crate) struct ViewportSectionWithOrigin {
+        /// Inclusive
+        start: usize,
+        /// Inclusive
+        end: usize,
+        /// Inclusive
+        start_original: usize,
+        /// Inclusive
+        end_original: usize,
+    }
+    #[derive(Debug, PartialEq, Eq, Clone)]
+    pub(crate) struct ViewportSectionOnlyOrigin {
+        /// Inclusive
+        start_original: usize,
+        /// Inclusive
+        end_original: usize,
+    }
+    impl ViewportSectionOnlyOrigin {
+        fn into_viewport_section(self) -> ViewportSection {
+            ViewportSection {
+                start: self.start_original,
+                end: self.end_original,
+            }
+        }
+
+        fn len(&self) -> usize {
+            self.end_original + 1 - self.start_original
+        }
+
+        fn range_set(&self) -> HashSet<usize> {
+            (self.start_original..self.end_original + 1).collect()
+        }
+    }
+    impl ViewportSectionWithOrigin {
+        fn range_set(&self) -> HashSet<usize> {
+            (self.start..self.end + 1).collect()
+        }
+
+        fn into_viewport_section_only_origin(self) -> ViewportSectionOnlyOrigin {
+            ViewportSectionOnlyOrigin {
+                start_original: self.start_original,
+                end_original: self.end_original,
+            }
+        }
+
+        fn into_viewport_section(self) -> ViewportSection {
+            ViewportSection {
+                start: self.start,
+                end: self.end,
+            }
+        }
+    }
+
     impl ViewportSection {
         fn range_set(&self) -> HashSet<usize> {
             (self.start..self.end + 1).collect()
@@ -777,6 +836,10 @@ mod sections_divider {
 
         pub(crate) fn range_vec(&self) -> Vec<usize> {
             (self.start..self.end + 1).collect()
+        }
+
+        fn len(&self) -> usize {
+            self.end + 1 - self.start
         }
     }
 
@@ -798,80 +861,128 @@ mod sections_divider {
         if line_numbers.is_empty() {
             return Vec::new();
         }
-
-        if viewport_height <= line_numbers.len() {
-            return line_numbers
-                .iter()
-                .map(|line_number| ViewportSection {
-                    start: *line_number,
-                    end: *line_number,
+        let result = divide_viewport_impl(
+            line_numbers
+                .into_iter()
+                .map(|line_number| ViewportSectionOnlyOrigin {
+                    start_original: line_number,
+                    end_original: line_number,
                 })
-                .collect();
+                .collect_vec(),
+            viewport_height,
+            max_line_index,
+        );
+        // println!("result = {result:?}");
+        result
+    }
+    fn divide_viewport_impl(
+        input_sections: Vec<ViewportSectionOnlyOrigin>,
+        viewport_height: usize,
+        max_line_index: usize,
+    ) -> Vec<ViewportSection> {
+        // println!("\n\n input sections = {:?}", input_sections);
+        if viewport_height <= input_sections.len() {
+            return input_sections
+                .into_iter()
+                .map(|section| section.into_viewport_section())
+                .collect_vec();
         }
 
-        let possible_selections_length = line_numbers.len();
-        let context_lines_lengths = distribute_items(
-            // Need to minus `viewport_height` by `possible_selections_length`
-            // because the magnitude of each `context_lines_length` should include
-            // the height (which is 1) of the non-contextual line
-            (viewport_height as usize).saturating_sub(possible_selections_length),
-            possible_selections_length,
-        );
-        // println!("context_lines_lengths = {context_lines_lengths:?}");
-        let sections = line_numbers
-            .into_iter()
+        let sections_length = input_sections.len();
+        // println!("viewport_height = {viewport_height}");
+        // println!( "input_lengths = {:?}", input_sections .iter() .map(|section| section.len()) .collect_vec() );
+        let input_lengths = input_sections
+            .iter()
+            .map(|section| section.len())
+            .collect_vec();
+        let context_lines_lengths = calculate_distribution(
+            &input_lengths,
+            (viewport_height as usize).saturating_sub(input_lengths.iter().sum()),
+        ); //distribute_items(viewport_height as usize, sections_length);
+           // println!("context_lines_lengths = {context_lines_lengths:?}");
+
+        let result_sections = input_sections
+            .iter()
             .zip(context_lines_lengths)
-            .map(|(line_index, context_lines_length)| {
+            .map(|(section, context_lines_length)| {
+                // println!("section = {:?}", section);
                 let (lower_context_lines_length, upper_context_lines_length) =
-                    distribute_items(context_lines_length, 2)
+                    distribute_items(context_lines_length.saturating_sub(section.len()), 2)
                         .into_iter()
                         .collect_tuple()
                         .unwrap();
                 let lower_context_lines_length = lower_context_lines_length
                     + upper_context_lines_length
-                        .saturating_sub(max_line_index.saturating_sub(line_index));
+                        .saturating_sub(max_line_index.saturating_sub(section.end_original));
                 let upper_context_lines_length = upper_context_lines_length
-                    + lower_context_lines_length.saturating_sub(line_index);
-                ViewportSection {
-                    start: line_index.saturating_sub(lower_context_lines_length as usize),
-                    end: line_index.saturating_add(upper_context_lines_length),
+                    + lower_context_lines_length.saturating_sub(section.start_original);
+                // println!("lower_context_lines_length = {lower_context_lines_length}");
+                // println!("upper_context_lines_length = {upper_context_lines_length}");
+                ViewportSectionWithOrigin {
+                    start: section
+                        .start_original
+                        .saturating_sub(lower_context_lines_length as usize),
+                    end: section
+                        .end_original
+                        .saturating_add(upper_context_lines_length)
+                        .min(max_line_index),
+                    start_original: section.start_original,
+                    end_original: section.end_original,
                 }
             })
             .collect_vec();
-
+        // println!("result_sections = {:?}", result_sections);
         // Merge overlapping sections
-        sections.into_iter().fold(vec![], |accum, current_section| {
-            if let Some((last_section, init)) = accum.split_last() {
-                let last_range_set = last_section.range_set();
-                let current_range_set = current_section.range_set();
-                let intersected_lines = last_range_set
-                    .intersection(&current_range_set)
-                    .collect_vec();
-                if intersected_lines.is_empty() {
-                    init.into_iter()
-                        .map(|section| section.clone())
-                        .chain(Some(last_section.clone()))
-                        .chain(Some(current_section))
-                        .collect()
+        let merged = result_sections.iter().fold(
+            vec![],
+            |accum: Vec<ViewportSectionWithOrigin>, current_section| {
+                if let Some((last_section, init)) = accum.split_last() {
+                    let last_range_set = last_section.range_set();
+                    let current_range_set = current_section.range_set();
+                    let intersected_lines = last_range_set
+                        .intersection(&current_range_set)
+                        .collect_vec();
+                    if intersected_lines.is_empty() {
+                        init.into_iter()
+                            .map(|section| section.clone())
+                            .chain(Some(last_section.clone()))
+                            .chain(Some(current_section.clone()))
+                            .collect_vec()
+                    } else {
+                        let merged_section = ViewportSectionWithOrigin {
+                            start: last_section.start_original,
+                            end: current_section.end_original,
+                            start_original: last_section.start_original,
+                            end_original: current_section.end_original,
+                        };
+                        init.into_iter()
+                            .map(|section| section.clone())
+                            .chain(Some(merged_section))
+                            .collect()
+                    }
                 } else {
-                    let (start_extension, end_extension) =
-                        distribute_items(intersected_lines.len(), 2)
-                            .into_iter()
-                            .collect_tuple()
-                            .unwrap();
-                    let merged_section = ViewportSection {
-                        start: last_section.start.saturating_sub(start_extension),
-                        end: current_section.end.saturating_add(end_extension),
-                    };
-                    init.into_iter()
-                        .map(|section| section.clone())
-                        .chain(Some(merged_section))
-                        .collect()
+                    accum
+                        .into_iter()
+                        .chain(Some(current_section.clone()))
+                        .collect_vec()
                 }
-            } else {
-                accum.into_iter().chain(Some(current_section)).collect_vec()
-            }
-        })
+            },
+        );
+        if merged.len() < sections_length {
+            divide_viewport_impl(
+                merged
+                    .into_iter()
+                    .map(|section| section.into_viewport_section_only_origin())
+                    .collect_vec(),
+                viewport_height,
+                max_line_index,
+            )
+        } else {
+            result_sections
+                .into_iter()
+                .map(|section| section.into_viewport_section())
+                .collect_vec()
+        }
     }
 
     #[cfg(test)]
@@ -944,13 +1055,31 @@ mod sections_divider {
         }
 
         #[test]
-        fn test_mixed_edge_cases() {
+        fn test_mixed_edge_cases_1() {
             let result = divide_viewport(&[0, 1, 98, 99], 8, 100);
             assert_eq!(
                 result,
                 vec![
-                    ViewportSection { start: 0, end: 2 },
-                    ViewportSection { start: 97, end: 99 }
+                    ViewportSection { start: 0, end: 3 },
+                    ViewportSection {
+                        start: 97,
+                        end: 100
+                    }
+                ]
+            );
+        }
+
+        #[test]
+        fn test_mixed_edge_cases_2() {
+            let result = divide_viewport(&[0, 1, 100], 8, 100);
+            assert_eq!(
+                result,
+                vec![
+                    ViewportSection { start: 0, end: 3 },
+                    ViewportSection {
+                        start: 97,
+                        end: 100
+                    }
                 ]
             );
         }
@@ -984,20 +1113,6 @@ mod sections_divider {
                 total_lines,
                 viewport_height
             );
-        }
-
-        #[test]
-        fn trial() {
-            let lines = vec![2, 7, 9];
-            let result = divide_viewport(&lines, 9, 6);
-
-            assert_eq!(
-                result,
-                vec![
-                    ViewportSection { start: 1, end: 3 },
-                    ViewportSection { start: 5, end: 9 }
-                ]
-            )
         }
 
         #[derive(Debug, Clone)]
@@ -1043,5 +1158,59 @@ mod sections_divider {
                 .sum();
             sum == viewport_height
         }
+    }
+}
+fn calculate_distribution(initial: &[usize], resources: usize) -> Vec<usize> {
+    let mut final_amounts = initial.to_vec();
+    let mut remaining = resources;
+
+    while remaining > 0 {
+        // Find index of minimum value
+        let min_idx = final_amounts
+            .iter()
+            .enumerate()
+            .min_by_key(|&(_, value)| value)
+            .map(|(index, _)| index)
+            .unwrap();
+
+        final_amounts[min_idx] += 1;
+        remaining -= 1;
+    }
+
+    final_amounts
+}
+
+#[cfg(test)]
+mod tests_calculate_distribution {
+    use super::*;
+
+    #[test]
+    fn test_calculate_distribution() {
+        // Basic case
+        assert_eq!(calculate_distribution(&[5, 2, 0], 3), vec![5, 3, 2]);
+
+        // Empty resources
+        assert_eq!(calculate_distribution(&[1, 1, 1], 0), vec![1, 1, 1]);
+
+        // Equal initial values
+        assert_eq!(calculate_distribution(&[2, 2, 2], 3), vec![3, 3, 3]);
+
+        // Single element
+        assert_eq!(calculate_distribution(&[0], 5), vec![5]);
+
+        // Large gap between values
+        assert_eq!(calculate_distribution(&[10, 0, 0], 6), vec![10, 3, 3]);
+
+        // More resources than needed for perfect balance
+        assert_eq!(calculate_distribution(&[3, 0], 10), vec![7, 6]);
+
+        // All zeros initial
+        assert_eq!(calculate_distribution(&[0, 0, 0, 0], 7), vec![2, 2, 2, 1]);
+
+        // Different lengths
+        assert_eq!(
+            calculate_distribution(&[5, 4, 3, 2, 1], 5),
+            vec![5, 4, 4, 4, 3]
+        );
     }
 }
