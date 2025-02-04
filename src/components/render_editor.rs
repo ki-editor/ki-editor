@@ -234,8 +234,17 @@ impl Editor {
                 .unique()
                 .collect_vec();
                 let line_numbers = possible_selections.clone();
+                let focused_line_number = buffer
+                    .char_to_line(
+                        self.selection_set
+                            .primary_selection()
+                            .extended_range()
+                            .to_char_index(&self.cursor_direction),
+                    )
+                    .unwrap_or_default();
                 let viewport_sections = sections_divider::divide_viewport(
                     &line_numbers,
+                    focused_line_number,
                     height as usize,
                     buffer.len_lines().saturating_sub(1),
                 );
@@ -845,6 +854,7 @@ mod sections_divider {
 
     pub(crate) fn divide_viewport(
         line_numbers: &[usize],
+        focused_line_number: usize,
         viewport_height: usize,
         max_line_index: usize,
     ) -> Vec<ViewportSection> {
@@ -857,6 +867,15 @@ mod sections_divider {
             .unique()
             .sorted()
             .collect_vec();
+        if line_numbers.len() > viewport_height {
+            return extract_centered_window(&line_numbers, focused_line_number, viewport_height)
+                .into_iter()
+                .map(|line_number| ViewportSection {
+                    start: line_number,
+                    end: line_number,
+                })
+                .collect_vec();
+        }
 
         if line_numbers.is_empty() {
             return Vec::new();
@@ -873,6 +892,44 @@ mod sections_divider {
             max_line_index,
         );
         // println!("result = {result:?}");
+        result
+    }
+
+    fn extract_centered_window<T: Ord + Eq + Clone + std::fmt::Debug>(
+        elements: &[T],
+        element: T,
+        window_size: usize,
+    ) -> Vec<T> {
+        debug_assert!(elements.contains(&element));
+        debug_assert!(elements.iter().is_sorted());
+        let Some(index) = elements
+            .iter()
+            .position(|line_number| *line_number == element)
+        else {
+            // This should be unreachable
+            // but let's say it happens we just simply trim `elements` by `window_size`.
+            return elements
+                .into_iter()
+                .take(window_size)
+                .map(|element| element.clone())
+                .collect_vec();
+        };
+
+        let (go_left_by, go_right_by) = distribute_items(window_size.saturating_sub(1), 2)
+            .into_iter()
+            .collect_tuple()
+            .unwrap();
+
+        let go_left_by =
+            go_left_by + (index + go_right_by).saturating_sub(elements.len().saturating_sub(1));
+
+        let go_right_by = go_right_by + go_left_by.saturating_sub(index);
+        let start_index = index.saturating_sub(go_left_by);
+        let end_index = (index + go_right_by).min(elements.len().saturating_sub(1));
+        let result = elements[start_index..end_index + 1].to_vec();
+
+        debug_assert!(result.contains(&element));
+        debug_assert_eq!(result.len(), window_size);
         result
     }
     fn divide_viewport_impl(
@@ -989,38 +1046,78 @@ mod sections_divider {
     mod tests {
         use quickcheck::{Arbitrary, Gen};
         use quickcheck_macros::quickcheck;
+        use rand::random;
 
         use super::*;
 
         #[test]
         fn prioritize_above_over_bottom_for_uneven_split() {
-            let result = divide_viewport(&[10], 4, 100);
+            let result = divide_viewport(&[10], 10, 4, 100);
             // Two above line 10
             // One belowe line 10
             assert_eq!(result, vec![ViewportSection { start: 8, end: 11 }]);
         }
 
         #[test]
+        fn line_numbers_length_more_than_viewport_height_focus_start() {
+            let result = divide_viewport(&[1, 2, 3, 4], 1, 3, 100);
+            assert_eq!(
+                result,
+                vec![
+                    ViewportSection { start: 1, end: 1 },
+                    ViewportSection { start: 2, end: 2 },
+                    ViewportSection { start: 3, end: 3 }
+                ]
+            );
+        }
+
+        #[test]
+        fn line_numbers_length_more_than_viewport_height_focus_middle() {
+            let result = divide_viewport(&[1, 2, 3, 4, 5], 3, 3, 100);
+            assert_eq!(
+                result,
+                vec![
+                    ViewportSection { start: 2, end: 2 },
+                    ViewportSection { start: 3, end: 3 },
+                    ViewportSection { start: 4, end: 4 },
+                ]
+            )
+        }
+
+        #[test]
+        fn line_numbers_length_more_than_viewport_height_focus_end() {
+            let result = divide_viewport(&[1, 2, 3, 4, 5], 5, 3, 100);
+            assert_eq!(
+                result,
+                vec![
+                    ViewportSection { start: 3, end: 3 },
+                    ViewportSection { start: 4, end: 4 },
+                    ViewportSection { start: 5, end: 5 },
+                ]
+            )
+        }
+
+        #[test]
         fn test_single_cursor_line() {
-            let result = divide_viewport(&[10], 5, 100);
+            let result = divide_viewport(&[10], 10, 5, 100);
             assert_eq!(result, vec![ViewportSection { start: 8, end: 12 }]);
         }
 
         #[test]
         fn test_duplicate_lines() {
-            let result = divide_viewport(&[10, 10, 10], 5, 100);
+            let result = divide_viewport(&[10, 10, 10], 10, 5, 100);
             assert_eq!(result, vec![ViewportSection { start: 8, end: 12 }]);
         }
 
         #[test]
         fn test_adjacent_lines_merged() {
-            let result = divide_viewport(&[10, 11], 5, 100);
+            let result = divide_viewport(&[10, 11], 10, 5, 100);
             assert_eq!(result, vec![ViewportSection { start: 8, end: 12 }]);
         }
 
         #[test]
         fn test_distant_lines_split() {
-            let result = divide_viewport(&[10, 20], 6, 100);
+            let result = divide_viewport(&[10, 20], 10, 6, 100);
             assert_eq!(
                 result,
                 vec![
@@ -1032,19 +1129,19 @@ mod sections_divider {
 
         #[test]
         fn test_smaller_line_numbers_receive_larger_portions_on_uneven_division() {
-            let result = divide_viewport(&[10, 11, 12, 13], 6, 100);
+            let result = divide_viewport(&[10, 11, 12, 13], 11, 6, 100);
             assert_eq!(result, vec![ViewportSection { start: 9, end: 14 }]);
         }
 
         #[test]
         fn test_first_line_edge_case() {
-            let result = divide_viewport(&[0], 4, 100);
+            let result = divide_viewport(&[0], 0, 4, 100);
             assert_eq!(result, vec![ViewportSection { start: 0, end: 3 }]);
         }
 
         #[test]
         fn test_last_line_edge_case() {
-            let result = divide_viewport(&[99], 4, 100);
+            let result = divide_viewport(&[99], 99, 4, 100);
             assert_eq!(
                 result,
                 vec![ViewportSection {
@@ -1056,7 +1153,7 @@ mod sections_divider {
 
         #[test]
         fn test_mixed_edge_cases_1() {
-            let result = divide_viewport(&[0, 1, 98, 99], 8, 100);
+            let result = divide_viewport(&[0, 1, 98, 99], 1, 8, 100);
             assert_eq!(
                 result,
                 vec![
@@ -1071,7 +1168,7 @@ mod sections_divider {
 
         #[test]
         fn test_mixed_edge_cases_2() {
-            let result = divide_viewport(&[0, 1, 100], 8, 100);
+            let result = divide_viewport(&[0, 1, 100], 1, 8, 100);
             assert_eq!(
                 result,
                 vec![
@@ -1086,7 +1183,7 @@ mod sections_divider {
 
         #[test]
         fn test_even_distribution() {
-            let result = divide_viewport(&[10, 20, 30], 9, 100);
+            let result = divide_viewport(&[10, 20, 30], 20, 9, 100);
             assert_eq!(
                 result,
                 vec![
@@ -1101,7 +1198,7 @@ mod sections_divider {
         fn test_sections_within_viewport() {
             let viewport_height = 8;
             let lines = vec![5, 6, 15];
-            let result = divide_viewport(&lines, viewport_height, 100);
+            let result = divide_viewport(&lines, 6, viewport_height, 100);
 
             let total_lines: usize = result
                 .iter()
@@ -1130,7 +1227,7 @@ mod sections_divider {
                 // for this specific quickcheck test case
                 let max_line_index = (usize::arbitrary(g) % 10).max(viewport_height);
 
-                let line_numbers_length = (usize::arbitrary(g) % (viewport_height + 1)).max(1);
+                let line_numbers_length = (usize::arbitrary(g) % 10).max(1);
                 let line_numbers = (0..line_numbers_length)
                     .map(|_| usize::arbitrary(g) % (max_line_index + 1))
                     .collect_vec();
@@ -1149,8 +1246,14 @@ mod sections_divider {
                 viewport_height,
                 line_numbers,
             } = input;
-            let sections = divide_viewport(&line_numbers, viewport_height, max_line_index);
-            // println!("sections = {sections:?}");
+            let random_index = random::<usize>() % line_numbers.len();
+            let focused_line_number = line_numbers.get(random_index).unwrap();
+            let sections = divide_viewport(
+                &line_numbers,
+                *focused_line_number,
+                viewport_height,
+                max_line_index,
+            );
 
             let sum: usize = sections
                 .into_iter()
@@ -1158,8 +1261,40 @@ mod sections_divider {
                 .sum();
             sum == viewport_height
         }
+
+        #[quickcheck]
+        fn no_viewport_sections_should_intersect(input: Input) -> bool {
+            let Input {
+                max_line_index,
+                viewport_height,
+                line_numbers,
+            } = input;
+            let random_index = random::<usize>() % line_numbers.len();
+            let focused_line_number = line_numbers.get(random_index).unwrap();
+            let sections = divide_viewport(
+                &line_numbers,
+                *focused_line_number,
+                viewport_height,
+                max_line_index,
+            );
+
+            sections.iter().enumerate().all(|(index, section)| {
+                !sections
+                    .iter()
+                    .enumerate()
+                    .filter(|(other_index, _)| other_index != &index)
+                    .any(|(_, other_section)| {
+                        other_section
+                            .range_set()
+                            .intersection(&section.range_set())
+                            .count()
+                            > 0
+                    })
+            })
+        }
     }
 }
+
 fn calculate_distribution(initial: &[usize], resources: usize) -> Vec<usize> {
     let mut final_amounts = initial.to_vec();
     let mut remaining = resources;
