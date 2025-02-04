@@ -204,12 +204,11 @@ impl Editor {
             })
         });
 
-        let hidden_parent_lines = match &self.fold {
+        let folded_lines = match &self.fold {
             Some(fold) => {
-                // TODO: add test case for this
                 let possible_selections = match fold {
                     Fold::CurrentSelectionMode => self
-                        .possible_selections(self.selection_set.primary_selection(), context)
+                        .folded_selections(self.selection_set.primary_selection(), context)
                         .unwrap_or_default()
                         .into_iter()
                         .map(|byte_range| byte_range.range().clone())
@@ -269,9 +268,7 @@ impl Editor {
             None => hidden_parent_lines,
         };
 
-        let hidden_parent_line_ranges = hidden_parent_lines
-            .iter()
-            .map(|line| line.line..line.line + 1);
+        let folded_line_ranges = folded_lines.iter().map(|line| line.line..line.line + 1);
         let visible_line_range = self.visible_line_range();
         let visible_line_byte_range = buffer
             .line_range_to_byte_range(&visible_line_range)
@@ -285,7 +282,7 @@ impl Editor {
                 |span| span.byte_range.clone(),
             )
             .iter()
-            .chain(hidden_parent_line_ranges.clone().flat_map(|line_range| {
+            .chain(folded_line_ranges.clone().flat_map(|line_range| {
                 let byte_range = buffer
                     .line_range_to_byte_range(&line_range)
                     .unwrap_or_default();
@@ -346,12 +343,16 @@ impl Editor {
             })
             .flatten();
 
-        let visible_parent_lines = visible_parent_lines.into_iter().map(|line| HighlightSpan {
-            source: Source::StyleKey(StyleKey::ParentLine),
-            range: HighlightSpanRange::Line(line.line),
-            set_symbol: None,
-            is_cursor: false,
-        });
+        let visible_parent_lines = if self.fold.is_none() {
+            Box::new(visible_parent_lines.into_iter().map(|line| HighlightSpan {
+                source: Source::StyleKey(StyleKey::ParentLine),
+                range: HighlightSpanRange::Line(line.line),
+                set_symbol: None,
+                is_cursor: false,
+            })) as Box<dyn Iterator<Item = HighlightSpan>>
+        } else {
+            Box::new(std::iter::empty())
+        };
         let updates = vec![]
             .into_iter()
             .chain(visible_parent_lines)
@@ -370,23 +371,19 @@ impl Editor {
             .chain(custom_regex_highlights)
             .chain(regex_highlight_rules)
             .collect_vec();
-        let hidden_parent_lines_grid = {
-            let boundaries = hidden_parent_line_ranges
+        let folded_grid = {
+            let boundaries = folded_line_ranges
                 .into_iter()
-                .map(|hidden_parent_line_range| Boundary::new(&buffer, hidden_parent_line_range))
+                .map(|folded_line_range| Boundary::new(&buffer, folded_line_range))
                 .collect_vec();
-            let non_consecutive_lines = get_non_consecutive_nums(
-                &hidden_parent_lines
-                    .iter()
-                    .map(|line| line.line)
-                    .collect_vec(),
-            );
+            let non_consecutive_lines =
+                get_non_consecutive_nums(&folded_lines.iter().map(|line| line.line).collect_vec());
             let updates = updates
                 .clone()
                 .into_iter()
                 .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
                 .collect_vec();
-            hidden_parent_lines.into_iter().fold(
+            folded_lines.into_iter().fold(
                 Grid::new(Dimension { height: 0, width }),
                 |grid, line| {
                     let updates = updates
@@ -424,9 +421,9 @@ impl Editor {
         };
 
         let grid = if self.fold.is_some() {
-            let hidden_parent_lines_length = hidden_parent_lines_grid.rows.len();
-            hidden_parent_lines_grid.merge_vertical(Grid::new(Dimension {
-                height: height.saturating_sub(hidden_parent_lines_length as u16),
+            let folded_lines_length = folded_grid.rows.len();
+            folded_grid.merge_vertical(Grid::new(Dimension {
+                height: height.saturating_sub(folded_lines_length as u16),
                 width,
             }))
         } else {
@@ -471,7 +468,7 @@ impl Editor {
                 .saturating_add(top_offset)
                 .saturating_sub(cursor_beyond_view_bottom as u16);
             let bottom = visible_lines_grid.clamp_bottom(clamp_bottom_by);
-            hidden_parent_lines_grid.merge_vertical(bottom)
+            folded_grid.merge_vertical(bottom)
         };
 
         debug_assert_eq!(grid.rows.len(), height as usize);
@@ -544,6 +541,21 @@ impl Editor {
         Ok(self
             .get_selection_mode_trait_object(selection, true, context)?
             .iter_filtered(selection_mode::SelectionModeParams {
+                buffer: &self.buffer(),
+                current_selection: selection,
+                cursor_direction: &self.cursor_direction,
+            })?
+            .collect())
+    }
+
+    pub(crate) fn folded_selections(
+        &self,
+        selection: &Selection,
+        context: &Context,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        Ok(self
+            .get_selection_mode_trait_object(selection, true, context)?
+            .iter_folded(selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,
