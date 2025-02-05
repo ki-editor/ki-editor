@@ -220,12 +220,9 @@ pub(crate) fn trim_array<T: Clone + std::fmt::Debug>(
     protected_range: Range<usize>,
     trim_count: usize,
 ) -> TrimResult<T> {
-    // Handle invalid cases
-    if arr.is_empty()
-        || protected_range.start >= arr.len()
-        || protected_range.end > arr.len()
-        || protected_range.start >= protected_range.end
-    {
+    debug_assert!(protected_range.start < protected_range.end);
+    debug_assert!(protected_range.end <= arr.len());
+    if arr.is_empty() {
         return TrimResult {
             trimmed_array: arr.to_vec(),
             remaining_trim_count: trim_count,

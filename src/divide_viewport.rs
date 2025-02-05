@@ -265,6 +265,10 @@ impl ViewportSectionWithOrigin {
     pub(crate) fn end_original(&self) -> usize {
         self.end_original
     }
+
+    pub(crate) fn start_original(&self) -> usize {
+        self.start_original
+    }
 }
 
 impl ViewportSection {

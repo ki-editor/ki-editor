@@ -277,7 +277,61 @@ fn two() {
             Editor(MatchLiteral("bar".to_string())),
             Editor(CursorAddToAllSelections),
             Expect(CurrentFold(Some(Fold::Cursor))),
-            Expect(EditorGrid("".trim())),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│fn main() {
+3│  █ar();
+5│fn two() {
+7│  bar();
+"
+                .trim(),
+            )),
+        ])
+    })
+}
+
+#[test]
+/// When there are not enough spaces, trimmed the hidden parent lines of each section
+fn each_folded_section_selections_should_always_be_visible() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+fn main() {
+  foo();
+  bar();
+}
+fn two() {
+  foo();
+  bar();
+}
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::new(0, 0),
+                width: 50,
+                height: 3,
+            })),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentFold(Some(Fold::Cursor))),
+            // The parent lines of the both `bar();` are trimmed due to space constrained
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+3│  █ar();
+7│  bar();
+"
+                .trim(),
+            )),
         ])
     })
 }

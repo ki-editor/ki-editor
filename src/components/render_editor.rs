@@ -30,15 +30,19 @@ impl Editor {
     pub(crate) fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
         let buffer = self.buffer();
         let grid = match &self.fold {
-            None => self.get_grid_with_dimension(
-                context,
-                self.render_area(),
-                self.scroll_offset(),
-                (self
+            None => {
+                let cursor_char_index = (self
                     .selection_set
                     .primary_selection()
-                    .to_char_index(&self.cursor_direction)),
-            ),
+                    .to_char_index(&self.cursor_direction));
+                self.get_grid_with_dimension(
+                    context,
+                    self.render_area(),
+                    self.scroll_offset(),
+                    cursor_char_index,
+                    cursor_char_index,
+                )
+            }
             Some(fold) => {
                 let ranges = match fold {
                     Fold::CurrentSelectionMode => self
@@ -69,9 +73,16 @@ impl Editor {
                         .ok(),
                 )
                 .collect_vec();
-                let line_numbers = ranges
+                let line_number_and_ranges: Vec<(usize, Range<usize>)> = ranges
                     .into_iter()
-                    .filter_map(|byte_range| buffer.byte_to_line(byte_range.start).ok())
+                    .filter_map(|byte_range| {
+                        Some((buffer.byte_to_line(byte_range.start).ok()?, byte_range))
+                    })
+                    .sorted_by_key(|(_, byte_range)| byte_range.start)
+                    .collect_vec();
+                let line_numbers = line_number_and_ranges
+                    .iter()
+                    .map(|(line_number, _)| *line_number)
                     .unique()
                     .collect_vec();
                 let focused_line_number = buffer
@@ -97,6 +108,35 @@ impl Editor {
                     }),
                     |grid, viewport_section| {
                         let scroll_offset = viewport_section.start() as u16;
+
+                        // The `protected_range_start` should be the FIRST range of the FIRST line of this `viewport_section`
+                        let protected_range_start = line_number_and_ranges
+                            .iter()
+                            .find(|(line, _)| line == &viewport_section.start_original())
+                            .and_then(|(_, byte_range)| {
+                                buffer
+                                    .byte_to_char(match self.cursor_direction {
+                                        super::editor::Direction::Start => byte_range.start,
+                                        super::editor::Direction::End => byte_range.end,
+                                    })
+                                    .ok()
+                            })
+                            .unwrap_or_default();
+
+                        // The `protected_range_end` should be the LAST range of the LAST line of this `viewport_section`
+                        let protected_range_end = line_number_and_ranges
+                            .iter()
+                            .rfind(|(line, _)| line == &viewport_section.end_original())
+                            .and_then(|(_, byte_range)| {
+                                buffer
+                                    .byte_to_char(match self.cursor_direction {
+                                        super::editor::Direction::Start => byte_range.start,
+                                        super::editor::Direction::End => byte_range.end,
+                                    })
+                                    .ok()
+                            })
+                            .unwrap_or_default();
+
                         grid.merge_vertical(self.get_grid_with_dimension(
                             context,
                             Dimension {
@@ -104,7 +144,8 @@ impl Editor {
                                 width: self.render_area().width,
                             },
                             scroll_offset,
-                            Default::default(), // viewport_section.end_original(),
+                            protected_range_start,
+                            protected_range_end,
                         ))
                     },
                 )
@@ -150,22 +191,29 @@ impl Editor {
         }
     }
 
+    /// Protected range must not be trimmed and always be rendered
     fn get_grid_with_dimension(
         &self,
         context: &Context,
         dimension: Dimension,
         scroll_offset: u16,
-        cursor_char_index: CharIndex,
+        protected_range_start: CharIndex,
+        protected_range_end: CharIndex, // Inclusive
     ) -> Grid {
         let editor = self;
         let Dimension { height, width } = dimension;
         let buffer = editor.buffer();
         let rope = buffer.rope();
-        let cursor_line = buffer.char_to_line(cursor_char_index).unwrap_or_default();
+        let protected_range_start_line = buffer
+            .char_to_line(protected_range_start)
+            .unwrap_or_default();
 
         let len_lines = rope.len_lines().max(1) as u16;
         let (hidden_parent_lines, visible_parent_lines) = self
-            .get_parent_lines_given_line_index_and_scroll_offset(cursor_line, scroll_offset)
+            .get_parent_lines_given_line_index_and_scroll_offset(
+                protected_range_start_line,
+                scroll_offset,
+            )
             .unwrap_or_default();
         let top_offset = hidden_parent_lines.len() as u16;
         let visible_lines = rope
@@ -194,8 +242,6 @@ impl Editor {
             .char_to_position(selection.to_char_index(&self.cursor_direction))
             .ok()
             .map(|position| CellUpdate::new(position).set_is_cursor(true));
-        println!("primary_selection_primary_cursor = {primary_selection_primary_cursor:?}");
-        println!("scroll_offset = {scroll_offset:?}");
         let updates = self.get_highlight_spans(
             context,
             &visible_line_range,
@@ -272,55 +318,53 @@ impl Editor {
                     .chain(primary_selection_primary_cursor)
                     .collect_vec()
             };
-            let visible_lines_grid = visible_lines_grid.render_content(
-                &visible_lines.map(|(_, line)| line).join(""),
-                RenderContentLineNumber::LineNumber {
-                    start_line_index: scroll_offset as usize,
-                    max_line_number: len_lines as usize,
-                },
-                visible_lines_updates
-                    .clone()
-                    .into_iter()
-                    .map(|cell_update| CellUpdate {
-                        position: cell_update.position.move_up(scroll_offset as usize),
-                        ..cell_update
-                    })
-                    .collect_vec(),
-                Default::default(),
-                theme,
-            );
+            let visible_lines_content = visible_lines.map(|(_, line)| line).join("");
+            let (wrapped_lines, visible_lines_grid) = visible_lines_grid
+                .render_content_return_wrapped_lines(
+                    &visible_lines_content,
+                    RenderContentLineNumber::LineNumber {
+                        start_line_index: scroll_offset as usize,
+                        max_line_number: len_lines as usize,
+                    },
+                    visible_lines_updates
+                        .clone()
+                        .into_iter()
+                        .map(|cell_update| CellUpdate {
+                            position: cell_update.position.move_up(scroll_offset as usize),
+                            ..cell_update
+                        })
+                        .collect_vec(),
+                    Default::default(),
+                    theme,
+                );
 
-            let calibrated_cursor_line = visible_lines_grid
-                .get_cursor_position()
-                .map(|cursor_position| cursor_position.line);
+            let protected_range = {
+                let protected_range_start = wrapped_lines
+                    .calibrate(
+                        protected_range_start
+                            .to_position(&buffer)
+                            .move_up(scroll_offset as usize),
+                    )
+                    .ok()
+                    .and_then(|mut positions| positions.first())
+                    .unwrap_or_default();
 
-            println!("calibrated_cursor_line = {calibrated_cursor_line:?}");
-            let cursor_beyond_view_bottom =
-                // TODO: replace cursor position with the minimum complusory range to be viewed
-                if let Some(line) = calibrated_cursor_line {
-                    line
-                    .saturating_sub(height.saturating_sub(1).saturating_sub(top_offset) as usize)
-                } else {
-                    0
-                };
-            let protected_range = calibrated_cursor_line
-                .map(|line| line..line + 1)
-                .unwrap_or(0..visible_lines_grid.dimension().height as usize);
-            println!("protected range = {protected_range:?}");
-            println!("top_offset = {top_offset:?}");
+                let protected_range_end = wrapped_lines
+                    .calibrate(
+                        protected_range_end
+                            .to_position(&buffer)
+                            .move_up(scroll_offset as usize),
+                    )
+                    .ok()
+                    .and_then(|mut positions| positions.first())
+                    .unwrap_or_default();
+                protected_range_start.line..protected_range_end.line + 1
+            };
+
             let trimmed_visible_lines_grid_rows_result = trim_array(
                 &visible_lines_grid.rows,
                 protected_range,
                 top_offset as usize,
-            );
-            println!("visible lines grid len = {}", visible_lines_grid.rows.len());
-            println!(
-                "trimm result len = {}",
-                trimmed_visible_lines_grid_rows_result.trimmed_array.len()
-            );
-            println!(
-                "trimm result remaning count = {}",
-                trimmed_visible_lines_grid_rows_result.remaining_trim_count
             );
             let result = hidden_parent_lines_grid
                 .clamp_bottom(trimmed_visible_lines_grid_rows_result.remaining_trim_count as u16)
@@ -328,19 +372,6 @@ impl Editor {
                     width: visible_lines_grid.width,
                     rows: trimmed_visible_lines_grid_rows_result.trimmed_array,
                 });
-
-            let visible_lines_grid = visible_lines_grid.clamp_top(cursor_beyond_view_bottom);
-            // Given the number of hidden parent lines
-            // Trim the visible_lines_grid, such that the cursor remain top/center/bottom (depending on the view alignment)
-            let clamp_bottom_by = visible_lines_grid
-                .dimension()
-                .height
-                .saturating_sub(height)
-                .saturating_add(top_offset)
-                .saturating_sub(cursor_beyond_view_bottom as u16);
-            let bottom = visible_lines_grid.clamp_bottom(clamp_bottom_by);
-
-            // hidden_parent_lines_grid.merge_vertical(bottom);
 
             result
         };

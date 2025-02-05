@@ -1,7 +1,7 @@
 use crate::{
     app::Dimension,
     position::Position,
-    soft_wrap::{self},
+    soft_wrap::{self, WrappedLines},
     style::Style,
     themes::{Color, Theme},
 };
@@ -273,7 +273,6 @@ impl Grid {
     }
 
     pub(crate) fn get_cursor_position(&self) -> Option<Position> {
-        // println!( "self.to_positioned_cells() = {:#?}", self.to_positioned_cells() );
         self.to_positioned_cells().into_iter().find_map(|cell| {
             if cell.cell.is_cursor {
                 Some(cell.position)
@@ -333,6 +332,23 @@ impl Grid {
         line_updates: Vec<LineUpdate>,
         theme: &Theme,
     ) -> Grid {
+        self.render_content_return_wrapped_lines(
+            content,
+            line_number,
+            cell_updates,
+            line_updates,
+            theme,
+        )
+        .1
+    }
+    pub(crate) fn render_content_return_wrapped_lines(
+        self,
+        content: &str,
+        line_number: RenderContentLineNumber,
+        cell_updates: Vec<CellUpdate>,
+        line_updates: Vec<LineUpdate>,
+        theme: &Theme,
+    ) -> (WrappedLines, Grid) {
         let Dimension { height, width } = self.dimension();
         let (line_index_start, max_line_number_len, line_number_separator_width) = match line_number
         {
@@ -556,8 +572,11 @@ impl Grid {
         } else {
             calibrated
         };
-        self.set_background_color(theme.ui.background_color)
-            .apply_cell_updates(trimmed)
+        (
+            wrapped_lines,
+            self.set_background_color(theme.ui.background_color)
+                .apply_cell_updates(trimmed),
+        )
     }
 
     fn set_background_color(mut self, background_color: Color) -> Self {
