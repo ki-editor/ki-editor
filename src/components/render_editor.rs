@@ -191,7 +191,6 @@ impl Editor {
         } else {
             let visible_lines_updates = {
                 let boundaries = [Boundary::new(&buffer, visible_line_range)];
-                println!("primary_selection_primary_cursor = {primary_selection_primary_cursor:?}");
                 updates
                     .iter()
                     .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))

@@ -1432,6 +1432,9 @@ impl Editor {
                 .update_selection_set(selection_set, true)
                 .append(Dispatch::ToEditor(EnterNormalMode)))
         } else {
+            if self.selection_set.mode != selection_mode {
+                self.fold = None
+            }
             self.move_selection_with_selection_mode_without_global_mode(
                 Movement::Current(if_current_not_found),
                 selection_mode.clone(),

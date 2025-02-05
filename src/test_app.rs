@@ -28,7 +28,9 @@ use crate::{
     clipboard::CopiedTexts,
     components::{
         component::Component,
-        editor::{Direction, DispatchEditor, IfCurrentNotFound, Mode, Movement, ViewAlignment},
+        editor::{
+            Direction, DispatchEditor, Fold, IfCurrentNotFound, Mode, Movement, ViewAlignment,
+        },
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
     context::{GlobalMode, LocalSearchConfigMode},
@@ -115,6 +117,7 @@ pub(crate) enum ExpectKind {
     CurrentGlobalMode(Option<GlobalMode>),
     LspRequestSent(FromEditor),
     CurrentCopiedTextHistoryOffset(isize),
+    CurrentFold(Option<Fold>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -364,6 +367,9 @@ impl ExpectKind {
                     .primary_selection()?,
             ),
             CurrentGlobalMode(expected) => contextualize(expected, &app.context().mode()),
+            CurrentFold(expected) => {
+                contextualize(expected, &app.current_component().borrow().editor().fold)
+            }
         })
     }
 }

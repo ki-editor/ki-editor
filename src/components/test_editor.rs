@@ -4293,6 +4293,25 @@ fn spam() {
     })
 }
 
+#[test]
+fn fold_by_current_selection_mode_should_be_deactivated_when_selection_mode_changed(
+) -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(ToggleFold(Fold::CurrentSelectionMode)),
+            Expect(CurrentFold(Some(Fold::CurrentSelectionMode))),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(CurrentFold(None)),
+        ])
+    })
+}
+
 /// Fold by cursors
 #[test]
 fn fold_by_cursors() -> anyhow::Result<()> {
