@@ -4340,22 +4340,24 @@ foo
             )),
             Editor(MatchLiteral("foo".to_string())),
             Editor(CursorAddToAllSelections),
-            Expect(EditorGrid(
-                "
-🦀  src/main.rs [*]
-1│█oo
-2│x
-3│foo
-"
-                .trim(),
-            )),
-            Editor(ToggleFold(Fold::Cursor)),
+            Expect(CurrentFold(Some(Fold::Cursor))),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
 1│█oo
 3│foo
 5│foo
+"
+                .trim(),
+            )),
+            Editor(CursorKeepPrimaryOnly),
+            Expect(CurrentFold(None)),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│█oo
+2│x
+3│foo
 "
                 .trim(),
             )),

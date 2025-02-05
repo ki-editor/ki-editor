@@ -1432,7 +1432,9 @@ impl Editor {
                 .update_selection_set(selection_set, true)
                 .append(Dispatch::ToEditor(EnterNormalMode)))
         } else {
-            if self.selection_set.mode != selection_mode {
+            if self.fold == Some(Fold::CurrentSelectionMode)
+                && self.selection_set.mode != selection_mode
+            {
                 self.fold = None
             }
             self.move_selection_with_selection_mode_without_global_mode(
@@ -2430,6 +2432,7 @@ impl Editor {
         context: &Context,
     ) -> Result<(), anyhow::Error> {
         self.mode = Mode::Normal;
+        self.fold = Some(Fold::Cursor);
         self.selection_set
             .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
         self.recalculate_scroll_offset();
@@ -2438,6 +2441,7 @@ impl Editor {
 
     pub(crate) fn cursor_keep_primary_only(&mut self) {
         self.mode = Mode::Normal;
+        self.fold = None;
         self.selection_set.only();
     }
 
