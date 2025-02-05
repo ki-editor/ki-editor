@@ -52,6 +52,13 @@ pub(crate) fn distribute_items(total: usize, n_parts: usize) -> Vec<usize> {
         .map(|index| quotient + usize::from(index < remainder))
         .collect()
 }
+
+pub(crate) fn distribute_items_by_2(total: usize) -> (usize, usize) {
+    distribute_items(total, 2)
+        .into_iter()
+        .collect_tuple()
+        .unwrap()
+}
 use itertools::Itertools;
 
 pub(crate) fn get_non_consecutive_nums(nums: &[usize]) -> Vec<usize> {
@@ -162,6 +169,248 @@ mod test_utils {
             let n_parts = 5;
             let result = distribute_items(total, n_parts);
             assert_eq!(result.iter().sum::<usize>(), total);
+        }
+    }
+}
+
+use std::iter;
+use std::ops::Range;
+
+/// Result of a trim operation, containing the trimmed array and any remaining trim count
+/// that couldn't be applied while respecting the protected range.
+#[derive(Debug)]
+pub struct TrimResult<T> {
+    pub trimmed_array: Vec<T>,
+    pub remaining_trim_count: usize,
+}
+
+/// Trims elements from an array while protecting a specified range of indices.
+/// The protected range is kept as centered as possible in the resulting array.
+///
+/// # Arguments
+///
+/// * `arr` - The input slice to trim
+/// * `protected_range` - Range of indices that must be preserved in the output
+/// * `trim_count` - Number of elements to remove
+///
+/// # Returns
+///
+/// Returns a `TrimResult` containing:
+/// * `trimmed_array`: The resulting array after trimming
+/// * `remaining_trim_count`: Number of requested trims that couldn't be performed
+///
+/// # Example
+///
+/// ```
+/// let arr = vec![0, 1, 2, 3, 4, 5, 6];
+/// let result = trim_array(&arr, 2..5, 2);
+/// assert_eq!(result.trimmed_array, vec![1, 2, 3, 4, 5]);
+/// assert_eq!(result.remaining_trim_count, 0);
+/// ```
+///
+/// # Behavior
+///
+/// * If the array is empty or the range is invalid, returns the original array
+/// * Attempts to keep the protected range centered by trimming equally from both sides
+/// * When equal trimming isn't possible, trims from the side with more available elements
+/// * Never removes elements from the protected range
+/// * If requested trim count exceeds available elements, trims what it can and returns the remainder
+pub(crate) fn trim_array<T: Clone + std::fmt::Debug>(
+    arr: &[T],
+    protected_range: Range<usize>,
+    trim_count: usize,
+) -> TrimResult<T> {
+    // Handle invalid cases
+    if arr.is_empty()
+        || protected_range.start >= arr.len()
+        || protected_range.end > arr.len()
+        || protected_range.start >= protected_range.end
+    {
+        return TrimResult {
+            trimmed_array: arr.to_vec(),
+            remaining_trim_count: trim_count,
+        };
+    }
+
+    // Calculate elements available for trimming on each side
+    let left_available = protected_range.start;
+    let right_available = arr.len() - protected_range.end;
+    let total_available = left_available + right_available;
+    // If we can't trim anything or don't need to, return early
+    if total_available == 0 || trim_count == 0 {
+        return TrimResult {
+            trimmed_array: arr.to_vec(),
+            remaining_trim_count: trim_count,
+        };
+    }
+
+    // Calculate how many elements we can actually trim
+    let to_trim = trim_count.min(total_available);
+    // Calculate balanced trimming amounts
+    let (left_trim, right_trim) = distribute_items_by_2(to_trim);
+    let (left_trim, right_trim) = (
+        (left_trim + right_trim.saturating_sub(right_available)).min(left_available),
+        (right_trim + left_trim.saturating_sub(left_available)).min(right_available),
+    );
+    // Create the result using iterator operations
+    let result: Vec<T> = arr
+        .iter()
+        .skip(left_trim)
+        .take(arr.len() - left_trim - right_trim)
+        .cloned()
+        .collect();
+
+    TrimResult {
+        trimmed_array: result,
+        remaining_trim_count: trim_count - to_trim,
+    }
+}
+
+#[cfg(test)]
+mod test_trim_array {
+    use super::*;
+
+    #[test]
+    fn test_basic_centering() {
+        let arr = vec![0, 1, 2, 3, 4, 5, 6];
+        // Protect [2, 3, 4], trim count 2
+        let result = trim_array(&arr, 2..5, 2);
+        assert_eq!(result.trimmed_array, vec![1, 2, 3, 4, 5]);
+        assert_eq!(result.remaining_trim_count, 0);
+    }
+
+    #[test]
+    fn test_with_chars() {
+        let arr = vec!['0', '1', '2', '3', '4'];
+        let result = trim_array(&arr, 2..3, 2);
+        assert_eq!(result.trimmed_array, vec!['1', '2', '3']);
+        assert_eq!(result.remaining_trim_count, 0);
+    }
+
+    #[test]
+    fn test_leftmost_protected() {
+        let arr = vec![0, 1, 2, 3, 4, 5];
+        let result = trim_array(&arr, 0..2, 2);
+        assert_eq!(result.trimmed_array, vec![0, 1, 2, 3]);
+        assert_eq!(result.remaining_trim_count, 0);
+    }
+
+    #[test]
+    fn test_rightmost_protected() {
+        let arr = vec![0, 1, 2, 3, 4, 5];
+        let result = trim_array(&arr, 4..6, 2);
+        assert_eq!(result.trimmed_array, vec![2, 3, 4, 5]);
+        assert_eq!(result.remaining_trim_count, 0);
+    }
+
+    #[test]
+    fn test_cant_center_perfectly() {
+        let arr = vec![0, 1, 2, 3, 4, 5, 6, 7];
+        let result = trim_array(&arr, 3..5, 3);
+        assert_eq!(result.trimmed_array, vec![2, 3, 4, 5, 6]);
+        assert_eq!(result.remaining_trim_count, 0);
+    }
+
+    #[test]
+    fn test_empty_array() {
+        let arr: Vec<i32> = vec![];
+        let result = trim_array(&arr, 0..0, 1);
+        assert_eq!(result.trimmed_array.len(), 0);
+        assert_eq!(result.remaining_trim_count, 1);
+    }
+
+    #[test]
+    fn test_invalid_range() {
+        let arr = vec![0, 1, 2];
+        let result = trim_array(&arr, 2..1, 1);
+        assert_eq!(result.trimmed_array, vec![0, 1, 2]);
+        assert_eq!(result.remaining_trim_count, 1);
+    }
+
+    #[cfg(test)]
+    mod property_tests {
+        use super::*;
+        use quickcheck::{Arbitrary, Gen, TestResult};
+        use quickcheck_macros::quickcheck;
+
+        #[derive(Debug, Clone)]
+        struct ValidRange(Range<usize>);
+
+        impl Arbitrary for ValidRange {
+            fn arbitrary(g: &mut Gen) -> Self {
+                let len = usize::arbitrary(g) % 20; // Limit array length for practical testing
+                if len == 0 {
+                    return ValidRange(0..0);
+                }
+                let start = usize::arbitrary(g) % len;
+                let end = start + (usize::arbitrary(g) % (len - start + 1));
+                ValidRange(start..end.min(len))
+            }
+        }
+
+        fn is_subsequence<T: PartialEq + std::fmt::Debug>(shorter: &[T], longer: &[T]) -> bool {
+            let mut long_iter = longer.iter();
+            shorter.iter().all(|x| long_iter.by_ref().any(|y| x == y))
+        }
+
+        #[quickcheck]
+        fn protected_range_preserved(
+            arr: Vec<u8>,
+            range: ValidRange,
+            trim_count: usize,
+        ) -> TestResult {
+            if arr.is_empty() || range.0.start >= arr.len() || range.0.end > arr.len() {
+                return TestResult::discard();
+            }
+
+            let result = trim_array(&arr, range.0.clone(), trim_count);
+            let protected = &arr[range.0];
+            let expected_subsequence = protected.to_vec();
+
+            TestResult::from_bool(is_subsequence(&expected_subsequence, &result.trimmed_array))
+        }
+
+        #[quickcheck]
+        fn correct_length_after_trim(
+            arr: Vec<u8>,
+            range: ValidRange,
+            trim_count: usize,
+        ) -> TestResult {
+            let result = trim_array(&arr, range.0, trim_count);
+            let actual_trims = trim_count - result.remaining_trim_count;
+
+            TestResult::from_bool(result.trimmed_array.len() == arr.len() - actual_trims)
+        }
+
+        #[quickcheck]
+        fn never_exceeds_trim_count(arr: Vec<u8>, range: ValidRange, trim_count: usize) -> bool {
+            let result = trim_array(&arr, range.0, trim_count);
+            arr.len() - result.trimmed_array.len() <= trim_count
+        }
+
+        #[quickcheck]
+        fn maintains_element_order(arr: Vec<u8>, range: ValidRange, trim_count: usize) -> bool {
+            let result = trim_array(&arr, range.0, trim_count);
+            is_subsequence(&result.trimmed_array, &arr)
+        }
+
+        #[quickcheck]
+        fn trim_count_conservation(arr: Vec<u8>, range: ValidRange, trim_count: usize) -> bool {
+            let result = trim_array(&arr, range.0, trim_count);
+            let actual_trims = arr.len() - result.trimmed_array.len();
+            actual_trims + result.remaining_trim_count == trim_count
+        }
+
+        #[quickcheck]
+        fn invalid_range_returns_original(arr: Vec<u8>, trim_count: usize) -> TestResult {
+            if arr.is_empty() {
+                return TestResult::discard();
+            }
+
+            let invalid_range = arr.len()..arr.len() + 1;
+            let result = trim_array(&arr, invalid_range, trim_count);
+
+            TestResult::from_bool(result.trimmed_array == arr)
         }
     }
 }

@@ -4140,7 +4140,7 @@ fn should_trim_parent_line_if_not_enough_space() -> anyhow::Result<()> {
             }),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
-                width: 100,
+                width: 20,
                 height: 3,
             })),
             Editor(SetContent(
@@ -4155,11 +4155,12 @@ fn main() {
                 .to_string(),
             )),
             Editor(MatchLiteral("bar".to_string())),
+            Expect(CurrentSelectedTexts(&["bar"])),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
-1│█n main() {
-3│        bar();
+1│fn main() {
+3│        █ar();
 "
                 .trim(),
             )),

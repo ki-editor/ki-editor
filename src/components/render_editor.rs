@@ -18,7 +18,7 @@ use crate::{
     selection_mode::{self, ByteRange},
     style::Style,
     themes::Theme,
-    utils::get_non_consecutive_nums,
+    utils::{get_non_consecutive_nums, trim_array},
 };
 
 use super::{
@@ -194,6 +194,8 @@ impl Editor {
             .char_to_position(selection.to_char_index(&self.cursor_direction))
             .ok()
             .map(|position| CellUpdate::new(position).set_is_cursor(true));
+        println!("primary_selection_primary_cursor = {primary_selection_primary_cursor:?}");
+        println!("scroll_offset = {scroll_offset:?}");
         let updates = self.get_highlight_spans(
             context,
             &visible_line_range,
@@ -291,6 +293,8 @@ impl Editor {
             let calibrated_cursor_line = visible_lines_grid
                 .get_cursor_position()
                 .map(|cursor_position| cursor_position.line);
+
+            println!("calibrated_cursor_line = {calibrated_cursor_line:?}");
             let cursor_beyond_view_bottom =
                 // TODO: replace cursor position with the minimum complusory range to be viewed
                 if let Some(line) = calibrated_cursor_line {
@@ -299,7 +303,35 @@ impl Editor {
                 } else {
                     0
                 };
+            let protected_range = calibrated_cursor_line
+                .map(|line| line..line + 1)
+                .unwrap_or(0..visible_lines_grid.dimension().height as usize);
+            println!("protected range = {protected_range:?}");
+            println!("top_offset = {top_offset:?}");
+            let trimmed_visible_lines_grid_rows_result = trim_array(
+                &visible_lines_grid.rows,
+                protected_range,
+                top_offset as usize,
+            );
+            println!("visible lines grid len = {}", visible_lines_grid.rows.len());
+            println!(
+                "trimm result len = {}",
+                trimmed_visible_lines_grid_rows_result.trimmed_array.len()
+            );
+            println!(
+                "trimm result remaning count = {}",
+                trimmed_visible_lines_grid_rows_result.remaining_trim_count
+            );
+            let result = hidden_parent_lines_grid
+                .clamp_bottom(trimmed_visible_lines_grid_rows_result.remaining_trim_count as u16)
+                .merge_vertical(Grid {
+                    width: visible_lines_grid.width,
+                    rows: trimmed_visible_lines_grid_rows_result.trimmed_array,
+                });
+
             let visible_lines_grid = visible_lines_grid.clamp_top(cursor_beyond_view_bottom);
+            // Given the number of hidden parent lines
+            // Trim the visible_lines_grid, such that the cursor remain top/center/bottom (depending on the view alignment)
             let clamp_bottom_by = visible_lines_grid
                 .dimension()
                 .height
@@ -307,7 +339,10 @@ impl Editor {
                 .saturating_add(top_offset)
                 .saturating_sub(cursor_beyond_view_bottom as u16);
             let bottom = visible_lines_grid.clamp_bottom(clamp_bottom_by);
-            hidden_parent_lines_grid.merge_vertical(bottom)
+
+            // hidden_parent_lines_grid.merge_vertical(bottom);
+
+            result
         };
 
         debug_assert_eq!(grid.rows.len(), height as usize);

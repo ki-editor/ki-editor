@@ -704,9 +704,14 @@ impl Editor {
     }
 
     fn align_cursor_to_center(&mut self) {
-        self.scroll_offset = self
-            .cursor_row()
-            .saturating_sub((self.rectangle.height as f64 / 2.0).ceil() as u16);
+        self.scroll_offset = self.cursor_row().saturating_sub(
+            (self
+                .rectangle
+                .height
+                .saturating_sub(WINDOW_TITLE_HEIGHT as u16) as f64
+                / 2.0)
+                .ceil() as u16,
+        );
     }
 
     pub(crate) fn select(

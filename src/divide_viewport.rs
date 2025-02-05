@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use itertools::Itertools;
 
-use crate::{components::editor::ViewAlignment, utils::distribute_items};
+use crate::{components::editor::ViewAlignment, utils::distribute_items_by_2};
 
 /// Divides a set of line numbers into viewport sections based on a focused line and viewport constraints.
 ///
@@ -85,10 +85,7 @@ fn divide_viewport_impl(
                 let context_lines_length = context_lines_length.saturating_sub(section.len());
                 match view_alignment {
                     ViewAlignment::Top => (0, context_lines_length),
-                    ViewAlignment::Center => distribute_items(context_lines_length, 2)
-                        .into_iter()
-                        .collect_tuple()
-                        .unwrap(),
+                    ViewAlignment::Center => distribute_items_by_2(context_lines_length),
                     ViewAlignment::Bottom => (context_lines_length, 0),
                 }
             };
@@ -181,10 +178,7 @@ fn extract_centered_window<T: Ord + Eq + Clone + std::fmt::Debug>(
             .collect_vec();
     };
 
-    let (go_left_by, go_right_by) = distribute_items(window_size.saturating_sub(1), 2)
-        .into_iter()
-        .collect_tuple()
-        .unwrap();
+    let (go_left_by, go_right_by) = distribute_items_by_2(window_size.saturating_sub(1));
 
     let go_left_by =
         go_left_by + (index + go_right_by).saturating_sub(elements.len().saturating_sub(1));

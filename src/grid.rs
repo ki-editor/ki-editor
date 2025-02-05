@@ -273,6 +273,7 @@ impl Grid {
     }
 
     pub(crate) fn get_cursor_position(&self) -> Option<Position> {
+        // println!( "self.to_positioned_cells() = {:#?}", self.to_positioned_cells() );
         self.to_positioned_cells().into_iter().find_map(|cell| {
             if cell.cell.is_cursor {
                 Some(cell.position)
