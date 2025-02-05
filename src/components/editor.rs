@@ -510,10 +510,18 @@ impl Editor {
     pub(crate) fn get_parent_lines(&self) -> anyhow::Result<(Vec<Line>, Vec<Line>)> {
         let position = self.get_cursor_position()?;
 
-        let parent_lines = self.buffer().get_parent_lines(position.line)?;
+        self.get_parent_lines_given_line_index_and_scroll_offset(position.line, self.scroll_offset)
+    }
+
+    pub(crate) fn get_parent_lines_given_line_index_and_scroll_offset(
+        &self,
+        line_index: usize,
+        scroll_offset: u16,
+    ) -> anyhow::Result<(Vec<Line>, Vec<Line>)> {
+        let parent_lines = self.buffer().get_parent_lines(line_index)?;
         Ok(parent_lines
             .into_iter()
-            .partition(|line| line.line < self.scroll_offset as usize))
+            .partition(|line| line.line < scroll_offset as usize))
     }
 
     pub(crate) fn show_info(&mut self, info: Info) -> Result<(), anyhow::Error> {
@@ -2421,8 +2429,19 @@ impl Editor {
     }
 
     pub(crate) fn visible_line_range(&self) -> Range<usize> {
-        let start = self.scroll_offset;
-        let end = (start as usize + self.rectangle.height as usize).min(self.buffer().len_lines());
+        self.visible_line_range_given_scroll_offset_and_height(
+            self.scroll_offset,
+            self.rectangle.height,
+        )
+    }
+
+    pub(crate) fn visible_line_range_given_scroll_offset_and_height(
+        &self,
+        scroll_offset: u16,
+        height: u16,
+    ) -> Range<usize> {
+        let start = scroll_offset;
+        let end = (start as usize + height as usize).min(self.buffer().len_lines());
 
         start as usize..end
     }
@@ -2441,7 +2460,9 @@ impl Editor {
 
     pub(crate) fn cursor_keep_primary_only(&mut self) {
         self.mode = Mode::Normal;
-        self.fold = None;
+        if self.fold == Some(Fold::Cursor) {
+            self.fold = None;
+        }
         self.selection_set.only();
     }
 

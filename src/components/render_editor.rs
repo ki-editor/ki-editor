@@ -28,35 +28,19 @@ use super::{
 
 impl Editor {
     pub(crate) fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
-        let editor = self;
-        let Dimension { height, width } = editor.render_area();
-        let buffer = editor.buffer();
-        let rope = buffer.rope();
-
-        let len_lines = rope.len_lines().max(1) as u16;
-        let (hidden_parent_lines, visible_parent_lines) =
-            self.get_parent_lines().unwrap_or_default();
-        let top_offset = hidden_parent_lines.len() as u16;
-        let scroll_offset = self.scroll_offset();
-        let visible_lines = rope
-            .lines()
-            .enumerate()
-            .skip(scroll_offset as usize)
-            .take(height as usize)
-            .map(|(line_index, slice)| (line_index, slice.to_string()));
-
-        let visible_lines_grid: Grid = Grid::new(Dimension { height, width });
-
-        let selection = &editor.selection_set.primary_selection();
-        // If the buffer selection is updated less recently than the window's scroll offset,
-
-        // use the window's scroll offset.
-
-        let theme = context.theme();
-
-        let folded_lines = match &self.fold {
+        let buffer = self.buffer();
+        let grid = match &self.fold {
+            None => self.get_grid_with_dimension(
+                context,
+                self.render_area(),
+                self.scroll_offset(),
+                (self
+                    .selection_set
+                    .primary_selection()
+                    .to_char_index(&self.cursor_direction)),
+            ),
             Some(fold) => {
-                let possible_selections = match fold {
+                let ranges = match fold {
                     Fold::CurrentSelectionMode => self
                         .folded_selections(self.selection_set.primary_selection(), context)
                         .unwrap_or_default()
@@ -73,17 +57,23 @@ impl Editor {
                         .buffer()
                         .marks()
                         .into_iter()
-                        .chain(Some(
-                            self.selection_set.primary_selection().extended_range(),
-                        ))
                         .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
                         .collect_vec(),
                 }
                 .into_iter()
-                .filter_map(|byte_range| buffer.byte_to_line(byte_range.start).ok())
-                .unique()
+                .chain(
+                    buffer
+                        .char_index_range_to_byte_range(
+                            self.selection_set.primary_selection().extended_range(),
+                        )
+                        .ok(),
+                )
                 .collect_vec();
-                let line_numbers = possible_selections.clone();
+                let line_numbers = ranges
+                    .into_iter()
+                    .filter_map(|byte_range| buffer.byte_to_line(byte_range.start).ok())
+                    .unique()
+                    .collect_vec();
                 let focused_line_number = buffer
                     .char_to_line(
                         self.selection_set
@@ -95,147 +85,32 @@ impl Editor {
                 let viewport_sections = divide_viewport(
                     &line_numbers,
                     focused_line_number,
-                    height as usize,
+                    self.render_area().height as usize,
                     buffer.len_lines().saturating_sub(1),
                     self.current_view_alignment.unwrap_or(ViewAlignment::Center),
                 );
-                viewport_sections
-                    .into_iter()
-                    .flat_map(|viewport_section| viewport_section.range_vec().into_iter())
-                    .unique()
-                    .sorted()
-                    .filter_map(|line_index| {
-                        let start_position = buffer.line_to_position(line_index).ok()?;
-                        Some(Line {
-                            origin_position: start_position,
-                            line: start_position.line,
-                            content: buffer
-                                .get_line_by_line_index(start_position.line)?
-                                .to_string(),
-                        })
-                    })
-                    .collect_vec()
+
+                viewport_sections.into_iter().fold(
+                    Grid::new(Dimension {
+                        height: 0,
+                        width: self.dimension().width,
+                    }),
+                    |grid, viewport_section| {
+                        let scroll_offset = viewport_section.start() as u16;
+                        grid.merge_vertical(self.get_grid_with_dimension(
+                            context,
+                            Dimension {
+                                height: viewport_section.height() as u16,
+                                width: self.render_area().width,
+                            },
+                            scroll_offset,
+                            Default::default(), // viewport_section.end_original(),
+                        ))
+                    },
+                )
             }
-            None => hidden_parent_lines,
         };
-        let folded_line_ranges = folded_lines
-            .iter()
-            .map(|line| line.line..line.line + 1)
-            .collect_vec();
-        let visible_line_range = self.visible_line_range();
-        let primary_selection_primary_cursor = buffer
-            .char_to_position(selection.to_char_index(&self.cursor_direction))
-            .ok()
-            .map(|position| CellUpdate::new(position).set_is_cursor(true));
-        let updates = self.get_highlight_spans(
-            context,
-            &visible_line_range,
-            &folded_line_ranges,
-            &visible_parent_lines,
-        );
-
-        let folded_grid = {
-            let boundaries = folded_line_ranges
-                .into_iter()
-                .map(|folded_line_range| Boundary::new(&buffer, folded_line_range))
-                .collect_vec();
-            let non_consecutive_lines =
-                get_non_consecutive_nums(&folded_lines.iter().map(|line| line.line).collect_vec());
-            let updates = updates
-                .clone()
-                .into_iter()
-                .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
-                .collect_vec();
-            folded_lines.into_iter().fold(
-                Grid::new(Dimension { height: 0, width }),
-                |grid, line| {
-                    let updates = updates
-                        .iter()
-                        .chain(&primary_selection_primary_cursor)
-                        .filter_map(|update| {
-                            if update.position.line == line.line {
-                                Some(update.clone().set_position_line(0))
-                            } else {
-                                None
-                            }
-                        })
-                        .collect_vec();
-                    let line_updates = if non_consecutive_lines.contains(&line.line) {
-                        [LineUpdate {
-                            line_index: 0,
-                            style: Style::new().background_color(theme.ui.parent_lines_background),
-                        }]
-                        .to_vec()
-                    } else {
-                        Default::default()
-                    };
-                    grid.merge_vertical(Grid::new(Dimension { height: 1, width }).render_content(
-                        &line.content,
-                        RenderContentLineNumber::LineNumber {
-                            start_line_index: line.line,
-                            max_line_number: len_lines as usize,
-                        },
-                        updates,
-                        line_updates,
-                        theme,
-                    ))
-                },
-            )
-        };
-
-        let grid = if self.fold.is_some() {
-            let folded_lines_length = folded_grid.rows.len();
-            folded_grid.merge_vertical(Grid::new(Dimension {
-                height: height.saturating_sub(folded_lines_length as u16),
-                width,
-            }))
-        } else {
-            let visible_lines_updates = {
-                let boundaries = [Boundary::new(&buffer, visible_line_range)];
-                updates
-                    .iter()
-                    .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
-                    .chain(primary_selection_primary_cursor)
-                    .collect_vec()
-            };
-            let visible_lines_grid = visible_lines_grid.render_content(
-                &visible_lines.map(|(_, line)| line).join(""),
-                RenderContentLineNumber::LineNumber {
-                    start_line_index: scroll_offset as usize,
-                    max_line_number: len_lines as usize,
-                },
-                visible_lines_updates
-                    .clone()
-                    .into_iter()
-                    .map(|cell_update| CellUpdate {
-                        position: cell_update.position.move_up(scroll_offset as usize),
-                        ..cell_update
-                    })
-                    .collect_vec(),
-                Vec::new(),
-                theme,
-            );
-            let cursor_beyond_view_bottom =
-                if let Some(cursor_position) = visible_lines_grid.get_cursor_position() {
-                    cursor_position
-                    .line
-                    .saturating_sub(height.saturating_sub(1).saturating_sub(top_offset) as usize)
-                } else {
-                    0
-                };
-            let visible_lines_grid = visible_lines_grid.clamp_top(cursor_beyond_view_bottom);
-            let clamp_bottom_by = visible_lines_grid
-                .dimension()
-                .height
-                .saturating_sub(height)
-                .saturating_add(top_offset)
-                .saturating_sub(cursor_beyond_view_bottom as u16);
-            let bottom = visible_lines_grid.clamp_bottom(clamp_bottom_by);
-            folded_grid.merge_vertical(bottom)
-        };
-
-        debug_assert_eq!(grid.rows.len(), height as usize);
-        debug_assert!(grid.rows.iter().all(|row| row.len() == width as usize));
+        let theme = context.theme();
         let window_title_style = if focused {
             theme.ui.window_title_focused
         } else {
@@ -248,7 +123,7 @@ impl Editor {
 
         let title_grid = Grid::new(Dimension {
             height: WINDOW_TITLE_HEIGHT as u16,
-            width: editor.dimension().width,
+            width: self.dimension().width,
         })
         .render_content(
             &self.title(context),
@@ -275,6 +150,171 @@ impl Editor {
         }
     }
 
+    fn get_grid_with_dimension(
+        &self,
+        context: &Context,
+        dimension: Dimension,
+        scroll_offset: u16,
+        cursor_char_index: CharIndex,
+    ) -> Grid {
+        let editor = self;
+        let Dimension { height, width } = dimension;
+        let buffer = editor.buffer();
+        let rope = buffer.rope();
+        let cursor_line = buffer.char_to_line(cursor_char_index).unwrap_or_default();
+
+        let len_lines = rope.len_lines().max(1) as u16;
+        let (hidden_parent_lines, visible_parent_lines) = self
+            .get_parent_lines_given_line_index_and_scroll_offset(cursor_line, scroll_offset)
+            .unwrap_or_default();
+        let top_offset = hidden_parent_lines.len() as u16;
+        let visible_lines = rope
+            .lines()
+            .enumerate()
+            .skip(scroll_offset as usize)
+            .take(height as usize)
+            .map(|(line_index, slice)| (line_index, slice.to_string()));
+
+        let visible_lines_grid: Grid = Grid::new(Dimension { height, width });
+
+        let selection = &editor.selection_set.primary_selection();
+        // If the buffer selection is updated less recently than the window's scroll offset,
+
+        // use the window's scroll offset.
+
+        let theme = context.theme();
+
+        let hidden_parent_line_ranges = hidden_parent_lines
+            .iter()
+            .map(|line| line.line..line.line + 1)
+            .collect_vec();
+        let visible_line_range =
+            self.visible_line_range_given_scroll_offset_and_height(scroll_offset, height);
+        let primary_selection_primary_cursor = buffer
+            .char_to_position(selection.to_char_index(&self.cursor_direction))
+            .ok()
+            .map(|position| CellUpdate::new(position).set_is_cursor(true));
+        let updates = self.get_highlight_spans(
+            context,
+            &visible_line_range,
+            &hidden_parent_line_ranges,
+            &visible_parent_lines,
+        );
+
+        let hidden_parent_lines_grid = {
+            let boundaries = hidden_parent_line_ranges
+                .into_iter()
+                .map(|folded_line_range| Boundary::new(&buffer, folded_line_range))
+                .collect_vec();
+            let non_consecutive_lines = get_non_consecutive_nums(
+                &hidden_parent_lines
+                    .iter()
+                    .map(|line| line.line)
+                    .collect_vec(),
+            );
+            let updates = hidden_parent_lines
+                .iter()
+                .map(|line| HighlightSpan {
+                    source: Source::StyleKey(StyleKey::ParentLine),
+                    range: HighlightSpanRange::Line(line.line),
+                    set_symbol: None,
+                    is_cursor: false,
+                })
+                .chain(updates.clone())
+                .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
+                .collect_vec();
+            hidden_parent_lines.into_iter().fold(
+                Grid::new(Dimension { height: 0, width }),
+                |grid, line| {
+                    let updates = updates
+                        .iter()
+                        .chain(&primary_selection_primary_cursor)
+                        .filter_map(|update| {
+                            if update.position.line == line.line {
+                                Some(update.clone().set_position_line(0))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect_vec();
+                    // TODO: remove the following code
+                    let line_updates = if false && non_consecutive_lines.contains(&line.line) {
+                        [LineUpdate {
+                            line_index: 0,
+                            style: Style::new().background_color(theme.ui.parent_lines_background),
+                        }]
+                        .to_vec()
+                    } else {
+                        Default::default()
+                    };
+                    grid.merge_vertical(Grid::new(Dimension { height: 1, width }).render_content(
+                        &line.content,
+                        RenderContentLineNumber::LineNumber {
+                            start_line_index: line.line,
+                            max_line_number: len_lines as usize,
+                        },
+                        updates,
+                        line_updates,
+                        theme,
+                    ))
+                },
+            )
+        };
+
+        let grid = {
+            let visible_lines_updates = {
+                let boundaries = [Boundary::new(&buffer, visible_line_range)];
+                updates
+                    .iter()
+                    .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
+                    .chain(primary_selection_primary_cursor)
+                    .collect_vec()
+            };
+            let visible_lines_grid = visible_lines_grid.render_content(
+                &visible_lines.map(|(_, line)| line).join(""),
+                RenderContentLineNumber::LineNumber {
+                    start_line_index: scroll_offset as usize,
+                    max_line_number: len_lines as usize,
+                },
+                visible_lines_updates
+                    .clone()
+                    .into_iter()
+                    .map(|cell_update| CellUpdate {
+                        position: cell_update.position.move_up(scroll_offset as usize),
+                        ..cell_update
+                    })
+                    .collect_vec(),
+                Default::default(),
+                theme,
+            );
+
+            let calibrated_cursor_line = visible_lines_grid
+                .get_cursor_position()
+                .map(|cursor_position| cursor_position.line);
+            let cursor_beyond_view_bottom =
+                // TODO: replace cursor position with the minimum complusory range to be viewed
+                if let Some(line) = calibrated_cursor_line {
+                    line
+                    .saturating_sub(height.saturating_sub(1).saturating_sub(top_offset) as usize)
+                } else {
+                    0
+                };
+            let visible_lines_grid = visible_lines_grid.clamp_top(cursor_beyond_view_bottom);
+            let clamp_bottom_by = visible_lines_grid
+                .dimension()
+                .height
+                .saturating_sub(height)
+                .saturating_add(top_offset)
+                .saturating_sub(cursor_beyond_view_bottom as u16);
+            let bottom = visible_lines_grid.clamp_bottom(clamp_bottom_by);
+            hidden_parent_lines_grid.merge_vertical(bottom)
+        };
+
+        debug_assert_eq!(grid.rows.len(), height as usize);
+        debug_assert!(grid.rows.iter().all(|row| row.len() == width as usize));
+        grid
+    }
+
     fn get_highlight_spans(
         &self,
         context: &Context,
@@ -288,8 +328,13 @@ impl Editor {
         let possible_selections = if self.selection_set.mode.is_contiguous() {
             Default::default()
         } else {
-            self.possible_selections(self.selection_set.primary_selection(), context)
-                // .possible_selections_in_line_number_range( self.selection_set.primary_selection(), context, )
+            self
+                //.possible_selections(self.selection_set.primary_selection(), context)
+                .possible_selections_in_line_number_range(
+                    self.selection_set.primary_selection(),
+                    context,
+                    visible_line_range,
+                )
                 .unwrap_or_default()
         }
         .into_iter()
@@ -533,20 +578,20 @@ impl Editor {
         &self,
         selection: &Selection,
         context: &Context,
+        line_number_range: &Range<usize>,
     ) -> anyhow::Result<Vec<ByteRange>> {
         let object = self.get_selection_mode_trait_object(selection, true, context)?;
         if self.selection_set.mode.is_contiguous() {
             return Ok(Vec::new());
         }
 
-        let line_range = self.visible_line_range();
         object.selections_in_line_number_range(
             &selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,
             },
-            [line_range].to_vec(),
+            [line_number_range.clone()].to_vec(),
         )
     }
 

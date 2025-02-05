@@ -12,3 +12,5 @@ pub(crate) mod render_editor;
 pub(crate) mod suggestive_editor;
 #[cfg(test)]
 mod test_editor;
+#[cfg(test)]
+mod test_editor_fold;

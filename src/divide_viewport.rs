@@ -15,7 +15,7 @@ pub(crate) fn divide_viewport(
     viewport_height: usize,
     max_line_index: usize,
     view_alignment: ViewAlignment,
-) -> Vec<ViewportSection> {
+) -> Vec<ViewportSectionWithOrigin> {
     debug_assert!(line_numbers
         .iter()
         .all(|line_number| *line_number <= max_line_index));
@@ -28,9 +28,11 @@ pub(crate) fn divide_viewport(
     if line_numbers.len() > viewport_height {
         return extract_centered_window(&line_numbers, focused_line_number, viewport_height)
             .into_iter()
-            .map(|line_number| ViewportSection {
+            .map(|line_number| ViewportSectionWithOrigin {
                 start: line_number,
                 end: line_number,
+                start_original: line_number,
+                end_original: line_number,
             })
             .collect_vec();
     }
@@ -57,11 +59,11 @@ fn divide_viewport_impl(
     viewport_height: usize,
     max_line_index: usize,
     view_alignment: ViewAlignment,
-) -> Vec<ViewportSection> {
+) -> Vec<ViewportSectionWithOrigin> {
     if viewport_height <= input_sections.len() {
         return input_sections
             .into_iter()
-            .map(|section| section.into_viewport_section())
+            .map(|section| section.into_viewport_section_with_origin())
             .collect_vec();
     }
 
@@ -156,9 +158,6 @@ fn divide_viewport_impl(
         )
     } else {
         result_sections
-            .into_iter()
-            .map(|section| section.into_viewport_section())
-            .collect_vec()
     }
 }
 
@@ -202,37 +201,39 @@ fn extract_centered_window<T: Ord + Eq + Clone + std::fmt::Debug>(
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct ViewportSection {
-    /// Inclusive
-    start: usize,
-    /// Inclusive
+    /// Inclusive (line number)
+    pub(crate) start: usize,
+    /// Inclusive (line number)
     end: usize,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-struct ViewportSectionWithOrigin {
-    /// Inclusive
+pub(crate) struct ViewportSectionWithOrigin {
+    /// Inclusive (line number)
     start: usize,
-    /// Inclusive
+    /// Inclusive (line number)
     end: usize,
-    /// Inclusive
+    /// Inclusive (line number)
     start_original: usize,
-    /// Inclusive
+    /// Inclusive (line number)
     end_original: usize,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 struct ViewportSectionOnlyOrigin {
-    /// Inclusive
+    /// Inclusive (line number)
     start_original: usize,
-    /// Inclusive
+    /// Inclusive (line number)
     end_original: usize,
 }
 
 impl ViewportSectionOnlyOrigin {
-    fn into_viewport_section(self) -> ViewportSection {
-        ViewportSection {
+    fn into_viewport_section_with_origin(self) -> ViewportSectionWithOrigin {
+        ViewportSectionWithOrigin {
             start: self.start_original,
             end: self.end_original,
+            start_original: self.start_original,
+            end_original: self.end_original,
         }
     }
 
@@ -258,6 +259,18 @@ impl ViewportSectionWithOrigin {
             end: self.end,
         }
     }
+
+    pub(crate) fn height(&self) -> usize {
+        (self.end + 1).saturating_sub(self.start)
+    }
+
+    pub(crate) fn start(&self) -> usize {
+        self.start
+    }
+
+    pub(crate) fn end_original(&self) -> usize {
+        self.end_original
+    }
 }
 
 impl ViewportSection {
@@ -268,6 +281,14 @@ impl ViewportSection {
 
     pub(crate) fn range_vec(&self) -> Vec<usize> {
         (self.start..self.end + 1).collect()
+    }
+
+    pub(crate) fn height(&self) -> usize {
+        (self.end + 1).saturating_sub(self.start)
+    }
+
+    pub(crate) fn start(&self) -> usize {
+        self.start
     }
 }
 
@@ -282,13 +303,37 @@ mod test_divide_viewport {
     #[test]
     fn view_alignments() {
         let result = divide_viewport(&[5], 5, 3, 100, ViewAlignment::Center);
-        assert_eq!(result, vec![ViewportSection { start: 4, end: 6 }]);
+        assert_eq!(
+            result,
+            vec![ViewportSectionWithOrigin {
+                start: 4,
+                start_original: 4,
+                end: 6,
+                end_original: 6
+            }]
+        );
 
         let result = divide_viewport(&[5], 5, 3, 100, ViewAlignment::Bottom);
-        assert_eq!(result, vec![ViewportSection { start: 3, end: 5 }]);
+        assert_eq!(
+            result,
+            vec![ViewportSectionWithOrigin {
+                start: 3,
+                start_original: 3,
+                end: 5,
+                end_original: 5
+            }]
+        );
 
         let result = divide_viewport(&[5], 5, 3, 100, ViewAlignment::Top);
-        assert_eq!(result, vec![ViewportSection { start: 5, end: 7 }]);
+        assert_eq!(
+            result,
+            vec![ViewportSectionWithOrigin {
+                start: 5,
+                start_original: 5,
+                end: 7,
+                end_original: 7
+            }]
+        );
     }
 
     #[test]
@@ -296,7 +341,15 @@ mod test_divide_viewport {
         let result = divide_viewport(&[10], 10, 4, 100, ViewAlignment::Center);
         // Two above line 10
         // One belowe line 10
-        assert_eq!(result, vec![ViewportSection { start: 8, end: 11 }]);
+        assert_eq!(
+            result,
+            vec![ViewportSectionWithOrigin {
+                start: 8,
+                start_original: 8,
+                end: 11,
+                end_original: 11
+            }]
+        );
     }
 
     #[test]
@@ -305,9 +358,24 @@ mod test_divide_viewport {
         assert_eq!(
             result,
             vec![
-                ViewportSection { start: 1, end: 1 },
-                ViewportSection { start: 2, end: 2 },
-                ViewportSection { start: 3, end: 3 }
+                ViewportSectionWithOrigin {
+                    start: 1,
+                    start_original: 1,
+                    end: 1,
+                    end_original: 1
+                },
+                ViewportSectionWithOrigin {
+                    start: 2,
+                    start_original: 2,
+                    end: 2,
+                    end_original: 2
+                },
+                ViewportSectionWithOrigin {
+                    start: 3,
+                    start_original: 3,
+                    end: 3,
+                    end_original: 3
+                }
             ]
         );
     }
@@ -318,9 +386,24 @@ mod test_divide_viewport {
         assert_eq!(
             result,
             vec![
-                ViewportSection { start: 2, end: 2 },
-                ViewportSection { start: 3, end: 3 },
-                ViewportSection { start: 4, end: 4 },
+                ViewportSectionWithOrigin {
+                    start: 2,
+                    start_original: 2,
+                    end: 2,
+                    end_original: 2
+                },
+                ViewportSectionWithOrigin {
+                    start: 3,
+                    start_original: 3,
+                    end: 3,
+                    end_original: 3
+                },
+                ViewportSectionWithOrigin {
+                    start: 4,
+                    start_original: 4,
+                    end: 4,
+                    end_original: 4
+                },
             ]
         )
     }
@@ -331,9 +414,24 @@ mod test_divide_viewport {
         assert_eq!(
             result,
             vec![
-                ViewportSection { start: 3, end: 3 },
-                ViewportSection { start: 4, end: 4 },
-                ViewportSection { start: 5, end: 5 },
+                ViewportSectionWithOrigin {
+                    start: 3,
+                    start_original: 3,
+                    end: 3,
+                    end_original: 3
+                },
+                ViewportSectionWithOrigin {
+                    start: 4,
+                    start_original: 4,
+                    end: 4,
+                    end_original: 4
+                },
+                ViewportSectionWithOrigin {
+                    start: 5,
+                    start_original: 5,
+                    end: 5,
+                    end_original: 5
+                },
             ]
         )
     }
@@ -341,19 +439,43 @@ mod test_divide_viewport {
     #[test]
     fn test_single_cursor_line() {
         let result = divide_viewport(&[10], 10, 5, 100, ViewAlignment::Center);
-        assert_eq!(result, vec![ViewportSection { start: 8, end: 12 }]);
+        assert_eq!(
+            result,
+            vec![ViewportSectionWithOrigin {
+                start: 8,
+                start_original: 8,
+                end: 12,
+                end_original: 12
+            }]
+        );
     }
 
     #[test]
     fn test_duplicate_lines() {
         let result = divide_viewport(&[10, 10, 10], 10, 5, 100, ViewAlignment::Center);
-        assert_eq!(result, vec![ViewportSection { start: 8, end: 12 }]);
+        assert_eq!(
+            result,
+            vec![ViewportSectionWithOrigin {
+                start: 8,
+                start_original: 8,
+                end: 12,
+                end_original: 12
+            }]
+        );
     }
 
     #[test]
     fn test_adjacent_lines_merged() {
         let result = divide_viewport(&[10, 11], 10, 5, 100, ViewAlignment::Center);
-        assert_eq!(result, vec![ViewportSection { start: 8, end: 12 }]);
+        assert_eq!(
+            result,
+            vec![ViewportSectionWithOrigin {
+                start: 8,
+                start_original: 8,
+                end: 12,
+                end_original: 12
+            }]
+        );
     }
 
     #[test]
@@ -362,8 +484,18 @@ mod test_divide_viewport {
         assert_eq!(
             result,
             vec![
-                ViewportSection { start: 9, end: 11 },
-                ViewportSection { start: 19, end: 21 }
+                ViewportSectionWithOrigin {
+                    start: 9,
+                    start_original: 9,
+                    end: 11,
+                    end_original: 11
+                },
+                ViewportSectionWithOrigin {
+                    start: 19,
+                    start_original: 19,
+                    end: 21,
+                    end_original: 21
+                }
             ]
         );
     }
@@ -371,13 +503,29 @@ mod test_divide_viewport {
     #[test]
     fn test_smaller_line_numbers_receive_larger_portions_on_uneven_division() {
         let result = divide_viewport(&[10, 11, 12, 13], 11, 6, 100, ViewAlignment::Center);
-        assert_eq!(result, vec![ViewportSection { start: 9, end: 14 }]);
+        assert_eq!(
+            result,
+            vec![ViewportSectionWithOrigin {
+                start: 9,
+                start_original: 9,
+                end: 14,
+                end_original: 14
+            }]
+        );
     }
 
     #[test]
     fn test_first_line_edge_case() {
         let result = divide_viewport(&[0], 0, 4, 100, ViewAlignment::Center);
-        assert_eq!(result, vec![ViewportSection { start: 0, end: 3 }]);
+        assert_eq!(
+            result,
+            vec![ViewportSectionWithOrigin {
+                start: 0,
+                start_original: 0,
+                end: 3,
+                end_original: 3
+            }]
+        );
     }
 
     #[test]
@@ -385,9 +533,11 @@ mod test_divide_viewport {
         let result = divide_viewport(&[99], 99, 4, 100, ViewAlignment::Center);
         assert_eq!(
             result,
-            vec![ViewportSection {
+            vec![ViewportSectionWithOrigin {
                 start: 97,
-                end: 100
+                start_original: 97,
+                end: 100,
+                end_original: 100
             }]
         );
     }
@@ -398,10 +548,17 @@ mod test_divide_viewport {
         assert_eq!(
             result,
             vec![
-                ViewportSection { start: 0, end: 3 },
-                ViewportSection {
+                ViewportSectionWithOrigin {
+                    start: 0,
+                    start_original: 0,
+                    end: 3,
+                    end_original: 3
+                },
+                ViewportSectionWithOrigin {
                     start: 97,
-                    end: 100
+                    start_original: 97,
+                    end: 100,
+                    end_original: 100
                 }
             ]
         );
@@ -413,10 +570,17 @@ mod test_divide_viewport {
         assert_eq!(
             result,
             vec![
-                ViewportSection { start: 0, end: 3 },
-                ViewportSection {
+                ViewportSectionWithOrigin {
+                    start: 0,
+                    start_original: 0,
+                    end: 3,
+                    end_original: 3
+                },
+                ViewportSectionWithOrigin {
                     start: 97,
-                    end: 100
+                    start_original: 97,
+                    end: 100,
+                    end_original: 100
                 }
             ]
         );
@@ -428,9 +592,24 @@ mod test_divide_viewport {
         assert_eq!(
             result,
             vec![
-                ViewportSection { start: 9, end: 11 },
-                ViewportSection { start: 19, end: 21 },
-                ViewportSection { start: 29, end: 31 }
+                ViewportSectionWithOrigin {
+                    start: 9,
+                    start_original: 9,
+                    end: 11,
+                    end_original: 11
+                },
+                ViewportSectionWithOrigin {
+                    start: 19,
+                    start_original: 19,
+                    end: 21,
+                    end_original: 21
+                },
+                ViewportSectionWithOrigin {
+                    start: 29,
+                    start_original: 29,
+                    end: 31,
+                    end_original: 31
+                }
             ]
         );
     }
