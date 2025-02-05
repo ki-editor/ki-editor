@@ -4202,7 +4202,7 @@ zeta
 🦀  src/main.rs [*]
 3│phi
 4│mark-y
-5│zeta
+5│█eta
 "
                 .trim(),
             )),
@@ -4212,7 +4212,7 @@ zeta
 🦀  src/main.rs [*]
 2│mark-x
 4│mark-y
-5│zeta
+5│█eta
 "
                 .trim(),
             )),
@@ -4221,7 +4221,7 @@ zeta
                 "
 🦀  src/main.rs [*]
 2│mark-x
-3│phi
+3│█hi
 4│mark-y
 "
                 .trim(),
@@ -4230,7 +4230,7 @@ zeta
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
-1│beta
+1│█eta
 2│mark-x
 4│mark-y
 "
@@ -4273,7 +4273,7 @@ fn spam() {
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
-1│fn main() {
+1│█n main() {
 2│}
 3│fn bar() {
 "
@@ -4283,7 +4283,7 @@ fn spam() {
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
-1│fn main() {
+1│█n main() {
 3│fn bar() {
 5│fn spam() {
 "
@@ -4324,7 +4324,7 @@ foo
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
-1│foo
+1│█oo
 2│x
 3│foo
 "
@@ -4334,7 +4334,7 @@ foo
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
-1│foo
+1│█oo
 3│foo
 5│foo
 "
