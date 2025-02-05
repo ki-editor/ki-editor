@@ -9,7 +9,7 @@ use crate::{
     char_index_range::CharIndexRange,
     components::{
         component::{Component, Cursor, SetCursorStyle},
-        editor::{Mode, WINDOW_TITLE_HEIGHT},
+        editor::{Mode, ViewAlignment, WINDOW_TITLE_HEIGHT},
     },
     context::Context,
     divide_viewport::divide_viewport,
@@ -97,6 +97,7 @@ impl Editor {
                     focused_line_number,
                     height as usize,
                     buffer.len_lines().saturating_sub(1),
+                    self.current_view_alignment.unwrap_or(ViewAlignment::Center),
                 );
                 viewport_sections
                     .into_iter()

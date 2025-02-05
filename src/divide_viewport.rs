@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use itertools::Itertools;
 
-use crate::utils::distribute_items;
+use crate::{components::editor::ViewAlignment, utils::distribute_items};
 
 /// Divides a set of line numbers into viewport sections based on a focused line and viewport constraints.
 ///
@@ -14,6 +14,7 @@ pub(crate) fn divide_viewport(
     focused_line_number: usize,
     viewport_height: usize,
     max_line_index: usize,
+    view_alignment: ViewAlignment,
 ) -> Vec<ViewportSection> {
     debug_assert!(line_numbers
         .iter()
@@ -47,6 +48,7 @@ pub(crate) fn divide_viewport(
             .collect_vec(),
         viewport_height,
         max_line_index,
+        view_alignment,
     )
 }
 
@@ -54,6 +56,7 @@ fn divide_viewport_impl(
     input_sections: Vec<ViewportSectionOnlyOrigin>,
     viewport_height: usize,
     max_line_index: usize,
+    view_alignment: ViewAlignment,
 ) -> Vec<ViewportSection> {
     if viewport_height <= input_sections.len() {
         return input_sections
@@ -76,11 +79,17 @@ fn divide_viewport_impl(
         .iter()
         .zip(context_lines_lengths)
         .map(|(section, context_lines_length)| {
-            let (lower_context_lines_length, upper_context_lines_length) =
-                distribute_items(context_lines_length.saturating_sub(section.len()), 2)
-                    .into_iter()
-                    .collect_tuple()
-                    .unwrap();
+            let (lower_context_lines_length, upper_context_lines_length) = {
+                let context_lines_length = context_lines_length.saturating_sub(section.len());
+                match view_alignment {
+                    ViewAlignment::Top => (0, context_lines_length),
+                    ViewAlignment::Center => distribute_items(context_lines_length, 2)
+                        .into_iter()
+                        .collect_tuple()
+                        .unwrap(),
+                    ViewAlignment::Bottom => (context_lines_length, 0),
+                }
+            };
             let lower_context_lines_length = lower_context_lines_length
                 + upper_context_lines_length
                     .saturating_sub(max_line_index.saturating_sub(section.end_original));
@@ -143,6 +152,7 @@ fn divide_viewport_impl(
                 .collect_vec(),
             viewport_height,
             max_line_index,
+            view_alignment,
         )
     } else {
         result_sections
@@ -270,8 +280,20 @@ mod test_divide_viewport {
     use super::*;
 
     #[test]
+    fn view_alignments() {
+        let result = divide_viewport(&[5], 5, 3, 100, ViewAlignment::Center);
+        assert_eq!(result, vec![ViewportSection { start: 4, end: 6 }]);
+
+        let result = divide_viewport(&[5], 5, 3, 100, ViewAlignment::Bottom);
+        assert_eq!(result, vec![ViewportSection { start: 3, end: 5 }]);
+
+        let result = divide_viewport(&[5], 5, 3, 100, ViewAlignment::Top);
+        assert_eq!(result, vec![ViewportSection { start: 5, end: 7 }]);
+    }
+
+    #[test]
     fn prioritize_above_over_bottom_for_uneven_split() {
-        let result = divide_viewport(&[10], 10, 4, 100);
+        let result = divide_viewport(&[10], 10, 4, 100, ViewAlignment::Center);
         // Two above line 10
         // One belowe line 10
         assert_eq!(result, vec![ViewportSection { start: 8, end: 11 }]);
@@ -279,7 +301,7 @@ mod test_divide_viewport {
 
     #[test]
     fn line_numbers_length_more_than_viewport_height_focus_start() {
-        let result = divide_viewport(&[1, 2, 3, 4], 1, 3, 100);
+        let result = divide_viewport(&[1, 2, 3, 4], 1, 3, 100, ViewAlignment::Center);
         assert_eq!(
             result,
             vec![
@@ -292,7 +314,7 @@ mod test_divide_viewport {
 
     #[test]
     fn line_numbers_length_more_than_viewport_height_focus_middle() {
-        let result = divide_viewport(&[1, 2, 3, 4, 5], 3, 3, 100);
+        let result = divide_viewport(&[1, 2, 3, 4, 5], 3, 3, 100, ViewAlignment::Center);
         assert_eq!(
             result,
             vec![
@@ -305,7 +327,7 @@ mod test_divide_viewport {
 
     #[test]
     fn line_numbers_length_more_than_viewport_height_focus_end() {
-        let result = divide_viewport(&[1, 2, 3, 4, 5], 5, 3, 100);
+        let result = divide_viewport(&[1, 2, 3, 4, 5], 5, 3, 100, ViewAlignment::Center);
         assert_eq!(
             result,
             vec![
@@ -318,25 +340,25 @@ mod test_divide_viewport {
 
     #[test]
     fn test_single_cursor_line() {
-        let result = divide_viewport(&[10], 10, 5, 100);
+        let result = divide_viewport(&[10], 10, 5, 100, ViewAlignment::Center);
         assert_eq!(result, vec![ViewportSection { start: 8, end: 12 }]);
     }
 
     #[test]
     fn test_duplicate_lines() {
-        let result = divide_viewport(&[10, 10, 10], 10, 5, 100);
+        let result = divide_viewport(&[10, 10, 10], 10, 5, 100, ViewAlignment::Center);
         assert_eq!(result, vec![ViewportSection { start: 8, end: 12 }]);
     }
 
     #[test]
     fn test_adjacent_lines_merged() {
-        let result = divide_viewport(&[10, 11], 10, 5, 100);
+        let result = divide_viewport(&[10, 11], 10, 5, 100, ViewAlignment::Center);
         assert_eq!(result, vec![ViewportSection { start: 8, end: 12 }]);
     }
 
     #[test]
     fn test_distant_lines_split() {
-        let result = divide_viewport(&[10, 20], 10, 6, 100);
+        let result = divide_viewport(&[10, 20], 10, 6, 100, ViewAlignment::Center);
         assert_eq!(
             result,
             vec![
@@ -348,19 +370,19 @@ mod test_divide_viewport {
 
     #[test]
     fn test_smaller_line_numbers_receive_larger_portions_on_uneven_division() {
-        let result = divide_viewport(&[10, 11, 12, 13], 11, 6, 100);
+        let result = divide_viewport(&[10, 11, 12, 13], 11, 6, 100, ViewAlignment::Center);
         assert_eq!(result, vec![ViewportSection { start: 9, end: 14 }]);
     }
 
     #[test]
     fn test_first_line_edge_case() {
-        let result = divide_viewport(&[0], 0, 4, 100);
+        let result = divide_viewport(&[0], 0, 4, 100, ViewAlignment::Center);
         assert_eq!(result, vec![ViewportSection { start: 0, end: 3 }]);
     }
 
     #[test]
     fn test_last_line_edge_case() {
-        let result = divide_viewport(&[99], 99, 4, 100);
+        let result = divide_viewport(&[99], 99, 4, 100, ViewAlignment::Center);
         assert_eq!(
             result,
             vec![ViewportSection {
@@ -372,7 +394,7 @@ mod test_divide_viewport {
 
     #[test]
     fn test_mixed_edge_cases_1() {
-        let result = divide_viewport(&[0, 1, 98, 99], 1, 8, 100);
+        let result = divide_viewport(&[0, 1, 98, 99], 1, 8, 100, ViewAlignment::Center);
         assert_eq!(
             result,
             vec![
@@ -387,7 +409,7 @@ mod test_divide_viewport {
 
     #[test]
     fn test_mixed_edge_cases_2() {
-        let result = divide_viewport(&[0, 1, 100], 1, 8, 100);
+        let result = divide_viewport(&[0, 1, 100], 1, 8, 100, ViewAlignment::Center);
         assert_eq!(
             result,
             vec![
@@ -402,7 +424,7 @@ mod test_divide_viewport {
 
     #[test]
     fn test_even_distribution() {
-        let result = divide_viewport(&[10, 20, 30], 20, 9, 100);
+        let result = divide_viewport(&[10, 20, 30], 20, 9, 100, ViewAlignment::Center);
         assert_eq!(
             result,
             vec![
@@ -417,7 +439,7 @@ mod test_divide_viewport {
     fn test_sections_within_viewport() {
         let viewport_height = 8;
         let lines = vec![5, 6, 15];
-        let result = divide_viewport(&lines, 6, viewport_height, 100);
+        let result = divide_viewport(&lines, 6, viewport_height, 100, ViewAlignment::Center);
 
         let total_lines: usize = result
             .iter()
@@ -472,6 +494,7 @@ mod test_divide_viewport {
             *focused_line_number,
             viewport_height,
             max_line_index,
+            ViewAlignment::Center,
         );
 
         let sum: usize = sections
@@ -495,6 +518,7 @@ mod test_divide_viewport {
             *focused_line_number,
             viewport_height,
             max_line_index,
+            ViewAlignment::Center,
         );
 
         sections.iter().enumerate().all(|(index, section)| {
