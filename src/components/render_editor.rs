@@ -12,7 +12,7 @@ use crate::{
         editor::{Mode, ViewAlignment, WINDOW_TITLE_HEIGHT},
     },
     context::Context,
-    divide_viewport::divide_viewport,
+    divide_viewport::{divide_viewport, divide_viewport_new},
     grid::{CellUpdate, Grid, LineUpdate, RenderContentLineNumber, StyleKey},
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
@@ -71,8 +71,11 @@ impl Editor {
                         )
                         .ok(),
                 )
+                .sorted_by_key(|range| (range.start, range.end))
+                .unique()
                 .collect_vec();
                 let line_number_and_ranges: Vec<(usize, Range<usize>)> = ranges
+                    .clone()
                     .into_iter()
                     .filter_map(|byte_range| {
                         Some((buffer.byte_to_line(byte_range.start).ok()?, byte_range))
@@ -100,51 +103,48 @@ impl Editor {
                     self.current_view_alignment.unwrap_or(ViewAlignment::Center),
                 );
 
+                let viewport_sections = divide_viewport_new(
+                    &ranges,
+                    self.render_area().height as usize,
+                    buffer
+                        .char_index_range_to_byte_range(
+                            self.selection_set.primary_selection().extended_range(),
+                        )
+                        .unwrap_or_default(),
+                );
+
                 viewport_sections.into_iter().fold(
                     Grid::new(Dimension {
                         height: 0,
                         width: self.dimension().width,
                     }),
                     |grid, viewport_section| {
-                        let scroll_offset = viewport_section.start() as u16;
-
-                        // The `protected_range_start` should be the FIRST range of the FIRST line of this `viewport_section`
-                        let protected_range_start = line_number_and_ranges
-                            .iter()
-                            .find(|(line, _)| line == &viewport_section.start_original())
-                            .and_then(|(_, byte_range)| {
-                                buffer
-                                    .byte_to_char(match self.cursor_direction {
-                                        super::editor::Direction::Start => byte_range.start,
-                                        super::editor::Direction::End => byte_range.end,
-                                    })
-                                    .ok()
-                            })
+                        let range = viewport_section.byte_range();
+                        let protected_range_start = match self.cursor_direction {
+                            super::editor::Direction::Start => range.start,
+                            super::editor::Direction::End => range.end,
+                        };
+                        let line = buffer
+                            .byte_to_line(protected_range_start)
                             .unwrap_or_default();
 
-                        // The `protected_range_end` should be the LAST range of the LAST line of this `viewport_section`
-                        let protected_range_end = line_number_and_ranges
-                            .iter()
-                            .rfind(|(line, _)| line == &viewport_section.end_original())
-                            .and_then(|(_, byte_range)| {
-                                buffer
-                                    .byte_to_char(match self.cursor_direction {
-                                        super::editor::Direction::Start => byte_range.start,
-                                        super::editor::Direction::End => byte_range.end,
-                                    })
-                                    .ok()
-                            })
-                            .unwrap_or_default();
+                        let scroll_offset = line.saturating_sub(
+                            (viewport_section.height() as f64 / 2 as f64).floor() as usize,
+                        ) as u16;
 
-                        grid.merge_vertical(self.get_grid_with_dimension(
-                            context,
-                            Dimension {
-                                height: viewport_section.height() as u16,
-                                width: self.render_area().width,
-                            },
-                            scroll_offset,
-                            protected_range_start,
-                        ))
+                        grid.merge_vertical(
+                            self.get_grid_with_dimension(
+                                context,
+                                Dimension {
+                                    height: viewport_section.height() as u16,
+                                    width: self.render_area().width,
+                                },
+                                scroll_offset,
+                                buffer
+                                    .byte_to_char(protected_range_start)
+                                    .unwrap_or_default(),
+                            ),
+                        )
                     },
                 )
             }
@@ -189,20 +189,20 @@ impl Editor {
         }
     }
 
-    /// Protected range must not be trimmed and always be rendered
+    /// Protected char index must not be trimmed and always be rendered
     fn get_grid_with_dimension(
         &self,
         context: &Context,
         dimension: Dimension,
         scroll_offset: u16,
-        protected_range_start: CharIndex, // Inclusive
+        protected_char_index: CharIndex,
     ) -> Grid {
         let editor = self;
         let Dimension { height, width } = dimension;
         let buffer = editor.buffer();
         let rope = buffer.rope();
         let protected_range_start_line = buffer
-            .char_to_line(protected_range_start)
+            .char_to_line(protected_char_index)
             .unwrap_or_default();
 
         let len_lines = rope.len_lines().max(1) as u16;
@@ -315,21 +315,16 @@ impl Editor {
                     // and then no cursor will be rendered for empty buffer.
                     .chain(
                         buffer
-                            .char_to_position(protected_range_start)
-                            .map(|position| {
-                                CellUpdate::new(position).set_is_protected_range_start(true)
-                            }),
-                    )
-                    .chain(
-                        buffer
-                            .char_to_position(primary_cursor_char_index)
+                            .char_to_position(protected_char_index)
                             .map(|position| {
                                 CellUpdate::new(position)
-                                    .set_is_cursor(true)
                                     .set_is_protected_range_start(true)
-                            })
-                            .ok(),
+                                    .set_is_cursor(
+                                        primary_cursor_char_index == protected_char_index,
+                                    )
+                            }),
                     )
+                    // .chain( buffer .char_to_position(primary_cursor_char_index) .map(|position| { CellUpdate::new(position) .set_is_cursor(true) .set_is_protected_range_start(true) }) .ok(), )
                     .collect_vec()
             };
             let visible_lines_content = visible_lines.map(|(_, line)| line).join("");

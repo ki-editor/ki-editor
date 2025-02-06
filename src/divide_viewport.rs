@@ -1,8 +1,54 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, ops::Range};
 
 use itertools::Itertools;
 
-use crate::{components::editor::ViewAlignment, utils::distribute_items_by_2};
+use crate::{
+    components::editor::ViewAlignment,
+    utils::{distribute_items, distribute_items_by_2},
+};
+
+pub(crate) fn divide_viewport_new(
+    byte_ranges: &Vec<Range<usize>>,
+    viewport_height: usize,
+    focused_byte_range: Range<usize>,
+) -> Vec<ViewportSectionWithByteRange> {
+    if viewport_height < byte_ranges.len() {
+        extract_centered_window(
+            byte_ranges,
+            |byte_range| byte_range == &focused_byte_range,
+            viewport_height,
+        )
+        .into_iter()
+        .map(|byte_range| ViewportSectionWithByteRange {
+            byte_range,
+            height: 1,
+        })
+        .collect_vec()
+    } else {
+        distribute_items(viewport_height, byte_ranges.len())
+            .into_iter()
+            .zip(byte_ranges)
+            .map(|(height, byte_range)| ViewportSectionWithByteRange {
+                byte_range: byte_range.clone(),
+                height,
+            })
+            .collect()
+    }
+}
+
+pub(crate) struct ViewportSectionWithByteRange {
+    byte_range: Range<usize>,
+    height: usize,
+}
+impl ViewportSectionWithByteRange {
+    pub(crate) fn height(&self) -> usize {
+        self.height
+    }
+
+    pub(crate) fn byte_range(&self) -> Range<usize> {
+        self.byte_range.clone()
+    }
+}
 
 /// Divides a set of line numbers into viewport sections based on a focused line and viewport constraints.
 ///
@@ -26,15 +72,19 @@ pub(crate) fn divide_viewport(
         .sorted()
         .collect_vec();
     if line_numbers.len() > viewport_height {
-        return extract_centered_window(&line_numbers, focused_line_number, viewport_height)
-            .into_iter()
-            .map(|line_number| ViewportSectionWithOrigin {
-                start: line_number,
-                end: line_number,
-                start_original: line_number,
-                end_original: line_number,
-            })
-            .collect_vec();
+        return extract_centered_window(
+            &line_numbers,
+            |line_number| line_number == &focused_line_number,
+            viewport_height,
+        )
+        .into_iter()
+        .map(|line_number| ViewportSectionWithOrigin {
+            start: line_number,
+            end: line_number,
+            start_original: line_number,
+            end_original: line_number,
+        })
+        .collect_vec();
     }
 
     if line_numbers.is_empty() {
@@ -143,6 +193,7 @@ fn divide_viewport_impl(
             }
         },
     );
+    return result_sections;
     if merged.len() < sections_length {
         divide_viewport_impl(
             merged
@@ -158,17 +209,13 @@ fn divide_viewport_impl(
     }
 }
 
-fn extract_centered_window<T: Ord + Eq + Clone + std::fmt::Debug>(
+fn extract_centered_window<T: Eq + Clone + std::fmt::Debug, F: Fn(&T) -> bool>(
     elements: &[T],
-    element: T,
+    predicate: F,
     window_size: usize,
 ) -> Vec<T> {
-    debug_assert!(elements.contains(&element));
-    debug_assert!(elements.iter().is_sorted());
-    let Some(index) = elements
-        .iter()
-        .position(|line_number| *line_number == element)
-    else {
+    debug_assert!(elements.iter().any(&predicate));
+    let Some(index) = elements.iter().position(&predicate) else {
         // This should be unreachable
         // but let's say it happens we just simply trim `elements` by `window_size`.
         return elements
@@ -188,7 +235,7 @@ fn extract_centered_window<T: Ord + Eq + Clone + std::fmt::Debug>(
     let end_index = (index + go_right_by).min(elements.len().saturating_sub(1));
     let result = elements[start_index..end_index + 1].to_vec();
 
-    debug_assert!(result.contains(&element));
+    debug_assert!(result.iter().any(predicate));
     debug_assert_eq!(result.len(), window_size);
     result
 }

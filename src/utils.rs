@@ -31,7 +31,7 @@ pub(crate) fn consolidate_errors<T, E: std::fmt::Debug>(
     }
 }
 
-/// Distributes a total number of items into n_parts, with any remainder going to the first parts.  
+/// Distributes a total number of items into n_parts, with any remainder going to the leading parts.  
 /// Returns empty vector if n_parts is 0.  
 ///
 /// # Examples  
@@ -48,9 +48,16 @@ pub(crate) fn distribute_items(total: usize, n_parts: usize) -> Vec<usize> {
     let quotient = total / n_parts;
     let remainder = total % n_parts;
 
-    (0..n_parts)
+    let result = (0..n_parts)
         .map(|index| quotient + usize::from(index < remainder))
-        .collect()
+        .collect_vec();
+    debug_assert_eq!(result.len(), n_parts);
+    debug_assert_eq!(result.iter().sum::<usize>(), total);
+
+    // Expect variance is at maximum 1
+    debug_assert!(result.iter().max().unwrap() - result.iter().min().unwrap() <= 1);
+
+    result
 }
 
 pub(crate) fn distribute_items_by_2(total: usize) -> (usize, usize) {

@@ -381,3 +381,32 @@ fn two() {
         ])
     })
 }
+
+#[test]
+fn all_selections_on_same_line_but_all_wrapped() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar foo".trim().to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::new(0, 0),
+                width: 6,
+                height: 3,
+            })),
+            Editor(MatchLiteral("foo".to_string())),
+            Editor(ToggleFold(Fold::CurrentSelectionMode)),
+            Expect(EditorGrid(
+                "
+🦀
+1│█oo
+↪│foo
+"
+                .trim(),
+            )),
+        ])
+    })
+}
