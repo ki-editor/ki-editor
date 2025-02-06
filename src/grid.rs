@@ -27,6 +27,8 @@ pub(crate) struct Cell {
     pub(crate) background_color: Color,
     pub(crate) line: Option<CellLine>,
     pub(crate) is_cursor: bool,
+    /// Need for folded sections where the cursor is not in them
+    pub(crate) is_protected_range_start: bool,
     /// For debugging purposes, so that we can trace this Cell is updated by which
     /// decoration, e.g. Diagnostic
     pub(crate) source: Option<StyleKey>,
@@ -69,6 +71,7 @@ impl Cell {
             is_cursor: update.is_cursor,
             source: update.source.or_else(|| self.source.clone()),
             is_bold: update.style.is_bold || self.is_bold,
+            is_protected_range_start: update.is_protected_range_start,
         }
     }
 }
@@ -83,6 +86,7 @@ impl Default for Cell {
             is_cursor: false,
             source: None,
             is_bold: false,
+            is_protected_range_start: false,
         }
     }
 }
@@ -96,6 +100,7 @@ pub(crate) struct CellUpdate {
 
     /// For debugging purposes
     pub(crate) source: Option<StyleKey>,
+    pub(crate) is_protected_range_start: bool,
 }
 
 impl CellUpdate {
@@ -106,6 +111,7 @@ impl CellUpdate {
             style: Style::default(),
             is_cursor: false,
             source: None,
+            is_protected_range_start: false,
         }
     }
 
@@ -123,6 +129,13 @@ impl CellUpdate {
     #[cfg(test)]
     pub(crate) fn set_symbol(self, symbol: Option<String>) -> CellUpdate {
         CellUpdate { symbol, ..self }
+    }
+
+    pub(crate) fn set_is_protected_range_start(self, is_protected_range_start: bool) -> Self {
+        CellUpdate {
+            is_protected_range_start,
+            ..self
+        }
     }
 }
 
@@ -332,23 +345,6 @@ impl Grid {
         line_updates: Vec<LineUpdate>,
         theme: &Theme,
     ) -> Grid {
-        self.render_content_return_wrapped_lines(
-            content,
-            line_number,
-            cell_updates,
-            line_updates,
-            theme,
-        )
-        .1
-    }
-    pub(crate) fn render_content_return_wrapped_lines(
-        self,
-        content: &str,
-        line_number: RenderContentLineNumber,
-        cell_updates: Vec<CellUpdate>,
-        line_updates: Vec<LineUpdate>,
-        theme: &Theme,
-    ) -> (WrappedLines, Grid) {
         let Dimension { height, width } = self.dimension();
         let (line_index_start, max_line_number_len, line_number_separator_width) = match line_number
         {
@@ -544,17 +540,19 @@ impl Grid {
                 }
             })
             .collect_vec();
-        let cursor = calibrated.iter().find(|update| update.is_cursor).cloned();
+        let protected_range_start_position = calibrated
+            .iter()
+            .find(|update| update.is_protected_range_start)
+            .map(|update| update.position.clone());
         // If the cursor is out of bound due to wrapped lines above it,
         // trim the lines from above until the cursor is inbound again
-        let trimmed = if let Some(cursor) = cursor {
+        let trimmed = if let Some(calibrated_cursor_position) = protected_range_start_position {
             let min_line = calibrated
                 .iter()
                 .map(|update| update.position.line)
                 .min()
                 .unwrap_or_default();
-            let extra_height = cursor
-                .position
+            let extra_height = calibrated_cursor_position
                 .line
                 .saturating_sub(min_line)
                 .saturating_add(1)
@@ -564,19 +562,22 @@ impl Grid {
             calibrated
                 .into_iter()
                 .filter(|update| update.position.line >= min_renderable_line)
-                .map(|update| CellUpdate {
-                    position: update.position.move_up(extra_height),
-                    ..update
+                .filter_map(|update| {
+                    Some(CellUpdate {
+                        position: update.position.move_up(extra_height)?,
+                        ..update
+                    })
                 })
                 .collect_vec()
         } else {
             calibrated
         };
-        (
-            wrapped_lines,
-            self.set_background_color(theme.ui.background_color)
-                .apply_cell_updates(trimmed),
-        )
+
+        let result_grid = self
+            .set_background_color(theme.ui.background_color)
+            .apply_cell_updates(trimmed);
+        debug_assert_eq!(result_grid.dimension().height, height);
+        result_grid
     }
 
     fn set_background_color(mut self, background_color: Color) -> Self {
@@ -586,6 +587,16 @@ impl Grid {
             }
         }
         self
+    }
+
+    pub(crate) fn get_protected_range_start_position(&self) -> Option<Position> {
+        self.to_positioned_cells().into_iter().find_map(|cell| {
+            if cell.cell.is_protected_range_start {
+                Some(cell.position)
+            } else {
+                None
+            }
+        })
     }
 }
 
@@ -1047,6 +1058,7 @@ mod test_cell {
             is_cursor: true,
             source: Some(StyleKey::HunkNew),
             is_bold: true,
+            is_protected_range_start: true,
         };
         let cell = cell.apply_update(CellUpdate {
             position: Position::default(),
@@ -1060,6 +1072,7 @@ mod test_cell {
                 })),
             is_cursor: false,
             source: Some(StyleKey::KeymapHint),
+            is_protected_range_start: true,
         });
         assert_eq!(cell.symbol, "b");
         assert_eq!(cell.foreground_color, hex!("#dddddd"));

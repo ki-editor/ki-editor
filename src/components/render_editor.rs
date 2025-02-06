@@ -31,15 +31,14 @@ impl Editor {
         let buffer = self.buffer();
         let grid = match &self.fold {
             None => {
-                let cursor_char_index = (self
+                let cursor_char_index = self
                     .selection_set
                     .primary_selection()
-                    .to_char_index(&self.cursor_direction));
+                    .to_char_index(&self.cursor_direction);
                 self.get_grid_with_dimension(
                     context,
                     self.render_area(),
                     self.scroll_offset(),
-                    cursor_char_index,
                     cursor_char_index,
                 )
             }
@@ -145,7 +144,6 @@ impl Editor {
                             },
                             scroll_offset,
                             protected_range_start,
-                            protected_range_end,
                         ))
                     },
                 )
@@ -197,8 +195,7 @@ impl Editor {
         context: &Context,
         dimension: Dimension,
         scroll_offset: u16,
-        protected_range_start: CharIndex,
-        protected_range_end: CharIndex, // Inclusive
+        protected_range_start: CharIndex, // Inclusive
     ) -> Grid {
         let editor = self;
         let Dimension { height, width } = dimension;
@@ -225,7 +222,7 @@ impl Editor {
 
         let visible_lines_grid: Grid = Grid::new(Dimension { height, width });
 
-        let selection = &editor.selection_set.primary_selection();
+        let primary_selection = &editor.selection_set.primary_selection();
         // If the buffer selection is updated less recently than the window's scroll offset,
 
         // use the window's scroll offset.
@@ -238,10 +235,7 @@ impl Editor {
             .collect_vec();
         let visible_line_range =
             self.visible_line_range_given_scroll_offset_and_height(scroll_offset, height);
-        let primary_selection_primary_cursor = buffer
-            .char_to_position(selection.to_char_index(&self.cursor_direction))
-            .ok()
-            .map(|position| CellUpdate::new(position).set_is_cursor(true));
+        let primary_cursor_char_index = primary_selection.to_char_index(&self.cursor_direction);
         let updates = self.get_highlight_spans(
             context,
             &visible_line_range,
@@ -267,6 +261,7 @@ impl Editor {
                     range: HighlightSpanRange::Line(line.line),
                     set_symbol: None,
                     is_cursor: false,
+                    is_protected_range_start: false,
                 })
                 .chain(updates.clone())
                 .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
@@ -276,7 +271,6 @@ impl Editor {
                 |grid, line| {
                     let updates = updates
                         .iter()
-                        .chain(&primary_selection_primary_cursor)
                         .filter_map(|update| {
                             if update.position.line == line.line {
                                 Some(update.clone().set_position_line(0))
@@ -315,55 +309,55 @@ impl Editor {
                 updates
                     .iter()
                     .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
-                    .chain(primary_selection_primary_cursor)
+                    // Insert the primary cursor cell update by force.
+                    // This is necessary because when the content is empty
+                    // all cell updates will be excluded when `to_cell_updates` is run,
+                    // and then no cursor will be rendered for empty buffer.
+                    .chain(
+                        buffer
+                            .char_to_position(protected_range_start)
+                            .map(|position| {
+                                CellUpdate::new(position).set_is_protected_range_start(true)
+                            }),
+                    )
+                    .chain(
+                        buffer
+                            .char_to_position(primary_cursor_char_index)
+                            .map(|position| {
+                                CellUpdate::new(position)
+                                    .set_is_cursor(true)
+                                    .set_is_protected_range_start(true)
+                            })
+                            .ok(),
+                    )
                     .collect_vec()
             };
             let visible_lines_content = visible_lines.map(|(_, line)| line).join("");
-            let (wrapped_lines, visible_lines_grid) = visible_lines_grid
-                .render_content_return_wrapped_lines(
-                    &visible_lines_content,
-                    RenderContentLineNumber::LineNumber {
-                        start_line_index: scroll_offset as usize,
-                        max_line_number: len_lines as usize,
-                    },
-                    visible_lines_updates
-                        .clone()
-                        .into_iter()
-                        .map(|cell_update| CellUpdate {
-                            position: cell_update.position.move_up(scroll_offset as usize),
+            let visible_lines_grid = visible_lines_grid.render_content(
+                &visible_lines_content,
+                RenderContentLineNumber::LineNumber {
+                    start_line_index: scroll_offset as usize,
+                    max_line_number: len_lines as usize,
+                },
+                visible_lines_updates
+                    .clone()
+                    .into_iter()
+                    .filter_map(|cell_update| {
+                        Some(CellUpdate {
+                            position: cell_update.position.move_up(scroll_offset as usize)?,
                             ..cell_update
                         })
-                        .collect_vec(),
-                    Default::default(),
-                    theme,
-                );
-
-            let protected_range = {
-                let protected_range_start = wrapped_lines
-                    .calibrate(
-                        protected_range_start
-                            .to_position(&buffer)
-                            .move_up(scroll_offset as usize),
-                    )
-                    .ok()
-                    .and_then(|mut positions| positions.first())
-                    .unwrap_or_default();
-
-                let protected_range_end = wrapped_lines
-                    .calibrate(
-                        protected_range_end
-                            .to_position(&buffer)
-                            .move_up(scroll_offset as usize),
-                    )
-                    .ok()
-                    .and_then(|mut positions| positions.first())
-                    .unwrap_or_default();
-                protected_range_start.line..protected_range_end.line + 1
-            };
-
+                    })
+                    .collect_vec(),
+                Default::default(),
+                theme,
+            );
+            let protected_range = visible_lines_grid
+                .get_protected_range_start_position()
+                .map(|position| position.line..position.line + 1);
             let trimmed_visible_lines_grid_rows_result = trim_array(
                 &visible_lines_grid.rows,
-                protected_range,
+                protected_range.unwrap_or_default(),
                 top_offset as usize,
             );
             let result = hidden_parent_lines_grid
@@ -385,7 +379,7 @@ impl Editor {
         &self,
         context: &Context,
         visible_line_range: &Range<usize>,
-        folded_line_ranges: &Vec<Range<usize>>,
+        hidden_parent_line_ranges: &Vec<Range<usize>>,
         visible_parent_lines: &Vec<Line>,
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
@@ -409,6 +403,7 @@ impl Editor {
             is_cursor: false,
             range: HighlightSpanRange::ByteRange(range.range().clone()),
             source: Source::StyleKey(UiPossibleSelection),
+            is_protected_range_start: false,
         });
 
         let marks = buffer.marks().into_iter().map(|mark| HighlightSpan {
@@ -416,6 +411,7 @@ impl Editor {
             is_cursor: false,
             source: Source::StyleKey(UiMark),
             range: HighlightSpanRange::CharIndexRange(mark),
+            is_protected_range_start: false,
         });
         let secondary_selections = &self.selection_set.secondary_selections();
 
@@ -425,6 +421,7 @@ impl Editor {
             is_cursor: false,
             range: HighlightSpanRange::CharIndexRange(selection.extended_range()),
             source: Source::StyleKey(UiPrimarySelection),
+            is_protected_range_start: false,
         };
 
         let primary_selection_anchors =
@@ -433,6 +430,7 @@ impl Editor {
                 is_cursor: false,
                 range: HighlightSpanRange::CharIndexRange(anchor),
                 source: Source::StyleKey(UiPrimarySelectionAnchors),
+                is_protected_range_start: false,
             });
         let primary_selection_secondary_cursor = if self.mode == Mode::Insert {
             None
@@ -444,6 +442,7 @@ impl Editor {
                     selection.to_char_index(&self.cursor_direction.reverse()),
                 ),
                 source: Source::StyleKey(StyleKey::UiPrimarySelectionSecondaryCursor),
+                is_protected_range_start: false,
             })
         };
 
@@ -455,6 +454,7 @@ impl Editor {
                     is_cursor: false,
                     range: HighlightSpanRange::CharIndexRange(secondary_selection.extended_range()),
                     source: Source::StyleKey(UiSecondarySelection),
+                    is_protected_range_start: false,
                 });
 
         let seconday_selection_anchors = secondary_selections.iter().flat_map(|selection| {
@@ -463,6 +463,7 @@ impl Editor {
                 is_cursor: false,
                 range: HighlightSpanRange::CharIndexRange(anchor),
                 source: Source::StyleKey(UiSecondarySelectionAnchors),
+                is_protected_range_start: false,
             })
         });
         let secondary_selection_cursors =
@@ -475,6 +476,7 @@ impl Editor {
                             secondary_selection.to_char_index(&self.cursor_direction.reverse()),
                         ),
                         source: Source::Style(theme.ui.secondary_selection_secondary_cursor),
+                        is_protected_range_start: false,
                     },
                     HighlightSpan {
                         set_symbol: None,
@@ -483,6 +485,7 @@ impl Editor {
                             secondary_selection.to_char_index(&self.cursor_direction),
                         ),
                         source: Source::Style(theme.ui.secondary_selection_primary_cursor),
+                        is_protected_range_start: false,
                     },
                 ]
                 .into_iter()
@@ -506,6 +509,7 @@ impl Editor {
                     Some(DiagnosticSeverity::HINT) => DiagnosticsHint,
                     _ => DiagnosticsDefault,
                 }),
+                is_protected_range_start: false,
             });
 
         let jumps = self.jumps().into_iter().enumerate().map(|(index, jump)| {
@@ -521,6 +525,7 @@ impl Editor {
                 range: HighlightSpanRange::CharIndex(
                     jump.selection.to_char_index(&self.cursor_direction),
                 ),
+                is_protected_range_start: false,
             }
         });
         let extra_decorations = buffer.decorations().iter().flat_map(|decoration| {
@@ -534,6 +539,7 @@ impl Editor {
                         .ok()?,
                 ),
                 source: Source::StyleKey(decoration.style_key().clone()),
+                is_protected_range_start: false,
             })
         });
 
@@ -549,7 +555,7 @@ impl Editor {
                 |span| span.byte_range.clone(),
             )
             .iter()
-            .chain(folded_line_ranges.iter().flat_map(|line_range| {
+            .chain(hidden_parent_line_ranges.iter().flat_map(|line_range| {
                 let byte_range = buffer
                     .line_range_to_byte_range(&line_range)
                     .unwrap_or_default();
@@ -562,6 +568,7 @@ impl Editor {
                 source: Source::StyleKey(span.style_key.clone()),
                 set_symbol: None,
                 is_cursor: false,
+                is_protected_range_start: false,
             })
         };
         let custom_regex_highlights = lazy_regex::regex!("(?i)#[0-9a-f]{6}")
@@ -578,6 +585,7 @@ impl Editor {
                             .background_color(color)
                             .foreground_color(color.get_contrasting_color()),
                     ),
+                    is_protected_range_start: false,
                 })
             });
 
@@ -594,6 +602,7 @@ impl Editor {
                         range: HighlightSpanRange::ByteRange(match_.range()),
                         set_symbol: None,
                         is_cursor: false,
+                        is_protected_range_start: false,
                     })
                 };
                 Some(
@@ -616,6 +625,7 @@ impl Editor {
                 range: HighlightSpanRange::Line(line.line),
                 set_symbol: None,
                 is_cursor: false,
+                is_protected_range_start: false,
             })) as Box<dyn Iterator<Item = HighlightSpan>>
         } else {
             Box::new(std::iter::empty())
@@ -698,6 +708,7 @@ pub(crate) struct HighlightSpan {
     pub(crate) range: HighlightSpanRange,
     pub(crate) set_symbol: Option<String>,
     pub(crate) is_cursor: bool,
+    is_protected_range_start: bool,
 }
 
 impl HighlightSpan {
@@ -753,6 +764,7 @@ impl HighlightSpan {
                                     Source::StyleKey(key) => Some(key.clone()),
                                     _ => None,
                                 },
+                                is_protected_range_start: self.is_protected_range_start,
                             })
                         })
                         .collect_vec(),

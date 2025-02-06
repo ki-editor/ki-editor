@@ -335,3 +335,49 @@ fn two() {
         ])
     })
 }
+#[test]
+/// The first selection of each section should be visible even when wrapped.
+/// When there are not enough spaces, trimmed the hidden parent lines of each section
+fn each_folded_section_first_selection_should_always_be_visible_although_wrapped(
+) -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+fn main() {
+  foo();
+  spam bar();
+}
+fn two() {
+  foo();
+  spam bar();
+}
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::new(0, 0),
+                width: 6,
+                height: 3,
+            })),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentFold(Some(Fold::Cursor))),
+            // The parent lines of the both `bar();` are trimmed due to space constrained
+            Expect(EditorGrid(
+                "
+🦀
+↪│█ar
+↪│bar
+"
+                .trim(),
+            )),
+        ])
+    })
+}

@@ -4167,3 +4167,31 @@ fn main() {
         ])
     })
 }
+
+#[test]
+fn should_prioritize_wrapped_selection_if_no_space_left() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 7,
+                height: 2,
+            })),
+            Editor(SetContent("foo bar".trim().to_string())),
+            Editor(MatchLiteral("bar".to_string())),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Expect(EditorGrid(
+                "
+🦀
+↪│█ar
+"
+                .trim(),
+            )),
+        ])
+    })
+}
