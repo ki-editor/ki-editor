@@ -619,17 +619,13 @@ impl Editor {
             })
             .flatten();
 
-        let visible_parent_lines = if self.fold.is_none() {
-            Box::new(visible_parent_lines.into_iter().map(|line| HighlightSpan {
-                source: Source::StyleKey(StyleKey::ParentLine),
-                range: HighlightSpanRange::Line(line.line),
-                set_symbol: None,
-                is_cursor: false,
-                is_protected_range_start: false,
-            })) as Box<dyn Iterator<Item = HighlightSpan>>
-        } else {
-            Box::new(std::iter::empty())
-        };
+        let visible_parent_lines = visible_parent_lines.into_iter().map(|line| HighlightSpan {
+            source: Source::StyleKey(StyleKey::ParentLine),
+            range: HighlightSpanRange::Line(line.line),
+            set_symbol: None,
+            is_cursor: false,
+            is_protected_range_start: false,
+        });
         vec![]
             .into_iter()
             .chain(visible_parent_lines)
