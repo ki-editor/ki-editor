@@ -410,13 +410,23 @@ impl Editor {
             is_protected_range_start: false,
         });
 
-        let marks = buffer.marks().into_iter().map(|mark| HighlightSpan {
-            set_symbol: None,
-            is_cursor: false,
-            source: Source::StyleKey(UiMark),
-            range: HighlightSpanRange::CharIndexRange(mark),
-            is_protected_range_start: false,
-        });
+        let marks = buffer
+            .marks()
+            .into_iter()
+            .filter(|mark| {
+                if let Some(Fold::Mark) = self.fold {
+                    mark == &protected_range
+                } else {
+                    true
+                }
+            })
+            .map(|mark| HighlightSpan {
+                set_symbol: None,
+                is_cursor: false,
+                source: Source::StyleKey(UiMark),
+                range: HighlightSpanRange::CharIndexRange(mark),
+                is_protected_range_start: false,
+            });
         let secondary_selections = &self
             .selection_set
             .secondary_selections()
@@ -452,6 +462,12 @@ impl Editor {
                     if secondary_selections.iter().any(|secondary_selection| {
                         secondary_selection.extended_range() == protected_range
                     }) =>
+                {
+                    no_primary_selection
+                }
+                Some(Fold::Mark)
+                    if protected_range != primary_selection.extended_range()
+                        && buffer.marks().iter().any(|mark| mark == &protected_range) =>
                 {
                     no_primary_selection
                 }
