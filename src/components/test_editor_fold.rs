@@ -410,3 +410,43 @@ fn all_selections_on_same_line_but_all_wrapped() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn total_count_of_highlighted_ranges_should_equal_total_count_of_possible_selections(
+) -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo foo foo".trim().to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::new(0, 0),
+                width: 20,
+                height: 4,
+            })),
+            Editor(MatchLiteral("foo".to_string())),
+            Editor(ToggleFold(Fold::CurrentSelectionMode)),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│█oo foo foo
+1│foo foo foo
+1│foo foo foo
+"
+                .trim(),
+            )),
+            Expect(ExpectKind::CountHighlightedCells(
+                StyleKey::UiPossibleSelection,
+                6, // 2 x 3 characters of "foo" (excluding the primarily selected "foo")
+            )),
+            Expect(ExpectKind::CountHighlightedCells(
+                StyleKey::UiPrimarySelectionAnchors,
+                2, // Only the 1st and 2nd characters of "foo" of the primary selection
+                   // The 3rd character is the secondary cursor
+            )),
+        ])
+    })
+}

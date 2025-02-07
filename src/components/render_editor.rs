@@ -39,7 +39,7 @@ impl Editor {
                     context,
                     self.render_area(),
                     self.scroll_offset(),
-                    cursor_char_index,
+                    (cursor_char_index..cursor_char_index + 1).into(),
                 )
             }
             Some(fold) => {
@@ -132,19 +132,18 @@ impl Editor {
                             (viewport_section.height() as f64 / 2 as f64).floor() as usize,
                         ) as u16;
 
-                        grid.merge_vertical(
-                            self.get_grid_with_dimension(
-                                context,
-                                Dimension {
-                                    height: viewport_section.height() as u16,
-                                    width: self.render_area().width,
-                                },
-                                scroll_offset,
-                                buffer
-                                    .byte_to_char(protected_range_start)
-                                    .unwrap_or_default(),
-                            ),
-                        )
+                        let protected_range = buffer
+                            .byte_range_to_char_index_range(&range)
+                            .unwrap_or_default();
+                        grid.merge_vertical(self.get_grid_with_dimension(
+                            context,
+                            Dimension {
+                                height: viewport_section.height() as u16,
+                                width: self.render_area().width,
+                            },
+                            scroll_offset,
+                            protected_range,
+                        ))
                     },
                 )
             }
@@ -195,12 +194,13 @@ impl Editor {
         context: &Context,
         dimension: Dimension,
         scroll_offset: u16,
-        protected_char_index: CharIndex,
+        protected_range: CharIndexRange,
     ) -> Grid {
         let editor = self;
         let Dimension { height, width } = dimension;
         let buffer = editor.buffer();
         let rope = buffer.rope();
+        let protected_char_index = protected_range.to_char_index(&self.cursor_direction);
         let protected_range_start_line = buffer
             .char_to_line(protected_char_index)
             .unwrap_or_default();
@@ -212,7 +212,7 @@ impl Editor {
                 scroll_offset,
             )
             .unwrap_or_default();
-        let top_offset = hidden_parent_lines.len() as u16;
+        let hidden_parent_lines_length = hidden_parent_lines.len() as u16;
         let visible_lines = rope
             .lines()
             .enumerate()
@@ -241,6 +241,7 @@ impl Editor {
             &visible_line_range,
             &hidden_parent_line_ranges,
             &visible_parent_lines,
+            protected_range,
         );
 
         let hidden_parent_lines_grid = {
@@ -350,16 +351,16 @@ impl Editor {
             let protected_range = visible_lines_grid
                 .get_protected_range_start_position()
                 .map(|position| position.line..position.line + 1);
-            let trimmed_visible_lines_grid_rows_result = trim_array(
+            let trim_result = trim_array(
                 &visible_lines_grid.rows,
                 protected_range.unwrap_or_default(),
-                top_offset as usize,
+                hidden_parent_lines_length as usize,
             );
             let result = hidden_parent_lines_grid
-                .clamp_bottom(trimmed_visible_lines_grid_rows_result.remaining_trim_count as u16)
+                .clamp_bottom(trim_result.remaining_trim_count as u16)
                 .merge_vertical(Grid {
                     width: visible_lines_grid.width,
-                    rows: trimmed_visible_lines_grid_rows_result.trimmed_array,
+                    rows: trim_result.trimmed_array,
                 });
 
             result
@@ -376,12 +377,20 @@ impl Editor {
         visible_line_range: &Range<usize>,
         hidden_parent_line_ranges: &Vec<Range<usize>>,
         visible_parent_lines: &Vec<Line>,
+        protected_range: CharIndexRange,
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
         let theme = context.theme();
         let buffer = self.buffer();
         let possible_selections = if self.selection_set.mode.is_contiguous() {
             Default::default()
+        } else if self.fold == Some(Fold::CurrentSelectionMode) {
+            buffer
+                .char_index_range_to_byte_range(protected_range)
+                .ok()
+                .into_iter()
+                .map(|byte_range| ByteRange::new(byte_range))
+                .collect()
         } else {
             self
                 //.possible_selections(self.selection_set.primary_selection(), context)
@@ -410,35 +419,59 @@ impl Editor {
         });
         let secondary_selections = &self.selection_set.secondary_selections();
 
-        let selection = &self.selection_set.primary_selection();
-        let primary_selection = HighlightSpan {
-            set_symbol: None,
-            is_cursor: false,
-            range: HighlightSpanRange::CharIndexRange(selection.extended_range()),
-            source: Source::StyleKey(UiPrimarySelection),
-            is_protected_range_start: false,
-        };
-
-        let primary_selection_anchors =
-            selection.anchors().into_iter().map(|anchor| HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::CharIndexRange(anchor),
-                source: Source::StyleKey(UiPrimarySelectionAnchors),
-                is_protected_range_start: false,
-            });
-        let primary_selection_secondary_cursor = if self.mode == Mode::Insert {
-            None
-        } else {
-            Some(HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::CharIndex(
-                    selection.to_char_index(&self.cursor_direction.reverse()),
-                ),
-                source: Source::StyleKey(StyleKey::UiPrimarySelectionSecondaryCursor),
-                is_protected_range_start: false,
-            })
+        let primary_selection = &self.selection_set.primary_selection();
+        let (
+            primary_selection_highlight_span,
+            primary_selection_anchors,
+            primary_selection_secondary_cursor,
+        ) = match self.fold {
+            Some(Fold::CurrentSelectionMode)
+                if protected_range != primary_selection.extended_range() =>
+            {
+                (
+                    None,
+                    Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>,
+                    None,
+                )
+            }
+            _ => {
+                let primary_selection_highlight_span = HighlightSpan {
+                    set_symbol: None,
+                    is_cursor: false,
+                    range: HighlightSpanRange::CharIndexRange(primary_selection.extended_range()),
+                    source: Source::StyleKey(UiPrimarySelection),
+                    is_protected_range_start: false,
+                };
+                let primary_selection_anchors =
+                    primary_selection
+                        .anchors()
+                        .into_iter()
+                        .map(|anchor| HighlightSpan {
+                            set_symbol: None,
+                            is_cursor: false,
+                            range: HighlightSpanRange::CharIndexRange(anchor),
+                            source: Source::StyleKey(UiPrimarySelectionAnchors),
+                            is_protected_range_start: false,
+                        });
+                let primary_selection_secondary_cursor = if self.mode == Mode::Insert {
+                    None
+                } else {
+                    Some(HighlightSpan {
+                        set_symbol: None,
+                        is_cursor: false,
+                        range: HighlightSpanRange::CharIndex(
+                            primary_selection.to_char_index(&self.cursor_direction.reverse()),
+                        ),
+                        source: Source::StyleKey(StyleKey::UiPrimarySelectionSecondaryCursor),
+                        is_protected_range_start: false,
+                    })
+                };
+                (
+                    Some(primary_selection_highlight_span),
+                    Box::new(primary_selection_anchors) as Box<dyn Iterator<Item = HighlightSpan>>,
+                    primary_selection_secondary_cursor,
+                )
+            }
         };
 
         let secondary_selection =
@@ -627,7 +660,7 @@ impl Editor {
             .chain(filtered_highlighted_spans)
             .chain(extra_decorations)
             .chain(possible_selections)
-            .chain(Some(primary_selection))
+            .chain(primary_selection_highlight_span)
             .chain(secondary_selection)
             .chain(primary_selection_anchors)
             .chain(seconday_selection_anchors)

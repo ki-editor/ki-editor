@@ -118,6 +118,7 @@ pub(crate) enum ExpectKind {
     LspRequestSent(FromEditor),
     CurrentCopiedTextHistoryOffset(isize),
     CurrentFold(Option<Fold>),
+    CountHighlightedCells(StyleKey, usize),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -370,6 +371,25 @@ impl ExpectKind {
             CurrentFold(expected) => {
                 contextualize(expected, &app.current_component().borrow().editor().fold)
             }
+            CountHighlightedCells(style_key, expected_count) => contextualize(
+                expected_count,
+                &app.current_component()
+                    .borrow()
+                    .editor()
+                    .get_grid(context, false)
+                    .grid
+                    .rows
+                    .into_iter()
+                    .map(|row| {
+                        row.iter()
+                            .filter(|cell| {
+                                println!("style = {:?}", cell.source);
+                                cell.source.as_ref() == Some(style_key)
+                            })
+                            .count()
+                    })
+                    .sum::<usize>(),
+            ),
         })
     }
 }
