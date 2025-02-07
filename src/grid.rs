@@ -626,6 +626,8 @@ pub(crate) enum StyleKey {
     UiFuzzyMatchedChar,
     ParentLine,
     UiPrimarySelectionSecondaryCursor,
+    SecondarySelectionPrimaryCursor,
+    SecondarySelectionSecondaryCursor,
 }
 
 /// TODO: in the future, tab size should be configurable

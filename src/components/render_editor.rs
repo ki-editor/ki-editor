@@ -417,64 +417,89 @@ impl Editor {
             range: HighlightSpanRange::CharIndexRange(mark),
             is_protected_range_start: false,
         });
-        let secondary_selections = &self.selection_set.secondary_selections();
+        let secondary_selections = &self
+            .selection_set
+            .secondary_selections()
+            .into_iter()
+            .filter(|secondary_selection| {
+                if let Some(Fold::Cursor) = self.fold {
+                    secondary_selection.extended_range() == protected_range
+                } else {
+                    true
+                }
+            })
+            .collect_vec();
 
         let primary_selection = &self.selection_set.primary_selection();
+
         let (
             primary_selection_highlight_span,
             primary_selection_anchors,
             primary_selection_secondary_cursor,
-        ) = match self.fold {
-            Some(Fold::CurrentSelectionMode)
-                if protected_range != primary_selection.extended_range() =>
-            {
-                (
-                    None,
-                    Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>,
-                    None,
-                )
-            }
-            _ => {
-                let primary_selection_highlight_span = HighlightSpan {
-                    set_symbol: None,
-                    is_cursor: false,
-                    range: HighlightSpanRange::CharIndexRange(primary_selection.extended_range()),
-                    source: Source::StyleKey(UiPrimarySelection),
-                    is_protected_range_start: false,
-                };
-                let primary_selection_anchors =
-                    primary_selection
-                        .anchors()
-                        .into_iter()
-                        .map(|anchor| HighlightSpan {
-                            set_symbol: None,
-                            is_cursor: false,
-                            range: HighlightSpanRange::CharIndexRange(anchor),
-                            source: Source::StyleKey(UiPrimarySelectionAnchors),
-                            is_protected_range_start: false,
-                        });
-                let primary_selection_secondary_cursor = if self.mode == Mode::Insert {
-                    None
-                } else {
-                    Some(HighlightSpan {
+        ) = {
+            let no_primary_selection = (
+                None,
+                Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>,
+                None,
+            );
+            match self.fold {
+                Some(Fold::CurrentSelectionMode)
+                    if protected_range != primary_selection.extended_range() =>
+                {
+                    no_primary_selection
+                }
+                Some(Fold::Cursor)
+                    if secondary_selections.iter().any(|secondary_selection| {
+                        secondary_selection.extended_range() == protected_range
+                    }) =>
+                {
+                    no_primary_selection
+                }
+                _ => {
+                    let primary_selection_highlight_span = HighlightSpan {
                         set_symbol: None,
                         is_cursor: false,
-                        range: HighlightSpanRange::CharIndex(
-                            primary_selection.to_char_index(&self.cursor_direction.reverse()),
+                        range: HighlightSpanRange::CharIndexRange(
+                            primary_selection.extended_range(),
                         ),
-                        source: Source::StyleKey(StyleKey::UiPrimarySelectionSecondaryCursor),
+                        source: Source::StyleKey(UiPrimarySelection),
                         is_protected_range_start: false,
-                    })
-                };
-                (
-                    Some(primary_selection_highlight_span),
-                    Box::new(primary_selection_anchors) as Box<dyn Iterator<Item = HighlightSpan>>,
-                    primary_selection_secondary_cursor,
-                )
+                    };
+                    let primary_selection_anchors =
+                        primary_selection
+                            .anchors()
+                            .into_iter()
+                            .map(|anchor| HighlightSpan {
+                                set_symbol: None,
+                                is_cursor: false,
+                                range: HighlightSpanRange::CharIndexRange(anchor),
+                                source: Source::StyleKey(UiPrimarySelectionAnchors),
+                                is_protected_range_start: false,
+                            });
+                    let primary_selection_secondary_cursor = if self.mode == Mode::Insert {
+                        None
+                    } else {
+                        Some(HighlightSpan {
+                            set_symbol: None,
+                            is_cursor: false,
+                            range: HighlightSpanRange::CharIndex(
+                                primary_selection.to_char_index(&self.cursor_direction.reverse()),
+                            ),
+                            source: Source::StyleKey(StyleKey::UiPrimarySelectionSecondaryCursor),
+                            is_protected_range_start: false,
+                        })
+                    };
+                    (
+                        Some(primary_selection_highlight_span),
+                        Box::new(primary_selection_anchors)
+                            as Box<dyn Iterator<Item = HighlightSpan>>,
+                        primary_selection_secondary_cursor,
+                    )
+                }
             }
         };
 
-        let secondary_selection =
+        let secondary_selections_highlight_spans =
             secondary_selections
                 .iter()
                 .map(|secondary_selection| HighlightSpan {
@@ -485,7 +510,7 @@ impl Editor {
                     is_protected_range_start: false,
                 });
 
-        let seconday_selection_anchors = secondary_selections.iter().flat_map(|selection| {
+        let secondary_selection_anchors = secondary_selections.iter().flat_map(|selection| {
             selection.anchors().into_iter().map(|anchor| HighlightSpan {
                 set_symbol: None,
                 is_cursor: false,
@@ -503,7 +528,7 @@ impl Editor {
                         range: HighlightSpanRange::CharIndex(
                             secondary_selection.to_char_index(&self.cursor_direction.reverse()),
                         ),
-                        source: Source::Style(theme.ui.secondary_selection_secondary_cursor),
+                        source: Source::StyleKey(StyleKey::SecondarySelectionSecondaryCursor),
                         is_protected_range_start: false,
                     },
                     HighlightSpan {
@@ -512,13 +537,14 @@ impl Editor {
                         range: HighlightSpanRange::CharIndex(
                             secondary_selection.to_char_index(&self.cursor_direction),
                         ),
-                        source: Source::Style(theme.ui.secondary_selection_primary_cursor),
+                        source: Source::StyleKey(StyleKey::SecondarySelectionPrimaryCursor),
                         is_protected_range_start: false,
                     },
                 ]
                 .into_iter()
                 .collect::<Vec<_>>()
             });
+
         let content = buffer.rope().to_string();
 
         let diagnostics = buffer.diagnostics();
@@ -661,9 +687,9 @@ impl Editor {
             .chain(extra_decorations)
             .chain(possible_selections)
             .chain(primary_selection_highlight_span)
-            .chain(secondary_selection)
+            .chain(secondary_selections_highlight_spans)
             .chain(primary_selection_anchors)
-            .chain(seconday_selection_anchors)
+            .chain(secondary_selection_anchors)
             .chain(marks)
             .chain(diagnostics)
             .chain(jumps)

@@ -445,7 +445,49 @@ fn total_count_of_highlighted_ranges_should_equal_total_count_of_possible_select
             Expect(ExpectKind::CountHighlightedCells(
                 StyleKey::UiPrimarySelectionAnchors,
                 2, // Only the 1st and 2nd characters of "foo" of the primary selection
-                   // The 3rd character is the secondary cursor
+                   // The 3rd character is the secondary
+            )),
+        ])
+    })
+}
+
+#[test]
+fn total_count_of_rendered_secondary_selections_should_equal_total_count_of_actual_secondary_selections(
+) -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo foo foo".trim().to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::new(0, 0),
+                width: 20,
+                height: 4,
+            })),
+            Editor(MatchLiteral("foo".to_string())),
+            Editor(CursorAddToAllSelections),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│█oo foo foo
+1│foo foo foo
+1│foo foo foo
+"
+                .trim(),
+            )),
+            Expect(ExpectKind::CountHighlightedCells(
+                StyleKey::UiPrimarySelectionAnchors,
+                2, // Only the 1st and 2nd characters of "foo" of the primary selection
+                   // The 3rd character is the secondary
+            )),
+            Expect(ExpectKind::CountHighlightedCells(
+                StyleKey::UiSecondarySelectionAnchors,
+                2, // 2 secondary selections x 1 the middle character of "foo"
+                   // the first character is secondary selection primary cursor
+                   // the third character is secondary selection secondary cursor
             )),
         ])
     })

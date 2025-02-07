@@ -93,6 +93,10 @@ impl Theme {
             StyleKey::UiFuzzyMatchedChar => self.ui.fuzzy_matched_char,
             StyleKey::ParentLine => Style::new().background_color(self.ui.parent_lines_background),
             StyleKey::UiPrimarySelectionSecondaryCursor => {
+                self.ui.primary_selection_secondary_cursor
+            }
+            StyleKey::SecondarySelectionPrimaryCursor => self.ui.secondary_selection_primary_cursor,
+            StyleKey::SecondarySelectionSecondaryCursor => {
                 self.ui.secondary_selection_secondary_cursor
             }
         }
