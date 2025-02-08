@@ -351,17 +351,36 @@ impl Editor {
             let protected_range = visible_lines_grid
                 .get_protected_range_start_position()
                 .map(|position| position.line..position.line + 1);
+
+            let hidden_parent_lines_count = hidden_parent_lines_grid.rows.len();
+            let max_hidden_parent_lines_count =
+                hidden_parent_lines_count.min(visible_lines_grid.rows.len() / 2);
+
             let trim_result = trim_array(
                 &visible_lines_grid.rows,
                 protected_range.unwrap_or_default(),
-                hidden_parent_lines_length as usize,
+                max_hidden_parent_lines_count,
             );
-            let result = hidden_parent_lines_grid
-                .clamp_bottom(trim_result.remaining_trim_count as u16)
-                .merge_vertical(Grid {
-                    width: visible_lines_grid.width,
-                    rows: trim_result.trimmed_array,
-                });
+            let clamped_hidden_parent_lines_grid = hidden_parent_lines_grid.clamp_bottom(
+                (trim_result.remaining_trim_count
+                    + (hidden_parent_lines_count - max_hidden_parent_lines_count))
+                    as u16,
+            );
+            let trimmed_visible_lines_grid = Grid {
+                width: visible_lines_grid.width,
+                rows: trim_result.trimmed_array,
+            };
+
+            // Verify that the maximum number of hidden parent lines only take
+            // at most 50% of the render area (less one row of title)
+            debug_assert!(
+                (clamped_hidden_parent_lines_grid.rows.len() as f64)
+                    / (visible_lines_grid.rows.len() as f64)
+                    <= 0.5
+            );
+
+            let result =
+                clamped_hidden_parent_lines_grid.merge_vertical(trimmed_visible_lines_grid);
 
             result
         };

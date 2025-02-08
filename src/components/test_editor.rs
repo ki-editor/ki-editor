@@ -4195,3 +4195,45 @@ fn should_prioritize_wrapped_selection_if_no_space_left() -> anyhow::Result<()> 
         ])
     })
 }
+
+#[test]
+fn hidden_parent_lines_count_should_take_at_most_50_percent_of_render_area() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 20,
+                height: 5,
+            })),
+            Editor(SetContent(
+                "
+fn foo() {
+  fn bar() {
+    fn spam() {
+        xxx();
+        yyy();
+    }
+  }
+}"
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("yyy".to_string())),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│fn foo() {
+2│  fn bar() {
+4│        xxx();
+5│        █yy();
+"
+                .trim(),
+            )),
+        ])
+    })
+}
