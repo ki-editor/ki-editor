@@ -8,10 +8,10 @@ use crate::{grid::StyleKey, position::Position, selection::SelectionMode};
 use itertools::Itertools;
 use SelectionMode::*;
 
-use super::editor::{Fold, IfCurrentNotFound};
+use super::editor::{IfCurrentNotFound, Split};
 
 #[test]
-fn fold_styling() -> anyhow::Result<()> {
+fn split_styling() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -29,7 +29,7 @@ fn fold_styling() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Down)),
             Expect(CurrentSelectedTexts(&["bar"])),
-            Editor(ToggleFold(Fold::Cursor)),
+            Editor(ToggleSplit(Split::Cursor)),
             Expect(GridCellStyleKey(
                 Position::new(2, 0 + 2),
                 Some(StyleKey::UiPrimarySelectionAnchors),
@@ -47,9 +47,9 @@ fn fold_styling() -> anyhow::Result<()> {
 }
 
 #[test]
-/// When Fold by Mark is activated
+/// When Split by Mark is activated
 /// All the marks should be always visible
-fn fold_by_mark() -> anyhow::Result<()> {
+fn split_by_mark() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -88,7 +88,7 @@ zeta
 "
                 .trim(),
             )),
-            Editor(ToggleFold(Fold::Mark)),
+            Editor(ToggleSplit(Split::Mark)),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -122,9 +122,9 @@ zeta
     })
 }
 
-/// Fold by current selection mode
+/// Split by current selection mode
 #[test]
-fn fold_by_current_selection_mode() -> anyhow::Result<()> {
+fn split_by_current_selection_mode() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -161,7 +161,7 @@ fn spam() {
 "
                 .trim(),
             )),
-            Editor(ToggleFold(Fold::CurrentSelectionMode)),
+            Editor(ToggleSplit(Split::CurrentSelectionMode)),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -176,7 +176,7 @@ fn spam() {
 }
 
 #[test]
-fn fold_by_current_selection_mode_should_be_deactivated_when_selection_mode_changed(
+fn split_by_current_selection_mode_should_be_deactivated_when_selection_mode_changed(
 ) -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -186,17 +186,17 @@ fn fold_by_current_selection_mode_should_be_deactivated_when_selection_mode_chan
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(ToggleFold(Fold::CurrentSelectionMode)),
-            Expect(CurrentFold(Some(Fold::CurrentSelectionMode))),
+            Editor(ToggleSplit(Split::CurrentSelectionMode)),
+            Expect(CurrentSplit(Some(Split::CurrentSelectionMode))),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Expect(CurrentFold(None)),
+            Expect(CurrentSplit(None)),
         ])
     })
 }
 
-/// Fold by cursors
+/// Split by cursors
 #[test]
-fn fold_by_cursors() -> anyhow::Result<()> {
+fn split_by_cursors() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -222,7 +222,7 @@ foo
             )),
             Editor(MatchLiteral("foo".to_string())),
             Editor(CursorAddToAllSelections),
-            Expect(CurrentFold(Some(Fold::Cursor))),
+            Expect(CurrentSplit(Some(Split::Cursor))),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -233,7 +233,7 @@ foo
                 .trim(),
             )),
             Editor(CursorKeepPrimaryOnly),
-            Expect(CurrentFold(None)),
+            Expect(CurrentSplit(None)),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -248,7 +248,7 @@ foo
 }
 
 #[test]
-fn each_folded_section_should_show_parent_lines() -> anyhow::Result<()> {
+fn each_splitted_section_should_show_parent_lines() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -277,7 +277,7 @@ fn two() {
             })),
             Editor(MatchLiteral("bar".to_string())),
             Editor(CursorAddToAllSelections),
-            Expect(CurrentFold(Some(Fold::Cursor))),
+            Expect(CurrentSplit(Some(Split::Cursor))),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -294,7 +294,7 @@ fn two() {
 
 #[test]
 /// When there are not enough spaces, trimmed the hidden parent lines of each section
-fn each_folded_section_selections_should_always_be_visible() -> anyhow::Result<()> {
+fn each_splitted_section_selections_should_always_be_visible() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -323,7 +323,7 @@ fn two() {
             })),
             Editor(MatchLiteral("bar".to_string())),
             Editor(CursorAddToAllSelections),
-            Expect(CurrentFold(Some(Fold::Cursor))),
+            Expect(CurrentSplit(Some(Split::Cursor))),
             // The parent lines of the both `bar();` are trimmed due to space constrained
             Expect(EditorGrid(
                 "
@@ -339,7 +339,7 @@ fn two() {
 #[test]
 /// The first selection of each section should be visible even when wrapped.
 /// When there are not enough spaces, trimmed the hidden parent lines of each section
-fn each_folded_section_first_selection_should_always_be_visible_although_wrapped(
+fn each_splitted_section_first_selection_should_always_be_visible_although_wrapped(
 ) -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -369,7 +369,7 @@ fn two() {
             })),
             Editor(MatchLiteral("bar".to_string())),
             Editor(CursorAddToAllSelections),
-            Expect(CurrentFold(Some(Fold::Cursor))),
+            Expect(CurrentSplit(Some(Split::Cursor))),
             // The parent lines of the both `bar();` are trimmed due to space constrained
             Expect(EditorGrid(
                 "
@@ -399,7 +399,7 @@ fn all_selections_on_same_line_but_all_wrapped() -> anyhow::Result<()> {
                 height: 3,
             })),
             Editor(MatchLiteral("foo".to_string())),
-            Editor(ToggleFold(Fold::CurrentSelectionMode)),
+            Editor(ToggleSplit(Split::CurrentSelectionMode)),
             Expect(EditorGrid(
                 "
 🦀
@@ -429,7 +429,7 @@ fn total_count_of_highlighted_ranges_should_equal_total_count_of_possible_select
                 height: 4,
             })),
             Editor(MatchLiteral("foo".to_string())),
-            Editor(ToggleFold(Fold::CurrentSelectionMode)),
+            Editor(ToggleSplit(Split::CurrentSelectionMode)),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -513,7 +513,7 @@ fn total_count_of_rendered_marks_should_equal_total_count_of_actual_marks() -> a
             Editor(CursorAddToAllSelections),
             Editor(ToggleMark),
             Editor(CursorKeepPrimaryOnly),
-            Editor(ToggleFold(Fold::Mark)),
+            Editor(ToggleSplit(Split::Mark)),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]

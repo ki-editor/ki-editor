@@ -26,7 +26,7 @@ use my_proc_macros::{hex, key, keys};
 use SelectionMode::*;
 
 use super::editor::SurroundKind;
-use super::editor::{Fold, IfCurrentNotFound};
+use super::editor::{IfCurrentNotFound, Split};
 
 #[test]
 fn raise_bottom_node() -> anyhow::Result<()> {

@@ -24,13 +24,13 @@ use crate::{
 
 use super::{
     component::GetGridResult,
-    editor::{Editor, Fold},
+    editor::{Editor, Split},
 };
 
 impl Editor {
     pub(crate) fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
         let buffer = self.buffer();
-        let grid = match &self.fold {
+        let grid = match &self.split {
             None => {
                 let cursor_char_index = self
                     .selection_set
@@ -46,19 +46,19 @@ impl Editor {
             }
             Some(fold) => {
                 let ranges = match fold {
-                    Fold::CurrentSelectionMode => self
-                        .folded_selections(self.selection_set.primary_selection(), context)
+                    Split::CurrentSelectionMode => self
+                        .splitted_selections(self.selection_set.primary_selection(), context)
                         .unwrap_or_default()
                         .into_iter()
                         .map(|byte_range| byte_range.range().clone())
                         .collect_vec(),
-                    Fold::Cursor => self
+                    Split::Cursor => self
                         .selection_set
                         .map(|selection| selection.extended_range())
                         .into_iter()
                         .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
                         .collect_vec(),
-                    Fold::Mark => self
+                    Split::Mark => self
                         .buffer()
                         .marks()
                         .into_iter()
@@ -252,7 +252,7 @@ impl Editor {
         let hidden_parent_lines_grid = {
             let boundaries = hidden_parent_line_ranges
                 .into_iter()
-                .map(|folded_line_range| Boundary::new(&buffer, folded_line_range))
+                .map(|hidden_parent_line_range| Boundary::new(&buffer, hidden_parent_line_range))
                 .collect_vec();
             let updates = hidden_parent_lines
                 .iter()
@@ -418,7 +418,7 @@ impl Editor {
         let buffer = self.buffer();
         let possible_selections = if self.selection_set.mode.is_contiguous() {
             Default::default()
-        } else if self.fold == Some(Fold::CurrentSelectionMode) {
+        } else if self.split == Some(Split::CurrentSelectionMode) {
             buffer
                 .char_index_range_to_byte_range(protected_range)
                 .ok()
@@ -448,7 +448,7 @@ impl Editor {
             .marks()
             .into_iter()
             .filter(|mark| {
-                if let Some(Fold::Mark) = self.fold {
+                if let Some(Split::Mark) = self.split {
                     mark == &protected_range
                 } else {
                     true
@@ -466,7 +466,7 @@ impl Editor {
             .secondary_selections()
             .into_iter()
             .filter(|secondary_selection| {
-                if let Some(Fold::Cursor) = self.fold {
+                if let Some(Split::Cursor) = self.split {
                     secondary_selection.extended_range() == protected_range
                 } else {
                     true
@@ -486,20 +486,20 @@ impl Editor {
                 Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>,
                 None,
             );
-            match self.fold {
-                Some(Fold::CurrentSelectionMode)
+            match self.split {
+                Some(Split::CurrentSelectionMode)
                     if protected_range != primary_selection.extended_range() =>
                 {
                     no_primary_selection
                 }
-                Some(Fold::Cursor)
+                Some(Split::Cursor)
                     if secondary_selections.iter().any(|secondary_selection| {
                         secondary_selection.extended_range() == protected_range
                     }) =>
                 {
                     no_primary_selection
                 }
-                Some(Fold::Mark)
+                Some(Split::Mark)
                     if protected_range != primary_selection.extended_range()
                         && buffer.marks().iter().any(|mark| mark == &protected_range) =>
                 {
@@ -786,14 +786,14 @@ impl Editor {
             .collect())
     }
 
-    pub(crate) fn folded_selections(
+    pub(crate) fn splitted_selections(
         &self,
         selection: &Selection,
         context: &Context,
     ) -> anyhow::Result<Vec<ByteRange>> {
         Ok(self
             .get_selection_mode_trait_object(selection, true, context)?
-            .iter_folded(selection_mode::SelectionModeParams {
+            .iter_splitted(selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,

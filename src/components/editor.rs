@@ -341,14 +341,14 @@ impl Component for Editor {
                 self.mode = Mode::Normal;
                 return Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent));
             }
-            ToggleFold(fold) => self.toggle_fold(fold),
+            ToggleSplit(split) => self.toggle_split(split),
         }
         Ok(Default::default())
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum Fold {
+pub(crate) enum Split {
     CurrentSelectionMode,
     Cursor,
     Mark,
@@ -371,7 +371,7 @@ impl Clone for Editor {
             copied_text_history_offset: Default::default(),
             tag: None,
             normal_mode_override: self.normal_mode_override.clone(),
-            fold: self.fold.clone(),
+            split: self.split.clone(),
         }
     }
 }
@@ -396,7 +396,7 @@ pub(crate) struct Editor {
     copied_text_history_offset: Counter,
     tag: Option<char>,
     pub(crate) normal_mode_override: Option<NormalModeOverride>,
-    pub(crate) fold: Option<Fold>,
+    pub(crate) split: Option<Split>,
 }
 
 #[derive(Default)]
@@ -562,7 +562,7 @@ impl Editor {
             copied_text_history_offset: Default::default(),
             tag: None,
             normal_mode_override: None,
-            fold: None,
+            split: None,
         }
     }
 
@@ -582,7 +582,7 @@ impl Editor {
             copied_text_history_offset: Default::default(),
             tag: None,
             normal_mode_override: None,
-            fold: None,
+            split: None,
         }
     }
 
@@ -1445,10 +1445,10 @@ impl Editor {
                 .update_selection_set(selection_set, true)
                 .append(Dispatch::ToEditor(EnterNormalMode)))
         } else {
-            if self.fold == Some(Fold::CurrentSelectionMode)
+            if self.split == Some(Split::CurrentSelectionMode)
                 && self.selection_set.mode != selection_mode
             {
-                self.fold = None
+                self.split = None
             }
             self.move_selection_with_selection_mode_without_global_mode(
                 Movement::Current(if_current_not_found),
@@ -2456,7 +2456,7 @@ impl Editor {
         context: &Context,
     ) -> Result<(), anyhow::Error> {
         self.mode = Mode::Normal;
-        self.fold = Some(Fold::Cursor);
+        self.split = Some(Split::Cursor);
         self.selection_set
             .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
         self.recalculate_scroll_offset();
@@ -2465,8 +2465,8 @@ impl Editor {
 
     pub(crate) fn cursor_keep_primary_only(&mut self) {
         self.mode = Mode::Normal;
-        if self.fold == Some(Fold::Cursor) {
-            self.fold = None;
+        if self.split == Some(Split::Cursor) {
+            self.split = None;
         }
         self.selection_set.only();
     }
@@ -3395,10 +3395,10 @@ impl Editor {
         }
     }
 
-    fn toggle_fold(&mut self, fold: Fold) {
-        self.fold = match &self.fold {
-            Some(current_fold) if &fold == current_fold => None,
-            _ => Some(fold),
+    fn toggle_split(&mut self, split: Split) {
+        self.split = match &self.split {
+            Some(current_split) if &split == current_split => None,
+            _ => Some(split),
         }
     }
 }
@@ -3533,7 +3533,7 @@ pub(crate) enum DispatchEditor {
     BreakSelection,
     ShowHelp,
     HandleEsc,
-    ToggleFold(Fold),
+    ToggleSplit(Split),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

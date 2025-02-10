@@ -19,7 +19,7 @@ use crate::{
 
 use super::{
     editor::{
-        Direction, DispatchEditor, Editor, Fold, HandleEventResult, IfCurrentNotFound, Mode,
+        Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Mode, Split,
         SurroundKind,
     },
     editor_keymap::*,
@@ -1128,23 +1128,25 @@ impl Editor {
                     Keymap::new(
                         context
                             .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::FoldS),
-                        "Fold Sel".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::ToggleFold(Fold::CurrentSelectionMode)),
+                            .get_space_keymap(&Meaning::SpltS),
+                        "Split Sel".to_string(),
+                        Dispatch::ToEditor(DispatchEditor::ToggleSplit(
+                            Split::CurrentSelectionMode,
+                        )),
                     ),
                     Keymap::new(
                         context
                             .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::FoldC),
-                        "Fold Curs".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::ToggleFold(Fold::Cursor)),
+                            .get_space_keymap(&Meaning::SpltC),
+                        "Split Curs".to_string(),
+                        Dispatch::ToEditor(DispatchEditor::ToggleSplit(Split::Cursor)),
                     ),
                     Keymap::new(
                         context
                             .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::FoldM),
-                        "Fold Mark".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::ToggleFold(Fold::Mark)),
+                            .get_space_keymap(&Meaning::SpltM),
+                        "Split Mark".to_string(),
+                        Dispatch::ToEditor(DispatchEditor::ToggleSplit(Split::Mark)),
                     ),
                 ])
                 .collect_vec(),

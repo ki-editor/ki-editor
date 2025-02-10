@@ -13,4 +13,4 @@ pub(crate) mod suggestive_editor;
 #[cfg(test)]
 mod test_editor;
 #[cfg(test)]
-mod test_editor_fold;
+mod test_editor_split;
