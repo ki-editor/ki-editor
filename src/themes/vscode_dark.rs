@@ -6,6 +6,7 @@ use crate::{
 use my_proc_macros::hex;
 
 pub fn vscode_dark() -> Theme {
+    let background = hex!("#1E1E1E");
     Theme {
         name: "VS Code (Dark)".to_string(),
         syntax: SyntaxStyles::new({
@@ -33,14 +34,15 @@ pub fn vscode_dark() -> Theme {
             window_title_unfocused: Style::new()
                 .foreground_color(hex!("#969696"))
                 .background_color(hex!("#444444")),
-            parent_lines_background: hex!("#3B3D41"),
+            parent_lines_background: hex!("#3B3D41").apply_custom_alpha(background, 0.7),
+            section_divider_background: hex!("#3B3D41"),
             jump_mark_odd: Style::new()
                 .background_color(hex!("#b5485d"))
                 .foreground_color(hex!("#ffffff")),
             jump_mark_even: Style::new()
                 .background_color(hex!("#84b701"))
                 .foreground_color(hex!("#ffffff")),
-            background_color: hex!("#1E1E1E"),
+            background_color: background,
             text_foreground: hex!("#FFFFFF"),
             primary_selection_background: hex!("#304E75"),
             primary_selection_anchor_background: hex!("#304E75"),

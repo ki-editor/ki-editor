@@ -99,6 +99,9 @@ impl Theme {
             StyleKey::SecondarySelectionSecondaryCursor => {
                 self.ui.secondary_selection_secondary_cursor
             }
+            StyleKey::UiSectionDivider => {
+                Style::new().background_color(self.ui.section_divider_background)
+            }
         }
     }
 }
@@ -144,6 +147,7 @@ pub(crate) struct UiStyles {
     pub(crate) window_title_focused: Style,
     pub(crate) window_title_unfocused: Style,
     pub(crate) parent_lines_background: Color,
+    pub(crate) section_divider_background: Color,
     pub(crate) jump_mark_odd: Style,
     pub(crate) jump_mark_even: Style,
     pub(crate) text_foreground: Color,

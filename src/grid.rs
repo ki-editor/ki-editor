@@ -68,10 +68,11 @@ impl Cell {
                 .background_color
                 .unwrap_or(self.background_color),
             line: update.style.line.or(self.line),
-            is_cursor: update.is_cursor,
+            is_cursor: update.is_cursor || self.is_cursor,
             source: update.source.or_else(|| self.source.clone()),
             is_bold: update.style.is_bold || self.is_bold,
-            is_protected_range_start: update.is_protected_range_start,
+            is_protected_range_start: update.is_protected_range_start
+                || self.is_protected_range_start,
         }
     }
 }
@@ -598,6 +599,10 @@ impl Grid {
             }
         })
     }
+
+    pub(crate) fn height(&self) -> usize {
+        self.rows.len()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
@@ -628,6 +633,7 @@ pub(crate) enum StyleKey {
     UiPrimarySelectionSecondaryCursor,
     SecondarySelectionPrimaryCursor,
     SecondarySelectionSecondaryCursor,
+    UiSectionDivider,
 }
 
 /// TODO: in the future, tab size should be configurable

@@ -5,6 +5,7 @@ use crate::test_app::*;
 
 use crate::{grid::StyleKey, position::Position, selection::SelectionMode};
 
+use itertools::Itertools;
 use SelectionMode::*;
 
 use super::editor::{Fold, IfCurrentNotFound};
@@ -532,6 +533,58 @@ fn total_count_of_rendered_marks_should_equal_total_count_of_actual_marks() -> a
                    // + 1 primary selection x first 2 characters of "foo"
                    // (last character is primary selection secondary cursor)
             )),
+        ])
+    })
+}
+
+#[test]
+/// The first of each section (height > 1) is styled as section divider
+fn section_divider_style() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo\nbar\nbar".trim().to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::new(0, 0),
+                width: 6,
+                height: 4,
+            })),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(CursorAddToAllSelections),
+            Expect(EditorGrid(
+                "
+🦀
+1│foo
+2│█ar
+3│bar
+"
+                .trim(),
+            )),
+            // Expect the first line of the first section (line 1) is styled as section divider
+            // because the height of the first section is more than 1
+            ExpectMulti(
+                (0..5)
+                    .map(|column| {
+                        GridCellStyleKey(Position::new(1, column), Some(StyleKey::UiSectionDivider))
+                    })
+                    .collect_vec(),
+            ),
+            // Expect the first line of the second section (line 3) is NOT styled as section divider
+            // because the height of the second section is NOT more than 1
+            ExpectMulti(
+                (0..5)
+                    .map(|column| {
+                        Not(Box::new(GridCellStyleKey(
+                            Position::new(3, column),
+                            Some(StyleKey::UiSectionDivider),
+                        )))
+                    })
+                    .collect_vec(),
+            ),
         ])
     })
 }

@@ -175,6 +175,8 @@ fn from_theme_content(theme: ThemeContent) -> Theme {
             .foreground_color(foreground)
     };
     let parent_lines_background = primary_selection_background.apply_custom_alpha(background, 0.25);
+    let section_divider_background =
+        primary_selection_background.apply_custom_alpha(background, 0.5);
     let text_accent = theme
         .style
         .text_accent
@@ -235,6 +237,7 @@ fn from_theme_content(theme: ThemeContent) -> Theme {
                 .foreground_color(text_color)
                 .set_some_background_color(from_some_hex(theme.style.tab_inactive_background)),
             parent_lines_background,
+            section_divider_background,
             jump_mark_odd: Style::new()
                 .background_color(hex!("#b5485d"))
                 .foreground_color(hex!("#ffffff")),

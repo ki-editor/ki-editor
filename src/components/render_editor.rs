@@ -14,6 +14,7 @@ use crate::{
     context::Context,
     divide_viewport::{divide_viewport, divide_viewport_new},
     grid::{CellUpdate, Grid, LineUpdate, RenderContentLineNumber, StyleKey},
+    position::Position,
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
     style::Style,
@@ -40,6 +41,7 @@ impl Editor {
                     self.render_area(),
                     self.scroll_offset(),
                     (cursor_char_index..cursor_char_index + 1).into(),
+                    false,
                 )
             }
             Some(fold) => {
@@ -143,6 +145,7 @@ impl Editor {
                             },
                             scroll_offset,
                             protected_range,
+                            true,
                         ))
                     },
                 )
@@ -189,12 +192,15 @@ impl Editor {
     }
 
     /// Protected char index must not be trimmed and always be rendered
+    ///
+    /// `borderize_first_line` should only be true when splitting.
     fn get_grid_with_dimension(
         &self,
         context: &Context,
         dimension: Dimension,
         scroll_offset: u16,
         protected_range: CharIndexRange,
+        borderize_first_line: bool,
     ) -> Grid {
         let editor = self;
         let Dimension { height, width } = dimension;
@@ -212,7 +218,6 @@ impl Editor {
                 scroll_offset,
             )
             .unwrap_or_default();
-        let hidden_parent_lines_length = hidden_parent_lines.len() as u16;
         let visible_lines = rope
             .lines()
             .enumerate()
@@ -223,8 +228,8 @@ impl Editor {
         let visible_lines_grid: Grid = Grid::new(Dimension { height, width });
 
         let primary_selection = &editor.selection_set.primary_selection();
-        // If the buffer selection is updated less recently than the window's scroll offset,
 
+        // If the buffer selection is updated less recently than the window's scroll offset,
         // use the window's scroll offset.
 
         let theme = context.theme();
@@ -249,20 +254,24 @@ impl Editor {
                 .into_iter()
                 .map(|folded_line_range| Boundary::new(&buffer, folded_line_range))
                 .collect_vec();
-            let non_consecutive_lines = get_non_consecutive_nums(
-                &hidden_parent_lines
-                    .iter()
-                    .map(|line| line.line)
-                    .collect_vec(),
-            );
             let updates = hidden_parent_lines
                 .iter()
-                .map(|line| HighlightSpan {
-                    source: Source::StyleKey(StyleKey::ParentLine),
-                    range: HighlightSpanRange::Line(line.line),
-                    set_symbol: None,
-                    is_cursor: false,
-                    is_protected_range_start: false,
+                .enumerate()
+                .filter_map(|(index, line)| {
+                    let char_index_start = buffer.position_to_char(line.origin_position).ok()?;
+                    let char_index_end = buffer
+                        .position_to_char(Position {
+                            line: line.line,
+                            column: line.origin_position.column + line.content.chars().count(),
+                        })
+                        .ok()?;
+                    Some(HighlightSpan {
+                        source: Source::StyleKey(StyleKey::ParentLine),
+                        range: HighlightSpanRange::Line(line.line),
+                        set_symbol: None,
+                        is_cursor: false,
+                        is_protected_range_start: false,
+                    })
                 })
                 .chain(updates.clone())
                 .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
@@ -280,16 +289,6 @@ impl Editor {
                             }
                         })
                         .collect_vec();
-                    // TODO: remove the following code
-                    let line_updates = if false && non_consecutive_lines.contains(&line.line) {
-                        [LineUpdate {
-                            line_index: 0,
-                            style: Style::new().background_color(theme.ui.parent_lines_background),
-                        }]
-                        .to_vec()
-                    } else {
-                        Default::default()
-                    };
                     grid.merge_vertical(Grid::new(Dimension { height: 1, width }).render_content(
                         &line.content,
                         RenderContentLineNumber::LineNumber {
@@ -297,7 +296,7 @@ impl Editor {
                             max_line_number: len_lines as usize,
                         },
                         updates,
-                        line_updates,
+                        Default::default(),
                         theme,
                     ))
                 },
@@ -325,7 +324,6 @@ impl Editor {
                                     )
                             }),
                     )
-                    // .chain( buffer .char_to_position(primary_cursor_char_index) .map(|position| { CellUpdate::new(position) .set_is_cursor(true) .set_is_protected_range_start(true) }) .ok(), )
                     .collect_vec()
             };
             let visible_lines_content = visible_lines.map(|(_, line)| line).join("");
@@ -374,15 +372,32 @@ impl Editor {
             // Verify that the maximum number of hidden parent lines only take
             // at most 50% of the render area (less one row of title)
             debug_assert!(
-                (clamped_hidden_parent_lines_grid.rows.len() as f64)
-                    / (visible_lines_grid.rows.len() as f64)
+                (clamped_hidden_parent_lines_grid.height() as f64)
+                    / (visible_lines_grid.height() as f64)
                     <= 0.5
             );
 
             let result =
                 clamped_hidden_parent_lines_grid.merge_vertical(trimmed_visible_lines_grid);
 
-            result
+            let section_divider_cell_updates = (borderize_first_line
+                && visible_lines_grid.height() > 1)
+                .then(|| {
+                    (0..width)
+                        .map(|column| CellUpdate {
+                            position: Position::new(0, column as usize),
+                            symbol: None,
+                            style: Style::new()
+                                .background_color(theme.ui.section_divider_background),
+                            is_cursor: false,
+                            is_protected_range_start: false,
+                            source: Some(StyleKey::UiSectionDivider),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            result.apply_cell_updates(section_divider_cell_updates)
         };
 
         debug_assert_eq!(grid.rows.len(), height as usize);
