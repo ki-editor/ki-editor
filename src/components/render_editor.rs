@@ -9,10 +9,10 @@ use crate::{
     char_index_range::CharIndexRange,
     components::{
         component::{Component, Cursor, SetCursorStyle},
-        editor::{Mode, ViewAlignment, WINDOW_TITLE_HEIGHT},
+        editor::{Mode, WINDOW_TITLE_HEIGHT},
     },
     context::Context,
-    divide_viewport::{divide_viewport, divide_viewport_new},
+    divide_viewport::divide_viewport_new,
     grid::{CellUpdate, Grid, LineUpdate, RenderContentLineNumber, StyleKey},
     position::Position,
     selection::{CharIndex, Selection},
@@ -117,27 +117,6 @@ impl Editor {
         .sorted_by_key(|range| (range.start, range.end))
         .unique()
         .collect_vec();
-        let line_number_and_ranges: Vec<(usize, Range<usize>)> = ranges
-            .clone()
-            .into_iter()
-            .filter_map(|byte_range| {
-                Some((buffer.byte_to_line(byte_range.start).ok()?, byte_range))
-            })
-            .sorted_by_key(|(_, byte_range)| byte_range.start)
-            .collect_vec();
-        let line_numbers = line_number_and_ranges
-            .iter()
-            .map(|(line_number, _)| *line_number)
-            .unique()
-            .collect_vec();
-        let focused_line_number = buffer
-            .char_to_line(
-                self.selection_set
-                    .primary_selection()
-                    .extended_range()
-                    .to_char_index(&self.cursor_direction),
-            )
-            .unwrap_or_default();
         let viewport_sections = divide_viewport_new(
             &ranges,
             self.render_area().height as usize,
@@ -249,15 +228,10 @@ impl Editor {
                 .collect_vec();
             let updates = hidden_parent_lines
                 .iter()
-                .enumerate()
-                .filter_map(|(index, line)| {
-                    let char_index_start = buffer.position_to_char(line.origin_position).ok()?;
-                    let char_index_end = buffer
-                        .position_to_char(Position {
-                            line: line.line,
-                            column: line.origin_position.column + line.content.chars().count(),
-                        })
-                        .ok()?;
+                .filter_map(|line| {
+                    if self.split.is_some() {
+                        return None;
+                    }
                     Some(HighlightSpan {
                         source: Source::StyleKey(StyleKey::ParentLine),
                         range: HighlightSpanRange::Line(line.line),
@@ -716,13 +690,17 @@ impl Editor {
             })
             .flatten();
 
-        let visible_parent_lines = visible_parent_lines.into_iter().map(|line| HighlightSpan {
-            source: Source::StyleKey(StyleKey::ParentLine),
-            range: HighlightSpanRange::Line(line.line),
-            set_symbol: None,
-            is_cursor: false,
-            is_protected_range_start: false,
-        });
+        let visible_parent_lines = if self.split.is_none() {
+            Box::new(visible_parent_lines.into_iter().map(|line| HighlightSpan {
+                source: Source::StyleKey(StyleKey::ParentLine),
+                range: HighlightSpanRange::Line(line.line),
+                set_symbol: None,
+                is_cursor: false,
+                is_protected_range_start: false,
+            })) as Box<dyn Iterator<Item = HighlightSpan>>
+        } else {
+            Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
+        };
         vec![]
             .into_iter()
             .chain(visible_parent_lines)
@@ -762,21 +740,6 @@ impl Editor {
             },
             [line_number_range.clone()].to_vec(),
         )
-    }
-
-    pub(crate) fn possible_selections(
-        &self,
-        selection: &Selection,
-        context: &Context,
-    ) -> anyhow::Result<Vec<ByteRange>> {
-        Ok(self
-            .get_selection_mode_trait_object(selection, true, context)?
-            .iter_filtered(selection_mode::SelectionModeParams {
-                buffer: &self.buffer(),
-                current_selection: selection,
-                cursor_direction: &self.cursor_direction,
-            })?
-            .collect())
     }
 
     pub(crate) fn splitted_selections(

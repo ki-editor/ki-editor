@@ -176,7 +176,7 @@ fn from_theme_content(theme: ThemeContent) -> Theme {
     };
     let parent_lines_background = primary_selection_background.apply_custom_alpha(background, 0.25);
     let section_divider_background =
-        primary_selection_background.apply_custom_alpha(background, 0.5);
+        primary_selection_background.apply_custom_alpha(background, 0.25);
     let text_accent = theme
         .style
         .text_accent
