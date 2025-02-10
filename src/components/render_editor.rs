@@ -19,7 +19,7 @@ use crate::{
     selection_mode::{self, ByteRange},
     style::Style,
     themes::Theme,
-    utils::{get_non_consecutive_nums, trim_array},
+    utils::trim_array,
 };
 
 use super::{
@@ -29,7 +29,6 @@ use super::{
 
 impl Editor {
     pub(crate) fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
-        let buffer = self.buffer();
         let grid = match &self.split {
             None => {
                 let cursor_char_index = self
@@ -44,112 +43,7 @@ impl Editor {
                     false,
                 )
             }
-            Some(fold) => {
-                let ranges = match fold {
-                    Split::CurrentSelectionMode => self
-                        .splitted_selections(self.selection_set.primary_selection(), context)
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|byte_range| byte_range.range().clone())
-                        .collect_vec(),
-                    Split::Cursor => self
-                        .selection_set
-                        .map(|selection| selection.extended_range())
-                        .into_iter()
-                        .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
-                        .collect_vec(),
-                    Split::Mark => self
-                        .buffer()
-                        .marks()
-                        .into_iter()
-                        .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
-                        .collect_vec(),
-                }
-                .into_iter()
-                .chain(
-                    buffer
-                        .char_index_range_to_byte_range(
-                            self.selection_set.primary_selection().extended_range(),
-                        )
-                        .ok(),
-                )
-                .sorted_by_key(|range| (range.start, range.end))
-                .unique()
-                .collect_vec();
-                let line_number_and_ranges: Vec<(usize, Range<usize>)> = ranges
-                    .clone()
-                    .into_iter()
-                    .filter_map(|byte_range| {
-                        Some((buffer.byte_to_line(byte_range.start).ok()?, byte_range))
-                    })
-                    .sorted_by_key(|(_, byte_range)| byte_range.start)
-                    .collect_vec();
-                let line_numbers = line_number_and_ranges
-                    .iter()
-                    .map(|(line_number, _)| *line_number)
-                    .unique()
-                    .collect_vec();
-                let focused_line_number = buffer
-                    .char_to_line(
-                        self.selection_set
-                            .primary_selection()
-                            .extended_range()
-                            .to_char_index(&self.cursor_direction),
-                    )
-                    .unwrap_or_default();
-                let viewport_sections = divide_viewport(
-                    &line_numbers,
-                    focused_line_number,
-                    self.render_area().height as usize,
-                    buffer.len_lines().saturating_sub(1),
-                    self.current_view_alignment.unwrap_or(ViewAlignment::Center),
-                );
-
-                let viewport_sections = divide_viewport_new(
-                    &ranges,
-                    self.render_area().height as usize,
-                    buffer
-                        .char_index_range_to_byte_range(
-                            self.selection_set.primary_selection().extended_range(),
-                        )
-                        .unwrap_or_default(),
-                );
-
-                viewport_sections.into_iter().fold(
-                    Grid::new(Dimension {
-                        height: 0,
-                        width: self.dimension().width,
-                    }),
-                    |grid, viewport_section| {
-                        let range = viewport_section.byte_range();
-                        let protected_range_start = match self.cursor_direction {
-                            super::editor::Direction::Start => range.start,
-                            super::editor::Direction::End => range.end,
-                        };
-                        let line = buffer
-                            .byte_to_line(protected_range_start)
-                            .unwrap_or_default();
-
-                        let scroll_offset = line.saturating_sub(
-                            (viewport_section.height() as f64 / 2 as f64).floor() as usize,
-                        ) as u16;
-
-                        let protected_range = buffer
-                            .byte_range_to_char_index_range(&range)
-                            .unwrap_or_default();
-                        grid.merge_vertical(self.get_grid_with_dimension(
-                            context,
-                            Dimension {
-                                height: viewport_section.height() as u16,
-                                width: self.render_area().width,
-                            },
-                            scroll_offset,
-                            protected_range,
-                            true,
-                        ))
-                    },
-                )
-            }
+            Some(split) => self.get_splitted_grid(context, split),
         };
         let theme = context.theme();
         let window_title_style = if focused {
@@ -189,6 +83,105 @@ impl Editor {
             cursor: cursor_position.map(|position| Cursor::new(position, style)),
             grid,
         }
+    }
+
+    fn get_splitted_grid(&self, context: &Context, split: &Split) -> crate::grid::Grid {
+        let buffer = self.buffer();
+        let ranges = match split {
+            Split::CurrentSelectionMode => self
+                .splitted_selections(self.selection_set.primary_selection(), context)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|byte_range| byte_range.range().clone())
+                .collect_vec(),
+            Split::Cursor => self
+                .selection_set
+                .map(|selection| selection.range())
+                .into_iter()
+                .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
+                .collect_vec(),
+            Split::Mark => self
+                .buffer()
+                .marks()
+                .into_iter()
+                .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
+                .collect_vec(),
+        }
+        .into_iter()
+        .chain(
+            // The primary selection should always be rendered as a section
+            buffer
+                .char_index_range_to_byte_range(self.selection_set.primary_selection().range())
+                .ok(),
+        )
+        .sorted_by_key(|range| (range.start, range.end))
+        .unique()
+        .collect_vec();
+        let line_number_and_ranges: Vec<(usize, Range<usize>)> = ranges
+            .clone()
+            .into_iter()
+            .filter_map(|byte_range| {
+                Some((buffer.byte_to_line(byte_range.start).ok()?, byte_range))
+            })
+            .sorted_by_key(|(_, byte_range)| byte_range.start)
+            .collect_vec();
+        let line_numbers = line_number_and_ranges
+            .iter()
+            .map(|(line_number, _)| *line_number)
+            .unique()
+            .collect_vec();
+        let focused_line_number = buffer
+            .char_to_line(
+                self.selection_set
+                    .primary_selection()
+                    .extended_range()
+                    .to_char_index(&self.cursor_direction),
+            )
+            .unwrap_or_default();
+        let viewport_sections = divide_viewport_new(
+            &ranges,
+            self.render_area().height as usize,
+            buffer
+                .char_index_range_to_byte_range(
+                    self.selection_set.primary_selection().extended_range(),
+                )
+                .unwrap_or_default(),
+        );
+
+        viewport_sections.into_iter().fold(
+            Grid::new(Dimension {
+                height: 0,
+                width: self.dimension().width,
+            }),
+            |grid, viewport_section| {
+                let range = viewport_section.byte_range();
+                let protected_range_start = match self.cursor_direction {
+                    super::editor::Direction::Start => range.start,
+                    super::editor::Direction::End => range.end,
+                };
+                let line = buffer
+                    .byte_to_line(protected_range_start)
+                    .unwrap_or_default();
+
+                let scroll_offset = line
+                    .saturating_sub((viewport_section.height() as f64 / 2 as f64).floor() as usize)
+                    as u16;
+
+                let protected_range = buffer
+                    .byte_range_to_char_index_range(&range)
+                    .unwrap_or_default();
+                grid.merge_vertical(self.get_grid_with_dimension(
+                    context,
+                    Dimension {
+                        height: viewport_section.height() as u16,
+                        width: self.render_area().width,
+                    },
+                    scroll_offset,
+                    protected_range,
+                    true,
+                ))
+            },
+        )
     }
 
     /// Protected char index must not be trimmed and always be rendered
@@ -467,7 +460,7 @@ impl Editor {
             .into_iter()
             .filter(|secondary_selection| {
                 if let Some(Split::Cursor) = self.split {
-                    secondary_selection.extended_range() == protected_range
+                    secondary_selection.range() == protected_range
                 } else {
                     true
                 }
@@ -578,7 +571,7 @@ impl Editor {
                         range: HighlightSpanRange::CharIndex(
                             secondary_selection.to_char_index(&self.cursor_direction.reverse()),
                         ),
-                        source: Source::StyleKey(StyleKey::SecondarySelectionSecondaryCursor),
+                        source: Source::StyleKey(StyleKey::UiSecondarySelectionSecondaryCursor),
                         is_protected_range_start: false,
                     },
                     HighlightSpan {
@@ -587,7 +580,7 @@ impl Editor {
                         range: HighlightSpanRange::CharIndex(
                             secondary_selection.to_char_index(&self.cursor_direction),
                         ),
-                        source: Source::StyleKey(StyleKey::SecondarySelectionPrimaryCursor),
+                        source: Source::StyleKey(StyleKey::UiSecondarySelectionPrimaryCursor),
                         is_protected_range_start: false,
                     },
                 ]

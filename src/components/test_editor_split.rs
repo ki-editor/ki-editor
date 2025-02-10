@@ -588,3 +588,96 @@ fn section_divider_style() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn split_by_cursor_selection_extension() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "foo\nbar spam\nfoo\nbar spam".trim().to_string(),
+            )),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::new(0, 0),
+                width: 20,
+                height: 6,
+            })),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(CursorAddToAllSelections),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│foo
+2│█ar spam
+3│foo
+3│foo
+4│bar spam
+"
+                .trim(),
+            )),
+            Editor(EnableSelectionExtension),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token { skip_symbols: true },
+            )),
+            Editor(MoveSelection(Right)),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│foo
+2│bar █pam
+3│foo
+3│foo
+4│bar spam
+"
+                .trim(),
+            )),
+            Expect(GridCellStyleKey(
+                Position::new(2, 5),
+                Some(StyleKey::UiPrimarySelection),
+            )),
+            Expect(GridCellsStyleKey(
+                [
+                    Position::new(2, 2),
+                    Position::new(2, 3),
+                    Position::new(2, 4),
+                    Position::new(2, 7),
+                    Position::new(2, 8),
+                ]
+                .to_vec(),
+                Some(StyleKey::UiPrimarySelectionAnchors),
+            )),
+            Expect(GridCellStyleKey(
+                Position::new(2, 9),
+                Some(StyleKey::UiPrimarySelectionSecondaryCursor),
+            )),
+            Expect(GridCellStyleKey(
+                Position::new(5, 5),
+                Some(StyleKey::UiSecondarySelection),
+            )),
+            Expect(GridCellsStyleKey(
+                [
+                    Position::new(5, 2),
+                    Position::new(5, 3),
+                    Position::new(5, 4),
+                    Position::new(5, 7),
+                    Position::new(5, 8),
+                ]
+                .to_vec(),
+                Some(StyleKey::UiSecondarySelectionAnchors),
+            )),
+            Expect(GridCellStyleKey(
+                Position::new(5, 6),
+                Some(StyleKey::UiSecondarySelectionPrimaryCursor),
+            )),
+            Expect(GridCellStyleKey(
+                Position::new(5, 9),
+                Some(StyleKey::UiSecondarySelectionSecondaryCursor),
+            )),
+        ])
+    })
+}

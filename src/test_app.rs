@@ -104,6 +104,7 @@ pub(crate) enum ExpectKind {
     ),
     GridCellLine(/*Row*/ usize, /*Column*/ usize, Color),
     GridCellStyleKey(Position, Option<StyleKey>),
+    GridCellsStyleKey(Vec<Position>, Option<StyleKey>),
     HighlightSpans(std::ops::Range<usize>, StyleKey),
     DiagnosticsRanges(Vec<CharIndexRange>),
     BufferQuickfixListItems(Vec<Range<Position>>),
@@ -252,6 +253,22 @@ impl ExpectKind {
                     .source
                     .clone(),
                 style_key.clone(),
+            ),
+            GridCellsStyleKey(positions, style_key) => (
+                positions.into_iter().all(|position| {
+                    let actual_style_key = &component
+                        .borrow()
+                        .editor()
+                        .get_grid(context, false)
+                        .grid
+                        .rows[position.line][position.column]
+                        .source;
+                    if actual_style_key!=style_key {
+                        println!("Expected {position:?} to be styled as {style_key:?}, but got {actual_style_key:?}");
+                    }
+                    actual_style_key == style_key
+                }),
+                format!("Expected positions {positions:?} to be styled as {style_key:?}"),
             ),
             CompletionDropdownIsOpen(is_open) => {
                 contextualize(app.completion_dropdown_is_open(), *is_open)

@@ -95,8 +95,10 @@ impl Theme {
             StyleKey::UiPrimarySelectionSecondaryCursor => {
                 self.ui.primary_selection_secondary_cursor
             }
-            StyleKey::SecondarySelectionPrimaryCursor => self.ui.secondary_selection_primary_cursor,
-            StyleKey::SecondarySelectionSecondaryCursor => {
+            StyleKey::UiSecondarySelectionPrimaryCursor => {
+                self.ui.secondary_selection_primary_cursor
+            }
+            StyleKey::UiSecondarySelectionSecondaryCursor => {
                 self.ui.secondary_selection_secondary_cursor
             }
             StyleKey::UiSectionDivider => {

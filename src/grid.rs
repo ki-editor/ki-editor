@@ -631,8 +631,8 @@ pub(crate) enum StyleKey {
     UiFuzzyMatchedChar,
     ParentLine,
     UiPrimarySelectionSecondaryCursor,
-    SecondarySelectionPrimaryCursor,
-    SecondarySelectionSecondaryCursor,
+    UiSecondarySelectionPrimaryCursor,
+    UiSecondarySelectionSecondaryCursor,
     UiSectionDivider,
 }
 
