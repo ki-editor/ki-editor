@@ -250,8 +250,13 @@ pub(crate) fn trim_array<T: Clone + std::fmt::Debug>(
 
     // Calculate how many elements we can actually trim
     let to_trim = trim_count.min(total_available);
+
     // Calculate balanced trimming amounts
-    let (left_trim, right_trim) = distribute_items_by_2(to_trim);
+    // In an unbalanced situation, the right side will be trimmed more than the left side
+    // That's why the tuple is unpacked as `(right_trim, left_trim)` instead of `(left_trim, right_trim)`
+    // because `distribute_items_by_2` gives the left more in an unbalanced situation
+    let (right_trim, left_trim) = distribute_items_by_2(to_trim);
+
     let (left_trim, right_trim) = (
         (left_trim + right_trim.saturating_sub(right_available)).min(left_available),
         (right_trim + left_trim.saturating_sub(left_available)).min(right_available),
@@ -308,10 +313,12 @@ mod test_trim_array {
     }
 
     #[test]
+    /// Expect right-side to be trimmed more than the left-side in unbalanced situation
     fn test_cant_center_perfectly() {
         let arr = vec![0, 1, 2, 3, 4, 5, 6, 7];
         let result = trim_array(&arr, 3..5, 3);
-        assert_eq!(result.trimmed_array, vec![2, 3, 4, 5, 6]);
+
+        assert_eq!(result.trimmed_array, vec![1, 2, 3, 4, 5]);
         assert_eq!(result.remaining_trim_count, 0);
     }
 
