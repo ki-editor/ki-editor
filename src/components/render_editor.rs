@@ -333,9 +333,10 @@ impl Editor {
             // Verify that the maximum number of hidden parent lines only take
             // at most 50% of the render area (less one row of title)
             debug_assert!(
-                (clamped_hidden_parent_lines_grid.height() as f64)
-                    / (visible_lines_grid.height() as f64)
-                    <= 0.5
+                visible_lines_grid.height() == 0
+                    || (clamped_hidden_parent_lines_grid.height() as f64)
+                        / (visible_lines_grid.height() as f64)
+                        <= 0.5
             );
 
             let result =
@@ -894,7 +895,7 @@ mod test_render_editor {
                 width: (u8::arbitrary(g) / 10).max(
                     MAX_CHARACTER_WIDTH + LINE_NUMBER_UI_WIDTH + PADDING_FOR_CURSOR_AT_LAST_COLUMN,
                 ) as u16,
-                height: (u8::arbitrary(g) / 10) as u16,
+                height: ((u8::arbitrary(g) / 10) as u16).max(1),
             }
         }
     }
