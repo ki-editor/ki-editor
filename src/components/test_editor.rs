@@ -1,4 +1,4 @@
-use crate::app::{LocalSearchConfigUpdate, Scope};
+use crate::app::{Dimension, LocalSearchConfigUpdate, Scope};
 use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::CopiedTexts;
@@ -1484,6 +1484,7 @@ fn scroll_offset() -> anyhow::Result<()> {
                 width: 100,
                 height: 3,
             })),
+            Editor(MatchLiteral("gamma".to_string())),
             Editor(SetScrollOffset(2)),
             Expect(EditorGrid("🦀  src/main.rs [*]\n3│█amma\n4│lok")),
         ])
@@ -2255,9 +2256,22 @@ fn swap_cursor_with_anchor() -> anyhow::Result<()> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 20,
+                height: 3,
+            })),
             Editor(SetContent("fn main() { x.y() }  // hello ".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Editor(SwapCursorWithAnchor),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│fn main() { x.y
+↪│() █  // hello
+"
+                .trim(),
+            )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Expect(CurrentSelectedTexts(&["}"])),
             // Expect cursor direction is reset to `Start` if selection mode is changed

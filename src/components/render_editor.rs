@@ -39,7 +39,7 @@ impl Editor {
                     context,
                     self.render_area(),
                     self.scroll_offset(),
-                    (cursor_char_index..cursor_char_index + 1).into(),
+                    self.selection_set.primary_selection().range(),
                     false,
                 )
             }
@@ -319,7 +319,7 @@ impl Editor {
 
             let hidden_parent_lines_count = hidden_parent_lines_grid.rows.len();
             let max_hidden_parent_lines_count =
-                hidden_parent_lines_count.min(visible_lines_grid.rows.len() / 2);
+                hidden_parent_lines_count.min(visible_lines_grid.height() / 2);
 
             let trim_result = trim_array(
                 &visible_lines_grid.rows,

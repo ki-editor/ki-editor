@@ -991,6 +991,7 @@ x
                     [CellUpdate {
                         position: Position::new(1, 0), // on 'x'
                         is_cursor: true,
+                        is_protected_range_start: true,
                         ..Default::default()
                     }]
                     .to_vec(),
@@ -1063,10 +1064,10 @@ mod test_cell {
                 color: hex!("#cccccc"),
                 style: CellLineStyle::Undercurl,
             }),
-            is_cursor: true,
+            is_cursor: false,
             source: Some(StyleKey::HunkNew),
             is_bold: true,
-            is_protected_range_start: true,
+            is_protected_range_start: false,
         };
         let cell = cell.apply_update(CellUpdate {
             position: Position::default(),
@@ -1078,14 +1079,14 @@ mod test_cell {
                     color: hex!("#ffffff"),
                     style: CellLineStyle::Underline,
                 })),
-            is_cursor: false,
+            is_cursor: true,
             source: Some(StyleKey::KeymapHint),
             is_protected_range_start: true,
         });
         assert_eq!(cell.symbol, "b");
         assert_eq!(cell.foreground_color, hex!("#dddddd"));
         assert_eq!(cell.background_color, hex!("#eeeeee"));
-        assert!(!cell.is_cursor);
+        assert!(cell.is_cursor);
         assert_eq!(cell.source, Some(StyleKey::KeymapHint));
         assert_eq!(
             cell.line,

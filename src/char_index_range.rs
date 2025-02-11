@@ -98,7 +98,7 @@ impl CharIndexRange {
     ) -> CharIndex {
         match cursor_direction {
             crate::components::editor::Direction::Start => self.start,
-            crate::components::editor::Direction::End => self.end,
+            crate::components::editor::Direction::End => self.end - 1,
         }
     }
 }
