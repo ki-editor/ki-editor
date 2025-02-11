@@ -1,7 +1,7 @@
 use crate::{
     app::Dimension,
     position::Position,
-    soft_wrap::{self, WrappedLines},
+    soft_wrap::{self},
     style::Style,
     themes::{Color, Theme},
 };
@@ -277,13 +277,6 @@ impl Grid {
             grid.rows.truncate(height as usize);
         }
         grid
-    }
-
-    pub(crate) fn clamp_top(self, by: usize) -> Self {
-        Self {
-            rows: self.rows.into_iter().skip(by).collect_vec(),
-            ..self
-        }
     }
 
     pub(crate) fn get_cursor_position(&self) -> Option<Position> {

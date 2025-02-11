@@ -1,4 +1,4 @@
-use crate::app::{Dimension, LocalSearchConfigUpdate, Scope};
+use crate::app::{LocalSearchConfigUpdate, Scope};
 use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::CopiedTexts;
@@ -25,8 +25,8 @@ use my_proc_macros::{hex, key, keys};
 
 use SelectionMode::*;
 
+use super::editor::IfCurrentNotFound;
 use super::editor::SurroundKind;
-use super::editor::{IfCurrentNotFound, Split};
 
 #[test]
 fn raise_bottom_node() -> anyhow::Result<()> {

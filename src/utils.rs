@@ -68,69 +68,9 @@ pub(crate) fn distribute_items_by_2(total: usize) -> (usize, usize) {
 }
 use itertools::Itertools;
 
-pub(crate) fn get_non_consecutive_nums(nums: &[usize]) -> Vec<usize> {
-    if nums.is_empty() {
-        return vec![];
-    }
-    std::iter::once(&nums[0])
-        .chain(
-            nums.iter()
-                .tuple_windows()
-                .filter(|(&a, &b)| b - a > 1)
-                .map(|(_, b)| b),
-        )
-        .copied()
-        .collect()
-}
-
 #[cfg(test)]
 mod test_utils {
     use super::*;
-    mod test_get_non_consecutive_nums {
-        use super::*;
-
-        #[test]
-        fn test_basic_case() {
-            let nums = vec![1, 2, 3, 5, 6, 8, 9];
-            assert_eq!(get_non_consecutive_nums(&nums), vec![1, 5, 8]);
-        }
-
-        #[test]
-        fn test_all_consecutive() {
-            let nums = vec![1, 2, 3, 4, 5];
-            assert_eq!(get_non_consecutive_nums(&nums), vec![1]);
-        }
-
-        #[test]
-        fn test_no_consecutive() {
-            let nums = vec![2, 4, 6, 8, 10];
-            assert_eq!(get_non_consecutive_nums(&nums), vec![2, 4, 6, 8, 10]);
-        }
-
-        #[test]
-        fn test_single_element() {
-            let nums = vec![1];
-            assert_eq!(get_non_consecutive_nums(&nums), vec![1]);
-        }
-
-        #[test]
-        fn test_large_gaps() {
-            let nums = vec![1, 10, 20, 30];
-            assert_eq!(get_non_consecutive_nums(&nums), vec![1, 10, 20, 30]);
-        }
-
-        #[test]
-        fn test_alternating_consecutive() {
-            let nums = vec![1, 2, 4, 5, 7, 8];
-            assert_eq!(get_non_consecutive_nums(&nums), vec![1, 4, 7]);
-        }
-
-        #[test]
-        fn test_empty_slice() {
-            let nums: Vec<usize> = vec![];
-            assert_eq!(get_non_consecutive_nums(&nums).len(), 0);
-        }
-    }
     mod test_distribute_items {
         use super::*;
 
@@ -180,7 +120,6 @@ mod test_utils {
     }
 }
 
-use std::iter;
 use std::ops::Range;
 
 /// Result of a trim operation, containing the trimmed array and any remaining trim count

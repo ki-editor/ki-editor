@@ -12,7 +12,7 @@ use crate::{
         editor::{Mode, WINDOW_TITLE_HEIGHT},
     },
     context::Context,
-    divide_viewport::divide_viewport_new,
+    divide_viewport::divide_viewport,
     grid::{CellUpdate, Grid, LineUpdate, RenderContentLineNumber, StyleKey},
     position::Position,
     selection::{CharIndex, Selection},
@@ -30,19 +30,13 @@ use super::{
 impl Editor {
     pub(crate) fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
         let grid = match &self.split {
-            None => {
-                let cursor_char_index = self
-                    .selection_set
-                    .primary_selection()
-                    .to_char_index(&self.cursor_direction);
-                self.get_grid_with_dimension(
-                    context,
-                    self.render_area(),
-                    self.scroll_offset(),
-                    self.selection_set.primary_selection().range(),
-                    false,
-                )
-            }
+            None => self.get_grid_with_dimension(
+                context,
+                self.render_area(),
+                self.scroll_offset(),
+                self.selection_set.primary_selection().range(),
+                false,
+            ),
             Some(split) => self.get_splitted_grid(context, split),
         };
         let theme = context.theme();
@@ -117,7 +111,7 @@ impl Editor {
         .sorted_by_key(|range| (range.start, range.end))
         .unique()
         .collect_vec();
-        let viewport_sections = divide_viewport_new(
+        let viewport_sections = divide_viewport(
             &ranges,
             self.render_area().height as usize,
             buffer
@@ -133,7 +127,7 @@ impl Editor {
                 width: self.dimension().width,
             }),
             |grid, viewport_section| {
-                let range = viewport_section.byte_range();
+                let range = viewport_section.item();
                 let protected_range_start = match self.cursor_direction {
                     super::editor::Direction::Start => range.start,
                     super::editor::Direction::End => range.end,
