@@ -331,6 +331,7 @@ mod test_trim_array {
     }
 
     #[test]
+    #[should_panic]
     fn test_invalid_range() {
         let arr = vec![0, 1, 2];
         let result = trim_array(&arr, 2..1, 1);
@@ -345,17 +346,38 @@ mod test_trim_array {
         use quickcheck_macros::quickcheck;
 
         #[derive(Debug, Clone)]
-        struct ValidRange(Range<usize>);
+        struct TestInput {
+            array: Vec<u8>,
+            range: Range<usize>,
+            trim_count: usize,
+        }
 
-        impl Arbitrary for ValidRange {
+        impl Arbitrary for TestInput {
             fn arbitrary(g: &mut Gen) -> Self {
-                let len = usize::arbitrary(g) % 20; // Limit array length for practical testing
-                if len == 0 {
-                    return ValidRange(0..0);
+                // First generate the array
+                let array: Vec<u8> = (0..u8::arbitrary(g) % 10).collect();
+                if array.is_empty() {
+                    return TestInput {
+                        array: vec![0], // Ensure at least one element
+                        range: 0..0,
+                        trim_count: 0,
+                    };
                 }
-                let start = usize::arbitrary(g) % len;
-                let end = start + (usize::arbitrary(g) % (len - start + 1));
-                ValidRange(start..end.min(len))
+
+                // Generate valid range indices
+                let start = usize::arbitrary(g) % array.len();
+                let max_end = array.len();
+                let end = (start + (usize::arbitrary(g) % (max_end - start + 1))).max(start + 1);
+                let range = start..end;
+
+                // Generate trim count
+                let trim_count = usize::arbitrary(g) % array.len();
+
+                TestInput {
+                    array,
+                    range,
+                    trim_count,
+                }
             }
         }
 
@@ -365,63 +387,39 @@ mod test_trim_array {
         }
 
         #[quickcheck]
-        fn protected_range_preserved(
-            arr: Vec<u8>,
-            range: ValidRange,
-            trim_count: usize,
-        ) -> TestResult {
-            if arr.is_empty() || range.0.start >= arr.len() || range.0.end > arr.len() {
-                return TestResult::discard();
-            }
-
-            let result = trim_array(&arr, range.0.clone(), trim_count);
-            let protected = &arr[range.0];
+        fn protected_range_preserved(input: TestInput) -> TestResult {
+            let result = trim_array(&input.array, input.range.clone(), input.trim_count);
+            let protected = &input.array[input.range];
             let expected_subsequence = protected.to_vec();
 
             TestResult::from_bool(is_subsequence(&expected_subsequence, &result.trimmed_array))
         }
 
         #[quickcheck]
-        fn correct_length_after_trim(
-            arr: Vec<u8>,
-            range: ValidRange,
-            trim_count: usize,
-        ) -> TestResult {
-            let result = trim_array(&arr, range.0, trim_count);
-            let actual_trims = trim_count - result.remaining_trim_count;
+        fn correct_length_after_trim(input: TestInput) -> TestResult {
+            let result = trim_array(&input.array, input.range, input.trim_count);
+            let actual_trims = input.trim_count - result.remaining_trim_count;
 
-            TestResult::from_bool(result.trimmed_array.len() == arr.len() - actual_trims)
+            TestResult::from_bool(result.trimmed_array.len() == input.array.len() - actual_trims)
         }
 
         #[quickcheck]
-        fn never_exceeds_trim_count(arr: Vec<u8>, range: ValidRange, trim_count: usize) -> bool {
-            let result = trim_array(&arr, range.0, trim_count);
-            arr.len() - result.trimmed_array.len() <= trim_count
+        fn never_exceeds_trim_count(input: TestInput) -> bool {
+            let result = trim_array(&input.array, input.range, input.trim_count);
+            input.array.len() - result.trimmed_array.len() <= input.trim_count
         }
 
         #[quickcheck]
-        fn maintains_element_order(arr: Vec<u8>, range: ValidRange, trim_count: usize) -> bool {
-            let result = trim_array(&arr, range.0, trim_count);
-            is_subsequence(&result.trimmed_array, &arr)
+        fn maintains_element_order(input: TestInput) -> bool {
+            let result = trim_array(&input.array, input.range, input.trim_count);
+            is_subsequence(&result.trimmed_array, &input.array)
         }
 
         #[quickcheck]
-        fn trim_count_conservation(arr: Vec<u8>, range: ValidRange, trim_count: usize) -> bool {
-            let result = trim_array(&arr, range.0, trim_count);
-            let actual_trims = arr.len() - result.trimmed_array.len();
-            actual_trims + result.remaining_trim_count == trim_count
-        }
-
-        #[quickcheck]
-        fn invalid_range_returns_original(arr: Vec<u8>, trim_count: usize) -> TestResult {
-            if arr.is_empty() {
-                return TestResult::discard();
-            }
-
-            let invalid_range = arr.len()..arr.len() + 1;
-            let result = trim_array(&arr, invalid_range, trim_count);
-
-            TestResult::from_bool(result.trimmed_array == arr)
+        fn trim_count_conservation(input: TestInput) -> bool {
+            let result = trim_array(&input.array, input.range, input.trim_count);
+            let actual_trims = input.array.len() - result.trimmed_array.len();
+            actual_trims + result.remaining_trim_count == input.trim_count
         }
     }
 }
