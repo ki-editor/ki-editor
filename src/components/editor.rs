@@ -59,7 +59,7 @@ pub(crate) struct Jump {
     pub(crate) selection: Selection,
 }
 
-const WINDOW_TITLE_HEIGHT: usize = 1;
+pub(crate) const WINDOW_TITLE_HEIGHT: usize = 1;
 
 impl Component for Editor {
     fn id(&self) -> ComponentId {
@@ -341,9 +341,17 @@ impl Component for Editor {
                 self.mode = Mode::Normal;
                 return Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent));
             }
+            ToggleReveal(reveal) => self.toggle_reveal(reveal),
         }
         Ok(Default::default())
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum Reveal {
+    CurrentSelectionMode,
+    Cursor,
+    Mark,
 }
 
 impl Clone for Editor {
@@ -363,6 +371,7 @@ impl Clone for Editor {
             copied_text_history_offset: Default::default(),
             tag: None,
             normal_mode_override: self.normal_mode_override.clone(),
+            reveal: self.reveal.clone(),
         }
     }
 }
@@ -387,6 +396,7 @@ pub(crate) struct Editor {
     copied_text_history_offset: Counter,
     tag: Option<char>,
     pub(crate) normal_mode_override: Option<NormalModeOverride>,
+    pub(crate) reveal: Option<Reveal>,
 }
 
 #[derive(Default)]
@@ -500,10 +510,18 @@ impl Editor {
     pub(crate) fn get_parent_lines(&self) -> anyhow::Result<(Vec<Line>, Vec<Line>)> {
         let position = self.get_cursor_position()?;
 
-        let parent_lines = self.buffer().get_parent_lines(position.line)?;
+        self.get_parent_lines_given_line_index_and_scroll_offset(position.line, self.scroll_offset)
+    }
+
+    pub(crate) fn get_parent_lines_given_line_index_and_scroll_offset(
+        &self,
+        line_index: usize,
+        scroll_offset: u16,
+    ) -> anyhow::Result<(Vec<Line>, Vec<Line>)> {
+        let parent_lines = self.buffer().get_parent_lines(line_index)?;
         Ok(parent_lines
             .into_iter()
-            .partition(|line| line.line < self.scroll_offset as usize))
+            .partition(|line| line.line < scroll_offset as usize))
     }
 
     pub(crate) fn show_info(&mut self, info: Info) -> Result<(), anyhow::Error> {
@@ -544,6 +562,7 @@ impl Editor {
             copied_text_history_offset: Default::default(),
             tag: None,
             normal_mode_override: None,
+            reveal: None,
         }
     }
 
@@ -563,6 +582,7 @@ impl Editor {
             copied_text_history_offset: Default::default(),
             tag: None,
             normal_mode_override: None,
+            reveal: None,
         }
     }
 
@@ -684,9 +704,14 @@ impl Editor {
     }
 
     fn align_cursor_to_center(&mut self) {
-        self.scroll_offset = self
-            .cursor_row()
-            .saturating_sub((self.rectangle.height as f64 / 2.0).ceil() as u16);
+        self.scroll_offset = self.cursor_row().saturating_sub(
+            (self
+                .rectangle
+                .height
+                .saturating_sub(WINDOW_TITLE_HEIGHT as u16) as f64
+                / 2.0)
+                .ceil() as u16,
+        );
     }
 
     pub(crate) fn select(
@@ -1420,6 +1445,11 @@ impl Editor {
                 .update_selection_set(selection_set, true)
                 .append(Dispatch::ToEditor(EnterNormalMode)))
         } else {
+            if self.reveal == Some(Reveal::CurrentSelectionMode)
+                && self.selection_set.mode != selection_mode
+            {
+                self.reveal = None
+            }
             self.move_selection_with_selection_mode_without_global_mode(
                 Movement::Current(if_current_not_found),
                 selection_mode.clone(),
@@ -2404,8 +2434,19 @@ impl Editor {
     }
 
     pub(crate) fn visible_line_range(&self) -> Range<usize> {
-        let start = self.scroll_offset;
-        let end = (start as usize + self.rectangle.height as usize).min(self.buffer().len_lines());
+        self.visible_line_range_given_scroll_offset_and_height(
+            self.scroll_offset,
+            self.rectangle.height,
+        )
+    }
+
+    pub(crate) fn visible_line_range_given_scroll_offset_and_height(
+        &self,
+        scroll_offset: u16,
+        height: u16,
+    ) -> Range<usize> {
+        let start = scroll_offset;
+        let end = (start as usize + height as usize).min(self.buffer().len_lines());
 
         start as usize..end
     }
@@ -2415,6 +2456,7 @@ impl Editor {
         context: &Context,
     ) -> Result<(), anyhow::Error> {
         self.mode = Mode::Normal;
+        self.reveal = Some(Reveal::Cursor);
         self.selection_set
             .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
         self.recalculate_scroll_offset();
@@ -2423,6 +2465,9 @@ impl Editor {
 
     pub(crate) fn cursor_keep_primary_only(&mut self) {
         self.mode = Mode::Normal;
+        if self.reveal == Some(Reveal::Cursor) {
+            self.reveal = None;
+        }
         self.selection_set.only();
     }
 
@@ -3349,6 +3394,17 @@ impl Editor {
             _ => self.normal_mode_keymap_legend_config(context, "Normal", None),
         }
     }
+
+    fn toggle_reveal(&mut self, reveal: Reveal) {
+        self.reveal = match &self.reveal {
+            Some(current_reveal) if &reveal == current_reveal => None,
+            _ => Some(reveal),
+        }
+    }
+
+    pub(crate) fn reveal(&self) -> std::option::Option<Reveal> {
+        self.reveal.clone()
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3481,6 +3537,7 @@ pub(crate) enum DispatchEditor {
     BreakSelection,
     ShowHelp,
     HandleEsc,
+    ToggleReveal(Reveal),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

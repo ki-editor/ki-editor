@@ -8,6 +8,9 @@ use crate::{
 
 pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
     [
+        reveal_selections(),
+        reveal_cursors(),
+        reveal_marks(),
         showcase(),
         syntax_node(),
         RecipeGroup {
@@ -1437,7 +1440,7 @@ pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> 
                     file_extension: "rs",
                     prepare_events: &[],
                     events: keys!(
-                        "q y x enter d r r k l f n ( u S o m e esc d k l l X r m"
+                        "q y x enter d r r k l f g j esc u S o m e esc d k l k T r m"
                     ),
                     expectations: &[],
                     terminal_height: None,
@@ -1542,6 +1545,135 @@ fn syntax_node() -> RecipeGroup {
                 only: false,
             },
         ]
+        .to_vec(),
+    }
+}
+
+fn reveal_selections() -> RecipeGroup {
+    RecipeGroup {
+        filename: "reveal-selections",
+        recipes: [
+            Recipe {
+                description: "Reveal Searches",
+                content: "
+head
+1foo
+1bar
+1spam
+
+2foo
+2bar
+2spam
+
+3foo
+3bar
+3spam"
+                    .trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("q f o o enter space u l l j j space u"),
+                expectations: &[CurrentSelectedTexts(&["foo"])],
+                terminal_height: Some(9),
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                description: "Reveal Sibling Nodes",
+                content: "
+fn foo() {
+    // fooing
+    // still fooing
+    // more foo
+}
+
+fn bar() {
+    // some bar
+}
+
+fn spam() {
+    // spam yes
+}
+                
+fn baz() {}
+                "
+                .trim(),
+                file_extension: "rs",
+                prepare_events: &[],
+                events: keys!("d space u l l j j space u"),
+                expectations: &[CurrentSelectedTexts(&[
+                    "fn foo() {\n    // fooing\n    // still fooing\n    // more foo\n}",
+                ])],
+                terminal_height: Some(9),
+                similar_vim_combos: &[],
+                only: false,
+            },
+        ]
+        .to_vec(),
+    }
+}
+
+fn reveal_cursors() -> RecipeGroup {
+    RecipeGroup {
+        filename: "reveal-cursors",
+        recipes: [Recipe {
+            description: "Reveal Cursors",
+            content: "
+# Section 1
+1foo
+1bar
+1spam
+
+# Section 2
+2foo
+2bar
+2spam
+
+# Section 3
+3foo
+3bar
+3spam"
+                .trim(),
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("q f o o enter r r o x esc s"),
+            expectations: &[CurrentSelectedTexts(&["1foox", "2foox", "3foox"])],
+            terminal_height: Some(9),
+            similar_vim_combos: &[],
+            only: false,
+        }]
+        .to_vec(),
+    }
+}
+
+fn reveal_marks() -> RecipeGroup {
+    RecipeGroup {
+        filename: "reveal-marks",
+        recipes: [Recipe {
+            description: "Reveal Marks",
+            content: "
+# Section 1
+1foo
+1bar
+1spam
+
+# Section 2
+2foo
+2bar
+2spam
+
+# Section 3
+3foo
+3bar
+3spam"
+                .trim(),
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("q f o o enter l b space o l j j"),
+            expectations: &[CurrentSelectedTexts(&["foo"])],
+            terminal_height: Some(9),
+            similar_vim_combos: &[],
+            only: false,
+        }]
         .to_vec(),
     }
 }

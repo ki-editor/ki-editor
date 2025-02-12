@@ -30,10 +30,14 @@ impl Position {
         }
     }
 
-    pub(crate) fn move_up(&self, by: usize) -> Position {
-        Position {
-            line: self.line.saturating_sub(by),
-            column: self.column,
+    pub(crate) fn move_up(&self, by: usize) -> Option<Position> {
+        if self.line < by {
+            None
+        } else {
+            Some(Position {
+                line: self.line - by,
+                column: self.column,
+            })
         }
     }
 

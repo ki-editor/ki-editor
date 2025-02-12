@@ -91,6 +91,16 @@ impl CharIndexRange {
     pub(crate) fn is_supserset_of(&self, other: &CharIndexRange) -> bool {
         self.start <= other.start && other.end <= self.end
     }
+
+    pub(crate) fn as_char_index(
+        &self,
+        cursor_direction: &crate::components::editor::Direction,
+    ) -> CharIndex {
+        match cursor_direction {
+            crate::components::editor::Direction::Start => self.start,
+            crate::components::editor::Direction::End => self.end - 1,
+        }
+    }
 }
 
 pub(crate) struct CharIndexRangeIter {

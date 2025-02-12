@@ -44,6 +44,7 @@ pub(crate) mod ui_tree;
 pub(crate) mod undo_tree;
 mod utils;
 
+mod divide_viewport;
 mod env;
 use std::{rc::Rc, sync::Mutex};
 
@@ -81,6 +82,8 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
             StatusLineComponent::KeyboardLayout,
             StatusLineComponent::CurrentWorkingDirectory,
             StatusLineComponent::GitBranch,
+            StatusLineComponent::ViewAlignment,
+            StatusLineComponent::Reveal,
             StatusLineComponent::Mode,
             StatusLineComponent::SelectionMode,
             StatusLineComponent::LocalSearchConfig,

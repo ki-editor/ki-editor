@@ -34,6 +34,7 @@ pub fn vscode_dark() -> Theme {
                 .foreground_color(hex!("#969696"))
                 .background_color(hex!("#444444")),
             parent_lines_background: hex!("#3B3D41"),
+            section_divider_background: hex!("#3B3D41"),
             jump_mark_odd: Style::new()
                 .background_color(hex!("#b5485d"))
                 .foreground_color(hex!("#ffffff")),

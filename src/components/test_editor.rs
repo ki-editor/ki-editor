@@ -1484,6 +1484,7 @@ fn scroll_offset() -> anyhow::Result<()> {
                 width: 100,
                 height: 3,
             })),
+            Editor(MatchLiteral("gamma".to_string())),
             Editor(SetScrollOffset(2)),
             Expect(EditorGrid("🦀  src/main.rs [*]\n3│█amma\n4│lok")),
         ])
@@ -2255,9 +2256,22 @@ fn swap_cursor_with_anchor() -> anyhow::Result<()> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 20,
+                height: 3,
+            })),
             Editor(SetContent("fn main() { x.y() }  // hello ".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Editor(SwapCursorWithAnchor),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│fn main() { x.y
+↪│() █  // hello
+"
+                .trim(),
+            )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Expect(CurrentSelectedTexts(&["}"])),
             // Expect cursor direction is reset to `Start` if selection mode is changed
@@ -4125,6 +4139,115 @@ fn git_hunk_should_compare_against_buffer_content_not_file_content() -> anyhow::
             )),
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["hellomod foo;\n"])),
+        ])
+    })
+}
+
+#[test]
+fn should_trim_parent_line_if_not_enough_space() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 20,
+                height: 3,
+            })),
+            Editor(SetContent(
+                "
+fn main() {
+    fn foo() {
+        bar();
+    }
+}
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("bar".to_string())),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│fn main() {
+3│        █ar();
+"
+                .trim(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn should_prioritize_wrapped_selection_if_no_space_left() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 7,
+                height: 2,
+            })),
+            Editor(SetContent("foo bar".trim().to_string())),
+            Editor(MatchLiteral("bar".to_string())),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Expect(EditorGrid(
+                "
+🦀
+↪│█ar
+"
+                .trim(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn hidden_parent_lines_count_should_take_at_most_50_percent_of_render_area() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 20,
+                height: 5,
+            })),
+            Editor(SetContent(
+                "
+fn foo() {
+  fn bar() {
+    fn spam() {
+        xxx();
+        yyy();
+    }
+  }
+}"
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("yyy".to_string())),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│fn foo() {
+2│  fn bar() {
+4│        xxx();
+5│        █yy();
+"
+                .trim(),
+            )),
         ])
     })
 }

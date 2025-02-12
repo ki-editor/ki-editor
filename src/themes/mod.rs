@@ -92,6 +92,18 @@ impl Theme {
             StyleKey::KeymapKey => self.ui.keymap_key,
             StyleKey::UiFuzzyMatchedChar => self.ui.fuzzy_matched_char,
             StyleKey::ParentLine => Style::new().background_color(self.ui.parent_lines_background),
+            StyleKey::UiPrimarySelectionSecondaryCursor => {
+                self.ui.primary_selection_secondary_cursor
+            }
+            StyleKey::UiSecondarySelectionPrimaryCursor => {
+                self.ui.secondary_selection_primary_cursor
+            }
+            StyleKey::UiSecondarySelectionSecondaryCursor => {
+                self.ui.secondary_selection_secondary_cursor
+            }
+            StyleKey::UiSectionDivider => {
+                Style::new().background_color(self.ui.section_divider_background)
+            }
         }
     }
 }
@@ -137,6 +149,7 @@ pub(crate) struct UiStyles {
     pub(crate) window_title_focused: Style,
     pub(crate) window_title_unfocused: Style,
     pub(crate) parent_lines_background: Color,
+    pub(crate) section_divider_background: Color,
     pub(crate) jump_mark_odd: Style,
     pub(crate) jump_mark_even: Style,
     pub(crate) text_foreground: Color,

@@ -34,6 +34,7 @@ pub fn vscode_light() -> Theme {
                 .foreground_color(hex!("#FFFFFF"))
                 .background_color(hex!("#aaaaaa")),
             parent_lines_background: hex!("#E6EBF0"),
+            section_divider_background: hex!("#E6EBF0"),
             jump_mark_odd: Style::new()
                 .background_color(hex!("#b5485d"))
                 .foreground_color(hex!("#ffffff")),
