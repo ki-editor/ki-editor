@@ -83,6 +83,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
             StatusLineComponent::CurrentWorkingDirectory,
             StatusLineComponent::GitBranch,
             StatusLineComponent::ViewAlignment,
+            StatusLineComponent::Split,
             StatusLineComponent::Mode,
             StatusLineComponent::SelectionMode,
             StatusLineComponent::LocalSearchConfig,

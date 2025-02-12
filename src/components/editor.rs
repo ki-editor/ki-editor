@@ -3401,6 +3401,10 @@ impl Editor {
             _ => Some(split),
         }
     }
+
+    pub(crate) fn split(&self) -> std::option::Option<Split> {
+        self.split.clone()
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
