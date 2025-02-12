@@ -8,10 +8,10 @@ use crate::{grid::StyleKey, position::Position, selection::SelectionMode};
 use itertools::Itertools;
 use SelectionMode::*;
 
-use super::editor::{IfCurrentNotFound, Split};
+use super::editor::{IfCurrentNotFound, Reveal};
 
 #[test]
-fn split_styling() -> anyhow::Result<()> {
+fn reveal_styling() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -29,17 +29,17 @@ fn split_styling() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Down)),
             Expect(CurrentSelectedTexts(&["bar"])),
-            Editor(ToggleSplit(Split::Cursor)),
+            Editor(ToggleReveal(Reveal::Cursor)),
             Expect(GridCellStyleKey(
                 Position::new(2, 2),
                 Some(StyleKey::UiPrimarySelectionAnchors),
             )),
             Expect(GridCellStyleKey(
-                Position::new(2, 1 + 2),
+                Position::new(2, 3),
                 Some(StyleKey::UiPrimarySelectionAnchors),
             )),
             Expect(GridCellStyleKey(
-                Position::new(2, 2 + 2),
+                Position::new(2, 4),
                 Some(StyleKey::UiPrimarySelectionSecondaryCursor),
             )),
         ])
@@ -47,9 +47,9 @@ fn split_styling() -> anyhow::Result<()> {
 }
 
 #[test]
-/// When Split by Mark is activated
+/// When Reveal Mark is activated
 /// All the marks should be always visible
-fn split_by_mark() -> anyhow::Result<()> {
+fn reveal_mark() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -88,7 +88,7 @@ zeta
 "
                 .trim(),
             )),
-            Editor(ToggleSplit(Split::Mark)),
+            Editor(ToggleReveal(Reveal::Mark)),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -122,9 +122,8 @@ zeta
     })
 }
 
-/// Split by current selection mode
 #[test]
-fn split_by_current_selection_mode() -> anyhow::Result<()> {
+fn reveal_selections() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -161,7 +160,7 @@ fn spam() {
 "
                 .trim(),
             )),
-            Editor(ToggleSplit(Split::CurrentSelectionMode)),
+            Editor(ToggleReveal(Reveal::CurrentSelectionMode)),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -176,8 +175,7 @@ fn spam() {
 }
 
 #[test]
-fn split_by_current_selection_mode_should_be_deactivated_when_selection_mode_changed(
-) -> anyhow::Result<()> {
+fn reveal_selections_should_be_deactivated_when_selection_mode_changed() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -186,17 +184,16 @@ fn split_by_current_selection_mode_should_be_deactivated_when_selection_mode_cha
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(ToggleSplit(Split::CurrentSelectionMode)),
-            Expect(CurrentSplit(Some(Split::CurrentSelectionMode))),
+            Editor(ToggleReveal(Reveal::CurrentSelectionMode)),
+            Expect(CurrentReveal(Some(Reveal::CurrentSelectionMode))),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Expect(CurrentSplit(None)),
+            Expect(CurrentReveal(None)),
         ])
     })
 }
 
-/// Split by cursors
 #[test]
-fn split_by_cursors() -> anyhow::Result<()> {
+fn reveal_cursors() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -222,7 +219,7 @@ foo
             )),
             Editor(MatchLiteral("foo".to_string())),
             Editor(CursorAddToAllSelections),
-            Expect(CurrentSplit(Some(Split::Cursor))),
+            Expect(CurrentReveal(Some(Reveal::Cursor))),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -233,7 +230,7 @@ foo
                 .trim(),
             )),
             Editor(CursorKeepPrimaryOnly),
-            Expect(CurrentSplit(None)),
+            Expect(CurrentReveal(None)),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -248,7 +245,7 @@ foo
 }
 
 #[test]
-fn each_splitted_section_should_show_parent_lines() -> anyhow::Result<()> {
+fn each_revealed_section_should_show_parent_lines() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -277,7 +274,7 @@ fn two() {
             })),
             Editor(MatchLiteral("bar".to_string())),
             Editor(CursorAddToAllSelections),
-            Expect(CurrentSplit(Some(Split::Cursor))),
+            Expect(CurrentReveal(Some(Reveal::Cursor))),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -294,7 +291,7 @@ fn two() {
 
 #[test]
 /// When there are not enough spaces, trimmed the hidden parent lines of each section
-fn each_splitted_section_selections_should_always_be_visible() -> anyhow::Result<()> {
+fn each_revealed_section_selections_should_always_be_visible() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -323,7 +320,7 @@ fn two() {
             })),
             Editor(MatchLiteral("bar".to_string())),
             Editor(CursorAddToAllSelections),
-            Expect(CurrentSplit(Some(Split::Cursor))),
+            Expect(CurrentReveal(Some(Reveal::Cursor))),
             // The parent lines of the both `bar();` are trimmed due to space constrained
             Expect(EditorGrid(
                 "
@@ -339,7 +336,7 @@ fn two() {
 #[test]
 /// The first selection of each section should be visible even when wrapped.
 /// When there are not enough spaces, trimmed the hidden parent lines of each section
-fn each_splitted_section_first_selection_should_always_be_visible_although_wrapped(
+fn each_revealed_section_first_selection_should_always_be_visible_although_wrapped(
 ) -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -369,7 +366,7 @@ fn two() {
             })),
             Editor(MatchLiteral("bar".to_string())),
             Editor(CursorAddToAllSelections),
-            Expect(CurrentSplit(Some(Split::Cursor))),
+            Expect(CurrentReveal(Some(Reveal::Cursor))),
             // The parent lines of the both `bar();` are trimmed due to space constrained
             Expect(EditorGrid(
                 "
@@ -399,7 +396,7 @@ fn all_selections_on_same_line_but_all_wrapped() -> anyhow::Result<()> {
                 height: 3,
             })),
             Editor(MatchLiteral("foo".to_string())),
-            Editor(ToggleSplit(Split::CurrentSelectionMode)),
+            Editor(ToggleReveal(Reveal::CurrentSelectionMode)),
             Expect(EditorGrid(
                 "
 🦀
@@ -429,7 +426,7 @@ fn total_count_of_highlighted_ranges_should_equal_total_count_of_possible_select
                 height: 4,
             })),
             Editor(MatchLiteral("foo".to_string())),
-            Editor(ToggleSplit(Split::CurrentSelectionMode)),
+            Editor(ToggleReveal(Reveal::CurrentSelectionMode)),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -513,7 +510,7 @@ fn total_count_of_rendered_marks_should_equal_total_count_of_actual_marks() -> a
             Editor(CursorAddToAllSelections),
             Editor(ToggleMark),
             Editor(CursorKeepPrimaryOnly),
-            Editor(ToggleSplit(Split::Mark)),
+            Editor(ToggleReveal(Reveal::Mark)),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -593,7 +590,7 @@ fn section_divider_style() -> anyhow::Result<()> {
 }
 
 #[test]
-fn split_by_cursor_selection_extension() -> anyhow::Result<()> {
+fn reveal_cursor_selection_extension() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -686,7 +683,7 @@ fn split_by_cursor_selection_extension() -> anyhow::Result<()> {
 }
 
 #[test]
-fn split_section_view_aligment() -> anyhow::Result<()> {
+fn revealed_section_view_aligment() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -712,7 +709,7 @@ d();
             })),
             Editor(MatchLiteral("spam".to_string())),
             Editor(CursorAddToAllSelections),
-            Expect(CurrentSplit(Some(Split::Cursor))),
+            Expect(CurrentReveal(Some(Reveal::Cursor))),
             Editor(SwitchViewAlignment),
             Expect(CurrentViewAlignment(Some(ViewAlignment::Top))),
             Expect(EditorGrid(

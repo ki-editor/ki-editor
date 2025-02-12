@@ -8,9 +8,9 @@ use crate::{
 
 pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
     [
-        split_by_selection_mode(),
-        split_by_cursor(),
-        split_by_mark(),
+        reveal_selections(),
+        reveal_cursors(),
+        reveal_marks(),
         showcase(),
         syntax_node(),
         RecipeGroup {
@@ -1549,12 +1549,12 @@ fn syntax_node() -> RecipeGroup {
     }
 }
 
-fn split_by_selection_mode() -> RecipeGroup {
+fn reveal_selections() -> RecipeGroup {
     RecipeGroup {
-        filename: "split-by-selection-mode",
+        filename: "reveal-selections",
         recipes: [
             Recipe {
-                description: "Split by Search",
+                description: "Reveal Searches",
                 content: "
 head
 1foo
@@ -1578,7 +1578,7 @@ head
                 only: false,
             },
             Recipe {
-                description: "Split by Syntax Node",
+                description: "Reveal Sibling Nodes",
                 content: "
 fn foo() {
     // fooing
@@ -1612,11 +1612,11 @@ fn baz() {}
     }
 }
 
-fn split_by_cursor() -> RecipeGroup {
+fn reveal_cursors() -> RecipeGroup {
     RecipeGroup {
-        filename: "split-by-cursor",
+        filename: "reveal-cursors",
         recipes: [Recipe {
-            description: "Split by Cursor",
+            description: "Reveal Cursors",
             content: "
 # Section 1
 1foo
@@ -1645,11 +1645,11 @@ fn split_by_cursor() -> RecipeGroup {
     }
 }
 
-fn split_by_mark() -> RecipeGroup {
+fn reveal_marks() -> RecipeGroup {
     RecipeGroup {
-        filename: "split-by-mark",
+        filename: "reveal-marks",
         recipes: [Recipe {
-            description: "Split by Mark",
+            description: "Reveal Marks",
             content: "
 # Section 1
 1foo

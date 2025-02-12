@@ -5,7 +5,7 @@ use crate::{
         component::{Component, ComponentId, GetGridResult},
         dropdown::{DropdownItem, DropdownRender},
         editor::{
-            Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, Split, ViewAlignment,
+            Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, Reveal, ViewAlignment,
         },
         editor_keymap::{KeyboardLayoutKind, Meaning},
         file_explorer::FileExplorer,
@@ -93,7 +93,7 @@ pub(crate) enum StatusLineComponent {
     Help,
     KeyboardLayout,
     ViewAlignment,
-    Split,
+    Reveal,
 }
 
 impl<T: Frontend> App<T> {
@@ -357,16 +357,16 @@ impl<T: Frontend> App<T> {
                             }
                             .to_string(),
                         ),
-                        StatusLineComponent::Split => self
+                        StatusLineComponent::Reveal => self
                             .current_component()
                             .borrow()
                             .editor()
-                            .split()
+                            .reveal()
                             .map(|split| {
                                 match split {
-                                    Split::CurrentSelectionMode => "÷ Selection",
-                                    Split::Cursor => "÷ Cursor",
-                                    Split::Mark => "÷ Mark",
+                                    Reveal::CurrentSelectionMode => "÷ Selection",
+                                    Reveal::Cursor => "÷ Cursor",
+                                    Reveal::Mark => "÷ Mark",
                                 }
                                 .to_string()
                             }),

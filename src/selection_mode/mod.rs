@@ -423,7 +423,7 @@ pub trait SelectionMode {
             .collect())
     }
 
-    fn iter_splitted<'a>(
+    fn iter_revealed<'a>(
         &'a self,
         params: SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {

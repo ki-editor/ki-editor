@@ -19,7 +19,7 @@ use crate::{
 
 use super::{
     editor::{
-        Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Mode, Split,
+        Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Mode, Reveal,
         SurroundKind,
     },
     editor_keymap::*,
@@ -1128,25 +1128,25 @@ impl Editor {
                     Keymap::new(
                         context
                             .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::SpltS),
+                            .get_space_keymap(&Meaning::RevlS),
                         "÷ Selection".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::ToggleSplit(
-                            Split::CurrentSelectionMode,
+                        Dispatch::ToEditor(DispatchEditor::ToggleReveal(
+                            Reveal::CurrentSelectionMode,
                         )),
                     ),
                     Keymap::new(
                         context
                             .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::SpltC),
+                            .get_space_keymap(&Meaning::RevlC),
                         "÷ Cursor".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::ToggleSplit(Split::Cursor)),
+                        Dispatch::ToEditor(DispatchEditor::ToggleReveal(Reveal::Cursor)),
                     ),
                     Keymap::new(
                         context
                             .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::SpltM),
+                            .get_space_keymap(&Meaning::RevlM),
                         "÷ Mark".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::ToggleSplit(Split::Mark)),
+                        Dispatch::ToEditor(DispatchEditor::ToggleReveal(Reveal::Mark)),
                     ),
                 ])
                 .collect_vec(),

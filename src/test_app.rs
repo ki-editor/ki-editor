@@ -29,7 +29,7 @@ use crate::{
     components::{
         component::Component,
         editor::{
-            Direction, DispatchEditor, IfCurrentNotFound, Mode, Movement, Split, ViewAlignment,
+            Direction, DispatchEditor, IfCurrentNotFound, Mode, Movement, Reveal, ViewAlignment,
         },
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
@@ -118,7 +118,7 @@ pub(crate) enum ExpectKind {
     CurrentGlobalMode(Option<GlobalMode>),
     LspRequestSent(FromEditor),
     CurrentCopiedTextHistoryOffset(isize),
-    CurrentSplit(Option<Split>),
+    CurrentReveal(Option<Reveal>),
     CountHighlightedCells(StyleKey, usize),
 }
 fn log<T: std::fmt::Debug>(s: T) {
@@ -385,8 +385,8 @@ impl ExpectKind {
                     .primary_selection()?,
             ),
             CurrentGlobalMode(expected) => contextualize(expected, &app.context().mode()),
-            CurrentSplit(expected) => {
-                contextualize(expected, &app.current_component().borrow().editor().split)
+            CurrentReveal(expected) => {
+                contextualize(expected, &app.current_component().borrow().editor().reveal)
             }
             CountHighlightedCells(style_key, expected_count) => contextualize(
                 expected_count,

@@ -341,14 +341,14 @@ impl Component for Editor {
                 self.mode = Mode::Normal;
                 return Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent));
             }
-            ToggleSplit(split) => self.toggle_split(split),
+            ToggleReveal(reveal) => self.toggle_reveal(reveal),
         }
         Ok(Default::default())
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum Split {
+pub(crate) enum Reveal {
     CurrentSelectionMode,
     Cursor,
     Mark,
@@ -371,7 +371,7 @@ impl Clone for Editor {
             copied_text_history_offset: Default::default(),
             tag: None,
             normal_mode_override: self.normal_mode_override.clone(),
-            split: self.split.clone(),
+            reveal: self.reveal.clone(),
         }
     }
 }
@@ -396,7 +396,7 @@ pub(crate) struct Editor {
     copied_text_history_offset: Counter,
     tag: Option<char>,
     pub(crate) normal_mode_override: Option<NormalModeOverride>,
-    pub(crate) split: Option<Split>,
+    pub(crate) reveal: Option<Reveal>,
 }
 
 #[derive(Default)]
@@ -562,7 +562,7 @@ impl Editor {
             copied_text_history_offset: Default::default(),
             tag: None,
             normal_mode_override: None,
-            split: None,
+            reveal: None,
         }
     }
 
@@ -582,7 +582,7 @@ impl Editor {
             copied_text_history_offset: Default::default(),
             tag: None,
             normal_mode_override: None,
-            split: None,
+            reveal: None,
         }
     }
 
@@ -1445,10 +1445,10 @@ impl Editor {
                 .update_selection_set(selection_set, true)
                 .append(Dispatch::ToEditor(EnterNormalMode)))
         } else {
-            if self.split == Some(Split::CurrentSelectionMode)
+            if self.reveal == Some(Reveal::CurrentSelectionMode)
                 && self.selection_set.mode != selection_mode
             {
-                self.split = None
+                self.reveal = None
             }
             self.move_selection_with_selection_mode_without_global_mode(
                 Movement::Current(if_current_not_found),
@@ -2456,7 +2456,7 @@ impl Editor {
         context: &Context,
     ) -> Result<(), anyhow::Error> {
         self.mode = Mode::Normal;
-        self.split = Some(Split::Cursor);
+        self.reveal = Some(Reveal::Cursor);
         self.selection_set
             .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
         self.recalculate_scroll_offset();
@@ -2465,8 +2465,8 @@ impl Editor {
 
     pub(crate) fn cursor_keep_primary_only(&mut self) {
         self.mode = Mode::Normal;
-        if self.split == Some(Split::Cursor) {
-            self.split = None;
+        if self.reveal == Some(Reveal::Cursor) {
+            self.reveal = None;
         }
         self.selection_set.only();
     }
@@ -3395,15 +3395,15 @@ impl Editor {
         }
     }
 
-    fn toggle_split(&mut self, split: Split) {
-        self.split = match &self.split {
-            Some(current_split) if &split == current_split => None,
-            _ => Some(split),
+    fn toggle_reveal(&mut self, reveal: Reveal) {
+        self.reveal = match &self.reveal {
+            Some(current_reveal) if &reveal == current_reveal => None,
+            _ => Some(reveal),
         }
     }
 
-    pub(crate) fn split(&self) -> std::option::Option<Split> {
-        self.split.clone()
+    pub(crate) fn reveal(&self) -> std::option::Option<Reveal> {
+        self.reveal.clone()
     }
 }
 
@@ -3537,7 +3537,7 @@ pub(crate) enum DispatchEditor {
     BreakSelection,
     ShowHelp,
     HandleEsc,
-    ToggleSplit(Split),
+    ToggleReveal(Reveal),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

@@ -24,12 +24,12 @@ use crate::{
 
 use super::{
     component::GetGridResult,
-    editor::{Editor, Split, ViewAlignment},
+    editor::{Editor, Reveal, ViewAlignment},
 };
 
 impl Editor {
     pub(crate) fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
-        let grid = match &self.split {
+        let grid = match &self.reveal {
             None => self.get_grid_with_dimension(
                 context,
                 self.render_area(),
@@ -37,7 +37,7 @@ impl Editor {
                 self.selection_set.primary_selection().range(),
                 false,
             ),
-            Some(split) => self.get_splitted_grid(context, split),
+            Some(reveal) => self.get_splitted_grid(context, reveal),
         };
         let theme = context.theme();
         let window_title_style = if focused {
@@ -79,22 +79,22 @@ impl Editor {
         }
     }
 
-    fn get_splitted_grid(&self, context: &Context, split: &Split) -> crate::grid::Grid {
+    fn get_splitted_grid(&self, context: &Context, reveal: &Reveal) -> crate::grid::Grid {
         let buffer = self.buffer();
-        let ranges = match split {
-            Split::CurrentSelectionMode => self
-                .splitted_selections(self.selection_set.primary_selection(), context)
+        let ranges = match reveal {
+            Reveal::CurrentSelectionMode => self
+                .revealed_selections(self.selection_set.primary_selection(), context)
                 .unwrap_or_default()
                 .into_iter()
                 .map(|byte_range| byte_range.range().clone())
                 .collect_vec(),
-            Split::Cursor => self
+            Reveal::Cursor => self
                 .selection_set
                 .map(|selection| selection.range())
                 .into_iter()
                 .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
                 .collect_vec(),
-            Split::Mark => self
+            Reveal::Mark => self
                 .buffer()
                 .marks()
                 .into_iter()
@@ -226,7 +226,7 @@ impl Editor {
             let updates = hidden_parent_lines
                 .iter()
                 .filter_map(|line| {
-                    if self.split.is_some() {
+                    if self.reveal.is_some() {
                         return None;
                     }
                     Some(HighlightSpan {
@@ -383,7 +383,7 @@ impl Editor {
         let buffer = self.buffer();
         let possible_selections = if self.selection_set.mode.is_contiguous() {
             Default::default()
-        } else if self.split == Some(Split::CurrentSelectionMode) {
+        } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
             buffer
                 .char_index_range_to_byte_range(protected_range)
                 .ok()
@@ -413,7 +413,7 @@ impl Editor {
             .marks()
             .into_iter()
             .filter(|mark| {
-                if let Some(Split::Mark) = self.split {
+                if let Some(Reveal::Mark) = self.reveal {
                     mark == &protected_range
                 } else {
                     true
@@ -431,7 +431,7 @@ impl Editor {
             .secondary_selections()
             .into_iter()
             .filter(|secondary_selection| {
-                if let Some(Split::Cursor) = self.split {
+                if let Some(Reveal::Cursor) = self.reveal {
                     secondary_selection.range() == protected_range
                 } else {
                     true
@@ -451,20 +451,20 @@ impl Editor {
                 Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>,
                 None,
             );
-            match self.split {
-                Some(Split::CurrentSelectionMode)
+            match self.reveal {
+                Some(Reveal::CurrentSelectionMode)
                     if protected_range != primary_selection.extended_range() =>
                 {
                     no_primary_selection
                 }
-                Some(Split::Cursor)
+                Some(Reveal::Cursor)
                     if secondary_selections.iter().any(|secondary_selection| {
                         secondary_selection.extended_range() == protected_range
                     }) =>
                 {
                     no_primary_selection
                 }
-                Some(Split::Mark)
+                Some(Reveal::Mark)
                     if protected_range != primary_selection.extended_range()
                         && buffer.marks().iter().any(|mark| mark == &protected_range) =>
                 {
@@ -688,7 +688,7 @@ impl Editor {
             })
             .flatten();
 
-        let visible_parent_lines = if self.split.is_none() {
+        let visible_parent_lines = if self.reveal.is_none() {
             Box::new(visible_parent_lines.iter().map(|line| HighlightSpan {
                 source: Source::StyleKey(StyleKey::ParentLine),
                 range: HighlightSpanRange::Line(line.line),
@@ -740,14 +740,14 @@ impl Editor {
         )
     }
 
-    pub(crate) fn splitted_selections(
+    pub(crate) fn revealed_selections(
         &self,
         selection: &Selection,
         context: &Context,
     ) -> anyhow::Result<Vec<ByteRange>> {
         Ok(self
             .get_selection_mode_trait_object(selection, true, context)?
-            .iter_splitted(selection_mode::SelectionModeParams {
+            .iter_revealed(selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,

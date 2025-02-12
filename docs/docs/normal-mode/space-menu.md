@@ -94,19 +94,19 @@ these files will not be included in the buffer list unless you edit them.
 These actions are the same as the actions [here](./actions/index.md#clipboard), except
 that they uses the system clipboard instead of the editor clipboard, and their labels prefixed by `+`.
 
-## Split
+## Reveal
 
-Split is a powerful viewport management feature that provides a bird's-eye view of your code or text. It automatically divides your viewport horizontally to show all relevant selections simultaneously, eliminating the need for scrolling (unless selections exceed the viewport height).
+Reveal is a powerful viewport management feature that provides a bird's-eye view of your code or text. It automatically divides your viewport horizontally to show all relevant selections simultaneously, eliminating the need for scrolling (unless selections exceed the viewport height).
 
-There are 3 kinds of Split:
+There are 3 kinds of Reveal:
 
-1. `÷ Selection` (Split by current selection mode)
-2. `÷ Cursor` (Split by cursor)
-3. `÷ Mark` (Split by Mark)
+1. `÷ Selection` (Reveal selections)
+2. `÷ Cursor` (Reveal Cursors)
+3. `÷ Mark` (Reveal Marks)
 
-### Split by current selection mode
+### Reveal Selections
 
-Split by Selection dynamically creates viewports based on your current selection mode. This is particularly powerful for non-contiguous (secondary) selections created through Search, LSP Diagnostics, Git Hunks, and other multi-selection modes.
+Reveal Selections dynamically creates viewports based on the selections of the current selection mode. This is particularly powerful for non-contiguous (secondary) selections created through Search, LSP Diagnostics, Git Hunks, and other multi-selection modes.
 
 When used with Syntax Node selection mode, it can effectively emulate Code Folding, allowing you to view all sibling nodes of the current selected node, such as:
 
@@ -115,19 +115,19 @@ When used with Syntax Node selection mode, it can effectively emulate Code Foldi
 3. Viewing all statements of the current block
 4. Viewing all subheaders under a header in a Markdown file
 
-<TutorialFallback filename="split-by-selection-mode"/>
+<TutorialFallback filename="reveal-selections"/>
 
-### Split by Cursors
+### Reveal Cursors
 
-Split by Cursors is not just useful, but essential when working with multiple cursors. It provides visual confirmation and confidence that your editing operations will be correctly applied across all cursor positions. This is particularly valuable for bulk editing operations where precision is crucial.
+Reveal Cursors is not just useful, but essential when working with multiple cursors. It provides visual confirmation and confidence that your editing operations will be correctly applied across all cursor positions. This is particularly valuable for bulk editing operations where precision is crucial.
 
-<TutorialFallback filename="split-by-cursor"/>
+<TutorialFallback filename="reveal-cursors"/>
 
-### Split by Mark
+### Reveal Marks
 
-Split by Mark offers a modern alternative to traditional window splitting. Rather than manually managing multiple editor windows, you can mark and instantly view important sections simultaneously. You can think of it as automated window splitting.
+Reveal Mark offers a modern alternative to traditional window splitting. Rather than manually managing multiple editor windows, you can mark and instantly view important sections simultaneously. You can think of it as automated window splitting.
 
-<TutorialFallback filename="split-by-mark"/>
+<TutorialFallback filename="reveal-marks"/>
 
 ## Misc
 

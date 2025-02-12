@@ -12,7 +12,7 @@ pub(crate) struct SyntaxNode {
 }
 
 impl SelectionMode for SyntaxNode {
-    fn iter_splitted<'a>(
+    fn iter_revealed<'a>(
         &'a self,
         params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
