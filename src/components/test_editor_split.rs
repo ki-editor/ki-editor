@@ -1,5 +1,5 @@
 use crate::buffer::BufferOwner;
-use crate::components::editor::{DispatchEditor::*, Movement::*};
+use crate::components::editor::{DispatchEditor::*, Movement::*, ViewAlignment};
 use crate::rectangle::Rectangle;
 use crate::test_app::*;
 
@@ -555,6 +555,9 @@ fn section_divider_style() -> anyhow::Result<()> {
             })),
             Editor(MatchLiteral("bar".to_string())),
             Editor(CursorAddToAllSelections),
+            Editor(SwitchViewAlignment),
+            Editor(SwitchViewAlignment),
+            Editor(SwitchViewAlignment),
             Expect(EditorGrid(
                 "
 🦀
@@ -677,6 +680,71 @@ fn split_by_cursor_selection_extension() -> anyhow::Result<()> {
             Expect(GridCellStyleKey(
                 Position::new(5, 9),
                 Some(StyleKey::UiSecondarySelectionSecondaryCursor),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn split_section_view_aligment() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+a();
+b();
+spam();
+c();
+d();
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::new(0, 0),
+                width: 50,
+                height: 4,
+            })),
+            Editor(MatchLiteral("spam".to_string())),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentSplit(Some(Split::Cursor))),
+            Editor(SwitchViewAlignment),
+            Expect(CurrentViewAlignment(Some(ViewAlignment::Top))),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+3│█pam();
+4│c();
+5│d();
+"
+                .trim(),
+            )),
+            Editor(SwitchViewAlignment),
+            Expect(CurrentViewAlignment(Some(ViewAlignment::Center))),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+2│b();
+3│█pam();
+4│c();
+"
+                .trim(),
+            )),
+            Editor(SwitchViewAlignment),
+            Expect(CurrentViewAlignment(Some(ViewAlignment::Bottom))),
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs [*]
+1│a();
+2│b();
+3│█pam();
+"
+                .trim(),
             )),
         ])
     })

@@ -12,7 +12,7 @@ use crate::{
         editor::{Mode, WINDOW_TITLE_HEIGHT},
     },
     context::Context,
-    divide_viewport::divide_viewport,
+    divide_viewport::{calculate_window_position, divide_viewport},
     grid::{CellUpdate, Grid, LineUpdate, RenderContentLineNumber, StyleKey},
     position::Position,
     selection::{CharIndex, Selection},
@@ -24,7 +24,7 @@ use crate::{
 
 use super::{
     component::GetGridResult,
-    editor::{Editor, Split},
+    editor::{Editor, Split, ViewAlignment},
 };
 
 impl Editor {
@@ -136,9 +136,12 @@ impl Editor {
                     .byte_to_line(protected_range_start)
                     .unwrap_or_default();
 
-                let scroll_offset = line
-                    .saturating_sub((viewport_section.height() as f64 / 2 as f64).floor() as usize)
-                    as u16;
+                let window = calculate_window_position(
+                    line,
+                    buffer.len_lines(),
+                    viewport_section.height() as usize,
+                    self.current_view_alignment.unwrap_or(ViewAlignment::Center),
+                );
 
                 let protected_range = buffer
                     .byte_range_to_char_index_range(&range)
@@ -149,7 +152,7 @@ impl Editor {
                         height: viewport_section.height() as u16,
                         width: self.render_area().width,
                     },
-                    scroll_offset,
+                    window.start as u16,
                     protected_range,
                     true,
                 ))
