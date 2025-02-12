@@ -8,6 +8,9 @@ use crate::{
 
 pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
     [
+        split_by_selection_mode(),
+        split_by_cursor(),
+        split_by_mark(),
         showcase(),
         syntax_node(),
         RecipeGroup {
@@ -1442,7 +1445,7 @@ pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> 
                     expectations: &[],
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
             ]
             .to_vec(),
@@ -1542,6 +1545,135 @@ fn syntax_node() -> RecipeGroup {
                 only: false,
             },
         ]
+        .to_vec(),
+    }
+}
+
+fn split_by_selection_mode() -> RecipeGroup {
+    RecipeGroup {
+        filename: "split-by-selection-mode",
+        recipes: [
+            Recipe {
+                description: "Split by Search",
+                content: "
+head
+1foo
+1bar
+1spam
+
+2foo
+2bar
+2spam
+
+3foo
+3bar
+3spam"
+                    .trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("q f o o enter space u l l j j space u"),
+                expectations: &[CurrentSelectedTexts(&["foo"])],
+                terminal_height: Some(9),
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                description: "Split by Syntax Node",
+                content: "
+fn foo() {
+    // fooing
+    // still fooing
+    // more foo
+}
+
+fn bar() {
+    // some bar
+}
+
+fn spam() {
+    // spam yes
+}
+                
+fn baz() {}
+                "
+                .trim(),
+                file_extension: "rs",
+                prepare_events: &[],
+                events: keys!("d space u l l j j space u"),
+                expectations: &[CurrentSelectedTexts(&[
+                    "fn foo() {\n    // fooing\n    // still fooing\n    // more foo\n}",
+                ])],
+                terminal_height: Some(9),
+                similar_vim_combos: &[],
+                only: false,
+            },
+        ]
+        .to_vec(),
+    }
+}
+
+fn split_by_cursor() -> RecipeGroup {
+    RecipeGroup {
+        filename: "split-by-cursor",
+        recipes: [Recipe {
+            description: "Split by Cursor",
+            content: "
+# Section 1
+1foo
+1bar
+1spam
+
+# Section 2
+2foo
+2bar
+2spam
+
+# Section 3
+3foo
+3bar
+3spam"
+                .trim(),
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("q f o o enter r r o x esc s"),
+            expectations: &[CurrentSelectedTexts(&["1foox", "2foox", "3foox"])],
+            terminal_height: Some(9),
+            similar_vim_combos: &[],
+            only: false,
+        }]
+        .to_vec(),
+    }
+}
+
+fn split_by_mark() -> RecipeGroup {
+    RecipeGroup {
+        filename: "split-by-mark",
+        recipes: [Recipe {
+            description: "Split by Mark",
+            content: "
+# Section 1
+1foo
+1bar
+1spam
+
+# Section 2
+2foo
+2bar
+2spam
+
+# Section 3
+3foo
+3bar
+3spam"
+                .trim(),
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("q f o o enter l b space o l j j"),
+            expectations: &[CurrentSelectedTexts(&["foo"])],
+            terminal_height: Some(9),
+            similar_vim_combos: &[],
+            only: false,
+        }]
         .to_vec(),
     }
 }

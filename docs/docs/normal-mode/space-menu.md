@@ -1,3 +1,5 @@
+import {TutorialFallback} from '@site/src/components/TutorialFallback';
+
 # Space Menu
 
 The space menu is a handy shortcut for (not restricted to):
@@ -13,22 +15,22 @@ The space menu can be brought up by pressing `space`.
 ## Keymap
 
 ```
-╭───────────────┬───────────┬─────────────┬───────────┬──────────────┬───┬───┬────────────┬──────────────┬──────┬───╮
-│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆              ┆      ┆   │
-│  Quit No Save ┆           ┆             ┆           ┆              ┆ ⇧ ┆   ┆            ┆              ┆      ┆   │
-│ Save All Quit ┆  Save All ┆   Explorer  ┆           ┆   Keyboard   ┆ ∅ ┆   ┆            ┆              ┆      ┆   │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌┤
-│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆              ┆      ┆   │
-│               ┆           ┆             ┆           ┆ Git status ^ ┆ ⇧ ┆   ┆            ┆              ┆      ┆   │
-│     Theme     ┆   Symbol  ┆    Buffer   ┆    File   ┆ Git status @ ┆ ∅ ┆   ┆    Hover   ┆ Code Actions ┆ Pipe ┆   │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌┤
-│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆            ┆              ┆      ┆   │
-│               ┆           ┆ + Replace X ┆ ← Paste+  ┆              ┆ ⇧ ┆   ┆ + Change X ┆              ┆      ┆   │
-│   Undo Tree   ┆ + Replace ┆    + Copy   ┆ + Paste → ┆ TS Node Sexp ┆ ∅ ┆   ┆   Rename   ┆              ┆      ┆   │
-╰───────────────┴───────────┴─────────────┴───────────┴──────────────┴───┴───┴────────────┴──────────────┴──────┴───╯
+╭───────────────┬───────────┬─────────────┬───────────┬──────────────┬───┬───┬─────────────┬──────────────┬────────┬───╮
+│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆             ┆              ┆        ┆   │
+│  Quit No Save ┆           ┆             ┆           ┆              ┆ ⇧ ┆   ┆             ┆              ┆        ┆   │
+│ Save All Quit ┆  Save All ┆   Explorer  ┆           ┆   Keyboard   ┆ ∅ ┆   ┆ ÷ Selection ┆   ÷ Cursor   ┆ ÷ Mark ┆   │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┤
+│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆             ┆              ┆        ┆   │
+│               ┆           ┆             ┆           ┆ Git status ^ ┆ ⇧ ┆   ┆             ┆              ┆        ┆   │
+│     Theme     ┆   Symbol  ┆    Buffer   ┆    File   ┆ Git status @ ┆ ∅ ┆   ┆    Hover    ┆ Code Actions ┆  Pipe  ┆   │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┤
+│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆             ┆              ┆        ┆   │
+│               ┆           ┆ + Replace X ┆ ← Paste+  ┆              ┆ ⇧ ┆   ┆  + Change X ┆              ┆        ┆   │
+│   Undo Tree   ┆ + Replace ┆    + Copy   ┆ + Paste → ┆ TS Node Sexp ┆ ∅ ┆   ┆    Rename   ┆              ┆        ┆   │
+╰───────────────┴───────────┴─────────────┴───────────┴──────────────┴───┴───┴─────────────┴──────────────┴────────┴───╯
 ```
 
-### LSP Actions (only applicable in the main editor):
+## LSP Actions (only applicable in the main editor):
 
 | Label          | Action                |
 | -------------- | --------------------- |
@@ -91,6 +93,41 @@ these files will not be included in the buffer list unless you edit them.
 
 These actions are the same as the actions [here](./actions/index.md#clipboard), except
 that they uses the system clipboard instead of the editor clipboard, and their labels prefixed by `+`.
+
+## Split
+
+Split is a powerful viewport management feature that provides a bird's-eye view of your code or text. It automatically divides your viewport horizontally to show all relevant selections simultaneously, eliminating the need for scrolling (unless selections exceed the viewport height).
+
+There are 3 kinds of Split:
+
+1. `÷ Selection` (Split by current selection mode)
+2. `÷ Cursor` (Split by cursor)
+3. `÷ Mark` (Split by Mark)
+
+### Split by current selection mode
+
+Split by Selection dynamically creates viewports based on your current selection mode. This is particularly powerful for non-contiguous (secondary) selections created through Search, LSP Diagnostics, Git Hunks, and other multi-selection modes.
+
+When used with Syntax Node selection mode, it can effectively emulate Code Folding, allowing you to view all sibling nodes of the current selected node, such as:
+
+1. Viewing all functions of the current module
+2. Viewing all methods of the current class
+3. Viewing all statements of the current block
+4. Viewing all subheaders under a header in a Markdown file
+
+<TutorialFallback filename="split-by-selection-mode"/>
+
+### Split by Cursors
+
+Split by Cursors is not just useful, but essential when working with multiple cursors. It provides visual confirmation and confidence that your editing operations will be correctly applied across all cursor positions. This is particularly valuable for bulk editing operations where precision is crucial.
+
+<TutorialFallback filename="split-by-cursor"/>
+
+### Split by Mark
+
+Split by Mark offers a modern alternative to traditional window splitting. Rather than manually managing multiple editor windows, you can mark and instantly view important sections simultaneously. You can think of it as automated window splitting.
+
+<TutorialFallback filename="split-by-mark"/>
 
 ## Misc
 

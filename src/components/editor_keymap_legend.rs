@@ -1129,7 +1129,7 @@ impl Editor {
                         context
                             .keyboard_layout_kind()
                             .get_space_keymap(&Meaning::SpltS),
-                        "Split Sel".to_string(),
+                        "÷ Selection".to_string(),
                         Dispatch::ToEditor(DispatchEditor::ToggleSplit(
                             Split::CurrentSelectionMode,
                         )),
@@ -1138,14 +1138,14 @@ impl Editor {
                         context
                             .keyboard_layout_kind()
                             .get_space_keymap(&Meaning::SpltC),
-                        "Split Curs".to_string(),
+                        "÷ Cursor".to_string(),
                         Dispatch::ToEditor(DispatchEditor::ToggleSplit(Split::Cursor)),
                     ),
                     Keymap::new(
                         context
                             .keyboard_layout_kind()
                             .get_space_keymap(&Meaning::SpltM),
-                        "Split Mark".to_string(),
+                        "÷ Mark".to_string(),
                         Dispatch::ToEditor(DispatchEditor::ToggleSplit(Split::Mark)),
                     ),
                 ])
