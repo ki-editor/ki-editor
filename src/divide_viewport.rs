@@ -165,6 +165,7 @@ pub(crate) struct WindowPosition {
 
 impl WindowPosition {
     /// Returns the size of the window
+    #[cfg(test)]
     pub(crate) fn size(&self) -> usize {
         self.end - self.start + 1
     }
