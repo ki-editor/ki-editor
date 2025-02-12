@@ -255,7 +255,7 @@ impl ExpectKind {
                 style_key.clone(),
             ),
             GridCellsStyleKey(positions, style_key) => (
-                positions.into_iter().all(|position| {
+                positions.iter().all(|position| {
                     let actual_style_key = &component
                         .borrow()
                         .editor()

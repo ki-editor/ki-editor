@@ -273,7 +273,7 @@ mod test_trim_array {
     #[should_panic]
     fn test_invalid_range() {
         let arr = vec![0, 1, 2];
-        let result = trim_array(&arr, 2..1, 1);
+        let result = trim_array(&arr, 4..5, 1);
         assert_eq!(result.trimmed_array, vec![0, 1, 2]);
         assert_eq!(result.remaining_trim_count, 1);
     }

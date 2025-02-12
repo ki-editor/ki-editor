@@ -31,7 +31,7 @@ fn split_styling() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["bar"])),
             Editor(ToggleSplit(Split::Cursor)),
             Expect(GridCellStyleKey(
-                Position::new(2, 0 + 2),
+                Position::new(2, 2),
                 Some(StyleKey::UiPrimarySelectionAnchors),
             )),
             Expect(GridCellStyleKey(

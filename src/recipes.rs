@@ -1437,12 +1437,12 @@ pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> 
                     file_extension: "rs",
                     prepare_events: &[],
                     events: keys!(
-                        "q y x enter d r r k l f n ( u S o m e esc d k l l X r m"
+                        "q y x enter d r r k l f g j esc u S o m e esc d k l k T r m"
                     ),
                     expectations: &[],
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: false,
+                    only: true,
                 },
             ]
             .to_vec(),

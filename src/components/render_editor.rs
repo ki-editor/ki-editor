@@ -139,7 +139,7 @@ impl Editor {
                 let window = calculate_window_position(
                     line,
                     buffer.len_lines(),
-                    viewport_section.height() as usize,
+                    viewport_section.height(),
                     self.current_view_alignment.unwrap_or(ViewAlignment::Center),
                 );
 
@@ -175,7 +175,7 @@ impl Editor {
         let Dimension { height, width } = dimension;
         let buffer = editor.buffer();
         let rope = buffer.rope();
-        let protected_char_index = protected_range.to_char_index(&self.cursor_direction);
+        let protected_char_index = protected_range.as_char_index(&self.cursor_direction);
         let protected_range_start_line = buffer
             .char_to_line(protected_char_index)
             .unwrap_or_default();
@@ -374,8 +374,8 @@ impl Editor {
         &self,
         context: &Context,
         visible_line_range: &Range<usize>,
-        hidden_parent_line_ranges: &Vec<Range<usize>>,
-        visible_parent_lines: &Vec<Line>,
+        hidden_parent_line_ranges: &[Range<usize>],
+        visible_parent_lines: &[Line],
         protected_range: CharIndexRange,
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
@@ -388,7 +388,7 @@ impl Editor {
                 .char_index_range_to_byte_range(protected_range)
                 .ok()
                 .into_iter()
-                .map(|byte_range| ByteRange::new(byte_range))
+                .map(ByteRange::new)
                 .collect()
         } else {
             self
@@ -613,7 +613,7 @@ impl Editor {
         });
 
         let visible_line_byte_range = buffer
-            .line_range_to_byte_range(&visible_line_range)
+            .line_range_to_byte_range(visible_line_range)
             .unwrap_or_default();
         let spans = buffer.highlighted_spans();
         let filtered_highlighted_spans = {
@@ -626,7 +626,7 @@ impl Editor {
             .iter()
             .chain(hidden_parent_line_ranges.iter().flat_map(|line_range| {
                 let byte_range = buffer
-                    .line_range_to_byte_range(&line_range)
+                    .line_range_to_byte_range(line_range)
                     .unwrap_or_default();
                 filter_items_by_range(&spans, byte_range.start, byte_range.end, |span| {
                     span.byte_range.clone()
@@ -689,7 +689,7 @@ impl Editor {
             .flatten();
 
         let visible_parent_lines = if self.split.is_none() {
-            Box::new(visible_parent_lines.into_iter().map(|line| HighlightSpan {
+            Box::new(visible_parent_lines.iter().map(|line| HighlightSpan {
                 source: Source::StyleKey(StyleKey::ParentLine),
                 range: HighlightSpanRange::Line(line.line),
                 set_symbol: None,

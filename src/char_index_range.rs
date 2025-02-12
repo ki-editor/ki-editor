@@ -92,7 +92,7 @@ impl CharIndexRange {
         self.start <= other.start && other.end <= self.end
     }
 
-    pub(crate) fn to_char_index(
+    pub(crate) fn as_char_index(
         &self,
         cursor_direction: &crate::components::editor::Direction,
     ) -> CharIndex {

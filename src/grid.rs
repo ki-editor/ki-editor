@@ -537,7 +537,7 @@ impl Grid {
         let protected_range_start_position = calibrated
             .iter()
             .find(|update| update.is_protected_range_start)
-            .map(|update| update.position.clone());
+            .map(|update| update.position);
         // If the cursor is out of bound due to wrapped lines above it,
         // trim the lines from above until the cursor is inbound again
         let trimmed = if let Some(calibrated_cursor_position) = protected_range_start_position {
