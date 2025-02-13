@@ -28,7 +28,9 @@ use crate::{
     clipboard::CopiedTexts,
     components::{
         component::Component,
-        editor::{Direction, DispatchEditor, IfCurrentNotFound, Mode, Movement, ViewAlignment},
+        editor::{
+            Direction, DispatchEditor, IfCurrentNotFound, Mode, Movement, Reveal, ViewAlignment,
+        },
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
     context::{GlobalMode, LocalSearchConfigMode},
@@ -102,6 +104,7 @@ pub(crate) enum ExpectKind {
     ),
     GridCellLine(/*Row*/ usize, /*Column*/ usize, Color),
     GridCellStyleKey(Position, Option<StyleKey>),
+    GridCellsStyleKey(Vec<Position>, Option<StyleKey>),
     HighlightSpans(std::ops::Range<usize>, StyleKey),
     DiagnosticsRanges(Vec<CharIndexRange>),
     BufferQuickfixListItems(Vec<Range<Position>>),
@@ -115,6 +118,8 @@ pub(crate) enum ExpectKind {
     CurrentGlobalMode(Option<GlobalMode>),
     LspRequestSent(FromEditor),
     CurrentCopiedTextHistoryOffset(isize),
+    CurrentReveal(Option<Reveal>),
+    CountHighlightedCells(StyleKey, usize),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -249,6 +254,22 @@ impl ExpectKind {
                     .clone(),
                 style_key.clone(),
             ),
+            GridCellsStyleKey(positions, style_key) => (
+                positions.iter().all(|position| {
+                    let actual_style_key = &component
+                        .borrow()
+                        .editor()
+                        .get_grid(context, false)
+                        .grid
+                        .rows[position.line][position.column]
+                        .source;
+                    if actual_style_key!=style_key {
+                        println!("Expected {position:?} to be styled as {style_key:?}, but got {actual_style_key:?}");
+                    }
+                    actual_style_key == style_key
+                }),
+                format!("Expected positions {positions:?} to be styled as {style_key:?}"),
+            ),
             CompletionDropdownIsOpen(is_open) => {
                 contextualize(app.completion_dropdown_is_open(), *is_open)
             }
@@ -364,6 +385,28 @@ impl ExpectKind {
                     .primary_selection()?,
             ),
             CurrentGlobalMode(expected) => contextualize(expected, &app.context().mode()),
+            CurrentReveal(expected) => {
+                contextualize(expected, &app.current_component().borrow().editor().reveal)
+            }
+            CountHighlightedCells(style_key, expected_count) => contextualize(
+                expected_count,
+                &app.current_component()
+                    .borrow()
+                    .editor()
+                    .get_grid(context, false)
+                    .grid
+                    .rows
+                    .into_iter()
+                    .map(|row| {
+                        row.iter()
+                            .filter(|cell| {
+                                println!("style = {:?}", cell.source);
+                                cell.source.as_ref() == Some(style_key)
+                            })
+                            .count()
+                    })
+                    .sum::<usize>(),
+            ),
         })
     }
 }

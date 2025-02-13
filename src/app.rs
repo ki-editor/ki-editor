@@ -4,7 +4,9 @@ use crate::{
     components::{
         component::{Component, ComponentId, GetGridResult},
         dropdown::{DropdownItem, DropdownRender},
-        editor::{Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement},
+        editor::{
+            Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, Reveal, ViewAlignment,
+        },
         editor_keymap::{KeyboardLayoutKind, Meaning},
         file_explorer::FileExplorer,
         keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
@@ -90,6 +92,8 @@ pub(crate) enum StatusLineComponent {
     LocalSearchConfig,
     Help,
     KeyboardLayout,
+    ViewAlignment,
+    Reveal,
 }
 
 impl<T: Frontend> App<T> {
@@ -340,6 +344,32 @@ impl<T: Frontend> App<T> {
                         StatusLineComponent::KeyboardLayout => {
                             Some(self.keyboard_layout_kind().display().to_string())
                         }
+                        StatusLineComponent::ViewAlignment => Some(
+                            match self
+                                .current_component()
+                                .borrow()
+                                .editor()
+                                .current_view_alignment
+                            {
+                                Some(ViewAlignment::Top) => "↑️",
+                                Some(ViewAlignment::Center) | None => "↕️",
+                                Some(ViewAlignment::Bottom) => "↓️",
+                            }
+                            .to_string(),
+                        ),
+                        StatusLineComponent::Reveal => self
+                            .current_component()
+                            .borrow()
+                            .editor()
+                            .reveal()
+                            .map(|split| {
+                                match split {
+                                    Reveal::CurrentSelectionMode => "÷ Selection",
+                                    Reveal::Cursor => "÷ Cursor",
+                                    Reveal::Mark => "÷ Mark",
+                                }
+                                .to_string()
+                            }),
                     })
                     .join(" │ ")
             });

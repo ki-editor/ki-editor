@@ -19,7 +19,8 @@ use crate::{
 
 use super::{
     editor::{
-        Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Mode, SurroundKind,
+        Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Mode, Reveal,
+        SurroundKind,
     },
     editor_keymap::*,
     keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
@@ -1123,6 +1124,29 @@ impl Editor {
                             .get_space_keymap(&Meaning::LRnme),
                         "Rename".to_string(),
                         Dispatch::PrepareRename,
+                    ),
+                    Keymap::new(
+                        context
+                            .keyboard_layout_kind()
+                            .get_space_keymap(&Meaning::RevlS),
+                        "÷ Selection".to_string(),
+                        Dispatch::ToEditor(DispatchEditor::ToggleReveal(
+                            Reveal::CurrentSelectionMode,
+                        )),
+                    ),
+                    Keymap::new(
+                        context
+                            .keyboard_layout_kind()
+                            .get_space_keymap(&Meaning::RevlC),
+                        "÷ Cursor".to_string(),
+                        Dispatch::ToEditor(DispatchEditor::ToggleReveal(Reveal::Cursor)),
+                    ),
+                    Keymap::new(
+                        context
+                            .keyboard_layout_kind()
+                            .get_space_keymap(&Meaning::RevlM),
+                        "÷ Mark".to_string(),
+                        Dispatch::ToEditor(DispatchEditor::ToggleReveal(Reveal::Mark)),
                     ),
                 ])
                 .collect_vec(),

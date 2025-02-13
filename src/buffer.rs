@@ -55,7 +55,7 @@ pub(crate) struct Buffer {
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub(crate) struct Line {
-    origin_position: Position,
+    pub(crate) origin_position: Position,
     /// 0-based
     pub(crate) line: usize,
     pub(crate) content: String,
