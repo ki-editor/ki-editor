@@ -120,6 +120,7 @@ pub(crate) enum ExpectKind {
     CurrentCopiedTextHistoryOffset(isize),
     CurrentReveal(Option<Reveal>),
     CountHighlightedCells(StyleKey, usize),
+    SelectionExtensionEnabled(bool),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -407,6 +408,7 @@ impl ExpectKind {
                     })
                     .sum::<usize>(),
             ),
+            SelectionExtensionEnabled(expected) => contextualize(expected, &app.current_component().borrow().editor().selection_extension_enabled()),
         })
     }
 }
