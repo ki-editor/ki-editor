@@ -2338,6 +2338,7 @@ impl Editor {
     }
 
     pub(crate) fn enclose(&mut self, open: String, close: String) -> anyhow::Result<Dispatches> {
+        self.disable_selection_extension();
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2792,6 +2793,7 @@ impl Editor {
         kind: SurroundKind,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
+        self.disable_selection_extension();
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2844,6 +2846,7 @@ impl Editor {
         to: Option<EnclosureKind>,
         context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
+        self.disable_selection_extension();
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -3404,6 +3407,11 @@ impl Editor {
 
     pub(crate) fn reveal(&self) -> std::option::Option<Reveal> {
         self.reveal.clone()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn selection_extension_enabled(&self) -> bool {
+        self.selection_set.is_extended()
     }
 }
 
