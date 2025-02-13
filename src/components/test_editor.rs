@@ -2241,9 +2241,8 @@ fn surround() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
-            App(HandleKeyEvents(keys!("f g j").to_vec())),
-            Expect(CurrentComponentContent("fn main() { (x.y()) }")),
-            Expect(SelectionExtensionEnabled(false)),
+            App(HandleKeyEvents(keys!("v s (").to_vec())),
+            Editor(SetContent("fn main() { (x.y()) }".to_string())),
         ])
     })
 }
@@ -2581,7 +2580,6 @@ fn select_surround_inside_with_multiwidth_character() -> Result<(), anyhow::Erro
             }),
             Expect(CurrentSelectedTexts(&["w🦀orld"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
-            Expect(SelectionExtensionEnabled(false)),
         ])
     })
 }
@@ -2600,7 +2598,6 @@ fn select_surround_inside() -> Result<(), anyhow::Error> {
             App(HandleKeyEvents(keys!("f u j").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
-            Expect(SelectionExtensionEnabled(false)),
         ])
     })
 }
@@ -2619,7 +2616,6 @@ fn select_surround_around() -> Result<(), anyhow::Error> {
             App(HandleKeyEvents(keys!("f o j").to_vec())),
             Expect(CurrentSelectedTexts(&["(world)"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
-            Expect(SelectionExtensionEnabled(false)),
         ])
     })
 }
@@ -2638,7 +2634,6 @@ fn select_surround_inside_same_symbols() -> Result<(), anyhow::Error> {
             Editor(DeleteSurround(crate::surround::EnclosureKind::SingleQuotes)),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
-            Expect(SelectionExtensionEnabled(false)),
         ])
     })
 }
@@ -2658,7 +2653,6 @@ fn delete_surround() -> Result<(), anyhow::Error> {
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello world)")),
-            Expect(SelectionExtensionEnabled(false)),
         ])
     })
 }
@@ -2678,7 +2672,6 @@ fn change_surround_selection_not_on_enclosure() -> Result<(), anyhow::Error> {
             Expect(CurrentSelectedTexts(&["{world}"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello {world})")),
-            Expect(SelectionExtensionEnabled(false)),
         ])
     })
 }
@@ -2696,7 +2689,6 @@ fn change_surround_selection_on_enclosure() -> Result<(), anyhow::Error> {
             Editor(MatchLiteral("(hello)".to_string())),
             App(HandleKeyEvents(keys!("f m j l").to_vec())),
             Expect(CurrentSelectedTexts(&["{hello}"])),
-            Expect(SelectionExtensionEnabled(false)),
         ])
     })
 }
@@ -4127,6 +4119,36 @@ fn jump_editor_tag() -> anyhow::Result<()> {
             Expect(CurrentComponentTitle(" 🦀 src/main.rs #1")),
             App(HandleKeyEvent(key!("2"))),
             Expect(CurrentComponentTitle(" 🦀 src/foo.rs #2")),
+        ])
+    })
+}
+
+#[test]
+fn search_current_selection() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "foo bar test foo bary moss foo bars".to_string(),
+            )),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token { skip_symbols: true },
+            )),
+            Editor(EnableSelectionExtension),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["foo bar"])),
+            Expect(SelectionExtensionEnabled(true)),
+            Editor(SearchCurrentSelection(
+                IfCurrentNotFound::LookForward,
+                Scope::Local,
+            )),
+            Expect(CurrentSelectedTexts(&["foo bar"])),
+            Expect(SelectionExtensionEnabled(false)),
         ])
     })
 }

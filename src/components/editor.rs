@@ -342,6 +342,9 @@ impl Component for Editor {
                 return Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent));
             }
             ToggleReveal(reveal) => self.toggle_reveal(reveal),
+            SearchCurrentSelection(if_current_not_found, scope) => {
+                return Ok(self.search_current_selection(if_current_not_found, scope))
+            }
         }
         Ok(Default::default())
     }
@@ -3413,6 +3416,28 @@ impl Editor {
     pub(crate) fn selection_extension_enabled(&self) -> bool {
         self.selection_set.is_extended()
     }
+
+    fn search_current_selection(
+        &mut self,
+        if_current_not_found: IfCurrentNotFound,
+        scope: Scope,
+    ) -> Dispatches {
+        let dispatches = self
+            .buffer()
+            .slice(&self.selection_set.primary_selection().extended_range())
+            .map(|search| {
+                Dispatches::one(Dispatch::UpdateLocalSearchConfig {
+                    scope,
+                    if_current_not_found,
+                    update: crate::app::LocalSearchConfigUpdate::Search(search.to_string()),
+                    show_config_after_enter: false,
+                    run_search_after_config_updated: true,
+                })
+            })
+            .unwrap_or_default();
+        self.disable_selection_extension();
+        dispatches
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3546,6 +3571,7 @@ pub(crate) enum DispatchEditor {
     ShowHelp,
     HandleEsc,
     ToggleReveal(Reveal),
+    SearchCurrentSelection(IfCurrentNotFound, Scope),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
