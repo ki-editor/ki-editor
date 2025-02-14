@@ -271,7 +271,7 @@ impl Component for Editor {
             }
             SelectLineAt(index) => return Ok(self.select_line_at(index)?.into_vec().into()),
             EnterMultiCursorMode => self.enter_multicursor_mode(),
-            Surround(open, close) => return self.enclose(open, close),
+            Surround(open, close) => return self.surround(open, close),
             EnterReplaceMode => self.enter_replace_mode(),
             Paste {
                 direction,
@@ -2340,8 +2340,7 @@ impl Editor {
         Ok(())
     }
 
-    pub(crate) fn enclose(&mut self, open: String, close: String) -> anyhow::Result<Dispatches> {
-        self.disable_selection_extension();
+    pub(crate) fn surround(&mut self, open: String, close: String) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2367,6 +2366,7 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
+        self.disable_selection_extension();
 
         self.apply_edit_transaction(edit_transaction)
     }
