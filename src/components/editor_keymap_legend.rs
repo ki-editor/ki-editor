@@ -162,15 +162,15 @@ impl Editor {
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::SSEnd),
-                "⇋ End".to_string(),
-                "Switch extended selection end".to_string(),
-                Dispatch::ToEditor(SwapExtensionDirection),
+                "⇋ Anchor".to_string(),
+                "Swap Anchor".to_string(),
+                Dispatch::ToEditor(SwapExtensionAnchor),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::XAchr),
-                "⇋ Anchor".to_string(),
-                "Swap cursor with anchor".to_string(),
-                Dispatch::ToEditor(DispatchEditor::SwapCursorWithAnchor),
+                "⇋ Curs".to_string(),
+                "Swap cursor".to_string(),
+                Dispatch::ToEditor(DispatchEditor::SwapCursor),
             ),
         ]
         .to_vec()

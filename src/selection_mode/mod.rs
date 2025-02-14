@@ -254,7 +254,6 @@ pub trait SelectionMode {
             }
             _ => (None, None, None, None),
         };
-        // println!( "The initial = {:?}", (enclosure_kind, &surround_kind, open_index, close_index) );
         let (close_index, enclosure_kind) = match (close_index, enclosure_kind) {
             (Some(close_index), Some(enclosure_kind)) => (close_index, *enclosure_kind),
             _ => {
@@ -267,7 +266,6 @@ pub trait SelectionMode {
                 let (close_index, enclosure_kind) = {
                     let Some((close_index, enclosure_kind)) =
                         after.find_map(|(index, positioned_char)| {
-                            // println!("positioned_char = {positioned_char:?}");
                             if let Some(kind) = enclosure_kinds
                                 .iter()
                                 .find(|kind| positioned_char.is_opening_of(kind))
@@ -291,7 +289,6 @@ pub trait SelectionMode {
                                 if open_symbols_stack.last() == Some(kind) {
                                     open_symbols_stack.pop();
                                 } else {
-                                    // println!( "Return close index -> index = {index} cursor = {} range.end = {}", range_start.0, range.end.0 );
                                     return Some((index, *kind));
                                 }
                             }
@@ -317,7 +314,6 @@ pub trait SelectionMode {
                 .enumerate()
                 .rev()
                 .find_map(|(index, positioned_char)| {
-                    // println!("{char} {position:?}");
                     if positioned_char.is_closing_of(&enclosure_kind) {
                         close_symbols_stack.push(enclosure_kind);
                     } else if positioned_char.is_opening_of(&enclosure_kind) {
@@ -335,24 +331,18 @@ pub trait SelectionMode {
             };
             open_index
         };
-        // println!("enclosre = {enclosure_kind:?}");
-        // println!("open_index = {open_index:?} close_index = {close_index:?} range = {range:?}");
         let surround_kind = if let Some(surround_kind) = surround_kind {
-            // println!("surround_kind is surround_kind = {surround_kind:?}");
             surround_kind
         } else if open_index + 1 == range.start.0 && close_index == range.end.0 {
             Around
         } else {
             Inside
         };
-        // println!("surroud_kind = {surround_kind:?}");
-
         let offset = match surround_kind {
             Inside => 1,
             Around => 0,
         };
         let range = (CharIndex(open_index + offset)..CharIndex(close_index + 1 - offset)).into();
-        // println!("range = {range:?} offset = {offset}");
         Ok(Some(ApplyMovementResult::from_selection(
             selection.clone().set_range(range),
         )))
@@ -513,14 +503,18 @@ pub trait SelectionMode {
         let current_selection = params.current_selection.clone();
         let buffer = params.buffer;
         let byte_range = buffer.char_index_range_to_byte_range(current_selection.range())?;
+        let cursor_char_index = current_selection.to_char_index(params.cursor_direction);
+        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
 
         Ok(self
             .iter_filtered(params)?
             .sorted()
             .rev()
             .find(|range| {
-                range.range.start < byte_range.start
-                    || (range.range.start == byte_range.start && range.range.end < byte_range.end)
+                range.range.start < cursor_byte
+                    || (range.range.start == cursor_byte
+                        && (range.range.start == byte_range.start
+                            && range.range.end < byte_range.end))
             })
             .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
     }
@@ -713,7 +707,10 @@ mod test_selection_mode {
             ..CharIndex(expected_selection_byte_range.end))
             .into();
 
-        assert_eq!(expected, actual);
+        assert_eq!(
+            expected, actual,
+            "Input range = {current_selection_byte_range:?}, expected = {expected:?}, actual = {actual:?}"
+        );
     }
 
     #[test]
@@ -721,6 +718,7 @@ mod test_selection_mode {
         test(Movement::Left, 1..6, 0..6);
         test(Movement::Left, 2..5, 1..6);
         test(Movement::Left, 3..5, 3..4);
+
         test(Movement::Left, 3..4, 2..5);
     }
 

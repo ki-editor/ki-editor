@@ -3,11 +3,13 @@ use my_proc_macros::keys;
 use crate::{
     components::editor::Mode,
     generate_recipes::{Recipe, RecipeGroup},
+    position::Position,
     test_app::*,
 };
 
 pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
     [
+        swap_cursors(),
         reveal_selections(),
         reveal_cursors(),
         reveal_marks(),
@@ -1641,6 +1643,46 @@ fn reveal_cursors() -> RecipeGroup {
             similar_vim_combos: &[],
             only: false,
         }]
+        .to_vec(),
+    }
+}
+
+fn swap_cursors() -> RecipeGroup {
+    RecipeGroup {
+        filename: "swap-cursors",
+        recipes: [
+            Recipe {
+                description: "Swap Cursors to view out-of-bound selection end",
+                content: "
+fn main() {
+   foo();
+   bar();
+   spam();
+   baz();
+   bomb();
+} // Last line of main()
+"
+                .trim(),
+                file_extension: "rs",
+                prepare_events: &[],
+                events: keys!("d / /"),
+                expectations: &[EditorCursorPosition(Position { line: 0, column: 0 })],
+                terminal_height: Some(5),
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                description: "Swap Cursors to select last token of current line",
+                content: "foo bar spam baz()".trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("a / s"),
+                expectations: &[CurrentSelectedTexts(&["baz"])],
+                terminal_height: None,
+                similar_vim_combos: &[],
+                only: false,
+            },
+        ]
         .to_vec(),
     }
 }
