@@ -245,7 +245,7 @@ impl SelectionSet {
         self.apply_mut(|selection| selection.enable_selection_extension());
     }
 
-    pub(crate) fn swap_initial_range_direction(&mut self) {
+    pub(crate) fn swap_anchor(&mut self) {
         self.apply_mut(|selection| selection.swap_initial_range_direction());
     }
 

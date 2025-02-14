@@ -1,3 +1,5 @@
+import {TutorialFallback} from '@site/src/components/TutorialFallback';
+
 # Other Movements
 
 ## Keymap
@@ -13,8 +15,8 @@
 │   ┆   ┆   ┆   ┆   ┆ ∅ ┆        ┆          ┆          ┆          ┆          │
 ├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
 │   ┆   ┆   ┆   ┆   ┆ ⌥ ┆        ┆          ┆          ┆          ┆          │
-│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆        ┆          ┆          ┆          ┆   ⇋ End  │
-│   ┆   ┆   ┆   ┆   ┆ ∅ ┆        ┆          ┆          ┆          ┆ ⇋ Anchor │
+│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆        ┆          ┆          ┆          ┆ ⇋ Anchor │
+│   ┆   ┆   ┆   ┆   ┆ ∅ ┆        ┆          ┆          ┆          ┆  ⇋ Curs  │
 ╰───┴───┴───┴───┴───┴───┴────────┴──────────┴──────────┴──────────┴──────────╯
 ```
 
@@ -26,17 +28,15 @@ The movements categorized here are not affected or bounded by [Selection Modes](
 
 Scroll half-page up/down.
 
-### `⇋ Anchor`
+### `⇋ Curs`
 
-Swap cursor with anchor.
+Swap the primary cursor with the secondary cursor.
 
-In Ki, each selection contains a cursor and an anchor.
-
-By default, the cursor sits on the first character of the selection, and the anchor sits on the last character of the selection.
+By default, the primary cursor sits on the first character of the selection, and the secondary cursor sits on the last character of the selection.
 
 For example, if the current selection is `hello world`, then the cursor sits on `h`, while the anchor sits on `d`.
 
-The anchor serves as a visual aid, making it easier to recognize when the selection range has been modified.
+The secondary cursors serves as a visual aid, making it easier to recognize when the selection range has been modified.
 
 This is especially necessary when using selection modes such as [Fine Syntax Node](./selection-modes/primary.md#syntax-1), where occasionally, the start of a selection remains the same while the end of it changes.
 
@@ -47,9 +47,11 @@ Usefulness:
 - When you wish to start a new selection at the end of the current selection
   - For example, when you select a line and wish to change its last word.
 
-### `⇋ End`
+<TutorialFallback filename="swap-cursors"/>
 
-Swap extended selection ends.
+### `⇋ Anchor`
+
+Swap extended selection anchors.
 
 This is only applicable when the selection is extended.
 

@@ -72,7 +72,7 @@ fn toggle_visual_mode() -> anyhow::Result<()> {
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["fn f("])),
-            Editor(SwapExtensionDirection),
+            Editor(SwapExtensionAnchor),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["f("])),
             Editor(Reset),
@@ -2263,7 +2263,7 @@ fn swap_cursor_with_anchor() -> anyhow::Result<()> {
             })),
             Editor(SetContent("fn main() { x.y() }  // hello ".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(SwapCursorWithAnchor),
+            Editor(SwapCursor),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -4149,6 +4149,24 @@ fn search_current_selection() -> anyhow::Result<()> {
             )),
             Expect(CurrentSelectedTexts(&["foo bar"])),
             Expect(SelectionExtensionEnabled(false)),
+        ])
+    })
+}
+
+#[test]
+fn should_search_backward_if_primary_and_secondary_cursor_swapped() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello world()".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(SwapCursor),
+            App(HandleKeyEvent(key!("s"))), // Token selection mode (Qwerty)
+            Expect(CurrentSelectedTexts(&["world"])),
         ])
     })
 }

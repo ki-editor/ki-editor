@@ -277,7 +277,7 @@ impl Component for Editor {
                 direction,
                 use_system_clipboard,
             } => return self.paste(direction, context, use_system_clipboard),
-            SwapCursorWithAnchor => self.swap_cursor_with_anchor(),
+            SwapCursor => self.swap_cursor(),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
             MoveCharacterForward => {
@@ -322,7 +322,7 @@ impl Component for Editor {
             Indent => return self.indent(),
             Dedent => return self.dedent(),
             CyclePrimarySelection(direction) => self.cycle_primary_selection(direction),
-            SwapExtensionDirection => self.selection_set.swap_initial_range_direction(),
+            SwapExtensionAnchor => self.selection_set.swap_anchor(),
             CollapseSelection(direction) => return self.collapse_selection(context, direction),
             FilterSelectionMatchingSearch { maintain, search } => {
                 self.mode = Mode::Normal;
@@ -1209,7 +1209,7 @@ impl Editor {
         self.navigate_undo_tree(Movement::Right)
     }
 
-    pub(crate) fn swap_cursor_with_anchor(&mut self) {
+    pub(crate) fn swap_cursor(&mut self) {
         self.cursor_direction = match self.cursor_direction {
             Direction::Start => Direction::End,
             Direction::End => Direction::Start,
@@ -3196,10 +3196,8 @@ impl Editor {
             SetSelectionMode(IfCurrentNotFound::LookForward, SelectionMode::Character);
         match direction {
             Direction::Start => self.handle_dispatch_editor(context, set_column_selection_mode),
-            Direction::End => self.handle_dispatch_editors(
-                context,
-                [SwapCursorWithAnchor, set_column_selection_mode].to_vec(),
-            ),
+            Direction::End => self
+                .handle_dispatch_editors(context, [SwapCursor, set_column_selection_mode].to_vec()),
         }
     }
 
@@ -3540,7 +3538,7 @@ pub(crate) enum DispatchEditor {
         direction: Direction,
         use_system_clipboard: bool,
     },
-    SwapCursorWithAnchor,
+    SwapCursor,
     MoveCharacterBack,
     MoveCharacterForward,
     DeleteSurround(EnclosureKind),
@@ -3559,7 +3557,7 @@ pub(crate) enum DispatchEditor {
     ShowCurrentTreeSitterNodeSexp,
     Indent,
     Dedent,
-    SwapExtensionDirection,
+    SwapExtensionAnchor,
     CollapseSelection(Direction),
     FilterSelectionMatchingSearch {
         search: String,
