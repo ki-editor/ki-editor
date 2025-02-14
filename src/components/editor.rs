@@ -2366,9 +2366,9 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
-        self.disable_selection_extension();
-
-        self.apply_edit_transaction(edit_transaction)
+        Ok(self
+            .apply_edit_transaction(edit_transaction)?
+            .append(Dispatch::ToEditor(DisableSelectionExtension)))
     }
 
     fn transform_selection(

@@ -2241,8 +2241,9 @@ fn surround() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
-            App(HandleKeyEvents(keys!("v s (").to_vec())),
-            Editor(SetContent("fn main() { (x.y()) }".to_string())),
+            App(HandleKeyEvents(keys!("f g j").to_vec())),
+            Expect(CurrentComponentContent("fn main() { (x.y()) }")),
+            Expect(SelectionExtensionEnabled(false)),
         ])
     })
 }
