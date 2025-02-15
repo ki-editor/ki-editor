@@ -44,7 +44,7 @@ fn generate_recipes() -> anyhow::Result<()> {
                                     "------- \n\n\tRunning: {} \n\n----------",
                                     recipe.description
                                 );
-                                let result = execute_recipe(|s| {
+                                let callback = |s: State| {
                                     let temp_path = s
                                         .temp_dir()
                                         .to_path_buf()
@@ -92,7 +92,8 @@ fn generate_recipes() -> anyhow::Result<()> {
                                     )
                                     .collect_vec()
                                     .into_boxed_slice()
-                                })?;
+                                };
+                                let result = execute_recipe(callback, false)?;
                                 Ok(StepOutput {
                                     key: events
                                         .last()

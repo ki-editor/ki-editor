@@ -66,6 +66,21 @@ pub(crate) enum Step {
     ExpectCustom(Box<dyn Fn()>),
 }
 
+impl Step {
+    fn variant_name(&self) -> String {
+        match self {
+            Step::App(app) => format!("Step::App({app:?})"),
+            AppLater(_) => "AppLater(_)".to_string(),
+            ExpectMulti(expects) => format!("ExpectMulti({expects:?})"),
+            Expect(expect) => format!("Expect({expect:?})"),
+            Editor(editor) => format!("Editor({editor:?})"),
+            SuggestiveEditor(editor) => format!("SuggestiveEditor({editor:?})"),
+            ExpectLater(_) => "ExpectLater(_)".to_string(),
+            ExpectCustom(_) => "ExpectCustom(_)".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) enum ExpectKind {
     FileExplorerContent(String),
@@ -449,12 +464,14 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
         false,
         [StatusLineComponent::LastDispatch].to_vec(),
         callback,
+        true,
     )?;
     Ok(())
 }
 
 pub(crate) fn execute_recipe(
     callback: impl Fn(State) -> Box<[Step]>,
+    assert_last_step_is_expect: bool,
 ) -> anyhow::Result<Option<String>> {
     execute_test_helper(
         || Box::new(StringWriter::new()),
@@ -466,6 +483,7 @@ pub(crate) fn execute_recipe(
         ]
         .to_vec(),
         callback,
+        assert_last_step_is_expect,
     )
 }
 
@@ -474,6 +492,7 @@ fn execute_test_helper(
     render: bool,
     status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(State) -> Box<[Step]>,
+    assert_last_step_is_expect: bool,
 ) -> anyhow::Result<Option<String>> {
     run_test(writer, status_line_components, |mut app, temp_dir| {
         let steps = {
@@ -487,6 +506,21 @@ fn execute_test_helper(
 
         if render {
             app.render()?
+        }
+        if assert_last_step_is_expect {
+            debug_assert!(
+                matches!(
+                    steps.iter().last(),
+                    None | Some(
+                        Step::Expect(_)
+                            | Step::ExpectLater(_)
+                            | Step::ExpectMulti(_)
+                            | Step::ExpectCustom(_)
+                    )
+                ),
+                "The last step of each recipe must be an assertion but got {:?}",
+                steps.iter().last().map(|step| { step.variant_name() })
+            );
         }
         for step in steps.iter() {
             match step.to_owned() {
