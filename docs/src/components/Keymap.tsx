@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { Select } from "@/components/ui/select";
+
 import * as React from "react";
 import useBaseUrl from "@docusaurus/useBaseUrl";
 
-import { useXTerm, UseXTermProps } from "react-xtermjs";
 import * as z from "zod";
 
 const keymapSchema = z.object({
@@ -47,11 +48,6 @@ export const Keymap = (props: { filename: string }) => {
   }, []);
   return (
     <div style={{ display: "grid", gap: 64 }}>
-      <link
-        rel="stylesheet"
-        href="https://unpkg.com/keyboard-css@1.2.4/dist/css/main.min.css"
-      />
-
       {keymap && <KeymapView keymap={keymap} />}
       {error && <div style={{ color: "red" }}>{error.message}</div>}
     </div>
@@ -77,53 +73,76 @@ const KeymapView = (props: { keymap: Keymap }) => {
     border: "1px solid black",
     display: "grid",
     placeItems: "center",
+    borderRadius: 4,
   };
 
   return (
-    <div>
-      <label>
-        <input
-          type="checkbox"
-          checked={showKeys}
-          onChange={() => {
-            setShowKeys(!showKeys);
-          }}
-        />
-        <span>Show keys</span>
-      </label>
-      <label>
-        <input
-          type="checkbox"
-          checked={split}
-          onChange={() => {
-            setSplit(!split);
-          }}
-        />
-        <span>Split</span>
-      </label>
-      <div>
-        {props.keymap.keyboard_layouts.map((keyboardLayout) => {
-          return (
-            <button
-              key={keyboardLayout.name}
-              onClick={() => setKeyboardLayout(keyboardLayout)}
-            >
-              {keyboardLayout.name}
-            </button>
-          );
-        })}
-      </div>
-      <div>
-        {keysArrangements.map((keysArrangement) => (
-          <button
-            key={keysArrangement}
-            onClick={() => setKeysArragement(keysArrangement)}
+    <div style={{ display: "grid", gap: 8, overflowX: "auto" }}>
+      <div
+        style={{
+          display: "grid",
+          gridAutoFlow: "column",
+          gap: 8,
+          justifyContent: "start",
+          alignItems: "center",
+        }}
+      >
+        <label>
+          <input
+            type="checkbox"
+            checked={showKeys}
+            onChange={() => {
+              setShowKeys(!showKeys);
+            }}
+          />
+          <span>Show keys</span>
+        </label>
+        {showKeys && (
+          <select
+            value={keyboardLayout.name}
+            onChange={(e) => {
+              const newLayout = props.keymap.keyboard_layouts.find(
+                (layout) => layout.name === e.target.value
+              );
+              if (newLayout) {
+                setKeyboardLayout(newLayout);
+              }
+            }}
+            className="px-2 py-1 border rounded"
           >
-            {keysArrangement}
-          </button>
-        ))}
+            {props.keymap.keyboard_layouts.sort().map((layout) => (
+              <option key={layout.name} value={layout.name}>
+                {layout.name}
+              </option>
+            ))}
+          </select>
+        )}
+
+        <label>
+          <input
+            type="checkbox"
+            checked={split}
+            onChange={() => {
+              setSplit(!split);
+            }}
+          />
+          <span>Split</span>
+        </label>
+
+        <select
+          value={keysArrangement}
+          onChange={(e) => {
+            setKeysArragement(e.target.value as KeysArrangement);
+          }}
+        >
+          {keysArrangements.map((keysArrangement) => (
+            <option key={keysArrangement} value={keysArrangement}>
+              {keysArrangement}
+            </option>
+          ))}
+        </select>
       </div>
-      <div style={{ fontFamily: "monospace" }}>
+      <div style={{ fontFamily: "monospace", display: "grid", gap: 4 }}>
         {props.keymap.rows.map((row, rowIndex) => {
           return (
             <div
@@ -131,7 +150,7 @@ const KeymapView = (props: { keymap: Keymap }) => {
               style={{
                 display: "grid",
                 gridAutoFlow: "column",
-                gap: 0,
+                gap: 4,
                 justifyContent: "start",
                 marginLeft:
                   keysArrangement === "Row Staggered"
