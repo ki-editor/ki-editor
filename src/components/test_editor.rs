@@ -287,7 +287,6 @@ fn test_delete_word_short_backward_from_end_of_file() -> anyhow::Result<()> {
             Expect(CurrentComponentContent("fn snake_case(camelCase: String")),
             Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent("fn snake_case(camelCase: ")),
-            Editor(DeleteWordBackward { short: true }),
         ])
     })
 }
@@ -462,7 +461,6 @@ fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
             Expect(CurrentComponentContent(": String) {}")),
             Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent(": String) {}")),
-            Editor(DeleteWordBackward { short: true }),
         ])
     })
 }
