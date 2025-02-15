@@ -3,10 +3,13 @@ sidebar_position: 2
 ---
 
 import {TutorialFallback} from '@site/src/components/TutorialFallback';
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # Primary
 
 ## Keymap
+
+<KeymapFallback filename="Primary Selection Modes"/>
 
 ```
 ╭───────┬────────┬─────────┬───┬───┬───┬───┬───┬───┬───┬───╮

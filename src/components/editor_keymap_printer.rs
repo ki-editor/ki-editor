@@ -30,10 +30,10 @@ pub(crate) struct KeymapPrintSection {
 }
 
 #[derive(Debug, Clone)]
-struct Key {
-    normal: Option<Keymap>,
-    shifted: Option<Keymap>,
-    alted: Option<Keymap>,
+pub(crate) struct Key {
+    pub(crate) normal: Option<Keymap>,
+    pub(crate) shifted: Option<Keymap>,
+    pub(crate) alted: Option<Keymap>,
 }
 impl Key {
     fn has_content(&self) -> bool {
@@ -162,149 +162,168 @@ impl KeymapPrintSection {
 
         format!("{}", table)
     }
+
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(crate) fn keys(&self) -> &Vec<Vec<Key>> {
+        &self.keys
+    }
 }
 
-type KeymapPrintSections = Vec<KeymapPrintSection>;
+pub(crate) struct KeymapPrintSections {
+    context: Context,
+    sections: Vec<KeymapPrintSection>,
+}
 
-fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections {
-    let editor = Editor::from_text(Option::None, "");
-    let context = Context::default();
-    let sections: Vec<KeymapPrintSection> = [
-        KeymapPrintSection::from_keymaps(
-            "Insert".to_string(),
-            &editor.insert_mode_keymaps(false, &context),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Normal".to_string(),
-            &editor.normal_mode_keymaps(&context, Default::default()),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Movements".to_string(),
-            &Keymaps::new(&editor.keymap_core_movements(&context)),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Primary Selection Modes".to_string(),
-            &Keymaps::new(&editor.keymap_primary_selection_modes(&context)),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Secondary Selection Modes Init".to_string(),
-            &Keymaps::new(&editor.keymap_secondary_selection_modes_init(&context)),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Secondary Selection Modes (Local Forward)".to_string(),
-            &editor
-                .secondary_selection_modes_keymap_legend_config(
+impl KeymapPrintSections {
+    pub(crate) fn new() -> Self {
+        let context = Context::default();
+        let layout = context.keyboard_layout_kind().get_keyboard_layout();
+        let editor = Editor::from_text(Option::None, "");
+        let context = Context::default();
+        let sections: Vec<KeymapPrintSection> = [
+            KeymapPrintSection::from_keymaps(
+                "Insert".to_string(),
+                &editor.insert_mode_keymaps(false, &context),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Normal".to_string(),
+                &editor.normal_mode_keymaps(&context, Default::default()),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Movements".to_string(),
+                &Keymaps::new(&editor.keymap_core_movements(&context)),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Primary Selection Modes".to_string(),
+                &Keymaps::new(&editor.keymap_primary_selection_modes(&context)),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Secondary Selection Modes Init".to_string(),
+                &Keymaps::new(&editor.keymap_secondary_selection_modes_init(&context)),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Secondary Selection Modes (Local Forward)".to_string(),
+                &editor
+                    .secondary_selection_modes_keymap_legend_config(
+                        &context,
+                        Scope::Local,
+                        IfCurrentNotFound::LookForward,
+                    )
+                    .keymaps(),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Secondary Selection Modes (Local Backward)".to_string(),
+                &editor
+                    .secondary_selection_modes_keymap_legend_config(
+                        &context,
+                        Scope::Local,
+                        IfCurrentNotFound::LookBackward,
+                    )
+                    .keymaps(),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Secondary Selection Modes (Global)".to_string(),
+                &editor
+                    .secondary_selection_modes_keymap_legend_config(
+                        &context,
+                        Scope::Global,
+                        IfCurrentNotFound::LookForward,
+                    )
+                    .keymaps(),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Actions".to_string(),
+                &Keymaps::new(&editor.keymap_actions(&Default::default(), false, &context)),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Other movements".to_string(),
+                &Keymaps::new(&editor.keymap_other_movements(&context)),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Space".to_string(),
+                &editor
+                    .space_keymap_legend_config(&Default::default())
+                    .keymaps(),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "File Explorer Actions".to_string(),
+                &Keymaps::new(&editor.keymap_overridable(
+                    &file_explorer_normal_mode_override(),
+                    true,
                     &context,
-                    Scope::Local,
-                    IfCurrentNotFound::LookForward,
-                )
-                .keymaps(),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Secondary Selection Modes (Local Backward)".to_string(),
-            &editor
-                .secondary_selection_modes_keymap_legend_config(
+                )),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Extend".to_string(),
+                &Keymaps::new(&editor.keymap_overridable(
+                    &extend_mode_normal_mode_override(&context),
+                    true,
                     &context,
-                    Scope::Local,
-                    IfCurrentNotFound::LookBackward,
-                )
-                .keymaps(),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Secondary Selection Modes (Global)".to_string(),
-            &editor
-                .secondary_selection_modes_keymap_legend_config(
+                )),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Sub Modes".to_string(),
+                &Keymaps::new(&editor.keymap_sub_modes(&Default::default(), &context)),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Multi-cursor".to_string(),
+                &Keymaps::new(&editor.keymap_overridable(
+                    &multicursor_mode_normal_mode_override(),
+                    true,
                     &context,
-                    Scope::Global,
-                    IfCurrentNotFound::LookForward,
-                )
-                .keymaps(),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Actions".to_string(),
-            &Keymaps::new(&editor.keymap_actions(&Default::default(), false, &context)),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Other movements".to_string(),
-            &Keymaps::new(&editor.keymap_other_movements(&context)),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Space".to_string(),
-            &editor
-                .space_keymap_legend_config(&Default::default())
-                .keymaps(),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "File Explorer Actions".to_string(),
-            &Keymaps::new(&editor.keymap_overridable(
-                &file_explorer_normal_mode_override(),
-                true,
-                &context,
-            )),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Extend".to_string(),
-            &Keymaps::new(&editor.keymap_overridable(
-                &extend_mode_normal_mode_override(&context),
-                true,
-                &context,
-            )),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Sub Modes".to_string(),
-            &Keymaps::new(&editor.keymap_sub_modes(&Default::default(), &context)),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Multi-cursor".to_string(),
-            &Keymaps::new(&editor.keymap_overridable(
-                &multicursor_mode_normal_mode_override(),
-                true,
-                &context,
-            )),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Completion Items".to_string(),
-            &completion_item_keymaps(&context),
-            layout,
-        ),
-        KeymapPrintSection::from_keymaps(
-            "Universal Keymap".to_string(),
-            &Keymaps::new(&editor.keymap_universal(&context)),
-            layout,
-        ),
-    ]
-    .to_vec();
+                )),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Completion Items".to_string(),
+                &completion_item_keymaps(&context),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Universal Keymap".to_string(),
+                &Keymaps::new(&editor.keymap_universal(&context)),
+                layout,
+            ),
+        ]
+        .to_vec();
 
-    sections
-        .into_iter()
-        .filter(|section| section.has_content())
-        .collect()
+        Self {
+            context,
+            sections: sections
+                .into_iter()
+                .filter(|section| section.has_content())
+                .collect(),
+        }
+    }
+
+    pub(crate) fn sections(&self) -> &Vec<KeymapPrintSection> {
+        &self.sections
+    }
 }
 
 /// Print an ASCII representation of the keymap.
 pub(crate) fn print_keymap_table() -> anyhow::Result<()> {
-    collect_keymap_print_sections(
-        Context::default()
-            .keyboard_layout_kind()
-            .get_keyboard_layout(),
-    )
-    .iter()
-    .for_each(print_single_keymap_table);
+    KeymapPrintSections::new()
+        .sections()
+        .iter()
+        .for_each(print_single_keymap_table);
 
     Ok(())
 }
@@ -331,13 +350,10 @@ pub(crate) fn print_keymap_drawer_yaml() -> anyhow::Result<()> {
     println!("  layout_name: LAYOUT_split_3x5_3");
     println!("layers:");
 
-    collect_keymap_print_sections(
-        Context::default()
-            .keyboard_layout_kind()
-            .get_keyboard_layout(),
-    )
-    .iter()
-    .for_each(print_keymap_drawer);
+    KeymapPrintSections::new()
+        .sections()
+        .iter()
+        .for_each(print_keymap_drawer);
 
     println!("draw_config:");
     println!("  key_w: 82");
