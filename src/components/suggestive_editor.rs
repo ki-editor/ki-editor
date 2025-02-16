@@ -15,8 +15,9 @@ use my_proc_macros::key;
 use std::{cell::RefCell, rc::Rc};
 
 use super::dropdown::{Dropdown, DropdownConfig};
-use super::editor::{DispatchEditor, IfCurrentNotFound};
-use super::keymap_legend::{Keymap, KeymapLegendSection, Keymaps};
+use super::editor::{Direction, DispatchEditor, IfCurrentNotFound};
+use super::editor_keymap::Meaning;
+use super::keymap_legend::{Keymap, Keymaps};
 use super::{
     component::Component,
     dropdown::DropdownItem,
@@ -75,24 +76,14 @@ impl Component for SuggestiveEditor {
         event: event::KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
+            if let Some(keymap) = completion_item_keymaps(context).get(&event) {
+                log::info!("dispatches = {:?}", keymap.get_dispatches());
+                return Ok(keymap.get_dispatches());
+            };
             match event {
-                key!("ctrl+n") | key!("down") => {
-                    self.completion_dropdown.next_item();
-                    return Ok(self.render_completion_dropdown(false));
-                }
-                key!("ctrl+p") | key!("up") => {
-                    self.completion_dropdown.previous_item();
-                    return Ok(self.render_completion_dropdown(false));
-                }
-                key!("tab") => {
-                    let current_item = self.completion_dropdown.current_item();
-                    if let Some(completion) = current_item {
-                        self.completion_dropdown.set_items(Vec::new());
-                        return Ok(
-                            Dispatches::one(Dispatch::CloseDropdown).chain(completion.dispatches)
-                        );
-                    }
-                }
+                key!("down") => return self.next_completion_item(),
+                key!("up") => return self.previous_completion_item(),
+                key!("tab") => return self.select_completion_item(),
 
                 _ => {}
             }
@@ -131,35 +122,6 @@ impl Component for SuggestiveEditor {
                 _ => Default::default(),
             }))
     }
-
-    fn contextual_keymaps(&self) -> Vec<super::keymap_legend::KeymapLegendSection> {
-        [KeymapLegendSection {
-            title: "LSP".to_string(),
-            keymaps: Keymaps::new(&[
-                Keymap::new("c", "Code Actions".to_string(), {
-                    let cursor_char_index = self.editor().get_cursor_char_index();
-                    Dispatch::RequestCodeAction {
-                        diagnostics: self
-                            .editor()
-                            .buffer()
-                            .diagnostics()
-                            .into_iter()
-                            .filter_map(|diagnostic| {
-                                if diagnostic.range.contains(&cursor_char_index) {
-                                    diagnostic.original_value.clone()
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect_vec(),
-                    }
-                }),
-                Keymap::new("h", "Hover".to_string(), Dispatch::RequestHover),
-                Keymap::new("r", "Rename".to_string(), Dispatch::PrepareRename),
-            ]),
-        }]
-        .to_vec()
-    }
 }
 
 impl SuggestiveEditor {
@@ -195,6 +157,13 @@ impl SuggestiveEditor {
             DispatchSuggestiveEditor::UpdateCurrentCompletionItem(completion_item) => {
                 Ok(self.update_current_completion_item(completion_item))
             }
+            DispatchSuggestiveEditor::MoveToCompletionItem(Direction::End) => {
+                self.next_completion_item()
+            }
+            DispatchSuggestiveEditor::MoveToCompletionItem(Direction::Start) => {
+                self.previous_completion_item()
+            }
+            DispatchSuggestiveEditor::SelectCompletionItem => self.select_completion_item(),
         }
     }
 
@@ -216,6 +185,10 @@ impl SuggestiveEditor {
     }
 
     pub(crate) fn render_completion_dropdown(&self, ignore_insert_mode: bool) -> Dispatches {
+        log::info!(
+            "ignore_insert_mode = {ignore_insert_mode} mode = {:?}",
+            self.editor.mode
+        );
         if (!ignore_insert_mode && self.editor.mode != Mode::Insert)
             || self.completion_dropdown.no_matching_candidates()
         {
@@ -276,6 +249,28 @@ impl SuggestiveEditor {
             .update_current_item(completion_item.into());
         self.render_completion_dropdown(false)
     }
+
+    fn previous_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
+        self.completion_dropdown.previous_item();
+        Ok(self.render_completion_dropdown(false))
+    }
+
+    fn next_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
+        self.completion_dropdown.next_item();
+        let dispatches = self.render_completion_dropdown(false);
+        log::info!("next_compl = {:?}", dispatches);
+        Ok(self.render_completion_dropdown(false))
+    }
+
+    fn select_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
+        let current_item = self.completion_dropdown.current_item();
+        if let Some(completion) = current_item {
+            self.completion_dropdown.set_items(Vec::new());
+            Ok(Dispatches::one(Dispatch::CloseDropdown).chain(completion.dispatches))
+        } else {
+            Ok(Default::default())
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -284,6 +279,8 @@ pub(crate) enum DispatchSuggestiveEditor {
     CompletionFilter(SuggestiveEditorFilter),
     Completion(Completion),
     UpdateCurrentCompletionItem(CompletionItem),
+    MoveToCompletionItem(Direction),
+    SelectCompletionItem,
 }
 
 #[cfg(test)]
@@ -735,9 +732,9 @@ mod test_suggestive_editor {
                 Expect(CompletionDropdownSelectedItem("Spongebob")),
                 App(HandleKeyEvent(key!("up"))),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
-                App(HandleKeyEvent(key!("ctrl+n"))),
+                App(HandleKeyEvent(key!("alt+k"))),
                 Expect(CompletionDropdownSelectedItem("Spongebob")),
-                App(HandleKeyEvent(key!("ctrl+p"))),
+                App(HandleKeyEvent(key!("alt+i"))),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
             ])
         })
@@ -1054,4 +1051,33 @@ impl Decoration {
             ..self
         }
     }
+}
+
+pub(crate) fn completion_item_keymaps(context: &Context) -> Keymaps {
+    Keymaps::new(&[
+        Keymap::new_extended(
+            context
+                .keyboard_layout_kind()
+                .get_insert_key(&Meaning::ScrlD),
+            Direction::End.format_action("Comp"),
+            "Next Completion Item".to_string(),
+            Dispatch::MoveToCompletionItem(Direction::End),
+        ),
+        Keymap::new_extended(
+            context
+                .keyboard_layout_kind()
+                .get_insert_key(&Meaning::ScrlU),
+            Direction::Start.format_action("Comp"),
+            "Previous Completion Item".to_string(),
+            Dispatch::MoveToCompletionItem(Direction::Start),
+        ),
+        Keymap::new_extended(
+            context
+                .keyboard_layout_kind()
+                .get_insert_key(&Meaning::BuffN),
+            "Select Comp".to_string(),
+            "Select Completion Item".to_string(),
+            Dispatch::SelectCompletionItem,
+        ),
+    ])
 }

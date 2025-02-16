@@ -4,10 +4,12 @@ use crate::{
     components::{
         component::{Component, ComponentId, GetGridResult},
         dropdown::{DropdownItem, DropdownRender},
-        editor::{Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement},
-        keymap_legend::{
-            Keymap, KeymapLegendBody, KeymapLegendConfig, KeymapLegendSection, Keymaps,
+        editor::{
+            Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, Reveal, ViewAlignment,
         },
+        editor_keymap::{KeyboardLayoutKind, Meaning},
+        file_explorer::FileExplorer,
+        keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
         prompt::{Prompt, PromptConfig, PromptHistoryKey},
         suggestive_editor::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
@@ -48,6 +50,7 @@ use std::{
         Mutex,
     },
 };
+use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
 pub(crate) struct App<T: Frontend> {
@@ -74,6 +77,7 @@ pub(crate) struct App<T: Frontend> {
 
     status_line_components: Vec<StatusLineComponent>,
     last_action_description: Option<String>,
+    last_action_short_description: Option<String>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
@@ -85,6 +89,11 @@ pub(crate) enum StatusLineComponent {
     Mode,
     SelectionMode,
     LastDispatch,
+    LocalSearchConfig,
+    Help,
+    KeyboardLayout,
+    ViewAlignment,
+    Reveal,
 }
 
 impl<T: Frontend> App<T> {
@@ -133,6 +142,7 @@ impl<T: Frontend> App<T> {
             global_title: None,
             status_line_components,
             last_action_description: None,
+            last_action_short_description: None,
         };
         Ok(app)
     }
@@ -216,8 +226,6 @@ impl<T: Frontend> App<T> {
     fn handle_event(&mut self, event: Event) -> anyhow::Result<bool> {
         // Pass event to focused window
         let component = self.current_component();
-        self.context
-            .set_contextual_keymaps(component.borrow().contextual_keymaps());
         match event {
             Event::Resize(columns, rows) => {
                 self.resize(Dimension {
@@ -246,6 +254,10 @@ impl<T: Frontend> App<T> {
         let screen = self.get_screen()?;
         self.render_screen(screen)?;
         Ok(())
+    }
+
+    fn keyboard_layout_kind(&self) -> &KeyboardLayoutKind {
+        self.context.keyboard_layout_kind()
     }
 
     pub(crate) fn get_screen(&mut self) -> Result<Screen, anyhow::Error> {
@@ -322,6 +334,42 @@ impl<T: Frontend> App<T> {
                                 .display_selection_mode(),
                         ),
                         StatusLineComponent::LastDispatch => self.last_action_description.clone(),
+                        StatusLineComponent::LocalSearchConfig => {
+                            Some(self.context.local_search_config().display())
+                        }
+                        StatusLineComponent::Help => {
+                            let key = self.keyboard_layout_kind().get_insert_key(&Meaning::SHelp);
+                            Some(format!("Help ({key})"))
+                        }
+                        StatusLineComponent::KeyboardLayout => {
+                            Some(self.keyboard_layout_kind().display().to_string())
+                        }
+                        StatusLineComponent::ViewAlignment => Some(
+                            match self
+                                .current_component()
+                                .borrow()
+                                .editor()
+                                .current_view_alignment
+                            {
+                                Some(ViewAlignment::Top) => "↑️",
+                                Some(ViewAlignment::Center) | None => "↕️",
+                                Some(ViewAlignment::Bottom) => "↓️",
+                            }
+                            .to_string(),
+                        ),
+                        StatusLineComponent::Reveal => self
+                            .current_component()
+                            .borrow()
+                            .editor()
+                            .reveal()
+                            .map(|split| {
+                                match split {
+                                    Reveal::CurrentSelectionMode => "÷ Selection",
+                                    Reveal::Cursor => "÷ Cursor",
+                                    Reveal::Mark => "÷ Mark",
+                                }
+                                .to_string()
+                            }),
                     })
                     .join(" │ ")
             });
@@ -613,10 +661,10 @@ impl<T: Frontend> App<T> {
             Dispatch::QuitAll => self.quit_all()?,
             Dispatch::SaveQuitAll => self.save_quit_all()?,
             Dispatch::RevealInExplorer(path) => self.reveal_path_in_explorer(&path)?,
-            Dispatch::OpenYesNoPrompt(prompt) => self.open_yes_no_prompt(prompt)?,
-            Dispatch::OpenMoveFilePrompt(path) => self.open_move_file_prompt(path)?,
-            Dispatch::OpenCopyFilePrompt(path) => self.open_copy_file_prompt(path)?,
-            Dispatch::OpenAddPathPrompt(path) => self.open_add_path_prompt(path)?,
+            Dispatch::OpenMoveFilePrompt => self.open_move_file_prompt()?,
+            Dispatch::OpenDuplicateFilePrompt => self.open_copy_file_prompt()?,
+            Dispatch::OpenAddPathPrompt => self.open_add_path_prompt()?,
+            Dispatch::OpenDeleteFilePrompt => self.open_delete_file_prompt()?,
             Dispatch::DeletePath(path) => self.delete_path(&path)?,
             Dispatch::Null => {
                 // do nothing
@@ -658,11 +706,13 @@ impl<T: Frontend> App<T> {
                 scope,
                 show_config_after_enter,
                 if_current_not_found,
+                run_search_after_config_updated,
             } => self.update_local_search_config(
                 update,
                 scope,
                 show_config_after_enter,
                 if_current_not_found,
+                run_search_after_config_updated,
             )?,
             Dispatch::UpdateGlobalSearchConfig {
                 update,
@@ -679,7 +729,12 @@ impl<T: Frontend> App<T> {
             Dispatch::ShowSearchConfig {
                 scope,
                 if_current_not_found,
-            } => self.show_search_config(scope, if_current_not_found),
+                run_search_after_config_updated,
+            } => self.show_search_config(
+                scope,
+                if_current_not_found,
+                run_search_after_config_updated,
+            ),
             Dispatch::OpenUpdateReplacementPrompt {
                 scope,
                 if_current_not_found,
@@ -736,12 +791,26 @@ impl<T: Frontend> App<T> {
             Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found) => {
                 self.use_last_non_contiguous_selection_mode(if_current_not_found)?
             }
-            Dispatch::SetLastActionDescription(description) => {
-                self.last_action_description = Some(description)
+            Dispatch::SetLastActionDescription {
+                long_description: description,
+                short_description,
+            } => {
+                self.last_action_description = Some(description);
+                self.last_action_short_description = short_description
             }
             Dispatch::OpenFilterSelectionsPrompt { maintain } => {
                 self.open_filter_selections_prompt(maintain)?
             }
+            Dispatch::MoveToCompletionItem(direction) => self.handle_dispatch_suggestive_editor(
+                DispatchSuggestiveEditor::MoveToCompletionItem(direction),
+            )?,
+            Dispatch::SelectCompletionItem => self.handle_dispatch_suggestive_editor(
+                DispatchSuggestiveEditor::SelectCompletionItem,
+            )?,
+            Dispatch::SetKeyboardLayoutKind(keyboard_layout_kind) => {
+                self.context.set_keyboard_layout_kind(keyboard_layout_kind)
+            }
+            Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_prompt()?,
         }
         Ok(())
     }
@@ -815,16 +884,19 @@ impl<T: Frontend> App<T> {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<()> {
-        let config = self.context.get_local_search_config(scope);
-        let mode = config.mode;
         self.open_prompt(
             PromptConfig {
-                title: format!("{:?} search ({})", scope, mode.display()),
+                title: format!(
+                    "{:?} search (config search = {})",
+                    scope,
+                    self.keyboard_layout_kind().get_key(&Meaning::CSrch)
+                ),
                 items: self.words(),
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                     scope,
                     show_config_after_enter: false,
                     if_current_not_found,
+                    run_search_after_config_updated: true,
                 },
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
@@ -835,49 +907,83 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    fn open_add_path_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                title: "Add path".to_string(),
-                on_enter: DispatchPrompt::AddPath,
-                items: Vec::new(),
-                enter_selects_first_matching_item: false,
-                leaves_current_line_empty: false,
-                fire_dispatches_on_change: None,
-            },
-            PromptHistoryKey::AddPath,
-            Some(path.display_absolute()),
-        )
+    fn get_file_explorer_current_path(&mut self) -> anyhow::Result<Option<CanonicalizedPath>> {
+        self.current_component()
+            .borrow_mut()
+            .as_any_mut()
+            .downcast_mut::<FileExplorer>()
+            .and_then(|file_explorer| file_explorer.get_current_path().transpose())
+            .transpose()
     }
 
-    fn open_move_file_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                title: "Move path".to_string(),
-                on_enter: DispatchPrompt::MovePath { from: path.clone() },
-                items: Vec::new(),
-                enter_selects_first_matching_item: false,
-                leaves_current_line_empty: false,
-                fire_dispatches_on_change: None,
-            },
-            PromptHistoryKey::MovePath,
-            Some(path.display_absolute()),
-        )
+    fn open_delete_file_prompt(&mut self) -> anyhow::Result<()> {
+        if let Some(path) = self.get_file_explorer_current_path()? {
+            self.open_yes_no_prompt(YesNoPrompt {
+                title: format!("Delete \"{}\"?", path.display_absolute()),
+                yes: Box::new(Dispatch::DeletePath(path.clone())),
+            })
+        } else {
+            Ok(())
+        }
     }
 
-    fn open_copy_file_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                title: "Copy current file to a new path".to_string(),
-                on_enter: DispatchPrompt::CopyFile { from: path.clone() },
-                items: Vec::new(),
-                enter_selects_first_matching_item: false,
-                leaves_current_line_empty: false,
-                fire_dispatches_on_change: None,
-            },
-            PromptHistoryKey::CopyFile,
-            Some(path.display_absolute()),
-        )
+    fn open_add_path_prompt(&mut self) -> anyhow::Result<()> {
+        if let Some(path) = self.get_file_explorer_current_path()? {
+            self.open_prompt(
+                PromptConfig {
+                    title: "Add path".to_string(),
+                    on_enter: DispatchPrompt::AddPath,
+                    items: Vec::new(),
+                    enter_selects_first_matching_item: false,
+                    leaves_current_line_empty: false,
+                    fire_dispatches_on_change: None,
+                },
+                PromptHistoryKey::AddPath,
+                Some(path.display_absolute()),
+            )
+        } else {
+            Ok(())
+        }
+    }
+
+    fn open_move_file_prompt(&mut self) -> anyhow::Result<()> {
+        let path = self.get_file_explorer_current_path()?;
+        if let Some(path) = path {
+            self.open_prompt(
+                PromptConfig {
+                    title: "Move path".to_string(),
+                    on_enter: DispatchPrompt::MovePath { from: path.clone() },
+                    items: Vec::new(),
+                    enter_selects_first_matching_item: false,
+                    leaves_current_line_empty: false,
+                    fire_dispatches_on_change: None,
+                },
+                PromptHistoryKey::MovePath,
+                Some(path.display_absolute()),
+            )
+        } else {
+            Ok(())
+        }
+    }
+
+    fn open_copy_file_prompt(&mut self) -> anyhow::Result<()> {
+        let path = self.get_file_explorer_current_path()?;
+        if let Some(path) = path {
+            self.open_prompt(
+                PromptConfig {
+                    title: format!("Duplicate '{}' to", path.display_absolute()),
+                    on_enter: DispatchPrompt::CopyFile { from: path.clone() },
+                    items: Vec::new(),
+                    enter_selects_first_matching_item: false,
+                    leaves_current_line_empty: false,
+                    fire_dispatches_on_change: None,
+                },
+                PromptHistoryKey::CopyFile,
+                Some(path.display_absolute()),
+            )
+        } else {
+            Ok(())
+        }
     }
 
     fn open_symbol_picker(&mut self, symbols: Symbols) -> anyhow::Result<()> {
@@ -1252,7 +1358,8 @@ impl<T: Frontend> App<T> {
     }
 
     fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
-        self.layout.show_keymap_legend(keymap_legend_config)
+        self.layout
+            .show_keymap_legend(keymap_legend_config, &self.context)
     }
 
     fn global_replace(&mut self) -> anyhow::Result<()> {
@@ -1324,17 +1431,19 @@ impl<T: Frontend> App<T> {
 
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
         self.handle_dispatch(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-            title: "Prompt".to_string(),
-            body: KeymapLegendBody::MultipleSections {
-                sections: [KeymapLegendSection {
-                    title: prompt.title,
-                    keymaps: Keymaps::new(&[
-                        Keymap::new("y", "Yes".to_string(), *prompt.yes),
-                        Keymap::new("n", "No".to_string(), Dispatch::Null),
-                    ]),
-                }]
-                .to_vec(),
-            },
+            title: prompt.title.to_string(),
+            body: KeymapLegendBody::Positional(Keymaps::new(&[
+                Keymap::new(
+                    self.keyboard_layout_kind().get_yes_no_key(&Meaning::Yes__),
+                    "Yes".to_string(),
+                    *prompt.yes,
+                ),
+                Keymap::new(
+                    self.keyboard_layout_kind().get_yes_no_key(&Meaning::No___),
+                    "No".to_string(),
+                    Dispatch::Null,
+                ),
+            ])),
         }))
     }
 
@@ -1530,17 +1639,20 @@ impl<T: Frontend> App<T> {
         scope: Scope,
         show_legend: bool,
         if_current_not_found: IfCurrentNotFound,
+        run_search_after_config_updated: bool,
     ) -> Result<(), anyhow::Error> {
         self.context.update_local_search_config(update, scope);
-        match scope {
-            Scope::Local => self.local_search(if_current_not_found)?,
-            Scope::Global => {
-                self.global_search()?;
+        if run_search_after_config_updated {
+            match scope {
+                Scope::Local => self.local_search(if_current_not_found)?,
+                Scope::Global => {
+                    self.global_search()?;
+                }
             }
         }
 
         if show_legend {
-            self.show_search_config(scope, if_current_not_found);
+            self.show_search_config(scope, if_current_not_found, run_search_after_config_updated);
         }
         Ok(())
     }
@@ -1552,7 +1664,7 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         self.context.update_global_search_config(update)?;
         self.global_search()?;
-        self.show_search_config(Scope::Global, if_current_not_found);
+        self.show_search_config(Scope::Global, if_current_not_found, true);
         Ok(())
     }
 
@@ -1578,7 +1690,12 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    fn show_search_config(&mut self, scope: Scope, if_current_not_found: IfCurrentNotFound) {
+    fn show_search_config(
+        &mut self,
+        scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
+        run_search_after_config_updated: bool,
+    ) {
         fn show_checkbox(title: &str, checked: bool) -> String {
             format!("[{}] {title}", if checked { "X" } else { " " })
         }
@@ -1599,6 +1716,7 @@ impl<T: Frontend> App<T> {
                         scope,
                         show_config_after_enter: scope == Scope::Global,
                         if_current_not_found: IfCurrentNotFound::LookForward,
+                        run_search_after_config_updated,
                     },
                 )
             };
@@ -1617,115 +1735,75 @@ impl<T: Frontend> App<T> {
         };
         self.show_keymap_legend(KeymapLegendConfig {
             title: format!("Configure Search ({:?})", scope),
-            body: KeymapLegendBody::MultipleSections {
-                sections: [
-                    KeymapLegendSection {
-                        title: "Inputs".to_string(),
-                        keymaps: Keymaps::new(
-                            &[
-                                Keymap::new(
-                                    "/",
-                                    format!("Search = {}", local_search_config.search()),
-                                    Dispatch::OpenUpdateSearchPrompt {
-                                        scope,
-                                        if_current_not_found,
-                                    },
-                                ),
-                                Keymap::new(
-                                    "r",
-                                    format!("Replacement = {}", local_search_config.replacement()),
-                                    Dispatch::OpenUpdateReplacementPrompt {
-                                        scope,
-                                        if_current_not_found,
-                                    },
-                                ),
-                            ]
-                            .into_iter()
-                            .chain(
-                                global_search_confing
-                                    .map(|config| {
-                                        [
-                                            Keymap::new(
-                                                "I",
-                                                format!(
-                                                    "Include files (glob) = {}",
-                                                    config
-                                                        .include_glob()
-                                                        .map(|glob| glob.to_string())
-                                                        .unwrap_or_default()
-                                                ),
-                                                Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
-                                                    filter_glob: GlobalSearchFilterGlob::Include,
-                                                    if_current_not_found,
-                                                },
-                                            ),
-                                            Keymap::new(
-                                                "E",
-                                                format!(
-                                                    "Exclude files (glob) = {}",
-                                                    config
-                                                        .exclude_glob()
-                                                        .map(|glob| glob.to_string())
-                                                        .unwrap_or_default()
-                                                ),
-                                                Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
-                                                    filter_glob: GlobalSearchFilterGlob::Exclude,
-                                                    if_current_not_found,
-                                                },
-                                            ),
-                                        ]
-                                        .to_vec()
-                                    })
-                                    .unwrap_or_default(),
-                            )
-                            .collect_vec(),
-                        ),
-                    },
-                    KeymapLegendSection {
-                        title: "Mode".to_string(),
-                        keymaps: Keymaps::new(&[
-                            update_mode_keymap(
-                                "a",
-                                "AST Grep".to_string(),
-                                LocalSearchConfigMode::AstGrep,
-                                local_search_config.mode == LocalSearchConfigMode::AstGrep,
-                            ),
-                            update_mode_keymap(
-                                "n",
-                                "Naming Convention Agnostic".to_string(),
-                                LocalSearchConfigMode::NamingConventionAgnostic,
-                                local_search_config.mode
-                                    == LocalSearchConfigMode::NamingConventionAgnostic,
-                            ),
-                            update_mode_keymap(
-                                "l",
-                                "Literal".to_string(),
-                                LocalSearchConfigMode::Regex(RegexConfig {
-                                    escaped: true,
-                                    ..regex.unwrap_or_default()
-                                }),
-                                regex.map(|regex| regex.escaped).unwrap_or(false),
-                            ),
-                            update_mode_keymap(
-                                "x",
-                                "Regex".to_string(),
-                                LocalSearchConfigMode::Regex(RegexConfig {
-                                    escaped: false,
-                                    ..regex.unwrap_or_default()
-                                }),
-                                regex.map(|regex| !regex.escaped).unwrap_or(false),
-                            ),
-                        ]),
-                    },
+            body: KeymapLegendBody::Mnemonic(Keymaps::new(
+                &[
+                    Keymap::new(
+                        self.keyboard_layout_kind()
+                            .get_search_config_keymap(&Meaning::Srch_),
+                        format!("Search = {}", local_search_config.search()),
+                        Dispatch::OpenUpdateSearchPrompt {
+                            scope,
+                            if_current_not_found,
+                        },
+                    ),
+                    Keymap::new(
+                        self.keyboard_layout_kind()
+                            .get_search_config_keymap(&Meaning::Rplcm),
+                        format!("Replacement = {}", local_search_config.replacement()),
+                        Dispatch::OpenUpdateReplacementPrompt {
+                            scope,
+                            if_current_not_found,
+                        },
+                    ),
+                    update_mode_keymap(
+                        self.keyboard_layout_kind()
+                            .get_search_config_keymap(&Meaning::ASTGp),
+                        "AST Grep".to_string(),
+                        LocalSearchConfigMode::AstGrep,
+                        local_search_config.mode == LocalSearchConfigMode::AstGrep,
+                    ),
+                    update_mode_keymap(
+                        self.keyboard_layout_kind()
+                            .get_search_config_keymap(&Meaning::NCAgn),
+                        "Naming Convention Agnostic".to_string(),
+                        LocalSearchConfigMode::NamingConventionAgnostic,
+                        local_search_config.mode == LocalSearchConfigMode::NamingConventionAgnostic,
+                    ),
+                    update_mode_keymap(
+                        self.keyboard_layout_kind()
+                            .get_search_config_keymap(&Meaning::Litrl),
+                        "Literal".to_string(),
+                        LocalSearchConfigMode::Regex(RegexConfig {
+                            escaped: true,
+                            ..regex.unwrap_or_default()
+                        }),
+                        regex.map(|regex| regex.escaped).unwrap_or(false),
+                    ),
+                    update_mode_keymap(
+                        self.keyboard_layout_kind()
+                            .get_search_config_keymap(&Meaning::Regex),
+                        "Regex".to_string(),
+                        LocalSearchConfigMode::Regex(RegexConfig {
+                            escaped: false,
+                            ..regex.unwrap_or_default()
+                        }),
+                        regex.map(|regex| !regex.escaped).unwrap_or(false),
+                    ),
+                    Keymap::new(
+                        self.keyboard_layout_kind()
+                            .get_search_config_keymap(&Meaning::RplcA),
+                        "Replace all".to_string(),
+                        Dispatch::Replace { scope },
+                    ),
                 ]
                 .into_iter()
-                .chain(regex.map(|regex| {
-                    KeymapLegendSection {
-                        title: "Options".to_string(),
-                        keymaps: Keymaps::new(
-                            &[
+                .chain(
+                    regex
+                        .map(|regex| {
+                            [
                                 update_mode_keymap(
-                                    "c",
+                                    self.keyboard_layout_kind()
+                                        .get_search_config_keymap(&Meaning::CaStv),
                                     "Case-sensitive".to_string(),
                                     LocalSearchConfigMode::Regex(RegexConfig {
                                         case_sensitive: !regex.case_sensitive,
@@ -1734,16 +1812,19 @@ impl<T: Frontend> App<T> {
                                     regex.case_sensitive,
                                 ),
                                 update_mode_keymap(
-                                    "w",
-                                    "Match whole word".to_string(),
+                                    self.keyboard_layout_kind()
+                                        .get_search_config_keymap(&Meaning::Strct),
+                                    "Strict".to_string(),
                                     LocalSearchConfigMode::Regex(RegexConfig {
-                                        match_whole_word: !regex.match_whole_word,
+                                        match_whole_word: true,
+                                        case_sensitive: true,
                                         ..regex
                                     }),
-                                    regex.match_whole_word,
+                                    regex.match_whole_word && regex.case_sensitive,
                                 ),
                                 update_mode_keymap(
-                                    "f",
+                                    self.keyboard_layout_kind()
+                                        .get_search_config_keymap(&Meaning::Flexi),
                                     "Flexible".to_string(),
                                     LocalSearchConfigMode::Regex(RegexConfig {
                                         match_whole_word: false,
@@ -1753,31 +1834,61 @@ impl<T: Frontend> App<T> {
                                     !regex.match_whole_word && !regex.case_sensitive,
                                 ),
                                 update_mode_keymap(
-                                    "s",
-                                    "Strict".to_string(),
+                                    self.keyboard_layout_kind()
+                                        .get_search_config_keymap(&Meaning::MaWWd),
+                                    "Match whole word".to_string(),
                                     LocalSearchConfigMode::Regex(RegexConfig {
-                                        match_whole_word: true,
-                                        case_sensitive: true,
+                                        match_whole_word: !regex.match_whole_word,
                                         ..regex
                                     }),
-                                    regex.match_whole_word && regex.case_sensitive,
+                                    regex.match_whole_word,
                                 ),
                             ]
-                            .into_iter()
-                            .collect_vec(),
-                        ),
-                    }
-                }))
-                .chain(Some(KeymapLegendSection {
-                    title: "Actions".to_string(),
-                    keymaps: Keymaps::new(&[Keymap::new(
-                        "R",
-                        "Replace all".to_string(),
-                        Dispatch::Replace { scope },
-                    )]),
-                }))
-                .collect(),
-            },
+                            .to_vec()
+                        })
+                        .unwrap_or_default(),
+                )
+                .chain(
+                    global_search_confing
+                        .map(|config| {
+                            [
+                                Keymap::new(
+                                    self.keyboard_layout_kind()
+                                        .get_search_config_keymap(&Meaning::InFGb),
+                                    format!(
+                                        "Include files (glob) = {}",
+                                        config
+                                            .include_glob()
+                                            .map(|glob| glob.to_string())
+                                            .unwrap_or_default()
+                                    ),
+                                    Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
+                                        filter_glob: GlobalSearchFilterGlob::Include,
+                                        if_current_not_found,
+                                    },
+                                ),
+                                Keymap::new(
+                                    self.keyboard_layout_kind()
+                                        .get_search_config_keymap(&Meaning::ExFGb),
+                                    format!(
+                                        "Exclude files (glob) = {}",
+                                        config
+                                            .exclude_glob()
+                                            .map(|glob| glob.to_string())
+                                            .unwrap_or_default()
+                                    ),
+                                    Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
+                                        filter_glob: GlobalSearchFilterGlob::Exclude,
+                                        if_current_not_found,
+                                    },
+                                ),
+                            ]
+                            .to_vec()
+                        })
+                        .unwrap_or_default(),
+                )
+                .collect_vec(),
+            )),
         })
     }
 
@@ -1815,6 +1926,7 @@ impl<T: Frontend> App<T> {
                     scope,
                     show_config_after_enter: true,
                     if_current_not_found,
+                    run_search_after_config_updated: true,
                 },
                 items: self.words(),
                 enter_selects_first_matching_item: false,
@@ -1913,23 +2025,34 @@ impl<T: Frontend> App<T> {
         &mut self,
         dispatch: DispatchSuggestiveEditor,
     ) -> anyhow::Result<()> {
-        let component = self
+        if let Some(component) = self.layout.get_component_by_kind(ComponentKind::Prompt) {
+            let dispatches = component
+                .borrow_mut()
+                .as_any_mut()
+                .downcast_mut::<Prompt>()
+                .ok_or_else(|| anyhow::anyhow!("App::handle_dispatch_suggestive_editor Failed to downcast current component to Prompt"))?
+                .handle_dispatch_suggestive_editor(
+                    dispatch,
+                )?;
+            self.handle_dispatches(dispatches)
+        } else if let Some(component) = self
             .layout
             .get_component_by_kind(ComponentKind::SuggestiveEditor)
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "App::handle_dispatch_suggestive_editor Cannot find suggestive editor"
-                )
-            })?;
-        let dispatches = component
-            .borrow_mut()
-            .as_any_mut()
-            .downcast_mut::<SuggestiveEditor>()
-            .ok_or_else(|| {
-                anyhow::anyhow!("App::handle_dispatch_suggestive_editor Failed to downcast")
-            })?
-            .handle_dispatch(dispatch)?;
-        self.handle_dispatches(dispatches)
+        {
+            let dispatches = component
+                .borrow_mut()
+                .as_any_mut()
+                .downcast_mut::<SuggestiveEditor>()
+                .ok_or_else(|| anyhow::anyhow!("App::handle_dispatch_suggestive_editor Failed to downcast current component to SuggestiveEditor"))?
+                .handle_dispatch(
+                    dispatch,
+                )?;
+            self.handle_dispatches(dispatches)
+        } else {
+            Err(anyhow::anyhow!(
+                "The current component is neither Prompt or SuggestiveEditor, thus `App::handle_dispatch_suggestive_editor` does nothing."
+            ))
+        }
     }
 
     #[cfg(test)]
@@ -2110,6 +2233,27 @@ impl<T: Frontend> App<T> {
                 fire_dispatches_on_change: Some(Dispatches::one(Dispatch::SetTheme(
                     self.context.theme().clone(),
                 ))),
+            },
+            PromptHistoryKey::Theme,
+            None,
+        )
+    }
+
+    fn open_keyboard_layout_prompt(&mut self) -> anyhow::Result<()> {
+        self.open_prompt(
+            PromptConfig {
+                on_enter: DispatchPrompt::Null,
+                items: KeyboardLayoutKind::iter()
+                    .map(|keyboard_layout| {
+                        DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
+                            Dispatches::one(Dispatch::SetKeyboardLayoutKind(keyboard_layout)),
+                        )
+                    })
+                    .collect_vec(),
+                title: "Keyboard Layout".to_string(),
+                enter_selects_first_matching_item: true,
+                leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
             },
             PromptHistoryKey::Theme,
             None,
@@ -2326,10 +2470,9 @@ pub(crate) enum Dispatch {
     QuitAll,
     SaveQuitAll,
     RevealInExplorer(CanonicalizedPath),
-    OpenYesNoPrompt(YesNoPrompt),
-    OpenMoveFilePrompt(CanonicalizedPath),
-    OpenCopyFilePrompt(CanonicalizedPath),
-    OpenAddPathPrompt(CanonicalizedPath),
+    OpenMoveFilePrompt,
+    OpenDuplicateFilePrompt,
+    OpenAddPathPrompt,
     DeletePath(CanonicalizedPath),
     Null,
     MoveFile {
@@ -2365,6 +2508,7 @@ pub(crate) enum Dispatch {
         scope: Scope,
         show_config_after_enter: bool,
         if_current_not_found: IfCurrentNotFound,
+        run_search_after_config_updated: bool,
     },
     UpdateGlobalSearchConfig {
         update: GlobalSearchConfigUpdate,
@@ -2377,6 +2521,7 @@ pub(crate) enum Dispatch {
     ShowSearchConfig {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
+        run_search_after_config_updated: bool,
     },
     OpenUpdateReplacementPrompt {
         scope: Scope,
@@ -2417,10 +2562,18 @@ pub(crate) enum Dispatch {
     OpenPipeToShellPrompt,
     SetLastNonContiguousSelectionMode(Either<SelectionMode, GlobalMode>),
     UseLastNonContiguousSelectionMode(IfCurrentNotFound),
-    SetLastActionDescription(String),
+    SetLastActionDescription {
+        long_description: String,
+        short_description: Option<String>,
+    },
     OpenFilterSelectionsPrompt {
         maintain: bool,
     },
+    MoveToCompletionItem(Direction),
+    OpenDeleteFilePrompt,
+    SelectCompletionItem,
+    SetKeyboardLayoutKind(KeyboardLayoutKind),
+    OpenKeyboardLayoutPrompt,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2520,6 +2673,7 @@ pub(crate) enum DispatchPrompt {
         scope: Scope,
         show_config_after_enter: bool,
         if_current_not_found: IfCurrentNotFound,
+        run_search_after_config_updated: bool,
     },
     AddPath,
     MovePath {
@@ -2574,12 +2728,14 @@ impl DispatchPrompt {
                 scope,
                 show_config_after_enter,
                 if_current_not_found,
+                run_search_after_config_updated,
             } => Ok(Dispatches::new(
                 [Dispatch::UpdateLocalSearchConfig {
                     update: LocalSearchConfigUpdate::Search(text.to_string()),
                     scope,
                     show_config_after_enter,
                     if_current_not_found,
+                    run_search_after_config_updated,
                 }]
                 .to_vec(),
             )),
@@ -2634,6 +2790,7 @@ impl DispatchPrompt {
                     update: LocalSearchConfigUpdate::Replacement(text.to_owned()),
                     show_config_after_enter: true,
                     if_current_not_found,
+                    run_search_after_config_updated: true,
                 }]
                 .to_vec(),
             )),

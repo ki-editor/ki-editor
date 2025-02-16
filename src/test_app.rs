@@ -28,7 +28,9 @@ use crate::{
     clipboard::CopiedTexts,
     components::{
         component::Component,
-        editor::{Direction, DispatchEditor, IfCurrentNotFound, Mode, Movement, ViewAlignment},
+        editor::{
+            Direction, DispatchEditor, IfCurrentNotFound, Mode, Movement, Reveal, ViewAlignment,
+        },
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
     context::{GlobalMode, LocalSearchConfigMode},
@@ -62,6 +64,21 @@ pub(crate) enum Step {
     SuggestiveEditor(DispatchSuggestiveEditor),
     ExpectLater(Box<dyn Fn() -> ExpectKind>),
     ExpectCustom(Box<dyn Fn()>),
+}
+
+impl Step {
+    fn variant_name(&self) -> String {
+        match self {
+            Step::App(app) => format!("Step::App({app:?})"),
+            AppLater(_) => "AppLater(_)".to_string(),
+            ExpectMulti(expects) => format!("ExpectMulti({expects:?})"),
+            Expect(expect) => format!("Expect({expect:?})"),
+            Editor(editor) => format!("Editor({editor:?})"),
+            SuggestiveEditor(editor) => format!("SuggestiveEditor({editor:?})"),
+            ExpectLater(_) => "ExpectLater(_)".to_string(),
+            ExpectCustom(_) => "ExpectCustom(_)".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -102,6 +119,7 @@ pub(crate) enum ExpectKind {
     ),
     GridCellLine(/*Row*/ usize, /*Column*/ usize, Color),
     GridCellStyleKey(Position, Option<StyleKey>),
+    GridCellsStyleKey(Vec<Position>, Option<StyleKey>),
     HighlightSpans(std::ops::Range<usize>, StyleKey),
     DiagnosticsRanges(Vec<CharIndexRange>),
     BufferQuickfixListItems(Vec<Range<Position>>),
@@ -115,6 +133,9 @@ pub(crate) enum ExpectKind {
     CurrentGlobalMode(Option<GlobalMode>),
     LspRequestSent(FromEditor),
     CurrentCopiedTextHistoryOffset(isize),
+    CurrentReveal(Option<Reveal>),
+    CountHighlightedCells(StyleKey, usize),
+    SelectionExtensionEnabled(bool),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -249,6 +270,22 @@ impl ExpectKind {
                     .clone(),
                 style_key.clone(),
             ),
+            GridCellsStyleKey(positions, style_key) => (
+                positions.iter().all(|position| {
+                    let actual_style_key = &component
+                        .borrow()
+                        .editor()
+                        .get_grid(context, false)
+                        .grid
+                        .rows[position.line][position.column]
+                        .source;
+                    if actual_style_key!=style_key {
+                        println!("Expected {position:?} to be styled as {style_key:?}, but got {actual_style_key:?}");
+                    }
+                    actual_style_key == style_key
+                }),
+                format!("Expected positions {positions:?} to be styled as {style_key:?}"),
+            ),
             CompletionDropdownIsOpen(is_open) => {
                 contextualize(app.completion_dropdown_is_open(), *is_open)
             }
@@ -364,6 +401,29 @@ impl ExpectKind {
                     .primary_selection()?,
             ),
             CurrentGlobalMode(expected) => contextualize(expected, &app.context().mode()),
+            CurrentReveal(expected) => {
+                contextualize(expected, &app.current_component().borrow().editor().reveal)
+            }
+            CountHighlightedCells(style_key, expected_count) => contextualize(
+                expected_count,
+                &app.current_component()
+                    .borrow()
+                    .editor()
+                    .get_grid(context, false)
+                    .grid
+                    .rows
+                    .into_iter()
+                    .map(|row| {
+                        row.iter()
+                            .filter(|cell| {
+                                println!("style = {:?}", cell.source);
+                                cell.source.as_ref() == Some(style_key)
+                            })
+                            .count()
+                    })
+                    .sum::<usize>(),
+            ),
+            SelectionExtensionEnabled(expected) => contextualize(expected, &app.current_component().borrow().editor().selection_extension_enabled()),
         })
     }
 }
@@ -404,12 +464,14 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
         false,
         [StatusLineComponent::LastDispatch].to_vec(),
         callback,
+        true,
     )?;
     Ok(())
 }
 
 pub(crate) fn execute_recipe(
     callback: impl Fn(State) -> Box<[Step]>,
+    assert_last_step_is_expect: bool,
 ) -> anyhow::Result<Option<String>> {
     execute_test_helper(
         || Box::new(StringWriter::new()),
@@ -421,6 +483,7 @@ pub(crate) fn execute_recipe(
         ]
         .to_vec(),
         callback,
+        assert_last_step_is_expect,
     )
 }
 
@@ -429,6 +492,7 @@ fn execute_test_helper(
     render: bool,
     status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(State) -> Box<[Step]>,
+    assert_last_step_is_expect: bool,
 ) -> anyhow::Result<Option<String>> {
     run_test(writer, status_line_components, |mut app, temp_dir| {
         let steps = {
@@ -442,6 +506,21 @@ fn execute_test_helper(
 
         if render {
             app.render()?
+        }
+        if assert_last_step_is_expect {
+            debug_assert!(
+                matches!(
+                    steps.iter().last(),
+                    None | Some(
+                        Step::Expect(_)
+                            | Step::ExpectLater(_)
+                            | Step::ExpectMulti(_)
+                            | Step::ExpectCustom(_)
+                    )
+                ),
+                "The last step of each recipe must be an assertion but got {:?}",
+                steps.iter().last().map(|step| { step.variant_name() })
+            );
         }
         for step in steps.iter() {
             match step.to_owned() {
@@ -608,7 +687,9 @@ fn copy_replace() -> anyhow::Result<()> {
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                SelectionMode::Token,
+                SelectionMode::Token {
+                    skip_symbols: false,
+                },
             )),
             Editor(Copy {
                 use_system_clipboard: false,
@@ -640,7 +721,10 @@ fn cut_replace() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token { skip_symbols: true },
+            )),
             Editor(ChangeCut {
                 use_system_clipboard: false,
             }),
@@ -669,7 +753,12 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token {
+                    skip_symbols: false,
+                },
+            )),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
@@ -704,7 +793,9 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
             )),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                SelectionMode::Token,
+                SelectionMode::Token {
+                    skip_symbols: false,
+                },
             )),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Movement::Right)),
@@ -742,7 +833,9 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             )),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                SelectionMode::Token,
+                SelectionMode::Token {
+                    skip_symbols: false,
+                },
             )),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Movement::Right)),
@@ -789,7 +882,7 @@ fn multi_paste() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["let x = S(spongebob_squarepants);"])),
             Editor(CursorAddToAllSelections),
             Editor(MoveSelection(Movement::Down)),
-            Editor(MoveSelection(Movement::Next)),
+            Editor(MoveSelection(Movement::Right)),
             Expect(CurrentSelectedTexts(&["S(spongebob_squarepants)", "S(b)"])),
             Editor(ChangeCut {
                 use_system_clipboard: false,
@@ -847,7 +940,9 @@ fn signature_help() -> anyhow::Result<()> {
             )),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                SelectionMode::Token,
+                SelectionMode::Token {
+                    skip_symbols: false,
+                },
             )),
             Expect(CurrentMode(Mode::Normal)),
             //
@@ -1099,14 +1194,24 @@ fn global_marks() -> Result<(), anyhow::Error> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Word {
+                    skip_symbols: false,
+                },
+            )),
             Editor(ToggleMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Word {
+                    skip_symbols: false,
+                },
+            )),
             Editor(ToggleMark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Mark,
@@ -1154,6 +1259,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 scope: Scope::Global,
                 show_config_after_enter: false,
                 if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
             }),
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
             Expect(Quickfixes(Box::new([
@@ -1309,6 +1415,7 @@ fn test_global_search_replace(
                 scope: Scope::Global,
                 show_config_after_enter: true,
                 if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
             }
         };
         let main_rs = s.main_rs();
@@ -1418,6 +1525,7 @@ fn quickfix_list() -> Result<(), anyhow::Error> {
                 scope: Scope::Global,
                 show_config_after_enter: false,
                 if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
             }
         };
         Box::new([
@@ -1763,7 +1871,7 @@ fn should_be_able_to_handle_key_event_even_when_no_file_is_opened() -> anyhow::R
     execute_test(|_| {
         Box::new([
             Expect(CurrentComponentContent("")),
-            App(HandleKeyEvents(keys!("i h e l l o").to_vec())),
+            App(HandleKeyEvents(keys!("u h e l l o").to_vec())),
             Expect(CurrentComponentContent("hello")),
         ])
     })
@@ -1812,7 +1920,7 @@ fn cycle_window() -> anyhow::Result<()> {
                 SuggestiveEditor(DispatchSuggestiveEditor::Completion(completion.clone())),
                 Expect(ComponentCount(3)),
                 // Move to the next completion item (which is 'Spongebob squarepants')
-                App(HandleKeyEvent(key!("ctrl+n"))),
+                App(HandleKeyEvent(key!("alt+k"))),
                 Expect(CurrentComponentContent("")),
                 App(OtherWindow),
                 Expect(ComponentCount(3)),
@@ -2128,6 +2236,7 @@ fn global_search_should_not_using_empty_pattern() -> anyhow::Result<()> {
                 scope: Scope::Global,
                 show_config_after_enter: true,
                 if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
             }),
             Expect(ExpectKind::Quickfixes(Box::new([]))),
         ])
@@ -2217,7 +2326,10 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    Token { skip_symbols: true },
+                )),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,
@@ -2268,7 +2380,10 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    Token { skip_symbols: true },
+                )),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,

@@ -55,7 +55,7 @@ pub(crate) struct Buffer {
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub(crate) struct Line {
-    origin_position: Position,
+    pub(crate) origin_position: Position,
     /// 0-based
     pub(crate) line: usize,
     pub(crate) content: String,
@@ -1412,7 +1412,7 @@ impl std::fmt::Display for Patch {
 impl std::fmt::Display for BufferState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // TODO: this should describe the action
-        // For example, "kill", "exchange", "insert"
+        // For example, "kill", "swap", "insert"
         f.write_str("")
     }
 }

@@ -1,6 +1,8 @@
 use super::{
     component::ComponentId,
     dropdown::DropdownRender,
+    editor_keymap::{shifted_char, KEYMAP_SCORE},
+    editor_keymap_legend::NormalModeOverride,
     render_editor::Source,
     suggestive_editor::{Decoration, Info},
 };
@@ -45,10 +47,10 @@ pub(crate) enum Mode {
     Insert,
     MultiCursor,
     FindOneChar(IfCurrentNotFound),
-    Exchange,
+    Swap,
     UndoTree,
     Replace,
-    V,
+    Extend,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -57,7 +59,7 @@ pub(crate) struct Jump {
     pub(crate) selection: Selection,
 }
 
-const WINDOW_TITLE_HEIGHT: usize = 1;
+pub(crate) const WINDOW_TITLE_HEIGHT: usize = 1;
 
 impl Component for Editor {
     fn id(&self) -> ComponentId {
@@ -172,6 +174,7 @@ impl Component for Editor {
             event::event::Event::Paste(content) => self.paste_text(
                 Direction::End,
                 CopiedTexts::new(NonEmpty::singleton(content)),
+                context,
             ),
             event::event::Event::Mouse(event) => self.handle_mouse_event(event),
             _ => Ok(Default::default()),
@@ -190,7 +193,7 @@ impl Component for Editor {
             AlignViewBottom => self.align_cursor_to_bottom(),
             Transform(transformation) => return self.transform_selection(transformation),
             SetSelectionMode(if_current_not_found, selection_mode) => {
-                return self.set_selection_mode(if_current_not_found, selection_mode);
+                return self.set_selection_mode(if_current_not_found, selection_mode, context);
             }
 
             FindOneChar(if_current_not_found) => {
@@ -208,18 +211,19 @@ impl Component for Editor {
             SelectAll => return self.select_all(context),
             SetContent(content) => self.set_content(&content)?,
             EnableSelectionExtension => self.enable_selection_extension(),
-            EnterVMode => self.enter_v_mode(),
+            DisableSelectionExtension => self.disable_selection_extension(),
+            EnterExtendMode => self.enter_extend_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction),
-            Delete(direction) => return self.delete(direction, None),
+            Delete(direction) => return self.delete(direction, None, context),
             Insert(string) => return self.insert(&string),
             #[cfg(test)]
-            MatchLiteral(literal) => return self.match_literal(&literal),
+            MatchLiteral(literal) => return self.match_literal(&literal, context),
             ToggleMark => self.toggle_marks(),
             EnterNormalMode => self.enter_normal_mode()?,
-            CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
+            CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
-            EnterExchangeMode => self.enter_exchange_mode(),
+            EnterSwapMode => self.enter_swap_mode(),
             ReplacePattern { config } => {
                 let selection_set = self.selection_set.clone();
                 let (_, selection_set) = self.buffer_mut().replace(config, selection_set)?;
@@ -234,11 +238,11 @@ impl Component for Editor {
             KillLine(direction) => return self.kill_line(direction),
             #[cfg(test)]
             Reset => self.reset(),
-            DeleteWordBackward { short } => return self.delete_word_backward(short),
+            DeleteWordBackward { short } => return self.delete_word_backward(short, context),
             Backspace => return self.backspace(),
             MoveToLineStart => return self.move_to_line_start(),
             MoveToLineEnd => return self.move_to_line_end(),
-            SelectLine(movement) => return self.select_line(movement),
+            SelectLine(movement) => return self.select_line(movement, context),
             Redo => return self.redo(),
             Change => return self.change(),
             ChangeCut {
@@ -250,7 +254,7 @@ impl Component for Editor {
             ScrollPageUp => return self.scroll_page_up(),
             ShowJumps {
                 use_current_selection_mode,
-            } => self.show_jumps(use_current_selection_mode)?,
+            } => self.show_jumps(use_current_selection_mode, context)?,
             SwitchViewAlignment => self.switch_view_alignment(),
             #[cfg(test)]
             SetScrollOffset(n) => self.set_scroll_offset(n),
@@ -267,34 +271,13 @@ impl Component for Editor {
             }
             SelectLineAt(index) => return Ok(self.select_line_at(index)?.into_vec().into()),
             EnterMultiCursorMode => self.enter_multicursor_mode(),
-            Surround(open, close) => return self.enclose(open, close),
-            ShowKeymapLegendInsertMode => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.insert_mode_keymap_legend_config(),
-                )]
-                .to_vec()
-                .into())
-            }
-            ShowKeymapLegendHelp => {
-                return Ok(
-                    [Dispatch::ShowKeymapLegend(self.help_keymap_legend_config())]
-                        .to_vec()
-                        .into(),
-                )
-            }
-            ShowKeymapLegendNormalMode => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.normal_mode_keymap_legend_config(context),
-                )]
-                .to_vec()
-                .into())
-            }
+            Surround(open, close) => return self.surround(open, close),
             EnterReplaceMode => self.enter_replace_mode(),
             Paste {
                 direction,
                 use_system_clipboard,
             } => return self.paste(direction, context, use_system_clipboard),
-            SwapCursorWithAnchor => self.swap_cursor_with_anchor(),
+            SwapCursor => self.swap_cursor(),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
             MoveCharacterForward => {
@@ -302,17 +285,19 @@ impl Component for Editor {
                 self.selection_set
                     .move_right(&self.cursor_direction, len_chars)
             }
-            Open(direction) => return self.open(direction),
+            Open(direction) => return self.open(direction, context),
             TryReplaceCurrentLongWord(replacement) => {
                 return self.try_replace_current_long_word(replacement)
             }
             GoBack => self.go_back(),
             GoForward => self.go_forward(),
-            SelectSurround { enclosure, kind } => return self.select_surround(enclosure, kind),
-            DeleteSurround(enclosure) => return self.delete_surround(enclosure),
-            ChangeSurround { from, to } => return self.change_surround(from, Some(to)),
+            SelectSurround { enclosure, kind } => {
+                return self.select_surround(enclosure, kind, context)
+            }
+            DeleteSurround(enclosure) => return self.delete_surround(enclosure, context),
+            ChangeSurround { from, to } => return self.change_surround(from, Some(to), context),
             ReplaceWithPattern => return self.replace_with_pattern(context),
-            Replace(movement) => return self.replace_with_movement(&movement),
+            Replace(movement) => return self.replace_with_movement(&movement, context),
             ApplyPositionalEdits(edits) => {
                 return self.apply_positional_edits(
                     edits
@@ -337,7 +322,7 @@ impl Component for Editor {
             Indent => return self.indent(),
             Dedent => return self.dedent(),
             CyclePrimarySelection(direction) => self.cycle_primary_selection(direction),
-            SwapExtensionDirection => self.selection_set.swap_initial_range_direction(),
+            SwapExtensionAnchor => self.selection_set.swap_anchor(),
             CollapseSelection(direction) => return self.collapse_selection(context, direction),
             FilterSelectionMatchingSearch { maintain, search } => {
                 self.mode = Mode::Normal;
@@ -350,9 +335,26 @@ impl Component for Editor {
             EnterNewline => return self.enter_newline(),
             DeleteCurrentCursor(direction) => self.delete_current_cursor(direction),
             BreakSelection => return self.break_selection(),
+            ShowHelp => return self.show_help(context),
+            HandleEsc => {
+                self.disable_selection_extension();
+                self.mode = Mode::Normal;
+                return Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent));
+            }
+            ToggleReveal(reveal) => self.toggle_reveal(reveal),
+            SearchCurrentSelection(if_current_not_found, scope) => {
+                return Ok(self.search_current_selection(if_current_not_found, scope))
+            }
         }
         Ok(Default::default())
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum Reveal {
+    CurrentSelectionMode,
+    Cursor,
+    Mark,
 }
 
 impl Clone for Editor {
@@ -371,6 +373,8 @@ impl Clone for Editor {
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
             tag: None,
+            normal_mode_override: self.normal_mode_override.clone(),
+            reveal: self.reveal.clone(),
         }
     }
 }
@@ -394,6 +398,8 @@ pub(crate) struct Editor {
     pub(crate) current_view_alignment: Option<ViewAlignment>,
     copied_text_history_offset: Counter,
     tag: Option<char>,
+    pub(crate) normal_mode_override: Option<NormalModeOverride>,
+    pub(crate) reveal: Option<Reveal>,
 }
 
 #[derive(Default)]
@@ -466,8 +472,15 @@ impl Direction {
 
     pub(crate) fn format_action(&self, action: &str) -> String {
         match self {
-            Direction::Start => format!("◁ {action}"),
-            Direction::End => format!("{action} ▷"),
+            Direction::Start => format!("← {action}"),
+            Direction::End => format!("{action} →"),
+        }
+    }
+
+    pub(crate) fn to_if_current_not_found(&self) -> IfCurrentNotFound {
+        match self {
+            Direction::Start => IfCurrentNotFound::LookBackward,
+            Direction::End => IfCurrentNotFound::LookForward,
         }
     }
 }
@@ -482,8 +495,6 @@ pub(crate) enum IfCurrentNotFound {
 pub(crate) enum Movement {
     Right,
     Left,
-    Next,
-    Previous,
     Last,
     Current(IfCurrentNotFound),
     Up,
@@ -502,10 +513,18 @@ impl Editor {
     pub(crate) fn get_parent_lines(&self) -> anyhow::Result<(Vec<Line>, Vec<Line>)> {
         let position = self.get_cursor_position()?;
 
-        let parent_lines = self.buffer().get_parent_lines(position.line)?;
+        self.get_parent_lines_given_line_index_and_scroll_offset(position.line, self.scroll_offset)
+    }
+
+    pub(crate) fn get_parent_lines_given_line_index_and_scroll_offset(
+        &self,
+        line_index: usize,
+        scroll_offset: u16,
+    ) -> anyhow::Result<(Vec<Line>, Vec<Line>)> {
+        let parent_lines = self.buffer().get_parent_lines(line_index)?;
         Ok(parent_lines
             .into_iter()
-            .partition(|line| line.line < self.scroll_offset as usize))
+            .partition(|line| line.line < scroll_offset as usize))
     }
 
     pub(crate) fn show_info(&mut self, info: Info) -> Result<(), anyhow::Error> {
@@ -545,6 +564,8 @@ impl Editor {
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
             tag: None,
+            normal_mode_override: None,
+            reveal: None,
         }
     }
 
@@ -563,6 +584,8 @@ impl Editor {
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
             tag: None,
+            normal_mode_override: None,
+            reveal: None,
         }
     }
 
@@ -582,8 +605,12 @@ impl Editor {
         self.buffer.borrow().get_word_before_char_index(cursor)
     }
 
-    pub(crate) fn select_line(&mut self, movement: Movement) -> anyhow::Result<Dispatches> {
-        self.select(SelectionMode::Line, movement)
+    pub(crate) fn select_line(
+        &mut self,
+        movement: Movement,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
+        self.select(SelectionMode::Line, movement, context)
     }
 
     pub(crate) fn select_line_at(&mut self, line: usize) -> anyhow::Result<Dispatches> {
@@ -680,49 +707,73 @@ impl Editor {
     }
 
     fn align_cursor_to_center(&mut self) {
-        self.scroll_offset = self
-            .cursor_row()
-            .saturating_sub((self.rectangle.height as f64 / 2.0).ceil() as u16);
+        self.scroll_offset = self.cursor_row().saturating_sub(
+            (self
+                .rectangle
+                .height
+                .saturating_sub(WINDOW_TITLE_HEIGHT as u16) as f64
+                / 2.0)
+                .ceil() as u16,
+        );
     }
 
     pub(crate) fn select(
         &mut self,
         selection_mode: SelectionMode,
         movement: Movement,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
         //  There are a few selection modes where Current make sense.
-        if let Some(selection_set) = self.get_selection_set(&selection_mode, movement)? {
+        if let Some(selection_set) = self.get_selection_set(&selection_mode, movement, context)? {
             Ok(self.update_selection_set(selection_set, true))
         } else {
             Ok(Default::default())
         }
     }
 
-    fn jump_characters() -> Vec<char> {
-        ('a'..='z').chain('A'..='Z').chain('0'..='9').collect_vec()
+    fn jump_characters(context: &Context) -> Vec<char> {
+        let chars = context
+            .keyboard_layout_kind()
+            .get_keyboard_layout()
+            .iter()
+            .flatten()
+            .zip(KEYMAP_SCORE.iter().flatten())
+            .sorted_by_key(|(_, score)| **score)
+            .map(|(char, _)| char.chars().next().unwrap());
+        chars.clone().chain(chars.map(shifted_char)).collect()
     }
 
     pub(crate) fn get_selection_mode_trait_object(
         &self,
         selection: &Selection,
         use_current_selection_mode: bool,
+        context: &Context,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
         if use_current_selection_mode {
             self.selection_set.mode.clone()
         } else {
-            SelectionMode::Word
+            SelectionMode::Word {
+                skip_symbols: false,
+            }
         }
-        .to_selection_mode_trait_object(&self.buffer(), selection, &self.cursor_direction)
+        .to_selection_mode_trait_object(
+            &self.buffer(),
+            selection,
+            &self.cursor_direction,
+            context,
+        )
     }
 
     fn jump_from_selection(
         &mut self,
         selection: &Selection,
         use_current_selection_mode: bool,
+        context: &Context,
     ) -> anyhow::Result<()> {
-        let chars = Self::jump_characters();
+        let chars = Self::jump_characters(context);
 
-        let object = self.get_selection_mode_trait_object(selection, use_current_selection_mode)?;
+        let object =
+            self.get_selection_mode_trait_object(selection, use_current_selection_mode, context)?;
 
         let line_ranges = Some(self.visible_line_range())
             .into_iter()
@@ -742,10 +793,15 @@ impl Editor {
         Ok(())
     }
 
-    pub(crate) fn show_jumps(&mut self, use_current_selection_mode: bool) -> anyhow::Result<()> {
+    pub(crate) fn show_jumps(
+        &mut self,
+        use_current_selection_mode: bool,
+        context: &Context,
+    ) -> anyhow::Result<()> {
         self.jump_from_selection(
             &self.selection_set.primary_selection().clone(),
             use_current_selection_mode,
+            context,
         )
     }
 
@@ -753,6 +809,7 @@ impl Editor {
         &mut self,
         direction: Direction,
         use_system_clipboard: Option<bool>,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let copy_dispatches = if let Some(use_system_clipboard) = use_system_clipboard {
             self.copy(use_system_clipboard)?
@@ -760,7 +817,7 @@ impl Editor {
             Default::default()
         };
         if self.selection_set.mode == SelectionMode::Line && direction == Direction::End {
-            return self.delete_line_forward(copy_dispatches);
+            return self.delete_line_forward(copy_dispatches, context);
         }
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
@@ -788,6 +845,7 @@ impl Editor {
                             &self.selection_set.mode,
                             &movement,
                             &self.cursor_direction,
+                            context,
                         )
                         .ok()
                         .flatten()
@@ -991,9 +1049,10 @@ impl Editor {
         &mut self,
         direction: Direction,
         copied_texts: CopiedTexts,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
-            self.get_selection_set_with_gap(&direction)
+            self.get_selection_set_with_gap(&direction, context)
                 .into_iter()
                 .enumerate()
                 .map(|(index, (selection, gap))| {
@@ -1061,7 +1120,7 @@ impl Editor {
         let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0)? else {
             return Ok(Default::default());
         };
-        self.paste_text(direction, copied_texts)
+        self.paste_text(direction, copied_texts, context)
     }
 
     /// If `cut` if true, the replaced text will override the clipboard.  
@@ -1150,7 +1209,7 @@ impl Editor {
         self.navigate_undo_tree(Movement::Right)
     }
 
-    pub(crate) fn swap_cursor_with_anchor(&mut self) {
+    pub(crate) fn swap_cursor(&mut self) {
         self.cursor_direction = match self.cursor_direction {
             Direction::Start => Direction::End,
             Direction::End => Direction::Start,
@@ -1162,12 +1221,14 @@ impl Editor {
         &self,
         mode: &SelectionMode,
         movement: Movement,
+        context: &Context,
     ) -> anyhow::Result<Option<SelectionSet>> {
         self.selection_set.generate(
             &self.buffer.borrow(),
             mode,
             &movement,
             &self.cursor_direction,
+            context,
         )
     }
 
@@ -1177,12 +1238,17 @@ impl Editor {
             .to_char_index(&self.cursor_direction)
     }
 
-    pub(crate) fn enter_v_mode(&mut self) {
-        self.mode = Mode::V
+    pub(crate) fn enter_extend_mode(&mut self) {
+        self.enable_selection_extension();
+        self.mode = Mode::Extend
     }
 
     pub(crate) fn enable_selection_extension(&mut self) {
         self.selection_set.enable_selection_extension();
+    }
+
+    pub(crate) fn disable_selection_extension(&mut self) {
+        self.selection_set.unset_initial_range();
     }
 
     pub(crate) fn handle_key_event(
@@ -1190,23 +1256,29 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
-        match self.handle_universal_key(key_event)? {
+        match self.handle_universal_key(key_event, context)? {
             HandleEventResult::Ignored(key_event) => {
                 if let Some(jumps) = self.jumps.take() {
                     self.handle_jump_mode(context, key_event, jumps)
+                } else if let Mode::Insert = self.mode {
+                    return self.handle_insert_mode(key_event, context);
+                } else if let Mode::FindOneChar(_) = self.mode {
+                    self.handle_find_one_char_mode(
+                        IfCurrentNotFound::LookForward,
+                        key_event,
+                        context,
+                    )
                 } else {
-                    match &self.mode {
-                        Mode::Normal => self.handle_normal_mode(context, key_event),
-                        Mode::Insert => self.handle_insert_mode(key_event),
-                        Mode::MultiCursor => self.handle_multi_cursor_mode(context, key_event),
-                        Mode::FindOneChar(if_current_not_found) => {
-                            self.handle_find_one_char_mode(*if_current_not_found, key_event)
+                    let keymap_legend_config = self.get_current_keymap_legend_config(context);
+
+                    if let Some(keymap) = keymap_legend_config.keymaps().get(&key_event) {
+                        if let Mode::Extend = self.mode {
+                            self.mode = Mode::Normal
                         }
-                        Mode::Exchange => self.handle_normal_mode(context, key_event),
-                        Mode::UndoTree => self.handle_normal_mode(context, key_event),
-                        Mode::Replace => self.handle_normal_mode(context, key_event),
-                        Mode::V => self.handle_v_mode(context, key_event),
+                        return Ok(keymap.get_dispatches());
                     }
+                    log::info!("unhandled event: {:?}", key_event);
+                    Ok(vec![].into())
                 }
             }
             HandleEventResult::Handled(dispatches) => Ok(dispatches),
@@ -1241,7 +1313,7 @@ impl Editor {
                         self.jumps = Some(
                             matching_jumps
                                 .into_iter()
-                                .zip(Self::jump_characters().into_iter().cycle())
+                                .zip(Self::jump_characters(context).into_iter().cycle())
                                 .map(|(jump, character)| Jump {
                                     character,
                                     ..jump.clone()
@@ -1335,12 +1407,15 @@ impl Editor {
         &mut self,
         if_current_not_found: IfCurrentNotFound,
         selection_mode: SelectionMode,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
         if self.mode == Mode::MultiCursor {
             let selection_set = self.selection_set.clone().set_mode(selection_mode.clone());
-            let selection_set = if let Some(all_selections) =
-                selection_set.all_selections(&self.buffer.borrow(), &self.cursor_direction)?
-            {
+            let selection_set = if let Some(all_selections) = selection_set.all_selections(
+                &self.buffer.borrow(),
+                &self.cursor_direction,
+                context,
+            )? {
                 let selection_set = {
                     let selections = self
                         .selection_set
@@ -1373,9 +1448,15 @@ impl Editor {
                 .update_selection_set(selection_set, true)
                 .append(Dispatch::ToEditor(EnterNormalMode)))
         } else {
+            if self.reveal == Some(Reveal::CurrentSelectionMode)
+                && self.selection_set.mode != selection_mode
+            {
+                self.reveal = None
+            }
             self.move_selection_with_selection_mode_without_global_mode(
                 Movement::Current(if_current_not_found),
                 selection_mode.clone(),
+                context,
             )
             .map(|dispatches| {
                 Dispatches::one(Dispatch::SetGlobalMode(None))
@@ -1404,7 +1485,11 @@ impl Editor {
                 }
             }
         } else {
-            self.move_selection_with_selection_mode_without_global_mode(movement, selection_mode)
+            self.move_selection_with_selection_mode_without_global_mode(
+                movement,
+                selection_mode,
+                context,
+            )
         }
     }
 
@@ -1420,10 +1505,12 @@ impl Editor {
                 movement,
                 self.selection_set.mode.clone(),
             ),
-            Mode::Exchange => self.exchange(movement),
-            Mode::Replace => self.replace_with_movement(&movement),
+            Mode::Swap => self.swap(movement, context),
+            Mode::Replace => self.replace_with_movement(&movement, context),
             Mode::UndoTree => self.navigate_undo_tree(movement),
-            Mode::MultiCursor => self.add_cursor(&movement).map(|_| Default::default()),
+            Mode::MultiCursor => self
+                .add_cursor(&movement, context)
+                .map(|_| Default::default()),
             _ => Ok(Default::default()),
         }
     }
@@ -1548,6 +1635,7 @@ impl Editor {
             /* current */ &Selection,
             /* next */ &Selection,
         ) -> anyhow::Result<EditTransaction>,
+        context: &Context,
     ) -> anyhow::Result<Either<Selection, EditTransaction>> {
         let current_selection = current_selection.clone();
 
@@ -1560,6 +1648,7 @@ impl Editor {
             selection_mode,
             direction,
             &self.cursor_direction,
+            context,
         )?
         .unwrap_or_else(|| current_selection.clone().into())
         .selection;
@@ -1595,7 +1684,7 @@ impl Editor {
                 .collect::<Result<Vec<_>, _>>()?;
 
             // Why don't we just use `tree.root_node().has_error()` instead?
-            // Because I assume we want to be able to exchange even if some part of the tree
+            // Because I assume we want to be able to swap even if some part of the tree
             // contains error
             if !selection_mode.is_node()
                 || (!text_at_next_selection.to_string().trim().is_empty()
@@ -1622,6 +1711,7 @@ impl Editor {
                 selection_mode,
                 direction,
                 &self.cursor_direction,
+                context,
             )?
             .unwrap_or_else(|| next_selection.clone().into())
             .selection;
@@ -1634,7 +1724,7 @@ impl Editor {
         }
     }
 
-    fn make_exchange_action_groups(
+    fn make_swap_action_groups(
         first_selection: &Selection,
         first_selection_range: CharIndexRange,
         first_selection_text: Rope,
@@ -1676,6 +1766,7 @@ impl Editor {
         &mut self,
         selection_mode: &SelectionMode,
         movement: Movement,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let buffer = self.buffer.borrow().clone();
         let get_edit_transaction = |current_selection: &Selection,
@@ -1686,7 +1777,7 @@ impl Editor {
             let text_at_next_selection: Rope = buffer.slice(&next_selection.extended_range())?;
 
             Ok(EditTransaction::from_action_groups(
-                Self::make_exchange_action_groups(
+                Self::make_swap_action_groups(
                     current_selection,
                     current_selection_range,
                     text_at_current_selection,
@@ -1699,7 +1790,13 @@ impl Editor {
         let edit_transactions = self
             .selection_set
             .map(|selection| {
-                self.get_valid_selection(selection, selection_mode, &movement, get_edit_transaction)
+                self.get_valid_selection(
+                    selection,
+                    selection_mode,
+                    &movement,
+                    get_edit_transaction,
+                    context,
+                )
             })
             .into_iter()
             .filter_map(|transaction| transaction.ok())
@@ -1709,17 +1806,21 @@ impl Editor {
         self.apply_edit_transaction(EditTransaction::merge(edit_transactions))
     }
 
-    pub(crate) fn exchange(&mut self, movement: Movement) -> anyhow::Result<Dispatches> {
+    pub(crate) fn swap(
+        &mut self,
+        movement: Movement,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
         match movement {
-            Movement::Last => self.exchange_till_last(),
-            Movement::First => self.exchange_till_first(),
-            _ => self.replace_faultlessly(&self.selection_set.mode.clone(), movement),
+            Movement::Last => self.swap_till_last(context),
+            Movement::First => self.swap_till_first(context),
+            _ => self.replace_faultlessly(&self.selection_set.mode.clone(), movement, context),
         }
     }
 
-    /// Exchanges the current selection with the text range from
+    /// Swaps the current selection with the text range from
     /// the first occurrence until just before the current selection.
-    fn exchange_till_first(&mut self) -> anyhow::Result<Dispatches> {
+    fn swap_till_first(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         let selection_mode = self.selection_set.mode.clone();
         let edit_transaction = {
             let buffer = self.buffer.borrow();
@@ -1732,6 +1833,7 @@ impl Editor {
                                 &buffer,
                                 current_selection,
                                 &self.cursor_direction,
+                                context,
                             )
                             .ok()?;
 
@@ -1742,12 +1844,12 @@ impl Editor {
                         };
                         let first = selection_mode.first(params.clone()).ok()??.range();
                         // Find the before current selection
-                        let before_current = selection_mode.previous(params).ok()??.range();
+                        let before_current = selection_mode.left(params).ok()??.range();
                         let first_range = current_selection.range();
                         let second_range: CharIndexRange =
                             (first.start()..before_current.end()).into();
-                        // Exchange the range with the last selection
-                        Some(Self::make_exchange_action_groups(
+                        // Swap the range with the last selection
+                        Some(Self::make_swap_action_groups(
                             current_selection,
                             first_range,
                             buffer.slice(&first_range).ok()?,
@@ -1764,9 +1866,9 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    /// Exchanges the current selection with the text range from
+    /// Swaps the current selection with the text range from
     /// just after the current selection until the last occurrence.    
-    fn exchange_till_last(&mut self) -> anyhow::Result<Dispatches> {
+    fn swap_till_last(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         let selection_mode = self.selection_set.mode.clone();
         let edit_transaction = {
             let buffer = self.buffer.borrow();
@@ -1778,6 +1880,7 @@ impl Editor {
                                 &buffer,
                                 current_selection,
                                 &self.cursor_direction,
+                                context,
                             )
                             .ok()?;
                         let params = selection_mode::SelectionModeParams {
@@ -1789,12 +1892,12 @@ impl Editor {
                         // Select from the first until before current
                         let last = selection_mode.last(params.clone()).ok()??.range();
                         // Find the before current selection
-                        let after_current = selection_mode.next(params).ok()??.range();
+                        let after_current = selection_mode.right(params).ok()??.range();
                         let first_range = current_selection.range();
                         let second_range: CharIndexRange =
                             (after_current.start()..last.end()).into();
-                        // Exchange the range with the last selection
-                        Some(Self::make_exchange_action_groups(
+                        // Swap the range with the last selection
+                        Some(Self::make_swap_action_groups(
                             current_selection,
                             first_range,
                             buffer.slice(&first_range).ok()?,
@@ -1811,17 +1914,22 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    pub(crate) fn add_cursor(&mut self, movement: &Movement) -> anyhow::Result<()> {
+    pub(crate) fn add_cursor(
+        &mut self,
+        movement: &Movement,
+        context: &Context,
+    ) -> anyhow::Result<()> {
         let mut add_selection = |movement: &Movement| {
             self.selection_set.add_selection(
                 &self.buffer.borrow(),
                 movement,
                 &self.cursor_direction,
+                context,
             )
         };
         match movement {
-            Movement::First => while let Ok(true) = add_selection(&Movement::Previous) {},
-            Movement::Last => while let Ok(true) = add_selection(&Movement::Next) {},
+            Movement::First => while let Ok(true) = add_selection(&Movement::Left) {},
+            Movement::Last => while let Ok(true) = add_selection(&Movement::Right) {},
             other_movement => {
                 add_selection(other_movement)?;
             }
@@ -1893,6 +2001,7 @@ impl Editor {
     pub(crate) fn delete_word_backward(
         &mut self,
         short: bool,
+        context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
         let action_groups = self
             .selection_set
@@ -1912,12 +2021,17 @@ impl Editor {
                             &self.buffer(),
                             &current_selection.clone().set_range((start..start).into()),
                             &if short {
-                                SelectionMode::Word
+                                SelectionMode::Word {
+                                    skip_symbols: false,
+                                }
                             } else {
-                                SelectionMode::Token
+                                SelectionMode::Token {
+                                    skip_symbols: false,
+                                }
                             },
                             &movement,
                             &self.cursor_direction,
+                            context,
                         )
                         .map(|option| option.unwrap_or_else(|| current_selection.clone().into()))
                     };
@@ -1958,6 +2072,7 @@ impl Editor {
     pub(crate) fn replace_with_movement(
         &mut self,
         movement: &Movement,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let buffer = self.buffer.borrow().clone();
         let edit_transactions = self.selection_set.map(|selection| {
@@ -1995,6 +2110,7 @@ impl Editor {
                 &self.selection_set.mode,
                 movement,
                 get_edit_transaction,
+                context,
             )
         });
         let edit_transaction = EditTransaction::merge(
@@ -2048,7 +2164,11 @@ impl Editor {
     /// with a gap that is the maximum of previous-current gap and current-next gap.
     ///
     /// Used by `Self::paste`.
-    fn get_selection_set_with_gap(&self, direction: &Direction) -> Vec<(Selection, Rope)> {
+    fn get_selection_set_with_gap(
+        &self,
+        direction: &Direction,
+        context: &Context,
+    ) -> Vec<(Selection, Rope)> {
         let selection_mode: SelectionMode = self.selection_set.mode.clone();
         self.selection_set
             .map(|selection| {
@@ -2060,6 +2180,7 @@ impl Editor {
                         &selection_mode,
                         &movement,
                         &self.cursor_direction,
+                        context,
                     )
                     .ok()??
                     .selection;
@@ -2099,14 +2220,18 @@ impl Editor {
             .collect_vec()
     }
 
-    fn open(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
+    fn open(
+        &mut self,
+        direction: Direction,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
         let dispatches = if self.selection_set.mode.is_syntax_node() {
             Dispatches::default()
         } else {
-            self.set_selection_mode(IfCurrentNotFound::LookForward, SelectionMode::Line)?
+            self.set_selection_mode(IfCurrentNotFound::LookForward, SelectionMode::Line, context)?
         };
         let edit_transaction = EditTransaction::from_action_groups(
-            self.get_selection_set_with_gap(&direction)
+            self.get_selection_set_with_gap(&direction, context)
                 .into_iter()
                 .map(|(selection, gap)| {
                     let gap = if gap.len_chars() == 0 {
@@ -2215,7 +2340,7 @@ impl Editor {
         Ok(())
     }
 
-    pub(crate) fn enclose(&mut self, open: String, close: String) -> anyhow::Result<Dispatches> {
+    pub(crate) fn surround(&mut self, open: String, close: String) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2241,8 +2366,9 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
-
-        self.apply_edit_transaction(edit_transaction)
+        Ok(self
+            .apply_edit_transaction(edit_transaction)?
+            .append(Dispatch::ToEditor(DisableSelectionExtension)))
     }
 
     fn transform_selection(
@@ -2291,10 +2417,10 @@ impl Editor {
             Mode::Insert => "INSERT",
             Mode::MultiCursor => "MULTI CURSOR",
             Mode::FindOneChar(_) => "FIND ONE CHAR",
-            Mode::Exchange => "EXCHANGE",
+            Mode::Swap => "SWAP",
             Mode::UndoTree => "UNDO TREE",
             Mode::Replace => "REPLACE",
-            Mode::V => "V",
+            Mode::Extend => "EXTEND",
         }
         .to_string();
         format!("{prefix}{core}")
@@ -2312,37 +2438,40 @@ impl Editor {
     }
 
     pub(crate) fn visible_line_range(&self) -> Range<usize> {
-        let start = self.scroll_offset;
-        let end = (start as usize + self.rectangle.height as usize).min(self.buffer().len_lines());
+        self.visible_line_range_given_scroll_offset_and_height(
+            self.scroll_offset,
+            self.rectangle.height,
+        )
+    }
+
+    pub(crate) fn visible_line_range_given_scroll_offset_and_height(
+        &self,
+        scroll_offset: u16,
+        height: u16,
+    ) -> Range<usize> {
+        let start = scroll_offset;
+        let end = (start as usize + height as usize).min(self.buffer().len_lines());
 
         start as usize..end
     }
 
-    fn handle_multi_cursor_mode(
+    pub(crate) fn add_cursor_to_all_selections(
         &mut self,
         context: &Context,
-        key_event: KeyEvent,
-    ) -> Result<Dispatches, anyhow::Error> {
-        match key_event {
-            key!("esc") => {
-                self.mode = Mode::Normal;
-                Ok(Default::default())
-            }
-
-            other => self.handle_normal_mode(context, other),
-        }
-    }
-
-    pub(crate) fn add_cursor_to_all_selections(&mut self) -> Result<(), anyhow::Error> {
+    ) -> Result<(), anyhow::Error> {
         self.mode = Mode::Normal;
+        self.reveal = Some(Reveal::Cursor);
         self.selection_set
-            .add_all(&self.buffer.borrow(), &self.cursor_direction)?;
+            .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
         self.recalculate_scroll_offset();
         Ok(())
     }
 
     pub(crate) fn cursor_keep_primary_only(&mut self) {
         self.mode = Mode::Normal;
+        if self.reveal == Some(Reveal::Cursor) {
+            self.reveal = None;
+        }
         self.selection_set.only();
     }
 
@@ -2354,6 +2483,7 @@ impl Editor {
         &mut self,
         if_current_not_found: IfCurrentNotFound,
         key_event: KeyEvent,
+        context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
         match key_event.code {
             KeyCode::Char(c) => {
@@ -2370,6 +2500,7 @@ impl Editor {
                             }),
                         },
                     },
+                    context,
                 )
             }
             KeyCode::Esc => {
@@ -2389,7 +2520,11 @@ impl Editor {
     }
 
     #[cfg(test)]
-    pub(crate) fn match_literal(&mut self, search: &str) -> anyhow::Result<Dispatches> {
+    pub(crate) fn match_literal(
+        &mut self,
+        search: &str,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
         self.set_selection_mode(
             IfCurrentNotFound::LookForward,
             SelectionMode::Find {
@@ -2402,6 +2537,7 @@ impl Editor {
                     search: search.to_string(),
                 },
             },
+            context,
         )
     }
 
@@ -2445,8 +2581,9 @@ impl Editor {
         self.handle_dispatch_editors(
             context,
             [
+                DisableSelectionExtension,
                 (MoveSelection(Movement::First)),
-                (EnableSelectionExtension),
+                EnableSelectionExtension,
                 (MoveSelection(Movement::Last)),
             ]
             .to_vec(),
@@ -2457,8 +2594,9 @@ impl Editor {
         &mut self,
         movement: Movement,
         selection_mode: SelectionMode,
+        context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
-        let dispatches = self.select(selection_mode, movement)?;
+        let dispatches = self.select(selection_mode, movement, context)?;
         self.current_view_alignment = None;
 
         Ok(dispatches)
@@ -2550,8 +2688,8 @@ impl Editor {
         Ok(result.into())
     }
 
-    fn enter_exchange_mode(&mut self) {
-        self.mode = Mode::Exchange
+    fn enter_swap_mode(&mut self) {
+        self.mode = Mode::Swap
     }
 
     fn kill_line(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
@@ -2656,7 +2794,9 @@ impl Editor {
         &mut self,
         enclosure: EnclosureKind,
         kind: SurroundKind,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
+        self.disable_selection_extension();
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2686,19 +2826,30 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
-        let _ = self.set_selection_mode(IfCurrentNotFound::LookForward, SelectionMode::Custom);
+        let _ = self.set_selection_mode(
+            IfCurrentNotFound::LookForward,
+            SelectionMode::Custom,
+            context,
+        );
+        self.disable_selection_extension();
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn delete_surround(&mut self, enclosure: EnclosureKind) -> Result<Dispatches, anyhow::Error> {
-        self.change_surround(enclosure, None)
+    fn delete_surround(
+        &mut self,
+        enclosure: EnclosureKind,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        self.change_surround(enclosure, None, context)
     }
 
     fn change_surround(
         &mut self,
         from: EnclosureKind,
         to: Option<EnclosureKind>,
+        context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
+        self.disable_selection_extension();
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2751,7 +2902,11 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
-        let _ = self.set_selection_mode(IfCurrentNotFound::LookForward, SelectionMode::Custom);
+        let _ = self.set_selection_mode(
+            IfCurrentNotFound::LookForward,
+            SelectionMode::Custom,
+            context,
+        );
         self.apply_edit_transaction(edit_transaction)
     }
 
@@ -3016,20 +3171,6 @@ impl Editor {
         self.selection_set.cycle_primary_selection(direction)
     }
 
-    fn handle_v_mode(
-        &mut self,
-        context: &Context,
-        key_event: KeyEvent,
-    ) -> Result<Dispatches, anyhow::Error> {
-        self.mode = Mode::Normal;
-        if let Some(keymap) = self.visual_mode_initialized_keymaps().get(&key_event) {
-            Ok(keymap.get_dispatches())
-        } else {
-            self.enable_selection_extension();
-            self.handle_normal_mode(context, key_event)
-        }
-    }
-
     fn handle_dispatch_editors(
         &mut self,
         context: &mut Context,
@@ -3055,10 +3196,8 @@ impl Editor {
             SetSelectionMode(IfCurrentNotFound::LookForward, SelectionMode::Character);
         match direction {
             Direction::Start => self.handle_dispatch_editor(context, set_column_selection_mode),
-            Direction::End => self.handle_dispatch_editors(
-                context,
-                [SwapCursorWithAnchor, set_column_selection_mode].to_vec(),
-            ),
+            Direction::End => self
+                .handle_dispatch_editors(context, [SwapCursor, set_column_selection_mode].to_vec()),
         }
     }
 
@@ -3107,6 +3246,7 @@ impl Editor {
     fn delete_line_forward(
         &mut self,
         copy_dispatches: Dispatches,
+        context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
@@ -3123,6 +3263,7 @@ impl Editor {
                         &self.selection_set.mode,
                         &Movement::Down,
                         &self.cursor_direction,
+                        context,
                     )?
                     .map(|result| result.selection.range())
                     .unwrap_or_else(|| selection.range());
@@ -3226,6 +3367,75 @@ impl Editor {
         });
         self.apply_edit_transaction(edit_transaction)
     }
+
+    pub(crate) fn insert_mode_keymaps(
+        &self,
+        include_universal_keymaps: bool,
+        context: &Context,
+    ) -> super::keymap_legend::Keymaps {
+        self.insert_mode_keymap_legend_config(include_universal_keymaps, context)
+            .keymaps()
+    }
+
+    pub(crate) fn set_normal_mode_override(&mut self, normal_mode_override: NormalModeOverride) {
+        self.normal_mode_override = Some(normal_mode_override)
+    }
+
+    fn show_help(&self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        Ok(Dispatches::one(Dispatch::ShowKeymapLegend(
+            self.get_current_keymap_legend_config(context),
+        )))
+    }
+
+    fn get_current_keymap_legend_config(
+        &self,
+        context: &Context,
+    ) -> super::keymap_legend::KeymapLegendConfig {
+        match self.mode {
+            Mode::Insert => self.insert_mode_keymap_legend_config(true, context),
+            Mode::MultiCursor => self.multicursor_mode_keymap_legend_config(context),
+            Mode::Extend => self.extend_mode_keymap_legend_config(context),
+            _ => self.normal_mode_keymap_legend_config(context, "Normal", None),
+        }
+    }
+
+    fn toggle_reveal(&mut self, reveal: Reveal) {
+        self.reveal = match &self.reveal {
+            Some(current_reveal) if &reveal == current_reveal => None,
+            _ => Some(reveal),
+        }
+    }
+
+    pub(crate) fn reveal(&self) -> std::option::Option<Reveal> {
+        self.reveal.clone()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn selection_extension_enabled(&self) -> bool {
+        self.selection_set.is_extended()
+    }
+
+    fn search_current_selection(
+        &mut self,
+        if_current_not_found: IfCurrentNotFound,
+        scope: Scope,
+    ) -> Dispatches {
+        let dispatches = self
+            .buffer()
+            .slice(&self.selection_set.primary_selection().extended_range())
+            .map(|search| {
+                Dispatches::one(Dispatch::UpdateLocalSearchConfig {
+                    scope,
+                    if_current_not_found,
+                    update: crate::app::LocalSearchConfigUpdate::Search(search.to_string()),
+                    show_config_after_enter: false,
+                    run_search_after_config_updated: true,
+                })
+            })
+            .unwrap_or_default();
+        self.disable_selection_extension();
+        dispatches
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3272,7 +3482,8 @@ pub(crate) enum DispatchEditor {
     #[cfg(test)]
     SetRectangle(Rectangle),
     EnableSelectionExtension,
-    EnterVMode,
+    DisableSelectionExtension,
+    EnterExtendMode,
     Change,
     ChangeCut {
         use_system_clipboard: bool,
@@ -3299,7 +3510,7 @@ pub(crate) enum DispatchEditor {
     Open(Direction),
     ToggleMark,
     EnterNormalMode,
-    EnterExchangeMode,
+    EnterSwapMode,
     EnterReplaceMode,
     EnterMultiCursorMode,
     CursorAddToAllSelections,
@@ -3323,16 +3534,13 @@ pub(crate) enum DispatchEditor {
     ReplaceCurrentSelectionWith(String),
     TryReplaceCurrentLongWord(String),
     SelectLineAt(usize),
-    ShowKeymapLegendNormalMode,
-    ShowKeymapLegendInsertMode,
     Paste {
         direction: Direction,
         use_system_clipboard: bool,
     },
-    SwapCursorWithAnchor,
+    SwapCursor,
     MoveCharacterBack,
     MoveCharacterForward,
-    ShowKeymapLegendHelp,
     DeleteSurround(EnclosureKind),
     ChangeSurround {
         from: EnclosureKind,
@@ -3349,7 +3557,7 @@ pub(crate) enum DispatchEditor {
     ShowCurrentTreeSitterNodeSexp,
     Indent,
     Dedent,
-    SwapExtensionDirection,
+    SwapExtensionAnchor,
     CollapseSelection(Direction),
     FilterSelectionMatchingSearch {
         search: String,
@@ -3358,6 +3566,10 @@ pub(crate) enum DispatchEditor {
     EnterNewline,
     DeleteCurrentCursor(Direction),
     BreakSelection,
+    ShowHelp,
+    HandleEsc,
+    ToggleReveal(Reveal),
+    SearchCurrentSelection(IfCurrentNotFound, Scope),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

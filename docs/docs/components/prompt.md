@@ -40,9 +40,9 @@ prompts may get special behaviors in the future.
 
 ### File Picker
 
-| Key      | Behavior                                       |
-| -------- | ---------------------------------------------- |
-| `ctrl+o` | Open all narrowed files in the Completion list |
+| Key              | Behavior                                       |
+| ---------------- | ---------------------------------------------- |
+| `alt+g` (Qwerty) | Open all narrowed files in the Completion list |
 
 Imagine you are going to work on the `widget` in your source code project. You
 may have three files: a controller, a view and a test. You type `widget` into

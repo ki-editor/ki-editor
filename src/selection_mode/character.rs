@@ -114,7 +114,7 @@ fn get_char(
     params: super::SelectionModeParams,
     position: SelectionPosition,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
-    if let Some(current_word) = Word::new(params.buffer)?.current(
+    if let Some(current_word) = Word::new(params.buffer, false)?.current(
         params.clone(),
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {

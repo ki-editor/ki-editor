@@ -23,6 +23,7 @@ pub const LANGUAGES: &[&Language] = &[
     &hare(),
     &heex(),
     &html(),
+    &idris(),
     &javascript(),
     &javascript_react(),
     &json(),
@@ -396,6 +397,24 @@ const fn html() -> Language {
             id: "html",
             url: "https://github.com/tree-sitter/tree-sitter-html",
             commit: "master",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+
+const fn idris() -> Language {
+    Language {
+        extensions: &["idr", "lidr", "ipkg"],
+        lsp_command: Some(LspCommand {
+            command: Command("idris2-lsp", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("idris")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "idris",
+            url: "https://github.com/kayhide/tree-sitter-idris",
+            commit: "main",
             subpath: None,
         }),
         ..Language::new()

@@ -5,39 +5,188 @@ use lsp_types::DiagnosticSeverity;
 
 use crate::{
     app::Dimension,
-    buffer::Buffer,
+    buffer::{Buffer, Line},
     char_index_range::CharIndexRange,
     components::{
         component::{Component, Cursor, SetCursorStyle},
-        editor::Mode,
+        editor::{Mode, WINDOW_TITLE_HEIGHT},
     },
     context::Context,
+    divide_viewport::{calculate_window_position, divide_viewport},
     grid::{CellUpdate, Grid, LineUpdate, RenderContentLineNumber, StyleKey},
+    position::Position,
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
     style::Style,
     themes::Theme,
+    utils::trim_array,
 };
 
-use super::{component::GetGridResult, editor::Editor};
-
-use StyleKey::*;
+use super::{
+    component::GetGridResult,
+    editor::{Editor, Reveal, ViewAlignment},
+};
 
 impl Editor {
     pub(crate) fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
+        let grid = match &self.reveal {
+            None => self.get_grid_with_dimension(
+                context,
+                self.render_area(),
+                self.scroll_offset(),
+                self.selection_set.primary_selection().range(),
+                false,
+            ),
+            Some(reveal) => self.get_splitted_grid(context, reveal),
+        };
+        let theme = context.theme();
+        let window_title_style = if focused {
+            theme.ui.window_title_focused
+        } else {
+            theme.ui.window_title_unfocused
+        };
+
+        // NOTE: due to performance issue, we only highlight the content that are within view
+        // This might result in some incorrectness, but that's a reasonable trade-off, because
+        // highlighting the entire file becomes sluggish when the file has more than a thousand lines.
+
+        let title_grid = Grid::new(Dimension {
+            height: WINDOW_TITLE_HEIGHT as u16,
+            width: self.dimension().width,
+        })
+        .render_content(
+            &self.title(context),
+            RenderContentLineNumber::NoLineNumber,
+            Vec::new(),
+            [LineUpdate {
+                line_index: 0,
+                style: window_title_style,
+            }]
+            .to_vec(),
+            theme,
+        );
+
+        let grid = title_grid.merge_vertical(grid);
+        let cursor_position = grid.get_cursor_position();
+        let style = match self.mode {
+            Mode::Normal => SetCursorStyle::BlinkingBlock,
+            Mode::Insert => SetCursorStyle::BlinkingBar,
+            _ => SetCursorStyle::BlinkingUnderScore,
+        };
+        GetGridResult {
+            cursor: cursor_position.map(|position| Cursor::new(position, style)),
+            grid,
+        }
+    }
+
+    fn get_splitted_grid(&self, context: &Context, reveal: &Reveal) -> crate::grid::Grid {
+        let buffer = self.buffer();
+        let ranges = match reveal {
+            Reveal::CurrentSelectionMode => self
+                .revealed_selections(self.selection_set.primary_selection(), context)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|byte_range| byte_range.range().clone())
+                .collect_vec(),
+            Reveal::Cursor => self
+                .selection_set
+                .map(|selection| selection.range())
+                .into_iter()
+                .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
+                .collect_vec(),
+            Reveal::Mark => self
+                .buffer()
+                .marks()
+                .into_iter()
+                .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
+                .collect_vec(),
+        }
+        .into_iter()
+        .chain(
+            // The primary selection should always be rendered as a section
+            buffer
+                .char_index_range_to_byte_range(self.selection_set.primary_selection().range())
+                .ok(),
+        )
+        .sorted_by_key(|range| (range.start, range.end))
+        .unique()
+        .collect_vec();
+        let viewport_sections = divide_viewport(
+            &ranges,
+            self.render_area().height as usize,
+            buffer
+                .char_index_range_to_byte_range(
+                    self.selection_set.primary_selection().extended_range(),
+                )
+                .unwrap_or_default(),
+        );
+
+        viewport_sections.into_iter().fold(
+            Grid::new(Dimension {
+                height: 0,
+                width: self.dimension().width,
+            }),
+            |grid, viewport_section| {
+                let range = viewport_section.item();
+                let protected_range_start = match self.cursor_direction {
+                    super::editor::Direction::Start => range.start,
+                    super::editor::Direction::End => range.end,
+                };
+                let line = buffer
+                    .byte_to_line(protected_range_start)
+                    .unwrap_or_default();
+
+                let window = calculate_window_position(
+                    line,
+                    buffer.len_lines(),
+                    viewport_section.height(),
+                    self.current_view_alignment.unwrap_or(ViewAlignment::Center),
+                );
+
+                let protected_range = buffer
+                    .byte_range_to_char_index_range(&range)
+                    .unwrap_or_default();
+                grid.merge_vertical(self.get_grid_with_dimension(
+                    context,
+                    Dimension {
+                        height: viewport_section.height() as u16,
+                        width: self.render_area().width,
+                    },
+                    window.start as u16,
+                    protected_range,
+                    true,
+                ))
+            },
+        )
+    }
+
+    /// Protected char index must not be trimmed and always be rendered
+    ///
+    /// `borderize_first_line` should only be true when splitting.
+    fn get_grid_with_dimension(
+        &self,
+        context: &Context,
+        dimension: Dimension,
+        scroll_offset: u16,
+        protected_range: CharIndexRange,
+        borderize_first_line: bool,
+    ) -> Grid {
         let editor = self;
-        let Dimension { height, width } = editor.render_area();
+        let Dimension { height, width } = dimension;
         let buffer = editor.buffer();
         let rope = buffer.rope();
-        let content = rope.to_string();
-
-        let diagnostics = buffer.diagnostics();
+        let protected_char_index = protected_range.as_char_index(&self.cursor_direction);
+        let protected_range_start_line = buffer
+            .char_to_line(protected_char_index)
+            .unwrap_or_default();
 
         let len_lines = rope.len_lines().max(1) as u16;
-        let (hidden_parent_lines, visible_parent_lines) =
-            self.get_parent_lines().unwrap_or_default();
-        let top_offset = hidden_parent_lines.len() as u16;
-        let scroll_offset = self.scroll_offset();
+        let (hidden_parent_lines, visible_parent_lines) = self
+            .get_parent_lines_given_line_index_and_scroll_offset(
+                protected_range_start_line,
+                scroll_offset,
+            )
+            .unwrap_or_default();
         let visible_lines = rope
             .lines()
             .enumerate()
@@ -47,275 +196,26 @@ impl Editor {
 
         let visible_lines_grid: Grid = Grid::new(Dimension { height, width });
 
-        let selection = &editor.selection_set.primary_selection();
-        // If the buffer selection is updated less recently than the window's scroll offset,
+        let primary_selection = &editor.selection_set.primary_selection();
 
+        // If the buffer selection is updated less recently than the window's scroll offset,
         // use the window's scroll offset.
 
         let theme = context.theme();
 
-        let possible_selections = self
-            .possible_selections_in_line_number_range(self.selection_set.primary_selection())
-            .unwrap_or_default()
-            .into_iter()
-            .map(|range| HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::ByteRange(range.range().clone()),
-                source: Source::StyleKey(UiPossibleSelection),
-            });
-
-        let marks = buffer.marks().into_iter().map(|mark| HighlightSpan {
-            set_symbol: None,
-            is_cursor: false,
-            source: Source::StyleKey(UiMark),
-            range: HighlightSpanRange::CharIndexRange(mark),
-        });
-        let secondary_selections = &editor.selection_set.secondary_selections();
-        let primary_selection = HighlightSpan {
-            set_symbol: None,
-            is_cursor: false,
-            range: HighlightSpanRange::CharIndexRange(selection.extended_range()),
-            source: Source::StyleKey(UiPrimarySelection),
-        };
-
-        let primary_selection_anchors =
-            selection.anchors().into_iter().map(|anchor| HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::CharIndexRange(anchor),
-                source: Source::StyleKey(UiPrimarySelectionAnchors),
-            });
-        let primary_selection_primary_cursor = buffer
-            .char_to_position(selection.to_char_index(&editor.cursor_direction))
-            .ok()
-            .map(|position| CellUpdate::new(position).set_is_cursor(true));
-
-        let primary_selection_secondary_cursor = if self.mode == Mode::Insert {
-            None
-        } else {
-            Some(HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::CharIndex(
-                    selection.to_char_index(&editor.cursor_direction.reverse()),
-                ),
-                source: Source::Style(theme.ui.primary_selection_secondary_cursor),
-            })
-        };
-
-        let secondary_selection =
-            secondary_selections
-                .iter()
-                .map(|secondary_selection| HighlightSpan {
-                    set_symbol: None,
-                    is_cursor: false,
-                    range: HighlightSpanRange::CharIndexRange(secondary_selection.extended_range()),
-                    source: Source::StyleKey(UiSecondarySelection),
-                });
-
-        let seconday_selection_anchors = secondary_selections.iter().flat_map(|selection| {
-            selection.anchors().into_iter().map(|anchor| HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::CharIndexRange(anchor),
-                source: Source::StyleKey(UiSecondarySelectionAnchors),
-            })
-        });
-        let secondary_selection_cursors =
-            secondary_selections.iter().flat_map(|secondary_selection| {
-                [
-                    HighlightSpan {
-                        set_symbol: None,
-                        is_cursor: false,
-                        range: HighlightSpanRange::CharIndex(
-                            secondary_selection.to_char_index(&editor.cursor_direction.reverse()),
-                        ),
-                        source: Source::Style(theme.ui.secondary_selection_secondary_cursor),
-                    },
-                    HighlightSpan {
-                        set_symbol: None,
-                        is_cursor: false,
-                        range: HighlightSpanRange::CharIndex(
-                            secondary_selection.to_char_index(&editor.cursor_direction),
-                        ),
-                        source: Source::Style(theme.ui.secondary_selection_primary_cursor),
-                    },
-                ]
-                .into_iter()
-                .collect::<Vec<_>>()
-            });
-        let diagnostics = diagnostics
-            .iter()
-            .sorted_by(|a, b| a.severity.cmp(&b.severity))
-            .rev()
-            .map(|diagnostic| HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::CharIndexRange(diagnostic.range),
-                source: Source::StyleKey(match diagnostic.severity {
-                    Some(DiagnosticSeverity::ERROR) => DiagnosticsError,
-                    Some(DiagnosticSeverity::WARNING) => DiagnosticsWarning,
-                    Some(DiagnosticSeverity::INFORMATION) => DiagnosticsInformation,
-                    Some(DiagnosticSeverity::HINT) => DiagnosticsHint,
-                    _ => DiagnosticsDefault,
-                }),
-            });
-
-        let jumps = editor.jumps().into_iter().enumerate().map(|(index, jump)| {
-            let style = if index % 2 == 0 {
-                theme.ui.jump_mark_even
-            } else {
-                theme.ui.jump_mark_odd
-            };
-            HighlightSpan {
-                set_symbol: Some(jump.character.to_string()),
-                is_cursor: false,
-                source: Source::Style(style),
-                range: HighlightSpanRange::CharIndex(
-                    jump.selection.to_char_index(&self.cursor_direction),
-                ),
-            }
-        });
-        let extra_decorations = buffer.decorations().iter().flat_map(|decoration| {
-            Some(HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::CharIndexRange(
-                    decoration
-                        .selection_range()
-                        .to_char_index_range(&buffer)
-                        .ok()?,
-                ),
-                source: Source::StyleKey(decoration.style_key().clone()),
-            })
-        });
-
         let hidden_parent_line_ranges = hidden_parent_lines
             .iter()
-            .map(|line| line.line..line.line + 1);
-        let visible_line_range = self.visible_line_range();
-        let visible_line_byte_range = buffer
-            .line_range_to_byte_range(&visible_line_range)
-            .unwrap_or_default();
-        let spans = buffer.highlighted_spans();
-        let filtered_highlighted_spans = {
-            filter_items_by_range(
-                &spans,
-                visible_line_byte_range.start,
-                visible_line_byte_range.end,
-                |span| span.byte_range.clone(),
-            )
-            .iter()
-            .chain(hidden_parent_line_ranges.clone().flat_map(|line_range| {
-                let byte_range = buffer
-                    .line_range_to_byte_range(&line_range)
-                    .unwrap_or_default();
-                filter_items_by_range(&spans, byte_range.start, byte_range.end, |span| {
-                    span.byte_range.clone()
-                })
-            }))
-            .map(|span| HighlightSpan {
-                range: HighlightSpanRange::ByteRange(span.byte_range.clone()),
-                source: Source::StyleKey(span.style_key.clone()),
-                set_symbol: None,
-                is_cursor: false,
-            })
-        };
-        let custom_regex_highlights = lazy_regex::regex!("(?i)#[0-9a-f]{6}")
-            .find_iter(&content)
-            .map(|m| (m.as_str().to_string(), m.range()))
-            .filter_map(|(hex, range)| {
-                let color = crate::themes::Color::from_hex(&hex).ok()?;
-                Some(HighlightSpan {
-                    set_symbol: None,
-                    is_cursor: false,
-                    range: HighlightSpanRange::ByteRange(range),
-                    source: Source::Style(
-                        Style::new()
-                            .background_color(color)
-                            .foreground_color(color.get_contrasting_color()),
-                    ),
-                })
-            });
-
-        let regex_highlight_rules = self
-            .regex_highlight_rules
-            .iter()
-            .filter_map(|rule| {
-                let captures = rule.regex.captures(&content)?;
-                let get_highlight_span = |name: &'static str, source: Source| {
-                    let match_ = captures.name(name)?;
-                    Some(HighlightSpan {
-                        source,
-                        range: HighlightSpanRange::ByteRange(match_.range()),
-                        set_symbol: None,
-                        is_cursor: false,
-                    })
-                };
-                Some(
-                    rule.capture_styles
-                        .iter()
-                        .flat_map(|capture_style| {
-                            get_highlight_span(
-                                capture_style.capture_name,
-                                capture_style.source.clone(),
-                            )
-                        })
-                        .collect_vec(),
-                )
-            })
-            .flatten();
-
-        let visible_parent_lines = visible_parent_lines.into_iter().map(|line| HighlightSpan {
-            source: Source::StyleKey(StyleKey::ParentLine),
-            range: HighlightSpanRange::Line(line.line),
-            set_symbol: None,
-            is_cursor: false,
-        });
-        let updates = vec![]
-            .into_iter()
-            .chain(visible_parent_lines)
-            .chain(filtered_highlighted_spans)
-            .chain(extra_decorations)
-            .chain(possible_selections)
-            .chain(Some(primary_selection))
-            .chain(secondary_selection)
-            .chain(primary_selection_anchors)
-            .chain(seconday_selection_anchors)
-            .chain(marks)
-            .chain(diagnostics)
-            .chain(jumps)
-            .chain(primary_selection_secondary_cursor)
-            .chain(secondary_selection_cursors)
-            .chain(custom_regex_highlights)
-            .chain(regex_highlight_rules)
+            .map(|line| line.line..line.line + 1)
             .collect_vec();
-        let visible_lines_updates = {
-            let boundaries = [Boundary::new(&buffer, visible_line_range)];
-            updates
-                .iter()
-                .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
-                .chain(primary_selection_primary_cursor)
-                .collect_vec()
-        };
-
-        let visible_lines_grid = visible_lines_grid.render_content(
-            &visible_lines.map(|(_, line)| line).join(""),
-            RenderContentLineNumber::LineNumber {
-                start_line_index: scroll_offset as usize,
-                max_line_number: len_lines as usize,
-            },
-            visible_lines_updates
-                .clone()
-                .into_iter()
-                .map(|cell_update| CellUpdate {
-                    position: cell_update.position.move_up(scroll_offset as usize),
-                    ..cell_update
-                })
-                .collect_vec(),
-            Vec::new(),
-            theme,
+        let visible_line_range =
+            self.visible_line_range_given_scroll_offset_and_height(scroll_offset, height);
+        let primary_cursor_char_index = primary_selection.to_char_index(&self.cursor_direction);
+        let updates = self.get_highlight_spans(
+            context,
+            &visible_line_range,
+            &hidden_parent_line_ranges,
+            &visible_parent_lines,
+            protected_range,
         );
 
         let hidden_parent_lines_grid = {
@@ -325,13 +225,19 @@ impl Editor {
                 .collect_vec();
             let updates = hidden_parent_lines
                 .iter()
-                .map(|line| HighlightSpan {
-                    source: Source::StyleKey(StyleKey::ParentLine),
-                    range: HighlightSpanRange::Line(line.line),
-                    set_symbol: None,
-                    is_cursor: false,
+                .filter_map(|line| {
+                    if self.reveal.is_some() {
+                        return None;
+                    }
+                    Some(HighlightSpan {
+                        source: Source::StyleKey(StyleKey::ParentLine),
+                        range: HighlightSpanRange::Line(line.line),
+                        set_symbol: None,
+                        is_cursor: false,
+                        is_protected_range_start: false,
+                    })
                 })
-                .chain(updates)
+                .chain(updates.clone())
                 .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
                 .collect_vec();
             hidden_parent_lines.into_iter().fold(
@@ -361,83 +267,492 @@ impl Editor {
             )
         };
 
-        let cursor_beyond_view_bottom =
-            if let Some(cursor_position) = visible_lines_grid.get_cursor_position() {
-                cursor_position
-                    .line
-                    .saturating_sub(height.saturating_sub(1).saturating_sub(top_offset) as usize)
-            } else {
-                0
-            };
         let grid = {
-            let visible_lines_grid = visible_lines_grid.clamp_top(cursor_beyond_view_bottom);
-            let clamp_bottom_by = visible_lines_grid
-                .dimension()
-                .height
-                .saturating_sub(height)
-                .saturating_add(top_offset)
-                .saturating_sub(cursor_beyond_view_bottom as u16);
-            let bottom = visible_lines_grid.clamp_bottom(clamp_bottom_by);
+            let visible_lines_updates = {
+                let boundaries = [Boundary::new(&buffer, visible_line_range)];
+                updates
+                    .iter()
+                    .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
+                    // Insert the primary cursor cell update by force.
+                    // This is necessary because when the content is empty
+                    // all cell updates will be excluded when `to_cell_updates` is run,
+                    // and then no cursor will be rendered for empty buffer.
+                    .chain(
+                        buffer
+                            .char_to_position(protected_char_index)
+                            .map(|position| {
+                                CellUpdate::new(position)
+                                    .set_is_protected_range_start(true)
+                                    .set_is_cursor(
+                                        primary_cursor_char_index == protected_char_index,
+                                    )
+                            }),
+                    )
+                    .collect_vec()
+            };
+            let visible_lines_content = visible_lines.map(|(_, line)| line).join("");
+            let visible_lines_grid = visible_lines_grid.render_content(
+                &visible_lines_content,
+                RenderContentLineNumber::LineNumber {
+                    start_line_index: scroll_offset as usize,
+                    max_line_number: len_lines as usize,
+                },
+                visible_lines_updates
+                    .clone()
+                    .into_iter()
+                    .filter_map(|cell_update| {
+                        Some(CellUpdate {
+                            position: cell_update.position.move_up(scroll_offset as usize)?,
+                            ..cell_update
+                        })
+                    })
+                    .collect_vec(),
+                Default::default(),
+                theme,
+            );
+            let protected_range = visible_lines_grid
+                .get_protected_range_start_position()
+                .map(|position| position.line..position.line + 1);
 
-            hidden_parent_lines_grid.merge_vertical(bottom)
+            let hidden_parent_lines_count = hidden_parent_lines_grid.rows.len();
+            let max_hidden_parent_lines_count =
+                hidden_parent_lines_count.min(visible_lines_grid.height() / 2);
+
+            let trim_result = trim_array(
+                &visible_lines_grid.rows,
+                protected_range.unwrap_or_default(),
+                max_hidden_parent_lines_count,
+            );
+            let clamped_hidden_parent_lines_grid = hidden_parent_lines_grid.clamp_bottom(
+                (trim_result.remaining_trim_count
+                    + (hidden_parent_lines_count - max_hidden_parent_lines_count))
+                    as u16,
+            );
+            let trimmed_visible_lines_grid = Grid {
+                width: visible_lines_grid.width,
+                rows: trim_result.trimmed_array,
+            };
+
+            // Verify that the maximum number of hidden parent lines only take
+            // at most 50% of the render area (less one row of title)
+            debug_assert!(
+                visible_lines_grid.height() == 0
+                    || (clamped_hidden_parent_lines_grid.height() as f64)
+                        / (visible_lines_grid.height() as f64)
+                        <= 0.5
+            );
+
+            let result =
+                clamped_hidden_parent_lines_grid.merge_vertical(trimmed_visible_lines_grid);
+
+            let section_divider_cell_updates = (borderize_first_line
+                && visible_lines_grid.height() > 1)
+                .then(|| {
+                    (0..width)
+                        .map(|column| CellUpdate {
+                            position: Position::new(0, column as usize),
+                            symbol: None,
+                            style: Style::new()
+                                .background_color(theme.ui.section_divider_background),
+                            is_cursor: false,
+                            is_protected_range_start: false,
+                            source: Some(StyleKey::UiSectionDivider),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            result.apply_cell_updates(section_divider_cell_updates)
         };
-        let window_title_style = if focused {
-            theme.ui.window_title_focused
+
+        debug_assert_eq!(grid.rows.len(), height as usize);
+        debug_assert!(grid.rows.iter().all(|row| row.len() == width as usize));
+        grid
+    }
+
+    fn get_highlight_spans(
+        &self,
+        context: &Context,
+        visible_line_range: &Range<usize>,
+        hidden_parent_line_ranges: &[Range<usize>],
+        visible_parent_lines: &[Line],
+        protected_range: CharIndexRange,
+    ) -> Vec<HighlightSpan> {
+        use StyleKey::*;
+        let theme = context.theme();
+        let buffer = self.buffer();
+        let possible_selections = if self.selection_set.mode.is_contiguous() {
+            Default::default()
+        } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
+            buffer
+                .char_index_range_to_byte_range(protected_range)
+                .ok()
+                .into_iter()
+                .map(ByteRange::new)
+                .collect()
         } else {
-            theme.ui.window_title_unfocused
-        };
-
-        // NOTE: due to performance issue, we only highlight the content that are within view
-        // This might result in some incorrectness, but that's a reasonable trade-off, because
-        // highlighting the entire file becomes sluggish when the file has more than a thousand lines.
-
-        let title_grid = Grid::new(Dimension {
-            height: editor.dimension().height - grid.rows.len() as u16,
-            width: editor.dimension().width,
-        })
-        .render_content(
-            &self.title(context),
-            RenderContentLineNumber::NoLineNumber,
-            Vec::new(),
-            [LineUpdate {
-                line_index: 0,
-                style: window_title_style,
-            }]
-            .to_vec(),
-            theme,
-        );
-
-        let grid = title_grid.merge_vertical(grid);
-        let cursor_position = grid.get_cursor_position();
-        let style = match self.mode {
-            Mode::Normal => SetCursorStyle::BlinkingBlock,
-            Mode::Insert => SetCursorStyle::BlinkingBar,
-            _ => SetCursorStyle::BlinkingUnderScore,
-        };
-        GetGridResult {
-            cursor: cursor_position.map(|position| Cursor::new(position, style)),
-            grid,
+            self
+                //.possible_selections(self.selection_set.primary_selection(), context)
+                .possible_selections_in_line_number_range(
+                    self.selection_set.primary_selection(),
+                    context,
+                    visible_line_range,
+                )
+                .unwrap_or_default()
         }
+        .into_iter()
+        .map(|range| HighlightSpan {
+            set_symbol: None,
+            is_cursor: false,
+            range: HighlightSpanRange::ByteRange(range.range().clone()),
+            source: Source::StyleKey(UiPossibleSelection),
+            is_protected_range_start: false,
+        });
+
+        let marks = buffer
+            .marks()
+            .into_iter()
+            .filter(|mark| {
+                if let Some(Reveal::Mark) = self.reveal {
+                    mark == &protected_range
+                } else {
+                    true
+                }
+            })
+            .map(|mark| HighlightSpan {
+                set_symbol: None,
+                is_cursor: false,
+                source: Source::StyleKey(UiMark),
+                range: HighlightSpanRange::CharIndexRange(mark),
+                is_protected_range_start: false,
+            });
+        let secondary_selections = &self
+            .selection_set
+            .secondary_selections()
+            .into_iter()
+            .filter(|secondary_selection| {
+                if let Some(Reveal::Cursor) = self.reveal {
+                    secondary_selection.range() == protected_range
+                } else {
+                    true
+                }
+            })
+            .collect_vec();
+
+        let primary_selection = &self.selection_set.primary_selection();
+
+        let (
+            primary_selection_highlight_span,
+            primary_selection_anchors,
+            primary_selection_secondary_cursor,
+        ) = {
+            let no_primary_selection = (
+                None,
+                Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>,
+                None,
+            );
+            match self.reveal {
+                Some(Reveal::CurrentSelectionMode)
+                    if protected_range != primary_selection.extended_range() =>
+                {
+                    no_primary_selection
+                }
+                Some(Reveal::Cursor)
+                    if secondary_selections.iter().any(|secondary_selection| {
+                        secondary_selection.extended_range() == protected_range
+                    }) =>
+                {
+                    no_primary_selection
+                }
+                Some(Reveal::Mark)
+                    if protected_range != primary_selection.extended_range()
+                        && buffer.marks().iter().any(|mark| mark == &protected_range) =>
+                {
+                    no_primary_selection
+                }
+                _ => {
+                    let primary_selection_highlight_span = HighlightSpan {
+                        set_symbol: None,
+                        is_cursor: false,
+                        range: HighlightSpanRange::CharIndexRange(
+                            primary_selection.extended_range(),
+                        ),
+                        source: Source::StyleKey(UiPrimarySelection),
+                        is_protected_range_start: false,
+                    };
+                    let primary_selection_anchors =
+                        primary_selection
+                            .anchors()
+                            .into_iter()
+                            .map(|anchor| HighlightSpan {
+                                set_symbol: None,
+                                is_cursor: false,
+                                range: HighlightSpanRange::CharIndexRange(anchor),
+                                source: Source::StyleKey(UiPrimarySelectionAnchors),
+                                is_protected_range_start: false,
+                            });
+                    let primary_selection_secondary_cursor = if self.mode == Mode::Insert {
+                        None
+                    } else {
+                        Some(HighlightSpan {
+                            set_symbol: None,
+                            is_cursor: false,
+                            range: HighlightSpanRange::CharIndex(
+                                primary_selection.to_char_index(&self.cursor_direction.reverse()),
+                            ),
+                            source: Source::StyleKey(StyleKey::UiPrimarySelectionSecondaryCursor),
+                            is_protected_range_start: false,
+                        })
+                    };
+                    (
+                        Some(primary_selection_highlight_span),
+                        Box::new(primary_selection_anchors)
+                            as Box<dyn Iterator<Item = HighlightSpan>>,
+                        primary_selection_secondary_cursor,
+                    )
+                }
+            }
+        };
+
+        let secondary_selections_highlight_spans =
+            secondary_selections
+                .iter()
+                .map(|secondary_selection| HighlightSpan {
+                    set_symbol: None,
+                    is_cursor: false,
+                    range: HighlightSpanRange::CharIndexRange(secondary_selection.extended_range()),
+                    source: Source::StyleKey(UiSecondarySelection),
+                    is_protected_range_start: false,
+                });
+
+        let secondary_selection_anchors = secondary_selections.iter().flat_map(|selection| {
+            selection.anchors().into_iter().map(|anchor| HighlightSpan {
+                set_symbol: None,
+                is_cursor: false,
+                range: HighlightSpanRange::CharIndexRange(anchor),
+                source: Source::StyleKey(UiSecondarySelectionAnchors),
+                is_protected_range_start: false,
+            })
+        });
+        let secondary_selection_cursors =
+            secondary_selections.iter().flat_map(|secondary_selection| {
+                [
+                    HighlightSpan {
+                        set_symbol: None,
+                        is_cursor: false,
+                        range: HighlightSpanRange::CharIndex(
+                            secondary_selection.to_char_index(&self.cursor_direction.reverse()),
+                        ),
+                        source: Source::StyleKey(StyleKey::UiSecondarySelectionSecondaryCursor),
+                        is_protected_range_start: false,
+                    },
+                    HighlightSpan {
+                        set_symbol: None,
+                        is_cursor: false,
+                        range: HighlightSpanRange::CharIndex(
+                            secondary_selection.to_char_index(&self.cursor_direction),
+                        ),
+                        source: Source::StyleKey(StyleKey::UiSecondarySelectionPrimaryCursor),
+                        is_protected_range_start: false,
+                    },
+                ]
+                .into_iter()
+                .collect::<Vec<_>>()
+            });
+
+        let content = buffer.rope().to_string();
+
+        let diagnostics = buffer.diagnostics();
+        let diagnostics = diagnostics
+            .iter()
+            .sorted_by(|a, b| a.severity.cmp(&b.severity))
+            .rev()
+            .map(|diagnostic| HighlightSpan {
+                set_symbol: None,
+                is_cursor: false,
+                range: HighlightSpanRange::CharIndexRange(diagnostic.range),
+                source: Source::StyleKey(match diagnostic.severity {
+                    Some(DiagnosticSeverity::ERROR) => DiagnosticsError,
+                    Some(DiagnosticSeverity::WARNING) => DiagnosticsWarning,
+                    Some(DiagnosticSeverity::INFORMATION) => DiagnosticsInformation,
+                    Some(DiagnosticSeverity::HINT) => DiagnosticsHint,
+                    _ => DiagnosticsDefault,
+                }),
+                is_protected_range_start: false,
+            });
+
+        let jumps = self.jumps().into_iter().enumerate().map(|(index, jump)| {
+            let style = if index % 2 == 0 {
+                theme.ui.jump_mark_even
+            } else {
+                theme.ui.jump_mark_odd
+            };
+            HighlightSpan {
+                set_symbol: Some(jump.character.to_string()),
+                is_cursor: false,
+                source: Source::Style(style),
+                range: HighlightSpanRange::CharIndex(
+                    jump.selection.to_char_index(&self.cursor_direction),
+                ),
+                is_protected_range_start: false,
+            }
+        });
+        let extra_decorations = buffer.decorations().iter().flat_map(|decoration| {
+            Some(HighlightSpan {
+                set_symbol: None,
+                is_cursor: false,
+                range: HighlightSpanRange::CharIndexRange(
+                    decoration
+                        .selection_range()
+                        .to_char_index_range(&buffer)
+                        .ok()?,
+                ),
+                source: Source::StyleKey(decoration.style_key().clone()),
+                is_protected_range_start: false,
+            })
+        });
+
+        let visible_line_byte_range = buffer
+            .line_range_to_byte_range(visible_line_range)
+            .unwrap_or_default();
+        let spans = buffer.highlighted_spans();
+        let filtered_highlighted_spans = {
+            filter_items_by_range(
+                &spans,
+                visible_line_byte_range.start,
+                visible_line_byte_range.end,
+                |span| span.byte_range.clone(),
+            )
+            .iter()
+            .chain(hidden_parent_line_ranges.iter().flat_map(|line_range| {
+                let byte_range = buffer
+                    .line_range_to_byte_range(line_range)
+                    .unwrap_or_default();
+                filter_items_by_range(&spans, byte_range.start, byte_range.end, |span| {
+                    span.byte_range.clone()
+                })
+            }))
+            .map(|span| HighlightSpan {
+                range: HighlightSpanRange::ByteRange(span.byte_range.clone()),
+                source: Source::StyleKey(span.style_key.clone()),
+                set_symbol: None,
+                is_cursor: false,
+                is_protected_range_start: false,
+            })
+        };
+        let custom_regex_highlights = lazy_regex::regex!("(?i)#[0-9a-f]{6}")
+            .find_iter(&content)
+            .map(|m| (m.as_str().to_string(), m.range()))
+            .filter_map(|(hex, range)| {
+                let color = crate::themes::Color::from_hex(&hex).ok()?;
+                Some(HighlightSpan {
+                    set_symbol: None,
+                    is_cursor: false,
+                    range: HighlightSpanRange::ByteRange(range),
+                    source: Source::Style(
+                        Style::new()
+                            .background_color(color)
+                            .foreground_color(color.get_contrasting_color()),
+                    ),
+                    is_protected_range_start: false,
+                })
+            });
+
+        let regex_highlight_rules = self
+            .regex_highlight_rules
+            .iter()
+            .filter_map(|rule| {
+                let captures = rule.regex.captures(&content)?;
+                let get_highlight_span = |name: &'static str, source: Source| {
+                    let match_ = captures.name(name)?;
+
+                    Some(HighlightSpan {
+                        source,
+                        range: HighlightSpanRange::ByteRange(match_.range()),
+                        set_symbol: None,
+                        is_cursor: false,
+                        is_protected_range_start: false,
+                    })
+                };
+                Some(
+                    rule.capture_styles
+                        .iter()
+                        .flat_map(|capture_style| {
+                            get_highlight_span(
+                                capture_style.capture_name,
+                                capture_style.source.clone(),
+                            )
+                        })
+                        .collect_vec(),
+                )
+            })
+            .flatten();
+
+        let visible_parent_lines = if self.reveal.is_none() {
+            Box::new(visible_parent_lines.iter().map(|line| HighlightSpan {
+                source: Source::StyleKey(StyleKey::ParentLine),
+                range: HighlightSpanRange::Line(line.line),
+                set_symbol: None,
+                is_cursor: false,
+                is_protected_range_start: false,
+            })) as Box<dyn Iterator<Item = HighlightSpan>>
+        } else {
+            Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
+        };
+        vec![]
+            .into_iter()
+            .chain(visible_parent_lines)
+            .chain(filtered_highlighted_spans)
+            .chain(extra_decorations)
+            .chain(possible_selections)
+            .chain(primary_selection_highlight_span)
+            .chain(secondary_selections_highlight_spans)
+            .chain(primary_selection_anchors)
+            .chain(secondary_selection_anchors)
+            .chain(marks)
+            .chain(diagnostics)
+            .chain(jumps)
+            .chain(primary_selection_secondary_cursor)
+            .chain(secondary_selection_cursors)
+            .chain(custom_regex_highlights)
+            .chain(regex_highlight_rules)
+            .collect_vec()
     }
 
     pub(crate) fn possible_selections_in_line_number_range(
         &self,
         selection: &Selection,
+        context: &Context,
+        line_number_range: &Range<usize>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        let object = self.get_selection_mode_trait_object(selection, true)?;
+        let object = self.get_selection_mode_trait_object(selection, true, context)?;
         if self.selection_set.mode.is_contiguous() {
             return Ok(Vec::new());
         }
 
-        let line_range = self.visible_line_range();
         object.selections_in_line_number_range(
             &selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,
             },
-            [line_range].to_vec(),
+            [line_number_range.clone()].to_vec(),
         )
+    }
+
+    pub(crate) fn revealed_selections(
+        &self,
+        selection: &Selection,
+        context: &Context,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        Ok(self
+            .get_selection_mode_trait_object(selection, true, context)?
+            .iter_revealed(selection_mode::SelectionModeParams {
+                buffer: &self.buffer(),
+                current_selection: selection,
+                cursor_direction: &self.cursor_direction,
+            })?
+            .collect())
     }
 }
 
@@ -447,6 +762,7 @@ pub(crate) struct HighlightSpan {
     pub(crate) range: HighlightSpanRange,
     pub(crate) set_symbol: Option<String>,
     pub(crate) is_cursor: bool,
+    is_protected_range_start: bool,
 }
 
 impl HighlightSpan {
@@ -502,6 +818,7 @@ impl HighlightSpan {
                                     Source::StyleKey(key) => Some(key.clone()),
                                     _ => None,
                                 },
+                                is_protected_range_start: self.is_protected_range_start,
                             })
                         })
                         .collect_vec(),
@@ -581,7 +898,7 @@ mod test_render_editor {
                 width: (u8::arbitrary(g) / 10).max(
                     MAX_CHARACTER_WIDTH + LINE_NUMBER_UI_WIDTH + PADDING_FOR_CURSOR_AT_LAST_COLUMN,
                 ) as u16,
-                height: (u8::arbitrary(g) / 10) as u16,
+                height: ((u8::arbitrary(g) / 10) as u16).max(1),
             }
         }
     }

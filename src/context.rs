@@ -5,11 +5,12 @@ use globset::Glob;
 use indexmap::IndexSet;
 use itertools::{Either, Itertools};
 use shared::canonicalized_path::CanonicalizedPath;
+use strum::IntoEnumIterator;
 
 use crate::{
     app::{GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate, Scope},
     clipboard::{Clipboard, CopiedTexts},
-    components::{keymap_legend::KeymapLegendSection, prompt::PromptHistoryKey},
+    components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
     quickfix_list::DiagnosticSeverityRange,
     selection::SelectionMode,
@@ -27,9 +28,9 @@ pub(crate) struct Context {
     local_search_config: LocalSearchConfig,
     global_search_config: GlobalSearchConfig,
     quickfix_list_state: Option<QuickfixListState>,
-    contextual_keymaps: Vec<KeymapLegendSection>,
     prompt_histories: HashMap<PromptHistoryKey, IndexSet<String>>,
     last_non_contiguous_selection_mode: Option<Either<SelectionMode, GlobalMode>>,
+    keyboard_layout_kind: KeyboardLayoutKind,
 }
 
 pub(crate) struct QuickfixListState {
@@ -74,9 +75,17 @@ impl Default for Context {
             local_search_config: LocalSearchConfig::default(),
             global_search_config: GlobalSearchConfig::default(),
             quickfix_list_state: Default::default(),
-            contextual_keymaps: Default::default(),
             prompt_histories: Default::default(),
             last_non_contiguous_selection_mode: None,
+            keyboard_layout_kind: {
+                use KeyboardLayoutKind::*;
+                crate::env::parse_env(
+                    "KI_EDITOR_KEYBOARD",
+                    &KeyboardLayoutKind::iter().collect_vec(),
+                    |layout| layout.as_str(),
+                    Qwerty,
+                )
+            },
         }
     }
 }
@@ -215,14 +224,6 @@ impl Context {
         })
     }
 
-    pub(crate) fn contextual_keymaps(&self) -> Vec<KeymapLegendSection> {
-        self.contextual_keymaps.clone()
-    }
-
-    pub(crate) fn set_contextual_keymaps(&mut self, contextual_keymaps: Vec<KeymapLegendSection>) {
-        self.contextual_keymaps = contextual_keymaps
-    }
-
     pub(crate) fn push_history_prompt(&mut self, key: PromptHistoryKey, line: String) {
         if let Some(map) = self.prompt_histories.get_mut(&key) {
             map.shift_remove(&line);
@@ -264,6 +265,14 @@ impl Context {
         &self,
     ) -> Option<&Either<crate::selection::SelectionMode, GlobalMode>> {
         self.last_non_contiguous_selection_mode.as_ref()
+    }
+
+    pub(crate) fn keyboard_layout_kind(&self) -> &KeyboardLayoutKind {
+        &self.keyboard_layout_kind
+    }
+
+    pub(crate) fn set_keyboard_layout_kind(&mut self, keyboard_layout_kind: KeyboardLayoutKind) {
+        self.keyboard_layout_kind = keyboard_layout_kind
     }
 }
 
@@ -391,5 +400,9 @@ impl LocalSearchConfig {
 
     pub(crate) fn require_tree_sitter(&self) -> bool {
         self.mode == LocalSearchConfigMode::AstGrep
+    }
+
+    pub(crate) fn display(&self) -> String {
+        self.mode.display()
     }
 }

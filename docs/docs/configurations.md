@@ -20,9 +20,25 @@ However, I'm open to suggestions, I might even create a new language for that.
 
 ## Environment variables for configurations
 
-Until a method of basic configuration is decided upon, the theme for Ki can be configured via the environment variable
-`KI_EDITOR_THEME`. The theme defaults to "VS Code (Light)". You can find a list of known themes by launching `ki` and
-using the Pick Theme option, `SPACE t`.
+### Intro
+
+Until a method of basic configuration is decided upon, settings for Ki will be configured via the environment variables.
+
+### `KI_EDITOR_THEME`
+
+The theme defaults to "VS Code (Light)". You can find a list of known themes by launching `ki` and
+using the Pick Theme option, `space a`.
+
+### `KI_EDITOR_KEYBOARD`
+
+For configuring keyboard layout, with the following possible values:
+
+1. `qwerty` (Default)
+1. `dvorak`
+1. `colemak`
+1. `colemak_dh`
+1. `colemak_dh_semi_quote`
+1. `dvorak_iu`
 
 [^1]: For example, see [dwm](https://wiki.archlinux.org/title/dwm#Configuration) and [Xmonad](https://xmonad.org/TUTORIAL.html)
 [^2]: Neovim usually let's you glide through until it commits kamikaze

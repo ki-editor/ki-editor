@@ -12,7 +12,7 @@ No land in the archipelago of the modal editors has more economic keybindings fo
 
 > Being first-class means that it is not an extra or even sidekick; it is the **protagonist**.
 
-To select the largest syntax node under the cursor, simply press `s` (Syntax Node).
+To select the largest syntax node under the cursor, simply press `s` (Qwerty).
 
 This feature is handy if you ever asked this question:
 
@@ -26,7 +26,7 @@ And this works as long as your language is blessed by the Tree-sitter grammarian
 
 ### 2.1 Deletion
 
-To delete multiple sibling syntax nodes in a row, first press `s`, then repeat `d`.
+To delete multiple sibling syntax nodes in a row, first enter `Syntax Node` selection mode, then repeat `Delete`.
 
 ![delete-node](https://github.com/user-attachments/assets/8b2c263d-d05b-4f50-ae1d-ee17914f7c09)
 
@@ -36,7 +36,7 @@ This doesn't only work for JSON, it can be used to also delete statements, array
 
 ### 2.2 Duplication
 
-To duplicate an AST node, press `s`, then `y` (Copy), and then `p` (Paste).
+To duplicate an AST node, enter `Syntax Node` selection mode, then execute `Copy`, follwed by `Paste`.
 
 ![duplicate-node](https://github.com/user-attachments/assets/c5d67419-1fe9-473b-954b-58912d40109d)
 
@@ -44,30 +44,27 @@ Notice how `comma` is added automatically.
 
 ### 2.3 Swap
 
-To swap an AST node, press `s`, then `x` (Exchange mode), and press `n` (Next) or `N` (Previous).
+To swap an AST node, enter `Syntax Node` selection mode, then active `Swap` mode,
+and execute movements such as `Left`/`Right`/`First`/`Last`/`Jump`.
 
 ## 3. First-class syntactic navigation
 
-To navigate the syntax tree, press `s`, then press any of the following keys:
+The following selections/movements are first-class:
 
-- `N` (Previous sibling)
-- `n` (Next sibling)
-- `,` (First sibling)
-- `.` (Last sibling)
-- `b` (First child)
-- `t` (Parent)
+1. Select current largest node
+1. Move to next/previous sibling node
+1. Move to first/last sibling node
+1. Expand selection to parent node
+1. Shrink selection to first-child node
 
 ## 4. Multi-cursor
 
-Delete unused imports:
+The following example demonstrates how unused imports can be deleted using multiple cursors.
 
-- `] h` (set selection mode to Diagnostics Hint)
-- `q` (enter multi-cursor mode)
-- `l` (add a cursor to the next selection)
-- `s` (set selection mode to Syntax Node)
-- `d` (delete)
-- `q o` (keep only the primary selection)
-
-Again, notice how the commas are removed automatically.
+Notice how the commas are removed automatically.
 
 ![remove-unused-imports](https://github.com/user-attachments/assets/1e26cae5-e24d-4010-bebc-c9ee8837293b)
+
+## 5. Positional Keymaps
+
+See [here](./core-concepts.md#2-positional-keymaps).

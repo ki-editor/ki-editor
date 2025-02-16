@@ -44,7 +44,7 @@ fn generate_recipes() -> anyhow::Result<()> {
                                     "------- \n\n\tRunning: {} \n\n----------",
                                     recipe.description
                                 );
-                                let result = execute_recipe(|s| {
+                                let callback = |s: State| {
                                     let temp_path = s
                                         .temp_dir()
                                         .to_path_buf()
@@ -92,7 +92,8 @@ fn generate_recipes() -> anyhow::Result<()> {
                                     )
                                     .collect_vec()
                                     .into_boxed_slice()
-                                })?;
+                                };
+                                let result = execute_recipe(callback, false)?;
                                 Ok(StepOutput {
                                     key: events
                                         .last()
@@ -112,14 +113,14 @@ fn generate_recipes() -> anyhow::Result<()> {
                             similar_vim_combos: recipe.similar_vim_combos,
                         })
                     };
-                    run().map_err(|err: anyhow::Error| format!("{} {err:#?}", recipe.description))
+                    run().map_err(|err: anyhow::Error| format!("{} {err}", recipe.description,))
                 })
                 .partition_map(|result| match result {
                     Ok(recipe_output) => Either::Right(recipe_output),
                     Err(err) => Either::Left(err),
                 });
             if !errors.is_empty() {
-                panic!("Run recipes errors = {errors:#?}");
+                panic!("Run recipes errors = {}", errors.join("\n"));
             }
 
             let json = serde_json::to_string(&RecipesOutput { recipes_output })?;

@@ -4,6 +4,7 @@ use crate::buffer::Buffer;
 pub struct Word {
     normal_regex: super::Regex,
     symbol_skipping_regex: super::Regex,
+    skip_symbols: bool,
 }
 
 const SUBWORD_REGEX: &str =
@@ -13,7 +14,7 @@ const SUBWORD_SYMBOL_SKIPPING_REGEX: &str =
     r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z]{2,}|[A-Z][a-z]+|[A-Z]|[a-z]+|[0-9]+";
 
 impl Word {
-    pub(crate) fn new(buffer: &Buffer) -> anyhow::Result<Self> {
+    pub(crate) fn new(buffer: &Buffer, skip_symbols: bool) -> anyhow::Result<Self> {
         Ok(Self {
             normal_regex: super::Regex::from_config(
                 buffer,
@@ -33,6 +34,7 @@ impl Word {
                     match_whole_word: false,
                 },
             )?,
+            skip_symbols,
         })
     }
 }
@@ -42,35 +44,25 @@ impl SelectionMode for Word {
         &'a self,
         params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
-        self.normal_regex.iter(params)
-    }
-
-    fn next(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.symbol_skipping_regex.next(params)
-    }
-
-    fn previous(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.symbol_skipping_regex.previous(params)
+        if self.skip_symbols {
+            self.symbol_skipping_regex.iter(params)
+        } else {
+            self.normal_regex.iter(params)
+        }
     }
 
     fn first(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        get_word(params, SelectionPosition::First)
+        get_word(params, SelectionPosition::First, self.skip_symbols)
     }
 
     fn last(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        get_word(params, SelectionPosition::Last)
+        get_word(params, SelectionPosition::Last, self.skip_symbols)
     }
 }
 
@@ -80,12 +72,38 @@ mod test_word {
     use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
 
     #[test]
-    fn case_1() {
+    fn skip_symbols() {
         let buffer = Buffer::new(
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
         );
-        Word::new(&buffer).unwrap().assert_all_selections(
+        Word::new(&buffer, true).unwrap().assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[
+                (0..5, "snake"),
+                (6..10, "case"),
+                (11..16, "camel"),
+                (16..20, "Case"),
+                (21..27, "Pascal"),
+                (27..31, "Case"),
+                (32..37, "UPPER"),
+                (38..43, "SNAKE"),
+                (49..52, "123"),
+                (57..61, "HTTP"),
+                (61..68, "Network"),
+                (69..70, "X"),
+            ],
+        );
+    }
+
+    #[test]
+    fn no_skip_symbols() {
+        let buffer = Buffer::new(
+            None,
+            "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
+        );
+        Word::new(&buffer, false).unwrap().assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -115,9 +133,9 @@ mod test_word {
     }
 
     #[test]
-    fn case_2() {
+    fn consecutive_uppercase_letters() {
         let buffer = Buffer::new(None, "XMLParser JSONObject HTMLElement");
-        Word::new(&buffer).unwrap().assert_all_selections(
+        Word::new(&buffer, true).unwrap().assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -141,8 +159,9 @@ pub(crate) enum SelectionPosition {
 fn get_word(
     params: super::SelectionModeParams,
     position: SelectionPosition,
+    skip_symbols: bool,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
-    if let Some(current_word) = Token::new(params.buffer)?.current(
+    if let Some(current_word) = Token::new(params.buffer, skip_symbols)?.current(
         params.clone(),
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {

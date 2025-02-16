@@ -11,7 +11,7 @@ use strum::IntoEnumIterator as _;
 pub(crate) use vscode_dark::vscode_dark;
 pub(crate) use vscode_light::vscode_light;
 
-use crate::{grid::StyleKey, style::Style};
+use crate::{env::parse_env, grid::StyleKey, style::Style};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct Theme {
@@ -92,36 +92,32 @@ impl Theme {
             StyleKey::KeymapKey => self.ui.keymap_key,
             StyleKey::UiFuzzyMatchedChar => self.ui.fuzzy_matched_char,
             StyleKey::ParentLine => Style::new().background_color(self.ui.parent_lines_background),
+            StyleKey::UiPrimarySelectionSecondaryCursor => {
+                self.ui.primary_selection_secondary_cursor
+            }
+            StyleKey::UiSecondarySelectionPrimaryCursor => {
+                self.ui.secondary_selection_primary_cursor
+            }
+            StyleKey::UiSecondarySelectionSecondaryCursor => {
+                self.ui.secondary_selection_secondary_cursor
+            }
+            StyleKey::UiSectionDivider => {
+                Style::new().background_color(self.ui.section_divider_background)
+            }
         }
     }
 }
 
 impl Default for Theme {
     fn default() -> Self {
-        let desired_theme_name = std::env::var("KI_EDITOR_THEME")
-            .unwrap_or_else(|_| "VS Code (Light)".to_string())
-            .to_lowercase();
+        let default_theme_descriptor = parse_env(
+            "KI_EDITOR_THEME",
+            &theme_descriptor::all(),
+            |theme| theme.name(),
+            theme_descriptor::ThemeDescriptor::default(),
+        );
 
-        let available_themes = theme_descriptor::all();
-        available_themes
-            .iter()
-            .find(|theme| theme.name().to_lowercase() == desired_theme_name)
-            .unwrap_or_else(|| {
-                let theme_names: Vec<String> = available_themes
-                    .iter()
-                    .map(|theme| format!("  * {}", theme.name()))
-                    .collect();
-                let themes_list = theme_names.join("\n");
-                panic!(
-                    "
-{} theme was not found. Please update your KI_EDITOR_THEME environment variable.
-
-Available themes are:
-{}",
-                    desired_theme_name, themes_list
-                );
-            })
-            .to_theme()
+        default_theme_descriptor.to_theme()
     }
 }
 
@@ -153,6 +149,7 @@ pub(crate) struct UiStyles {
     pub(crate) window_title_focused: Style,
     pub(crate) window_title_unfocused: Style,
     pub(crate) parent_lines_background: Color,
+    pub(crate) section_divider_background: Color,
     pub(crate) jump_mark_odd: Style,
     pub(crate) jump_mark_even: Style,
     pub(crate) text_foreground: Color,

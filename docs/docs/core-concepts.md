@@ -18,7 +18,42 @@ Consequently, all movements are bound to the same keymaps.
 
 By combining movements and selection modes, it's easy to perform any kind of movements imaginable.
 
-## 2. Every component is a buffer/editor
+## 2. Positional Keymaps
+
+The keymaps of Ki are strictly positional, meaning they no longer rely on mnemonics (for example, `p` for Put in Vim).
+
+This entails:
+
+### A. Keyboard Layout Agnostic
+
+No matter which keyboard layout you use, be it QWERTY, Dvorak, Colemak, etc., the keymap of Ki remains unchanged.
+
+### B. Bigram Optimization
+
+Because we are no longer bound by mnemonics, we can optimize common bigrams using either Colemak's Rolling
+or Dvorak's Hand Alternation.
+
+For example, copying and pasting the current selection is done by pressing `c` then `v` on QWERTY.
+
+### C. Positional Coherence
+
+Actions with similar meanings are placed in the same position across the shift, alt, or menu layers.
+
+For example, the actions on the position of `m` on QWERTY roughly relate to the concept of "Change".
+
+| Mode          | Meaning         |
+| ------------- | --------------- |
+| Normal        | Change          |
+| File Explorer | Rename File     |
+| Extend        | Change Surround |
+| Space Menu    | LSP Rename      |
+
+### D. Travel Distance Optimization
+
+The placement of actions are also guided by their ubiquity, more commonly used actions
+will placed on better positions such as the homerow.
+
+## 3. Every component is a buffer/editor
 
 This is also a core philosophy of Emacs and Vim, however in the recent modal editors such as Kakoune, Neovim, and Helix, they took another approach (the standard GUI approach) where every component is different.
 
@@ -30,7 +65,7 @@ Although having different components greatly improves the aesthetic, it's not wi
 
 Unlike Emacs and Vim, Ki took this approach to the extreme, literally everything is an editor, including prompt and completion dropdown.
 
-## 3. Minimal configurations
+## 4. Minimal configurations
 
 Part of the reason why Ki was created is due to the configuration nightmare that I have been through when using Neovim for the past 4 years.
 
@@ -43,15 +78,6 @@ That being said, the following components should be configurable:
    - Formatter
    - Tree-sitter grammar
    - LSP
-3. Keybindings
-
-## 4. Vim keybindings-compatible
-
-This is because I do not want to alienate existing modal editor users, where most of their keybindings are also based on Vim.
-
-A significant portions of Ki's keybindings are based on Vim's keybindings, but repurposed.
-
-For example, hjkl is also part of Ki, however, their meaning has been generalized to not only work for lines and columns, as mentioned above.
 
 ## 5. Keybindings synergy
 

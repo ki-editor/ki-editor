@@ -5,10 +5,11 @@ use super::{ByteRange, SelectionMode};
 pub struct Token {
     normal_regex: super::Regex,
     symbol_skipping_regex: super::Regex,
+    skip_symbols: bool,
 }
 
 impl Token {
-    pub(crate) fn new(buffer: &Buffer) -> anyhow::Result<Self> {
+    pub(crate) fn new(buffer: &Buffer, skip_symbols: bool) -> anyhow::Result<Self> {
         let config = crate::list::grep::RegexConfig {
             escaped: false,
             case_sensitive: false,
@@ -17,6 +18,7 @@ impl Token {
         Ok(Self {
             normal_regex: super::Regex::from_config(buffer, r"((\w|-)+)|([^a-zA-Z\d\s])", config)?,
             symbol_skipping_regex: super::Regex::from_config(buffer, r"(\w|-)+", config)?,
+            skip_symbols,
         })
     }
 }
@@ -25,19 +27,11 @@ impl SelectionMode for Token {
         &'a self,
         params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
-        self.normal_regex.iter(params)
-    }
-    fn next(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.symbol_skipping_regex.next(params)
-    }
-    fn previous(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.symbol_skipping_regex.previous(params)
+        if self.skip_symbols {
+            self.symbol_skipping_regex.iter(params)
+        } else {
+            self.normal_regex.iter(params)
+        }
     }
     fn first(
         &self,
@@ -83,18 +77,39 @@ impl SelectionMode for Token {
 }
 
 #[cfg(test)]
-mod test_word {
+mod test_token {
     use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
 
     use super::*;
 
     #[test]
-    fn case_1() {
+    fn skip_symbols() {
         let buffer = Buffer::new(
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE kebab-case ->() 123 <_>",
         );
-        Token::new(&buffer).unwrap().assert_all_selections(
+        Token::new(&buffer, true).unwrap().assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[
+                (0..10, "snake_case"),
+                (11..20, "camelCase"),
+                (21..31, "PascalCase"),
+                (32..43, "UPPER_SNAKE"),
+                (44..54, "kebab-case"),
+                (55..56, "-"),
+                (60..63, "123"),
+                (65..66, "_"),
+            ],
+        );
+    }
+    #[test]
+    fn no_skip_symbols() {
+        let buffer = Buffer::new(
+            None,
+            "snake_case camelCase PascalCase UPPER_SNAKE kebab-case ->() 123 <_>",
+        );
+        Token::new(&buffer, false).unwrap().assert_all_selections(
             &buffer,
             Selection::default(),
             &[
