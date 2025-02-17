@@ -2,6 +2,8 @@ use super::language::{Command, GrammarConfig, Language, LanguageId, LspCommand};
 
 pub const LANGUAGES: &[&Language] = &[
     &bash(),
+    &fish(),
+    &unison(),
     &c(),
     &common_lisp(),
     &cpp(),
@@ -63,6 +65,25 @@ const fn bash() -> Language {
     }
 }
 
+const fn fish() -> Language {
+    Language {
+        extensions: &["fish"],
+        formatter_command: Some(Command("fish --no-execute ", &[".fish"])),
+        lsp_command: Some(LspCommand {
+            command: Command("fish-lsp", &["start"]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("fish")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "fish",
+            url: "https://github.com/ram02z/tree-sitter-fish",
+            commit: "master",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+
 const fn c() -> Language {
     Language {
         extensions: &["c", "h"],
@@ -75,6 +96,23 @@ const fn c() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "c",
             url: "https://github.com/tree-sitter/tree-sitter-c",
+            commit: "master",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+const fn unison() -> Language {
+    Language {
+        extensions: &["u"],
+        lsp_command: Some(LspCommand {
+            command: Command("nc", &["localhost", "5757"]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("c")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "unison",
+            url: "https://github.com/kylegoetz/tree-sitter-unison",
             commit: "master",
             subpath: None,
         }),
