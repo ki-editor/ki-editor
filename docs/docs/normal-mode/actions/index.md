@@ -1,24 +1,11 @@
 import {TutorialFallback} from '@site/src/components/TutorialFallback';
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # Actions
 
 ## Keymap
 
-```
-╭──────────┬───────────┬───────────┬───────────┬────────┬───┬──────────┬───────────┬───────┬───────────┬───╮
-│          ┆           ┆           ┆           ┆        ┆ ⌥ ┆          ┆           ┆       ┆           ┆   │
-│ ← Search ┆           ┆           ┆           ┆  Raise ┆ ⇧ ┆          ┆ ← Replace ┆  Join ┆ Replace → ┆   │
-│ Search → ┆           ┆    This   ┆           ┆        ┆ ∅ ┆          ┆  ← Insert ┆       ┆  Insert → ┆   │
-├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┤
-│          ┆           ┆           ┆           ┆        ┆ ⌥ ┆          ┆           ┆       ┆           ┆   │
-│          ┆           ┆           ┆ Transform ┆ ← Open ┆ ⇧ ┆ ← Delete ┆   Dedent  ┆ Break ┆   Indent  ┆   │
-│          ┆           ┆           ┆           ┆ Open → ┆ ∅ ┆ Delete → ┆           ┆       ┆           ┆   │
-├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┤
-│          ┆           ┆           ┆           ┆        ┆ ⌥ ┆          ┆           ┆       ┆           ┆   │
-│   Redo   ┆ Replace # ┆ Replace X ┆  Paste ←  ┆        ┆ ⇧ ┆          ┆  Change X ┆       ┆           ┆   │
-│   Undo   ┆  Replace  ┆    Copy   ┆  Paste →  ┆  Mark  ┆ ∅ ┆          ┆   Change  ┆       ┆           ┆   │
-╰──────────┴───────────┴───────────┴───────────┴────────┴───┴──────────┴───────────┴───────┴───────────┴───╯
-```
+<KeymapFallback filename="Actions"/>
 
 ## Notes for reading
 

@@ -1,24 +1,11 @@
 import {TutorialFallback} from '@site/src/components/TutorialFallback';
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # Other Movements
 
 ## Keymap
 
-```
-╭───┬───┬───┬───┬───┬───┬────────┬──────────┬──────────┬──────────┬──────────╮
-│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆        ┆ ← Select ┆ Scroll ↑ ┆ Select → ┆          │
-│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆ ← Curs ┆          ┆          ┆          ┆  Curs →  │
-│   ┆   ┆   ┆   ┆   ┆ ∅ ┆        ┆          ┆          ┆          ┆          │
-├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
-│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆        ┆ ← Buffer ┆ Scroll ↓ ┆ Buffer → ┆          │
-│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆        ┆          ┆          ┆          ┆          │
-│   ┆   ┆   ┆   ┆   ┆ ∅ ┆        ┆          ┆          ┆          ┆          │
-├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
-│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆        ┆          ┆          ┆          ┆          │
-│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆        ┆          ┆          ┆          ┆ ⇋ Anchor │
-│   ┆   ┆   ┆   ┆   ┆ ∅ ┆        ┆          ┆          ┆          ┆  ⇋ Curs  │
-╰───┴───┴───┴───┴───┴───┴────────┴──────────┴──────────┴──────────┴──────────╯
-```
+<KeymapFallback filename="Other Movements"/>
 
 The movements categorized here are not affected or bounded by [Selection Modes](./selection-modes/index.md).
 

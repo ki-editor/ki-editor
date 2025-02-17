@@ -3,6 +3,7 @@ sidebar_position: 2
 ---
 
 import {TutorialFallback} from '@site/src/components/TutorialFallback';
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # Core Movements
 
@@ -22,21 +23,7 @@ There are 9 movements in total:
 
 ## Keymap
 
-```
-╭───┬───┬───┬───┬───┬───┬───┬───┬────┬────┬───────╮
-│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆   ┆   ┆    ┆    ┆       │
-│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆   ┆   ┆    ┆    ┆       │
-│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆  ▲ ┆    ┆       │
-├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌┼╌╌╌╌┼╌╌╌╌╌╌╌┤
-│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆   ┆   ┆    ┆    ┆       │
-│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆   ┆   ┆    ┆    ┆ Index │
-│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆ ◀ ┆  ▼ ┆  ▶ ┆  Jump │
-├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌┼╌╌╌╌┼╌╌╌╌╌╌╌┤
-│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆   ┆   ┆    ┆    ┆       │
-│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆   ┆   ┆    ┆    ┆       │
-│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆ ◀◀ ┆ ▶▶ ┆       │
-╰───┴───┴───┴───┴───┴───┴───┴───┴────┴────┴───────╯
-```
+<KeymapFallback filename="Movements"/>
 
 ### `◀` `▶` Left/Right
 

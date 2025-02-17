@@ -3,6 +3,7 @@ sidebar_position: 7.5
 ---
 
 import {TutorialFallback} from '@site/src/components/TutorialFallback';
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # Extend Mode
 
@@ -18,21 +19,7 @@ leads to one of the following:
 
 ### Keymap
 
-```
-╭───┬───┬───┬────────────┬──────────┬───┬─────────────────┬─────────────────┬───┬────────┬───╮
-│   ┆   ┆   ┆            ┆          ┆ ⌥ ┆                 ┆                 ┆   ┆        ┆   │
-│   ┆   ┆   ┆            ┆          ┆ ⇧ ┆                 ┆                 ┆   ┆        ┆   │
-│   ┆   ┆   ┆            ┆          ┆ ∅ ┆                 ┆      Inside     ┆   ┆ Around ┆   │
-├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┤
-│   ┆   ┆   ┆            ┆          ┆ ⌥ ┆                 ┆                 ┆   ┆        ┆   │
-│   ┆   ┆   ┆            ┆          ┆ ⇧ ┆                 ┆                 ┆   ┆        ┆   │
-│   ┆   ┆   ┆ Select All ┆ Surround ┆ ∅ ┆ Delete Surround ┆                 ┆   ┆        ┆   │
-├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┤
-│   ┆   ┆   ┆            ┆          ┆ ⌥ ┆                 ┆                 ┆   ┆        ┆   │
-│   ┆   ┆   ┆            ┆          ┆ ⇧ ┆                 ┆                 ┆   ┆        ┆   │
-│   ┆   ┆   ┆            ┆          ┆ ∅ ┆                 ┆ Change Surround ┆   ┆        ┆   │
-╰───┴───┴───┴────────────┴──────────┴───┴─────────────────┴─────────────────┴───┴────────┴───╯
-```
+<KeymapFallback filename="Extend"/>
 
 This is a group of actions that is related to "surround" or "enclosures".
 

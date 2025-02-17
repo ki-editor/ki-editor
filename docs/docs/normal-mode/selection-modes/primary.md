@@ -3,26 +3,13 @@ sidebar_position: 2
 ---
 
 import {TutorialFallback} from '@site/src/components/TutorialFallback';
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # Primary
 
 ## Keymap
 
-```
-╭───────┬────────┬─────────┬───┬───┬───┬───┬───┬───┬───┬───╮
-│       ┆        ┆         ┆   ┆   ┆ ⌥ ┆   ┆   ┆   ┆   ┆   │
-│       ┆  Word  ┆   Char  ┆   ┆   ┆ ⇧ ┆   ┆   ┆   ┆   ┆   │
-│       ┆  Word* ┆         ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
-├╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
-│       ┆        ┆         ┆   ┆   ┆ ⌥ ┆   ┆   ┆   ┆   ┆   │
-│ Line* ┆ Token* ┆ Syntax* ┆   ┆   ┆ ⇧ ┆   ┆   ┆   ┆   ┆   │
-│  Line ┆  Token ┆  Syntax ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
-├╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
-│       ┆        ┆         ┆   ┆   ┆ ⌥ ┆   ┆   ┆   ┆   ┆   │
-│       ┆        ┆         ┆   ┆   ┆ ⇧ ┆   ┆   ┆   ┆   ┆   │
-│       ┆        ┆         ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
-╰───────┴────────┴─────────┴───┴───┴───┴───┴───┴───┴───┴───╯
-```
+<KeymapFallback filename="Primary Selection Modes"/>
 
 ## `Syntax`
 
