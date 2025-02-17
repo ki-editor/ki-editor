@@ -2,6 +2,8 @@
 sidebar_position: 8
 ---
 
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
+
 # Universal Keybindings
 
 ## Intro
@@ -10,21 +12,7 @@ The keybindings presented here work in any [Modes](./modes.md).
 
 ## Keymap
 
-```
-╭───┬────────┬───────┬─────────┬───┬───┬───┬──────┬───┬───┬──────────╮
-│   ┆ Config ┆       ┆         ┆   ┆ ⌥ ┆   ┆      ┆   ┆   ┆          │
-│   ┆        ┆       ┆         ┆   ┆ ⇧ ┆   ┆      ┆   ┆   ┆          │
-│   ┆        ┆       ┆         ┆   ┆ ∅ ┆   ┆      ┆   ┆   ┆          │
-├╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
-│   ┆        ┆       ┆         ┆   ┆ ⌥ ┆   ┆      ┆   ┆   ┆  ⇋ Align │
-│   ┆        ┆       ┆         ┆   ┆ ⇧ ┆   ┆      ┆   ┆   ┆          │
-│   ┆        ┆       ┆         ┆   ┆ ∅ ┆   ┆      ┆   ┆   ┆          │
-├╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
-│   ┆        ┆ Close ┆ Paste → ┆   ┆ ⌥ ┆   ┆ Help ┆   ┆   ┆ ⇋ Window │
-│   ┆        ┆       ┆         ┆   ┆ ⇧ ┆   ┆      ┆   ┆   ┆          │
-│   ┆        ┆       ┆         ┆   ┆ ∅ ┆   ┆      ┆   ┆   ┆          │
-╰───┴────────┴───────┴─────────┴───┴───┴───┴──────┴───┴───┴──────────╯
-```
+<KeymapFallback filename="Universal Keymap"/>
 
 ### `⇋ Align`
 

@@ -1,4 +1,5 @@
 import {TutorialFallback} from '@site/src/components/TutorialFallback';
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # Multi-cursor mode
 
@@ -44,21 +45,7 @@ In the Multi-cursor mode, changing the selection mode means:
 
 Keymap:
 
-```
-╭───┬───┬───┬──────────┬───┬───┬───────────────┬─────────────────┬───┬──────────────┬───╮
-│   ┆   ┆   ┆          ┆   ┆ ⌥ ┆               ┆                 ┆   ┆              ┆   │
-│   ┆   ┆   ┆          ┆   ┆ ⇧ ┆               ┆                 ┆   ┆              ┆   │
-│   ┆   ┆   ┆ Curs All ┆   ┆ ∅ ┆               ┆    Keep Match   ┆   ┆ Remove Match ┆   │
-├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┤
-│   ┆   ┆   ┆          ┆   ┆ ⌥ ┆               ┆                 ┆   ┆              ┆   │
-│   ┆   ┆   ┆          ┆   ┆ ⇧ ┆ Delete Curs ← ┆                 ┆   ┆              ┆   │
-│   ┆   ┆   ┆          ┆   ┆ ∅ ┆ Delete Curs → ┆                 ┆   ┆              ┆   │
-├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┤
-│   ┆   ┆   ┆          ┆   ┆ ⌥ ┆               ┆                 ┆   ┆              ┆   │
-│   ┆   ┆   ┆          ┆   ┆ ⇧ ┆               ┆                 ┆   ┆              ┆   │
-│   ┆   ┆   ┆          ┆   ┆ ∅ ┆               ┆ Keep Prime Curs ┆   ┆              ┆   │
-╰───┴───┴───┴──────────┴───┴───┴───────────────┴─────────────────┴───┴──────────────┴───╯
-```
+<KeymapFallback filename="Multi-cursor"/>
 
 ### A. `Keep Match`/`Remove Match`
 

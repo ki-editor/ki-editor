@@ -7,7 +7,7 @@ use itertools::Itertools;
 use lsp_types::Url;
 use my_proc_macros::{hex, key, keys};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serial_test::serial;
 use strum::IntoEnumIterator;
 
@@ -34,7 +34,8 @@ use crate::{
             Direction, DispatchEditor, IfCurrentNotFound, Mode, Movement, Reveal, ViewAlignment,
         },
         editor_keymap::KeyboardLayoutKind,
-        editor_keymap_printer::{KeymapPrintSection, KeymapPrintSections},
+        editor_keymap_printer::KeymapPrintSections,
+        keymap_legend::Keymap,
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
     context::{GlobalMode, LocalSearchConfigMode},
@@ -2315,21 +2316,14 @@ fn export_keymaps_json() {
             let name = section.name().to_string();
             let rows = section
                 .keys()
-                .into_iter()
+                .iter()
                 .map(|keys| {
                     RowsJson(
-                        keys.into_iter()
+                        keys.iter()
                             .map(|key| {
-                                let normal = key
-                                    .normal
-                                    .as_ref()
-                                    .and_then(|x| x.short_description.clone());
-                                let alted =
-                                    key.alted.as_ref().and_then(|x| x.short_description.clone());
-                                let shifted = key
-                                    .shifted
-                                    .as_ref()
-                                    .and_then(|x| x.short_description.clone());
+                                let normal = key.normal.as_ref().map(Keymap::display);
+                                let alted = key.alted.as_ref().map(Keymap::display);
+                                let shifted = key.shifted.as_ref().map(Keymap::display);
 
                                 KeyJson {
                                     normal,

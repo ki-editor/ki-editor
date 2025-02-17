@@ -2,6 +2,8 @@
 sidebar_position: 3
 ---
 
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
+
 # Secondary
 
 Secondary selection modes are also non-contiguous selection modes.
@@ -24,21 +26,7 @@ Most secondary selection modes are nested below the 3 keybindings below,
 with the exception of Search and Seacrh Current, which are placed on the
 first layer due to their ubiquity.
 
-```
-╭───┬───┬───┬───┬───┬───┬────────┬───┬───┬───┬────────╮
-│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆        ┆   ┆   ┆   ┆        │
-│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆        ┆   ┆   ┆   ┆        │
-│   ┆   ┆   ┆   ┆   ┆ ∅ ┆ ← Find ┆   ┆   ┆   ┆ Find → │
-├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┤
-│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆        ┆   ┆   ┆   ┆        │
-│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆        ┆   ┆   ┆   ┆        │
-│   ┆   ┆   ┆   ┆   ┆ ∅ ┆        ┆   ┆   ┆   ┆        │
-├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┤
-│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆        ┆   ┆   ┆   ┆        │
-│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆        ┆   ┆   ┆   ┆        │
-│   ┆   ┆   ┆   ┆   ┆ ∅ ┆ Global ┆   ┆   ┆   ┆        │
-╰───┴───┴───┴───┴───┴───┴────────┴───┴───┴───┴────────╯
-```
+<KeymapFallback filename="Secondary Selection Modes Init"/>
 
 Local Find is directional, meaning that if the cursor position does not overlap
 with any selections of the chosen secondary selection mode, the cursor will
@@ -67,61 +55,15 @@ They are almost identical except:
 
 ### Local (Forward)
 
-```
-╭──────┬────────┬──────┬──────┬──────────┬───┬───┬───┬───┬───┬────────╮
-│      ┆        ┆      ┆      ┆          ┆ ⌥ ┆   ┆   ┆   ┆   ┆        │
-│      ┆        ┆      ┆      ┆          ┆ ⇧ ┆   ┆   ┆   ┆   ┆        │
-│  One ┆ Config ┆  Int ┆ Last ┆ Quickfix ┆ ∅ ┆   ┆   ┆   ┆   ┆ Repeat │
-├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┤
-│      ┆        ┆      ┆      ┆          ┆ ⌥ ┆   ┆   ┆   ┆   ┆        │
-│      ┆        ┆      ┆ Info ┆   Hunk^  ┆ ⇧ ┆   ┆   ┆   ┆   ┆        │
-│  All ┆  Error ┆ Warn ┆ Hint ┆   Hunk@  ┆ ∅ ┆   ┆   ┆   ┆   ┆        │
-├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┤
-│      ┆        ┆      ┆      ┆          ┆ ⌥ ┆   ┆   ┆   ┆   ┆        │
-│      ┆  Decl  ┆      ┆ Ref+ ┆          ┆ ⇧ ┆   ┆   ┆   ┆   ┆        │
-│ Impl ┆   Def  ┆ Type ┆ Ref- ┆   Mark   ┆ ∅ ┆   ┆   ┆   ┆   ┆        │
-╰──────┴────────┴──────┴──────┴──────────┴───┴───┴───┴───┴───┴────────╯
-```
+<KeymapFallback filename="Secondary Selection Modes (Local Forward)"/>
 
 ### Local (Backward)
 
-Note: only showing difference
-
-```
-╭──────┬───────┬──────┬──────┬──────────┬───┬────────┬───┬───┬───┬───╮
-│      ┆       ┆      ┆      ┆          ┆ ⌥ ┆        ┆   ┆   ┆   ┆   │
-│      ┆       ┆      ┆      ┆          ┆ ⇧ ┆        ┆   ┆   ┆   ┆   │
-│      ┆       ┆      ┆      ┆          ┆ ∅ ┆ Repeat ┆   ┆   ┆   ┆   │
-├╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
-│      ┆       ┆      ┆      ┆          ┆ ⌥ ┆        ┆   ┆   ┆   ┆   │
-│      ┆       ┆      ┆      ┆          ┆ ⇧ ┆        ┆   ┆   ┆   ┆   │
-│      ┆       ┆      ┆      ┆          ┆ ∅ ┆        ┆   ┆   ┆   ┆   │
-├╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
-│      ┆       ┆      ┆      ┆          ┆ ⌥ ┆        ┆   ┆   ┆   ┆   │
-│      ┆       ┆      ┆      ┆          ┆ ⇧ ┆        ┆   ┆   ┆   ┆   │
-│      ┆       ┆      ┆      ┆          ┆ ∅ ┆        ┆   ┆   ┆   ┆   │
-╰──────┴───────┴──────┴──────┴──────────┴───┴────────┴───┴───┴───┴───╯
-```
+<KeymapFallback filename="Secondary Selection Modes (Local Backward)"/>
 
 ### Global
 
-Note: only showing differences
-
-```
-╭────────┬───────┬─────────┬───────────┬──────────┬───┬────────┬───┬───┬───┬───╮
-│        ┆       ┆         ┆           ┆          ┆ ⌥ ┆        ┆   ┆   ┆   ┆   │
-│        ┆       ┆         ┆           ┆          ┆ ⇧ ┆        ┆   ┆   ┆   ┆   │
-│ Search ┆       ┆   This  ┆           ┆          ┆ ∅ ┆        ┆   ┆   ┆   ┆   │
-├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
-│        ┆       ┆         ┆           ┆          ┆ ⌥ ┆        ┆   ┆   ┆   ┆   │
-│        ┆       ┆         ┆           ┆          ┆ ⇧ ┆        ┆   ┆   ┆   ┆   │
-│        ┆       ┆         ┆           ┆          ┆ ∅ ┆        ┆   ┆   ┆   ┆   │
-├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
-│        ┆       ┆         ┆           ┆          ┆ ⌥ ┆        ┆   ┆   ┆   ┆   │
-│        ┆       ┆         ┆           ┆          ┆ ⇧ ┆        ┆   ┆   ┆   ┆   │
-│        ┆       ┆         ┆           ┆          ┆ ∅ ┆ Repeat ┆   ┆   ┆   ┆   │
-╰────────┴───────┴─────────┴───────────┴──────────┴───┴────────┴───┴───┴───┴───╯
-```
+<KeymapFallback filename="Secondary Selection Modes (Global)"/>
 
 ## Search-related
 

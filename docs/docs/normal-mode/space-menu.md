@@ -1,4 +1,5 @@
 import {TutorialFallback} from '@site/src/components/TutorialFallback';
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # Space Menu
 
@@ -14,21 +15,7 @@ The space menu can be brought up by pressing `space`.
 
 ## Keymap
 
-```
-╭───────────────┬───────────┬─────────────┬───────────┬──────────────┬───┬───┬─────────────┬──────────────┬────────┬───╮
-│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆             ┆              ┆        ┆   │
-│  Quit No Save ┆           ┆             ┆           ┆              ┆ ⇧ ┆   ┆             ┆              ┆        ┆   │
-│ Save All Quit ┆  Save All ┆   Explorer  ┆           ┆   Keyboard   ┆ ∅ ┆   ┆ ÷ Selection ┆   ÷ Cursor   ┆ ÷ Mark ┆   │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┤
-│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆             ┆              ┆        ┆   │
-│               ┆           ┆             ┆           ┆ Git status ^ ┆ ⇧ ┆   ┆             ┆              ┆        ┆   │
-│     Theme     ┆   Symbol  ┆    Buffer   ┆    File   ┆ Git status @ ┆ ∅ ┆   ┆    Hover    ┆ Code Actions ┆  Pipe  ┆   │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┤
-│               ┆           ┆             ┆           ┆              ┆ ⌥ ┆   ┆             ┆              ┆        ┆   │
-│               ┆           ┆ + Replace X ┆ ← Paste+  ┆              ┆ ⇧ ┆   ┆  + Change X ┆              ┆        ┆   │
-│   Undo Tree   ┆ + Replace ┆    + Copy   ┆ + Paste → ┆ TS Node Sexp ┆ ∅ ┆   ┆    Rename   ┆              ┆        ┆   │
-╰───────────────┴───────────┴─────────────┴───────────┴──────────────┴───┴───┴─────────────┴──────────────┴────────┴───╯
-```
+<KeymapFallback filename="Space"/>
 
 ## LSP Actions (only applicable in the main editor):
 

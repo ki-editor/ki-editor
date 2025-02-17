@@ -163,16 +163,19 @@ impl KeymapPrintSection {
         format!("{}", table)
     }
 
+    #[cfg(test)]
     pub(crate) fn name(&self) -> &str {
         &self.name
     }
 
+    #[cfg(test)]
     pub(crate) fn keys(&self) -> &Vec<Vec<Key>> {
         &self.keys
     }
 }
 
 pub(crate) struct KeymapPrintSections {
+    #[allow(unused)]
     context: Context,
     sections: Vec<KeymapPrintSection>,
 }
