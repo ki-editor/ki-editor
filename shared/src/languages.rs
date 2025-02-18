@@ -109,7 +109,7 @@ const fn unison() -> Language {
             command: Command("nc", &["localhost", "5757"]),
             ..LspCommand::default()
         }),
-        lsp_language_id: Some(LanguageId::new("c")),
+        lsp_language_id: Some(LanguageId::new("unison")),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "unison",
             url: "https://github.com/kylegoetz/tree-sitter-unison",
