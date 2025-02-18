@@ -1,5 +1,7 @@
 # File Explorer
 
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
+
 Ki's file explorer is rendered using YAML, for example:
 
 ```yaml
@@ -30,21 +32,7 @@ Ki's file explorer is rendered using YAML, for example:
 
 ## Keymap
 
-```
-╭───┬─────────┬───┬──────────┬───┬───┬─────────────┬───────────┬───┬──────────┬───╮
-│   ┆         ┆   ┆          ┆   ┆ ⌥ ┆             ┆           ┆   ┆          ┆   │
-│   ┆         ┆   ┆          ┆   ┆ ⇧ ┆             ┆           ┆   ┆          ┆   │
-│   ┆         ┆   ┆          ┆   ┆ ∅ ┆             ┆           ┆   ┆ Add Path ┆   │
-├╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┤
-│   ┆         ┆   ┆          ┆   ┆ ⌥ ┆             ┆           ┆   ┆          ┆   │
-│   ┆         ┆   ┆          ┆   ┆ ⇧ ┆             ┆           ┆   ┆          ┆   │
-│   ┆         ┆   ┆          ┆   ┆ ∅ ┆ Delete Path ┆           ┆   ┆          ┆   │
-├╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌┤
-│   ┆         ┆   ┆          ┆   ┆ ⌥ ┆             ┆           ┆   ┆          ┆   │
-│   ┆         ┆   ┆          ┆   ┆ ⇧ ┆             ┆           ┆   ┆          ┆   │
-│   ┆ Refresh ┆   ┆ Dup Path ┆   ┆ ∅ ┆             ┆ Move Path ┆   ┆          ┆   │
-╰───┴─────────┴───┴──────────┴───┴───┴─────────────┴───────────┴───┴──────────┴───╯
-```
+<KeymapFallback filename="File Explorer Actions"/>
 
 ## Meanings
 

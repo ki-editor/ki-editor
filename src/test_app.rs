@@ -7,7 +7,9 @@ use itertools::Itertools;
 use lsp_types::Url;
 use my_proc_macros::{hex, key, keys};
 
+use serde::Serialize;
 use serial_test::serial;
+use strum::IntoEnumIterator;
 
 use std::{ops::Range, path::PathBuf, rc::Rc, sync::Mutex};
 pub(crate) use Dispatch::*;
@@ -31,6 +33,9 @@ use crate::{
         editor::{
             Direction, DispatchEditor, IfCurrentNotFound, Mode, Movement, Reveal, ViewAlignment,
         },
+        editor_keymap::KeyboardLayoutKind,
+        editor_keymap_printer::KeymapPrintSections,
+        keymap_legend::Keymap,
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
     context::{GlobalMode, LocalSearchConfigMode},
@@ -2303,6 +2308,80 @@ fn request_signature_help() -> anyhow::Result<()> {
             )),
         ])
     })
+}
+
+#[test]
+/// These JSON files will be used in docs
+fn export_keymaps_json() {
+    #[derive(Serialize, Clone)]
+    struct KeyboardLayoutJson {
+        name: String,
+        keys: Vec<[&'static str; 10]>,
+    }
+
+    #[derive(Serialize)]
+    struct KeyJson {
+        normal: Option<String>,
+        alted: Option<String>,
+        shifted: Option<String>,
+    }
+
+    #[derive(Serialize)]
+    struct RowsJson(Vec<KeyJson>);
+
+    #[derive(Serialize)]
+    struct KeymapSectionJson {
+        name: String,
+        rows: Vec<RowsJson>,
+        keyboard_layouts: Vec<KeyboardLayoutJson>,
+    }
+
+    let get_path = |name: &str| format!("docs/static/keymaps/{}.json", name);
+    let keyboard_layouts = KeyboardLayoutKind::iter()
+        .map(|keyboard_layout| KeyboardLayoutJson {
+            name: keyboard_layout.as_str().to_string(),
+            keys: keyboard_layout.get_keyboard_layout().to_vec(),
+        })
+        .collect_vec();
+    let sections = KeymapPrintSections::new()
+        .sections()
+        .iter()
+        .map(|section| {
+            let name = section.name().to_string();
+            let rows = section
+                .keys()
+                .iter()
+                .map(|keys| {
+                    RowsJson(
+                        keys.iter()
+                            .map(|key| {
+                                let normal = key.normal.as_ref().map(Keymap::display);
+                                let alted = key.alted.as_ref().map(Keymap::display);
+                                let shifted = key.shifted.as_ref().map(Keymap::display);
+
+                                KeyJson {
+                                    normal,
+                                    alted,
+                                    shifted,
+                                }
+                            })
+                            .collect_vec(),
+                    )
+                })
+                .collect_vec();
+            KeymapSectionJson {
+                rows,
+                name,
+                keyboard_layouts: keyboard_layouts.clone(),
+            }
+        })
+        .collect_vec();
+
+    sections.into_iter().for_each(|section| {
+        let path = get_path(&section.name);
+        let json = serde_json::to_string(&section).unwrap();
+        std::fs::write(path, json).unwrap()
+    });
 }
 
 #[serial]

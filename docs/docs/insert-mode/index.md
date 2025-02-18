@@ -2,6 +2,8 @@
 sidebar_position: 6
 ---
 
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
+
 # Insert Mode
 
 In this mode, Ki functions like the usual editor, where pressing keys on
@@ -11,21 +13,7 @@ the keyboard types them into the current opened file.
 
 The following keybindings only work when the completion dropdown is opened.
 
-```
-╭───┬───┬───┬───┬───┬───┬───┬───┬────────┬─────────────┬───╮
-│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆   ┆   ┆ ← Comp ┆             ┆   │
-│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆   ┆   ┆        ┆             ┆   │
-│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆        ┆             ┆   │
-├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┤
-│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆   ┆   ┆ Comp → ┆ Select Comp ┆   │
-│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆   ┆   ┆        ┆             ┆   │
-│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆        ┆             ┆   │
-├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┤
-│   ┆   ┆   ┆   ┆   ┆ ⌥ ┆   ┆   ┆        ┆             ┆   │
-│   ┆   ┆   ┆   ┆   ┆ ⇧ ┆   ┆   ┆        ┆             ┆   │
-│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆        ┆             ┆   │
-╰───┴───┴───┴───┴───┴───┴───┴───┴────────┴─────────────┴───╯
-```
+<KeymapFallback filename="Completion Items"/>
 
 | Label         | Meaning                        |
 | ------------- | ------------------------------ |
@@ -35,21 +23,7 @@ The following keybindings only work when the completion dropdown is opened.
 
 ## Other
 
-```
-╭─────────────┬────────┬───┬────────┬─────────────┬───┬────────────────┬───┬───┬───┬───╮
-│             ┆        ┆   ┆        ┆             ┆ ⌥ ┆                ┆   ┆   ┆   ┆   │
-│             ┆        ┆   ┆        ┆             ┆ ⇧ ┆                ┆   ┆   ┆   ┆   │
-│             ┆        ┆   ┆        ┆             ┆ ∅ ┆                ┆   ┆   ┆   ┆   │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
-│ Kill Line ← ┆ Line ← ┆   ┆ Line → ┆ Kill Line → ┆ ⌥ ┆ Delete Token ← ┆   ┆   ┆   ┆   │
-│             ┆        ┆   ┆        ┆             ┆ ⇧ ┆                ┆   ┆   ┆   ┆   │
-│             ┆        ┆   ┆        ┆             ┆ ∅ ┆                ┆   ┆   ┆   ┆   │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
-│             ┆        ┆   ┆        ┆             ┆ ⌥ ┆                ┆   ┆   ┆   ┆   │
-│             ┆        ┆   ┆        ┆             ┆ ⇧ ┆                ┆   ┆   ┆   ┆   │
-│             ┆        ┆   ┆        ┆             ┆ ∅ ┆                ┆   ┆   ┆   ┆   │
-╰─────────────┴────────┴───┴────────┴─────────────┴───┴────────────────┴───┴───┴───┴───╯
-```
+<KeymapFallback filename="Insert"/>
 
 | Label/Keybinding | Meaning               |
 | ---------------- | --------------------- |
