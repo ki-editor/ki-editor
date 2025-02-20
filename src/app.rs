@@ -656,7 +656,7 @@ impl<T: Frontend> App<T> {
             Dispatch::Custom(_) => unreachable!(),
             Dispatch::RemainOnlyCurrentComponent => self.layout.remain_only_current_component(),
             Dispatch::ToEditor(dispatch_editor) => self.handle_dispatch_editor(dispatch_editor)?,
-            Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
+            Dispatch::GotoLocation(location) => self.go_to_location(&location, true)?,
             Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt()?,
             Dispatch::QuitAll => self.quit_all()?,
             Dispatch::SaveQuitAll => self.save_quit_all()?,
@@ -811,6 +811,9 @@ impl<T: Frontend> App<T> {
                 self.context.set_keyboard_layout_kind(keyboard_layout_kind)
             }
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_prompt()?,
+            Dispatch::PushLocationHistory(location) => self.context.push_location_history(location),
+            Dispatch::NavigateForward => self.navigate_forward()?,
+            Dispatch::NavigateBack => self.navigate_back()?,
         }
         Ok(())
     }
@@ -1079,6 +1082,12 @@ impl<T: Frontend> App<T> {
         owner: BufferOwner,
         focus: bool,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
+        if matches!(owner, BufferOwner::User) {
+            self.context.push_location_history(Location {
+                path: path.clone(),
+                range: Default::default(),
+            })
+        }
         // Check if the file is opened before so that we won't notify the LSP twice
         if let Some(matching_editor) = self.layout.open_file(path, focus) {
             return Ok(matching_editor);
@@ -1120,7 +1129,9 @@ impl<T: Frontend> App<T> {
             )),
             LspNotification::Definition(context, response) => {
                 match response {
-                    GotoDefinitionResponse::Single(location) => self.go_to_location(&location)?,
+                    GotoDefinitionResponse::Single(location) => {
+                        self.go_to_location(&location, true)?
+                    }
                     GotoDefinitionResponse::Multiple(locations) => {
                         if locations.is_empty() {
                             self.show_global_info(Info::new(
@@ -1271,13 +1282,18 @@ impl<T: Frontend> App<T> {
         });
     }
 
-    fn go_to_location(&mut self, Location { path, range }: &Location) -> Result<(), anyhow::Error> {
-        let component = self.open_file(path, BufferOwner::System, true)?;
+    fn go_to_location(
+        &mut self,
+        location: &Location,
+        store_history: bool,
+    ) -> Result<(), anyhow::Error> {
+        let component = self.open_file(&location.path, BufferOwner::System, true)?;
         let dispatches = component
             .borrow_mut()
             .editor_mut()
-            .set_position_range(range.clone())?;
-        self.handle_dispatches(dispatches)
+            .set_position_range(location.range.clone(), store_history)?;
+        self.handle_dispatches(dispatches)?;
+        Ok(())
     }
 
     fn set_quickfix_list_type(
@@ -2333,6 +2349,22 @@ impl<T: Frontend> App<T> {
             None,
         )
     }
+
+    fn navigate_back(&mut self) -> anyhow::Result<()> {
+        log::info!("\n\nnavigating back");
+        if let Some(location) = self.context.previous_location() {
+            log::info!("navigating back location = {location:?}\n\n");
+            self.go_to_location(&location, false)?
+        }
+        Ok(())
+    }
+
+    fn navigate_forward(&mut self) -> anyhow::Result<()> {
+        if let Some(location) = self.context.next_location() {
+            self.go_to_location(&location, false)?
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2574,6 +2606,9 @@ pub(crate) enum Dispatch {
     SelectCompletionItem,
     SetKeyboardLayoutKind(KeyboardLayoutKind),
     OpenKeyboardLayoutPrompt,
+    PushLocationHistory(Location),
+    NavigateForward,
+    NavigateBack,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

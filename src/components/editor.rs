@@ -13,6 +13,7 @@ use crate::{
     edit::{Action, ActionGroup, Edit, EditTransaction},
     lsp::completion::PositionalEdit,
     position::Position,
+    quickfix_list::Location,
     rectangle::Rectangle,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
@@ -646,12 +647,29 @@ impl Editor {
             .reduce(Info::join)
             .map(Dispatch::ShowEditorInfo);
         self.cursor_direction = Direction::Start;
-        if store_history {
+        let dispatches = if store_history {
             self.buffer_mut()
                 .push_selection_set_history(selection_set.clone());
-        }
+            self.buffer()
+                .path()
+                .and_then(|path| {
+                    return None;
+                    Some(Dispatches::one(Dispatch::PushLocationHistory(Location {
+                        path,
+                        range: self
+                            .buffer()
+                            .char_index_range_to_position_range(
+                                self.selection_set.primary_selection().extended_range(),
+                            )
+                            .ok()?,
+                    })))
+                })
+                .unwrap_or_default()
+        } else {
+            Default::default()
+        };
         self.set_selection_set(selection_set);
-        Dispatches::default().append_some(show_info)
+        dispatches.append_some(show_info)
     }
 
     pub(crate) fn position_range_to_selection_set(
@@ -2785,9 +2803,10 @@ impl Editor {
     pub(crate) fn set_position_range(
         &mut self,
         range: Range<Position>,
+        store_history: bool,
     ) -> Result<Dispatches, anyhow::Error> {
         let selection_set = self.position_range_to_selection_set(range)?;
-        Ok(self.update_selection_set(selection_set, true))
+        Ok(self.update_selection_set(selection_set, store_history))
     }
 
     fn select_surround(

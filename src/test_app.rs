@@ -2491,3 +2491,106 @@ c1 c2 a1\nb1\nc1
         }
     })
 }
+
+#[test]
+fn test_navigate_back_from_open_file() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            App(NavigateBack),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            App(NavigateForward),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn test_navigate_back_from_go_to_location() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(GotoLocation(Location {
+                path: s.main_rs(),
+                range: Default::default(),
+            })),
+            App(GotoLocation(Location {
+                path: s.foo_rs(),
+                range: Default::default(),
+            })),
+            App(GotoLocation(Location {
+                path: s.gitignore(),
+                range: Default::default(),
+            })),
+            Expect(CurrentComponentPath(Some(s.gitignore()))),
+            App(NavigateBack),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            App(NavigateBack),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn test_navigate_back_should_ignore_duplicated_entries() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            App(NavigateBack),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn test_navigate_back_should_skip_proximate_entries() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(GotoLocation(Location {
+                path: s.main_rs(),
+                range: Position::new(0, 0)..Position::new(0, 1),
+            })),
+            App(GotoLocation(Location {
+                path: s.main_rs(),
+                range: Position::new(0, 1)..Position::new(0, 2), // Navigate to other selection of the same line
+            })),
+            App(GotoLocation(Location {
+                path: s.foo_rs(),
+                range: Default::default(),
+            })),
+            App(GotoLocation(Location {
+                path: s.gitignore(),
+                range: Default::default(),
+            })),
+            Expect(CurrentComponentPath(Some(s.gitignore()))),
+            App(NavigateBack),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            App(NavigateBack),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}

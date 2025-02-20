@@ -43,7 +43,7 @@ pub(crate) const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
     // TODO: Implement Up Line and Down Line
     // The cursor should be placed at the of the line
     [
-        KilLP, CSrch, LineU, _____, KilLN, /****/ _____, GBack, ScrlU, GForw, _____,
+        KilLP, CSrch, LineU, _____, KilLN, /****/ NBack, GBack, ScrlU, GForw, NForw,
     ],
     [
         _____, LineP, LineD, LineN, OpenM, /****/ DTknP, BuffP, ScrlD, BuffN, SView,
@@ -524,6 +524,10 @@ pub(crate) enum Meaning {
     GBack,
     /// Go forward
     GForw,
+    /// Navigate back (faster alternative of Go Back, skips contiguous navigation, works across files)
+    NBack,
+    /// Navigate forward
+    NForw,
     /// Find (global)
     Globl,
     /// Indent

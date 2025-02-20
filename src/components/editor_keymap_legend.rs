@@ -124,6 +124,18 @@ impl Editor {
                 Dispatch::ToEditor(GoForward),
             ),
             Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::NBack),
+                Direction::Start.format_action("Select"),
+                "Navigate back".to_string(),
+                Dispatch::NavigateBack,
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::NForw),
+                Direction::End.format_action("Select"),
+                "Navigate forward".to_string(),
+                Dispatch::NavigateForward,
+            ),
+            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::BuffP),
                 Direction::Start.format_action("Buffer"),
                 "Go to previous buffer".to_string(),
