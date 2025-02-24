@@ -1,7 +1,17 @@
 use crate::components::editor_keymap_printer;
+use chrono::Local;
 use clap::{Args, Parser, Subcommand};
 use shared::canonicalized_path::CanonicalizedPath;
+use std::fs::File;
+use std::io::{self, IsTerminal, Read};
+use std::path::PathBuf;
 
+/// A combinatorial text editor.
+///
+/// STDIN HANDLING:
+/// When input is piped through stdin (e.g., `echo "hello" | ki` or `cat file.txt | ki`),
+/// the content will be automatically saved to a timestamp-based file (YYYY-MM-DD-HH-MM-SS.txt)
+/// in the current working directory and opened in the editor.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
@@ -51,6 +61,8 @@ enum Commands {
 
 #[derive(Args, Default, Clone)]
 struct EditArgs {
+    /// Path to file to edit. If not provided and stdin is not connected to a terminal,
+    /// content will be read from stdin and saved to a timestamp-based file
     path: Option<String>,
 }
 
@@ -83,6 +95,22 @@ enum KeymapFormat {
     Table,
 }
 
+fn create_timestamp_file() -> anyhow::Result<(PathBuf, File)> {
+    let timestamp = Local::now().format("%Y-%m-%d-%H-%M-%S").to_string();
+    let path = PathBuf::from(format!("{}.txt", timestamp));
+    let file = File::create(&path)?;
+    Ok((path, file))
+}
+
+fn read_stdin() -> anyhow::Result<PathBuf> {
+    let mut buffer = String::new();
+    io::stdin().read_to_string(&mut buffer)?;
+
+    let (path, mut file) = create_timestamp_file()?;
+    std::io::Write::write_all(&mut file, buffer.as_bytes())?;
+    Ok(path)
+}
+
 fn run_edit_command(args: EditArgs) -> anyhow::Result<()> {
     match args.path {
         Some(path) => {
@@ -103,7 +131,21 @@ fn run_edit_command(args: EditArgs) -> anyhow::Result<()> {
                 working_directory,
             })
         }
-        None => crate::run(Default::default()),
+        None => {
+            // If no path is provided and stdin is not a terminal, read from stdin
+            if !io::stdin().is_terminal() {
+                let path = read_stdin()?;
+                let canonicalized_path: Option<CanonicalizedPath> =
+                    Some(path.to_string_lossy().to_string().try_into()?);
+
+                crate::run(crate::RunConfig {
+                    entry_path: canonicalized_path,
+                    working_directory: None,
+                })
+            } else {
+                crate::run(Default::default())
+            }
+        }
     }
 }
 
