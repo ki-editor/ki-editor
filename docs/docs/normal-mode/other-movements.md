@@ -58,6 +58,10 @@ expanding the current selection to parent node.
 Use `← Select` to restore the selection to the previous state.  
 Press `Select →` to restore the selection to the current state.
 
+### `← Nav`/`Nav →`
+
+This is useful for navigating back to the previous locations after action such as Go to Definition/References, or Global Search, etc.
+
 ### `← Curs`/`Curs →`
 
 Cycle primary cursor (selection) backward/forward.

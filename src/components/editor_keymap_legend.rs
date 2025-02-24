@@ -125,13 +125,13 @@ impl Editor {
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::NBack),
-                Direction::Start.format_action("Select"),
+                Direction::Start.format_action("Nav"),
                 "Navigate back".to_string(),
                 Dispatch::NavigateBack,
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::NForw),
-                Direction::End.format_action("Select"),
+                Direction::End.format_action("Nav"),
                 "Navigate forward".to_string(),
                 Dispatch::NavigateForward,
             ),

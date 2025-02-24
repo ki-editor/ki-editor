@@ -13,7 +13,6 @@ use crate::{
     edit::{Action, ActionGroup, Edit, EditTransaction},
     lsp::completion::PositionalEdit,
     position::Position,
-    quickfix_list::Location,
     rectangle::Rectangle,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
@@ -647,29 +646,12 @@ impl Editor {
             .reduce(Info::join)
             .map(Dispatch::ShowEditorInfo);
         self.cursor_direction = Direction::Start;
-        let dispatches = if store_history {
+        if store_history {
             self.buffer_mut()
                 .push_selection_set_history(selection_set.clone());
-            self.buffer()
-                .path()
-                .and_then(|path| {
-                    return None;
-                    Some(Dispatches::one(Dispatch::PushLocationHistory(Location {
-                        path,
-                        range: self
-                            .buffer()
-                            .char_index_range_to_position_range(
-                                self.selection_set.primary_selection().extended_range(),
-                            )
-                            .ok()?,
-                    })))
-                })
-                .unwrap_or_default()
-        } else {
-            Default::default()
-        };
+        }
         self.set_selection_set(selection_set);
-        dispatches.append_some(show_info)
+        Dispatches::default().append_some(show_info)
     }
 
     pub(crate) fn position_range_to_selection_set(
@@ -3454,6 +3436,12 @@ impl Editor {
             .unwrap_or_default();
         self.disable_selection_extension();
         dispatches
+    }
+
+    pub(crate) fn current_selection_range(&self) -> anyhow::Result<Range<Position>> {
+        self.buffer().char_index_range_to_position_range(
+            self.selection_set.primary_selection().extended_range(),
+        )
     }
 }
 

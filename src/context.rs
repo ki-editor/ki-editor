@@ -11,7 +11,6 @@ use crate::{
     app::{GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate, Scope},
     clipboard::{Clipboard, CopiedTexts},
     components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
-    history::History,
     list::grep::RegexConfig,
     quickfix_list::{DiagnosticSeverityRange, Location},
     selection::SelectionMode,
@@ -32,7 +31,8 @@ pub(crate) struct Context {
     prompt_histories: HashMap<PromptHistoryKey, IndexSet<String>>,
     last_non_contiguous_selection_mode: Option<Either<SelectionMode, GlobalMode>>,
     keyboard_layout_kind: KeyboardLayoutKind,
-    location_history: History<Location>,
+    location_history_backward: Vec<Location>,
+    location_history_forward: Vec<Location>,
 }
 
 pub(crate) struct QuickfixListState {
@@ -88,7 +88,8 @@ impl Default for Context {
                     Qwerty,
                 )
             },
-            location_history: History::new(),
+            location_history_backward: Vec::new(),
+            location_history_forward: Vec::new(),
         }
     }
 }
@@ -279,16 +280,20 @@ impl Context {
     }
 
     pub(crate) fn push_location_history(&mut self, location: Location) {
-        log::info!("Pushing location history = {location:?}");
-        self.location_history.push(location)
+        self.location_history_backward.push(location);
+        self.location_history_forward.clear();
+    }
+
+    pub(crate) fn push_forward_location_history(&mut self, location: Location) {
+        self.location_history_forward.push(location);
     }
 
     pub(crate) fn previous_location(&mut self) -> Option<Location> {
-        self.location_history.undo()
+        self.location_history_backward.pop()
     }
 
     pub(crate) fn next_location(&mut self) -> Option<Location> {
-        self.location_history.redo()
+        self.location_history_forward.pop()
     }
 }
 
