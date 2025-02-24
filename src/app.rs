@@ -170,7 +170,7 @@ impl<T: Frontend> App<T> {
             if entry_path.as_ref().is_dir() {
                 self.layout.open_file_explorer();
             } else {
-                self.open_file(&entry_path, BufferOwner::User, true)?;
+                self.open_file(&entry_path, BufferOwner::User, true, true)?;
             }
         }
 
@@ -471,10 +471,10 @@ impl<T: Frontend> App<T> {
             } => self.open_search_prompt(scope, if_current_not_found)?,
             Dispatch::OpenPipeToShellPrompt => self.open_pipe_to_shell_prompt()?,
             Dispatch::OpenFile { path, owner, focus } => {
-                self.open_file(&path, owner, focus)?;
+                self.open_file(&path, owner, true, focus)?;
             }
             Dispatch::OpenFileFromPathBuf { path, owner, focus } => {
-                self.open_file(&path.try_into()?, owner, focus)?;
+                self.open_file(&path.try_into()?, owner, true, focus)?;
             }
 
             Dispatch::OpenFilePicker(kind) => {
@@ -656,7 +656,7 @@ impl<T: Frontend> App<T> {
             Dispatch::Custom(_) => unreachable!(),
             Dispatch::RemainOnlyCurrentComponent => self.layout.remain_only_current_component(),
             Dispatch::ToEditor(dispatch_editor) => self.handle_dispatch_editor(dispatch_editor)?,
-            Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
+            Dispatch::GotoLocation(location) => self.go_to_location(&location, true)?,
             Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt()?,
             Dispatch::QuitAll => self.quit_all()?,
             Dispatch::SaveQuitAll => self.save_quit_all()?,
@@ -811,6 +811,8 @@ impl<T: Frontend> App<T> {
                 self.context.set_keyboard_layout_kind(keyboard_layout_kind)
             }
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_prompt()?,
+            Dispatch::NavigateForward => self.navigate_forward()?,
+            Dispatch::NavigateBack => self.navigate_back()?,
         }
         Ok(())
     }
@@ -1071,14 +1073,17 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    /// This only opens the file in the background but does not focus it.
-    /// If you need to focus it, use `Self::go_to_file` instead.
     fn open_file(
         &mut self,
         path: &CanonicalizedPath,
         owner: BufferOwner,
+        store_history: bool,
         focus: bool,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
+        if store_history {
+            self.push_current_location_into_navigation_history(true)?;
+        }
+
         // Check if the file is opened before so that we won't notify the LSP twice
         if let Some(matching_editor) = self.layout.open_file(path, focus) {
             return Ok(matching_editor);
@@ -1120,7 +1125,9 @@ impl<T: Frontend> App<T> {
             )),
             LspNotification::Definition(context, response) => {
                 match response {
-                    GotoDefinitionResponse::Single(location) => self.go_to_location(&location)?,
+                    GotoDefinitionResponse::Single(location) => {
+                        self.go_to_location(&location, true)?
+                    }
                     GotoDefinitionResponse::Multiple(locations) => {
                         if locations.is_empty() {
                             self.show_global_info(Info::new(
@@ -1229,7 +1236,7 @@ impl<T: Frontend> App<T> {
         path: CanonicalizedPath,
         diagnostics: Vec<lsp_types::Diagnostic>,
     ) -> anyhow::Result<()> {
-        let component = self.open_file(&path, BufferOwner::System, false)?;
+        let component = self.open_file(&path, BufferOwner::System, false, false)?;
 
         component
             .borrow_mut()
@@ -1271,13 +1278,18 @@ impl<T: Frontend> App<T> {
         });
     }
 
-    fn go_to_location(&mut self, Location { path, range }: &Location) -> Result<(), anyhow::Error> {
-        let component = self.open_file(path, BufferOwner::System, true)?;
+    fn go_to_location(
+        &mut self,
+        location: &Location,
+        store_history: bool,
+    ) -> Result<(), anyhow::Error> {
+        let component = self.open_file(&location.path, BufferOwner::System, store_history, true)?;
         let dispatches = component
             .borrow_mut()
             .editor_mut()
-            .set_position_range(range.clone())?;
-        self.handle_dispatches(dispatches)
+            .set_position_range(location.range.clone())?;
+        self.handle_dispatches(dispatches)?;
+        Ok(())
     }
 
     fn set_quickfix_list_type(
@@ -1300,13 +1312,15 @@ impl<T: Frontend> App<T> {
                     .into_iter()
                     .chunk_by(|item| item.location().path.clone())
                     .into_iter()
+                    .sorted_by_key(|(path, _)| path.clone())
                     .map(|(path, items)| -> anyhow::Result<()> {
-                        let editor = self.open_file(&path, BufferOwner::System, true)?;
+                        let items = items.collect_vec();
+                        let editor = self.open_file(&path, BufferOwner::System, false, false)?;
                         editor
                             .borrow_mut()
                             .editor_mut()
                             .buffer_mut()
-                            .update_quickfix_list_items(items.collect_vec());
+                            .update_quickfix_list_items(items);
                         Ok(())
                     })
                     .collect::<anyhow::Result<Vec<_>>>()?;
@@ -1334,7 +1348,7 @@ impl<T: Frontend> App<T> {
         // TODO: should we wrap this in a transaction so that if one of the edit/operation fails, the whole transaction fails?
         // Such that it won't leave the workspace in an half-edited messed up state
         for edit in workspace_edit.edits {
-            let component = self.open_file(&edit.path, BufferOwner::System, false)?;
+            let component = self.open_file(&edit.path, BufferOwner::System, false, false)?;
             let dispatches = component
                 .borrow_mut()
                 .editor_mut()
@@ -2333,6 +2347,38 @@ impl<T: Frontend> App<T> {
             None,
         )
     }
+
+    fn navigate_back(&mut self) -> anyhow::Result<()> {
+        if let Some(location) = self.context.location_previous() {
+            self.push_current_location_into_navigation_history(false)?;
+            self.go_to_location(&location, false)?
+        }
+        Ok(())
+    }
+
+    fn navigate_forward(&mut self) -> anyhow::Result<()> {
+        if let Some(location) = self.context.location_next() {
+            self.push_current_location_into_navigation_history(true)?;
+            self.go_to_location(&location, false)?
+        }
+        Ok(())
+    }
+
+    fn push_current_location_into_navigation_history(
+        &mut self,
+        backward: bool,
+    ) -> anyhow::Result<()> {
+        if let Some(path) = self.current_component().borrow().editor().path() {
+            let range = self
+                .current_component()
+                .borrow()
+                .editor()
+                .current_selection_range()?;
+            let location = Location { path, range };
+            self.context.push_location_history(location, backward)
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2574,6 +2620,8 @@ pub(crate) enum Dispatch {
     SelectCompletionItem,
     SetKeyboardLayoutKind(KeyboardLayoutKind),
     OpenKeyboardLayoutPrompt,
+    NavigateForward,
+    NavigateBack,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

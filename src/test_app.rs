@@ -47,6 +47,7 @@ use crate::{
         code_action::CodeAction,
         completion::{Completion, CompletionItem, CompletionItemEdit, PositionalEdit},
         documentation::Documentation,
+        goto_definition_response::GotoDefinitionResponse,
         process::FromEditor,
         signature_help::SignatureInformation,
         workspace_edit::{TextDocumentEdit, WorkspaceEdit},
@@ -2489,5 +2490,94 @@ c1 c2 a1\nb1\nc1
                 )),
             ])
         }
+    })
+}
+
+#[test]
+fn test_navigate_back_from_open_file() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            App(NavigateBack),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            App(NavigateForward),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            App(NavigateBack),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(NavigateBack),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn test_navigate_back_from_go_to_location() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(GotoLocation(Location {
+                path: s.main_rs(),
+                range: Default::default(),
+            })),
+            App(GotoLocation(Location {
+                path: s.foo_rs(),
+                range: Default::default(),
+            })),
+            App(GotoLocation(Location {
+                path: s.gitignore(),
+                range: Default::default(),
+            })),
+            Expect(CurrentComponentPath(Some(s.gitignore()))),
+            App(NavigateBack),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            App(NavigateBack),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(HandleLspNotification(LspNotification::Definition(
+                Default::default(),
+                GotoDefinitionResponse::Multiple(
+                    [
+                        Location {
+                            path: s.foo_rs(),
+                            range: Position::new(0, 0)..Position::new(0, 1),
+                        },
+                        Location {
+                            path: s.foo_rs(),
+                            range: Position::new(1, 0)..Position::new(1, 1),
+                        },
+                    ]
+                    .to_vec(),
+                ),
+            ))),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            App(NavigateBack),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
     })
 }

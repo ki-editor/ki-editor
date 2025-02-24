@@ -12,7 +12,7 @@ use crate::{
     clipboard::{Clipboard, CopiedTexts},
     components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
-    quickfix_list::DiagnosticSeverityRange,
+    quickfix_list::{DiagnosticSeverityRange, Location},
     selection::SelectionMode,
     themes::Theme,
 };
@@ -31,6 +31,8 @@ pub(crate) struct Context {
     prompt_histories: HashMap<PromptHistoryKey, IndexSet<String>>,
     last_non_contiguous_selection_mode: Option<Either<SelectionMode, GlobalMode>>,
     keyboard_layout_kind: KeyboardLayoutKind,
+    location_history_backward: Vec<Location>,
+    location_history_forward: Vec<Location>,
 }
 
 pub(crate) struct QuickfixListState {
@@ -86,6 +88,8 @@ impl Default for Context {
                     Qwerty,
                 )
             },
+            location_history_backward: Vec::new(),
+            location_history_forward: Vec::new(),
         }
     }
 }
@@ -273,6 +277,23 @@ impl Context {
 
     pub(crate) fn set_keyboard_layout_kind(&mut self, keyboard_layout_kind: KeyboardLayoutKind) {
         self.keyboard_layout_kind = keyboard_layout_kind
+    }
+
+    pub(crate) fn push_location_history(&mut self, location: Location, backward: bool) {
+        if backward {
+            self.location_history_backward.push(location);
+            self.location_history_forward.clear();
+        } else {
+            self.location_history_forward.push(location);
+        }
+    }
+
+    pub(crate) fn location_previous(&mut self) -> Option<Location> {
+        self.location_history_backward.pop()
+    }
+
+    pub(crate) fn location_next(&mut self) -> Option<Location> {
+        self.location_history_forward.pop()
     }
 }
 

@@ -3436,6 +3436,12 @@ impl Editor {
         self.disable_selection_extension();
         dispatches
     }
+
+    pub(crate) fn current_selection_range(&self) -> anyhow::Result<Range<Position>> {
+        self.buffer().char_index_range_to_position_range(
+            self.selection_set.primary_selection().extended_range(),
+        )
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
