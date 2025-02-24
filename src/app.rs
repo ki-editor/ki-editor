@@ -1287,7 +1287,7 @@ impl<T: Frontend> App<T> {
         let dispatches = component
             .borrow_mut()
             .editor_mut()
-            .set_position_range(location.range.clone(), store_history)?;
+            .set_position_range(location.range.clone())?;
         self.handle_dispatches(dispatches)?;
         Ok(())
     }
@@ -2349,8 +2349,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn navigate_back(&mut self) -> anyhow::Result<()> {
-        if let Some(location) = self.context.previous_location() {
-            log::info!("navigating back location = {location:?}\n\n");
+        if let Some(location) = self.context.location_previous() {
             self.push_current_location_into_navigation_history(false)?;
             self.go_to_location(&location, false)?
         }
@@ -2358,7 +2357,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn navigate_forward(&mut self) -> anyhow::Result<()> {
-        if let Some(location) = self.context.next_location() {
+        if let Some(location) = self.context.location_next() {
             self.push_current_location_into_navigation_history(true)?;
             self.go_to_location(&location, false)?
         }
@@ -2376,11 +2375,7 @@ impl<T: Frontend> App<T> {
                 .editor()
                 .current_selection_range()?;
             let location = Location { path, range };
-            if backward {
-                self.context.push_location_history(location)
-            } else {
-                self.context.push_forward_location_history(location)
-            }
+            self.context.push_location_history(location, backward)
         }
         Ok(())
     }

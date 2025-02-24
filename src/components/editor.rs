@@ -2785,10 +2785,9 @@ impl Editor {
     pub(crate) fn set_position_range(
         &mut self,
         range: Range<Position>,
-        store_history: bool,
     ) -> Result<Dispatches, anyhow::Error> {
         let selection_set = self.position_range_to_selection_set(range)?;
-        Ok(self.update_selection_set(selection_set, store_history))
+        Ok(self.update_selection_set(selection_set, true))
     }
 
     fn select_surround(

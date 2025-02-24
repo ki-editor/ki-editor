@@ -279,20 +279,20 @@ impl Context {
         self.keyboard_layout_kind = keyboard_layout_kind
     }
 
-    pub(crate) fn push_location_history(&mut self, location: Location) {
-        self.location_history_backward.push(location);
-        self.location_history_forward.clear();
+    pub(crate) fn push_location_history(&mut self, location: Location, backward: bool) {
+        if backward {
+            self.location_history_backward.push(location);
+            self.location_history_forward.clear();
+        } else {
+            self.location_history_forward.push(location);
+        }
     }
 
-    pub(crate) fn push_forward_location_history(&mut self, location: Location) {
-        self.location_history_forward.push(location);
-    }
-
-    pub(crate) fn previous_location(&mut self) -> Option<Location> {
+    pub(crate) fn location_previous(&mut self) -> Option<Location> {
         self.location_history_backward.pop()
     }
 
-    pub(crate) fn next_location(&mut self) -> Option<Location> {
+    pub(crate) fn location_next(&mut self) -> Option<Location> {
         self.location_history_forward.pop()
     }
 }
