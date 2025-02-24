@@ -60,7 +60,7 @@ Press `Select →` to restore the selection to the current state.
 
 ### `← Nav`/`Nav →`
 
-This is useful for navigating back to the previous locations after action such as Go to Definition/References, or Global Search, etc.
+These are useful for navigating back to previous locations after actions such as Go to Definition/References or Global Search.
 
 ### `← Curs`/`Curs →`
 
