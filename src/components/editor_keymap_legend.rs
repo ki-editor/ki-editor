@@ -159,56 +159,6 @@ impl Editor {
                 "Swap cursor".to_string(),
                 Dispatch::ToEditor(DispatchEditor::SwapCursor),
             ),
-            Keymap::new(
-                "1",
-                "Quick Jump - #1".to_string(),
-                Dispatch::JumpEditor('1'),
-            ),
-            Keymap::new(
-                "2",
-                "Quick Jump - #2".to_string(),
-                Dispatch::JumpEditor('2'),
-            ),
-            Keymap::new(
-                "3",
-                "Quick Jump - #3".to_string(),
-                Dispatch::JumpEditor('3'),
-            ),
-            Keymap::new(
-                "4",
-                "Quick Jump - #4".to_string(),
-                Dispatch::JumpEditor('4'),
-            ),
-            Keymap::new(
-                "5",
-                "Quick Jump - #5".to_string(),
-                Dispatch::JumpEditor('5'),
-            ),
-            Keymap::new(
-                "alt+1",
-                "Tag File - #1".to_string(),
-                Dispatch::TagEditor('1'),
-            ),
-            Keymap::new(
-                "alt+2",
-                "Tag File - #2".to_string(),
-                Dispatch::TagEditor('2'),
-            ),
-            Keymap::new(
-                "alt+3",
-                "Tag File - #3".to_string(),
-                Dispatch::TagEditor('3'),
-            ),
-            Keymap::new(
-                "alt+4",
-                "Tag File - #4".to_string(),
-                Dispatch::TagEditor('4'),
-            ),
-            Keymap::new(
-                "alt+5",
-                "Tag File - #5".to_string(),
-                Dispatch::TagEditor('5'),
-            ),
         ]
         .into_iter()
         .collect()

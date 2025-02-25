@@ -33,7 +33,6 @@ pub(crate) struct Context {
     keyboard_layout_kind: KeyboardLayoutKind,
     location_history_backward: Vec<Location>,
     location_history_forward: Vec<Location>,
-    tagged_paths: HashMap<char, CanonicalizedPath>,
     marked_paths: IndexSet<CanonicalizedPath>,
 }
 
@@ -92,7 +91,6 @@ impl Default for Context {
             },
             location_history_backward: Vec::new(),
             location_history_forward: Vec::new(),
-            tagged_paths: HashMap::new(),
             marked_paths: Default::default(),
         }
     }
@@ -298,18 +296,6 @@ impl Context {
 
     pub(crate) fn location_next(&mut self) -> Option<Location> {
         self.location_history_forward.pop()
-    }
-
-    pub(crate) fn get_tagged_path(&self, tag: char) -> Option<&CanonicalizedPath> {
-        self.tagged_paths.get(&tag)
-    }
-
-    pub(crate) fn toggle_tagged_path(&mut self, tag: char, path: CanonicalizedPath) {
-        if self.get_tagged_path(tag).is_some() {
-            self.tagged_paths.remove(&tag);
-        } else {
-            let _ = self.tagged_paths.insert(tag, path);
-        }
     }
 
     pub(crate) fn get_marked_paths(&self) -> Vec<&CanonicalizedPath> {

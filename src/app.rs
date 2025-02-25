@@ -782,7 +782,6 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::OtherWindow => self.layout.cycle_window(),
             Dispatch::CycleMarkedFile(direction) => self.cycle_marked_file(direction)?,
-            Dispatch::JumpEditor(tag) => self.handle_jump_editor(tag)?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
             Dispatch::OpenThemePrompt => self.open_theme_prompt()?,
             Dispatch::SetLastNonContiguousSelectionMode(selection_mode) => self
@@ -813,7 +812,6 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_prompt()?,
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
-            Dispatch::TagEditor(tag) => self.tag_editor(tag)?,
             Dispatch::ToggleFileMark => self.toggle_file_mark(),
         }
         Ok(())
@@ -1997,24 +1995,6 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn handle_jump_editor(&mut self, tag: char) -> anyhow::Result<()> {
-        if let Some(tagged_editor_path) = self.context.get_tagged_path(tag) {
-            self.open_file(&tagged_editor_path.clone(), BufferOwner::User, true, true)?;
-        }
-        Ok(())
-    }
-
-    fn tag_editor(&mut self, tag: char) -> anyhow::Result<()> {
-        if let Some(path) = self.get_current_file_path() {
-            self.context.toggle_tagged_path(tag, path);
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!(
-                "Cannot tag the current file as it is not savable."
-            ))
-        }
-    }
-
     #[cfg(test)]
     pub(crate) fn get_current_component_content(&self) -> String {
         self.current_component().borrow().editor().content()
@@ -2599,7 +2579,6 @@ pub(crate) enum Dispatch {
     CloseCurrentWindowAndFocusParent,
     CloseEditorInfo,
     CycleMarkedFile(Direction),
-    JumpEditor(char),
     PushPromptHistory {
         key: PromptHistoryKey,
         line: String,
@@ -2623,7 +2602,6 @@ pub(crate) enum Dispatch {
     OpenKeyboardLayoutPrompt,
     NavigateForward,
     NavigateBack,
-    TagEditor(char),
     ToggleFileMark,
 }
 
