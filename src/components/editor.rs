@@ -15,6 +15,7 @@ use crate::{
     position::Position,
     rectangle::Rectangle,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
+    utils::format_path_list,
 };
 use crate::{
     app::{Dispatches, RequestParams, Scope},
@@ -83,18 +84,12 @@ impl Component for Editor {
         let title = self.title.clone();
         title
             .or_else(|| {
-                let path = self.buffer().path()?;
-                let current_working_directory = context.current_working_directory();
-                let string = path
-                    .display_relative_to(current_working_directory)
-                    .unwrap_or_else(|_| path.display_absolute());
-                let icon = path.icon();
-                let dirty = if self.buffer().dirty() { " [*]" } else { "" };
-                let tag = self
-                    .tag
-                    .map_or_else(String::new, |tag| format!(" #{}", tag));
-
-                Some(format!(" {} {}{}{}", icon, string, tag, dirty))
+                Some(format_path_list(
+                    &context.get_marked_paths(),
+                    &self.buffer().path()?,
+                    context.current_working_directory(),
+                    self.buffer().dirty(),
+                ))
             })
             .unwrap_or_else(|| "[No title]".to_string())
     }
@@ -372,7 +367,6 @@ impl Clone for Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
-            tag: None,
             normal_mode_override: self.normal_mode_override.clone(),
             reveal: self.reveal.clone(),
         }
@@ -397,7 +391,6 @@ pub(crate) struct Editor {
     id: ComponentId,
     pub(crate) current_view_alignment: Option<ViewAlignment>,
     copied_text_history_offset: Counter,
-    tag: Option<char>,
     pub(crate) normal_mode_override: Option<NormalModeOverride>,
     pub(crate) reveal: Option<Reveal>,
 }
@@ -563,7 +556,7 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
-            tag: None,
+
             normal_mode_override: None,
             reveal: None,
         }
@@ -583,7 +576,6 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
-            tag: None,
             normal_mode_override: None,
             reveal: None,
         }
@@ -1520,15 +1512,6 @@ impl Editor {
             .selection_set
             .map(|selection| selection.extended_range());
         self.buffer_mut().save_marks(selections.into())
-    }
-
-    pub(crate) fn tag(&self) -> Option<char> {
-        self.tag
-    }
-
-    pub(crate) fn set_tag(&mut self, tag: Option<char>) {
-        self.tag = tag;
-        self.mode = Mode::Normal;
     }
 
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {

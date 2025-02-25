@@ -134,11 +134,29 @@ Transformative actions are nested under here, such as (non-exhaustive):
 
 Enter insert mode before/after selection.
 
-### `Mark`
+### `Mark Sel`
 
 Toggles a bookmark at the current selection, allowing you to navigate elsewhere
 in the codebase while maintaining a reference to your focal point without
 memorizing its exact location.
+
+### `Mark File`
+
+Mark/unmark the curent file. This feature allows you to efficiently manage and switch
+between your primary files and other ancillary files.
+
+To move between marked files, see [here](../other-movements#-markedmarked-).
+
+#### Workflow Overview
+
+This workflow is designed to streamline your editing process by allowing quick
+access to your primary files. During an editing session, you often work on
+primary files while occasionally referring to other less important files. Using
+the number keys, you can quickly jump back to your main files, enhancing your
+productivity and focus.
+
+By utilizing file marking, you can efficiently navigate your editing
+environment and maintain your workflow's momentum.
 
 ### `Undo`/`Redo`
 
