@@ -15,6 +15,7 @@ use crate::{
     position::Position,
     rectangle::Rectangle,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
+    utils::format_path_list,
 };
 use crate::{
     app::{Dispatches, RequestParams, Scope},
@@ -91,6 +92,12 @@ impl Component for Editor {
                 let icon = path.icon();
                 let dirty = if self.buffer().dirty() { " [*]" } else { "" };
                 let marked_paths = context.get_marked_paths();
+                return Some(format_path_list(
+                    &marked_paths,
+                    &path,
+                    current_working_directory,
+                    self.buffer().dirty(),
+                ));
                 let minimal_unique_paths = get_minimal_unique_paths::get_minimal_unique_paths(
                     &marked_paths
                         .iter()
