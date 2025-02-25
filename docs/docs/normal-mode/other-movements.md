@@ -66,37 +66,6 @@ These are useful for navigating back to previous locations after actions such as
 
 Cycle primary cursor (selection) backward/forward.
 
-### `← Buffer`/`Buffer →`
+### `← Marked`/`Marked →`
 
-Go to the previous/next buffer.
-
-### Quick Editor Jumping
-
-You can "tag" editors with the numbers 1 through 5 for quick access during your
-editing session. This feature allows you to efficiently manage and switch
-between your primary files and other ancillary files. Here's how it works:
-
-#### Number Key Actions
-
-##### Tagging an Editor
-
-If no editors are currently tagged with the number you press, the current editor will be tagged with that number.
-
-##### Clearing a Tag
-
-If the current editor is already tagged with the number you press, the tag will be cleared from that editor.
-
-##### Jumping to a Tagged Editor
-
-If there is an editor tagged with the number you press, the editor will switch to that tagged editor immediately.
-
-#### Workflow Overview
-
-This workflow is designed to streamline your editing process by allowing quick
-access to your primary files. During an editing session, you often work on
-primary files while occasionally referring to other less important files. Using
-the number keys, you can quickly jump back to your main files, enhancing your
-productivity and focus.
-
-By utilizing this tagging system, you can efficiently navigate your editing
-environment and maintain your workflow's momentum.
+Go to the previous/next marked files.

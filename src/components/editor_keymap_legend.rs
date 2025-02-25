@@ -137,13 +137,13 @@ impl Editor {
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::MrkFP),
-                Direction::Start.format_action("Marked File"),
+                Direction::Start.format_action("Marked"),
                 "Go to previous marked file".to_string(),
                 Dispatch::CycleMarkedFile(Direction::Start),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::MrkFN),
-                Direction::End.format_action("Marked File"),
+                Direction::End.format_action("Marked"),
                 "Go to next marked file".to_string(),
                 Dispatch::CycleMarkedFile(Direction::End),
             ),
