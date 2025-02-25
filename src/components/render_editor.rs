@@ -41,6 +41,7 @@ impl Editor {
                 self.scroll_offset(),
                 Some(self.selection_set.primary_selection().range()),
                 false,
+                true,
             ),
             Some(reveal) => self.get_splitted_grid(context, reveal),
         };
@@ -101,6 +102,7 @@ impl Editor {
                 },
                 0,
                 None,
+                false,
                 false,
             )
         };
@@ -194,6 +196,7 @@ impl Editor {
                     window.start as u16,
                     Some(protected_range),
                     true,
+                    true,
                 ))
             },
         )
@@ -209,6 +212,7 @@ impl Editor {
         scroll_offset: u16,
         protected_range: Option<CharIndexRange>,
         borderize_first_line: bool,
+        render_line_number: bool,
     ) -> Grid {
         let editor = self;
         let Dimension { height, width } = dimension;
@@ -297,9 +301,13 @@ impl Editor {
                         .collect_vec();
                     grid.merge_vertical(Grid::new(Dimension { height: 1, width }).render_content(
                         &line.content,
-                        RenderContentLineNumber::LineNumber {
-                            start_line_index: line.line,
-                            max_line_number: len_lines as usize,
+                        if render_line_number {
+                            RenderContentLineNumber::LineNumber {
+                                start_line_index: line.line,
+                                max_line_number: len_lines as usize,
+                            }
+                        } else {
+                            RenderContentLineNumber::NoLineNumber
                         },
                         updates,
                         Default::default(),
@@ -336,9 +344,13 @@ impl Editor {
             let visible_lines_content = visible_lines.map(|(_, line)| line).join("");
             let visible_lines_grid = visible_lines_grid.render_content(
                 &visible_lines_content,
-                RenderContentLineNumber::LineNumber {
-                    start_line_index: scroll_offset as usize,
-                    max_line_number: len_lines as usize,
+                if render_line_number {
+                    RenderContentLineNumber::LineNumber {
+                        start_line_index: scroll_offset as usize,
+                        max_line_number: len_lines as usize,
+                    }
+                } else {
+                    RenderContentLineNumber::NoLineNumber
                 },
                 visible_lines_updates
                     .clone()
