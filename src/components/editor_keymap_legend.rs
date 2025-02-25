@@ -147,6 +147,18 @@ impl Editor {
                 "Go to next buffer".to_string(),
                 Dispatch::CycleBuffer(Direction::End),
             ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::SSEnd),
+                "⇋ Anchor".to_string(),
+                "Swap Anchor".to_string(),
+                Dispatch::ToEditor(SwapExtensionAnchor),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::XAchr),
+                "⇋ Curs".to_string(),
+                "Swap cursor".to_string(),
+                Dispatch::ToEditor(DispatchEditor::SwapCursor),
+            ),
             Keymap::new(
                 "1",
                 "Quick Jump - #1".to_string(),
@@ -172,20 +184,34 @@ impl Editor {
                 "Quick Jump - #5".to_string(),
                 Dispatch::JumpEditor('5'),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::SSEnd),
-                "⇋ Anchor".to_string(),
-                "Swap Anchor".to_string(),
-                Dispatch::ToEditor(SwapExtensionAnchor),
+            Keymap::new(
+                "alt+1",
+                "Tag File - #1".to_string(),
+                Dispatch::TagEditor('1'),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::XAchr),
-                "⇋ Curs".to_string(),
-                "Swap cursor".to_string(),
-                Dispatch::ToEditor(DispatchEditor::SwapCursor),
+            Keymap::new(
+                "alt+2",
+                "Tag File - #2".to_string(),
+                Dispatch::TagEditor('2'),
+            ),
+            Keymap::new(
+                "alt+3",
+                "Tag File - #3".to_string(),
+                Dispatch::TagEditor('3'),
+            ),
+            Keymap::new(
+                "alt+4",
+                "Tag File - #4".to_string(),
+                Dispatch::TagEditor('4'),
+            ),
+            Keymap::new(
+                "alt+5",
+                "Tag File - #5".to_string(),
+                Dispatch::TagEditor('5'),
             ),
         ]
-        .to_vec()
+        .into_iter()
+        .collect()
     }
 
     pub(crate) fn keymap_primary_selection_modes(&self, context: &Context) -> Vec<Keymap> {

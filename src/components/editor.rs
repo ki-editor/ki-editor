@@ -85,16 +85,70 @@ impl Component for Editor {
             .or_else(|| {
                 let path = self.buffer().path()?;
                 let current_working_directory = context.current_working_directory();
-                let string = path
+                let path_string = path
                     .display_relative_to(current_working_directory)
                     .unwrap_or_else(|_| path.display_absolute());
                 let icon = path.icon();
                 let dirty = if self.buffer().dirty() { " [*]" } else { "" };
-                let tag = self
-                    .tag
-                    .map_or_else(String::new, |tag| format!(" #{}", tag));
+                let tagged_paths = context
+                    .get_tagged_paths()
+                    .into_iter()
+                    .sorted_by_key(|(tag, _)| tag.clone())
+                    .collect_vec();
+                let tag = if let Some(tag) =
+                    tagged_paths
+                        .iter()
+                        .find_map(|(tag, p)| if p == &&path { Some(tag) } else { None })
+                {
+                    format!("{} ", tag)
+                } else {
+                    String::new()
+                };
 
-                Some(format!(" {} {}{}{}", icon, string, tag, dirty))
+                let current_title =
+                    format!("\u{200B}{}{} {}{} \u{200B}", tag, icon, path_string, dirty);
+                let no_tagged_paths = tagged_paths.is_empty();
+                let contains_path = tagged_paths.iter().any(|(_, p)| p == &&path);
+                // TODO: elide common ancestor
+                let result = tagged_paths
+                    .clone()
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, (tag, p))| {
+                        if p == &path {
+                            current_title.clone()
+                        } else {
+                            let vertical_bar = "│";
+                            let left = if index == 0 || tagged_paths[index - 1].1 == &path {
+                                ""
+                            } else {
+                                vertical_bar
+                            };
+                            let right = if index < tagged_paths.len()
+                                || tagged_paths[index + 1].1 == &path
+                            {
+                                ""
+                            } else {
+                                vertical_bar
+                            };
+                            format!(
+                                "{left}{tag} {} {}{right}",
+                                p.icon(),
+                                p.display_relative_to(current_working_directory)
+                                    .unwrap_or_else(|_| p.display_absolute())
+                            )
+                        }
+                    })
+                    .join("│");
+                Some(if !contains_path {
+                    if no_tagged_paths {
+                        current_title
+                    } else {
+                        format!("{current_title} {result}")
+                    }
+                } else {
+                    result
+                })
             })
             .unwrap_or_else(|| "[No title]".to_string())
     }
@@ -372,7 +426,6 @@ impl Clone for Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
-            tag: None,
             normal_mode_override: self.normal_mode_override.clone(),
             reveal: self.reveal.clone(),
         }
@@ -397,7 +450,6 @@ pub(crate) struct Editor {
     id: ComponentId,
     pub(crate) current_view_alignment: Option<ViewAlignment>,
     copied_text_history_offset: Counter,
-    tag: Option<char>,
     pub(crate) normal_mode_override: Option<NormalModeOverride>,
     pub(crate) reveal: Option<Reveal>,
 }
@@ -563,7 +615,7 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
-            tag: None,
+
             normal_mode_override: None,
             reveal: None,
         }
@@ -583,7 +635,6 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
-            tag: None,
             normal_mode_override: None,
             reveal: None,
         }
@@ -1520,15 +1571,6 @@ impl Editor {
             .selection_set
             .map(|selection| selection.extended_range());
         self.buffer_mut().save_marks(selections.into())
-    }
-
-    pub(crate) fn tag(&self) -> Option<char> {
-        self.tag
-    }
-
-    pub(crate) fn set_tag(&mut self, tag: Option<char>) {
-        self.tag = tag;
-        self.mode = Mode::Normal;
     }
 
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {

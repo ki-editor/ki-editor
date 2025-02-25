@@ -813,6 +813,7 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_prompt()?,
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
+            Dispatch::TagEditor(tag) => self.tag_editor(tag)?,
         }
         Ok(())
     }
@@ -1633,7 +1634,6 @@ impl<T: Frontend> App<T> {
         self.syntax_highlight_request_sender = Some(sender);
     }
 
-    #[cfg(test)]
     pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
         self.current_component().borrow().path()
     }
@@ -1993,33 +1993,21 @@ impl<T: Frontend> App<T> {
     }
 
     fn handle_jump_editor(&mut self, tag: char) -> anyhow::Result<()> {
-        let new_tag = match self.layout.find_editor_tagged(tag) {
-            // Case 1: Found a non-current editor that has this tag
-            //    - Jump to it
-            Some(tagged_editor_path)
-                if Some(tagged_editor_path.clone()) != self.current_component().borrow().path() =>
-            {
-                if self.layout.open_file(&tagged_editor_path, true).is_none() {
-                    return Err(anyhow::anyhow!(
-                        "App::handle_jump_editor: opening tagged_editor_path should never fail unless Layout::find_editor_tagged is errorneous."
-                    ));
-                };
-
-                return Ok(());
-            }
-            // Case 2: Found current editor to have this tag
-            //    - Remove current editor's tag
-            Some(_) => None,
-            // Case 3: No editor found
-            //    - Add new tag to current editor
-            None => Some(tag),
-        };
-
-        self.current_component()
-            .borrow_mut()
-            .editor_mut()
-            .set_tag(new_tag);
+        if let Some(tagged_editor_path) = self.context.get_tagged_path(tag) {
+            self.open_file(&tagged_editor_path.clone(), BufferOwner::User, true, true)?;
+        }
         Ok(())
+    }
+
+    fn tag_editor(&mut self, tag: char) -> anyhow::Result<()> {
+        if let Some(path) = self.get_current_file_path() {
+            self.context.toggle_tagged_path(tag, path);
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "Cannot tag the current file as it is not savable."
+            ))
+        }
     }
 
     #[cfg(test)]
@@ -2368,6 +2356,8 @@ impl<T: Frontend> App<T> {
         &mut self,
         backward: bool,
     ) -> anyhow::Result<()> {
+        // TODO: should include scroll offset as well
+        // so that when the user navigates back, it really feels the same
         if let Some(path) = self.current_component().borrow().editor().path() {
             let range = self
                 .current_component()
@@ -2622,6 +2612,7 @@ pub(crate) enum Dispatch {
     OpenKeyboardLayoutPrompt,
     NavigateForward,
     NavigateBack,
+    TagEditor(char),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
