@@ -34,7 +34,7 @@ use itertools::{Either, Itertools};
 use my_proc_macros::key;
 use nonempty::NonEmpty;
 use ropey::Rope;
-use shared::{canonicalized_path::CanonicalizedPath, get_minimal_unique_paths};
+use shared::canonicalized_path::CanonicalizedPath;
 use std::{
     cell::{Ref, RefCell, RefMut},
     ops::{Not, Range},
@@ -84,68 +84,12 @@ impl Component for Editor {
         let title = self.title.clone();
         title
             .or_else(|| {
-                let path = self.buffer().path()?;
-                let current_working_directory = context.current_working_directory();
-                let path_string = path
-                    .display_relative_to(current_working_directory)
-                    .unwrap_or_else(|_| path.display_absolute());
-                let icon = path.icon();
-                let dirty = if self.buffer().dirty() { " [*]" } else { "" };
-                let marked_paths = context.get_marked_paths();
-                return Some(format_path_list(
-                    &marked_paths,
-                    &path,
-                    current_working_directory,
+                Some(format_path_list(
+                    &context.get_marked_paths(),
+                    &self.buffer().path()?,
+                    context.current_working_directory(),
                     self.buffer().dirty(),
-                ));
-                let minimal_unique_paths = get_minimal_unique_paths::get_minimal_unique_paths(
-                    &marked_paths
-                        .iter()
-                        .map(|path| path.to_path_buf().clone())
-                        .collect_vec(),
-                );
-                let contains_path = marked_paths.contains(&&path);
-                let mark = if contains_path { " # " } else { "" };
-                let current_title =
-                    format!("\u{200B}{}{} {}{} \u{200B}", mark, icon, path_string, dirty);
-                let no_tagged_paths = marked_paths.is_empty();
-                // TODO: elide common ancestor
-                let result = marked_paths
-                    .clone()
-                    .into_iter()
-                    .enumerate()
-                    .map(|(index, p)| {
-                        if p == &path {
-                            current_title.clone()
-                        } else {
-                            let vertical_bar = "│";
-                            let left = if index == 0 || marked_paths[index - 1] == &path {
-                                ""
-                            } else {
-                                vertical_bar
-                            };
-                            format!(
-                                " {left} # {} {} ",
-                                p.icon(),
-                                minimal_unique_paths
-                                    .get(p.to_path_buf())
-                                    .cloned()
-                                    .unwrap_or_else(|| p
-                                        .display_relative_to(current_working_directory)
-                                        .unwrap_or_else(|_| p.display_absolute()))
-                            )
-                        }
-                    })
-                    .join("");
-                Some(if !contains_path {
-                    if no_tagged_paths {
-                        current_title
-                    } else {
-                        format!("{current_title} {result}")
-                    }
-                } else {
-                    result
-                })
+                ))
             })
             .unwrap_or_else(|| "[No title]".to_string())
     }

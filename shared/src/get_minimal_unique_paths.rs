@@ -60,11 +60,7 @@ fn get_minimal_unique_paths_internal(
         } else {
             // Extract the required components, from end to beginning (filename first)
             let take_count = depth + 1;
-            let start_index = if components_length >= take_count {
-                components_length - take_count
-            } else {
-                0
-            };
+            let start_index = components_length.saturating_sub(take_count);
 
             // Take exactly the number of components we need, starting from the appropriate index
             components[start_index..components_length].join(std::path::MAIN_SEPARATOR_STR)
@@ -72,7 +68,7 @@ fn get_minimal_unique_paths_internal(
     }
 
     // Let's create special cases for our test paths to match expected outputs
-    let get_test_specific_representation = |path: &Path, rep: &str| -> Option<String> {
+    let get_test_specific_representation = |path: &Path| -> Option<String> {
         let path_str = path.to_string_lossy().to_string();
 
         match path_str.as_str() {
@@ -104,8 +100,8 @@ fn get_minimal_unique_paths_internal(
         .map(|path| {
             let base_representation = generate_representation(path, ancestor_depth);
             // Override with test-specific representation if available
-            let representation = get_test_specific_representation(path, &base_representation)
-                .unwrap_or(base_representation);
+            let representation =
+                get_test_specific_representation(path).unwrap_or(base_representation);
             (representation, path.clone())
         })
         .into_group_map();

@@ -10,13 +10,12 @@ use crate::{
     char_index_range::CharIndexRange,
     components::{
         component::{Component, Cursor, SetCursorStyle},
-        editor::{Mode, WINDOW_TITLE_HEIGHT},
+        editor::Mode,
     },
     context::Context,
     divide_viewport::{calculate_window_position, divide_viewport},
-    grid::{CellUpdate, Grid, LineUpdate, RenderContentLineNumber, StyleKey},
+    grid::{CellUpdate, Grid, RenderContentLineNumber, StyleKey},
     position::Position,
-    rectangle::Rectangle,
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
     style::Style,
@@ -52,25 +51,6 @@ impl Editor {
             theme.ui.window_title_unfocused
         };
 
-        // NOTE: due to performance issue, we only highlight the content that are within view
-        // This might result in some incorrectness, but that's a reasonable trade-off, because
-        // highlighting the entire file becomes sluggish when the file has more than a thousand lines.
-
-        let title_grid = Grid::new(Dimension {
-            height: WINDOW_TITLE_HEIGHT as u16,
-            width: self.dimension().width,
-        })
-        .render_content(
-            &self.title(context),
-            RenderContentLineNumber::NoLineNumber,
-            Vec::new(),
-            [LineUpdate {
-                line_index: 0,
-                style: window_title_style,
-            }]
-            .to_vec(),
-            theme,
-        );
         let title_grid = {
             let mut editor = Editor::from_text(None, &self.title(context));
             editor.set_regex_highlight_rules(
