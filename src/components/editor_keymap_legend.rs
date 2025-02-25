@@ -136,16 +136,16 @@ impl Editor {
                 Dispatch::NavigateForward,
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::BuffP),
-                Direction::Start.format_action("Buffer"),
-                "Go to previous buffer".to_string(),
-                Dispatch::CycleBuffer(Direction::Start),
+                context.keyboard_layout_kind().get_key(&Meaning::MrkFP),
+                Direction::Start.format_action("Marked File"),
+                "Go to previous marked file".to_string(),
+                Dispatch::CycleMarkedFile(Direction::Start),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::BuffN),
-                Direction::End.format_action("Buffer"),
-                "Go to next buffer".to_string(),
-                Dispatch::CycleBuffer(Direction::End),
+                context.keyboard_layout_kind().get_key(&Meaning::MrkFN),
+                Direction::End.format_action("Marked File"),
+                "Go to next marked file".to_string(),
+                Dispatch::CycleMarkedFile(Direction::End),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::SSEnd),
@@ -364,9 +364,15 @@ impl Editor {
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Mark_),
-                "Mark".to_string(),
-                "Toggle Mark".to_string(),
+                "Mark Sel".to_string(),
+                "Toggle Selection Mark".to_string(),
                 Dispatch::ToEditor(ToggleMark),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::MarkF),
+                "Mark File".to_string(),
+                "Toggle File Mark".to_string(),
+                Dispatch::ToggleFileMark,
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::SrchN),

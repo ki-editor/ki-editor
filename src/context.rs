@@ -34,6 +34,7 @@ pub(crate) struct Context {
     location_history_backward: Vec<Location>,
     location_history_forward: Vec<Location>,
     tagged_paths: HashMap<char, CanonicalizedPath>,
+    marked_paths: IndexSet<CanonicalizedPath>,
 }
 
 pub(crate) struct QuickfixListState {
@@ -92,6 +93,7 @@ impl Default for Context {
             location_history_backward: Vec::new(),
             location_history_forward: Vec::new(),
             tagged_paths: HashMap::new(),
+            marked_paths: Default::default(),
         }
     }
 }
@@ -310,8 +312,16 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_tagged_paths(&self) -> Vec<(&char, &CanonicalizedPath)> {
-        self.tagged_paths.iter().collect()
+    pub(crate) fn get_marked_paths(&self) -> Vec<&CanonicalizedPath> {
+        self.marked_paths.iter().collect()
+    }
+
+    pub(crate) fn toggle_file_mark(&mut self, path: CanonicalizedPath) {
+        if self.marked_paths.contains(&path) {
+            let _ = self.marked_paths.shift_remove(&path);
+        } else {
+            let _ = self.marked_paths.insert_sorted(path);
+        }
     }
 }
 

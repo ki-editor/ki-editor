@@ -781,7 +781,7 @@ impl<T: Frontend> App<T> {
                 self.open_code_actions_prompt(code_actions)?;
             }
             Dispatch::OtherWindow => self.layout.cycle_window(),
-            Dispatch::CycleBuffer(direction) => self.cycle_buffer(direction)?,
+            Dispatch::CycleMarkedFile(direction) => self.cycle_marked_file(direction)?,
             Dispatch::JumpEditor(tag) => self.handle_jump_editor(tag)?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
             Dispatch::OpenThemePrompt => self.open_theme_prompt()?,
@@ -814,6 +814,7 @@ impl<T: Frontend> App<T> {
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
             Dispatch::TagEditor(tag) => self.tag_editor(tag)?,
+            Dispatch::ToggleFileMark => self.toggle_file_mark(),
         }
         Ok(())
     }
@@ -1967,27 +1968,31 @@ impl<T: Frontend> App<T> {
             .collect_vec()
     }
 
-    fn cycle_buffer(&mut self, direction: Direction) -> anyhow::Result<()> {
-        if let Some(current_file_path) = self.current_component().borrow().path() {
-            let file_paths = self.layout.get_opened_files();
-            if let Some(current_index) = file_paths
-                .iter()
-                .position(|path| path == &current_file_path)
-            {
-                let next_index = match direction {
-                    Direction::Start if current_index == 0 => file_paths.len() - 1,
-                    Direction::Start => current_index - 1,
-                    Direction::End if current_index == file_paths.len() - 1 => 0,
-                    Direction::End => current_index + 1,
-                };
-                // We are doing defensive programming here
-                // to ensure that Ki editor never crashes
-                if let Some(path) = file_paths.get(next_index) {
-                    self.layout.open_file(path, true);
-                } else {
-                    return Err(anyhow::anyhow!("App::cycle_buffer: file_paths.get(next_index) should never return None unless next_index is computed errorneously."));
-                }
-            }
+    fn cycle_marked_file(&mut self, direction: Direction) -> anyhow::Result<()> {
+        if let Some(next_file_path) = {
+            let file_paths = self.context.get_marked_paths();
+            self.get_current_file_path()
+                .and_then(|current_file_path| {
+                    if let Some(current_index) = file_paths
+                        .iter()
+                        .position(|path| path == &&current_file_path)
+                    {
+                        let next_index = match direction {
+                            Direction::Start if current_index == 0 => file_paths.len() - 1,
+                            Direction::Start => current_index - 1,
+                            Direction::End if current_index == file_paths.len() - 1 => 0,
+                            Direction::End => current_index + 1,
+                        };
+                        // We are doing defensive programming here
+                        // to ensure that Ki editor never crashes
+                        return file_paths.get(next_index);
+                    }
+                    None
+                })
+                .or_else(|| file_paths.first())
+                .cloned()
+        } {
+            self.open_file(&next_file_path.clone(), BufferOwner::User, true, true)?;
         }
         Ok(())
     }
@@ -2369,6 +2374,12 @@ impl<T: Frontend> App<T> {
         }
         Ok(())
     }
+
+    fn toggle_file_mark(&mut self) {
+        if let Some(path) = self.get_current_file_path() {
+            self.context.toggle_file_mark(path)
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2587,7 +2598,7 @@ pub(crate) enum Dispatch {
     OtherWindow,
     CloseCurrentWindowAndFocusParent,
     CloseEditorInfo,
-    CycleBuffer(Direction),
+    CycleMarkedFile(Direction),
     JumpEditor(char),
     PushPromptHistory {
         key: PromptHistoryKey,
@@ -2613,6 +2624,7 @@ pub(crate) enum Dispatch {
     NavigateForward,
     NavigateBack,
     TagEditor(char),
+    ToggleFileMark,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

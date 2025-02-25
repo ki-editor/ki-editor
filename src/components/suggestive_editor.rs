@@ -1074,7 +1074,7 @@ pub(crate) fn completion_item_keymaps(context: &Context) -> Keymaps {
         Keymap::new_extended(
             context
                 .keyboard_layout_kind()
-                .get_insert_key(&Meaning::BuffN),
+                .get_insert_key(&Meaning::MrkFN),
             "Select Comp".to_string(),
             "Select Completion Item".to_string(),
             Dispatch::SelectCompletionItem,

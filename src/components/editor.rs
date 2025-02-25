@@ -33,7 +33,7 @@ use itertools::{Either, Itertools};
 use my_proc_macros::key;
 use nonempty::NonEmpty;
 use ropey::Rope;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::{canonicalized_path::CanonicalizedPath, get_minimal_unique_paths};
 use std::{
     cell::{Ref, RefCell, RefMut},
     ops::{Not, Range},
@@ -90,56 +90,46 @@ impl Component for Editor {
                     .unwrap_or_else(|_| path.display_absolute());
                 let icon = path.icon();
                 let dirty = if self.buffer().dirty() { " [*]" } else { "" };
-                let tagged_paths = context
-                    .get_tagged_paths()
-                    .into_iter()
-                    .sorted_by_key(|(tag, _)| tag.clone())
-                    .collect_vec();
-                let tag = if let Some(tag) =
-                    tagged_paths
+                let marked_paths = context.get_marked_paths();
+                let minimal_unique_paths = get_minimal_unique_paths::get_minimal_unique_paths(
+                    &marked_paths
                         .iter()
-                        .find_map(|(tag, p)| if p == &&path { Some(tag) } else { None })
-                {
-                    format!("{} ", tag)
-                } else {
-                    String::new()
-                };
-
+                        .map(|path| path.to_path_buf().clone())
+                        .collect_vec(),
+                );
+                let contains_path = marked_paths.contains(&&path);
+                let mark = if contains_path { " # " } else { "" };
                 let current_title =
-                    format!("\u{200B}{}{} {}{} \u{200B}", tag, icon, path_string, dirty);
-                let no_tagged_paths = tagged_paths.is_empty();
-                let contains_path = tagged_paths.iter().any(|(_, p)| p == &&path);
+                    format!("\u{200B}{}{} {}{} \u{200B}", mark, icon, path_string, dirty);
+                let no_tagged_paths = marked_paths.is_empty();
                 // TODO: elide common ancestor
-                let result = tagged_paths
+                let result = marked_paths
                     .clone()
                     .into_iter()
                     .enumerate()
-                    .map(|(index, (tag, p))| {
+                    .map(|(index, p)| {
                         if p == &path {
                             current_title.clone()
                         } else {
                             let vertical_bar = "│";
-                            let left = if index == 0 || tagged_paths[index - 1].1 == &path {
-                                ""
-                            } else {
-                                vertical_bar
-                            };
-                            let right = if index < tagged_paths.len()
-                                || tagged_paths[index + 1].1 == &path
-                            {
+                            let left = if index == 0 || marked_paths[index - 1] == &path {
                                 ""
                             } else {
                                 vertical_bar
                             };
                             format!(
-                                "{left}{tag} {} {}{right}",
+                                " {left} # {} {} ",
                                 p.icon(),
-                                p.display_relative_to(current_working_directory)
-                                    .unwrap_or_else(|_| p.display_absolute())
+                                minimal_unique_paths
+                                    .get(p.to_path_buf())
+                                    .cloned()
+                                    .unwrap_or_else(|| p
+                                        .display_relative_to(current_working_directory)
+                                        .unwrap_or_else(|_| p.display_absolute()))
                             )
                         }
                     })
-                    .join("│");
+                    .join("");
                 Some(if !contains_path {
                     if no_tagged_paths {
                         current_title
