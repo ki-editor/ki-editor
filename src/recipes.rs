@@ -1309,7 +1309,7 @@ foo bar spam
             expectations: &[CurrentComponentTitle("\u{200b}🙈 .gitignore \u{200b}  # 🦀 foo.rs  # 🦀 main.rs ")],
             terminal_height: Some(10),
             similar_vim_combos: &[],
-            only: true,
+            only: false,
         }].to_vec(),
         },
         RecipeGroup {
