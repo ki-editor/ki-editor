@@ -220,7 +220,8 @@ pub fn from_content_directive(content: &str) -> Option<Language> {
             .iter()
             .find(|language| {
                 language
-                    .lsp_language_id.is_some_and(|lsp_id| lsp_id.0 == id)
+                    .lsp_language_id
+                    .is_some_and(|lsp_id| lsp_id.0 == id)
             })
             .map(|language| (*language).clone())
     })

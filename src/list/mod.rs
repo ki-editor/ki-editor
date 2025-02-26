@@ -94,7 +94,8 @@ impl WalkBuilderConfig {
                 Box::new(|path| {
                     if let Ok(path) = path {
                         if path
-                            .file_type().is_some_and(|file_type| file_type.is_file())
+                            .file_type()
+                            .is_some_and(|file_type| file_type.is_file())
                         {
                             let path = path.path().into();
                             if let Err(error) = f(path, sender.clone()) {
