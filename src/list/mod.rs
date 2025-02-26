@@ -95,7 +95,7 @@ impl WalkBuilderConfig {
                     if let Ok(path) = path {
                         if path
                             .file_type()
-                            .map_or(false, |file_type| file_type.is_file())
+                            .is_some_and(|file_type| file_type.is_file())
                         {
                             let path = path.path().into();
                             if let Err(error) = f(path, sender.clone()) {

@@ -33,6 +33,7 @@ pub(crate) struct Context {
     keyboard_layout_kind: KeyboardLayoutKind,
     location_history_backward: Vec<Location>,
     location_history_forward: Vec<Location>,
+    marked_paths: IndexSet<CanonicalizedPath>,
 }
 
 pub(crate) struct QuickfixListState {
@@ -90,6 +91,7 @@ impl Default for Context {
             },
             location_history_backward: Vec::new(),
             location_history_forward: Vec::new(),
+            marked_paths: Default::default(),
         }
     }
 }
@@ -294,6 +296,18 @@ impl Context {
 
     pub(crate) fn location_next(&mut self) -> Option<Location> {
         self.location_history_forward.pop()
+    }
+
+    pub(crate) fn get_marked_paths(&self) -> Vec<&CanonicalizedPath> {
+        self.marked_paths.iter().collect()
+    }
+
+    pub(crate) fn toggle_file_mark(&mut self, path: CanonicalizedPath) {
+        if self.marked_paths.contains(&path) {
+            let _ = self.marked_paths.shift_remove(&path);
+        } else {
+            let _ = self.marked_paths.insert_sorted(path);
+        }
     }
 }
 
