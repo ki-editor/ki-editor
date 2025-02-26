@@ -158,6 +158,8 @@ productivity and focus.
 By utilizing file marking, you can efficiently navigate your editing
 environment and maintain your workflow's momentum.
 
+<TutorialFallback filename="mark-file"/>
+
 ### `Undo`/`Redo`
 
 Notes:

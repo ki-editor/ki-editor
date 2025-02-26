@@ -1297,6 +1297,22 @@ foo bar spam
         }].to_vec(),
         },
         RecipeGroup {
+            filename: "mark-file",
+            recipes: [
+            Recipe {
+            description: "Mark file and navigate marked files",
+            content: ""
+            .trim(),
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("space f m enter B space f f enter B space f g enter B alt+l alt+l alt+j alt+j B"),
+            expectations: &[CurrentComponentTitle("\u{200b}🙈 .gitignore \u{200b}  # 🦀 foo.rs  # 🦀 main.rs ")],
+            terminal_height: Some(10),
+            similar_vim_combos: &[],
+            only: true,
+        }].to_vec(),
+        },
+        RecipeGroup {
             filename: "recipes",
             recipes: recipes(),
         },
