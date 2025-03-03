@@ -179,27 +179,7 @@ pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
         .lines()
         .enumerate()
         .filter_map(|(line_number, line)| {
-            let wrapped_lines: Vec<String> = re
-                .split(line)
-                .flat_map(|chunk| chop_str(chunk, wrap_width))
-                .fold(
-                    vec![],
-                    |mut lines: Vec<(usize, String)>, (chunk_width, chunk)| {
-                        match lines.last_mut() {
-                            Some((last_line_width, last_line))
-                                if *last_line_width + chunk_width <= wrap_width =>
-                            {
-                                last_line.push_str(&chunk);
-                                *last_line_width += chunk_width;
-                            }
-                            _ => lines.push((chunk_width, chunk.to_string())),
-                        }
-                        lines
-                    },
-                )
-                .into_iter()
-                .map(|(_, line)| line)
-                .collect_vec();
+            let wrapped_lines: Vec<String> = wrap_items(&re.split(line).collect_vec(), wrap_width);
             let (primary, wrapped) = wrapped_lines.split_first()?;
             Some(WrappedLine {
                 primary: primary.to_string(),
@@ -227,9 +207,35 @@ pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
     result
 }
 
+pub(crate) fn wrap_items(items: &[&str], wrap_width: usize) -> Vec<String> {
+    debug_assert!(wrap_width > 0);
+    items
+        .into_iter()
+        .flat_map(|chunk| chop_str(chunk, wrap_width))
+        .fold(
+            vec![],
+            |mut lines: Vec<(usize, String)>, (chunk_width, chunk)| {
+                match lines.last_mut() {
+                    Some((last_line_width, last_line))
+                        if *last_line_width + chunk_width <= wrap_width =>
+                    {
+                        last_line.push_str(&chunk);
+                        *last_line_width += chunk_width;
+                    }
+                    _ => lines.push((chunk_width, chunk.to_string())),
+                }
+                lines
+            },
+        )
+        .into_iter()
+        .map(|(_, line)| line)
+        .collect_vec()
+}
+
 /// Chop the given string into chunks by the given `max_width`
 /// The width of each chunk is paired with each chunk in the result vector.
 fn chop_str(s: &str, max_width: usize) -> Vec<(usize, String)> {
+    debug_assert!(max_width > 0);
     fn chop_str_(s: &str, max_width: usize) -> Vec<(usize, String)> {
         let width = get_string_width(s);
         if width <= max_width {

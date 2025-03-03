@@ -154,7 +154,7 @@ impl Component for Prompt {
             key!("tab") => {
                 if self.editor.completion_dropdown_opened() {
                     if let Some(item) = self.editor.completion_dropdown_current_item() {
-                        self.editor.set_content(&item.display())?;
+                        self.editor.set_content(&item.display(), context)?;
                         return self.editor_mut().move_to_line_end();
                     }
                     Ok(Default::default())

@@ -627,6 +627,7 @@ pub(crate) enum StyleKey {
     UiSecondarySelectionPrimaryCursor,
     UiSecondarySelectionSecondaryCursor,
     UiSectionDivider,
+    UiFocusedTab,
 }
 
 /// TODO: in the future, tab size should be configurable

@@ -21,3 +21,8 @@ isahc = "1.7.2"
 url = "2.5.0"
 which = "~7.0.0"
 etcetera = "0.8"
+itertools.workspace = true
+
+[dev-dependencies]
+quickcheck.workspace = true
+quickcheck_macros.workspace = true

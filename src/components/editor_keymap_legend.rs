@@ -136,41 +136,16 @@ impl Editor {
                 Dispatch::NavigateForward,
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::BuffP),
-                Direction::Start.format_action("Buffer"),
-                "Go to previous buffer".to_string(),
-                Dispatch::CycleBuffer(Direction::Start),
+                context.keyboard_layout_kind().get_key(&Meaning::MrkFP),
+                Direction::Start.format_action("Marked"),
+                "Go to previous marked file".to_string(),
+                Dispatch::CycleMarkedFile(Direction::Start),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::BuffN),
-                Direction::End.format_action("Buffer"),
-                "Go to next buffer".to_string(),
-                Dispatch::CycleBuffer(Direction::End),
-            ),
-            Keymap::new(
-                "1",
-                "Quick Jump - #1".to_string(),
-                Dispatch::JumpEditor('1'),
-            ),
-            Keymap::new(
-                "2",
-                "Quick Jump - #2".to_string(),
-                Dispatch::JumpEditor('2'),
-            ),
-            Keymap::new(
-                "3",
-                "Quick Jump - #3".to_string(),
-                Dispatch::JumpEditor('3'),
-            ),
-            Keymap::new(
-                "4",
-                "Quick Jump - #4".to_string(),
-                Dispatch::JumpEditor('4'),
-            ),
-            Keymap::new(
-                "5",
-                "Quick Jump - #5".to_string(),
-                Dispatch::JumpEditor('5'),
+                context.keyboard_layout_kind().get_key(&Meaning::MrkFN),
+                Direction::End.format_action("Marked"),
+                "Go to next marked file".to_string(),
+                Dispatch::CycleMarkedFile(Direction::End),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::SSEnd),
@@ -185,7 +160,8 @@ impl Editor {
                 Dispatch::ToEditor(DispatchEditor::SwapCursor),
             ),
         ]
-        .to_vec()
+        .into_iter()
+        .collect()
     }
 
     pub(crate) fn keymap_primary_selection_modes(&self, context: &Context) -> Vec<Keymap> {
@@ -338,9 +314,15 @@ impl Editor {
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Mark_),
-                "Mark".to_string(),
-                "Toggle Mark".to_string(),
+                "Mark Sel".to_string(),
+                "Toggle Selection Mark".to_string(),
                 Dispatch::ToEditor(ToggleMark),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::MarkF),
+                "Mark File".to_string(),
+                "Toggle File Mark".to_string(),
+                Dispatch::ToggleFileMark,
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::SrchN),
@@ -793,7 +775,7 @@ impl Editor {
         {
             Ok(dispatches)
         } else if let KeyCode::Char(c) = event.code {
-            return self.insert(&c.to_string());
+            return self.insert(&c.to_string(), context);
         } else {
             Ok(Default::default())
         }
