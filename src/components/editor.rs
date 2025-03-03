@@ -96,7 +96,7 @@ impl Component for Editor {
                     .collect_vec(),
                     self.dimension().width as usize,
                 );
-                println!("wrapped_items = {wrapped_items:?}");
+                // println!("wrapped_items = {wrapped_items:?}");
                 Some(wrapped_items.join("\n"))
             })
             .unwrap_or_else(|| "[No title]".to_string())
