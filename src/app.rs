@@ -262,7 +262,7 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn get_screen(&mut self) -> Result<Screen, anyhow::Error> {
         // Recalculate layout before each render
-        self.layout.recalculate_layout();
+        self.layout.recalculate_layout(&self.context);
 
         // Generate layout
         let dimension = self.layout.terminal_dimension();
@@ -672,9 +672,9 @@ impl<T: Frontend> App<T> {
             Dispatch::MoveFile { from, to } => self.move_file(from, to)?,
             Dispatch::CopyFile { from, to } => self.copy_file(from, to)?,
             Dispatch::AddPath(path) => self.add_path(path)?,
-            Dispatch::RefreshFileExplorer => {
-                self.layout.refresh_file_explorer(&self.working_directory)?
-            }
+            Dispatch::RefreshFileExplorer => self
+                .layout
+                .refresh_file_explorer(&self.working_directory, &self.context)?,
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
                 use_system_clipboard,
@@ -766,7 +766,7 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseDropdown => self.layout.close_dropdown(),
             Dispatch::CloseEditorInfo => self.layout.close_editor_info(),
             Dispatch::RenderDropdown { render } => {
-                if let Some(dropdown) = self.layout.open_dropdown() {
+                if let Some(dropdown) = self.layout.open_dropdown(&self.context) {
                     self.render_dropdown(dropdown, render)?;
                 }
             }
@@ -822,7 +822,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn close_current_window(&mut self) {
-        self.layout.close_current_window()
+        self.layout.close_current_window(&self.context)
     }
 
     fn local_search(&mut self, if_current_not_found: IfCurrentNotFound) -> anyhow::Result<()> {
@@ -847,8 +847,10 @@ impl<T: Frontend> App<T> {
     }
 
     fn resize(&mut self, dimension: Dimension) {
-        self.layout
-            .set_terminal_dimension(dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT));
+        self.layout.set_terminal_dimension(
+            dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT),
+            &self.context,
+        );
     }
 
     fn open_move_to_index_prompt(&mut self) -> anyhow::Result<()> {
@@ -1273,9 +1275,11 @@ impl<T: Frontend> App<T> {
     }
 
     fn show_global_info(&mut self, info: Info) {
-        self.layout.show_global_info(info).unwrap_or_else(|err| {
-            log::error!("Error showing info: {:?}", err);
-        });
+        self.layout
+            .show_global_info(info, &self.context)
+            .unwrap_or_else(|err| {
+                log::error!("Error showing info: {:?}", err);
+            });
     }
 
     fn go_to_location(
@@ -1287,7 +1291,7 @@ impl<T: Frontend> App<T> {
         let dispatches = component
             .borrow_mut()
             .editor_mut()
-            .set_position_range(location.range.clone())?;
+            .set_position_range(location.range.clone(), &self.context)?;
         self.handle_dispatches(dispatches)?;
         Ok(())
     }
@@ -1352,11 +1356,11 @@ impl<T: Frontend> App<T> {
             let dispatches = component
                 .borrow_mut()
                 .editor_mut()
-                .apply_positional_edits(edit.edits)?;
+                .apply_positional_edits(edit.edits, &self.context)?;
 
             self.handle_dispatches(dispatches)?;
 
-            let dispatches = component.borrow_mut().editor_mut().save()?;
+            let dispatches = component.borrow_mut().editor_mut().save(&self.context)?;
 
             self.handle_dispatches(dispatches)?;
         }
@@ -1440,7 +1444,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn save_all(&self) -> anyhow::Result<()> {
-        self.layout.save_all()
+        self.layout.save_all(&self.context)
     }
 
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
@@ -1468,7 +1472,8 @@ impl<T: Frontend> App<T> {
             std::fs::remove_file(path)?;
         }
         self.layout.remove_suggestive_editor(path);
-        self.layout.refresh_file_explorer(&self.working_directory)?;
+        self.layout
+            .refresh_file_explorer(&self.working_directory, &self.context)?;
         Ok(())
     }
 
@@ -1476,7 +1481,8 @@ impl<T: Frontend> App<T> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::rename(from.clone(), to.clone())?;
-        self.layout.refresh_file_explorer(&self.working_directory)?;
+        self.layout
+            .refresh_file_explorer(&self.working_directory, &self.context)?;
         let to = to.try_into()?;
         self.reveal_path_in_explorer(&to)?;
         self.lsp_manager.send_message(
@@ -1494,7 +1500,8 @@ impl<T: Frontend> App<T> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::copy(from.clone(), to.clone())?;
-        self.layout.refresh_file_explorer(&self.working_directory)?;
+        self.layout
+            .refresh_file_explorer(&self.working_directory, &self.context)?;
         let to = to.try_into()?;
         self.reveal_path_in_explorer(&to)?;
         self.lsp_manager.send_message(
@@ -1523,7 +1530,8 @@ impl<T: Frontend> App<T> {
             self.add_path_parent(&path)?;
             std::fs::File::create(&path)?;
         }
-        self.layout.refresh_file_explorer(&self.working_directory)?;
+        self.layout
+            .refresh_file_explorer(&self.working_directory, &self.context)?;
         let path: CanonicalizedPath = path.try_into()?;
         self.reveal_path_in_explorer(&path)?;
         self.lsp_manager.send_message(
@@ -2061,8 +2069,11 @@ impl<T: Frontend> App<T> {
         let history = self.context.get_prompt_history(key, current_line);
         let (prompt, dispatches) = Prompt::new(prompt_config, key, history);
 
-        self.layout
-            .add_and_focus_prompt(ComponentKind::Prompt, Rc::new(RefCell::new(prompt)));
+        self.layout.add_and_focus_prompt(
+            ComponentKind::Prompt,
+            Rc::new(RefCell::new(prompt)),
+            &self.context,
+        );
         self.handle_dispatches(dispatches)
     }
 
@@ -2078,7 +2089,7 @@ impl<T: Frontend> App<T> {
 
         match render.info {
             Some(info) => {
-                self.layout.show_dropdown_info(info)?;
+                self.layout.show_dropdown_info(info, &self.context)?;
             }
             _ => self.layout.hide_dropdown_info(),
         }
@@ -2094,12 +2105,14 @@ impl<T: Frontend> App<T> {
         &mut self,
         quickfix_list: QuickfixList,
     ) -> anyhow::Result<()> {
-        let dispatches = self.layout.show_quickfix_list(quickfix_list)?;
+        let dispatches = self
+            .layout
+            .show_quickfix_list(quickfix_list, &self.context)?;
         self.handle_dispatches(dispatches)
     }
 
     fn show_editor_info(&mut self, info: Info) -> anyhow::Result<()> {
-        self.layout.show_editor_info(info)
+        self.layout.show_editor_info(info, &self.context)
     }
 
     #[cfg(test)]
@@ -2113,7 +2126,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn reveal_path_in_explorer(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
-        let dispatches = self.layout.reveal_path_in_explorer(path)?;
+        let dispatches = self.layout.reveal_path_in_explorer(path, &self.context)?;
         self.handle_dispatches(dispatches)
     }
 

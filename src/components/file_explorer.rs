@@ -4,6 +4,7 @@ use my_proc_macros::key;
 use crate::{
     app::{Dispatch, Dispatches},
     buffer::BufferOwner,
+    context::Context,
 };
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -57,27 +58,35 @@ impl FileExplorer {
         Ok(Self { editor, tree })
     }
 
-    pub(crate) fn reveal(&mut self, path: &CanonicalizedPath) -> anyhow::Result<Dispatches> {
+    pub(crate) fn reveal(
+        &mut self,
+        path: &CanonicalizedPath,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
         let tree = std::mem::take(&mut self.tree);
         self.tree = tree.reveal(path)?;
-        self.refresh_editor()?;
+        self.refresh_editor(context)?;
         if let Some(index) = self.tree.find_index(path) {
-            self.editor_mut().select_line_at(index)
+            self.editor_mut().select_line_at(index, context)
         } else {
             Ok(Dispatches::default())
         }
     }
 
-    pub(crate) fn refresh(&mut self, working_directory: &CanonicalizedPath) -> anyhow::Result<()> {
+    pub(crate) fn refresh(
+        &mut self,
+        working_directory: &CanonicalizedPath,
+        context: &Context,
+    ) -> anyhow::Result<()> {
         let tree = std::mem::take(&mut self.tree);
         self.tree = tree.refresh(working_directory)?;
-        self.refresh_editor()?;
+        self.refresh_editor(context)?;
         Ok(())
     }
 
-    fn refresh_editor(&mut self) -> anyhow::Result<()> {
+    fn refresh_editor(&mut self, context: &Context) -> anyhow::Result<()> {
         let text = self.tree.render();
-        self.editor_mut().set_content(&text)
+        self.editor_mut().set_content(&text, context)
     }
 
     fn get_current_node(&self) -> anyhow::Result<Option<Node>> {
@@ -381,7 +390,7 @@ impl Component for FileExplorer {
                         NodeKind::Directory { .. } => {
                             let tree = std::mem::take(&mut self.tree);
                             self.tree = tree.toggle(&node.path, |open| !open);
-                            self.refresh_editor()?;
+                            self.refresh_editor(context)?;
                             Ok(Vec::new().into())
                         }
                     }

@@ -54,6 +54,7 @@ use crate::{
     },
     position::Position,
     quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
+    rectangle::Rectangle,
     selection::SelectionMode,
     style::Style,
     themes::Theme,
@@ -207,9 +208,11 @@ impl ExpectKind {
                 grid.to_string(),
             ),
             AppGrid(grid) => {
+                let expected = grid.to_string().trim_matches('\n').to_string();
                 let actual = app.get_screen()?.stringify().trim_matches('\n').to_string();
+                println!("expected =\n{}", expected);
                 println!("actual =\n{}", actual);
-                contextualize(actual, grid.to_string().trim_matches('\n').to_string())
+                contextualize(actual, expected)
             }
             CurrentPath(path) => contextualize(app.get_current_file_path().unwrap(), path.clone()),
             Not(expect_kind) => {
@@ -1172,7 +1175,7 @@ fn first () {
             )),
             // Resize the terminal dimension sucht that the fourth line will be wrapped
             App(TerminalDimensionChanged(Dimension {
-                width: 20,
+                width: 21,
                 height: 6,
             })),
             Editor(AlignViewBottom),
@@ -2578,6 +2581,60 @@ fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
             App(NavigateBack),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn mark_files_tabline_wrapping_no_word_break() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 20,
+                height: 3,
+            })),
+            Expect(EditorGrid(
+                "🦀  src/foo.rs\n# 🦀  main.rs\n1│█ub(crate) struct",
+            )),
+        ])
+    })
+}
+
+#[test]
+fn mark_files_tabline_wrapping_with_word_break() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 10,
+                height: 4,
+            })),
+            Expect(EditorGrid(
+                "🦀  src/foo.rs\n# 🦀  main.rs\n1│█ub(crate) struct",
+            )),
         ])
     })
 }

@@ -287,6 +287,7 @@ pub(crate) enum DispatchSuggestiveEditor {
 mod test_suggestive_editor {
     use crate::components::editor::DispatchEditor::*;
     use crate::components::suggestive_editor::DispatchSuggestiveEditor::*;
+    use crate::context::Context;
     use crate::lsp::completion::{CompletionItemEdit, PositionalEdit};
     use crate::lsp::documentation::Documentation;
     use crate::position::Position;
@@ -334,11 +335,10 @@ mod test_suggestive_editor {
         let path: CanonicalizedPath = file.path().to_path_buf().try_into().unwrap();
 
         editor.editor_mut().buffer_mut().set_path(path);
-
         // Enter insert mode
         let _ = editor
             .editor_mut()
-            .enter_insert_mode(Direction::Start)
+            .enter_insert_mode(Direction::Start, &Context::default())
             .unwrap();
 
         // Type something
@@ -364,7 +364,7 @@ mod test_suggestive_editor {
         // Enter insert mode
         let dispatches = editor
             .editor_mut()
-            .enter_insert_mode(Direction::Start)
+            .enter_insert_mode(Direction::Start, &Context::default())
             .unwrap();
 
         // Expect the signature help request to be sent

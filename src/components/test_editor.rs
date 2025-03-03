@@ -3,7 +3,7 @@ use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::CopiedTexts;
 use crate::components::editor::{DispatchEditor::*, Movement::*};
-use crate::context::{LocalSearchConfigMode, Search};
+use crate::context::{Context, LocalSearchConfigMode, Search};
 use crate::list::grep::RegexConfig;
 use crate::lsp::process::LspNotification;
 use crate::quickfix_list::{Location, QuickfixListItem};
@@ -2135,12 +2135,12 @@ fn empty_content_should_have_one_line() -> anyhow::Result<()> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetContent("".to_string())),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
                 width: 20,
                 height: 2,
             })),
+            Editor(SetContent("".to_string())),
             Expect(EditorGrid(
                 "
 🦀  src/main.rs [*]
@@ -2336,16 +2336,17 @@ fn tree_sitter_should_not_reparse_in_insert_mode() -> anyhow::Result<()> {
         Some(tree_sitter_md::LANGUAGE.into()),
         "fn main() {}",
     );
-    let _ = editor.enter_insert_mode(Direction::End)?;
+    let context = Context::default();
+    let _ = editor.enter_insert_mode(Direction::End, &context)?;
 
     let current_range = editor.buffer().tree().unwrap().root_node().range();
-    let _ = editor.insert("fn hello() {}")?;
+    let _ = editor.insert("fn hello() {}", &context)?;
     // Modifying the content in insert mode should not cause the tree to be reparsed
     let new_range = editor.buffer().tree().unwrap().root_node().range();
     assert_eq!(current_range, new_range);
 
     // Entering normal mode should reparse the tree
-    editor.enter_normal_mode()?;
+    editor.enter_normal_mode(&context)?;
     let new_range = editor.buffer().tree().unwrap().root_node().range();
     assert_ne!(current_range, new_range);
 
@@ -4043,7 +4044,7 @@ fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
         Box::new([
             App(HandleKeyEvents(keys!("n q f o o : : f o o enter").to_vec())),
             Expect(OpenedFilesCount(0)),
-            Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
+            Expect(CurrentComponentTitle("\u{200b} 🦀 src/main.rs \u{200b}")),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
             Expect(OpenedFilesCount(1)),
@@ -4058,7 +4059,7 @@ fn background_editor_user_from_explorer() -> anyhow::Result<()> {
             App(HandleKeyEvents(
                 keys!("space f m a i n . r s enter").to_vec(),
             )),
-            Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
+            Expect(CurrentComponentTitle("\u{200b} 🦀 src/main.rs \u{200b}")),
             Expect(OpenedFilesCount(1)),
         ])
     })
@@ -4069,61 +4070,11 @@ fn background_editor_closing_no_system_buffer() -> anyhow::Result<()> {
     execute_test(|_| {
         Box::new([
             App(HandleKeyEvents(keys!("n q f o o enter").to_vec())),
-            Expect(CurrentComponentTitle(" 🦀 src/foo.rs")),
+            Expect(CurrentComponentTitle("\u{200b} 🦀 src/foo.rs \u{200b}")),
             Expect(OpenedFilesCount(0)),
             App(CloseCurrentWindow),
             Expect(OpenedFilesCount(0)),
             Expect(CurrentComponentTitle("[ROOT] (Cannot be saved)")),
-        ])
-    })
-}
-
-#[test]
-fn toggle_editor_tag() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
-            App(HandleKeyEvent(key!("1"))),
-            Expect(CurrentComponentTitle(" 🦀 src/main.rs #1")),
-            App(HandleKeyEvent(key!("1"))),
-            Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
-        ])
-    })
-}
-
-#[test]
-fn jump_editor_tag() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetRectangle(Rectangle {
-                origin: Default::default(),
-                width: 100,
-                height: 20,
-            })),
-            App(HandleKeyEvent(key!("alt+1"))),
-            Expect(EditorGrid("")),
-            Expect(CurrentComponentTitle(" 🦀 src/main.rs #1")),
-            App(OpenFile {
-                path: s.foo_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            App(HandleKeyEvent(key!("alt+2"))),
-            Expect(CurrentComponentTitle(" 🦀 src/foo.rs #2")),
-            App(HandleKeyEvent(key!("1"))),
-            Expect(CurrentComponentTitle(" 🦀 src/main.rs #1")),
-            App(HandleKeyEvent(key!("2"))),
-            Expect(CurrentComponentTitle(" 🦀 src/foo.rs #2")),
         ])
     })
 }

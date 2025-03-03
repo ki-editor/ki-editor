@@ -36,7 +36,7 @@ impl Editor {
         let grid = match &self.reveal {
             None => self.get_grid_with_dimension(
                 context,
-                self.render_area(),
+                self.render_area(context),
                 self.scroll_offset(),
                 Some(self.selection_set.primary_selection().range()),
                 false,
@@ -66,6 +66,11 @@ impl Editor {
                 .into_iter()
                 .collect(),
             );
+            let dimension = Dimension {
+                height: self.window_title_height(&context),
+                width: self.dimension().width,
+            };
+            // TODO: fix this weird code that needs to clone the context
             let context = Context::default().set_theme(Theme {
                 ui: UiStyles {
                     background_color: window_title_style.background_color.unwrap_or_default(),
@@ -74,17 +79,7 @@ impl Editor {
                 },
                 ..context.theme().clone()
             });
-            editor.get_grid_with_dimension(
-                &context,
-                Dimension {
-                    height: 1,
-                    width: self.dimension().width,
-                },
-                0,
-                None,
-                false,
-                false,
-            )
+            editor.get_grid_with_dimension(&context, dimension, 0, None, false, false)
         };
 
         let grid = title_grid.merge_vertical(grid);
@@ -134,7 +129,7 @@ impl Editor {
         .collect_vec();
         let viewport_sections = divide_viewport(
             &ranges,
-            self.render_area().height as usize,
+            self.render_area(context).height as usize,
             buffer
                 .char_index_range_to_byte_range(
                     self.selection_set.primary_selection().extended_range(),
@@ -171,7 +166,7 @@ impl Editor {
                     context,
                     Dimension {
                         height: viewport_section.height() as u16,
-                        width: self.render_area().width,
+                        width: self.render_area(context).width,
                     },
                     window.start as u16,
                     Some(protected_range),
@@ -944,7 +939,7 @@ mod test_render_editor {
     #[quickcheck]
     fn get_grid_cells_should_be_always_within_bound(rectangle: Rectangle, content: String) -> bool {
         let mut editor = Editor::from_text(None, &content);
-        editor.set_rectangle(rectangle.clone());
+        editor.set_rectangle(rectangle.clone(), &Context::default());
         let grid = editor.get_grid(&Context::default(), false);
         let cells = grid.grid.to_positioned_cells();
         cells.into_iter().all(|cell| {

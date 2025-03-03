@@ -7,6 +7,19 @@ pub(crate) fn format_path_list(
     current_working_directory: &CanonicalizedPath,
     dirty: bool,
 ) -> String {
+    let formatted_paths =
+        get_formatted_paths(paths, current_path, current_working_directory, dirty);
+
+    // Join all formatted paths
+    formatted_paths.join("")
+}
+
+pub(crate) fn get_formatted_paths(
+    paths: &[&CanonicalizedPath],
+    current_path: &CanonicalizedPath,
+    current_working_directory: &CanonicalizedPath,
+    dirty: bool,
+) -> Vec<String> {
     debug_assert_eq!(paths.iter().unique().count(), paths.len());
     // Check if current path is in the list
     let current_path_index = paths.iter().position(|&p| p == current_path);
@@ -41,6 +54,7 @@ pub(crate) fn format_path_list(
     let current_path_string = get_full_path_display(current_path);
 
     // Helper function to format non-current paths
+
     let format_path_string = |path: &CanonicalizedPath| -> String {
         if path == current_path {
             // Use full path for current path
@@ -72,8 +86,8 @@ pub(crate) fn format_path_list(
 
     // Format the current path
     let current_path_display = format!(
-        "\u{200B}{}{} {}{} \u{200B}",
-        if contains_current_path { " # " } else { "" },
+        "\u{200B}{} {} {}{} \u{200B}",
+        if contains_current_path { " #" } else { "" },
         current_path.icon(),
         current_path_string,
         dirty_indicator
@@ -81,11 +95,11 @@ pub(crate) fn format_path_list(
 
     // No paths in the list
     if paths.is_empty() {
-        return current_path_display;
+        return Some(current_path_display).into_iter().collect();
     }
 
     // Generate formatted strings for all paths in the list
-    let formatted_paths: Vec<String> = paths
+    let result = paths
         .iter()
         .map(|&p| {
             if p == current_path {
@@ -95,13 +109,11 @@ pub(crate) fn format_path_list(
             }
         })
         .collect();
-
-    // Join all formatted paths
-    let result = formatted_paths.join("");
-
-    // If current path is not in the list, prepend it
     if !contains_current_path {
-        format!("{} {}", current_path_display, result)
+        Some(current_path_display)
+            .into_iter()
+            .chain(result)
+            .collect()
     } else {
         result
     }
