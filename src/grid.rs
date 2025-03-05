@@ -1,7 +1,7 @@
 use crate::{
     app::Dimension,
     position::Position,
-    soft_wrap::{self},
+    soft_wrap::{self, WrappedLine, WrappedLines},
     style::Style,
     themes::{Color, Theme},
 };

@@ -2629,11 +2629,18 @@ fn mark_files_tabline_wrapping_with_word_break() -> anyhow::Result<()> {
             }),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
-                width: 10,
-                height: 4,
+                width: 11,
+                height: 6,
             })),
             Expect(EditorGrid(
-                "🦀  src/foo.rs\n# 🦀  main.rs\n1│█ub(crate) struct",
+                "
+🦀  src/fo
+o.rs
+# 🦀  main
+.rs
+1│█ub(
+↪│crate)"
+                    .trim(),
             )),
         ])
     })

@@ -14,8 +14,9 @@ use crate::{
     },
     context::Context,
     divide_viewport::{calculate_window_position, divide_viewport},
-    grid::{CellUpdate, Grid, RenderContentLineNumber, StyleKey},
+    grid::{CellUpdate, Grid, LineUpdate, RenderContentLineNumber, StyleKey},
     position::Position,
+    rectangle::Rectangle,
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
     style::Style,
@@ -29,20 +30,30 @@ use super::{
 };
 
 static FOCUSED_TAB_REGEX: &Lazy<regex::Regex> =
-    lazy_regex::regex!("(?<focused_tab>\u{200B}(.*)\u{200B})");
+    // We need multiline string so that wrapped filename will be highlighted as well
+    lazy_regex::regex!("(?s)(?<focused_tab>\u{200B}(.*)\u{200B})");
 
 impl Editor {
     pub(crate) fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
+        let title = self.title(context);
+        let title_grid_height = title.lines().count() as u16;
+        let render_area = {
+            let Dimension { height, width } = self.dimension();
+            Dimension {
+                height: height.saturating_sub(title_grid_height),
+                width,
+            }
+        };
         let grid = match &self.reveal {
             None => self.get_grid_with_dimension(
                 context,
-                self.render_area(context),
+                render_area,
                 self.scroll_offset(),
                 Some(self.selection_set.primary_selection().range()),
                 false,
                 true,
             ),
-            Some(reveal) => self.get_splitted_grid(context, reveal),
+            Some(reveal) => self.get_splitted_grid(context, reveal, render_area),
         };
         let theme = context.theme();
         let window_title_style = if focused {
@@ -52,7 +63,7 @@ impl Editor {
         };
 
         let title_grid = {
-            let mut editor = Editor::from_text(None, &self.title(context));
+            let mut editor = Editor::from_text(None, &title);
             editor.set_regex_highlight_rules(
                 [RegexHighlightRule {
                     regex: (**FOCUSED_TAB_REGEX).clone(),
@@ -67,7 +78,7 @@ impl Editor {
                 .collect(),
             );
             let dimension = Dimension {
-                height: self.window_title_height(&context),
+                height: title_grid_height,
                 width: self.dimension().width,
             };
             // TODO: fix this weird code that needs to clone the context
@@ -79,9 +90,10 @@ impl Editor {
                 },
                 ..context.theme().clone()
             });
+            // TODO: no need to call get_grid_with_dimension
+            // Just render the lines
             editor.get_grid_with_dimension(&context, dimension, 0, None, false, false)
         };
-
         let grid = title_grid.merge_vertical(grid);
         let cursor_position = grid.get_cursor_position();
         let style = match self.mode {
@@ -95,7 +107,12 @@ impl Editor {
         }
     }
 
-    fn get_splitted_grid(&self, context: &Context, reveal: &Reveal) -> crate::grid::Grid {
+    fn get_splitted_grid(
+        &self,
+        context: &Context,
+        reveal: &Reveal,
+        render_area: Dimension,
+    ) -> crate::grid::Grid {
         let buffer = self.buffer();
         let ranges = match reveal {
             Reveal::CurrentSelectionMode => self
@@ -129,7 +146,7 @@ impl Editor {
         .collect_vec();
         let viewport_sections = divide_viewport(
             &ranges,
-            self.render_area(context).height as usize,
+            render_area.height as usize,
             buffer
                 .char_index_range_to_byte_range(
                     self.selection_set.primary_selection().extended_range(),
@@ -166,7 +183,7 @@ impl Editor {
                     context,
                     Dimension {
                         height: viewport_section.height() as u16,
-                        width: self.render_area(context).width,
+                        width: self.dimension().width,
                     },
                     window.start as u16,
                     Some(protected_range),

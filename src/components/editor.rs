@@ -94,9 +94,10 @@ impl Component for Editor {
                     .iter()
                     .map(|s| s.as_str())
                     .collect_vec(),
-                    self.dimension().width as usize,
+                    // Reference: NEED_TO_REDUCE_WIDTH_BY_1
+                    (self.dimension().width as usize).saturating_sub(1),
                 );
-                // println!("wrapped_items = {wrapped_items:?}");
+
                 Some(wrapped_items.join("\n"))
             })
             .unwrap_or_else(|| "[No title]".to_string())

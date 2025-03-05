@@ -172,6 +172,7 @@ impl WrappedLine {
 pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
     let re = Regex::new(r"\b").unwrap();
 
+    // LABEL: NEED_TO_REDUCE_WIDTH_BY_1
     // Need to reduce the width by 1 for wrapping,
     // that one space is reserved for rendering cursor at the last column
     let wrap_width = width.saturating_sub(1);
@@ -179,7 +180,8 @@ pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
         .lines()
         .enumerate()
         .filter_map(|(line_number, line)| {
-            let wrapped_lines: Vec<String> = wrap_items(&re.split(line).collect_vec(), wrap_width);
+            let items = re.split(line).collect_vec();
+            let wrapped_lines: Vec<String> = wrap_items(&items, wrap_width);
             let (primary, wrapped) = wrapped_lines.split_first()?;
             Some(WrappedLine {
                 primary: primary.to_string(),
