@@ -302,11 +302,24 @@ impl Context {
         self.marked_paths.iter().collect()
     }
 
-    pub(crate) fn toggle_file_mark(&mut self, path: CanonicalizedPath) {
-        if self.marked_paths.contains(&path) {
+    /// Returns some path if we should focus another file.
+    /// If the action is to unmark a file, and the file is not the only marked file left,
+    /// then we return the nearest neighbor.
+    pub(crate) fn toggle_file_mark(
+        &mut self,
+        path: CanonicalizedPath,
+    ) -> Option<&CanonicalizedPath> {
+        if let Some(index) = self.marked_paths.get_index_of(&path) {
             let _ = self.marked_paths.shift_remove(&path);
+            self.marked_paths
+                .get_index(if index == self.marked_paths.len() {
+                    index.saturating_sub(1)
+                } else {
+                    index
+                })
         } else {
             let _ = self.marked_paths.insert_sorted(path);
+            None
         }
     }
 }

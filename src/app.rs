@@ -812,7 +812,7 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_prompt()?,
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
-            Dispatch::ToggleFileMark => self.toggle_file_mark(),
+            Dispatch::ToggleFileMark => self.toggle_file_mark()?,
         }
         Ok(())
     }
@@ -2368,10 +2368,13 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn toggle_file_mark(&mut self) {
+    fn toggle_file_mark(&mut self) -> anyhow::Result<()> {
         if let Some(path) = self.get_current_file_path() {
-            self.context.toggle_file_mark(path)
+            if let Some(new_path) = self.context.toggle_file_mark(path).cloned() {
+                self.open_file(&new_path, BufferOwner::User, true, true)?;
+            }
         }
+        Ok(())
     }
 }
 
