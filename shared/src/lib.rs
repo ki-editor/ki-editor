@@ -1,6 +1,7 @@
 pub mod canonicalized_path;
 pub mod download;
 pub(crate) mod formatter;
+pub mod get_minimal_unique_paths;
 pub mod grammar;
 pub mod icons;
 pub mod language;

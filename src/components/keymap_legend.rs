@@ -377,7 +377,9 @@ impl KeymapLegend {
 
         let mut editor = Editor::from_text(None, "");
         editor.set_title(config.title.clone());
-        let _ = editor.enter_insert_mode(Direction::End).unwrap_or_default();
+        let _ = editor
+            .enter_insert_mode(Direction::End, context)
+            .unwrap_or_default();
         editor.set_regex_highlight_rules(config.get_regex_highlight_rules());
         KeymapLegend {
             editor,
@@ -387,13 +389,15 @@ impl KeymapLegend {
         }
     }
 
-    fn refresh(&mut self) {
+    fn refresh(&mut self, context: &Context) {
         let content = self.config.display(
             &self.keymap_layout_kind,
             self.editor.rectangle().width,
             self.show_shift_alt_keys,
         );
-        self.editor_mut().set_content(&content).unwrap_or_default();
+        self.editor_mut()
+            .set_content(&content, context)
+            .unwrap_or_default();
     }
 }
 
@@ -402,9 +406,9 @@ impl Component for KeymapLegend {
         &self.editor
     }
 
-    fn set_rectangle(&mut self, rectangle: Rectangle) {
-        self.refresh(); // TODO: pass theme from App.rs
-        self.editor_mut().set_rectangle(rectangle);
+    fn set_rectangle(&mut self, rectangle: Rectangle, context: &Context) {
+        self.refresh(context); // TODO: pass theme from App.rs
+        self.editor_mut().set_rectangle(rectangle, context);
     }
 
     fn editor_mut(&mut self) -> &mut Editor {
@@ -420,7 +424,7 @@ impl Component for KeymapLegend {
         if self.editor.mode == Mode::Insert {
             match &event {
                 key!("esc") => {
-                    self.editor.enter_normal_mode()?;
+                    self.editor.enter_normal_mode(context)?;
                     Ok(Default::default())
                 }
                 key!("space") => {

@@ -54,6 +54,7 @@ use crate::{
     },
     position::Position,
     quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
+    rectangle::Rectangle,
     selection::SelectionMode,
     style::Style,
     themes::Theme,
@@ -207,9 +208,11 @@ impl ExpectKind {
                 grid.to_string(),
             ),
             AppGrid(grid) => {
+                let expected = grid.to_string().trim_matches('\n').to_string();
                 let actual = app.get_screen()?.stringify().trim_matches('\n').to_string();
+                println!("expected =\n{}", expected);
                 println!("actual =\n{}", actual);
-                contextualize(actual, grid.to_string().trim_matches('\n').to_string())
+                contextualize(actual, expected)
             }
             CurrentPath(path) => contextualize(app.get_current_file_path().unwrap(), path.clone()),
             Not(expect_kind) => {
@@ -1172,7 +1175,7 @@ fn first () {
             )),
             // Resize the terminal dimension sucht that the fourth line will be wrapped
             App(TerminalDimensionChanged(Dimension {
-                width: 20,
+                width: 21,
                 height: 6,
             })),
             Editor(AlignViewBottom),
@@ -2578,6 +2581,178 @@ fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
             App(NavigateBack),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn mark_files_tabline_wrapping_no_word_break() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 20,
+                height: 3,
+            })),
+            Expect(EditorGrid(
+                "🦀  src/foo.rs\n# 🦀  main.rs\n1│█ub(crate) struct",
+            )),
+        ])
+    })
+}
+
+#[test]
+fn mark_files_tabline_wrapping_with_word_break() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 11,
+                height: 6,
+            })),
+            Expect(EditorGrid(
+                "
+🦀  src/fo
+o.rs
+# 🦀  main
+.rs
+1│█ub(
+↪│crate)"
+                    .trim(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn unmark_file_still_focus_current_file_if_no_more_marked_files() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(ToggleFileMark),
+            Expect(CurrentComponentPath(Some(s.main_rs))),
+        ])
+    })
+}
+
+#[test]
+/// The file to be unmarked is the lowest-rank marked file
+/// Expect the focused file to be the second file
+/// File rank: .gitignore -> foo.rs -> main.rs
+fn unmark_file_focuses_next_marked_file_if_other_marked_files_exists() -> anyhow::Result<()> {
+    // Latin gerundive-inspired variable naming convention used below:
+    // The '-andum' suffix comes from Latin gerundives, indicating "that which is to be [verb]ed"
+    // Examples: memorandum (to be remembered), referendum (to be referred), agenda (to be done)
+    // In our code, 'unmarkandum_file' means "file to be unmarked",
+    // 'focusandum_file' means "file to be focused"
+
+    #[derive(Clone, Copy)]
+    enum TestFile {
+        First,
+        Middle,
+        Last,
+    }
+    let run = |unmarkandum_file: TestFile, focusandum_file: TestFile| {
+        execute_test(|s| {
+            let to_path = |test_file: TestFile| match test_file {
+                TestFile::First => s.gitignore(),
+                TestFile::Middle => s.foo_rs(),
+                TestFile::Last => s.main_rs(),
+            };
+            Box::new([
+                App(OpenFile {
+                    path: s.gitignore(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                App(ToggleFileMark),
+                App(OpenFile {
+                    path: s.foo_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                App(ToggleFileMark),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                App(ToggleFileMark),
+                App(OpenFile {
+                    path: to_path(unmarkandum_file),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                App(ToggleFileMark),
+                Expect(CurrentComponentPath(Some(to_path(focusandum_file)))),
+            ])
+        })
+    };
+    // Test with different combinations of files to be unmarked and subsequently focused
+    run(TestFile::First, TestFile::Middle)?;
+    run(TestFile::Middle, TestFile::Last)?;
+    run(TestFile::Last, TestFile::Middle)?;
+    Ok(())
+}
+
+#[test]
+fn close_buffer_should_remove_mark() -> anyhow::Result<()> {
+    panic!();
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 11,
+                height: 6,
+            })),
+            Expect(EditorGrid(
+                "
+🦀  src/fo
+o.rs
+# 🦀  main
+.rs
+1│█ub(
+↪│crate)"
+                    .trim(),
+            )),
         ])
     })
 }
