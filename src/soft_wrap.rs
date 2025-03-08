@@ -214,7 +214,7 @@ pub(crate) fn wrap_items(items: &[&str], wrap_width: usize) -> Vec<String> {
         return Vec::new();
     }
     items
-        .into_iter()
+        .iter()
         .flat_map(|chunk| chop_str(chunk, wrap_width))
         .fold(
             vec![],

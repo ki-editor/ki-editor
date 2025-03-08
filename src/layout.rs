@@ -359,7 +359,7 @@ impl Layout {
         }
         self.tree
             .replace_current_node_child(ComponentKind::Dropdown, dropdown.clone(), false);
-        self.recalculate_layout(&context); // This is important to give Dropdown the render area, otherwise during render, height 0 is assume, causing weird behavior when scrolling
+        self.recalculate_layout(context); // This is important to give Dropdown the render area, otherwise during render, height 0 is assume, causing weird behavior when scrolling
         Some(dropdown)
     }
 

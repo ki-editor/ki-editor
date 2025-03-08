@@ -11,12 +11,10 @@ use crate::{
     buffer::Buffer,
     components::component::Component,
     edit::{Action, ActionGroup, Edit, EditTransaction},
-    format_path_list::{format_path_list, get_formatted_paths},
     lsp::completion::PositionalEdit,
     position::Position,
     rectangle::Rectangle,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
-    soft_wrap::wrap_items,
 };
 use crate::{
     app::{Dispatches, RequestParams, Scope},

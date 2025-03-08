@@ -67,7 +67,6 @@ pub(crate) fn distribute_items_by_2(total: usize) -> (usize, usize) {
         .unwrap()
 }
 use itertools::Itertools;
-use shared::{canonicalized_path::CanonicalizedPath, get_minimal_unique_paths};
 
 #[cfg(test)]
 mod test_utils {

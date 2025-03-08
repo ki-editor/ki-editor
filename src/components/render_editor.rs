@@ -15,9 +15,8 @@ use crate::{
     context::Context,
     divide_viewport::{calculate_window_position, divide_viewport},
     format_path_list::get_formatted_paths,
-    grid::{CellUpdate, Grid, LineUpdate, RenderContentLineNumber, StyleKey},
+    grid::{CellUpdate, Grid, RenderContentLineNumber, StyleKey},
     position::Position,
-    rectangle::Rectangle,
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
     soft_wrap::wrap_items,
@@ -137,8 +136,7 @@ impl Editor {
                 wrapped_items.len().saturating_sub(1)..wrapped_items.len(),
                 wrapped_items
                     .len()
-                    .saturating_sub(dimension.height.saturating_sub(1).into())
-                    .into(),
+                    .saturating_sub(dimension.height.saturating_sub(1).into()),
             )
             .trimmed_array
         };
