@@ -79,27 +79,10 @@ impl Component for Editor {
         self.clamp(context)
     }
 
-    /// TODO: memoize this function
     fn title(&self, context: &Context) -> String {
         let title = self.title.clone();
         title
-            .or_else(|| {
-                let wrapped_items = wrap_items(
-                    &get_formatted_paths(
-                        &context.get_marked_paths(),
-                        &self.path()?,
-                        context.current_working_directory(),
-                        self.buffer().dirty(),
-                    )
-                    .iter()
-                    .map(|s| s.as_str())
-                    .collect_vec(),
-                    // Reference: NEED_TO_REDUCE_WIDTH_BY_1
-                    (self.dimension().width as usize).saturating_sub(1),
-                );
-
-                Some(wrapped_items.join("\n"))
-            })
+            .or_else(|| self.title_impl(context))
             .unwrap_or_else(|| "[No title]".to_string())
     }
 

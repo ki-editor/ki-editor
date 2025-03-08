@@ -1,6 +1,8 @@
 use itertools::Itertools;
 use shared::{canonicalized_path::CanonicalizedPath, get_minimal_unique_paths};
 
+use crate::components::render_editor::markup_focused_tab;
+
 pub(crate) fn format_path_list(
     paths: &[&CanonicalizedPath],
     current_path: &CanonicalizedPath,
@@ -73,13 +75,13 @@ pub(crate) fn get_formatted_paths(
     let dirty_indicator = if dirty { " [*]" } else { "" };
 
     // Format the current path
-    let current_path_display = format!(
-        "\u{200B}{} {} {}{} \u{200B}",
+    let current_path_display = markup_focused_tab(&format!(
+        "{} {} {}{} ",
         if contains_current_path { " #" } else { "" },
         current_path.icon(),
         current_path_string,
         dirty_indicator
-    );
+    ));
 
     // No paths in the list
     if paths.is_empty() {

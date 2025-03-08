@@ -27,6 +27,7 @@ use SelectionMode::*;
 
 use super::editor::IfCurrentNotFound;
 use super::editor::SurroundKind;
+use super::render_editor::markup_focused_tab;
 
 #[test]
 fn raise_bottom_node() -> anyhow::Result<()> {
@@ -1484,7 +1485,7 @@ fn scroll_offset() -> anyhow::Result<()> {
             })),
             Editor(MatchLiteral("gamma".to_string())),
             Editor(SetScrollOffset(2)),
-            Expect(EditorGrid("🦀  src/main.rs [*]\n3│█amma\n4│lok")),
+            Expect(EditorGrid("🦀  main.rs [*]\n3│█amma\n4│lok")),
         ])
     })
 }
@@ -1565,7 +1566,7 @@ fn main() {
             // The "long" of "too long" is not shown, because it exceeded the view width
             Expect(EditorGrid(
                 "
-🦀  src/main.rs [*]
+🦀  main.rs [*]
 1│fn main() {
 3│  █eta()
 4│}
@@ -1743,7 +1744,7 @@ fn main() {
             // because it is amongst the parent lines of the current selection
             Expect(EditorGrid(
                 "
-🦀  src/main.rs [*]
+🦀  main.rs [*]
 2│fn main() {
 4│  let y = 2; //
 ↪│too long, wrapped
@@ -1795,7 +1796,7 @@ fn main() {
             Editor(SetScrollOffset(3)),
             Expect(EditorGrid(
                 "
-🦀  src/main.rs [*]
+🦀  main.rs [*]
 2│fn main() {
 4│  let y = 2; //
 ↪│too long, wrapped
@@ -1845,26 +1846,25 @@ fn test_wrapped_lines() -> anyhow::Result<()> {
             }),
             Editor(SetContent(
                 "
-// hello world\n hey
+// hellohello worldworld\n heyhey
 "
                 .trim()
                 .to_string(),
             )),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
-                width: 14,
+                width: 22,
                 height: 4,
             })),
             Editor(MatchLiteral("world".to_string())),
             Editor(EnterInsertMode(Direction::End)),
             Expect(EditorGrid(
                 "
-🦀  src/main.
-1│// hello
-↪│world█
-2│ hey
-"
-                .trim(),
+🦀  main.rs [*]
+1│// hellohello
+↪│world█orld
+2│ heyhey"
+                    .trim(),
             )),
             // Expect the cursor is after 'd'
             Expect(EditorGridCursorPosition(Position { line: 2, column: 7 })),
@@ -2049,7 +2049,7 @@ fn main() { // too long
             // The "long" of "too long" is not shown, because it exceeded the view width
             Expect(EditorGrid(
                 "
-🦀  src/main.rs [*]
+🦀  main.rs [*]
 1│fn main() { // too
 3│  let █ar = baba;
 ↪│let wrapped = coco
@@ -2109,7 +2109,7 @@ fn main() { // too long
             Editor(MatchLiteral("let".to_string())),
             Expect(EditorGrid(
                 "
-🦀  src/main.rs [*]
+🦀  main.rs [*]
 1│fn main() { // too
 ↪│ long
 2│  █et foo = 1;
@@ -2143,7 +2143,7 @@ fn empty_content_should_have_one_line() -> anyhow::Result<()> {
             Editor(SetContent("".to_string())),
             Expect(EditorGrid(
                 "
-🦀  src/main.rs [*]
+🦀  main.rs [*]
 1│█
 "
                 .trim(),
@@ -2265,7 +2265,7 @@ fn swap_cursor_with_anchor() -> anyhow::Result<()> {
             Editor(SwapCursor),
             Expect(EditorGrid(
                 "
-🦀  src/main.rs [*]
+🦀  main.rs [*]
 1│fn main() { x.y
 ↪│() █  // hello
 "
@@ -2300,7 +2300,7 @@ fn consider_unicode_width() -> anyhow::Result<()> {
             // Expect the cursor is on the letter 'a'
             // Expect an extra space is added between 'a' and the emoji
             // because, the unicode width of the emoji is 2
-            Expect(EditorGrid("🦀  src/main.rs [*]\n1│👩  █bc\n\n\n\n\n\n\n")),
+            Expect(EditorGrid("🦀  main.rs [*]\n1│👩  █bc\n\n\n\n\n\n\n")),
         ])
     })
 }
@@ -2426,11 +2426,13 @@ fn modifying_editor_causes_dirty_state() -> anyhow::Result<()> {
                 focus: true,
             }),
             Expect(Not(Box::new(EditorIsDirty()))),
-            Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
+            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
             Expect(EditorIsDirty()),
-            Expect(CurrentComponentTitle(" 🦀 src/main.rs [*]")),
+            Expect(CurrentComponentTitle(markup_focused_tab(
+                " 🦀 main.rs [*] ",
+            ))),
         ])
     })
 }
@@ -2448,10 +2450,12 @@ fn saving_editor_clears_dirty_state() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
             Expect(EditorIsDirty()),
-            Expect(CurrentComponentTitle(" 🦀 src/main.rs [*]")),
+            Expect(CurrentComponentTitle(markup_focused_tab(
+                " 🦀 main.rs [*] ",
+            ))),
             Editor(Save),
             Expect(Not(Box::new(EditorIsDirty()))),
-            Expect(CurrentComponentTitle(" 🦀 src/main.rs")),
+            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
         ])
     })
 }
@@ -4044,7 +4048,7 @@ fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
         Box::new([
             App(HandleKeyEvents(keys!("n q f o o : : f o o enter").to_vec())),
             Expect(OpenedFilesCount(0)),
-            Expect(CurrentComponentTitle("\u{200b} 🦀 src/main.rs \u{200b}")),
+            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
             Expect(OpenedFilesCount(1)),
@@ -4059,7 +4063,7 @@ fn background_editor_user_from_explorer() -> anyhow::Result<()> {
             App(HandleKeyEvents(
                 keys!("space f m a i n . r s enter").to_vec(),
             )),
-            Expect(CurrentComponentTitle("\u{200b} 🦀 src/main.rs \u{200b}")),
+            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
             Expect(OpenedFilesCount(1)),
         ])
     })
@@ -4070,11 +4074,13 @@ fn background_editor_closing_no_system_buffer() -> anyhow::Result<()> {
     execute_test(|_| {
         Box::new([
             App(HandleKeyEvents(keys!("n q f o o enter").to_vec())),
-            Expect(CurrentComponentTitle("\u{200b} 🦀 src/foo.rs \u{200b}")),
+            Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 foo.rs "))),
             Expect(OpenedFilesCount(0)),
             App(CloseCurrentWindow),
             Expect(OpenedFilesCount(0)),
-            Expect(CurrentComponentTitle("[ROOT] (Cannot be saved)")),
+            Expect(CurrentComponentTitle(
+                "[ROOT] (Cannot be saved)".to_string(),
+            )),
         ])
     })
 }
@@ -4176,7 +4182,7 @@ fn main() {
             Expect(CurrentSelectedTexts(&["bar"])),
             Expect(EditorGrid(
                 "
-🦀  src/main.rs [*]
+🦀  main.rs [*]
 1│fn main() {
 3│        █ar();
 "
@@ -4197,18 +4203,17 @@ fn should_prioritize_wrapped_selection_if_no_space_left() -> anyhow::Result<()> 
             }),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
-                width: 7,
+                width: 20,
                 height: 2,
             })),
-            Editor(SetContent("foo bar".trim().to_string())),
+            Editor(SetContent("foofoofoo barbarbar".trim().to_string())),
             Editor(MatchLiteral("bar".to_string())),
             Expect(CurrentSelectedTexts(&["bar"])),
             Expect(EditorGrid(
                 "
-🦀
-↪│█ar
-"
-                .trim(),
+🦀  main.rs [*]
+↪│█arbarbar"
+                    .trim(),
             )),
         ])
     })
@@ -4244,7 +4249,7 @@ fn foo() {
             Editor(MatchLiteral("yyy".to_string())),
             Expect(EditorGrid(
                 "
-🦀  src/main.rs [*]
+🦀  main.rs [*]
 1│fn foo() {
 2│  fn bar() {
 4│        xxx();

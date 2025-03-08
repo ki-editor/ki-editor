@@ -135,7 +135,7 @@ pub(crate) enum ExpectKind {
     OpenedFilesCount(usize),
     QuickfixListInfo(&'static str),
     ComponentsOrder(Vec<ComponentKind>),
-    CurrentComponentTitle(&'static str),
+    CurrentComponentTitle(String),
     CurrentSelectionMode(SelectionMode),
     CurrentGlobalMode(Option<GlobalMode>),
     LspRequestSent(FromEditor),
@@ -388,7 +388,15 @@ impl ExpectKind {
             }
             ComponentsOrder(expected) => contextualize(expected, &app.components_order()),
             CurrentComponentTitle(expected) => {
-                contextualize(*expected, &app.current_component().borrow().title(context))
+                // Provide a minimal height and width
+                // so that the tabline can be rendered properly,
+                // so that we do not need keep adding Editor(SetRectangle(rectangle))
+                // to test cases that are testing for CurrentComponentTitle.
+                app.handle_dispatch(Dispatch::TerminalDimensionChanged(Dimension {
+                    height: 10,
+                    width: 30,
+                }))?;
+                contextualize(expected, &app.current_component().borrow().title(app.context()))
             }
             CurrentSelectionMode(expected) => contextualize(
                 expected,
@@ -531,6 +539,7 @@ fn execute_test_helper(
                 steps.iter().last().map(|step| { step.variant_name() })
             );
         }
+
         for step in steps.iter() {
             match step.to_owned() {
                 Step::App(dispatch) => {
@@ -1152,7 +1161,7 @@ fn first () {
             Editor(AlignViewTop),
             Expect(AppGrid(
                 "
- 🦀  src/main.rs [*]
+ 🦀  main.rs [*]
 1│fn first () {
 5│  █ifth();
 6│}
@@ -1164,7 +1173,7 @@ fn first () {
             Editor(AlignViewBottom),
             Expect(AppGrid(
                 "
- 🦀  src/main.rs [*]
+ 🦀  main.rs [*]
 1│fn first () {
 3│  third();
 4│  fourth(); // this line is long
@@ -1181,7 +1190,7 @@ fn first () {
             Editor(AlignViewBottom),
             Expect(AppGrid(
                 "
- 🦀  src/main.rs [*]
+ 🦀  main.rs [*]
 1│fn first () {
 4│  fourth(); //
 ↪│this line is long
@@ -2224,14 +2233,16 @@ fn open_search_prompt_in_file_explorer() -> anyhow::Result<()> {
                 focus: true,
             }),
             App(RevealInExplorer(s.main_rs())),
-            Expect(CurrentComponentTitle("File Explorer")),
+            Expect(CurrentComponentTitle("File Explorer".to_string())),
             App(OpenSearchPrompt {
                 scope: Scope::Local,
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
-            Expect(Not(Box::new(CurrentComponentTitle("File Explorer")))),
+            Expect(Not(Box::new(CurrentComponentTitle(
+                "File Explorer".to_string(),
+            )))),
             App(HandleKeyEvents(keys!("m a i n enter").to_vec())),
-            Expect(CurrentComponentTitle("File Explorer")),
+            Expect(CurrentComponentTitle("File Explorer".to_string())),
         ])
     })
 }
@@ -2605,9 +2616,7 @@ fn mark_files_tabline_wrapping_no_word_break() -> anyhow::Result<()> {
                 width: 20,
                 height: 3,
             })),
-            Expect(EditorGrid(
-                "🦀  src/foo.rs\n# 🦀  main.rs\n1│█ub(crate) struct",
-            )),
+            Expect(EditorGrid("🦀  foo.rs\n# 🦀  main.rs\n1│█ub(crate) struct")),
         ])
     })
 }
@@ -2623,24 +2632,24 @@ fn mark_files_tabline_wrapping_with_word_break() -> anyhow::Result<()> {
             }),
             App(ToggleFileMark),
             App(OpenFile {
-                path: s.foo_rs(),
+                path: s.gitignore(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
                 width: 11,
-                height: 6,
+                height: 5,
             })),
             Expect(EditorGrid(
                 "
-🦀  src/fo
-o.rs
+🙈  .gitig
+nore
 # 🦀  main
 .rs
-1│█ub(
-↪│crate)"
-                    .trim(),
+1│█arget/
+"
+                .trim(),
             )),
         ])
     })

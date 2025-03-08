@@ -14,11 +14,13 @@ use crate::{
     },
     context::Context,
     divide_viewport::{calculate_window_position, divide_viewport},
+    format_path_list::get_formatted_paths,
     grid::{CellUpdate, Grid, LineUpdate, RenderContentLineNumber, StyleKey},
     position::Position,
     rectangle::Rectangle,
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
+    soft_wrap::wrap_items,
     style::Style,
     themes::{Theme, UiStyles},
     utils::trim_array,
@@ -32,6 +34,10 @@ use super::{
 static FOCUSED_TAB_REGEX: &Lazy<regex::Regex> =
     // We need multiline string so that wrapped filename will be highlighted as well
     lazy_regex::regex!("(?s)(?<focused_tab>\u{200B}(.*)\u{200B})");
+
+pub(crate) fn markup_focused_tab(path: &str) -> String {
+    format!("\u{200B}{path}\u{200B}")
+}
 
 impl Editor {
     pub(crate) fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
@@ -105,6 +111,42 @@ impl Editor {
             cursor: cursor_position.map(|position| Cursor::new(position, style)),
             grid,
         }
+    }
+
+    pub(crate) fn title_impl(&self, context: &Context) -> Option<String> {
+        let dimension = self.dimension();
+        let result = if dimension.height <= 1 {
+            vec![]
+        } else {
+            let wrapped_items = wrap_items(
+                &get_formatted_paths(
+                    &context.get_marked_paths(),
+                    &self.path()?,
+                    context.current_working_directory(),
+                    self.buffer().dirty(),
+                )
+                .iter()
+                .map(|s| s.as_str())
+                .collect_vec(),
+                // Reference: NEED_TO_REDUCE_WIDTH_BY_1
+                (dimension.width as usize).saturating_sub(1),
+            );
+
+            trim_array(
+                &wrapped_items,
+                wrapped_items.len().saturating_sub(1)..wrapped_items.len(),
+                wrapped_items
+                    .len()
+                    .saturating_sub(dimension.height.saturating_sub(1).into())
+                    .into(),
+            )
+            .trimmed_array
+        };
+        let result = result.join("\n");
+
+        // Ensure that at least one height is spared for rendering the editor's content
+        debug_assert!(result.lines().count() <= dimension.height.saturating_sub(1) as usize);
+        Some(result)
     }
 
     fn get_splitted_grid(

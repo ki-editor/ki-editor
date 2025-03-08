@@ -448,12 +448,12 @@ mod test_file_explorer {
                 Expect(ComponentCount(1)),
                 App(HandleKeyEvents(keys!("m").to_vec())),
                 Expect(ComponentCount(2)),
-                Expect(CurrentComponentTitle("Move path")),
+                Expect(CurrentComponentTitle("Move path".to_string())),
                 Editor(Insert("/hello/world.rs".to_string())),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(ComponentCount(2)),
                 Expect(OpenedFilesCount(1)),
-                Expect(CurrentComponentTitle("File Explorer")),
+                Expect(CurrentComponentTitle("File Explorer".to_string())),
             ])
         })
     }

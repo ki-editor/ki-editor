@@ -142,8 +142,13 @@ memorizing its exact location.
 
 ### `Mark File`
 
-Mark/unmark the curent file. This feature allows you to efficiently manage and switch
+Mark/unmark the current file. This feature allows you to efficiently manage and switch
 between your primary files and other ancillary files.
+
+File unmarking has two behaviors:
+
+1. When the current file is the only marked file: File remains unmarked and focused.
+2. When the current file is NOT the only marked file: File is unmarked and focus shifts to the next marked file, similar to closing a tab.
 
 To move between marked files, see [here](../other-movements#-markedmarked-).
 
