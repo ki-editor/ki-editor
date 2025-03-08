@@ -115,7 +115,7 @@ mod test_format_path_list {
     use anyhow::Result;
     use itertools::Itertools;
     use std::fs;
-    
+
     use tempfile::tempdir;
 
     fn run_test_case(
