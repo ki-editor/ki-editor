@@ -2724,7 +2724,6 @@ fn unmark_file_focuses_next_marked_file_if_other_marked_files_exists() -> anyhow
 
 #[test]
 fn close_buffer_should_remove_mark() -> anyhow::Result<()> {
-    panic!();
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -2738,21 +2737,10 @@ fn close_buffer_should_remove_mark() -> anyhow::Result<()> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetRectangle(Rectangle {
-                origin: Position::default(),
-                width: 11,
-                height: 6,
-            })),
-            Expect(EditorGrid(
-                "
-🦀  src/fo
-o.rs
-# 🦀  main
-.rs
-1│█ub(
-↪│crate)"
-                    .trim(),
-            )),
+            App(ToggleFileMark),
+            App(CloseCurrentWindow),
+            App(CycleMarkedFile(Direction::End)),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
         ])
     })
 }

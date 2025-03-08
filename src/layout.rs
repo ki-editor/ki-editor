@@ -73,10 +73,14 @@ impl Layout {
             .unwrap_or_else(|| self.tree.root().data().component().clone())
     }
 
-    pub(crate) fn remove_current_component(&mut self, context: &Context) {
+    pub(crate) fn remove_current_component(
+        &mut self,
+        context: &Context,
+    ) -> Option<CanonicalizedPath> {
         let node = self.tree.get_current_node();
-        if let Some(path) = node.data().component().borrow().path() {
-            self.background_suggestive_editors.shift_remove(&path);
+        let removed_path = node.data().component().borrow().path();
+        if let Some(path) = &removed_path {
+            self.background_suggestive_editors.shift_remove(path);
             if let Some((_, editor)) = self
                 .background_suggestive_editors
                 .iter()
@@ -91,14 +95,15 @@ impl Layout {
         };
 
         self.recalculate_layout(context);
+        removed_path
     }
 
     pub(crate) fn cycle_window(&mut self) {
         self.tree.cycle_component()
     }
 
-    pub(crate) fn close_current_window(&mut self, context: &Context) {
-        self.remove_current_component(context);
+    pub(crate) fn close_current_window(&mut self, context: &Context) -> Option<CanonicalizedPath> {
+        self.remove_current_component(context)
     }
 
     pub(crate) fn add_and_focus_prompt(

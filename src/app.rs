@@ -460,7 +460,7 @@ impl<T: Frontend> App<T> {
         log::info!("App::handle_dispatch = {}", dispatch.variant_name());
         match dispatch {
             Dispatch::CloseCurrentWindow => {
-                self.close_current_window();
+                self.close_current_window()?;
             }
             Dispatch::CloseCurrentWindowAndFocusParent => {
                 self.close_current_window_and_focus_parent();
@@ -821,8 +821,13 @@ impl<T: Frontend> App<T> {
         self.layout.get_current_component()
     }
 
-    fn close_current_window(&mut self) {
-        self.layout.close_current_window(&self.context)
+    fn close_current_window(&mut self) -> anyhow::Result<()> {
+        if let Some(removed_path) = self.layout.close_current_window(&self.context) {
+            if let Some(path) = self.context.unmark_path(removed_path).cloned() {
+                self.open_file(&path, BufferOwner::User, true, true)?;
+            }
+        }
+        Ok(())
     }
 
     fn local_search(&mut self, if_current_not_found: IfCurrentNotFound) -> anyhow::Result<()> {

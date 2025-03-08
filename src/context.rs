@@ -310,17 +310,34 @@ impl Context {
         path: CanonicalizedPath,
     ) -> Option<&CanonicalizedPath> {
         if let Some(index) = self.marked_paths.get_index_of(&path) {
-            let _ = self.marked_paths.shift_remove(&path);
-            self.marked_paths
-                .get_index(if index == self.marked_paths.len() {
-                    index.saturating_sub(1)
-                } else {
-                    index
-                })
+            self.unmark_path_impl(index, path)
         } else {
             let _ = self.marked_paths.insert_sorted(path);
             None
         }
+    }
+
+    /// Returns true if the path to be removed is in the list
+    pub(crate) fn unmark_path(&mut self, path: CanonicalizedPath) -> Option<&CanonicalizedPath> {
+        if let Some(index) = self.marked_paths.get_index_of(&path) {
+            self.unmark_path_impl(index, path)
+        } else {
+            None
+        }
+    }
+
+    fn unmark_path_impl(
+        &mut self,
+        index: usize,
+        path: CanonicalizedPath,
+    ) -> Option<&CanonicalizedPath> {
+        let _ = self.marked_paths.shift_remove(&path);
+        self.marked_paths
+            .get_index(if index == self.marked_paths.len() {
+                index.saturating_sub(1)
+            } else {
+                index
+            })
     }
 }
 
