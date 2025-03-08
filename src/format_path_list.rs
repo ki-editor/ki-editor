@@ -44,42 +44,30 @@ pub(crate) fn get_formatted_paths(
     let minimal_unique_paths =
         get_minimal_unique_paths::get_minimal_unique_paths(&paths_for_minimal);
 
-    // Helper function to get full path display (not minimized)
-    let get_full_path_display = |path: &CanonicalizedPath| -> String {
-        path.display_relative_to(current_working_directory)
-            .unwrap_or_else(|_| path.display_absolute())
-    };
-
-    // Display the full path for the current path (never trimmed)
-    let current_path_string = get_full_path_display(current_path);
-
     // Helper function to format non-current paths
 
     let format_path_string = |path: &CanonicalizedPath| -> String {
-        if path == current_path {
-            // Use full path for current path
-            current_path_string.clone()
-        } else {
-            // For non-current paths, first try to get the relative display
-            // and fall back to minimal unique if needed for disambiguation
-            let relative_display = path
-                .display_relative_to(current_working_directory)
-                .unwrap_or_else(|_| path.display_absolute());
+        // For non-current paths, first try to get the relative display
+        // and fall back to minimal unique if needed for disambiguation
+        let relative_display = path
+            .display_relative_to(current_working_directory)
+            .unwrap_or_else(|_| path.display_absolute());
 
-            // Only use minimal unique paths if needed (if they're different than relative display)
-            if let Some(minimal) = minimal_unique_paths.get(path.to_path_buf()) {
-                // Only use the minimal path if it's shorter than the relative display
-                // and still within the current working directory context
-                if minimal.len() < relative_display.len() {
-                    minimal.clone()
-                } else {
-                    relative_display
-                }
+        // Only use minimal unique paths if needed (if they're different than relative display)
+        if let Some(minimal) = minimal_unique_paths.get(path.to_path_buf()) {
+            // Only use the minimal path if it's shorter than the relative display
+            // and still within the current working directory context
+            if minimal.len() < relative_display.len() {
+                minimal.clone()
             } else {
                 relative_display
             }
+        } else {
+            relative_display
         }
     };
+
+    let current_path_string = format_path_string(current_path);
 
     // Add dirty indicator if needed
     let dirty_indicator = if dirty { " [*]" } else { "" };
@@ -178,7 +166,7 @@ mod test_format_path_list {
             &[0, 1], // Mark first two files
             2,       // Current is third file (not in list)
             false,   // Not dirty
-            "\u{200b}📝 current.txt \u{200b}  # 📝 file1.txt  # 📝 file2.txt ",
+            "\u{200b} 📝 current.txt \u{200b} # 📝 file1.txt  # 📝 file2.txt ",
         )
     }
 
@@ -222,18 +210,7 @@ mod test_format_path_list {
             &[],   // No files marked
             0,     // Current is the only file
             false, // Not dirty
-            "\u{200B}📝 only.txt \u{200B}",
-        )
-    }
-
-    #[test]
-    fn test_current_path_never_minimized() -> Result<()> {
-        run_test_case(
-            &["dir/bar.txt", "foo.txt"],
-            &[1],  // Mark the second file
-            0,     // Current is first file
-            false, // Not dirty
-            "\u{200B}📝 dir/bar.txt \u{200B}  # 📝 foo.txt ",
+            "\u{200B} 📝 only.txt \u{200B}",
         )
     }
 
@@ -244,7 +221,7 @@ mod test_format_path_list {
             &[1],  // Mark the second file
             0,     // Current is first file
             false, // Not dirty
-            "\u{200B}📝 dir1/same_name.txt \u{200B}  # 📝 dir2/same_name.txt ",
+            "\u{200B} 📝 dir1/same_name.txt \u{200B} # 📝 dir2/same_name.txt ",
         )
     }
 

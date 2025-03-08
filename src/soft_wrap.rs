@@ -210,7 +210,9 @@ pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
 }
 
 pub(crate) fn wrap_items(items: &[&str], wrap_width: usize) -> Vec<String> {
-    debug_assert!(wrap_width > 0);
+    if wrap_width == 0 {
+        return Vec::new();
+    }
     items
         .into_iter()
         .flat_map(|chunk| chop_str(chunk, wrap_width))
