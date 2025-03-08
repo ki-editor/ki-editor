@@ -3,7 +3,8 @@ use shared::{canonicalized_path::CanonicalizedPath, get_minimal_unique_paths};
 
 use crate::components::render_editor::markup_focused_tab;
 
-pub(crate) fn format_path_list(
+#[cfg(test)]
+fn format_path_list(
     paths: &[&CanonicalizedPath],
     current_path: &CanonicalizedPath,
     current_working_directory: &CanonicalizedPath,
