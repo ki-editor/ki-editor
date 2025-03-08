@@ -322,7 +322,10 @@ mod test_get_minimal_unique_paths {
                     })
             };
 
-            let paths = (0..num_paths).map(|_| generate_path(g)).collect_vec();
+            let paths = (0..num_paths)
+                .map(|_| generate_path(g))
+                .unique()
+                .collect_vec();
             TestInput { paths }
         }
     }
