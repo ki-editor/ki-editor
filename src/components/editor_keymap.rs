@@ -33,7 +33,7 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         LineF, FTokn, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
     ],
     [
-        Redo_, PRplc, RplcX, PsteP, _____, /****/ _____, ChngX, _____, _____, SSEnd,
+        Redo_, PRplc, RplcX, PsteP, MarkF, /****/ _____, ChngX, _____, _____, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -46,7 +46,7 @@ pub(crate) const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
         KilLP, CSrch, LineU, _____, KilLN, /****/ NBack, GBack, ScrlU, GForw, NForw,
     ],
     [
-        _____, LineP, LineD, LineN, OpenM, /****/ DTknP, BuffP, ScrlD, BuffN, SView,
+        _____, LineP, LineD, LineN, OpenM, /****/ DTknP, MrkFP, ScrlD, MrkFN, SView,
     ],
     [
         Undo_, _____, WClse, UPstE, _____, /****/ _____, SHelp, _____, _____, WSwth,
@@ -484,10 +484,10 @@ pub(crate) enum Meaning {
     _____,
     /// Break line
     Break,
-    /// Move to next buffer
-    BuffN,
-    /// Move to previous buffer
-    BuffP,
+    /// Move to next marked file
+    MrkFN,
+    /// Move to previous marked file
+    MrkFP,
     /// Configure Search
     CSrch,
     /// Select Character
@@ -560,8 +560,10 @@ pub(crate) enum Meaning {
     LineP,
     /// Select Line
     Line_,
-    /// Mark
+    /// Mark/Unmark Selection
     Mark_,
+    /// Mark/Unmark File
+    MarkF,
     /// Multi Cursor
     MultC,
     /// Open (Next)

@@ -73,10 +73,14 @@ impl Layout {
             .unwrap_or_else(|| self.tree.root().data().component().clone())
     }
 
-    pub(crate) fn remove_current_component(&mut self) {
+    pub(crate) fn remove_current_component(
+        &mut self,
+        context: &Context,
+    ) -> Option<CanonicalizedPath> {
         let node = self.tree.get_current_node();
-        if let Some(path) = node.data().component().borrow().path() {
-            self.background_suggestive_editors.shift_remove(&path);
+        let removed_path = node.data().component().borrow().path();
+        if let Some(path) = &removed_path {
+            self.background_suggestive_editors.shift_remove(path);
             if let Some((_, editor)) = self
                 .background_suggestive_editors
                 .iter()
@@ -90,28 +94,30 @@ impl Layout {
             self.tree.remove(node.node_id(), true);
         };
 
-        self.recalculate_layout();
+        self.recalculate_layout(context);
+        removed_path
     }
 
     pub(crate) fn cycle_window(&mut self) {
         self.tree.cycle_component()
     }
 
-    pub(crate) fn close_current_window(&mut self) {
-        self.remove_current_component();
+    pub(crate) fn close_current_window(&mut self, context: &Context) -> Option<CanonicalizedPath> {
+        self.remove_current_component(context)
     }
 
     pub(crate) fn add_and_focus_prompt(
         &mut self,
         kind: ComponentKind,
         component: Rc<RefCell<Prompt>>,
+        context: &Context,
     ) {
         self.tree
             .append_component_to_current(KindedComponent::new(kind, component), true);
-        self.recalculate_layout();
+        self.recalculate_layout(context);
     }
 
-    pub(crate) fn recalculate_layout(&mut self) {
+    pub(crate) fn recalculate_layout(&mut self, context: &Context) {
         let (layout_kind, ratio) = layout_kind();
 
         let (rectangles, borders) = Rectangle::generate(
@@ -130,7 +136,7 @@ impl Layout {
                 component
                     .component()
                     .borrow_mut()
-                    .set_rectangle(rectangle.clone())
+                    .set_rectangle(rectangle.clone(), context)
             });
     }
 
@@ -156,9 +162,9 @@ impl Layout {
         }
     }
 
-    pub(crate) fn set_terminal_dimension(&mut self, dimension: Dimension) {
+    pub(crate) fn set_terminal_dimension(&mut self, dimension: Dimension, context: &Context) {
         self.terminal_dimension = dimension;
-        self.recalculate_layout()
+        self.recalculate_layout(context)
     }
 
     pub(crate) fn terminal_dimension(&self) -> Dimension {
@@ -189,16 +195,22 @@ impl Layout {
         node_id: NodeId,
         info: Info,
         kind: ComponentKind,
+        context: &Context,
     ) -> anyhow::Result<()> {
         let info_panel = Rc::new(RefCell::new(Editor::from_text(None, "")));
-        info_panel.borrow_mut().show_info(info)?;
+        info_panel.borrow_mut().show_info(info, context)?;
         self.tree
             .replace_node_child(node_id, kind, info_panel, false);
         Ok(())
     }
 
-    pub(crate) fn show_global_info(&mut self, info: Info) -> anyhow::Result<()> {
-        self.show_info_on(self.tree.root_id(), info, ComponentKind::GlobalInfo)
+    pub(crate) fn show_global_info(&mut self, info: Info, context: &Context) -> anyhow::Result<()> {
+        self.show_info_on(
+            self.tree.root_id(),
+            info,
+            ComponentKind::GlobalInfo,
+            context,
+        )
     }
 
     pub(crate) fn show_keymap_legend(
@@ -230,10 +242,10 @@ impl Layout {
             .collect()
     }
 
-    pub(crate) fn save_all(&self) -> Result<(), anyhow::Error> {
+    pub(crate) fn save_all(&self, context: &Context) -> Result<(), anyhow::Error> {
         self.background_suggestive_editors
             .iter()
-            .map(|(_, editor)| editor.borrow_mut().editor_mut().save())
+            .map(|(_, editor)| editor.borrow_mut().editor_mut().save(context))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(())
     }
@@ -241,8 +253,12 @@ impl Layout {
     pub(crate) fn reveal_path_in_explorer(
         &mut self,
         path: &CanonicalizedPath,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        let dispatches = self.background_file_explorer.borrow_mut().reveal(path)?;
+        let dispatches = self
+            .background_file_explorer
+            .borrow_mut()
+            .reveal(path, context)?;
         self.open_file_explorer();
 
         Ok(dispatches)
@@ -255,10 +271,11 @@ impl Layout {
     pub(crate) fn refresh_file_explorer(
         &self,
         working_directory: &CanonicalizedPath,
+        context: &Context,
     ) -> anyhow::Result<()> {
         self.background_file_explorer
             .borrow_mut()
-            .refresh(working_directory)
+            .refresh(working_directory, context)
     }
 
     pub(crate) fn open_file_explorer(&mut self) {
@@ -317,15 +334,6 @@ impl Layout {
         Ok(())
     }
 
-    pub(crate) fn find_editor_tagged(&self, tag_char: char) -> Option<CanonicalizedPath> {
-        self.background_suggestive_editors
-            .iter()
-            .find_map(|(path, editor)| {
-                let editor_tag = editor.borrow().editor().tag();
-                (editor_tag == Some(tag_char)).then_some(path.clone())
-            })
-    }
-
     #[cfg(test)]
     pub(crate) fn completion_dropdown_is_open(&self) -> bool {
         self.current_completion_dropdown().is_some()
@@ -337,7 +345,7 @@ impl Layout {
             .and_then(|node_id| Some(self.tree.get(node_id)?.data().component().clone()))
     }
 
-    pub(crate) fn open_dropdown(&mut self) -> Option<Rc<RefCell<Editor>>> {
+    pub(crate) fn open_dropdown(&mut self, context: &Context) -> Option<Rc<RefCell<Editor>>> {
         let dropdown = Rc::new(RefCell::new(Editor::from_text(
             Some(tree_sitter_quickfix::language()),
             "",
@@ -351,7 +359,7 @@ impl Layout {
         }
         self.tree
             .replace_current_node_child(ComponentKind::Dropdown, dropdown.clone(), false);
-        self.recalculate_layout(); // This is important to give Dropdown the render area, otherwise during render, height 0 is assume, causing weird behavior when scrolling
+        self.recalculate_layout(context); // This is important to give Dropdown the render area, otherwise during render, height 0 is assume, causing weird behavior when scrolling
         Some(dropdown)
     }
 
@@ -375,9 +383,13 @@ impl Layout {
         self.tree.remove_node_child(node_id, kind)
     }
 
-    pub(crate) fn show_dropdown_info(&mut self, info: Info) -> anyhow::Result<()> {
+    pub(crate) fn show_dropdown_info(
+        &mut self,
+        info: Info,
+        context: &Context,
+    ) -> anyhow::Result<()> {
         if let Some(node_id) = self.tree.get_current_node_child_id(ComponentKind::Dropdown) {
-            self.show_info_on(node_id, info, ComponentKind::DropdownInfo)?;
+            self.show_info_on(node_id, info, ComponentKind::DropdownInfo, context)?;
         }
 
         Ok(())
@@ -392,6 +404,7 @@ impl Layout {
     pub(crate) fn show_quickfix_list(
         &mut self,
         quickfix_list: QuickfixList,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let render = quickfix_list.render();
         let editor = self.background_quickfix_list.get_or_insert_with(|| {
@@ -406,13 +419,13 @@ impl Layout {
 
         let dispatches = {
             let mut editor = editor.borrow_mut();
-            editor.set_content(&render.content)?;
+            editor.set_content(&render.content, context)?;
             editor.set_decorations(&render.decorations);
             editor.set_title("Quickfix list".to_string());
-            editor.select_line_at(render.highlight_line_index)?
+            editor.select_line_at(render.highlight_line_index, context)?
         };
         if let Some(info) = render.info {
-            self.show_info_on(node_id, info, ComponentKind::QuickfixListInfo)?;
+            self.show_info_on(node_id, info, ComponentKind::QuickfixListInfo, context)?;
         }
         Ok(dispatches)
     }
@@ -422,11 +435,12 @@ impl Layout {
         self.tree.count_by_kind(ComponentKind::DropdownInfo)
     }
 
-    pub(crate) fn show_editor_info(&mut self, info: Info) -> anyhow::Result<()> {
+    pub(crate) fn show_editor_info(&mut self, info: Info, context: &Context) -> anyhow::Result<()> {
         self.show_info_on(
             self.tree.focused_component_id(),
             info,
             ComponentKind::EditorInfo,
+            context,
         )
     }
 

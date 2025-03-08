@@ -33,6 +33,7 @@ pub(crate) struct Context {
     keyboard_layout_kind: KeyboardLayoutKind,
     location_history_backward: Vec<Location>,
     location_history_forward: Vec<Location>,
+    marked_paths: IndexSet<CanonicalizedPath>,
 }
 
 pub(crate) struct QuickfixListState {
@@ -90,6 +91,7 @@ impl Default for Context {
             },
             location_history_backward: Vec::new(),
             location_history_forward: Vec::new(),
+            marked_paths: Default::default(),
         }
     }
 }
@@ -294,6 +296,48 @@ impl Context {
 
     pub(crate) fn location_next(&mut self) -> Option<Location> {
         self.location_history_forward.pop()
+    }
+
+    pub(crate) fn get_marked_paths(&self) -> Vec<&CanonicalizedPath> {
+        self.marked_paths.iter().collect()
+    }
+
+    /// Returns some path if we should focus another file.
+    /// If the action is to unmark a file, and the file is not the only marked file left,
+    /// then we return the nearest neighbor.
+    pub(crate) fn toggle_file_mark(
+        &mut self,
+        path: CanonicalizedPath,
+    ) -> Option<&CanonicalizedPath> {
+        if let Some(index) = self.marked_paths.get_index_of(&path) {
+            self.unmark_path_impl(index, path)
+        } else {
+            let _ = self.marked_paths.insert_sorted(path);
+            None
+        }
+    }
+
+    /// Returns true if the path to be removed is in the list
+    pub(crate) fn unmark_path(&mut self, path: CanonicalizedPath) -> Option<&CanonicalizedPath> {
+        if let Some(index) = self.marked_paths.get_index_of(&path) {
+            self.unmark_path_impl(index, path)
+        } else {
+            None
+        }
+    }
+
+    fn unmark_path_impl(
+        &mut self,
+        index: usize,
+        path: CanonicalizedPath,
+    ) -> Option<&CanonicalizedPath> {
+        let _ = self.marked_paths.shift_remove(&path);
+        self.marked_paths
+            .get_index(if index == self.marked_paths.len() {
+                index.saturating_sub(1)
+            } else {
+                index
+            })
     }
 }
 

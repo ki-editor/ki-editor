@@ -104,6 +104,9 @@ impl Theme {
             StyleKey::UiSectionDivider => {
                 Style::new().background_color(self.ui.section_divider_background)
             }
+            StyleKey::UiFocusedTab => Style::new()
+                .foreground_color(self.ui.background_color)
+                .background_color(self.ui.text_foreground),
         }
     }
 }

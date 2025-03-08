@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 use itertools::Itertools;
+use lazy_regex::Lazy;
 use lsp_types::DiagnosticSeverity;
 
 use crate::{
@@ -9,35 +10,55 @@ use crate::{
     char_index_range::CharIndexRange,
     components::{
         component::{Component, Cursor, SetCursorStyle},
-        editor::{Mode, WINDOW_TITLE_HEIGHT},
+        editor::Mode,
     },
     context::Context,
     divide_viewport::{calculate_window_position, divide_viewport},
-    grid::{CellUpdate, Grid, LineUpdate, RenderContentLineNumber, StyleKey},
+    format_path_list::get_formatted_paths,
+    grid::{CellUpdate, Grid, RenderContentLineNumber, StyleKey},
     position::Position,
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
+    soft_wrap::wrap_items,
     style::Style,
-    themes::Theme,
+    themes::{Theme, UiStyles},
     utils::trim_array,
 };
 
 use super::{
     component::GetGridResult,
-    editor::{Editor, Reveal, ViewAlignment},
+    editor::{Editor, RegexHighlightRule, RegexHighlightRuleCaptureStyle, Reveal, ViewAlignment},
 };
+
+static FOCUSED_TAB_REGEX: &Lazy<regex::Regex> =
+    // We need multiline string so that wrapped filename will be highlighted as well
+    lazy_regex::regex!("(?s)(?<focused_tab>\u{200B}(.*)\u{200B})");
+
+pub(crate) fn markup_focused_tab(path: &str) -> String {
+    format!("\u{200B}{path}\u{200B}")
+}
 
 impl Editor {
     pub(crate) fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
+        let title = self.title(context);
+        let title_grid_height = title.lines().count() as u16;
+        let render_area = {
+            let Dimension { height, width } = self.dimension();
+            Dimension {
+                height: height.saturating_sub(title_grid_height),
+                width,
+            }
+        };
         let grid = match &self.reveal {
             None => self.get_grid_with_dimension(
                 context,
-                self.render_area(),
+                render_area,
                 self.scroll_offset(),
-                self.selection_set.primary_selection().range(),
+                Some(self.selection_set.primary_selection().range()),
                 false,
+                true,
             ),
-            Some(reveal) => self.get_splitted_grid(context, reveal),
+            Some(reveal) => self.get_splitted_grid(context, reveal, render_area),
         };
         let theme = context.theme();
         let window_title_style = if focused {
@@ -46,26 +67,38 @@ impl Editor {
             theme.ui.window_title_unfocused
         };
 
-        // NOTE: due to performance issue, we only highlight the content that are within view
-        // This might result in some incorrectness, but that's a reasonable trade-off, because
-        // highlighting the entire file becomes sluggish when the file has more than a thousand lines.
-
-        let title_grid = Grid::new(Dimension {
-            height: WINDOW_TITLE_HEIGHT as u16,
-            width: self.dimension().width,
-        })
-        .render_content(
-            &self.title(context),
-            RenderContentLineNumber::NoLineNumber,
-            Vec::new(),
-            [LineUpdate {
-                line_index: 0,
-                style: window_title_style,
-            }]
-            .to_vec(),
-            theme,
-        );
-
+        let title_grid = {
+            let mut editor = Editor::from_text(None, &title);
+            editor.set_regex_highlight_rules(
+                [RegexHighlightRule {
+                    regex: (**FOCUSED_TAB_REGEX).clone(),
+                    capture_styles: [RegexHighlightRuleCaptureStyle {
+                        capture_name: "focused_tab",
+                        source: Source::StyleKey(StyleKey::UiFocusedTab),
+                    }]
+                    .into_iter()
+                    .collect(),
+                }]
+                .into_iter()
+                .collect(),
+            );
+            let dimension = Dimension {
+                height: title_grid_height,
+                width: self.dimension().width,
+            };
+            // TODO: fix this weird code that needs to clone the context
+            let context = Context::default().set_theme(Theme {
+                ui: UiStyles {
+                    background_color: window_title_style.background_color.unwrap_or_default(),
+                    text_foreground: window_title_style.foreground_color.unwrap_or_default(),
+                    ..theme.ui
+                },
+                ..context.theme().clone()
+            });
+            // TODO: no need to call get_grid_with_dimension
+            // Just render the lines
+            editor.get_grid_with_dimension(&context, dimension, 0, None, false, false)
+        };
         let grid = title_grid.merge_vertical(grid);
         let cursor_position = grid.get_cursor_position();
         let style = match self.mode {
@@ -79,7 +112,47 @@ impl Editor {
         }
     }
 
-    fn get_splitted_grid(&self, context: &Context, reveal: &Reveal) -> crate::grid::Grid {
+    pub(crate) fn title_impl(&self, context: &Context) -> Option<String> {
+        let dimension = self.dimension();
+        let result = if dimension.height <= 1 {
+            vec![]
+        } else {
+            let wrapped_items = wrap_items(
+                &get_formatted_paths(
+                    &context.get_marked_paths(),
+                    &self.path()?,
+                    context.current_working_directory(),
+                    self.buffer().dirty(),
+                )
+                .iter()
+                .map(|s| s.as_str())
+                .collect_vec(),
+                // Reference: NEED_TO_REDUCE_WIDTH_BY_1
+                (dimension.width as usize).saturating_sub(1),
+            );
+
+            trim_array(
+                &wrapped_items,
+                wrapped_items.len().saturating_sub(1)..wrapped_items.len(),
+                wrapped_items
+                    .len()
+                    .saturating_sub(dimension.height.saturating_sub(1).into()),
+            )
+            .trimmed_array
+        };
+        let result = result.join("\n");
+
+        // Ensure that at least one height is spared for rendering the editor's content
+        debug_assert!(result.lines().count() <= dimension.height.saturating_sub(1) as usize);
+        Some(result)
+    }
+
+    fn get_splitted_grid(
+        &self,
+        context: &Context,
+        reveal: &Reveal,
+        render_area: Dimension,
+    ) -> crate::grid::Grid {
         let buffer = self.buffer();
         let ranges = match reveal {
             Reveal::CurrentSelectionMode => self
@@ -113,7 +186,7 @@ impl Editor {
         .collect_vec();
         let viewport_sections = divide_viewport(
             &ranges,
-            self.render_area().height as usize,
+            render_area.height as usize,
             buffer
                 .char_index_range_to_byte_range(
                     self.selection_set.primary_selection().extended_range(),
@@ -150,10 +223,11 @@ impl Editor {
                     context,
                     Dimension {
                         height: viewport_section.height() as u16,
-                        width: self.render_area().width,
+                        width: self.dimension().width,
                     },
                     window.start as u16,
-                    protected_range,
+                    Some(protected_range),
+                    true,
                     true,
                 ))
             },
@@ -168,22 +242,26 @@ impl Editor {
         context: &Context,
         dimension: Dimension,
         scroll_offset: u16,
-        protected_range: CharIndexRange,
+        protected_range: Option<CharIndexRange>,
         borderize_first_line: bool,
+        render_line_number: bool,
     ) -> Grid {
         let editor = self;
         let Dimension { height, width } = dimension;
         let buffer = editor.buffer();
         let rope = buffer.rope();
-        let protected_char_index = protected_range.as_char_index(&self.cursor_direction);
-        let protected_range_start_line = buffer
-            .char_to_line(protected_char_index)
-            .unwrap_or_default();
+        let protected_char_index = protected_range
+            .map(|protected_range| protected_range.as_char_index(&self.cursor_direction));
+        let protected_range_start_line = protected_char_index.map(|protected_char_index| {
+            buffer
+                .char_to_line(protected_char_index)
+                .unwrap_or_default()
+        });
 
         let len_lines = rope.len_lines().max(1) as u16;
         let (hidden_parent_lines, visible_parent_lines) = self
             .get_parent_lines_given_line_index_and_scroll_offset(
-                protected_range_start_line,
+                protected_range_start_line.unwrap_or_default(),
                 scroll_offset,
             )
             .unwrap_or_default();
@@ -255,9 +333,13 @@ impl Editor {
                         .collect_vec();
                     grid.merge_vertical(Grid::new(Dimension { height: 1, width }).render_content(
                         &line.content,
-                        RenderContentLineNumber::LineNumber {
-                            start_line_index: line.line,
-                            max_line_number: len_lines as usize,
+                        if render_line_number {
+                            RenderContentLineNumber::LineNumber {
+                                start_line_index: line.line,
+                                max_line_number: len_lines as usize,
+                            }
+                        } else {
+                            RenderContentLineNumber::NoLineNumber
                         },
                         updates,
                         Default::default(),
@@ -277,7 +359,7 @@ impl Editor {
                     // This is necessary because when the content is empty
                     // all cell updates will be excluded when `to_cell_updates` is run,
                     // and then no cursor will be rendered for empty buffer.
-                    .chain(
+                    .chain(protected_char_index.and_then(|protected_char_index| {
                         buffer
                             .char_to_position(protected_char_index)
                             .map(|position| {
@@ -286,16 +368,21 @@ impl Editor {
                                     .set_is_cursor(
                                         primary_cursor_char_index == protected_char_index,
                                     )
-                            }),
-                    )
+                            })
+                            .ok()
+                    }))
                     .collect_vec()
             };
             let visible_lines_content = visible_lines.map(|(_, line)| line).join("");
             let visible_lines_grid = visible_lines_grid.render_content(
                 &visible_lines_content,
-                RenderContentLineNumber::LineNumber {
-                    start_line_index: scroll_offset as usize,
-                    max_line_number: len_lines as usize,
+                if render_line_number {
+                    RenderContentLineNumber::LineNumber {
+                        start_line_index: scroll_offset as usize,
+                        max_line_number: len_lines as usize,
+                    }
+                } else {
+                    RenderContentLineNumber::NoLineNumber
                 },
                 visible_lines_updates
                     .clone()
@@ -376,7 +463,7 @@ impl Editor {
         visible_line_range: &Range<usize>,
         hidden_parent_line_ranges: &[Range<usize>],
         visible_parent_lines: &[Line],
-        protected_range: CharIndexRange,
+        protected_range: Option<CharIndexRange>,
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
         let theme = context.theme();
@@ -384,9 +471,10 @@ impl Editor {
         let possible_selections = if self.selection_set.mode.is_contiguous() {
             Default::default()
         } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
-            buffer
-                .char_index_range_to_byte_range(protected_range)
-                .ok()
+            protected_range
+                .and_then(|protected_range| {
+                    buffer.char_index_range_to_byte_range(protected_range).ok()
+                })
                 .into_iter()
                 .map(ByteRange::new)
                 .collect()
@@ -412,9 +500,9 @@ impl Editor {
         let marks = buffer
             .marks()
             .into_iter()
-            .filter(|mark| {
+            .filter(|mark_range| {
                 if let Some(Reveal::Mark) = self.reveal {
-                    mark == &protected_range
+                    Some(mark_range) == protected_range.as_ref()
                 } else {
                     true
                 }
@@ -432,7 +520,7 @@ impl Editor {
             .into_iter()
             .filter(|secondary_selection| {
                 if let Some(Reveal::Cursor) = self.reveal {
-                    secondary_selection.range() == protected_range
+                    Some(secondary_selection.range()) == protected_range
                 } else {
                     true
                 }
@@ -453,20 +541,23 @@ impl Editor {
             );
             match self.reveal {
                 Some(Reveal::CurrentSelectionMode)
-                    if protected_range != primary_selection.extended_range() =>
+                    if protected_range != Some(primary_selection.extended_range()) =>
                 {
                     no_primary_selection
                 }
                 Some(Reveal::Cursor)
                     if secondary_selections.iter().any(|secondary_selection| {
-                        secondary_selection.extended_range() == protected_range
+                        Some(secondary_selection.extended_range()) == protected_range
                     }) =>
                 {
                     no_primary_selection
                 }
                 Some(Reveal::Mark)
-                    if protected_range != primary_selection.extended_range()
-                        && buffer.marks().iter().any(|mark| mark == &protected_range) =>
+                    if protected_range != Some(primary_selection.extended_range())
+                        && buffer
+                            .marks()
+                            .iter()
+                            .any(|mark| Some(mark) == protected_range.as_ref()) =>
                 {
                     no_primary_selection
                 }
@@ -665,7 +756,6 @@ impl Editor {
                 let captures = rule.regex.captures(&content)?;
                 let get_highlight_span = |name: &'static str, source: Source| {
                     let match_ = captures.name(name)?;
-
                     Some(HighlightSpan {
                         source,
                         range: HighlightSpanRange::ByteRange(match_.range()),
@@ -906,7 +996,7 @@ mod test_render_editor {
     #[quickcheck]
     fn get_grid_cells_should_be_always_within_bound(rectangle: Rectangle, content: String) -> bool {
         let mut editor = Editor::from_text(None, &content);
-        editor.set_rectangle(rectangle.clone());
+        editor.set_rectangle(rectangle.clone(), &Context::default());
         let grid = editor.get_grid(&Context::default(), false);
         let cells = grid.grid.to_positioned_cells();
         cells.into_iter().all(|cell| {

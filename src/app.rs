@@ -262,7 +262,7 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn get_screen(&mut self) -> Result<Screen, anyhow::Error> {
         // Recalculate layout before each render
-        self.layout.recalculate_layout();
+        self.layout.recalculate_layout(&self.context);
 
         // Generate layout
         let dimension = self.layout.terminal_dimension();
@@ -460,7 +460,7 @@ impl<T: Frontend> App<T> {
         log::info!("App::handle_dispatch = {}", dispatch.variant_name());
         match dispatch {
             Dispatch::CloseCurrentWindow => {
-                self.close_current_window();
+                self.close_current_window()?;
             }
             Dispatch::CloseCurrentWindowAndFocusParent => {
                 self.close_current_window_and_focus_parent();
@@ -672,9 +672,9 @@ impl<T: Frontend> App<T> {
             Dispatch::MoveFile { from, to } => self.move_file(from, to)?,
             Dispatch::CopyFile { from, to } => self.copy_file(from, to)?,
             Dispatch::AddPath(path) => self.add_path(path)?,
-            Dispatch::RefreshFileExplorer => {
-                self.layout.refresh_file_explorer(&self.working_directory)?
-            }
+            Dispatch::RefreshFileExplorer => self
+                .layout
+                .refresh_file_explorer(&self.working_directory, &self.context)?,
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
                 use_system_clipboard,
@@ -766,7 +766,7 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseDropdown => self.layout.close_dropdown(),
             Dispatch::CloseEditorInfo => self.layout.close_editor_info(),
             Dispatch::RenderDropdown { render } => {
-                if let Some(dropdown) = self.layout.open_dropdown() {
+                if let Some(dropdown) = self.layout.open_dropdown(&self.context) {
                     self.render_dropdown(dropdown, render)?;
                 }
             }
@@ -781,8 +781,7 @@ impl<T: Frontend> App<T> {
                 self.open_code_actions_prompt(code_actions)?;
             }
             Dispatch::OtherWindow => self.layout.cycle_window(),
-            Dispatch::CycleBuffer(direction) => self.cycle_buffer(direction)?,
-            Dispatch::JumpEditor(tag) => self.handle_jump_editor(tag)?,
+            Dispatch::CycleMarkedFile(direction) => self.cycle_marked_file(direction)?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
             Dispatch::OpenThemePrompt => self.open_theme_prompt()?,
             Dispatch::SetLastNonContiguousSelectionMode(selection_mode) => self
@@ -813,6 +812,7 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_prompt()?,
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
+            Dispatch::ToggleFileMark => self.toggle_file_mark()?,
         }
         Ok(())
     }
@@ -821,8 +821,13 @@ impl<T: Frontend> App<T> {
         self.layout.get_current_component()
     }
 
-    fn close_current_window(&mut self) {
-        self.layout.close_current_window()
+    fn close_current_window(&mut self) -> anyhow::Result<()> {
+        if let Some(removed_path) = self.layout.close_current_window(&self.context) {
+            if let Some(path) = self.context.unmark_path(removed_path).cloned() {
+                self.open_file(&path, BufferOwner::User, true, true)?;
+            }
+        }
+        Ok(())
     }
 
     fn local_search(&mut self, if_current_not_found: IfCurrentNotFound) -> anyhow::Result<()> {
@@ -847,8 +852,10 @@ impl<T: Frontend> App<T> {
     }
 
     fn resize(&mut self, dimension: Dimension) {
-        self.layout
-            .set_terminal_dimension(dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT));
+        self.layout.set_terminal_dimension(
+            dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT),
+            &self.context,
+        );
     }
 
     fn open_move_to_index_prompt(&mut self) -> anyhow::Result<()> {
@@ -1273,9 +1280,11 @@ impl<T: Frontend> App<T> {
     }
 
     fn show_global_info(&mut self, info: Info) {
-        self.layout.show_global_info(info).unwrap_or_else(|err| {
-            log::error!("Error showing info: {:?}", err);
-        });
+        self.layout
+            .show_global_info(info, &self.context)
+            .unwrap_or_else(|err| {
+                log::error!("Error showing info: {:?}", err);
+            });
     }
 
     fn go_to_location(
@@ -1287,7 +1296,7 @@ impl<T: Frontend> App<T> {
         let dispatches = component
             .borrow_mut()
             .editor_mut()
-            .set_position_range(location.range.clone())?;
+            .set_position_range(location.range.clone(), &self.context)?;
         self.handle_dispatches(dispatches)?;
         Ok(())
     }
@@ -1352,11 +1361,11 @@ impl<T: Frontend> App<T> {
             let dispatches = component
                 .borrow_mut()
                 .editor_mut()
-                .apply_positional_edits(edit.edits)?;
+                .apply_positional_edits(edit.edits, &self.context)?;
 
             self.handle_dispatches(dispatches)?;
 
-            let dispatches = component.borrow_mut().editor_mut().save()?;
+            let dispatches = component.borrow_mut().editor_mut().save(&self.context)?;
 
             self.handle_dispatches(dispatches)?;
         }
@@ -1440,7 +1449,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn save_all(&self) -> anyhow::Result<()> {
-        self.layout.save_all()
+        self.layout.save_all(&self.context)
     }
 
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
@@ -1468,7 +1477,8 @@ impl<T: Frontend> App<T> {
             std::fs::remove_file(path)?;
         }
         self.layout.remove_suggestive_editor(path);
-        self.layout.refresh_file_explorer(&self.working_directory)?;
+        self.layout
+            .refresh_file_explorer(&self.working_directory, &self.context)?;
         Ok(())
     }
 
@@ -1476,7 +1486,8 @@ impl<T: Frontend> App<T> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::rename(from.clone(), to.clone())?;
-        self.layout.refresh_file_explorer(&self.working_directory)?;
+        self.layout
+            .refresh_file_explorer(&self.working_directory, &self.context)?;
         let to = to.try_into()?;
         self.reveal_path_in_explorer(&to)?;
         self.lsp_manager.send_message(
@@ -1494,7 +1505,8 @@ impl<T: Frontend> App<T> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::copy(from.clone(), to.clone())?;
-        self.layout.refresh_file_explorer(&self.working_directory)?;
+        self.layout
+            .refresh_file_explorer(&self.working_directory, &self.context)?;
         let to = to.try_into()?;
         self.reveal_path_in_explorer(&to)?;
         self.lsp_manager.send_message(
@@ -1523,7 +1535,8 @@ impl<T: Frontend> App<T> {
             self.add_path_parent(&path)?;
             std::fs::File::create(&path)?;
         }
-        self.layout.refresh_file_explorer(&self.working_directory)?;
+        self.layout
+            .refresh_file_explorer(&self.working_directory, &self.context)?;
         let path: CanonicalizedPath = path.try_into()?;
         self.reveal_path_in_explorer(&path)?;
         self.lsp_manager.send_message(
@@ -1633,7 +1646,6 @@ impl<T: Frontend> App<T> {
         self.syntax_highlight_request_sender = Some(sender);
     }
 
-    #[cfg(test)]
     pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
         self.current_component().borrow().path()
     }
@@ -1967,58 +1979,32 @@ impl<T: Frontend> App<T> {
             .collect_vec()
     }
 
-    fn cycle_buffer(&mut self, direction: Direction) -> anyhow::Result<()> {
-        if let Some(current_file_path) = self.current_component().borrow().path() {
-            let file_paths = self.layout.get_opened_files();
-            if let Some(current_index) = file_paths
-                .iter()
-                .position(|path| path == &current_file_path)
-            {
-                let next_index = match direction {
-                    Direction::Start if current_index == 0 => file_paths.len() - 1,
-                    Direction::Start => current_index - 1,
-                    Direction::End if current_index == file_paths.len() - 1 => 0,
-                    Direction::End => current_index + 1,
-                };
-                // We are doing defensive programming here
-                // to ensure that Ki editor never crashes
-                if let Some(path) = file_paths.get(next_index) {
-                    self.layout.open_file(path, true);
-                } else {
-                    return Err(anyhow::anyhow!("App::cycle_buffer: file_paths.get(next_index) should never return None unless next_index is computed errorneously."));
-                }
-            }
+    fn cycle_marked_file(&mut self, direction: Direction) -> anyhow::Result<()> {
+        if let Some(next_file_path) = {
+            let file_paths = self.context.get_marked_paths();
+            self.get_current_file_path()
+                .and_then(|current_file_path| {
+                    if let Some(current_index) = file_paths
+                        .iter()
+                        .position(|path| path == &&current_file_path)
+                    {
+                        let next_index = match direction {
+                            Direction::Start if current_index == 0 => file_paths.len() - 1,
+                            Direction::Start => current_index - 1,
+                            Direction::End if current_index == file_paths.len() - 1 => 0,
+                            Direction::End => current_index + 1,
+                        };
+                        // We are doing defensive programming here
+                        // to ensure that Ki editor never crashes
+                        return file_paths.get(next_index);
+                    }
+                    None
+                })
+                .or_else(|| file_paths.first())
+                .cloned()
+        } {
+            self.open_file(&next_file_path.clone(), BufferOwner::User, true, true)?;
         }
-        Ok(())
-    }
-
-    fn handle_jump_editor(&mut self, tag: char) -> anyhow::Result<()> {
-        let new_tag = match self.layout.find_editor_tagged(tag) {
-            // Case 1: Found a non-current editor that has this tag
-            //    - Jump to it
-            Some(tagged_editor_path)
-                if Some(tagged_editor_path.clone()) != self.current_component().borrow().path() =>
-            {
-                if self.layout.open_file(&tagged_editor_path, true).is_none() {
-                    return Err(anyhow::anyhow!(
-                        "App::handle_jump_editor: opening tagged_editor_path should never fail unless Layout::find_editor_tagged is errorneous."
-                    ));
-                };
-
-                return Ok(());
-            }
-            // Case 2: Found current editor to have this tag
-            //    - Remove current editor's tag
-            Some(_) => None,
-            // Case 3: No editor found
-            //    - Add new tag to current editor
-            None => Some(tag),
-        };
-
-        self.current_component()
-            .borrow_mut()
-            .editor_mut()
-            .set_tag(new_tag);
         Ok(())
     }
 
@@ -2088,8 +2074,11 @@ impl<T: Frontend> App<T> {
         let history = self.context.get_prompt_history(key, current_line);
         let (prompt, dispatches) = Prompt::new(prompt_config, key, history);
 
-        self.layout
-            .add_and_focus_prompt(ComponentKind::Prompt, Rc::new(RefCell::new(prompt)));
+        self.layout.add_and_focus_prompt(
+            ComponentKind::Prompt,
+            Rc::new(RefCell::new(prompt)),
+            &self.context,
+        );
         self.handle_dispatches(dispatches)
     }
 
@@ -2105,7 +2094,7 @@ impl<T: Frontend> App<T> {
 
         match render.info {
             Some(info) => {
-                self.layout.show_dropdown_info(info)?;
+                self.layout.show_dropdown_info(info, &self.context)?;
             }
             _ => self.layout.hide_dropdown_info(),
         }
@@ -2121,12 +2110,14 @@ impl<T: Frontend> App<T> {
         &mut self,
         quickfix_list: QuickfixList,
     ) -> anyhow::Result<()> {
-        let dispatches = self.layout.show_quickfix_list(quickfix_list)?;
+        let dispatches = self
+            .layout
+            .show_quickfix_list(quickfix_list, &self.context)?;
         self.handle_dispatches(dispatches)
     }
 
     fn show_editor_info(&mut self, info: Info) -> anyhow::Result<()> {
-        self.layout.show_editor_info(info)
+        self.layout.show_editor_info(info, &self.context)
     }
 
     #[cfg(test)]
@@ -2140,7 +2131,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn reveal_path_in_explorer(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
-        let dispatches = self.layout.reveal_path_in_explorer(path)?;
+        let dispatches = self.layout.reveal_path_in_explorer(path, &self.context)?;
         self.handle_dispatches(dispatches)
     }
 
@@ -2368,6 +2359,8 @@ impl<T: Frontend> App<T> {
         &mut self,
         backward: bool,
     ) -> anyhow::Result<()> {
+        // TODO: should include scroll offset as well
+        // so that when the user navigates back, it really feels the same
         if let Some(path) = self.current_component().borrow().editor().path() {
             let range = self
                 .current_component()
@@ -2376,6 +2369,15 @@ impl<T: Frontend> App<T> {
                 .current_selection_range()?;
             let location = Location { path, range };
             self.context.push_location_history(location, backward)
+        }
+        Ok(())
+    }
+
+    fn toggle_file_mark(&mut self) -> anyhow::Result<()> {
+        if let Some(path) = self.get_current_file_path() {
+            if let Some(new_path) = self.context.toggle_file_mark(path).cloned() {
+                self.open_file(&new_path, BufferOwner::User, true, true)?;
+            }
         }
         Ok(())
     }
@@ -2597,8 +2599,7 @@ pub(crate) enum Dispatch {
     OtherWindow,
     CloseCurrentWindowAndFocusParent,
     CloseEditorInfo,
-    CycleBuffer(Direction),
-    JumpEditor(char),
+    CycleMarkedFile(Direction),
     PushPromptHistory {
         key: PromptHistoryKey,
         line: String,
@@ -2622,6 +2623,7 @@ pub(crate) enum Dispatch {
     OpenKeyboardLayoutPrompt,
     NavigateForward,
     NavigateBack,
+    ToggleFileMark,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

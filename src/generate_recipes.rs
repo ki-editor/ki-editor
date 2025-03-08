@@ -83,7 +83,7 @@ fn generate_recipes() -> anyhow::Result<()> {
                                     .chain(Some(App(HandleKeyEvents(events.clone()))))
                                     .chain(
                                         if index == accum_events_len - 1 {
-                                            recipe.expectations
+                                            recipe.expectations.clone()
                                         } else {
                                             Default::default()
                                         }
@@ -150,7 +150,7 @@ pub(crate) struct Recipe {
     pub(crate) file_extension: &'static str,
     pub(crate) prepare_events: &'static [event::KeyEvent],
     pub(crate) events: &'static [event::KeyEvent],
-    pub(crate) expectations: &'static [ExpectKind],
+    pub(crate) expectations: Box<[ExpectKind]>,
     pub(crate) terminal_height: Option<usize>,
     pub(crate) similar_vim_combos: &'static [&'static str],
     pub(crate) only: bool,

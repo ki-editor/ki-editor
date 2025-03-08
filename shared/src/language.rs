@@ -221,7 +221,7 @@ pub fn from_content_directive(content: &str) -> Option<Language> {
             .find(|language| {
                 language
                     .lsp_language_id
-                    .map_or(false, |lsp_id| lsp_id.0 == id)
+                    .is_some_and(|lsp_id| lsp_id.0 == id)
             })
             .map(|language| (*language).clone())
     })

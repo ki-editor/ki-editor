@@ -46,6 +46,7 @@ mod utils;
 
 mod divide_viewport;
 mod env;
+mod format_path_list;
 use std::{rc::Rc, sync::Mutex};
 
 use anyhow::Context;
