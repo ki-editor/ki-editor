@@ -285,7 +285,7 @@ pub(crate) enum DispatchSuggestiveEditor {
 
 #[cfg(test)]
 mod test_suggestive_editor {
-    use crate::components::editor::DispatchEditor::*;
+    use crate::components::editor::{DispatchEditor::*, IfCurrentNotFound};
     use crate::components::suggestive_editor::DispatchSuggestiveEditor::*;
     use crate::context::Context;
     use crate::lsp::completion::{CompletionItemEdit, PositionalEdit};
@@ -491,7 +491,7 @@ mod test_suggestive_editor {
     }
 
     #[test]
-    /// Should use `insert_text` if is it defined present
+    /// Should use `insert_text` if it is defined
     fn completion_without_edit_5() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
@@ -668,6 +668,54 @@ mod test_suggestive_editor {
                 Expect(AppGridContains("atrick")),
                 // Expect the "Completion Info" panel is hidden, because "patrick" has no doc
                 Expect(Not(Box::new(AppGridContains("Completion Info")))),
+            ])
+        })
+    }
+
+    #[test]
+    /// If there are multiple cursors, then Edit should be ignored
+    /// and replace the words under cursors with the completion label instead.
+    /// This is because the Edit range is only applicable to the primary cursor.
+    fn completion_with_edit_multicursor() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo bar spam".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    crate::selection::SelectionMode::Word {
+                        skip_symbols: false,
+                    },
+                )),
+                Editor(CursorAddToAllSelections),
+                Editor(EnterInsertMode(Direction::End)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(Completion(Completion {
+                    trigger_characters: vec![".".to_string()],
+                    items: vec![CompletionItem {
+                        label: "foochuk".to_string(),
+                        edit: Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
+                            range: Position::new(0, 0)..Position::new(0, 3),
+                            new_text: "foochuk".to_string(),
+                        })),
+                        documentation: None,
+                        sort_text: None,
+                        kind: None,
+                        detail: None,
+                        insert_text: None,
+                        completion_item: Default::default(),
+                    }]
+                    .into_iter()
+                    .map(|item| item.into())
+                    .collect(),
+                })),
+                App(HandleKeyEvent(key!("tab"))),
+                Expect(CurrentComponentContent("foochuk foochuk foochuk")),
             ])
         })
     }

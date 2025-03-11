@@ -106,10 +106,10 @@ pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, _____, _____, _____, /****/ _____, SQuot, DQuot, BckTk, _____,
     ],
     [
-        _____, SQuot, DQuot, BckTk, _____, /****/ _____, Paren, Brckt, Brace, Anglr,
+        _____, _____, _____, _____, _____, /****/ _____, Paren, Brckt, Brace, Anglr,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
