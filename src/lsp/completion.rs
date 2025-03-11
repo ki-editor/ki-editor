@@ -151,24 +151,16 @@ impl CompletionItem {
     }
 
     pub(crate) fn dispatches(&self) -> crate::app::Dispatches {
-        match &self.edit {
-            None => Dispatches::one(Dispatch::ToEditor(
-                DispatchEditor::TryReplaceCurrentLongWord(
-                    self.insert_text().unwrap_or_else(|| self.label()),
-                ),
-            ))
-            .append(Dispatch::ToEditor(DispatchEditor::ApplyPositionalEdits(
-                self.additional_text_edits(),
-            ))),
-            Some(edit) => {
-                Dispatches::one(Dispatch::ToEditor(DispatchEditor::ApplyPositionalEdits(
-                    Some(edit.clone())
-                        .into_iter()
-                        .chain(self.additional_text_edits())
-                        .collect_vec(),
-                )))
-            }
-        }
+        Dispatches::one(Dispatch::ToEditor(DispatchEditor::ExecuteCompletion {
+            replacement: self
+                .insert_text()
+                .or_else(|| self.insert_text())
+                .unwrap_or_else(|| self.label()),
+            edit: self.edit.clone(),
+        }))
+        .append(Dispatch::ToEditor(DispatchEditor::ApplyPositionalEdits(
+            self.additional_text_edits(),
+        )))
         .append_some(
             self.command()
                 .clone()

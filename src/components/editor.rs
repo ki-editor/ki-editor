@@ -278,9 +278,6 @@ impl Component for Editor {
                     .move_right(&self.cursor_direction, len_chars)
             }
             Open(direction) => return self.open(direction, context),
-            TryReplaceCurrentLongWord(replacement) => {
-                return self.try_replace_current_long_word(replacement, context)
-            }
             GoBack => self.go_back(context),
             GoForward => self.go_forward(context),
             SelectSurround { enclosure, kind } => {
@@ -338,6 +335,9 @@ impl Component for Editor {
             ToggleReveal(reveal) => self.toggle_reveal(reveal),
             SearchCurrentSelection(if_current_not_found, scope) => {
                 return Ok(self.search_current_selection(if_current_not_found, scope))
+            }
+            ExecuteCompletion { replacement, edit } => {
+                return self.execute_completion(replacement, edit, context)
             }
         }
         Ok(Default::default())
@@ -3499,6 +3499,28 @@ impl Editor {
     pub(crate) fn window_title_height(&self, context: &Context) -> u16 {
         self.title(context).lines().count() as u16
     }
+
+    fn execute_completion(
+        &mut self,
+        replacement: String,
+        edit: Option<CompletionItemEdit>,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        // Only apply `edit` if there's no more than one cursor
+        match edit {
+            Some(edit) if self.selection_set.len() == 1 => self.apply_positional_edits(
+                Some(edit)
+                    .into_iter()
+                    .map(|edit| match edit {
+                        CompletionItemEdit::PositionalEdit(positional_edit) => positional_edit,
+                    })
+                    .collect_vec(),
+                context,
+            ),
+            // Otherwise, replace word under cursor(s) with replacement
+            _ => self.try_replace_current_long_word(replacement, context),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3595,7 +3617,6 @@ pub(crate) enum DispatchEditor {
     #[cfg(test)]
     ApplySyntaxHighlight,
     ReplaceCurrentSelectionWith(String),
-    TryReplaceCurrentLongWord(String),
     SelectLineAt(usize),
     Paste {
         direction: Direction,
@@ -3633,6 +3654,10 @@ pub(crate) enum DispatchEditor {
     HandleEsc,
     ToggleReveal(Reveal),
     SearchCurrentSelection(IfCurrentNotFound, Scope),
+    ExecuteCompletion {
+        replacement: String,
+        edit: Option<CompletionItemEdit>,
+    },
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
