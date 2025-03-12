@@ -197,11 +197,13 @@ impl SyntaxStyles {
         })
     }
 
+    /// Obtain the style of a given highlight_name
+    /// by recursively looking up its parent's name
     fn get_style(&self, highlight_name: &HighlightName) -> Option<Style> {
         self.map()
             .get(highlight_name)
-            .or_else(|| self.map().get(&highlight_name.parent()?))
             .cloned()
+            .or_else(|| self.get_style(&highlight_name.parent()?))
     }
 }
 
