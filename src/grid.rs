@@ -3,7 +3,7 @@ use crate::{
     position::Position,
     soft_wrap::{self},
     style::Style,
-    themes::{highlight_names, Color, HighlightName, Theme},
+    themes::{Color, HighlightName, Theme},
 };
 
 use itertools::Itertools;
