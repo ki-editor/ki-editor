@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 use lazy_regex::Lazy;
 use lsp_types::DiagnosticSeverity;
 
@@ -288,20 +288,19 @@ impl Editor {
         let visible_line_range =
             self.visible_line_range_given_scroll_offset_and_height(scroll_offset, height);
         let primary_cursor_char_index = primary_selection.to_char_index(&self.cursor_direction);
-        let updates = self.get_highlight_spans(
-            context,
-            &visible_line_range,
-            &hidden_parent_line_ranges,
-            &visible_parent_lines,
-            protected_range,
-        );
-
-        let hidden_parent_lines_grid = {
+        let (hidden_parent_lines_grid, highlight_spans) = {
+            let highlight_spans = self.get_highlight_spans(
+                context,
+                &visible_line_range,
+                &hidden_parent_line_ranges,
+                &visible_parent_lines,
+                protected_range,
+            );
             let boundaries = hidden_parent_line_ranges
                 .into_iter()
                 .map(|hidden_parent_line_range| Boundary::new(&buffer, hidden_parent_line_range))
                 .collect_vec();
-            let updates = hidden_parent_lines
+            let (remaining_highlight_spans, updates): (Vec<_>, Vec<_>) = hidden_parent_lines
                 .iter()
                 .filter_map(|line| {
                     if self.reveal.is_some() {
@@ -315,14 +314,14 @@ impl Editor {
                         is_protected_range_start: false,
                     })
                 })
-                .chain(updates.clone())
-                .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
-                .collect_vec();
-            hidden_parent_lines.into_iter().fold(
+                .chain(highlight_spans)
+                .partition_map(|span| span.into_cell_updates(&buffer, theme, &boundaries));
+            let grid = hidden_parent_lines.into_iter().fold(
                 Grid::new(Dimension { height: 0, width }),
                 |grid, line| {
                     let updates = updates
                         .iter()
+                        .flatten()
                         .filter_map(|update| {
                             if update.position.line == line.line {
                                 Some(update.clone().set_position_line(0))
@@ -346,15 +345,17 @@ impl Editor {
                         theme,
                     ))
                 },
-            )
+            );
+            (grid, remaining_highlight_spans)
         };
 
         let grid = {
             let visible_lines_updates = {
                 let boundaries = [Boundary::new(&buffer, visible_line_range)];
-                updates
-                    .iter()
-                    .flat_map(|span| span.to_cell_updates(&buffer, theme, &boundaries))
+                highlight_spans
+                    .into_iter()
+                    .filter_map(|span| span.into_cell_updates(&buffer, theme, &boundaries).right())
+                    .flatten()
                     // Insert the primary cursor cell update by force.
                     // This is necessary because when the content is empty
                     // all cell updates will be excluded when `to_cell_updates` is run,
@@ -385,7 +386,6 @@ impl Editor {
                     RenderContentLineNumber::NoLineNumber
                 },
                 visible_lines_updates
-                    .clone()
                     .into_iter()
                     .filter_map(|cell_update| {
                         Some(CellUpdate {
@@ -679,7 +679,7 @@ impl Editor {
                 theme.ui.jump_mark_odd
             };
             HighlightSpan {
-                set_symbol: Some(jump.character.to_string()),
+                set_symbol: Some(jump.character),
                 is_cursor: false,
                 source: Source::Style(style),
                 range: HighlightSpanRange::CharIndex(
@@ -846,11 +846,11 @@ impl Editor {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub(crate) struct HighlightSpan {
     pub(crate) source: Source,
     pub(crate) range: HighlightSpanRange,
-    pub(crate) set_symbol: Option<String>,
+    pub(crate) set_symbol: Option<char>,
     pub(crate) is_cursor: bool,
     is_protected_range_start: bool,
 }
@@ -858,14 +858,20 @@ pub(crate) struct HighlightSpan {
 impl HighlightSpan {
     /// Convert this `HighlightSpans` into `Vec<CellUpdate>`,
     /// only perform conversions for positions that falls within the given `boundaries`,
-    /// so that we can minimize the call to the expensive `buffer.xxx_to_position` methods
-    fn to_cell_updates(
-        &self,
+    /// so that we can minimize the call to the expensive `buffer.xxx_to_position` methods.
+    ///
+    /// If this highlight span is out of all boundaries, then it will be returned as well,
+    /// do avoid cloning.
+    ///
+    /// This is because the HighlightSpan that are used by visible lines grid and hidden lines grid
+    /// should be mutually exclusive.
+    fn into_cell_updates(
+        self,
         buffer: &Buffer,
         theme: &Theme,
         boundaries: &[Boundary],
-    ) -> Vec<CellUpdate> {
-        boundaries
+    ) -> Either<Self, Vec<CellUpdate>> {
+        let result = boundaries
             .iter()
             .filter_map(|boundary| {
                 let char_index_range: CharIndexRange = match &self.range {
@@ -898,7 +904,7 @@ impl HighlightSpan {
                             let position = buffer.char_to_position(char_index).ok()?;
                             Some(CellUpdate {
                                 position,
-                                symbol: self.set_symbol.clone(),
+                                symbol: self.set_symbol,
                                 style: match &self.source {
                                     Source::StyleKey(key) => theme.get_style(key),
                                     Source::Style(style) => *style,
@@ -915,7 +921,12 @@ impl HighlightSpan {
                 )
             })
             .flatten()
-            .collect()
+            .collect_vec();
+        if result.is_empty() {
+            Either::Left(self)
+        } else {
+            Either::Right(result)
+        }
     }
 }
 

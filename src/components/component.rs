@@ -23,7 +23,7 @@ impl std::fmt::Display for GetGridResult {
                 .grid
                 .clone()
                 .apply_cell_update(
-                    crate::grid::CellUpdate::new(cursor.position).set_symbol(Some("█".to_string())),
+                    crate::grid::CellUpdate::new(cursor.position).set_symbol(Some('█')),
                 )
                 .to_string(),
             None => self.grid.to_string(),

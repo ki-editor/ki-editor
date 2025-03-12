@@ -3,22 +3,35 @@ use std::{collections::HashMap, ops::Range, sync::mpsc::Sender, time::Duration};
 use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
 use crate::{
-    app::AppMessage, char_index_range::apply_edit, components::component::ComponentId,
-    grid::StyleKey, themes::highlight_names,
+    app::AppMessage,
+    char_index_range::apply_edit,
+    components::component::ComponentId,
+    grid::{IndexedHighlightGroup, StyleKey},
+    themes::highlight_names,
 };
 use shared::language::Language;
 
 #[derive(Clone, Debug)]
-pub(crate) struct HighlighedSpan {
+pub(crate) struct HighlightedSpan {
     pub(crate) byte_range: Range<usize>,
     pub(crate) style_key: StyleKey,
 }
-impl HighlighedSpan {
-    fn apply_edit(self, edited_range: &Range<usize>, change: isize) -> Option<HighlighedSpan> {
-        Some(HighlighedSpan {
+impl HighlightedSpan {
+    fn apply_edit(self, edited_range: &Range<usize>, change: isize) -> Option<HighlightedSpan> {
+        Some(HighlightedSpan {
             byte_range: apply_edit(self.byte_range, edited_range, change)?,
             ..self
         })
+    }
+    /// Return `true` if this `HighlightedSpan` should be retained after applying the edit
+    fn apply_edit_mut(&mut self, edited_range: &Range<usize>, change: isize) -> bool {
+        let byte_range = std::mem::take(&mut self.byte_range);
+        if let Some(byte_range) = apply_edit(byte_range, edited_range, change) {
+            self.byte_range = byte_range;
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -50,11 +63,11 @@ impl GetHighlightConfig for Language {
 }
 
 pub trait Highlight {
-    fn highlight(&self, source_code: &str) -> anyhow::Result<HighlighedSpans>;
+    fn highlight(&self, source_code: &str) -> anyhow::Result<HighlightedSpans>;
 }
 
 impl Highlight for HighlightConfiguration {
-    fn highlight(&self, source_code: &str) -> anyhow::Result<HighlighedSpans> {
+    fn highlight(&self, source_code: &str) -> anyhow::Result<HighlightedSpans> {
         let mut highlighter = Highlighter::new();
 
         let highlights = highlighter.highlight(self, source_code.as_bytes(), None, |_| None)?;
@@ -73,31 +86,33 @@ impl Highlight for HighlightConfiguration {
                 }
                 HighlightEvent::Source { start, end } => {
                     if let Some(highlight) = highlight {
-                        if let Some(style_key) = highlight_names().get(highlight.0) {
-                            let style_key = StyleKey::Syntax(style_key.to_string());
-                            highlighted_spans.push(HighlighedSpan {
-                                byte_range: start..end,
-                                style_key,
-                            });
-                        }
+                        let style_key = StyleKey::Syntax(IndexedHighlightGroup::new(highlight.0));
+                        highlighted_spans.push(HighlightedSpan {
+                            byte_range: start..end,
+                            style_key,
+                        });
                     }
                 }
             }
         }
-        Ok(HighlighedSpans(highlighted_spans))
+        Ok(HighlightedSpans(highlighted_spans))
     }
 }
 
 #[derive(Clone, Default, Debug)]
-pub(crate) struct HighlighedSpans(pub Vec<HighlighedSpan>);
-impl HighlighedSpans {
-    pub(crate) fn apply_edit(self, edited_range: &Range<usize>, change: isize) -> HighlighedSpans {
-        HighlighedSpans(
+pub(crate) struct HighlightedSpans(pub Vec<HighlightedSpan>);
+impl HighlightedSpans {
+    pub(crate) fn apply_edit(self, edited_range: &Range<usize>, change: isize) -> HighlightedSpans {
+        HighlightedSpans(
             self.0
                 .into_iter()
                 .filter_map(|span| span.apply_edit(edited_range, change))
                 .collect(),
         )
+    }
+    pub(crate) fn apply_edit_mut(&mut self, edited_range: &Range<usize>, change: isize) {
+        self.0
+            .retain_mut(|span| span.apply_edit_mut(edited_range, change))
     }
 }
 
@@ -155,7 +170,7 @@ impl HighlightConfigs {
         &mut self,
         language: Language,
         source_code: &str,
-    ) -> Result<HighlighedSpans, anyhow::Error> {
+    ) -> Result<HighlightedSpans, anyhow::Error> {
         let Some(grammar_id) = language.tree_sitter_grammar_id() else {
             return Ok(Default::default());
         };

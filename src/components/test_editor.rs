@@ -4,6 +4,7 @@ use crate::char_index_range::CharIndexRange;
 use crate::clipboard::CopiedTexts;
 use crate::components::editor::{DispatchEditor::*, Movement::*};
 use crate::context::{Context, LocalSearchConfigMode, Search};
+use crate::grid::IndexedHighlightGroup;
 use crate::list::grep::RegexConfig;
 use crate::lsp::process::LspNotification;
 use crate::quickfix_list::{Location, QuickfixListItem};
@@ -1998,14 +1999,14 @@ fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
             Editor(ApplySyntaxHighlight),
             Expect(ExpectKind::HighlightSpans(
                 0..2,
-                StyleKey::Syntax("keyword.function".to_string()),
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("keyword.function").unwrap()),
             )),
             Editor(MatchLiteral("fn".to_string())),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("hello".to_string())),
             Expect(ExpectKind::HighlightSpans(
                 5..7,
-                StyleKey::Syntax("keyword.function".to_string()),
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("keyword.function").unwrap()),
             )),
         ])
     })
@@ -2067,7 +2068,9 @@ fn main() { // too long
                 .map(|position| {
                     ExpectKind::GridCellStyleKey(
                         position,
-                        Some(StyleKey::Syntax("keyword.function".to_string())),
+                        Some(StyleKey::Syntax(
+                            IndexedHighlightGroup::from_str("keyword.function").unwrap(),
+                        )),
                     )
                 })
                 .collect(),
@@ -2076,7 +2079,9 @@ fn main() { // too long
                 // Expect the left parenthesis of the outbound parent line "fn main() { // too long" is highlighted properly
                 ExpectKind::GridCellStyleKey(
                     Position::new(1, 9),
-                    Some(StyleKey::Syntax("punctuation.bracket".to_string())),
+                    Some(StyleKey::Syntax(
+                        IndexedHighlightGroup::from_str("punctuation.bracket").unwrap(),
+                    )),
                 ),
             ),
             ExpectMulti(
@@ -2095,7 +2100,9 @@ fn main() { // too long
                 .map(|position| {
                     ExpectKind::GridCellStyleKey(
                         position,
-                        Some(StyleKey::Syntax("keyword".to_string())),
+                        Some(StyleKey::Syntax(
+                            IndexedHighlightGroup::from_str("keyword").unwrap(),
+                        )),
                     )
                 })
                 .collect(),

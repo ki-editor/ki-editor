@@ -11,7 +11,11 @@ use strum::IntoEnumIterator as _;
 pub(crate) use vscode_dark::vscode_dark;
 pub(crate) use vscode_light::vscode_light;
 
-use crate::{env::parse_env, grid::StyleKey, style::Style};
+use crate::{
+    env::parse_env,
+    grid::{IndexedHighlightGroup, StyleKey},
+    style::Style,
+};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct Theme {
@@ -84,9 +88,10 @@ impl Theme {
                 Style::new().background_color(self.hunk.new_emphasized_background)
             }
 
-            StyleKey::Syntax(highlight_group) => {
-                self.syntax.get_style(highlight_group).unwrap_or_default()
-            }
+            StyleKey::Syntax(highlight_group) => highlight_group
+                .to_highlight_name()
+                .and_then(|name| self.syntax.get_style(&name))
+                .unwrap_or_default(),
             StyleKey::KeymapHint => self.ui.keymap_hint,
             StyleKey::KeymapArrow => self.ui.keymap_arrow,
             StyleKey::KeymapKey => self.ui.keymap_key,
@@ -175,7 +180,7 @@ pub(crate) struct UiStyles {
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub(crate) struct SyntaxStyles {
-    map: once_cell::sync::OnceCell<HashMap<&'static str, Style>>,
+    map: once_cell::sync::OnceCell<HashMap<HighlightName, Style>>,
     groups: Vec<(HighlightName, Style)>,
 }
 
@@ -187,26 +192,27 @@ impl SyntaxStyles {
         }
     }
 
-    fn map(&self) -> &HashMap<&'static str, Style> {
+    fn map(&self) -> &HashMap<HighlightName, Style> {
         self.map.get_or_init(|| {
             self.groups
                 .iter()
-                .map(|(key, style)| (key.into(), style.to_owned()))
+                .map(|(key, style)| (key.clone(), style.to_owned()))
                 .collect()
         })
     }
 
-    fn get_style(&self, highlight_group: &str) -> Option<Style> {
-        let group = HighlightGroup::new(highlight_group);
+    fn get_style(&self, highlight_name: &HighlightName) -> Option<Style> {
         self.map()
-            .get(group.full_name.as_str())
+            .get(&highlight_name)
+            .or_else(|| self.map().get(&highlight_name.parent()?))
             .cloned()
-            .or_else(|| self.get_style(&group.parent?))
     }
 }
 
 #[cfg(test)]
 mod test_syntax_styles {
+    use std::str::FromStr;
+
     use my_proc_macros::hex;
 
     use crate::style::fg;
@@ -225,24 +231,33 @@ mod test_syntax_styles {
     #[test]
     fn test_get_style() {
         assert_eq!(
-            syntax_style().get_style("string").unwrap(),
+            syntax_style()
+                .get_style(&HighlightName::from_str("string").unwrap())
+                .unwrap(),
             fg(hex!("#267f99"))
         );
         assert_eq!(
-            syntax_style().get_style("string.special").unwrap(),
-            fg(hex!("#e50000"))
-        );
-        assert_eq!(
-            syntax_style().get_style("string.special.symbol").unwrap(),
+            syntax_style()
+                .get_style(&HighlightName::from_str("string.special").unwrap())
+                .unwrap(),
             fg(hex!("#e50000"))
         );
         assert_eq!(
             syntax_style()
-                .get_style("variable.parameter.builtin")
+                .get_style(&HighlightName::from_str("string.special.symbol").unwrap())
+                .unwrap(),
+            fg(hex!("#e50000"))
+        );
+        assert_eq!(
+            syntax_style()
+                .get_style(&HighlightName::from_str("variable.parameter.builtin").unwrap())
                 .unwrap(),
             fg(hex!("#abcdef"))
         );
-        assert_eq!(syntax_style().get_style("character"), None);
+        assert_eq!(
+            syntax_style().get_style(&HighlightName::from_str("character").unwrap()),
+            None
+        );
     }
 }
 
@@ -278,6 +293,7 @@ impl HighlightGroup {
     PartialEq,
     Eq,
     Clone,
+    Hash,
 )]
 pub enum HighlightName {
     #[strum(serialize = "ui.bar")]
@@ -468,6 +484,150 @@ pub enum HighlightName {
     TagAttribute,
     #[strum(serialize = "tag.delimiter")]
     TagDelimiter,
+}
+impl HighlightName {
+    fn parent(&self) -> Option<HighlightName> {
+        use HighlightName::*;
+        match self {
+            // UI related
+            UiBar => Some(Ui),
+            Ui => None,
+
+            // Syntax related
+            SyntaxKeyword => None,
+            SyntaxKeywordAsync => Some(SyntaxKeyword),
+
+            // Variables
+            Variable => None,
+            VariableBuiltin => Some(Variable),
+            VariableParameter => Some(Variable),
+            VariableParameterBuiltin => Some(VariableParameter),
+            VariableMember => Some(Variable),
+
+            // Constants
+            Constant => None,
+            ConstantBuiltin => Some(Constant),
+            ConstantMacro => Some(Constant),
+
+            // Modules
+            Module => None,
+            ModuleBuiltin => Some(Module),
+
+            // Label
+            Label => None,
+
+            // Strings
+            String => None,
+            StringDocumentation => Some(String),
+            StringRegexp => Some(String),
+            StringEscape => Some(String),
+            StringSpecial => Some(String),
+            StringSpecialSymbol => Some(StringSpecial),
+            StringSpecialUrl => Some(StringSpecial),
+            StringSpecialPath => Some(StringSpecial),
+
+            // Characters
+            Character => None,
+            CharacterSpecial => Some(Character),
+
+            // Boolean
+            Boolean => None,
+
+            // Numbers
+            Number => None,
+            NumberFloat => Some(Number),
+
+            // Types
+            Type => None,
+            TypeBuiltin => Some(Type),
+            TypeDefinition => Some(Type),
+
+            // Attributes
+            Attribute => None,
+            AttributeBuiltin => Some(Attribute),
+
+            // Properties
+            Property => None,
+
+            // Functions
+            Function => None,
+            FunctionBuiltin => Some(Function),
+            FunctionCall => Some(Function),
+            FunctionMacro => Some(Function),
+            FunctionMethod => Some(Function),
+            FunctionMethodCall => Some(FunctionMethod),
+
+            // Constructor
+            Constructor => None,
+
+            // Operator
+            Operator => None,
+
+            // Keywords
+            Keyword => None,
+            KeywordCoroutine => Some(Keyword),
+            KeywordFunction => Some(Keyword),
+            KeywordOperator => Some(Keyword),
+            KeywordImport => Some(Keyword),
+            KeywordType => Some(Keyword),
+            KeywordModifier => Some(Keyword),
+            KeywordRepeat => Some(Keyword),
+            KeywordReturn => Some(Keyword),
+            KeywordDebug => Some(Keyword),
+            KeywordException => Some(Keyword),
+            KeywordConditional => Some(Keyword),
+            KeywordConditionalTernary => Some(KeywordConditional),
+            KeywordDirective => Some(Keyword),
+            KeywordDirectiveDefine => Some(KeywordDirective),
+
+            // Punctuation
+            PunctuationDelimiter => None,
+            PunctuationBracket => None,
+            PunctuationSpecial => None,
+
+            // Comments
+            Comment => None,
+            CommentDocumentation => Some(Comment),
+            CommentError => Some(Comment),
+            CommentWarning => Some(Comment),
+            CommentTodo => Some(Comment),
+            CommentNote => Some(Comment),
+
+            // Markup
+            MarkupStrong => None,
+            MarkupItalic => None,
+            MarkupStrikethrough => None,
+            MarkupUnderline => None,
+            MarkupHeading => None,
+            MarkupHeading1 => Some(MarkupHeading),
+            MarkupHeading2 => Some(MarkupHeading),
+            MarkupHeading3 => Some(MarkupHeading),
+            MarkupHeading4 => Some(MarkupHeading),
+            MarkupHeading5 => Some(MarkupHeading),
+            MarkupHeading6 => Some(MarkupHeading),
+            MarkupQuote => None,
+            MarkupMath => None,
+            MarkupLink => None,
+            MarkupLinkLabel => Some(MarkupLink),
+            MarkupLinkUrl => Some(MarkupLink),
+            MarkupRaw => None,
+            MarkupRawBlock => Some(MarkupRaw),
+            MarkupList => None,
+            MarkupListChecked => Some(MarkupList),
+            MarkupListUnchecked => Some(MarkupList),
+
+            // Diff
+            DiffPlus => None,
+            DiffMinus => None,
+            DiffDelta => None,
+
+            // Tags
+            Tag => None,
+            TagBuiltin => Some(Tag),
+            TagAttribute => Some(Tag),
+            TagDelimiter => Some(Tag),
+        }
+    }
 }
 
 pub fn highlight_names() -> &'static Vec<&'static str> {
