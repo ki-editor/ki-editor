@@ -614,7 +614,7 @@ impl IndexedHighlightGroup {
 
     #[cfg(test)]
     pub(crate) fn from_str(name: &str) -> Option<Self> {
-        highlight_names()
+        crate::themes::highlight_names()
             .iter()
             .position(|highlight_name| highlight_name == &name)
             .map(Self)
