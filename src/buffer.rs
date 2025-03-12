@@ -10,7 +10,7 @@ use crate::{
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
     selection_mode::{AstGrep, ByteRange},
-    syntax_highlight::{HighlighedSpan, HighlighedSpans},
+    syntax_highlight::{HighlightedSpan, HighlightedSpans},
     undo_tree::{Applicable, OldNew, UndoTree},
     utils::find_previous,
 };
@@ -43,7 +43,7 @@ pub(crate) struct Buffer {
     undo_tree: UndoTree<Patch>,
     language: Option<Language>,
     path: Option<CanonicalizedPath>,
-    highlighted_spans: HighlighedSpans,
+    highlighted_spans: HighlightedSpans,
     marks: Vec<CharIndexRange>,
     diagnostics: Vec<Diagnostic>,
     quickfix_list_items: Vec<QuickfixListItem>,
@@ -77,7 +77,7 @@ impl Buffer {
                 })
             },
             path: None,
-            highlighted_spans: HighlighedSpans::default(),
+            highlighted_spans: HighlightedSpans::default(),
             marks: Vec::new(),
             decorations: Vec::new(),
             undo_tree: UndoTree::new(),
@@ -281,7 +281,7 @@ impl Buffer {
             .unwrap_or(false)
     }
 
-    pub(crate) fn update_highlighted_spans(&mut self, spans: HighlighedSpans) {
+    pub(crate) fn update_highlighted_spans(&mut self, spans: HighlightedSpans) {
         self.highlighted_spans = spans;
     }
 
@@ -490,6 +490,9 @@ impl Buffer {
             marks: self.marks.clone(),
         };
 
+        // BOTTLENECK 1: UNDO/REDO with a lot of cursors
+        // Add undo patch is heavy for many multi cursors
+        // it is very slow
         self.add_undo_patch(current_buffer_state, new_buffer_state.clone(), &before);
         if reparse_tree {
             self.reparse_tree()?;
@@ -531,27 +534,31 @@ impl Buffer {
             .collect_vec();
 
         // Update all the non-positional spans
-        self.marks = std::mem::take(&mut self.marks)
-            .into_iter()
-            .filter_map(|mark| mark.apply_edit(edit))
-            .collect();
-        self.diagnostics = std::mem::take(&mut self.diagnostics)
-            .into_iter()
-            .filter_map(|diagnostic| {
-                Some(Diagnostic {
-                    range: diagnostic.range.apply_edit(edit)?,
-                    ..diagnostic
-                })
-            })
-            .collect_vec();
+        self.marks.retain_mut(|mark| {
+            if let Some(range) = mark.apply_edit(edit) {
+                *mark = range;
+                true
+            } else {
+                false
+            }
+        });
+        self.diagnostics.retain_mut(|diagnostic| {
+            if let Some(range) = diagnostic.range.apply_edit(edit) {
+                diagnostic.range = range;
+                true
+            } else {
+                false
+            }
+        });
         let max_char_index = CharIndex(self.len_chars());
         self.selection_set_history = std::mem::take(&mut self.selection_set_history)
             .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
         if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
-            self.highlighted_spans = std::mem::take(&mut self.highlighted_spans).apply_edit(
+            // BOTTLENECK 2: Updating highlighted spans
+            self.highlighted_spans.apply_edit_mut(
                 &byte_range,
                 edit.new.len_bytes() as isize - byte_range.len() as isize,
-            )
+            );
         }
         Ok(())
     }
@@ -715,7 +722,7 @@ impl Buffer {
     }
 
     /// The resulting spans must be sorted by range
-    pub(crate) fn highlighted_spans(&self) -> Vec<HighlighedSpan> {
+    pub(crate) fn highlighted_spans(&self) -> Vec<HighlightedSpan> {
         let spans = self.highlighted_spans.0.clone();
         debug_assert!(
             spans

@@ -3,13 +3,14 @@ use crate::{
     position::Position,
     soft_wrap::{self},
     style::Style,
-    themes::{Color, Theme},
+    themes::{Color, HighlightName, Theme},
 };
 
 use itertools::Itertools;
 use my_proc_macros::hex;
 #[cfg(test)]
 use ropey::Rope;
+use strum::IntoEnumIterator;
 use unicode_width::UnicodeWidthChar;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -22,7 +23,7 @@ const DEFAULT_TAB_SIZE: usize = 4;
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub(crate) struct Cell {
-    pub(crate) symbol: String,
+    pub(crate) symbol: char,
     pub(crate) foreground_color: Color,
     pub(crate) background_color: Color,
     pub(crate) line: Option<CellLine>,
@@ -51,14 +52,14 @@ impl Cell {
     #[cfg(test)]
     pub(crate) fn from_char(c: char) -> Self {
         Cell {
-            symbol: c.to_string(),
+            symbol: c,
             ..Default::default()
         }
     }
 
     fn apply_update(&self, update: CellUpdate) -> Cell {
         Cell {
-            symbol: update.symbol.clone().unwrap_or_else(|| self.symbol.clone()),
+            symbol: update.symbol.unwrap_or(self.symbol),
             foreground_color: update
                 .style
                 .foreground_color
@@ -80,7 +81,7 @@ impl Cell {
 impl Default for Cell {
     fn default() -> Self {
         Cell {
-            symbol: " ".to_string(),
+            symbol: ' ',
             foreground_color: hex!("#ffffff"),
             background_color: hex!("#ffffff"),
             line: None,
@@ -95,7 +96,7 @@ impl Default for Cell {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct CellUpdate {
     pub(crate) position: Position,
-    pub(crate) symbol: Option<String>,
+    pub(crate) symbol: Option<char>,
     pub(crate) style: Style,
     pub(crate) is_cursor: bool,
 
@@ -128,7 +129,7 @@ impl CellUpdate {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_symbol(self, symbol: Option<String>) -> CellUpdate {
+    pub(crate) fn set_symbol(self, symbol: Option<char>) -> CellUpdate {
         CellUpdate { symbol, ..self }
     }
 
@@ -232,7 +233,7 @@ impl Grid {
                 .enumerate()
                 .for_each(|(column_index, character)| {
                     grid.rows[row_index][column_index] = Cell {
-                        symbol: character.to_string(),
+                        symbol: character,
                         ..Cell::default()
                     }
                 })
@@ -315,7 +316,7 @@ impl Grid {
                         line: row_index,
                         column: column_index,
                     },
-                    symbol: Some(character.to_string()),
+                    symbol: Some(character),
                     style: *style,
                     ..CellUpdate::default()
                 }
@@ -369,7 +370,7 @@ impl Grid {
                                 line: line_index,
                                 column: column_index,
                             },
-                            symbol: Some(character.to_string()),
+                            symbol: Some(character),
                             style: Style::default().foreground_color(theme.ui.text_foreground),
                             ..CellUpdate::default()
                         })
@@ -516,7 +517,7 @@ impl Grid {
                                     (max_line_number_len + line_number_separator_width) as u16,
                                 ),
                                 symbol: if index == 0 {
-                                    update.cell_update.symbol.clone()
+                                    update.cell_update.symbol
                                 } else {
                                     // Fill extra paddings with no-symbol cells
                                     None
@@ -598,9 +599,35 @@ impl Grid {
     }
 }
 
+/// This is created so the payload of `StyleKey::Syntax`
+/// can be usize instead of String.
+///
+/// The impact of this is huge because for a 3k Rust files
+/// there are over 50,000 highlight spans,
+/// and copying the style key as strings are very expensive.
+#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
+pub(crate) struct IndexedHighlightGroup(usize);
+impl IndexedHighlightGroup {
+    pub(crate) fn new(index: usize) -> Self {
+        Self(index)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_str(name: &str) -> Option<Self> {
+        crate::themes::highlight_names()
+            .iter()
+            .position(|highlight_name| highlight_name == &name)
+            .map(Self)
+    }
+
+    pub(crate) fn to_highlight_name(&self) -> Option<crate::themes::HighlightName> {
+        HighlightName::iter().nth(self.0)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
 pub(crate) enum StyleKey {
-    Syntax(String),
+    Syntax(IndexedHighlightGroup),
     UiPrimarySelection,
 
     UiPrimarySelectionAnchors,
@@ -767,7 +794,7 @@ mod test_grid {
                     start_line_index: 1,
                 },
                 [CellUpdate {
-                    symbol: Some(cursor.to_string()),
+                    symbol: Some(cursor),
                     position: Position::new(0, 3),
                     ..Default::default()
                 }]
@@ -806,7 +833,7 @@ mod test_grid {
                     start_line_index: 1,
                 },
                 [CellUpdate {
-                    symbol: Some(cursor.to_string()),
+                    symbol: Some(cursor),
                     position: Position::new(0, 8), // 3rd space
                     ..Default::default()
                 }]
@@ -963,7 +990,7 @@ mod test_grid {
                 .into_iter()
                 .map(|cell| cell.cell.symbol)
                 .collect_vec();
-            assert_eq!(["\t", " ", " ", " ", "h", "e", "l", " "].to_vec(), actual)
+            assert_eq!(['\t', ' ', ' ', ' ', 'h', 'e', 'l', ' '].to_vec(), actual)
         }
 
         #[test]
@@ -1029,7 +1056,7 @@ x
                 .collect_vec();
             let expected = PositionedCell {
                 cell: Cell {
-                    symbol: "h".to_string(),
+                    symbol: 'h',
                     foreground_color: color,
                     ..Default::default()
                 },
@@ -1051,7 +1078,7 @@ mod test_cell {
     #[test]
     fn apply_update() {
         let cell = Cell {
-            symbol: "a".to_string(),
+            symbol: 'a',
             foreground_color: hex!("#aaaaaa"),
             background_color: hex!("#bbbbbb"),
             line: Some(CellLine {
@@ -1065,7 +1092,7 @@ mod test_cell {
         };
         let cell = cell.apply_update(CellUpdate {
             position: Position::default(),
-            symbol: Some("b".to_string()),
+            symbol: Some('b'),
             style: Style::new()
                 .foreground_color(hex!("#dddddd"))
                 .background_color(hex!("#eeeeee"))
@@ -1077,7 +1104,7 @@ mod test_cell {
             source: Some(StyleKey::KeymapHint),
             is_protected_range_start: true,
         });
-        assert_eq!(cell.symbol, "b");
+        assert_eq!(cell.symbol, 'b');
         assert_eq!(cell.foreground_color, hex!("#dddddd"));
         assert_eq!(cell.background_color, hex!("#eeeeee"));
         assert!(cell.is_cursor);

@@ -85,7 +85,7 @@ impl Screen {
                     .sorted_by(|a, b| a.position.column.cmp(&b.position.column))
                     .map(|cell| {
                         if cell.cell.is_cursor {
-                            "█".to_string()
+                            '█'
                         } else {
                             cell.cell.symbol
                         }

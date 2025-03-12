@@ -83,7 +83,7 @@ pub(crate) trait Frontend {
                 ),
                 SetBackgroundColor(cell.cell.background_color.into()),
                 SetForegroundColor(cell.cell.foreground_color.into()),
-                Print(reveal(&cell.cell.symbol)),
+                Print(reveal(cell.cell.symbol)),
                 SetAttribute(Attribute::Reset),
             )?;
         }
@@ -91,11 +91,11 @@ pub(crate) trait Frontend {
     }
 }
 /// Convert invisible character to visible character
-fn reveal(s: &str) -> String {
+fn reveal(s: char) -> char {
     match s {
-        "\n" => " ".to_string(),
-        "\t" => " ".to_string(),
-        _ => s.into(),
+        '\n' => ' ',
+        '\t' => ' ',
+        _ => s,
     }
 }
 

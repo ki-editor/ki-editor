@@ -33,7 +33,7 @@ use crate::{
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     screen::{Screen, Window},
     selection::SelectionMode,
-    syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
+    syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest},
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
@@ -149,7 +149,7 @@ impl<T: Frontend> App<T> {
     fn update_highlighted_spans(
         &self,
         component_id: ComponentId,
-        highlighted_spans: HighlighedSpans,
+        highlighted_spans: HighlightedSpans,
     ) -> Result<(), anyhow::Error> {
         self.layout
             .update_highlighted_spans(component_id, highlighted_spans)
@@ -2707,7 +2707,7 @@ pub(crate) enum AppMessage {
     QuitAll,
     SyntaxHighlightResponse {
         component_id: ComponentId,
-        highlighted_spans: HighlighedSpans,
+        highlighted_spans: HighlightedSpans,
     },
 }
 

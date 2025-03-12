@@ -149,7 +149,7 @@ impl Context {
         &mut self,
         language: shared::language::Language,
         source_code: &str,
-    ) -> anyhow::Result<crate::syntax_highlight::HighlighedSpans> {
+    ) -> anyhow::Result<crate::syntax_highlight::HighlightedSpans> {
         self.highlight_configs.highlight(language, source_code)
     }
 

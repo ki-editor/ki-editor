@@ -291,7 +291,7 @@ impl Layout {
     pub(crate) fn update_highlighted_spans(
         &self,
         component_id: ComponentId,
-        highlighted_spans: crate::syntax_highlight::HighlighedSpans,
+        highlighted_spans: crate::syntax_highlight::HighlightedSpans,
     ) -> Result<(), anyhow::Error> {
         let component = self
             .background_suggestive_editors
