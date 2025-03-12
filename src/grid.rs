@@ -611,11 +611,13 @@ impl IndexedHighlightGroup {
     pub(crate) fn new(index: usize) -> Self {
         Self(index)
     }
+
+    #[cfg(test)]
     pub(crate) fn from_str(name: &str) -> Option<Self> {
         highlight_names()
             .iter()
             .position(|highlight_name| highlight_name == &name)
-            .map(|index| Self(index))
+            .map(Self)
     }
 
     pub(crate) fn to_highlight_name(&self) -> Option<crate::themes::HighlightName> {
@@ -625,7 +627,6 @@ impl IndexedHighlightGroup {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
 pub(crate) enum StyleKey {
-    // BOTTLENECK 4: Should use Enum not String!
     Syntax(IndexedHighlightGroup),
     UiPrimarySelection,
 

@@ -11,11 +11,7 @@ use strum::IntoEnumIterator as _;
 pub(crate) use vscode_dark::vscode_dark;
 pub(crate) use vscode_light::vscode_light;
 
-use crate::{
-    env::parse_env,
-    grid::{IndexedHighlightGroup, StyleKey},
-    style::Style,
-};
+use crate::{env::parse_env, grid::StyleKey, style::Style};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct Theme {
@@ -203,7 +199,7 @@ impl SyntaxStyles {
 
     fn get_style(&self, highlight_name: &HighlightName) -> Option<Style> {
         self.map()
-            .get(&highlight_name)
+            .get(highlight_name)
             .or_else(|| self.map().get(&highlight_name.parent()?))
             .cloned()
     }
@@ -258,26 +254,6 @@ mod test_syntax_styles {
             syntax_style().get_style(&HighlightName::from_str("character").unwrap()),
             None
         );
-    }
-}
-
-pub(crate) struct HighlightGroup {
-    full_name: String,
-    parent: Option<String>,
-}
-
-impl HighlightGroup {
-    fn new(group: &str) -> HighlightGroup {
-        match group.split('.').collect_vec().split_last() {
-            Some((_, parents)) if !parents.is_empty() => HighlightGroup {
-                parent: Some(parents.join(".")),
-                full_name: group.to_string(),
-            },
-            _ => HighlightGroup {
-                parent: None,
-                full_name: group.to_string(),
-            },
-        }
     }
 }
 
@@ -487,6 +463,10 @@ pub enum HighlightName {
 }
 impl HighlightName {
     fn parent(&self) -> Option<HighlightName> {
+        // We hardcode the branch instead of deriving it from the string
+        // via separating the highlight name by period symbol
+        // because this function is a hot path,
+        // we need every ounce of speed here.
         use HighlightName::*;
         match self {
             // UI related

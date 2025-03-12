@@ -7,7 +7,6 @@ use crate::{
     char_index_range::apply_edit,
     components::component::ComponentId,
     grid::{IndexedHighlightGroup, StyleKey},
-    themes::highlight_names,
 };
 use shared::language::Language;
 
@@ -17,12 +16,6 @@ pub(crate) struct HighlightedSpan {
     pub(crate) style_key: StyleKey,
 }
 impl HighlightedSpan {
-    fn apply_edit(self, edited_range: &Range<usize>, change: isize) -> Option<HighlightedSpan> {
-        Some(HighlightedSpan {
-            byte_range: apply_edit(self.byte_range, edited_range, change)?,
-            ..self
-        })
-    }
     /// Return `true` if this `HighlightedSpan` should be retained after applying the edit
     fn apply_edit_mut(&mut self, edited_range: &Range<usize>, change: isize) -> bool {
         let byte_range = std::mem::take(&mut self.byte_range);
@@ -102,14 +95,6 @@ impl Highlight for HighlightConfiguration {
 #[derive(Clone, Default, Debug)]
 pub(crate) struct HighlightedSpans(pub Vec<HighlightedSpan>);
 impl HighlightedSpans {
-    pub(crate) fn apply_edit(self, edited_range: &Range<usize>, change: isize) -> HighlightedSpans {
-        HighlightedSpans(
-            self.0
-                .into_iter()
-                .filter_map(|span| span.apply_edit(edited_range, change))
-                .collect(),
-        )
-    }
     pub(crate) fn apply_edit_mut(&mut self, edited_range: &Range<usize>, change: isize) {
         self.0
             .retain_mut(|span| span.apply_edit_mut(edited_range, change))

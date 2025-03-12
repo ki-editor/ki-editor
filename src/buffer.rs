@@ -490,6 +490,7 @@ impl Buffer {
             marks: self.marks.clone(),
         };
 
+        // BOTTLENECK 1: UNDO/REDO with a lot of cursors
         // Add undo patch is heavy for many multi cursors
         // it is very slow
         self.add_undo_patch(current_buffer_state, new_buffer_state.clone(), &before);
@@ -553,7 +554,11 @@ impl Buffer {
         self.selection_set_history = std::mem::take(&mut self.selection_set_history)
             .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
         if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
-            // self.highlighted_spans.apply_edit_mut( &byte_range, edit.new.len_bytes() as isize - byte_range.len() as isize, );
+            // BOTTLENECK 2: Updating highlighted spans
+            self.highlighted_spans.apply_edit_mut(
+                &byte_range,
+                edit.new.len_bytes() as isize - byte_range.len() as isize,
+            );
         }
         Ok(())
     }
