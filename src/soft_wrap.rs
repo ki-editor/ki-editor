@@ -170,7 +170,7 @@ impl WrappedLine {
 }
 
 pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
-    let re = Regex::new(r"\b").unwrap();
+    let re = lazy_regex::lazy_regex!(r"\b");
 
     // LABEL: NEED_TO_REDUCE_WIDTH_BY_1
     // Need to reduce the width by 1 for wrapping,

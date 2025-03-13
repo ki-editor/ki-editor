@@ -21,6 +21,7 @@ use shared::{
     canonicalized_path::CanonicalizedPath,
     language::{self, Language},
 };
+use similar::Algorithm;
 use std::{collections::HashSet, ops::Range};
 use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal2::{traverse, Order};
@@ -40,7 +41,7 @@ pub(crate) struct Buffer {
     rope: Rope,
     tree: Option<Tree>,
     treesitter_language: Option<tree_sitter::Language>,
-    undo_tree: UndoTree<Patch>,
+    undo_tree: UndoTree<EditHistory>,
     language: Option<Language>,
     path: Option<CanonicalizedPath>,
     highlighted_spans: HighlightedSpans,
@@ -51,6 +52,8 @@ pub(crate) struct Buffer {
     selection_set_history: History<SelectionSet>,
     dirty: bool,
     owner: BufferOwner,
+    undo_stack: Vec<EditTransactionHistory>,
+    redo_stack: Vec<EditTransactionHistory>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -86,6 +89,8 @@ impl Buffer {
             selection_set_history: History::new(),
             dirty: false,
             owner: BufferOwner::System,
+            undo_stack: Default::default(),
+            redo_stack: Default::default(),
         }
     }
 
@@ -469,6 +474,7 @@ impl Buffer {
         edit_transaction: &EditTransaction,
         current_selection_set: SelectionSet,
         reparse_tree: bool,
+        update_undo_stack: bool,
     ) -> Result<SelectionSet, anyhow::Error> {
         let before = self.rope.to_string();
         let new_selection_set = edit_transaction
@@ -479,6 +485,8 @@ impl Buffer {
             selection_set: current_selection_set,
             marks: self.marks.clone(),
         };
+
+        let inverted_edit_transaction = edit_transaction.inverse();
 
         edit_transaction
             .edits()
@@ -493,7 +501,14 @@ impl Buffer {
         // BOTTLENECK 1: UNDO/REDO with a lot of cursors
         // Add undo patch is heavy for many multi cursors
         // it is very slow
-        self.add_undo_patch(current_buffer_state, new_buffer_state.clone(), &before);
+        // self.add_undo_patch(current_buffer_state, new_buffer_state.clone(), &before);
+        if update_undo_stack {
+            self.undo_stack.push(EditTransactionHistory {
+                edit_transaction: inverted_edit_transaction,
+                old_state: current_buffer_state,
+                new_state: new_buffer_state,
+            });
+        }
         if reparse_tree {
             self.reparse_tree()?;
         }
@@ -501,6 +516,7 @@ impl Buffer {
         Ok(new_selection_set)
     }
 
+    // Add these methods for undo/redo
     fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
         // We have to get the char index range of positional spans before updating the content
         let quickfix_list_items_with_char_index_range =
@@ -555,10 +571,7 @@ impl Buffer {
             .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
         if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
             // BOTTLENECK 2: Updating highlighted spans
-            self.highlighted_spans.apply_edit_mut(
-                &byte_range,
-                edit.new.len_bytes() as isize - byte_range.len() as isize,
-            );
+            // self.highlighted_spans.apply_edit_mut( &byte_range, edit.new.len_bytes() as isize - byte_range.len() as isize, );
         }
         Ok(())
     }
@@ -584,16 +597,14 @@ impl Buffer {
                 state: old_buffer_state,
             },
         };
-        self.undo_tree
-            .edit(&mut before.to_owned(), old_new)
-            .unwrap();
+        // self.undo_tree .edit(&mut before.to_owned(), old_new) .unwrap();
     }
 
     pub(crate) fn display_history(&self) -> String {
         self.undo_tree.display()
     }
 
-    pub(crate) fn undo_tree_apply_movement(
+    pub(crate) fn undo_tree_apply_movement_old(
         &mut self,
         movement: Movement,
     ) -> anyhow::Result<Option<SelectionSet>> {
@@ -611,6 +622,18 @@ impl Buffer {
             Ok(Some(selection_set))
         } else {
             Ok(None)
+        }
+    }
+
+    pub(crate) fn undo_tree_apply_movement(
+        &mut self,
+        movement: Movement,
+        current_selection_set: SelectionSet,
+    ) -> anyhow::Result<Option<SelectionSet>> {
+        match movement {
+            Movement::Left => self.undo(current_selection_set),
+            Movement::Right => self.redo(current_selection_set),
+            _ => Ok(None),
         }
     }
 
@@ -718,7 +741,7 @@ impl Buffer {
         current_selection_set: SelectionSet,
     ) -> anyhow::Result<SelectionSet> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
-        self.apply_edit_transaction(&edit_transaction, current_selection_set, true)
+        self.apply_edit_transaction(&edit_transaction, current_selection_set, true, true)
     }
 
     /// The resulting spans must be sorted by range
@@ -850,10 +873,12 @@ impl Buffer {
                         if let Some(start) = current_range_start {
                             let replacement = std::mem::take(&mut replacement);
 
+                            let range = self.position_range_to_char_index_range(
+                                &(Position::new(start, 0)..Position::new(current_range_end, 0)),
+                            )?;
                             edits.push(Edit {
-                                range: self.position_range_to_char_index_range(
-                                    &(Position::new(start, 0)..Position::new(current_range_end, 0)),
-                                )?,
+                                range,
+                                old: self.rope.slice(range.to_usize_range()).into(),
                                 new: Rope::from_str(&replacement.join("")),
                             });
                             current_range_start = None;
@@ -883,10 +908,12 @@ impl Buffer {
             if let Some(start) = current_range_start {
                 let replacement = std::mem::take(&mut replacement);
 
+                let range = self.position_range_to_char_index_range(
+                    &(Position::new(start, 0)..Position::new(current_range_end, 0)),
+                )?;
                 edits.push(Edit {
-                    range: self.position_range_to_char_index_range(
-                        &(Position::new(start, 0)..Position::new(current_range_end, 0)),
-                    )?,
+                    range,
+                    old: self.rope.slice(range.to_usize_range()).into(),
                     new: Rope::from_str(&replacement.join("")),
                 });
             };
@@ -940,10 +967,11 @@ impl Buffer {
                             let end = start + edit.deleted_length;
 
                             Ok(ActionGroup::new(
-                                [Action::Edit(Edit {
-                                    range: (start..end).into(),
-                                    new: String::from_utf8(edit.inserted_text)?.into(),
-                                })]
+                                [Action::Edit(Edit::new(
+                                    &self.rope,
+                                    (start..end).into(),
+                                    String::from_utf8(edit.inserted_text)?.into(),
+                                ))]
                                 .to_vec(),
                             ))
                         })
@@ -952,7 +980,7 @@ impl Buffer {
             }
         };
         let selection_set =
-            self.apply_edit_transaction(&edit_transaction, current_selection_set, true)?;
+            self.apply_edit_transaction(&edit_transaction, current_selection_set, true, true)?;
         let after = self.content();
         let modified = before != after;
         Ok((modified, selection_set))
@@ -1023,6 +1051,30 @@ impl Buffer {
             .end;
         debug_assert!(start <= end);
         Ok(start..end)
+    }
+
+    fn redo(
+        &mut self,
+        current_selection_set: SelectionSet,
+    ) -> Result<Option<SelectionSet>, anyhow::Error> {
+        if let Some(redo) = self.redo_stack.pop() {
+            self.apply_edit_transaction(&redo.edit_transaction, current_selection_set, true, true)
+                .map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn undo(
+        &mut self,
+        current_selection_set: SelectionSet,
+    ) -> Result<Option<SelectionSet>, anyhow::Error> {
+        if let Some(undo) = self.undo_stack.pop() {
+            self.apply_edit_transaction(&undo.edit_transaction, current_selection_set, true, false)
+                .map(Some)
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -1232,7 +1284,10 @@ fn f(
 
                 // Undo the buffer
                 buffer
-                    .undo_tree_apply_movement(crate::components::editor::Movement::Left)
+                    .undo_tree_apply_movement(
+                        crate::components::editor::Movement::Left,
+                        SelectionSet::default(),
+                    )
                     .unwrap();
 
                 let content = buffer.rope.to_string();
@@ -1290,7 +1345,12 @@ fn f(
             let edit_transaction = buffer.get_edit_transaction(new)?;
 
             // Apply the edit transaction
-            buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default(), true)?;
+            buffer.apply_edit_transaction(
+                &edit_transaction,
+                SelectionSet::default(),
+                true,
+                true,
+            )?;
 
             // Expect the content to be the same as the 2nd files
             pretty_assertions::assert_eq!(buffer.content(), new);
@@ -1404,7 +1464,7 @@ pub(crate) struct Patch {
     pub(crate) state: BufferState,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct BufferState {
     pub(crate) selection_set: SelectionSet,
     pub(crate) marks: Vec<CharIndexRange>,
@@ -1441,4 +1501,44 @@ impl PartialEq for Patch {
         // Always return false, assuming that no two patches can be identical
         false
     }
+}
+
+#[derive(Clone, PartialEq)]
+pub(crate) struct EditHistory {
+    pub(crate) edit: Edit,
+    pub(crate) state: BufferState,
+}
+
+impl std::fmt::Display for EditHistory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO: describe the action (e.g., "kill", "swap", "insert")
+        f.write_str("")
+    }
+}
+
+impl Applicable for EditHistory {
+    type Target = String;
+    type Output = BufferState;
+
+    fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
+        // Apply the edit directly to the string
+        let rope = &mut Rope::from_str(target);
+
+        // Apply the edit
+        rope.try_remove(self.edit.range.start.0..self.edit.end().0)?;
+        rope.try_insert(self.edit.range.start.0, self.edit.new.to_string().as_str())?;
+
+        // Update the target string
+        *target = rope.to_string();
+
+        Ok(self.state.clone())
+    }
+}
+
+// New structure to store edits and their inverses for undo/redo
+#[derive(Clone)]
+pub(crate) struct EditTransactionHistory {
+    pub(crate) edit_transaction: EditTransaction,
+    pub(crate) old_state: BufferState,
+    pub(crate) new_state: BufferState,
 }

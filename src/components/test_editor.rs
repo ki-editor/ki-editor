@@ -4291,3 +4291,37 @@ fn surround_extended_selection() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn undo_redo() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token {
+                    skip_symbols: false,
+                },
+            )),
+            Editor(Delete(Direction::End)),
+            Editor(Delete(Direction::End)),
+            Expect(CurrentComponentContent("")),
+            Editor(Undo),
+            Expect(CurrentComponentContent("bar")),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(Undo),
+            Expect(CurrentComponentContent("foo bar")),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(Redo),
+            Expect(CurrentComponentContent("bar")),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(Redo),
+            Expect(CurrentComponentContent("")),
+        ])
+    })
+}

@@ -101,6 +101,10 @@ impl CharIndexRange {
             crate::components::editor::Direction::End => self.end - 1,
         }
     }
+
+    pub(crate) fn to_usize_range(&self) -> Range<usize> {
+        self.start.0..self.end.0
+    }
 }
 
 pub(crate) struct CharIndexRangeIter {
