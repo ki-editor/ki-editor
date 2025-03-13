@@ -36,12 +36,12 @@ jobs:
           # Update 'ki' with your actual binary name
           mkdir -p artifacts
           cp target/release/ki artifacts/
-          cd artifacts && tar -czvf your-app-debian-x86_64.tar.gz ki
+          cd artifacts && tar -czvf ki-debian-x86_64.tar.gz ki
       
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/your-app-debian-x86_64.tar.gz
+          files: artifacts/ki-debian-x86_64.tar.gz
           draft: true
           name: Release ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
