@@ -508,7 +508,11 @@ impl Buffer {
                 old_state: current_buffer_state,
                 new_state: new_buffer_state,
             });
+
+            // Clear the redo stack when a new edit is made
+            self.redo_stack.clear();
         }
+
         if reparse_tree {
             self.reparse_tree()?;
         }
@@ -571,7 +575,10 @@ impl Buffer {
             .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
         if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
             // BOTTLENECK 2: Updating highlighted spans
-            // self.highlighted_spans.apply_edit_mut( &byte_range, edit.new.len_bytes() as isize - byte_range.len() as isize, );
+            self.highlighted_spans.apply_edit_mut(
+                &byte_range,
+                edit.new.len_bytes() as isize - byte_range.len() as isize,
+            );
         }
         Ok(())
     }
@@ -631,8 +638,8 @@ impl Buffer {
         current_selection_set: SelectionSet,
     ) -> anyhow::Result<Option<SelectionSet>> {
         match movement {
-            Movement::Left => self.undo(current_selection_set),
-            Movement::Right => self.redo(current_selection_set),
+            Movement::Left => self.undo(),
+            Movement::Right => self.redo(),
             _ => Ok(None),
         }
     }
@@ -1053,25 +1060,31 @@ impl Buffer {
         Ok(start..end)
     }
 
-    fn redo(
-        &mut self,
-        current_selection_set: SelectionSet,
-    ) -> Result<Option<SelectionSet>, anyhow::Error> {
-        if let Some(redo) = self.redo_stack.pop() {
-            self.apply_edit_transaction(&redo.edit_transaction, current_selection_set, true, true)
-                .map(Some)
+    fn redo(&mut self) -> Result<Option<SelectionSet>, anyhow::Error> {
+        if let Some(history) = self.redo_stack.pop() {
+            history
+                .edit_transaction
+                .edits()
+                .into_iter()
+                .try_fold((), |_, edit| self.apply_edit(edit))?;
+            let selection_set = history.old_state.selection_set.clone();
+            self.undo_stack.push(history.inverse());
+            Ok(Some(selection_set))
         } else {
             Ok(None)
         }
     }
 
-    fn undo(
-        &mut self,
-        current_selection_set: SelectionSet,
-    ) -> Result<Option<SelectionSet>, anyhow::Error> {
-        if let Some(undo) = self.undo_stack.pop() {
-            self.apply_edit_transaction(&undo.edit_transaction, current_selection_set, true, false)
-                .map(Some)
+    fn undo(&mut self) -> Result<Option<SelectionSet>, anyhow::Error> {
+        if let Some(history) = self.undo_stack.pop() {
+            history
+                .edit_transaction
+                .edits()
+                .into_iter()
+                .try_fold((), |_, edit| self.apply_edit(edit))?;
+            let selection_set = history.old_state.selection_set.clone();
+            self.redo_stack.push(history.inverse());
+            Ok(Some(selection_set))
         } else {
             Ok(None)
         }
@@ -1541,4 +1554,13 @@ pub(crate) struct EditTransactionHistory {
     pub(crate) edit_transaction: EditTransaction,
     pub(crate) old_state: BufferState,
     pub(crate) new_state: BufferState,
+}
+impl EditTransactionHistory {
+    fn inverse(self) -> EditTransactionHistory {
+        EditTransactionHistory {
+            edit_transaction: self.edit_transaction.inverse(),
+            old_state: self.new_state,
+            new_state: self.old_state,
+        }
+    }
 }

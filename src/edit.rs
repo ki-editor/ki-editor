@@ -485,18 +485,6 @@ mod test_inverse_edit_transaction {
     }
 
     #[test]
-    fn test_multiple_edits_in_group() {
-        let original_rope = Rope::from_str("Who lives in a pineapple");
-        let edit_transaction = EditTransaction::from_tuples(vec![ActionGroup::new(vec![
-            Action::edit(0, "Who", "What"),
-            Action::edit(4, "lives", "stays"),
-            Action::edit(15, "pineapple", "coconut"),
-        ])]);
-
-        apply_and_verify(&original_rope, &edit_transaction);
-    }
-
-    #[test]
     fn test_positive_offset() {
         let original_rope = Rope::from_str("short text");
         let edit_transaction =

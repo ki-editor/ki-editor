@@ -4293,7 +4293,7 @@ fn surround_extended_selection() -> anyhow::Result<()> {
 }
 
 #[test]
-fn undo_redo() -> anyhow::Result<()> {
+fn undo_redo_1() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -4322,6 +4322,75 @@ fn undo_redo() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["bar"])),
             Editor(Redo),
             Expect(CurrentComponentContent("")),
+            Editor(Undo),
+            Expect(CurrentComponentContent("bar")),
+            Expect(CurrentSelectedTexts(&["bar"])),
+        ])
+    })
+}
+
+#[test]
+fn undo_redo_should_clear_redo_stack_upon_new_edits() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token {
+                    skip_symbols: false,
+                },
+            )),
+            Editor(Delete(Direction::End)),
+            Editor(Delete(Direction::End)),
+            Expect(CurrentComponentContent("")),
+            Editor(Undo),
+            Expect(CurrentComponentContent("bar")),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
+            Editor(Paste {
+                direction: Direction::End,
+                use_system_clipboard: false,
+            }),
+            Expect(CurrentComponentContent("barbar")),
+            Editor(Undo),
+            Editor(Redo),
+            Editor(Redo),
+            Expect(CurrentComponentContent("barbar")),
+        ])
+    })
+}
+
+#[test]
+fn undo_redo_multicursor() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token {
+                    skip_symbols: false,
+                },
+            )),
+            Editor(CursorAddToAllSelections),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvents(keys!("x").to_vec())),
+            Expect(CurrentComponentContent("foox barx")),
+            Editor(Undo),
+            Editor(Redo),
+            Editor(EnterNormalMode),
+            Expect(CurrentSelectedTexts(&["x", "x"])),
         ])
     })
 }
