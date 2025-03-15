@@ -4394,3 +4394,52 @@ fn undo_redo_multicursor() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+/// Edits that intersect with its previous edit will be ignored
+fn multicursor_intersected_edits() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fn main() { foo() }".to_string())),
+            Editor(MatchLiteral("foo()".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Editor(EnterMultiCursorMode),
+            Editor(MoveSelection(Up)),
+            Expect(CurrentSelectedTexts(&["{ foo() }", "foo()"])),
+            Editor(Delete(Direction::End)),
+            // Expect the primary cursor is still there
+            // And the Deletion of `foo()` is ignored
+            Expect(AppGrid(" 🦀  main.rs [*]\n1│fn main█)".to_string())),
+        ])
+    })
+}
+
+#[test]
+fn multicursor_insertion_at_same_range_is_not_counted_as_intersected_edits() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fooBar".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Word {
+                    skip_symbols: false,
+                },
+            )),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentSelectedTexts(&["foo", "Bar"])),
+            Editor(Change),
+            App(HandleKeyEvents(keys!("x y").to_vec())),
+            Expect(CurrentComponentContent("xyxy")),
+        ])
+    })
+}

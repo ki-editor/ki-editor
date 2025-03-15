@@ -40,6 +40,10 @@ impl Edit {
     pub(crate) fn chars_offset(&self) -> isize {
         self.new.len_chars() as isize - self.range.len() as isize
     }
+
+    fn intersects_with(&self, other: &Edit) -> bool {
+        self.range().intersects_with(&other.range())
+    }
 }
 
 pub trait ApplyOffset {
@@ -91,6 +95,14 @@ impl Action {
                 ))
             }
             Action::Edit(edit) => Action::Edit(edit.apply_offset(offset)),
+        }
+    }
+
+    fn intersects_with(&self, other: &Action) -> bool {
+        if self.range().len() == 0 || other.range().len() == 0 {
+            false
+        } else {
+            self.range().intersects_with(&other.range())
         }
     }
 }
@@ -146,20 +158,21 @@ impl EditTransaction {
     /// Normalized action groups will become one action group, as they no longer need to offset each other
     fn normalize_action_groups(action_groups: Vec<ActionGroup>) -> ActionGroup {
         // Sort the action groups by the start char index
-        let action_groups = {
-            let mut action_groups = action_groups;
-            action_groups.sort_by_key(|action_group| action_group.range().start);
-            action_groups
-        };
+        let action_groups = action_groups
+            .into_iter()
+            .sorted_by_key(|action_group| action_group.range().start)
+            .collect_vec();
 
         let mut offset: isize = 0;
         let mut result = vec![];
 
-        for group in action_groups {
-            let mut group = group.apply_offset(offset);
-            offset += group.get_net_offset();
+        for (index, group) in action_groups.iter().enumerate() {
+            if index == 0 || !group.intersects_with(&action_groups[index - 1]) {
+                let mut group = group.to_owned().apply_offset(offset);
+                offset += group.get_net_offset();
 
-            result.append(&mut group.actions);
+                result.append(&mut group.actions);
+            }
         }
 
         ActionGroup { actions: result }
@@ -288,6 +301,15 @@ impl ActionGroup {
             .unwrap_or(CharIndex(0));
         (min..max).into()
     }
+
+    fn intersects_with(&self, action_group: &ActionGroup) -> bool {
+        self.actions.iter().any(|a| {
+            action_group.actions.iter().any(|b| match (a, b) {
+                (Action::Edit(a), Action::Edit(b)) => a.intersects_with(b),
+                _ => false,
+            })
+        })
+    }
 }
 
 #[cfg(test)]
@@ -391,6 +413,37 @@ mod test_normalize_actions {
         let (_, result) = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
 
         assert_eq!(result, Rope::from_str("What see in two pineapple"));
+    }
+
+    #[test]
+    fn intersected_edits_removed_1() {
+        let edit_transaction = EditTransaction::from_tuples(vec![
+            ActionGroup::new(vec![
+                Action::edit(4, "quick", "speedy"),
+                Action::select(4..10),
+            ]),
+            ActionGroup::new(vec![Action::edit(5, "brown ", "")]), // This will be ignored since it intersects with the first edit
+        ]);
+
+        let (_, result) = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
+
+        assert_eq!(result, Rope::from_str("Who speedy in a pineapple"));
+    }
+
+    #[test]
+    fn intersected_edits_removed_2() {
+        let edit_transaction = EditTransaction::from_tuples(vec![
+            ActionGroup::new(vec![
+                Action::edit(4, "quick", "speedy"),
+                Action::select(4..10),
+            ]),
+            ActionGroup::new(vec![Action::edit(0, "Who", "What")]),
+            ActionGroup::new(vec![Action::edit(5, "brown ", "")]), // This will be ignored since it intersects with the first edit
+        ]);
+
+        let (_, result) = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
+
+        assert_eq!(result, Rope::from_str("What speedy in a pineapple"));
     }
 }
 

@@ -105,6 +105,13 @@ impl CharIndexRange {
     pub(crate) fn to_usize_range(&self) -> Range<usize> {
         self.start.0..self.end.0
     }
+
+    /// Range with 0 length (e.g. 1..1) is defined as never intersecting with other ranges.
+    /// This is because a 0 length Edit represents a pure insertion without modifications,
+    /// and multiple insertions at the same position are both theoretically feasible and practical.
+    pub(crate) fn intersects_with(&self, other: &CharIndexRange) -> bool {
+        self.len() > 0 && other.len() > 0 && self.start < other.end && other.start < self.end
+    }
 }
 
 pub(crate) struct CharIndexRangeIter {

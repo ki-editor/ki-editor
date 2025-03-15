@@ -575,6 +575,7 @@ impl Buffer {
             .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
         if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
             // BOTTLENECK 2: Updating highlighted spans
+            // TODO: use binary tree to skip non-related range and update only related ranges
             self.highlighted_spans.apply_edit_mut(
                 &byte_range,
                 edit.new.len_bytes() as isize - byte_range.len() as isize,
@@ -1067,6 +1068,7 @@ impl Buffer {
                 .edits()
                 .into_iter()
                 .try_fold((), |_, edit| self.apply_edit(edit))?;
+            self.reparse_tree()?;
             let selection_set = history.old_state.selection_set.clone();
             self.undo_stack.push(history.inverse());
             Ok(Some(selection_set))
@@ -1082,6 +1084,7 @@ impl Buffer {
                 .edits()
                 .into_iter()
                 .try_fold((), |_, edit| self.apply_edit(edit))?;
+            self.reparse_tree()?;
             let selection_set = history.old_state.selection_set.clone();
             self.redo_stack.push(history.inverse());
             Ok(Some(selection_set))

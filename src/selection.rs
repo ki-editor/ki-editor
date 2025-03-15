@@ -287,7 +287,11 @@ impl SelectionSet {
     }
 
     pub(crate) fn set_selections(self, selections: NonEmpty<Selection>) -> SelectionSet {
-        Self { selections, ..self }
+        Self {
+            cursor_index: self.cursor_index.min(selections.len() - 1),
+            selections,
+            ..self
+        }
     }
 
     pub(crate) fn set_mode(self, mode: SelectionMode) -> SelectionSet {
