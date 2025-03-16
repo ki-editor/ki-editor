@@ -550,41 +550,6 @@ fn kill_line_to_start() -> anyhow::Result<()> {
 }
 
 #[test]
-#[ignore = "Undo tree should be removed soon, I don't use it at all."]
-fn undo_tree() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent("\n".to_string())),
-            Editor(Insert("a".to_string())),
-            Editor(Insert("bc".to_string())),
-            Editor(EnterUndoTreeMode),
-            // Previous = undo
-            Editor(MoveSelection(Left)),
-            Expect(CurrentComponentContent("a\n")),
-            // Next = redo
-            Editor(MoveSelection(Right)),
-            Expect(CurrentComponentContent("abc\n")),
-            Editor(MoveSelection(Left)),
-            Expect(CurrentComponentContent("a\n")),
-            Editor(Insert("de".to_string())),
-            Editor(EnterUndoTreeMode),
-            // Down = go to previous history branch
-            Editor(MoveSelection(Down)),
-            // We are able to retrive the "bc" insertion, which is otherwise impossible without the undo tree
-            Expect(CurrentComponentContent("abc\n")),
-            // Up = go to next history branch
-            Editor(MoveSelection(Up)),
-            Expect(CurrentComponentContent("ade\n")),
-        ])
-    })
-}
-
-#[test]
 fn multi_swap_sibling() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

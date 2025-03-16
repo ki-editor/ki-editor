@@ -17,7 +17,7 @@ impl Edit {
     pub(crate) fn new(rope: &Rope, range: CharIndexRange, new: Rope) -> Self {
         Self {
             range,
-            old: rope.slice(range.to_usize_range()).into(),
+            old: rope.slice(range.as_usize_range()).into(),
             new,
         }
     }
@@ -95,14 +95,6 @@ impl Action {
                 ))
             }
             Action::Edit(edit) => Action::Edit(edit.apply_offset(offset)),
-        }
-    }
-
-    fn intersects_with(&self, other: &Action) -> bool {
-        if self.range().len() == 0 || other.range().len() == 0 {
-            false
-        } else {
-            self.range().intersects_with(&other.range())
         }
     }
 }

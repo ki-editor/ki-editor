@@ -4,14 +4,13 @@ use crate::quickfix_list::QuickfixListItem;
 use crate::selection_mode::naming_convention_agnostic::NamingConventionAgnostic;
 use crate::{
     char_index_range::CharIndexRange,
-    components::{editor::Movement, suggestive_editor::Decoration},
+    components::suggestive_editor::Decoration,
     context::{LocalSearchConfig, LocalSearchConfigMode},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
     selection_mode::{AstGrep, ByteRange},
     syntax_highlight::{HighlightedSpan, HighlightedSpans},
-    undo_tree::{Applicable, OldNew, UndoTree},
     utils::find_previous,
 };
 use itertools::Itertools;
@@ -21,7 +20,6 @@ use shared::{
     canonicalized_path::CanonicalizedPath,
     language::{self, Language},
 };
-use similar::Algorithm;
 use std::{collections::HashSet, ops::Range};
 use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal2::{traverse, Order};
@@ -41,7 +39,6 @@ pub(crate) struct Buffer {
     rope: Rope,
     tree: Option<Tree>,
     treesitter_language: Option<tree_sitter::Language>,
-    undo_tree: UndoTree<EditHistory>,
     language: Option<Language>,
     path: Option<CanonicalizedPath>,
     highlighted_spans: HighlightedSpans,
@@ -52,8 +49,8 @@ pub(crate) struct Buffer {
     selection_set_history: History<SelectionSet>,
     dirty: bool,
     owner: BufferOwner,
-    undo_stack: Vec<EditTransactionHistory>,
-    redo_stack: Vec<EditTransactionHistory>,
+    undo_stack: Vec<EditHistory>,
+    redo_stack: Vec<EditHistory>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -83,7 +80,6 @@ impl Buffer {
             highlighted_spans: HighlightedSpans::default(),
             marks: Vec::new(),
             decorations: Vec::new(),
-            undo_tree: UndoTree::new(),
             diagnostics: Vec::new(),
             quickfix_list_items: Vec::new(),
             selection_set_history: History::new(),
@@ -476,7 +472,6 @@ impl Buffer {
         reparse_tree: bool,
         update_undo_stack: bool,
     ) -> Result<SelectionSet, anyhow::Error> {
-        let before = self.rope.to_string();
         let new_selection_set = edit_transaction
             .non_empty_selections()
             .map(|selections| current_selection_set.clone().set_selections(selections))
@@ -498,12 +493,8 @@ impl Buffer {
             marks: self.marks.clone(),
         };
 
-        // BOTTLENECK 1: UNDO/REDO with a lot of cursors
-        // Add undo patch is heavy for many multi cursors
-        // it is very slow
-        // self.add_undo_patch(current_buffer_state, new_buffer_state.clone(), &before);
         if update_undo_stack {
-            self.undo_stack.push(EditTransactionHistory {
+            self.undo_stack.push(EditHistory {
                 edit_transaction: inverted_edit_transaction,
                 old_state: current_buffer_state,
                 new_state: new_buffer_state,
@@ -582,67 +573,6 @@ impl Buffer {
             );
         }
         Ok(())
-    }
-
-    /// This method assumes `self.rope` is already updated
-    fn add_undo_patch(
-        &mut self,
-        old_buffer_state: BufferState,
-        new_buffer_state: BufferState,
-        before: &str,
-    ) {
-        let after = &self.rope.to_string();
-        if before == after {
-            return;
-        }
-        let old_new = OldNew {
-            old_to_new: Patch {
-                patch: diffy::create_patch(before, after).to_string(),
-                state: new_buffer_state,
-            },
-            new_to_old: Patch {
-                patch: diffy::create_patch(after, before).to_string(),
-                state: old_buffer_state,
-            },
-        };
-        // self.undo_tree .edit(&mut before.to_owned(), old_new) .unwrap();
-    }
-
-    pub(crate) fn display_history(&self) -> String {
-        self.undo_tree.display()
-    }
-
-    pub(crate) fn undo_tree_apply_movement_old(
-        &mut self,
-        movement: Movement,
-    ) -> anyhow::Result<Option<SelectionSet>> {
-        let mut content = self.rope.to_string();
-        let state = self.undo_tree.apply_movement(&mut content, movement)?;
-        self.update(&content);
-
-        if let Some(BufferState {
-            selection_set,
-            marks,
-        }) = state
-        {
-            self.marks = marks;
-
-            Ok(Some(selection_set))
-        } else {
-            Ok(None)
-        }
-    }
-
-    pub(crate) fn undo_tree_apply_movement(
-        &mut self,
-        movement: Movement,
-        current_selection_set: SelectionSet,
-    ) -> anyhow::Result<Option<SelectionSet>> {
-        match movement {
-            Movement::Left => self.undo(),
-            Movement::Right => self.redo(),
-            _ => Ok(None),
-        }
     }
 
     pub(crate) fn has_syntax_error_at(&self, range: CharIndexRange) -> bool {
@@ -886,7 +816,7 @@ impl Buffer {
                             )?;
                             edits.push(Edit {
                                 range,
-                                old: self.rope.slice(range.to_usize_range()).into(),
+                                old: self.rope.slice(range.as_usize_range()).into(),
                                 new: Rope::from_str(&replacement.join("")),
                             });
                             current_range_start = None;
@@ -921,7 +851,7 @@ impl Buffer {
                 )?;
                 edits.push(Edit {
                     range,
-                    old: self.rope.slice(range.to_usize_range()).into(),
+                    old: self.rope.slice(range.as_usize_range()).into(),
                     new: Rope::from_str(&replacement.join("")),
                 });
             };
@@ -1061,7 +991,7 @@ impl Buffer {
         Ok(start..end)
     }
 
-    fn redo(&mut self) -> Result<Option<SelectionSet>, anyhow::Error> {
+    pub(crate) fn redo(&mut self) -> Result<Option<SelectionSet>, anyhow::Error> {
         if let Some(history) = self.redo_stack.pop() {
             history
                 .edit_transaction
@@ -1077,7 +1007,7 @@ impl Buffer {
         }
     }
 
-    fn undo(&mut self) -> Result<Option<SelectionSet>, anyhow::Error> {
+    pub(crate) fn undo(&mut self) -> Result<Option<SelectionSet>, anyhow::Error> {
         if let Some(history) = self.undo_stack.pop() {
             history
                 .edit_transaction
@@ -1299,12 +1229,7 @@ fn f(
                 assert_ne!(buffer.rope.to_string(), original);
 
                 // Undo the buffer
-                buffer
-                    .undo_tree_apply_movement(
-                        crate::components::editor::Movement::Left,
-                        SelectionSet::default(),
-                    )
-                    .unwrap();
+                buffer.undo().unwrap();
 
                 let content = buffer.rope.to_string();
 
@@ -1473,23 +1398,10 @@ fn main() {
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct Patch {
-    /// Why don't we store this is diffy::Patch? Because it requires a lifetime parameter
-    pub(crate) patch: String,
-    pub(crate) state: BufferState,
-}
-
 #[derive(Clone, PartialEq)]
 pub(crate) struct BufferState {
     pub(crate) selection_set: SelectionSet,
     pub(crate) marks: Vec<CharIndexRange>,
-}
-
-impl std::fmt::Display for Patch {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("")
-    }
 }
 
 impl std::fmt::Display for BufferState {
@@ -1500,67 +1412,16 @@ impl std::fmt::Display for BufferState {
     }
 }
 
-impl Applicable for Patch {
-    type Target = String;
-
-    type Output = BufferState;
-
-    fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
-        *target = diffy::apply(target, &diffy::Patch::from_str(&self.patch)?)?;
-
-        Ok(self.state.clone())
-    }
-}
-
-impl PartialEq for Patch {
-    fn eq(&self, _other: &Self) -> bool {
-        // Always return false, assuming that no two patches can be identical
-        false
-    }
-}
-
-#[derive(Clone, PartialEq)]
-pub(crate) struct EditHistory {
-    pub(crate) edit: Edit,
-    pub(crate) state: BufferState,
-}
-
-impl std::fmt::Display for EditHistory {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO: describe the action (e.g., "kill", "swap", "insert")
-        f.write_str("")
-    }
-}
-
-impl Applicable for EditHistory {
-    type Target = String;
-    type Output = BufferState;
-
-    fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
-        // Apply the edit directly to the string
-        let rope = &mut Rope::from_str(target);
-
-        // Apply the edit
-        rope.try_remove(self.edit.range.start.0..self.edit.end().0)?;
-        rope.try_insert(self.edit.range.start.0, self.edit.new.to_string().as_str())?;
-
-        // Update the target string
-        *target = rope.to_string();
-
-        Ok(self.state.clone())
-    }
-}
-
 // New structure to store edits and their inverses for undo/redo
 #[derive(Clone)]
-pub(crate) struct EditTransactionHistory {
+pub(crate) struct EditHistory {
     pub(crate) edit_transaction: EditTransaction,
     pub(crate) old_state: BufferState,
     pub(crate) new_state: BufferState,
 }
-impl EditTransactionHistory {
-    fn inverse(self) -> EditTransactionHistory {
-        EditTransactionHistory {
+impl EditHistory {
+    fn inverse(self) -> EditHistory {
+        EditHistory {
             edit_transaction: self.edit_transaction.inverse(),
             old_state: self.new_state,
             new_state: self.old_state,

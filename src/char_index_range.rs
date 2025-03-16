@@ -102,7 +102,7 @@ impl CharIndexRange {
         }
     }
 
-    pub(crate) fn to_usize_range(&self) -> Range<usize> {
+    pub(crate) fn as_usize_range(&self) -> Range<usize> {
         self.start.0..self.end.0
     }
 
@@ -110,8 +110,14 @@ impl CharIndexRange {
     /// This is because a 0 length Edit represents a pure insertion without modifications,
     /// and multiple insertions at the same position are both theoretically feasible and practical.
     pub(crate) fn intersects_with(&self, other: &CharIndexRange) -> bool {
-        self.len() > 0 && other.len() > 0 && self.start < other.end && other.start < self.end
+        self.len() > 0
+            && other.len() > 0
+            && range_intersects(&self.as_usize_range(), &other.as_usize_range())
     }
+}
+
+pub(crate) fn range_intersects<T: PartialOrd>(a: &Range<T>, b: &Range<T>) -> bool {
+    a.start < b.end && b.start < a.end
 }
 
 pub(crate) struct CharIndexRangeIter {

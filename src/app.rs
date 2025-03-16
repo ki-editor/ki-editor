@@ -640,7 +640,6 @@ impl<T: Frontend> App<T> {
                     FromEditor::TextDocumentDidSave { file_path: path },
                 )?;
             }
-            Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
             Dispatch::SetQuickfixList(r#type) => {
                 self.set_quickfix_list_type(Default::default(), r#type)?;
             }
@@ -2474,7 +2473,6 @@ pub(crate) enum Dispatch {
         owner: BufferOwner,
         focus: bool,
     },
-    ShowGlobalInfo(Info),
     RequestCompletion,
     RequestSignatureHelp,
     RequestHover,

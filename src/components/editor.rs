@@ -48,7 +48,6 @@ pub(crate) enum Mode {
     MultiCursor,
     FindOneChar(IfCurrentNotFound),
     Swap,
-    UndoTree,
     Replace,
     Extend,
 }
@@ -202,7 +201,6 @@ impl Component for Editor {
             EnableSelectionExtension => self.enable_selection_extension(),
             DisableSelectionExtension => self.disable_selection_extension(),
             EnterExtendMode => self.enter_extend_mode(),
-            EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction, context),
             Delete(direction) => return self.delete(direction, None, context),
             Insert(string) => return self.insert(&string, context),
@@ -1185,34 +1183,16 @@ impl Editor {
             language: self.buffer().language(),
         }]
         .into_iter()
-        .chain(if self.mode == Mode::UndoTree {
-            Some(self.show_undo_tree_dispatch())
-        } else {
-            None
-        })
         .collect_vec()
         .into()
     }
 
-    pub(crate) fn enter_undo_tree_mode(&mut self) -> Dispatches {
-        self.mode = Mode::UndoTree;
-        [self.show_undo_tree_dispatch()].to_vec().into()
-    }
-
-    pub(crate) fn show_undo_tree_dispatch(&self) -> Dispatch {
-        Dispatch::ShowGlobalInfo(Info::new(
-            "Undo Tree History".to_string(),
-            self.buffer().display_history(),
-        ))
-    }
-
     pub(crate) fn undo(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
-        let result = self.navigate_undo_tree(Movement::Left, context)?;
-        Ok(result)
+        self.undo_or_redo(true, context)
     }
 
     pub(crate) fn redo(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
-        self.navigate_undo_tree(Movement::Right, context)
+        self.undo_or_redo(false, context)
     }
 
     pub(crate) fn swap_cursor(&mut self, context: &Context) {
@@ -1517,7 +1497,6 @@ impl Editor {
             ),
             Mode::Swap => self.swap(movement, context),
             Mode::Replace => self.replace_with_movement(&movement, context),
-            Mode::UndoTree => self.navigate_undo_tree(movement, context),
             Mode::MultiCursor => self
                 .add_cursor(&movement, context)
                 .map(|_| Default::default()),
@@ -2457,7 +2436,6 @@ impl Editor {
             Mode::MultiCursor => "MULTI CURSOR",
             Mode::FindOneChar(_) => "FIND ONE CHAR",
             Mode::Swap => "SWAP",
-            Mode::UndoTree => "UNDO TREE",
             Mode::Replace => "REPLACE",
             Mode::Extend => "EXTEND",
         }
@@ -2677,15 +2655,12 @@ impl Editor {
         })
     }
 
-    fn navigate_undo_tree(
-        &mut self,
-        movement: Movement,
-        context: &Context,
-    ) -> Result<Dispatches, anyhow::Error> {
-        let original_selection_set = self.selection_set.clone();
-        let selection_set = self
-            .buffer_mut()
-            .undo_tree_apply_movement(movement, original_selection_set)?;
+    fn undo_or_redo(&mut self, undo: bool, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        let selection_set = if undo {
+            self.buffer_mut().undo()?
+        } else {
+            self.buffer_mut().redo()?
+        };
 
         Ok(selection_set
             .map(|selection_set| self.update_selection_set(selection_set, false, context))
@@ -3588,7 +3563,6 @@ pub(crate) enum DispatchEditor {
     ChangeCut {
         use_system_clipboard: bool,
     },
-    EnterUndoTreeMode,
     EnterInsertMode(Direction),
     ReplaceWithCopiedText {
         cut: bool,

@@ -1,7 +1,6 @@
 use std::fmt::Display;
 
 use itertools::Itertools;
-use regex::Regex;
 
 use crate::{
     grid::{get_char_width, get_string_width},
