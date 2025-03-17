@@ -7,6 +7,7 @@ pub(crate) struct Regex {
     content: String,
 }
 
+/// BOTTLENECK 3
 pub(crate) fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<fancy_regex::Regex> {
     let pattern = if config.escaped {
         regex::escape(pattern)

@@ -11,12 +11,21 @@ use crate::{
 pub(crate) struct Edit {
     pub(crate) range: CharIndexRange,
     pub(crate) new: Rope,
+    pub(crate) old: Rope,
 }
 impl Edit {
+    pub(crate) fn new(rope: &Rope, range: CharIndexRange, new: Rope) -> Self {
+        Self {
+            range,
+            old: rope.slice(range.as_usize_range()).into(),
+            new,
+        }
+    }
     fn apply_offset(self, offset: isize) -> Edit {
         Edit {
             range: self.range.apply_offset(offset),
             new: self.new,
+            old: self.old,
         }
     }
 
@@ -30,6 +39,10 @@ impl Edit {
 
     pub(crate) fn chars_offset(&self) -> isize {
         self.new.len_chars() as isize - self.range.len() as isize
+    }
+
+    fn intersects_with(&self, other: &Edit) -> bool {
+        self.range().intersects_with(&other.range())
     }
 }
 
@@ -55,6 +68,7 @@ impl Action {
         Action::Edit(Edit {
             range: (CharIndex(start)..CharIndex(start + old.len())).into(),
             new: Rope::from_str(new),
+            old: Rope::from_str(old),
         })
     }
 
@@ -136,20 +150,21 @@ impl EditTransaction {
     /// Normalized action groups will become one action group, as they no longer need to offset each other
     fn normalize_action_groups(action_groups: Vec<ActionGroup>) -> ActionGroup {
         // Sort the action groups by the start char index
-        let action_groups = {
-            let mut action_groups = action_groups;
-            action_groups.sort_by_key(|action_group| action_group.range().start);
-            action_groups
-        };
+        let action_groups = action_groups
+            .into_iter()
+            .sorted_by_key(|action_group| action_group.range().start)
+            .collect_vec();
 
         let mut offset: isize = 0;
         let mut result = vec![];
 
-        for group in action_groups {
-            let mut group = group.apply_offset(offset);
-            offset += group.get_net_offset();
+        for (index, group) in action_groups.iter().enumerate() {
+            if index == 0 || !group.intersects_with(&action_groups[index - 1]) {
+                let mut group = group.to_owned().apply_offset(offset);
+                offset += group.get_net_offset();
 
-            result.append(&mut group.actions);
+                result.append(&mut group.actions);
+            }
         }
 
         ActionGroup { actions: result }
@@ -207,6 +222,30 @@ impl EditTransaction {
             None
         }
     }
+
+    pub(crate) fn inverse(&self) -> EditTransaction {
+        EditTransaction {
+            action_group: ActionGroup::new(
+                self.action_group
+                    .actions
+                    .iter()
+                    .rev()
+                    .map(|action| match action {
+                        Action::Select(selection) => Action::Select(selection.clone()),
+                        Action::Edit(edit) => {
+                            let range =
+                                (edit.range.start..edit.range.start + edit.new.len_chars()).into();
+                            Action::Edit(Edit {
+                                range,
+                                new: edit.old.clone(),
+                                old: edit.new.clone(),
+                            })
+                        }
+                    })
+                    .collect(),
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -253,6 +292,15 @@ impl ActionGroup {
             .max()
             .unwrap_or(CharIndex(0));
         (min..max).into()
+    }
+
+    fn intersects_with(&self, action_group: &ActionGroup) -> bool {
+        self.actions.iter().any(|a| {
+            action_group.actions.iter().any(|b| match (a, b) {
+                (Action::Edit(a), Action::Edit(b)) => a.intersects_with(b),
+                _ => false,
+            })
+        })
     }
 }
 
@@ -358,6 +406,37 @@ mod test_normalize_actions {
 
         assert_eq!(result, Rope::from_str("What see in two pineapple"));
     }
+
+    #[test]
+    fn intersected_edits_removed_1() {
+        let edit_transaction = EditTransaction::from_tuples(vec![
+            ActionGroup::new(vec![
+                Action::edit(4, "quick", "speedy"),
+                Action::select(4..10),
+            ]),
+            ActionGroup::new(vec![Action::edit(5, "brown ", "")]), // This will be ignored since it intersects with the first edit
+        ]);
+
+        let (_, result) = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
+
+        assert_eq!(result, Rope::from_str("Who speedy in a pineapple"));
+    }
+
+    #[test]
+    fn intersected_edits_removed_2() {
+        let edit_transaction = EditTransaction::from_tuples(vec![
+            ActionGroup::new(vec![
+                Action::edit(4, "quick", "speedy"),
+                Action::select(4..10),
+            ]),
+            ActionGroup::new(vec![Action::edit(0, "Who", "What")]),
+            ActionGroup::new(vec![Action::edit(5, "brown ", "")]), // This will be ignored since it intersects with the first edit
+        ]);
+
+        let (_, result) = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
+
+        assert_eq!(result, Rope::from_str("What speedy in a pineapple"));
+    }
 }
 
 // Test is_subset
@@ -388,5 +467,137 @@ mod test_is_subset {
     fn not_subset() {
         assert!(!is_subset(&(0..5), &(1..10)));
         assert!(!is_subset(&(0..5), &(0..4)));
+    }
+}
+
+#[cfg(test)]
+mod test_inverse_edit_transaction {
+    use super::*;
+
+    fn apply_and_verify(original_rope: &Rope, edit_transaction: &EditTransaction) {
+        // Apply the original transaction
+        let (_, modified_rope) = edit_transaction.apply_to(original_rope.clone());
+
+        // Create and apply the inverse transaction
+        let inverse_transaction = edit_transaction.inverse();
+        let (_, restored_rope) = inverse_transaction.apply_to(modified_rope);
+
+        // Verify the result
+        assert_eq!(restored_rope.to_string(), original_rope.to_string());
+    }
+
+    #[test]
+    fn test_simple_replacement() {
+        let original_rope = Rope::from_str("Hello World");
+        let edit_transaction =
+            EditTransaction::from_tuples(vec![ActionGroup::new(vec![Action::edit(
+                6, "World", "Universe",
+            )])]);
+
+        apply_and_verify(&original_rope, &edit_transaction);
+    }
+
+    #[test]
+    fn test_two_edits() {
+        let original_rope = Rope::from_str("Hello World Yo");
+        let edit_transaction = EditTransaction::from_tuples(
+            [ActionGroup::new(
+                [
+                    Action::edit(6, "World", "Universe"),
+                    Action::edit(12, "Yo", "Nay"),
+                ]
+                .to_vec(),
+            )]
+            .to_vec(),
+        );
+
+        apply_and_verify(&original_rope, &edit_transaction);
+    }
+
+    #[test]
+    fn test_three_edits() {
+        let original_rope = Rope::from_str("Hello World Yo");
+        let edit_transaction = EditTransaction::from_tuples(
+            [
+                ActionGroup::new([Action::edit(0, "Hello", "Bye")].to_vec()),
+                ActionGroup::new([Action::edit(6, "World", "Universe")].to_vec()),
+                ActionGroup::new([Action::edit(12, "Yo", "Nay")].to_vec()),
+            ]
+            .to_vec(),
+        );
+
+        apply_and_verify(&original_rope, &edit_transaction);
+    }
+
+    #[test]
+    fn test_positive_offset() {
+        let original_rope = Rope::from_str("short text");
+        let edit_transaction =
+            EditTransaction::from_tuples(vec![ActionGroup::new(vec![Action::edit(
+                0,
+                "short",
+                "much longer",
+            )])]);
+
+        apply_and_verify(&original_rope, &edit_transaction);
+    }
+
+    #[test]
+    fn test_negative_offset() {
+        let original_rope = Rope::from_str("longer phrase here");
+        let edit_transaction =
+            EditTransaction::from_tuples(vec![ActionGroup::new(vec![Action::edit(
+                0, "longer ", "",
+            )])]);
+
+        apply_and_verify(&original_rope, &edit_transaction);
+    }
+
+    #[test]
+    fn test_with_selections() {
+        let original_rope = Rope::from_str("Select this text and that text");
+        let edit_transaction = EditTransaction::from_tuples(vec![ActionGroup::new(vec![
+            Action::edit(7, "this", "the"),
+            Action::select(7..10),
+        ])]);
+
+        apply_and_verify(&original_rope, &edit_transaction);
+    }
+
+    #[test]
+    fn test_sequential_action_groups() {
+        let original_rope = Rope::from_str("ABC DEF GHI");
+        let edit_transaction = EditTransaction::from_tuples(vec![
+            ActionGroup::new(vec![Action::edit(0, "ABC", "XYZ")]),
+            ActionGroup::new(vec![Action::edit(8, "GHI", "JKL")]),
+        ]);
+
+        apply_and_verify(&original_rope, &edit_transaction);
+    }
+
+    #[test]
+    fn test_insertions_and_deletions() {
+        let original_rope = Rope::from_str("Hello world");
+        let edit_transaction = EditTransaction::from_tuples(vec![
+            ActionGroup::new(vec![Action::edit(5, " ", " beautiful ")]),
+            ActionGroup::new(vec![Action::edit(0, "Hello", "Hi")]),
+        ]);
+
+        apply_and_verify(&original_rope, &edit_transaction);
+    }
+
+    #[test]
+    fn test_complex_with_selection() {
+        let original_rope = Rope::from_str("The quick brown fox jumps over the lazy dog");
+        let edit_transaction = EditTransaction::from_tuples(vec![
+            ActionGroup::new(vec![
+                Action::edit(4, "quick", "speedy"),
+                Action::select(4..10),
+            ]),
+            ActionGroup::new(vec![Action::edit(10, "brown ", "")]),
+            ActionGroup::new(vec![Action::edit(20, "jumps", "leapt")]),
+        ]);
+
+        apply_and_verify(&original_rope, &edit_transaction);
     }
 }

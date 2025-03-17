@@ -96,6 +96,10 @@ impl Highlight for HighlightConfiguration {
 pub(crate) struct HighlightedSpans(pub Vec<HighlightedSpan>);
 impl HighlightedSpans {
     pub(crate) fn apply_edit_mut(&mut self, edited_range: &Range<usize>, change: isize) {
+        // let index = self .0 .partition_point(|span| range_intersects(&span.byte_range, edited_range));
+
+        // self.0[index..].iter_mut().for_each(|span| { span.byte_range.start = (span.byte_range.start as isize + change) as usize; span.byte_range.end = (span.byte_range.end as isize + change) as usize; });
+
         self.0
             .retain_mut(|span| span.apply_edit_mut(edited_range, change))
     }

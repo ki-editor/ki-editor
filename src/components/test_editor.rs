@@ -550,41 +550,6 @@ fn kill_line_to_start() -> anyhow::Result<()> {
 }
 
 #[test]
-#[ignore = "Undo tree should be removed soon, I don't use it at all."]
-fn undo_tree() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent("\n".to_string())),
-            Editor(Insert("a".to_string())),
-            Editor(Insert("bc".to_string())),
-            Editor(EnterUndoTreeMode),
-            // Previous = undo
-            Editor(MoveSelection(Left)),
-            Expect(CurrentComponentContent("a\n")),
-            // Next = redo
-            Editor(MoveSelection(Right)),
-            Expect(CurrentComponentContent("abc\n")),
-            Editor(MoveSelection(Left)),
-            Expect(CurrentComponentContent("a\n")),
-            Editor(Insert("de".to_string())),
-            Editor(EnterUndoTreeMode),
-            // Down = go to previous history branch
-            Editor(MoveSelection(Down)),
-            // We are able to retrive the "bc" insertion, which is otherwise impossible without the undo tree
-            Expect(CurrentComponentContent("abc\n")),
-            // Up = go to next history branch
-            Editor(MoveSelection(Up)),
-            Expect(CurrentComponentContent("ade\n")),
-        ])
-    })
-}
-
-#[test]
 fn multi_swap_sibling() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -4288,6 +4253,158 @@ fn surround_extended_selection() -> anyhow::Result<()> {
             Editor(MoveSelection(Right)),
             App(HandleKeyEvents(keys!("f g j").to_vec())),
             Expect(CurrentComponentContent("(foo bar)")),
+        ])
+    })
+}
+
+#[test]
+fn undo_redo_1() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token {
+                    skip_symbols: false,
+                },
+            )),
+            Editor(Delete(Direction::End)),
+            Editor(Delete(Direction::End)),
+            Expect(CurrentComponentContent("")),
+            Editor(Undo),
+            Expect(CurrentComponentContent("bar")),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(Undo),
+            Expect(CurrentComponentContent("foo bar")),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(Redo),
+            Expect(CurrentComponentContent("bar")),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(Redo),
+            Expect(CurrentComponentContent("")),
+            Editor(Undo),
+            Expect(CurrentComponentContent("bar")),
+            Expect(CurrentSelectedTexts(&["bar"])),
+        ])
+    })
+}
+
+#[test]
+fn undo_redo_should_clear_redo_stack_upon_new_edits() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token {
+                    skip_symbols: false,
+                },
+            )),
+            Editor(Delete(Direction::End)),
+            Editor(Delete(Direction::End)),
+            Expect(CurrentComponentContent("")),
+            Editor(Undo),
+            Expect(CurrentComponentContent("bar")),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
+            Editor(Paste {
+                direction: Direction::End,
+                use_system_clipboard: false,
+            }),
+            Expect(CurrentComponentContent("barbar")),
+            Editor(Undo),
+            Editor(Redo),
+            Editor(Redo),
+            Expect(CurrentComponentContent("barbar")),
+        ])
+    })
+}
+
+#[test]
+fn undo_redo_multicursor() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token {
+                    skip_symbols: false,
+                },
+            )),
+            Editor(CursorAddToAllSelections),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvents(keys!("x").to_vec())),
+            Expect(CurrentComponentContent("foox barx")),
+            Editor(Undo),
+            Editor(Redo),
+            Editor(EnterNormalMode),
+            Expect(CurrentSelectedTexts(&["x", "x"])),
+        ])
+    })
+}
+
+#[test]
+/// Edits that intersect with its previous edit will be ignored
+fn multicursor_intersected_edits() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fn main() { foo() }".to_string())),
+            Editor(MatchLiteral("foo()".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Editor(EnterMultiCursorMode),
+            Editor(MoveSelection(Up)),
+            Expect(CurrentSelectedTexts(&["{ foo() }", "foo()"])),
+            Editor(Delete(Direction::End)),
+            // Expect the primary cursor is still there
+            // And the Deletion of `foo()` is ignored
+            Expect(AppGrid(" 🦀  main.rs [*]\n1│fn main█)".to_string())),
+        ])
+    })
+}
+
+#[test]
+fn multicursor_insertion_at_same_range_is_not_counted_as_intersected_edits() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fooBar".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Word {
+                    skip_symbols: false,
+                },
+            )),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentSelectedTexts(&["foo", "Bar"])),
+            Editor(Change),
+            App(HandleKeyEvents(keys!("x y").to_vec())),
+            Expect(CurrentComponentContent("xyxy")),
         ])
     })
 }

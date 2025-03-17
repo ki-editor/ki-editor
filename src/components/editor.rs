@@ -48,7 +48,6 @@ pub(crate) enum Mode {
     MultiCursor,
     FindOneChar(IfCurrentNotFound),
     Swap,
-    UndoTree,
     Replace,
     Extend,
 }
@@ -202,7 +201,6 @@ impl Component for Editor {
             EnableSelectionExtension => self.enable_selection_extension(),
             DisableSelectionExtension => self.disable_selection_extension(),
             EnterExtendMode => self.enter_extend_mode(),
-            EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction, context),
             Delete(direction) => return self.delete(direction, None, context),
             Insert(string) => return self.insert(&string, context),
@@ -884,10 +882,11 @@ impl Editor {
                     };
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: delete_range,
-                                new: Rope::new(),
-                            }),
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                delete_range,
+                                Rope::new(),
+                            )),
                             Action::Select(
                                 selection
                                     .clone()
@@ -930,10 +929,11 @@ impl Editor {
                     let range_start = cursor + indent.chars().count();
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: (cursor..cursor).into(),
-                                new: indent.into(),
-                            }),
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                (cursor..cursor).into(),
+                                indent.into(),
+                            )),
                             Action::Select(
                                 selection
                                     .clone()
@@ -984,10 +984,7 @@ impl Editor {
                 EditTransaction::from_action_groups(
                     [ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range,
-                                new: result.clone(),
-                            }),
+                            Action::Edit(Edit::new(self.buffer().rope(), range, result.clone())),
                             Action::Select(Selection::new({
                                 let start = start + result.len_chars();
                                 (start..start).into()
@@ -1013,9 +1010,9 @@ impl Editor {
         let replacement: Rope = replacement.into();
         let buffer = self.buffer();
         let edit_transactions = self.selection_set.map(move |selection| {
+            let rope = buffer.rope();
             let current_char_index = selection.range().start;
-            let word_start = buffer
-                .rope()
+            let word_start = rope
                 .chars()
                 .enumerate()
                 .take(current_char_index.0)
@@ -1031,10 +1028,7 @@ impl Editor {
             EditTransaction::from_action_groups(
                 [ActionGroup::new(
                     [
-                        Action::Edit(Edit {
-                            range,
-                            new: replacement.clone(),
-                        }),
+                        Action::Edit(Edit::new(rope, range, replacement.clone())),
                         Action::Select(Selection::new({
                             let start = start + replacement.len_chars();
                             (start..start).into()
@@ -1099,10 +1093,11 @@ impl Editor {
                     };
                     ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: insertion_range.into(),
-                                new: paste_text,
-                            }),
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                insertion_range.into(),
+                                paste_text,
+                            )),
                             Action::Select(
                                 selection.set_range(selection_range).set_initial_range(None),
                             ),
@@ -1168,6 +1163,7 @@ impl Editor {
             &edit_transaction,
             self.selection_set.clone(),
             self.mode != Mode::Insert,
+            true,
         )?;
 
         self.set_selection_set(new_selection_set, context);
@@ -1187,34 +1183,16 @@ impl Editor {
             language: self.buffer().language(),
         }]
         .into_iter()
-        .chain(if self.mode == Mode::UndoTree {
-            Some(self.show_undo_tree_dispatch())
-        } else {
-            None
-        })
         .collect_vec()
         .into()
     }
 
-    pub(crate) fn enter_undo_tree_mode(&mut self) -> Dispatches {
-        self.mode = Mode::UndoTree;
-        [self.show_undo_tree_dispatch()].to_vec().into()
-    }
-
-    pub(crate) fn show_undo_tree_dispatch(&self) -> Dispatch {
-        Dispatch::ShowGlobalInfo(Info::new(
-            "Undo Tree History".to_string(),
-            self.buffer().display_history(),
-        ))
-    }
-
     pub(crate) fn undo(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
-        let result = self.navigate_undo_tree(Movement::Left, context)?;
-        Ok(result)
+        self.undo_or_redo(true, context)
     }
 
     pub(crate) fn redo(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
-        self.navigate_undo_tree(Movement::Right, context)
+        self.undo_or_redo(false, context)
     }
 
     pub(crate) fn swap_cursor(&mut self, context: &Context) {
@@ -1343,10 +1321,7 @@ impl Editor {
                     let range = selection.extended_range();
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range,
-                                new: Rope::new(),
-                            }),
+                            Action::Edit(Edit::new(self.buffer().rope(), range, Rope::new())),
                             Action::Select(
                                 selection
                                     .clone()
@@ -1385,13 +1360,14 @@ impl Editor {
                         let range = selection.extended_range();
                         ActionGroup::new(
                             [
-                                Action::Edit(Edit {
-                                    range: {
+                                Action::Edit(Edit::new(
+                                    self.buffer().rope(),
+                                    {
                                         let start = selection.to_char_index(&Direction::End);
                                         (start..start).into()
                                     },
-                                    new: Rope::from_str(s),
-                                }),
+                                    Rope::from_str(s),
+                                )),
                                 Action::Select(selection.clone().set_range(
                                     (range.start + s.len()..range.start + s.len()).into(),
                                 )),
@@ -1521,7 +1497,6 @@ impl Editor {
             ),
             Mode::Swap => self.swap(movement, context),
             Mode::Replace => self.replace_with_movement(&movement, context),
-            Mode::UndoTree => self.navigate_undo_tree(movement, context),
             Mode::MultiCursor => self
                 .add_cursor(&movement, context)
                 .map(|_| Default::default()),
@@ -1678,7 +1653,12 @@ impl Editor {
             let new_buffer = {
                 let mut new_buffer = self.buffer.borrow().clone();
                 if new_buffer
-                    .apply_edit_transaction(&edit_transaction, self.selection_set.clone(), true)
+                    .apply_edit_transaction(
+                        &edit_transaction,
+                        self.selection_set.clone(),
+                        true,
+                        true,
+                    )
                     .is_err()
                 {
                     continue;
@@ -1738,6 +1718,7 @@ impl Editor {
     }
 
     fn make_swap_action_groups(
+        rope: &Rope,
         first_selection: &Selection,
         first_selection_range: CharIndexRange,
         first_selection_text: Rope,
@@ -1746,18 +1727,20 @@ impl Editor {
     ) -> Vec<ActionGroup> {
         [
             ActionGroup::new(
-                [Action::Edit(Edit {
-                    range: first_selection_range,
-                    new: second_selection_text.clone(),
-                })]
+                [Action::Edit(Edit::new(
+                    rope,
+                    first_selection_range,
+                    second_selection_text.clone(),
+                ))]
                 .to_vec(),
             ),
             ActionGroup::new(
                 [
-                    Action::Edit(Edit {
-                        range: second_selection_range,
-                        new: first_selection_text.clone(),
-                    }),
+                    Action::Edit(Edit::new(
+                        rope,
+                        second_selection_range,
+                        first_selection_text.clone(),
+                    )),
                     Action::Select(
                         first_selection.clone().set_range(
                             (second_selection_range.start
@@ -1791,6 +1774,7 @@ impl Editor {
 
             Ok(EditTransaction::from_action_groups(
                 Self::make_swap_action_groups(
+                    buffer.rope(),
                     current_selection,
                     current_selection_range,
                     text_at_current_selection,
@@ -1863,6 +1847,7 @@ impl Editor {
                             (first.start()..before_current.end()).into();
                         // Swap the range with the last selection
                         Some(Self::make_swap_action_groups(
+                            buffer.rope(),
                             current_selection,
                             first_range,
                             buffer.slice(&first_range).ok()?,
@@ -1911,6 +1896,7 @@ impl Editor {
                             (after_current.start()..last.end()).into();
                         // Swap the range with the last selection
                         Some(Self::make_swap_action_groups(
+                            buffer.rope(),
                             current_selection,
                             first_range,
                             buffer.slice(&first_range).ok()?,
@@ -1996,10 +1982,11 @@ impl Editor {
                     let start = CharIndex(selection.extended_range().start.0.saturating_sub(1));
                     ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: (start..selection.extended_range().start).into(),
-                                new: Rope::from(""),
-                            }),
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                (start..selection.extended_range().start).into(),
+                                Rope::from(""),
+                            )),
                             Action::Select(selection.clone().set_range((start..start).into())),
                         ]
                         .to_vec(),
@@ -2065,10 +2052,11 @@ impl Editor {
                 let start = previous_word_range.start;
                 Ok(ActionGroup::new(
                     [
-                        Action::Edit(Edit {
-                            range: (start..end).into(),
-                            new: Rope::from(""),
-                        }),
+                        Action::Edit(Edit::new(
+                            self.buffer().rope(),
+                            (start..end).into(),
+                            Rope::from(""),
+                        )),
                         Action::Select(current_selection.clone().set_range((start..start).into())),
                     ]
                     .to_vec(),
@@ -2105,10 +2093,11 @@ impl Editor {
                     Ok(EditTransaction::from_action_groups(
                         [ActionGroup::new(
                             [
-                                Action::Edit(Edit {
-                                    range: range.clone().into(),
+                                Action::Edit(Edit::new(
+                                    self.buffer().rope(),
+                                    range.clone().into(),
                                     new,
-                                }),
+                                )),
                                 Action::Select(current_selection.clone().set_range(
                                     (range.start..(range.start + new_len_chars)).into(),
                                 )),
@@ -2261,16 +2250,17 @@ impl Editor {
                     let gap_len = gap.len_chars();
                     ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: {
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                {
                                     let start = match direction {
                                         Direction::Start => selection.range().start,
                                         Direction::End => selection.range().end,
                                     };
                                     (start..start).into()
                                 },
-                                new: gap,
-                            }),
+                                gap,
+                            )),
                             Action::Select(selection.clone().set_range({
                                 let start = match direction {
                                     Direction::Start => selection.range().start,
@@ -2303,10 +2293,11 @@ impl Editor {
                     let range = edit.range.start.to_char_index(&self.buffer()).ok()?
                         ..edit.range.end.to_char_index(&self.buffer()).ok()?;
 
-                    let action_edit = Action::Edit(Edit {
-                        range: range.clone().into(),
-                        new: edit.new_text.into(),
-                    });
+                    let action_edit = Action::Edit(Edit::new(
+                        self.buffer().rope(),
+                        range.clone().into(),
+                        edit.new_text.into(),
+                    ));
 
                     Some(ActionGroup::new(vec![action_edit]))
                 })
@@ -2372,10 +2363,11 @@ impl Editor {
                     let old = self.buffer().slice(&selection.extended_range())?;
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: selection.extended_range(),
-                                new: format!("{}{}{}", open, old, close).into(),
-                            }),
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                selection.extended_range(),
+                                format!("{}{}{}", open, old, close).into(),
+                            )),
                             Action::Select(
                                 selection.clone().set_range(
                                     (selection.extended_range().start
@@ -2416,7 +2408,7 @@ impl Editor {
                     let range = selection.extended_range();
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit { range, new }),
+                            Action::Edit(Edit::new(self.buffer().rope(), range, new)),
                             Action::Select(
                                 selection
                                     .clone()
@@ -2444,7 +2436,6 @@ impl Editor {
             Mode::MultiCursor => "MULTI CURSOR",
             Mode::FindOneChar(_) => "FIND ONE CHAR",
             Mode::Swap => "SWAP",
-            Mode::UndoTree => "UNDO TREE",
             Mode::Replace => "REPLACE",
             Mode::Extend => "EXTEND",
         }
@@ -2664,12 +2655,12 @@ impl Editor {
         })
     }
 
-    fn navigate_undo_tree(
-        &mut self,
-        movement: Movement,
-        context: &Context,
-    ) -> Result<Dispatches, anyhow::Error> {
-        let selection_set = self.buffer_mut().undo_tree_apply_movement(movement)?;
+    fn undo_or_redo(&mut self, undo: bool, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        let selection_set = if undo {
+            self.buffer_mut().undo()?
+        } else {
+            self.buffer_mut().redo()?
+        };
 
         Ok(selection_set
             .map(|selection_set| self.update_selection_set(selection_set, false, context))
@@ -2761,10 +2752,11 @@ impl Editor {
                     };
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: delete_range,
-                                new: Rope::new(),
-                            }),
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                delete_range,
+                                Rope::new(),
+                            )),
                             Action::Select(
                                 selection
                                     .clone()
@@ -2915,17 +2907,19 @@ impl Editor {
                             .into();
                         Ok([
                             ActionGroup::new(
-                                [Action::Edit(Edit {
-                                    range: open_range,
-                                    new: new_open.into(),
-                                })]
+                                [Action::Edit(Edit::new(
+                                    self.buffer().rope(),
+                                    open_range,
+                                    new_open.into(),
+                                ))]
                                 .to_vec(),
                             ),
                             ActionGroup::new(
-                                [Action::Edit(Edit {
-                                    range: close_range,
-                                    new: new_close.into(),
-                                })]
+                                [Action::Edit(Edit::new(
+                                    self.buffer().rope(),
+                                    close_range,
+                                    new_close.into(),
+                                ))]
                                 .to_vec(),
                             ),
                             ActionGroup::new(
@@ -2985,7 +2979,7 @@ impl Editor {
                                 let new_len_chars = new.len_chars();
                                 Ok(ActionGroup::new(
                                     [
-                                        Action::Edit(Edit { range, new }),
+                                        Action::Edit(Edit::new(self.buffer().rope(), range, new)),
                                         Action::Select(selection.clone().set_range(
                                             (range.start..range.start + new_len_chars).into(),
                                         )),
@@ -3111,10 +3105,7 @@ impl Editor {
 
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: linewise_range,
-                                new,
-                            }),
+                            Action::Edit(Edit::new(self.buffer().rope(), linewise_range, new)),
                             Action::Select(selection.clone().set_range(select_range.into())),
                         ]
                         .to_vec(),
@@ -3185,10 +3176,7 @@ impl Editor {
                     };
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: linewise_range,
-                                new,
-                            }),
+                            Action::Edit(Edit::new(self.buffer().rope(), linewise_range, new)),
                             Action::Select(selection.clone().set_range(select_range.into())),
                         ]
                         .to_vec(),
@@ -3323,10 +3311,11 @@ impl Editor {
 
                     Ok([
                         ActionGroup::new(
-                            [Action::Edit(Edit {
-                                range: delete_range,
-                                new: Rope::new(),
-                            })]
+                            [Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                delete_range,
+                                Rope::new(),
+                            ))]
                             .to_vec(),
                         ),
                         ActionGroup::new(
@@ -3396,10 +3385,11 @@ impl Editor {
 
                     Ok([
                         ActionGroup::new(
-                            [Action::Edit(Edit {
-                                range: edit_range,
-                                new: format!("\n{}{}", indentation, current).into(),
-                            })]
+                            [Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                edit_range,
+                                format!("\n{}{}", indentation, current).into(),
+                            ))]
                             .to_vec(),
                         ),
                         ActionGroup::new(
@@ -3573,7 +3563,6 @@ pub(crate) enum DispatchEditor {
     ChangeCut {
         use_system_clipboard: bool,
     },
-    EnterUndoTreeMode,
     EnterInsertMode(Direction),
     ReplaceWithCopiedText {
         cut: bool,

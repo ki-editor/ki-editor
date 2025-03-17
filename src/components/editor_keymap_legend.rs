@@ -1038,13 +1038,6 @@ impl Editor {
                     Keymap::new(
                         context
                             .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::UndoT),
-                        "Undo Tree".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::EnterUndoTreeMode),
-                    ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
                             .get_space_keymap(&Meaning::TSNSx),
                         "TS Node Sexp".to_string(),
                         Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),

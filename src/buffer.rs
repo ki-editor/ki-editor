@@ -4,14 +4,13 @@ use crate::quickfix_list::QuickfixListItem;
 use crate::selection_mode::naming_convention_agnostic::NamingConventionAgnostic;
 use crate::{
     char_index_range::CharIndexRange,
-    components::{editor::Movement, suggestive_editor::Decoration},
+    components::suggestive_editor::Decoration,
     context::{LocalSearchConfig, LocalSearchConfigMode},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
     selection_mode::{AstGrep, ByteRange},
     syntax_highlight::{HighlightedSpan, HighlightedSpans},
-    undo_tree::{Applicable, OldNew, UndoTree},
     utils::find_previous,
 };
 use itertools::Itertools;
@@ -40,7 +39,6 @@ pub(crate) struct Buffer {
     rope: Rope,
     tree: Option<Tree>,
     treesitter_language: Option<tree_sitter::Language>,
-    undo_tree: UndoTree<Patch>,
     language: Option<Language>,
     path: Option<CanonicalizedPath>,
     highlighted_spans: HighlightedSpans,
@@ -51,6 +49,8 @@ pub(crate) struct Buffer {
     selection_set_history: History<SelectionSet>,
     dirty: bool,
     owner: BufferOwner,
+    undo_stack: Vec<EditHistory>,
+    redo_stack: Vec<EditHistory>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -80,12 +80,13 @@ impl Buffer {
             highlighted_spans: HighlightedSpans::default(),
             marks: Vec::new(),
             decorations: Vec::new(),
-            undo_tree: UndoTree::new(),
             diagnostics: Vec::new(),
             quickfix_list_items: Vec::new(),
             selection_set_history: History::new(),
             dirty: false,
             owner: BufferOwner::System,
+            undo_stack: Default::default(),
+            redo_stack: Default::default(),
         }
     }
 
@@ -469,8 +470,8 @@ impl Buffer {
         edit_transaction: &EditTransaction,
         current_selection_set: SelectionSet,
         reparse_tree: bool,
+        update_undo_stack: bool,
     ) -> Result<SelectionSet, anyhow::Error> {
-        let before = self.rope.to_string();
         let new_selection_set = edit_transaction
             .non_empty_selections()
             .map(|selections| current_selection_set.clone().set_selections(selections))
@@ -479,6 +480,8 @@ impl Buffer {
             selection_set: current_selection_set,
             marks: self.marks.clone(),
         };
+
+        let inverted_edit_transaction = edit_transaction.inverse();
 
         edit_transaction
             .edits()
@@ -490,10 +493,17 @@ impl Buffer {
             marks: self.marks.clone(),
         };
 
-        // BOTTLENECK 1: UNDO/REDO with a lot of cursors
-        // Add undo patch is heavy for many multi cursors
-        // it is very slow
-        self.add_undo_patch(current_buffer_state, new_buffer_state.clone(), &before);
+        if update_undo_stack {
+            self.undo_stack.push(EditHistory {
+                edit_transaction: inverted_edit_transaction,
+                old_state: current_buffer_state,
+                new_state: new_buffer_state,
+            });
+
+            // Clear the redo stack when a new edit is made
+            self.redo_stack.clear();
+        }
+
         if reparse_tree {
             self.reparse_tree()?;
         }
@@ -501,6 +511,7 @@ impl Buffer {
         Ok(new_selection_set)
     }
 
+    // Add these methods for undo/redo
     fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
         // We have to get the char index range of positional spans before updating the content
         let quickfix_list_items_with_char_index_range =
@@ -555,63 +566,13 @@ impl Buffer {
             .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
         if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
             // BOTTLENECK 2: Updating highlighted spans
+            // TODO: use binary tree to skip non-related range and update only related ranges
             self.highlighted_spans.apply_edit_mut(
                 &byte_range,
                 edit.new.len_bytes() as isize - byte_range.len() as isize,
             );
         }
         Ok(())
-    }
-
-    /// This method assumes `self.rope` is already updated
-    fn add_undo_patch(
-        &mut self,
-        old_buffer_state: BufferState,
-        new_buffer_state: BufferState,
-        before: &str,
-    ) {
-        let after = &self.rope.to_string();
-        if before == after {
-            return;
-        }
-        let old_new = OldNew {
-            old_to_new: Patch {
-                patch: diffy::create_patch(before, after).to_string(),
-                state: new_buffer_state,
-            },
-            new_to_old: Patch {
-                patch: diffy::create_patch(after, before).to_string(),
-                state: old_buffer_state,
-            },
-        };
-        self.undo_tree
-            .edit(&mut before.to_owned(), old_new)
-            .unwrap();
-    }
-
-    pub(crate) fn display_history(&self) -> String {
-        self.undo_tree.display()
-    }
-
-    pub(crate) fn undo_tree_apply_movement(
-        &mut self,
-        movement: Movement,
-    ) -> anyhow::Result<Option<SelectionSet>> {
-        let mut content = self.rope.to_string();
-        let state = self.undo_tree.apply_movement(&mut content, movement)?;
-        self.update(&content);
-
-        if let Some(BufferState {
-            selection_set,
-            marks,
-        }) = state
-        {
-            self.marks = marks;
-
-            Ok(Some(selection_set))
-        } else {
-            Ok(None)
-        }
     }
 
     pub(crate) fn has_syntax_error_at(&self, range: CharIndexRange) -> bool {
@@ -718,7 +679,7 @@ impl Buffer {
         current_selection_set: SelectionSet,
     ) -> anyhow::Result<SelectionSet> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
-        self.apply_edit_transaction(&edit_transaction, current_selection_set, true)
+        self.apply_edit_transaction(&edit_transaction, current_selection_set, true, true)
     }
 
     /// The resulting spans must be sorted by range
@@ -850,10 +811,12 @@ impl Buffer {
                         if let Some(start) = current_range_start {
                             let replacement = std::mem::take(&mut replacement);
 
+                            let range = self.position_range_to_char_index_range(
+                                &(Position::new(start, 0)..Position::new(current_range_end, 0)),
+                            )?;
                             edits.push(Edit {
-                                range: self.position_range_to_char_index_range(
-                                    &(Position::new(start, 0)..Position::new(current_range_end, 0)),
-                                )?,
+                                range,
+                                old: self.rope.slice(range.as_usize_range()).into(),
                                 new: Rope::from_str(&replacement.join("")),
                             });
                             current_range_start = None;
@@ -883,10 +846,12 @@ impl Buffer {
             if let Some(start) = current_range_start {
                 let replacement = std::mem::take(&mut replacement);
 
+                let range = self.position_range_to_char_index_range(
+                    &(Position::new(start, 0)..Position::new(current_range_end, 0)),
+                )?;
                 edits.push(Edit {
-                    range: self.position_range_to_char_index_range(
-                        &(Position::new(start, 0)..Position::new(current_range_end, 0)),
-                    )?,
+                    range,
+                    old: self.rope.slice(range.as_usize_range()).into(),
                     new: Rope::from_str(&replacement.join("")),
                 });
             };
@@ -940,10 +905,11 @@ impl Buffer {
                             let end = start + edit.deleted_length;
 
                             Ok(ActionGroup::new(
-                                [Action::Edit(Edit {
-                                    range: (start..end).into(),
-                                    new: String::from_utf8(edit.inserted_text)?.into(),
-                                })]
+                                [Action::Edit(Edit::new(
+                                    &self.rope,
+                                    (start..end).into(),
+                                    String::from_utf8(edit.inserted_text)?.into(),
+                                ))]
                                 .to_vec(),
                             ))
                         })
@@ -952,7 +918,7 @@ impl Buffer {
             }
         };
         let selection_set =
-            self.apply_edit_transaction(&edit_transaction, current_selection_set, true)?;
+            self.apply_edit_transaction(&edit_transaction, current_selection_set, true, true)?;
         let after = self.content();
         let modified = before != after;
         Ok((modified, selection_set))
@@ -1023,6 +989,38 @@ impl Buffer {
             .end;
         debug_assert!(start <= end);
         Ok(start..end)
+    }
+
+    pub(crate) fn redo(&mut self) -> Result<Option<SelectionSet>, anyhow::Error> {
+        if let Some(history) = self.redo_stack.pop() {
+            history
+                .edit_transaction
+                .edits()
+                .into_iter()
+                .try_fold((), |_, edit| self.apply_edit(edit))?;
+            self.reparse_tree()?;
+            let selection_set = history.old_state.selection_set.clone();
+            self.undo_stack.push(history.inverse());
+            Ok(Some(selection_set))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub(crate) fn undo(&mut self) -> Result<Option<SelectionSet>, anyhow::Error> {
+        if let Some(history) = self.undo_stack.pop() {
+            history
+                .edit_transaction
+                .edits()
+                .into_iter()
+                .try_fold((), |_, edit| self.apply_edit(edit))?;
+            self.reparse_tree()?;
+            let selection_set = history.old_state.selection_set.clone();
+            self.redo_stack.push(history.inverse());
+            Ok(Some(selection_set))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -1231,9 +1229,7 @@ fn f(
                 assert_ne!(buffer.rope.to_string(), original);
 
                 // Undo the buffer
-                buffer
-                    .undo_tree_apply_movement(crate::components::editor::Movement::Left)
-                    .unwrap();
+                buffer.undo().unwrap();
 
                 let content = buffer.rope.to_string();
 
@@ -1290,7 +1286,12 @@ fn f(
             let edit_transaction = buffer.get_edit_transaction(new)?;
 
             // Apply the edit transaction
-            buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default(), true)?;
+            buffer.apply_edit_transaction(
+                &edit_transaction,
+                SelectionSet::default(),
+                true,
+                true,
+            )?;
 
             // Expect the content to be the same as the 2nd files
             pretty_assertions::assert_eq!(buffer.content(), new);
@@ -1397,23 +1398,10 @@ fn main() {
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct Patch {
-    /// Why don't we store this is diffy::Patch? Because it requires a lifetime parameter
-    pub(crate) patch: String,
-    pub(crate) state: BufferState,
-}
-
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct BufferState {
     pub(crate) selection_set: SelectionSet,
     pub(crate) marks: Vec<CharIndexRange>,
-}
-
-impl std::fmt::Display for Patch {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("")
-    }
 }
 
 impl std::fmt::Display for BufferState {
@@ -1424,21 +1412,19 @@ impl std::fmt::Display for BufferState {
     }
 }
 
-impl Applicable for Patch {
-    type Target = String;
-
-    type Output = BufferState;
-
-    fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
-        *target = diffy::apply(target, &diffy::Patch::from_str(&self.patch)?)?;
-
-        Ok(self.state.clone())
-    }
+// New structure to store edits and their inverses for undo/redo
+#[derive(Clone)]
+pub(crate) struct EditHistory {
+    pub(crate) edit_transaction: EditTransaction,
+    pub(crate) old_state: BufferState,
+    pub(crate) new_state: BufferState,
 }
-
-impl PartialEq for Patch {
-    fn eq(&self, _other: &Self) -> bool {
-        // Always return false, assuming that no two patches can be identical
-        false
+impl EditHistory {
+    fn inverse(self) -> EditHistory {
+        EditHistory {
+            edit_transaction: self.edit_transaction.inverse(),
+            old_state: self.new_state,
+            new_state: self.old_state,
+        }
     }
 }

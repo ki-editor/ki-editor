@@ -1,7 +1,6 @@
 use std::fmt::Display;
 
 use itertools::Itertools;
-use regex::Regex;
 
 use crate::{
     grid::{get_char_width, get_string_width},
@@ -170,7 +169,7 @@ impl WrappedLine {
 }
 
 pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
-    let re = Regex::new(r"\b").unwrap();
+    let re = lazy_regex::lazy_regex!(r"\b");
 
     // LABEL: NEED_TO_REDUCE_WIDTH_BY_1
     // Need to reduce the width by 1 for wrapping,
