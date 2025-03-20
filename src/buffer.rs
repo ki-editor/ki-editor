@@ -21,7 +21,7 @@ use shared::{
     language::{self, Language},
 };
 use std::{collections::HashSet, ops::Range};
-use tree_sitter::{Node, Parser, Point, Tree};
+use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal2::{traverse, Order};
 
 /// Determines the buffer's owner. Ki distinguishes buffer ownership during switches.
@@ -519,6 +519,24 @@ impl Buffer {
     // Add these methods for undo/redo
     fn apply_edit(&mut self, edit: &Edit, last_visible_line: u16) -> Result<(), anyhow::Error> {
         // We have to get the char index range of positional spans before updating the content
+        if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
+            let last_line_len_bytes = self
+                .get_line_by_line_index(last_visible_line as usize)
+                .map(|slice| slice.len_bytes())
+                .unwrap_or_default();
+
+            let range_end = self
+                .line_to_byte(last_visible_line as usize)
+                .unwrap_or_default()
+                + last_line_len_bytes;
+            let affected_range = byte_range.start..range_end;
+
+            self.highlighted_spans.apply_edit_mut(
+                &affected_range,
+                edit.new.len_bytes() as isize - byte_range.len() as isize,
+            );
+        }
+
         let quickfix_list_items_with_char_index_range =
             std::mem::take(&mut self.quickfix_list_items)
                 .into_iter()
@@ -531,28 +549,13 @@ impl Buffer {
                 })
                 .collect_vec();
 
-        if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
-            // println!("last_visible_]ine = {last_visible_line}");
-            let last_line_len_bytes = self
-                .get_line_by_line_index(last_visible_line as usize)
-                .map(|slice| slice.len_bytes())
-                .unwrap_or_default();
+        // Update the content
+        self.rope.try_remove(edit.range.start.0..edit.end().0)?;
+        self.rope
+            .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
+        self.dirty = true;
 
-            // println!("last_line_len_bytes = {last_line_len_bytes}");
-
-            let range_end = self
-                .line_to_byte(last_visible_line as usize)
-                .unwrap_or_default()
-                + last_line_len_bytes;
-            // println!("range_end = {range_end}");
-            let affected_range = byte_range.start..range_end;
-
-            self.highlighted_spans.apply_edit_mut(
-                // &byte_range,
-                &affected_range,
-                edit.new.len_bytes() as isize - byte_range.len() as isize,
-            );
-        }
+        self.owner = BufferOwner::User;
 
         // Update all the positional spans (by using the char index ranges computed before the content is updated
         self.quickfix_list_items = quickfix_list_items_with_char_index_range
@@ -561,6 +564,7 @@ impl Buffer {
                 let position_range = self
                     .char_index_range_to_position_range(char_index_range.apply_edit(edit)?)
                     .ok()?;
+                println!("position range = {position_range:?}");
                 Some(item.set_location_range(position_range))
             })
             .collect_vec();
@@ -586,12 +590,6 @@ impl Buffer {
         self.selection_set_history = std::mem::take(&mut self.selection_set_history)
             .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
 
-        // Update the content
-        self.rope.try_remove(edit.range.start.0..edit.end().0)?;
-        self.rope
-            .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
-        self.dirty = true;
-        self.owner = BufferOwner::User;
         Ok(())
     }
 

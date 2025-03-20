@@ -2322,11 +2322,11 @@ impl Editor {
     }
 
     fn do_save(&mut self, force: bool, context: &Context) -> anyhow::Result<Dispatches> {
-        let Some(path) = self.buffer.borrow_mut().save(
-            self.selection_set.clone(),
-            force,
-            self.last_visible_line(context),
-        )?
+        let last_visible_line = self.last_visible_line(context);
+        let Some(path) =
+            self.buffer
+                .borrow_mut()
+                .save(self.selection_set.clone(), force, last_visible_line)?
         else {
             return Ok(Default::default());
         };

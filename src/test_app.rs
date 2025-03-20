@@ -351,6 +351,12 @@ impl ExpectKind {
                     .editor()
                     .buffer()
                     .highlighted_spans()
+                    .iter()
+                    .inspect(|&span| {
+                        // For debugging purposes
+                        println!("xx {span:?} {}", span.style_key.display());
+                    })
+                    .collect_vec()
                     .into_iter()
                     .find(|span| &span.byte_range == expected_range)
                     .unwrap()

@@ -10,7 +10,6 @@ use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter}
 
 use crate::{
     app::AppMessage,
-    char_index_range::apply_edit,
     components::component::ComponentId,
     grid::{IndexedHighlightGroup, StyleKey},
 };
@@ -20,18 +19,6 @@ use shared::language::Language;
 pub(crate) struct HighlightedSpan {
     pub(crate) byte_range: Range<usize>,
     pub(crate) style_key: StyleKey,
-}
-impl HighlightedSpan {
-    /// Return `true` if this `HighlightedSpan` should be retained after applying the edit
-    fn apply_edit_mut(&mut self, edited_range: &Range<usize>, change: isize) -> bool {
-        let byte_range = std::mem::take(&mut self.byte_range);
-        if let Some(byte_range) = apply_edit(byte_range, edited_range, change) {
-            self.byte_range = byte_range;
-            true
-        } else {
-            false
-        }
-    }
 }
 
 pub trait GetHighlightConfig {
@@ -132,13 +119,10 @@ impl HighlightedSpans {
     /// 2. The highlight spans will be recomputed quickly, so there's no point
     ///    in updating the out-of-bound ones.
     pub(crate) fn apply_edit_mut(&mut self, affected_range: &Range<usize>, change: isize) {
-        // self.0 .retain_mut(|span| span.apply_edit_mut(affected_range, change));
-        // return;
         if self.0.is_empty() {
             return;
         }
         let length = self.0.len();
-        // println!( "self.0 = {:#?}", self.0 .iter() .map(|span| span.byte_range.clone()) .collect_vec() );
         debug_assert!(self
             .0
             .is_sorted_by_key(|span| (span.byte_range.start, span.byte_range.end)));
@@ -146,18 +130,9 @@ impl HighlightedSpans {
             .0
             .partition_point(|span| span.byte_range.end <= affected_range.start);
 
-        let end_index = self.0.partition_point(|span| {
-            // println!("pp start = {}", span.byte_range.start);
-            // println!("pp end = {}", affected_range.end);
-            span.byte_range.start < affected_range.end
-        });
-
-        // println!("edited_range = {affected_range:?}");
-        // println!("start_index = {start_index}");
-        // println!("end_index = {end_index}");
-
-        // TODO: this is working correctly, but we need to set an upper bound as the last visible line
-        // so that we only update the necessary spans, not all the spans after start_index
+        let end_index = self
+            .0
+            .partition_point(|span| span.byte_range.start < affected_range.end);
 
         debug_assert!(start_index < length);
         debug_assert!(end_index < length);
