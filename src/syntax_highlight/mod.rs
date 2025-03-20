@@ -5,7 +5,6 @@ use std::{
     time::Duration,
 };
 
-use itertools::Itertools;
 use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
 use crate::{
@@ -15,7 +14,7 @@ use crate::{
 };
 use shared::language::Language;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct HighlightedSpan {
     pub(crate) byte_range: Range<usize>,
     pub(crate) style_key: StyleKey,
@@ -95,15 +94,10 @@ impl Highlight for HighlightConfiguration {
             }
         }
 
-        debug_assert!(
-            highlighted_spans
-                .iter()
-                .enumerate()
-                .sorted_by_key(|(_, span)| (span.byte_range.start, span.byte_range.end))
-                .map(|(index, _)| index)
-                .collect_vec()
-                == (0..highlighted_spans.len()).collect_vec(),
-        );
+        debug_assert!(highlighted_spans
+            .iter()
+            .is_sorted_by_key(|span| (span.byte_range.start, span.byte_range.end)));
+
         Ok(HighlightedSpans(highlighted_spans))
     }
 }
@@ -145,8 +139,18 @@ impl HighlightedSpans {
     }
 }
 
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
+pub(crate) struct SyntaxHighlightRequestBatchId(u8);
+
+impl SyntaxHighlightRequestBatchId {
+    pub(crate) fn increment(&mut self) {
+        self.0 = self.0.wrapping_add(1)
+    }
+}
+
 pub(crate) struct SyntaxHighlightRequest {
     pub(crate) component_id: ComponentId,
+    pub(crate) batch_id: SyntaxHighlightRequestBatchId,
     pub(crate) language: Language,
     pub(crate) source_code: String,
 }
@@ -194,6 +198,7 @@ pub(crate) fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlig
                 Ok(highlighted_spans) => {
                     let _ = callback.send(AppMessage::SyntaxHighlightResponse {
                         component_id: request.component_id,
+                        batch_id: request.batch_id,
                         highlighted_spans,
                     });
                 }

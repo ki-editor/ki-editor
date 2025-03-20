@@ -1183,6 +1183,7 @@ impl Editor {
     pub(crate) fn get_document_did_change_dispatch(&mut self) -> Dispatches {
         [Dispatch::DocumentDidChange {
             component_id: self.id(),
+            batch_id: self.buffer().batch_id().clone(),
             path: self.buffer().path(),
             content: self.buffer().rope().to_string(),
             language: self.buffer().language(),
@@ -2706,7 +2707,7 @@ impl Editor {
         let mut buffer = self.buffer_mut();
         if let Some(language) = buffer.language() {
             let highlighted_spans = context.highlight(language, &source_code)?;
-            buffer.update_highlighted_spans(highlighted_spans);
+            buffer.update_highlighted_spans(Default::default(), highlighted_spans);
         }
         Ok(())
     }
