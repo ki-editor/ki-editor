@@ -150,7 +150,10 @@ impl Context {
         language: shared::language::Language,
         source_code: &str,
     ) -> anyhow::Result<crate::syntax_highlight::HighlightedSpans> {
-        self.highlight_configs.highlight(language, source_code)
+        use std::sync::atomic::AtomicUsize;
+
+        self.highlight_configs
+            .highlight(language, source_code, &AtomicUsize::new(0))
     }
 
     pub(crate) fn current_working_directory(&self) -> &CanonicalizedPath {

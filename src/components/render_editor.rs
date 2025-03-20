@@ -709,7 +709,7 @@ impl Editor {
         let spans = buffer.highlighted_spans();
         let filtered_highlighted_spans = {
             filter_items_by_range(
-                &spans,
+                spans,
                 visible_line_byte_range.start,
                 visible_line_byte_range.end,
                 |span| span.byte_range.clone(),
@@ -719,7 +719,7 @@ impl Editor {
                 let byte_range = buffer
                     .line_range_to_byte_range(line_range)
                     .unwrap_or_default();
-                filter_items_by_range(&spans, byte_range.start, byte_range.end, |span| {
+                filter_items_by_range(spans, byte_range.start, byte_range.end, |span| {
                     span.byte_range.clone()
                 })
             }))

@@ -174,6 +174,7 @@ impl Component for Editor {
         context: &mut Context,
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
+        let last_visible_line = self.last_visible_line(context);
         match dispatch {
             #[cfg(test)]
             AlignViewTop => self.align_cursor_to_top(),
@@ -213,7 +214,9 @@ impl Component for Editor {
             EnterSwapMode => self.enter_swap_mode(),
             ReplacePattern { config } => {
                 let selection_set = self.selection_set.clone();
-                let (_, selection_set) = self.buffer_mut().replace(config, selection_set)?;
+                let (_, selection_set) =
+                    self.buffer_mut()
+                        .replace(config, selection_set, last_visible_line)?;
                 return Ok(self
                     .update_selection_set(selection_set, false, context)
                     .chain(self.get_document_did_change_dispatch()));
@@ -1159,11 +1162,13 @@ impl Editor {
         edit_transaction: EditTransaction,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
+        let last_visible_line = self.last_visible_line(context);
         let new_selection_set = self.buffer.borrow_mut().apply_edit_transaction(
             &edit_transaction,
             self.selection_set.clone(),
             self.mode != Mode::Insert,
             true,
+            last_visible_line,
         )?;
 
         self.set_selection_set(new_selection_set, context);
@@ -1658,6 +1663,7 @@ impl Editor {
                         self.selection_set.clone(),
                         true,
                         true,
+                        self.last_visible_line(context),
                     )
                     .is_err()
                 {
@@ -2316,10 +2322,11 @@ impl Editor {
     }
 
     fn do_save(&mut self, force: bool, context: &Context) -> anyhow::Result<Dispatches> {
-        let Some(path) = self
-            .buffer
-            .borrow_mut()
-            .save(self.selection_set.clone(), force)?
+        let last_visible_line = self.last_visible_line(context);
+        let Some(path) =
+            self.buffer
+                .borrow_mut()
+                .save(self.selection_set.clone(), force, last_visible_line)?
         else {
             return Ok(Default::default());
         };
@@ -2656,10 +2663,11 @@ impl Editor {
     }
 
     fn undo_or_redo(&mut self, undo: bool, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        let last_visible_line = self.last_visible_line(context);
         let selection_set = if undo {
-            self.buffer_mut().undo()?
+            self.buffer_mut().undo(last_visible_line)?
         } else {
-            self.buffer_mut().redo()?
+            self.buffer_mut().redo(last_visible_line)?
         };
 
         Ok(selection_set
@@ -3510,6 +3518,10 @@ impl Editor {
             // Otherwise, replace word under cursor(s) with replacement
             _ => self.try_replace_current_long_word(replacement, context),
         }
+    }
+
+    fn last_visible_line(&self, context: &Context) -> u16 {
+        (self.render_area(context).height + self.scroll_offset).saturating_sub(1)
     }
 }
 
