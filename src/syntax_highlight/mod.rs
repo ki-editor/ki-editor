@@ -1,5 +1,11 @@
-use std::{collections::HashMap, ops::Range, sync::mpsc::Sender, time::Duration};
+use std::{
+    collections::HashMap,
+    ops::Range,
+    sync::{atomic::AtomicUsize, mpsc::Sender},
+    time::Duration,
+};
 
+use itertools::Itertools;
 use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
 use crate::{
@@ -56,14 +62,27 @@ impl GetHighlightConfig for Language {
 }
 
 pub trait Highlight {
-    fn highlight(&self, source_code: &str) -> anyhow::Result<HighlightedSpans>;
+    fn highlight(
+        &self,
+        source_code: &str,
+        cancellation_flag: &AtomicUsize,
+    ) -> anyhow::Result<HighlightedSpans>;
 }
 
 impl Highlight for HighlightConfiguration {
-    fn highlight(&self, source_code: &str) -> anyhow::Result<HighlightedSpans> {
+    fn highlight(
+        &self,
+        source_code: &str,
+        cancellation_flag: &AtomicUsize,
+    ) -> anyhow::Result<HighlightedSpans> {
         let mut highlighter = Highlighter::new();
 
-        let highlights = highlighter.highlight(self, source_code.as_bytes(), None, |_| None)?;
+        let highlights = highlighter.highlight(
+            self,
+            source_code.as_bytes(),
+            Some(cancellation_flag),
+            |_| None,
+        )?;
 
         let mut highlight = None;
 
@@ -88,6 +107,16 @@ impl Highlight for HighlightConfiguration {
                 }
             }
         }
+
+        debug_assert!(
+            highlighted_spans
+                .iter()
+                .enumerate()
+                .sorted_by_key(|(_, span)| (span.byte_range.start, span.byte_range.end))
+                .map(|(index, _)| index)
+                .collect_vec()
+                == (0..highlighted_spans.len()).collect_vec(),
+        );
         Ok(HighlightedSpans(highlighted_spans))
     }
 }
@@ -95,13 +124,49 @@ impl Highlight for HighlightConfiguration {
 #[derive(Clone, Default, Debug)]
 pub(crate) struct HighlightedSpans(pub Vec<HighlightedSpan>);
 impl HighlightedSpans {
-    pub(crate) fn apply_edit_mut(&mut self, edited_range: &Range<usize>, change: isize) {
-        // let index = self .0 .partition_point(|span| range_intersects(&span.byte_range, edited_range));
+    /// This method only updates the highlight spans within the affected range.
+    /// The affected range starts from the smallest point of edit to the last visible range.
+    ///
+    /// We don't update highlight spans that are out of the visible bounds because:
+    /// 1. That is expensive due to the huge number of highlight spans
+    /// 2. The highlight spans will be recomputed quickly, so there's no point
+    ///    in updating the out-of-bound ones.
+    pub(crate) fn apply_edit_mut(&mut self, affected_range: &Range<usize>, change: isize) {
+        // self.0 .retain_mut(|span| span.apply_edit_mut(affected_range, change));
+        // return;
+        if self.0.is_empty() {
+            return;
+        }
+        let length = self.0.len();
+        // println!( "self.0 = {:#?}", self.0 .iter() .map(|span| span.byte_range.clone()) .collect_vec() );
+        debug_assert!(self
+            .0
+            .is_sorted_by_key(|span| (span.byte_range.start, span.byte_range.end)));
+        let start_index = self
+            .0
+            .partition_point(|span| span.byte_range.end <= affected_range.start);
 
-        // self.0[index..].iter_mut().for_each(|span| { span.byte_range.start = (span.byte_range.start as isize + change) as usize; span.byte_range.end = (span.byte_range.end as isize + change) as usize; });
+        let end_index = self.0.partition_point(|span| {
+            // println!("pp start = {}", span.byte_range.start);
+            // println!("pp end = {}", affected_range.end);
+            span.byte_range.start < affected_range.end
+        });
 
-        self.0
-            .retain_mut(|span| span.apply_edit_mut(edited_range, change))
+        // println!("edited_range = {affected_range:?}");
+        // println!("start_index = {start_index}");
+        // println!("end_index = {end_index}");
+
+        // TODO: this is working correctly, but we need to set an upper bound as the last visible line
+        // so that we only update the necessary spans, not all the spans after start_index
+
+        debug_assert!(start_index < length);
+        debug_assert!(end_index < length);
+        self.0[start_index..end_index.max(start_index)]
+            .iter_mut()
+            .for_each(|span| {
+                span.byte_range.start = (span.byte_range.start as isize + change) as usize;
+                span.byte_range.end = (span.byte_range.end as isize + change) as usize;
+            });
     }
 }
 
@@ -121,10 +186,36 @@ pub(crate) fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlig
         }
     }
 
+    use std::cell::RefCell;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
     std::thread::spawn(move || {
         let mut highlight_configs = HighlightConfigs::new();
+        // Use Arc<AtomicUsize> which can be cloned
+
+        let last_cancellation_flag = RefCell::new(None::<Arc<AtomicUsize>>);
+
         let debounce = EventDebouncer::new(Duration::from_millis(150), move |Event(request)| {
-            match highlight_configs.highlight(request.language, &request.source_code) {
+            // Cancel the previous operation if it exists
+            // The cancellation is done by unzeroing the atomic usize
+            if let Some(flag) = last_cancellation_flag.borrow_mut().take() {
+                flag.fetch_add(1, Ordering::Relaxed);
+            }
+
+            // Create a new cancellation flag for this operation
+            let new_cancellation_flag = Arc::new(AtomicUsize::new(0));
+
+            // Store a clone of the new flag for potential cancellation in the future
+            *last_cancellation_flag.borrow_mut() = Some(new_cancellation_flag.clone());
+
+            match highlight_configs.highlight(
+                request.language,
+                &request.source_code,
+                &new_cancellation_flag,
+            ) {
                 Ok(highlighted_spans) => {
                     let _ = callback.send(AppMessage::SyntaxHighlightResponse {
                         component_id: request.component_id,
@@ -159,6 +250,7 @@ impl HighlightConfigs {
         &mut self,
         language: Language,
         source_code: &str,
+        cancellation_flag: &AtomicUsize,
     ) -> Result<HighlightedSpans, anyhow::Error> {
         let Some(grammar_id) = language.tree_sitter_grammar_id() else {
             return Ok(Default::default());
@@ -177,6 +269,6 @@ impl HighlightConfigs {
                 }
             }
         };
-        config.highlight(source_code)
+        config.highlight(source_code, cancellation_flag)
     }
 }

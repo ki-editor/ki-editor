@@ -1954,7 +1954,14 @@ fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
                 focus: true,
             }),
             App(SetTheme(theme.clone())),
-            Editor(SetContent("fn main() { let x = 123 }".trim().to_string())),
+            Editor(SetContent(
+                "
+/* hello */ fn main() { let x = 123 }
+// range of highlight spans of this line should not be updated as they are out of visible range
+                "
+                .trim()
+                .to_string(),
+            )),
             Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
@@ -1963,15 +1970,40 @@ fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
             })),
             Editor(ApplySyntaxHighlight),
             Expect(ExpectKind::HighlightSpans(
-                0..2,
+                0..11,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("comment").unwrap()),
+            )),
+            Expect(ExpectKind::HighlightSpans(
+                12..14,
                 StyleKey::Syntax(IndexedHighlightGroup::from_str("keyword.function").unwrap()),
+            )),
+            Expect(ExpectKind::HighlightSpans(
+                36..37,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("punctuation.bracket").unwrap()),
+            )),
+            Expect(ExpectKind::HighlightSpans(
+                38..133,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("comment").unwrap()),
             )),
             Editor(MatchLiteral("fn".to_string())),
             Editor(EnterInsertMode(Direction::Start)),
-            Editor(Insert("hello".to_string())),
+            Editor(Insert("bqoxu".to_string())),
+            // Expect the range of highlight spans of `/* hello */` is not updated,
+            // because the edit range is beyond its range
             Expect(ExpectKind::HighlightSpans(
-                5..7,
+                0..11,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("comment").unwrap()),
+            )),
+            // Expect the range of highlight spans of `fn` and `}`
+            // are updated because they are in visible line ranges
+            Expect(ExpectKind::HighlightSpans(
+                17..19,
                 StyleKey::Syntax(IndexedHighlightGroup::from_str("keyword.function").unwrap()),
+            )),
+            // Expect the last comment highlight span is not updated as it is not within visible view
+            Expect(ExpectKind::HighlightSpans(
+                38..133,
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("comment").unwrap()),
             )),
         ])
     })

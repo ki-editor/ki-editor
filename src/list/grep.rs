@@ -42,7 +42,8 @@ pub(crate) fn replace(
         .run(Box::new(move |path, sender| {
             let path = path.try_into()?;
             let mut buffer = Buffer::from_path(&path, local_search_config.require_tree_sitter())?;
-            let (modified, _) = buffer.replace(local_search_config.clone(), Default::default())?;
+            let (modified, _) =
+                buffer.replace(local_search_config.clone(), Default::default(), 0)?;
             if modified {
                 buffer.save_without_formatting(false)?;
                 sender

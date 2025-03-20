@@ -21,7 +21,7 @@ use shared::{
     language::{self, Language},
 };
 use std::{collections::HashSet, ops::Range};
-use tree_sitter::{Node, Parser, Tree};
+use tree_sitter::{Node, Parser, Point, Tree};
 use tree_sitter_traversal2::{traverse, Order};
 
 /// Determines the buffer's owner. Ki distinguishes buffer ownership during switches.
@@ -114,7 +114,7 @@ impl Buffer {
     pub(crate) fn reload(&mut self) -> anyhow::Result<()> {
         if let Some(path) = self.path() {
             let updated_content = path.read()?;
-            self.update_content(&updated_content, SelectionSet::default())?;
+            self.update_content(&updated_content, SelectionSet::default(), 0)?;
             self.dirty = false;
         }
         Ok(())
@@ -283,6 +283,10 @@ impl Buffer {
     }
 
     pub(crate) fn update_highlighted_spans(&mut self, spans: HighlightedSpans) {
+        // TODO: only update use the highlighted_spans if the last updated
+        // is the same as the last updated of this buffer
+        // use u8 and wrapping_add as ID generation.
+        // This is so that we don't get weird flicking
         self.highlighted_spans = spans;
     }
 
@@ -471,6 +475,7 @@ impl Buffer {
         current_selection_set: SelectionSet,
         reparse_tree: bool,
         update_undo_stack: bool,
+        last_visible_line: u16,
     ) -> Result<SelectionSet, anyhow::Error> {
         let new_selection_set = edit_transaction
             .non_empty_selections()
@@ -486,7 +491,7 @@ impl Buffer {
         edit_transaction
             .edits()
             .into_iter()
-            .try_fold((), |_, edit| self.apply_edit(edit))?;
+            .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
 
         let new_buffer_state = BufferState {
             selection_set: new_selection_set.clone(),
@@ -512,7 +517,7 @@ impl Buffer {
     }
 
     // Add these methods for undo/redo
-    fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
+    fn apply_edit(&mut self, edit: &Edit, last_visible_line: u16) -> Result<(), anyhow::Error> {
         // We have to get the char index range of positional spans before updating the content
         let quickfix_list_items_with_char_index_range =
             std::mem::take(&mut self.quickfix_list_items)
@@ -526,12 +531,28 @@ impl Buffer {
                 })
                 .collect_vec();
 
-        // Update the content
-        self.rope.try_remove(edit.range.start.0..edit.end().0)?;
-        self.rope
-            .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
-        self.dirty = true;
-        self.owner = BufferOwner::User;
+        if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
+            // println!("last_visible_]ine = {last_visible_line}");
+            let last_line_len_bytes = self
+                .get_line_by_line_index(last_visible_line as usize)
+                .map(|slice| slice.len_bytes())
+                .unwrap_or_default();
+
+            // println!("last_line_len_bytes = {last_line_len_bytes}");
+
+            let range_end = self
+                .line_to_byte(last_visible_line as usize)
+                .unwrap_or_default()
+                + last_line_len_bytes;
+            // println!("range_end = {range_end}");
+            let affected_range = byte_range.start..range_end;
+
+            self.highlighted_spans.apply_edit_mut(
+                // &byte_range,
+                &affected_range,
+                edit.new.len_bytes() as isize - byte_range.len() as isize,
+            );
+        }
 
         // Update all the positional spans (by using the char index ranges computed before the content is updated
         self.quickfix_list_items = quickfix_list_items_with_char_index_range
@@ -564,14 +585,13 @@ impl Buffer {
         let max_char_index = CharIndex(self.len_chars());
         self.selection_set_history = std::mem::take(&mut self.selection_set_history)
             .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
-        if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
-            // BOTTLENECK 2: Updating highlighted spans
-            // TODO: use binary tree to skip non-related range and update only related ranges
-            self.highlighted_spans.apply_edit_mut(
-                &byte_range,
-                edit.new.len_bytes() as isize - byte_range.len() as isize,
-            );
-        }
+
+        // Update the content
+        self.rope.try_remove(edit.range.start.0..edit.end().0)?;
+        self.rope
+            .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
+        self.dirty = true;
+        self.owner = BufferOwner::User;
         Ok(())
     }
 
@@ -663,10 +683,11 @@ impl Buffer {
         &mut self,
         current_selection_set: SelectionSet,
         force: bool,
+        last_visible_line: u16,
     ) -> anyhow::Result<Option<CanonicalizedPath>> {
         if force || self.dirty {
             if let Some(formatted_content) = self.get_formatted_content() {
-                self.update_content(&formatted_content, current_selection_set)?;
+                self.update_content(&formatted_content, current_selection_set, last_visible_line)?;
             }
         }
 
@@ -677,23 +698,21 @@ impl Buffer {
         &mut self,
         new_content: &str,
         current_selection_set: SelectionSet,
+        last_visible_line: u16,
     ) -> anyhow::Result<SelectionSet> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
-        self.apply_edit_transaction(&edit_transaction, current_selection_set, true, true)
+        self.apply_edit_transaction(
+            &edit_transaction,
+            current_selection_set,
+            true,
+            true,
+            last_visible_line,
+        )
     }
 
     /// The resulting spans must be sorted by range
-    pub(crate) fn highlighted_spans(&self) -> Vec<HighlightedSpan> {
-        let spans = self.highlighted_spans.0.clone();
-        debug_assert!(
-            spans
-                .iter()
-                .enumerate()
-                .sorted_by_key(|(_, span)| (span.byte_range.start, span.byte_range.end))
-                .map(|(index, _)| index)
-                .collect_vec()
-                == (0..spans.len()).collect_vec(),
-        );
+    pub(crate) fn highlighted_spans(&self) -> &Vec<HighlightedSpan> {
+        let spans = self.highlighted_spans.0.as_ref(); // Don't clone this thing man
         spans
     }
 
@@ -873,6 +892,7 @@ impl Buffer {
         &mut self,
         config: LocalSearchConfig,
         current_selection_set: SelectionSet,
+        last_visible_line: u16,
     ) -> anyhow::Result<(bool, SelectionSet)> {
         let before = self.rope.to_string();
         let edit_transaction = match config.mode {
@@ -917,8 +937,13 @@ impl Buffer {
                 )
             }
         };
-        let selection_set =
-            self.apply_edit_transaction(&edit_transaction, current_selection_set, true, true)?;
+        let selection_set = self.apply_edit_transaction(
+            &edit_transaction,
+            current_selection_set,
+            true,
+            true,
+            last_visible_line,
+        )?;
         let after = self.content();
         let modified = before != after;
         Ok((modified, selection_set))
@@ -991,13 +1016,16 @@ impl Buffer {
         Ok(start..end)
     }
 
-    pub(crate) fn redo(&mut self) -> Result<Option<SelectionSet>, anyhow::Error> {
+    pub(crate) fn redo(
+        &mut self,
+        last_visible_line: u16,
+    ) -> Result<Option<SelectionSet>, anyhow::Error> {
         if let Some(history) = self.redo_stack.pop() {
             history
                 .edit_transaction
                 .edits()
                 .into_iter()
-                .try_fold((), |_, edit| self.apply_edit(edit))?;
+                .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
             self.reparse_tree()?;
             let selection_set = history.old_state.selection_set.clone();
             self.undo_stack.push(history.inverse());
@@ -1007,13 +1035,16 @@ impl Buffer {
         }
     }
 
-    pub(crate) fn undo(&mut self) -> Result<Option<SelectionSet>, anyhow::Error> {
+    pub(crate) fn undo(
+        &mut self,
+        last_visible_line: u16,
+    ) -> Result<Option<SelectionSet>, anyhow::Error> {
         if let Some(history) = self.undo_stack.pop() {
             history
                 .edit_transaction
                 .edits()
                 .into_iter()
-                .try_fold((), |_, edit| self.apply_edit(edit))?;
+                .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
             self.reparse_tree()?;
             let selection_set = history.old_state.selection_set.clone();
             self.redo_stack.push(history.inverse());
@@ -1113,7 +1144,7 @@ fn f(
                     .tree_sitter_language(),
                 input,
             );
-            buffer.replace(config, SelectionSet::default())?;
+            buffer.replace(config, SelectionSet::default(), 0)?;
             assert_eq!(buffer.content(), expected);
             Ok(())
         }
@@ -1195,7 +1226,7 @@ fn f(
                 buffer.update(" fn main\n() {}");
 
                 // Save the buffer
-                buffer.save(SelectionSet::default(), false).unwrap();
+                buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the output is formatted
                 let saved_content = path.read().unwrap();
@@ -1223,13 +1254,13 @@ fn f(
                 let original = " fn main\n() {}";
                 buffer.update(original);
 
-                buffer.save(SelectionSet::default(), false).unwrap();
+                buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the buffer is formatted
                 assert_ne!(buffer.rope.to_string(), original);
 
                 // Undo the buffer
-                buffer.undo().unwrap();
+                buffer.undo(0).unwrap();
 
                 let content = buffer.rope.to_string();
 
@@ -1245,7 +1276,7 @@ fn f(
                 buffer.update("fn main() {");
 
                 // Save the buffer
-                buffer.save(SelectionSet::default(), false).unwrap();
+                buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the buffer remain unchanged,
                 // because the syntax node is invalid
@@ -1268,7 +1299,7 @@ fn f(
                 // but not to the formatter
                 assert!(!buffer.tree.as_ref().unwrap().root_node().has_error());
 
-                buffer.save(SelectionSet::default(), false).unwrap();
+                buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the buffer remain unchanged
                 assert_eq!(buffer.rope.to_string(), code);
@@ -1291,6 +1322,7 @@ fn f(
                 SelectionSet::default(),
                 true,
                 true,
+                0,
             )?;
 
             // Expect the content to be the same as the 2nd files

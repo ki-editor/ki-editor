@@ -657,6 +657,19 @@ pub(crate) enum StyleKey {
     UiFocusedTab,
 }
 
+impl StyleKey {
+    #[cfg(test)]
+    pub(crate) fn display(&self) -> String {
+        match self {
+            StyleKey::Syntax(highlight_group) => {
+                let str: &'static str = highlight_group.to_highlight_name().unwrap().into();
+                str.to_string()
+            }
+            _ => format!("{self:?}"),
+        }
+    }
+}
+
 /// TODO: in the future, tab size should be configurable
 pub(crate) fn get_string_width(str: &str) -> usize {
     str.chars().map(get_char_width).sum()
