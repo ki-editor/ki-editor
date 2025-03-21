@@ -70,5 +70,5 @@ nix profile install github:ki-editor/ki-editor
 2. Build tree-sitter grammars:
 
 ```sh
-ki grammar fetch && ki grammar build
+ki @ grammar fetch && ki @ grammar build
 ```
