@@ -2,6 +2,7 @@ use crate::history::History;
 use crate::lsp::diagnostic::Diagnostic;
 use crate::quickfix_list::QuickfixListItem;
 use crate::selection_mode::naming_convention_agnostic::NamingConventionAgnostic;
+use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
 use crate::{
     char_index_range::CharIndexRange,
     components::suggestive_editor::Decoration,
@@ -51,6 +52,7 @@ pub(crate) struct Buffer {
     owner: BufferOwner,
     undo_stack: Vec<EditHistory>,
     redo_stack: Vec<EditHistory>,
+    batch_id: SyntaxHighlightRequestBatchId,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -87,6 +89,7 @@ impl Buffer {
             owner: BufferOwner::System,
             undo_stack: Default::default(),
             redo_stack: Default::default(),
+            batch_id: Default::default(),
         }
     }
 
@@ -282,12 +285,17 @@ impl Buffer {
             .unwrap_or(false)
     }
 
-    pub(crate) fn update_highlighted_spans(&mut self, spans: HighlightedSpans) {
-        // TODO: only update use the highlighted_spans if the last updated
-        // is the same as the last updated of this buffer
-        // use u8 and wrapping_add as ID generation.
-        // This is so that we don't get weird flicking
-        self.highlighted_spans = spans;
+    pub(crate) fn update_highlighted_spans(
+        &mut self,
+        batch_id: SyntaxHighlightRequestBatchId,
+        spans: HighlightedSpans,
+    ) {
+        // Only apply highlighting updates from the most recent batch to prevent
+        // visual flickering during concurrent edits. Updates from outdated batches
+        // (where batch_id doesn't match the current self.batch_id) are discarded.
+        if batch_id == self.batch_id {
+            self.highlighted_spans = spans;
+        }
     }
 
     pub(crate) fn update(&mut self, text: &str) {
@@ -513,6 +521,8 @@ impl Buffer {
             self.reparse_tree()?;
         }
 
+        self.batch_id.increment();
+
         Ok(new_selection_set)
     }
 
@@ -564,7 +574,6 @@ impl Buffer {
                 let position_range = self
                     .char_index_range_to_position_range(char_index_range.apply_edit(edit)?)
                     .ok()?;
-                println!("position range = {position_range:?}");
                 Some(item.set_location_range(position_range))
             })
             .collect_vec();
@@ -591,6 +600,10 @@ impl Buffer {
             .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
 
         Ok(())
+    }
+
+    pub(crate) fn batch_id(&self) -> &SyntaxHighlightRequestBatchId {
+        &self.batch_id
     }
 
     pub(crate) fn has_syntax_error_at(&self, range: CharIndexRange) -> bool {
@@ -1055,9 +1068,17 @@ impl Buffer {
 
 #[cfg(test)]
 mod test_buffer {
-    use itertools::Itertools;
+    use std::fs::File;
 
-    use crate::selection::SelectionSet;
+    use itertools::Itertools;
+    use shared::canonicalized_path::CanonicalizedPath;
+    use tempfile::tempdir;
+
+    use crate::{
+        grid::{IndexedHighlightGroup, StyleKey},
+        selection::SelectionSet,
+        syntax_highlight::{HighlightedSpan, HighlightedSpans},
+    };
 
     use super::Buffer;
 
@@ -1192,30 +1213,26 @@ fn f(
         }
     }
 
+    /// The TempDir is returned so that the directory is not deleted
+    /// when the TempDir object is dropped
+    fn run_test(f: impl Fn(CanonicalizedPath, Buffer)) {
+        let dir = tempdir().unwrap();
+
+        let file_path = dir.path().join("main.rs");
+        File::create(&file_path).unwrap();
+        let path = CanonicalizedPath::try_from(file_path).unwrap();
+        path.write("").unwrap();
+
+        let buffer = Buffer::from_path(&path, true).unwrap();
+
+        f(path, buffer)
+    }
+
     mod auto_format {
-        use std::fs::File;
 
-        use tempfile::tempdir;
+        use crate::selection::{CharIndex, SelectionSet};
 
-        use crate::{
-            buffer::Buffer,
-            selection::{CharIndex, SelectionSet},
-        };
-        use shared::canonicalized_path::CanonicalizedPath;
-        /// The TempDir is returned so that the directory is not deleted
-        /// when the TempDir object is dropped
-        fn run_test(f: impl Fn(CanonicalizedPath, Buffer)) {
-            let dir = tempdir().unwrap();
-
-            let file_path = dir.path().join("main.rs");
-            File::create(&file_path).unwrap();
-            let path = CanonicalizedPath::try_from(file_path).unwrap();
-            path.write("").unwrap();
-
-            let buffer = Buffer::from_path(&path, true).unwrap();
-
-            f(path, buffer)
-        }
+        use super::run_test;
 
         #[test]
         fn should_format_code() {
@@ -1303,6 +1320,34 @@ fn f(
                 assert_eq!(buffer.rope.to_string(), code);
             })
         }
+    }
+
+    #[test]
+    fn only_update_syntax_highlight_spans_of_same_batch_id() {
+        run_test(|_, mut buffer| {
+            let initial_batch_id = buffer.batch_id().clone();
+
+            let initial_spans = buffer.highlighted_spans().clone();
+
+            // Update the buffer, this should cause the batch ID to be changed
+            buffer
+                .update_content("testing", Default::default(), 1)
+                .unwrap();
+
+            // Update the buffer with new highlight spans using the initial batch ID
+            let new_highlighted_spans = HighlightedSpans(
+                [HighlightedSpan {
+                    byte_range: Default::default(),
+                    style_key: StyleKey::Syntax(IndexedHighlightGroup::new(0)),
+                }]
+                .to_vec(),
+            );
+            buffer.update_highlighted_spans(initial_batch_id, new_highlighted_spans.clone());
+
+            // Expect the highlight spans remain the same, because the batch ID is changed
+            assert_eq!(&initial_spans, buffer.highlighted_spans());
+            assert_ne!(&new_highlighted_spans.0, buffer.highlighted_spans())
+        })
     }
 
     mod patch_edit {

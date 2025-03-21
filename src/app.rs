@@ -33,7 +33,7 @@ use crate::{
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     screen::{Screen, Window},
     selection::SelectionMode,
-    syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest},
+    syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
@@ -149,10 +149,11 @@ impl<T: Frontend> App<T> {
     fn update_highlighted_spans(
         &self,
         component_id: ComponentId,
+        batch_id: SyntaxHighlightRequestBatchId,
         highlighted_spans: HighlightedSpans,
     ) -> Result<(), anyhow::Error> {
         self.layout
-            .update_highlighted_spans(component_id, highlighted_spans)
+            .update_highlighted_spans(component_id, batch_id, highlighted_spans)
     }
 
     pub(crate) fn run(
@@ -188,9 +189,10 @@ impl<T: Frontend> App<T> {
                 }
                 AppMessage::SyntaxHighlightResponse {
                     component_id,
+                    batch_id,
                     highlighted_spans,
                 } => self
-                    .update_highlighted_spans(component_id, highlighted_spans)
+                    .update_highlighted_spans(component_id, batch_id, highlighted_spans)
                     .map(|_| false),
             }
             .unwrap_or_else(|e| {
@@ -617,11 +619,15 @@ impl<T: Frontend> App<T> {
                 content,
                 language,
                 component_id,
+                batch_id,
             } => {
                 if let Some(language) = language {
-                    self.request_syntax_highlight(component_id, language, content.clone())?;
-                    // let highlight_spans = self.context.highlight(language, &content)?;
-                    // self.update_highlighted_spans(component_id, highlight_spans)?
+                    self.request_syntax_highlight(
+                        component_id,
+                        batch_id,
+                        language,
+                        content.clone(),
+                    )?;
                 }
                 if let Some(path) = path {
                     self.lsp_manager.send_message(
@@ -1100,6 +1106,7 @@ impl<T: Frontend> App<T> {
 
         let language = buffer.language();
         let content = buffer.content();
+        let batch_id = buffer.batch_id().clone();
         let buffer = Rc::new(RefCell::new(buffer));
         let editor = SuggestiveEditor::from_buffer(buffer, SuggestiveEditorFilter::CurrentWord);
         let component_id = editor.id();
@@ -1112,7 +1119,7 @@ impl<T: Frontend> App<T> {
                 .replace_and_focus_current_suggestive_editor(component.clone())
         }
         if let Some(language) = language {
-            self.request_syntax_highlight(component_id, language, content)?;
+            self.request_syntax_highlight(component_id, batch_id, language, content)?;
         }
         if self.enable_lsp {
             self.lsp_manager.open_file(path.clone())?;
@@ -1548,12 +1555,14 @@ impl<T: Frontend> App<T> {
     fn request_syntax_highlight(
         &self,
         component_id: ComponentId,
+        batch_id: SyntaxHighlightRequestBatchId,
         language: Language,
         content: String,
     ) -> anyhow::Result<()> {
         if let Some(sender) = &self.syntax_highlight_request_sender {
             sender.send(SyntaxHighlightRequest {
                 component_id,
+                batch_id,
                 language,
                 source_code: content,
             })?;
@@ -2493,6 +2502,7 @@ pub(crate) enum Dispatch {
     },
     DocumentDidChange {
         component_id: ComponentId,
+        batch_id: SyntaxHighlightRequestBatchId,
         path: Option<CanonicalizedPath>,
         content: String,
         language: Option<Language>,
@@ -2705,6 +2715,7 @@ pub(crate) enum AppMessage {
     QuitAll,
     SyntaxHighlightResponse {
         component_id: ComponentId,
+        batch_id: SyntaxHighlightRequestBatchId,
         highlighted_spans: HighlightedSpans,
     },
 }

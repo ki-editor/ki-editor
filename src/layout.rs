@@ -1,5 +1,6 @@
 use crate::context::Context;
 use crate::quickfix_list::QuickfixList;
+use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
 use crate::ui_tree::{ComponentKind, KindedComponent, UiTree};
 use crate::{
     app::{Dimension, Dispatches},
@@ -291,6 +292,7 @@ impl Layout {
     pub(crate) fn update_highlighted_spans(
         &self,
         component_id: ComponentId,
+        batch_id: SyntaxHighlightRequestBatchId,
         highlighted_spans: crate::syntax_highlight::HighlightedSpans,
     ) -> Result<(), anyhow::Error> {
         let component = self
@@ -304,7 +306,7 @@ impl Layout {
         component
             .editor_mut()
             .buffer_mut()
-            .update_highlighted_spans(highlighted_spans);
+            .update_highlighted_spans(batch_id, highlighted_spans);
 
         Ok(())
     }
