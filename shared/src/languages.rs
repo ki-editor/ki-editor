@@ -33,6 +33,7 @@ pub const LANGUAGES: &[&Language] = &[
     &nix(),
     &python(),
     &rescript(),
+    &ruby(),
     &rust(),
     &sql(),
     &swift(),
@@ -578,6 +579,28 @@ const fn rescript() -> Language {
             id: "rescript",
             url: "https://github.com/rescript-lang/tree-sitter-rescript",
             commit: "main",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+
+const fn ruby() -> Language {
+    Language {
+        extensions: &["rb"],
+        formatter_command: Some(Command(
+            "rubocop",
+            &["--fix-layout", "--stdin", "/dev/null", "--stderr"],
+        )),
+        lsp_command: Some(LspCommand {
+            command: Command("ruby-lsp", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("ruby")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "ruby",
+            url: "https://github.com/tree-sitter/tree-sitter-ruby",
+            commit: "master",
             subpath: None,
         }),
         ..Language::new()
