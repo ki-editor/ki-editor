@@ -33,6 +33,7 @@ pub const LANGUAGES: &[&Language] = &[
     &nix(),
     &python(),
     &rescript(),
+    &roc(),
     &ruby(),
     &rust(),
     &sql(),
@@ -600,6 +601,22 @@ const fn ruby() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "ruby",
             url: "https://github.com/tree-sitter/tree-sitter-ruby",
+            commit: "master",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+
+const fn roc() -> Language {
+    Language {
+        extensions: &["roc"],
+        formatter_command: Some(Command("roc", &["format", "--stdin", "--stdout"])),
+        lsp_command: None,
+        lsp_language_id: Some(LanguageId::new("roc")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "roc",
+            url: "https://github.com/faldor20/tree-sitter-roc",
             commit: "master",
             subpath: None,
         }),
