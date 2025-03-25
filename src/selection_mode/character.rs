@@ -1,6 +1,6 @@
 use ropey::Rope;
 
-use crate::selection::Selection;
+use crate::selection::{CharIndex, Selection};
 
 use super::{word::SelectionPosition, ByteRange, SelectionMode, SelectionModeParams, Word};
 
@@ -51,6 +51,25 @@ impl SelectionMode for Character {
         self.move_vertically(false, params)
     }
 
+    fn current(
+        &self,
+        params: SelectionModeParams,
+        if_current_not_found: crate::components::editor::IfCurrentNotFound,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let cursor = params.cursor_char_index();
+        Ok(Some(Self::make_selection(params, cursor)))
+    }
+
+    fn right(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        let cursor = params.cursor_char_index();
+        Ok(Some(Self::make_selection(params, cursor + 1)))
+    }
+
+    fn left(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        let cursor = params.cursor_char_index();
+        Ok(Some(Self::make_selection(params, cursor - 1)))
+    }
+
     fn first(
         &self,
         params: super::SelectionModeParams,
@@ -63,6 +82,20 @@ impl SelectionMode for Character {
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         get_char(params, SelectionPosition::Last)
+    }
+}
+
+impl Character {
+    fn make_selection(params: super::SelectionModeParams, char_index: CharIndex) -> Selection {
+        let start = char_index.clamp(
+            CharIndex(0),
+            CharIndex(params.buffer.len_chars().saturating_sub(1)),
+        );
+        let end = start + 1;
+        params
+            .current_selection
+            .clone()
+            .set_range((start..end).into())
     }
 }
 

@@ -64,6 +64,16 @@ impl SelectionMode for Word {
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         get_word(params, SelectionPosition::Last, self.skip_symbols)
     }
+
+    fn current(
+        &self,
+        params: super::SelectionModeParams,
+        if_current_not_found: crate::components::editor::IfCurrentNotFound,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let rope = params.buffer.rope();
+        let cursor = params.cursor_char_index();
+        self.current_default_impl(params, if_current_not_found)
+    }
 }
 
 #[cfg(test)]

@@ -108,6 +108,11 @@ pub(crate) struct SelectionModeParams<'a> {
     pub(crate) current_selection: &'a Selection,
     pub(crate) cursor_direction: &'a Direction,
 }
+impl SelectionModeParams<'_> {
+    fn cursor_char_index(&self) -> CharIndex {
+        self.current_selection.to_char_index(self.cursor_direction)
+    }
+}
 #[derive(Debug, Clone)]
 pub(crate) struct ApplyMovementResult {
     pub(crate) selection: Selection,
