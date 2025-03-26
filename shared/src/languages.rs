@@ -33,6 +33,8 @@ pub const LANGUAGES: &[&Language] = &[
     &nix(),
     &python(),
     &rescript(),
+    &roc(),
+    &ruby(),
     &rust(),
     &sql(),
     &swift(),
@@ -578,6 +580,44 @@ const fn rescript() -> Language {
             id: "rescript",
             url: "https://github.com/rescript-lang/tree-sitter-rescript",
             commit: "main",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+
+const fn ruby() -> Language {
+    Language {
+        extensions: &["rb"],
+        formatter_command: Some(Command(
+            "rubocop",
+            &["--fix-layout", "--stdin", "/dev/null", "--stderr"],
+        )),
+        lsp_command: Some(LspCommand {
+            command: Command("ruby-lsp", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("ruby")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "ruby",
+            url: "https://github.com/tree-sitter/tree-sitter-ruby",
+            commit: "master",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+
+const fn roc() -> Language {
+    Language {
+        extensions: &["roc"],
+        formatter_command: Some(Command("roc", &["format", "--stdin", "--stdout"])),
+        lsp_command: None,
+        lsp_language_id: Some(LanguageId::new("roc")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "roc",
+            url: "https://github.com/faldor20/tree-sitter-roc",
+            commit: "master",
             subpath: None,
         }),
         ..Language::new()
