@@ -21,22 +21,23 @@ impl Diagnostic {
 }
 
 impl SelectionMode for Diagnostic {
-    fn iter<'a>(
-        &'a self,
-        params: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        let buffer = params.buffer;
-
-        Ok(Box::new(
-            self.diagnostics
-                .iter()
-                .filter(|diagnostic| self.severity_range.contains(diagnostic.severity))
-                .flat_map(|diagnostic| -> anyhow::Result<_> {
-                    Ok(super::ByteRange::with_info(
-                        buffer.char_index_range_to_byte_range(diagnostic.range)?,
-                        Info::new("Diagnostics".to_string(), diagnostic.message.clone()),
-                    ))
-                }),
-        ))
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: crate::selection::CharIndex,
+    ) -> anyhow::Result<Option<super::ByteRange>> {
+        self.diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.range.contains(&cursor_char_index)
+                    && self.severity_range.contains(diagnostic.severity)
+            })
+            .map(|diagnostic| -> anyhow::Result<_> {
+                Ok(super::ByteRange::with_info(
+                    buffer.char_index_range_to_byte_range(diagnostic.range)?,
+                    Info::new("Diagnostics".to_string(), diagnostic.message.clone()),
+                ))
+            })
+            .transpose()
     }
 }

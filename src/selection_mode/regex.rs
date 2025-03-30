@@ -84,15 +84,22 @@ impl Regex {
 }
 
 impl SelectionMode for Regex {
-    fn iter<'a>(
-        &'a self,
-        _params: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
-        let matches = self.regex.find_iter(&self.content);
-        Ok(Box::new(matches.filter_map(move |matches| {
-            let matches = matches.ok()?;
-            Some(ByteRange::new(matches.start()..matches.end()))
-        })))
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: crate::selection::CharIndex,
+    ) -> anyhow::Result<Option<super::ByteRange>> {
+        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+        Ok(self
+            .regex
+            .find_iter(&self.content)
+            .find_map(move |matches| {
+                let matches = matches.ok()?;
+                matches
+                    .range()
+                    .contains(&cursor_byte)
+                    .then(|| ByteRange::new(matches.start()..matches.end()))
+            }))
     }
 }
 

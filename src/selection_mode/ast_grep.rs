@@ -1,6 +1,6 @@
 use ast_grep_core::{language::TSLanguage, NodeMatch, StrDoc};
 
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, SelectionMode, SelectionModeParams};
 
 pub(crate) struct AstGrep {
     pattern: ast_grep_core::matcher::Pattern<TSLanguage>,
@@ -39,13 +39,16 @@ impl AstGrep {
 }
 
 impl SelectionMode for AstGrep {
-    fn iter<'a>(
-        &'a self,
-        _params: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        Ok(Box::new(
-            self.find_all().map(|node| ByteRange::new(node.range())),
-        ))
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: crate::selection::CharIndex,
+    ) -> anyhow::Result<Option<ByteRange>> {
+        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+        Ok(self
+            .find_all()
+            .find(|node| node.range().contains(&cursor_byte))
+            .map(|node| ByteRange::new(node.range())))
     }
 }
 

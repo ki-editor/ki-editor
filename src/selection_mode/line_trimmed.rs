@@ -1,43 +1,30 @@
-use crate::components::editor::IfCurrentNotFound;
+use crate::{components::editor::IfCurrentNotFound, selection::CharIndex};
 
-use super::{SelectionMode, SelectionModeParams};
+use super::{ByteRange, SelectionMode, SelectionModeParams};
 
 pub(crate) struct LineTrimmed;
 
 impl SelectionMode for LineTrimmed {
-    fn iter<'a>(
-        &'a self,
-        params: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        let buffer = params.buffer;
-        let len_lines = buffer.len_lines();
-
-        Ok(Box::new(
-            (0..len_lines)
-                .take(
-                    // This is a weird hack, because `rope.len_lines`
-                    // returns an extra line which is empty if the rope ends with the newline character
-                    if buffer.rope().to_string().ends_with('\n') {
-                        len_lines.saturating_sub(1)
-                    } else {
-                        len_lines
-                    },
-                )
-                .filter_map(move |line_index| {
-                    let line = buffer.get_line_by_line_index(line_index)?;
-
-                    let start = buffer.line_to_byte(line_index).ok()?;
-                    let len_bytes = line.len_bytes();
-                    let end = start
-                        + if line.to_string().ends_with('\n') {
-                            len_bytes.saturating_sub(1)
-                        } else {
-                            len_bytes
-                        };
-                    let start = trim_leading_spaces(start, &line.to_string()).min(end);
-                    Some(super::ByteRange::new(start..end))
-                }),
-        ))
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: crate::selection::CharIndex,
+    ) -> anyhow::Result<Option<super::ByteRange>> {
+        let line_index = buffer.char_to_line(cursor_char_index)?;
+        let line_start_char_index = buffer.line_to_char(line_index)?;
+        let Some(line) = buffer.get_line_by_line_index(line_index) else {
+            return Ok(None);
+        };
+        let leading_whitespace_count = line.chars().take_while(|c| c.is_whitespace()).count();
+        let trailing_whitespace_count = (line.len_chars().saturating_sub(1)..=0)
+            .take_while(|index| line.char(*index).is_whitespace())
+            .count();
+        let range = buffer.char_index_range_to_byte_range(
+            (line_start_char_index + leading_whitespace_count
+                ..line_start_char_index + line.len_chars() - trailing_whitespace_count)
+                .into(),
+        )?;
+        Ok(Some(ByteRange::new(range)))
     }
 
     fn left(

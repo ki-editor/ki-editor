@@ -1,5 +1,7 @@
+use ropey::Rope;
+
 use super::{ByteRange, SelectionMode, Token};
-use crate::buffer::Buffer;
+use crate::{buffer::Buffer, selection::CharIndex};
 
 pub struct Word {
     normal_regex: super::Regex,
@@ -40,17 +42,6 @@ impl Word {
 }
 
 impl SelectionMode for Word {
-    fn iter<'a>(
-        &'a self,
-        params: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
-        if self.skip_symbols {
-            self.symbol_skipping_regex.iter(params)
-        } else {
-            self.normal_regex.iter(params)
-        }
-    }
-
     fn first(
         &self,
         params: super::SelectionModeParams,
@@ -65,14 +56,124 @@ impl SelectionMode for Word {
         get_word(params, SelectionPosition::Last, self.skip_symbols)
     }
 
-    fn current(
+    fn get_current_selection_by_cursor(
         &self,
-        params: super::SelectionModeParams,
-        if_current_not_found: crate::components::editor::IfCurrentNotFound,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let rope = params.buffer.rope();
-        let cursor = params.cursor_char_index();
-        self.current_default_impl(params, if_current_not_found)
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: crate::selection::CharIndex,
+    ) -> anyhow::Result<Option<super::ByteRange>> {
+        let rope = buffer.rope();
+        let last_char_index = CharIndex(rope.len_chars().saturating_sub(1));
+
+        if cursor_char_index > last_char_index {
+            return Ok(None);
+        }
+
+        let current_char = buffer.char(cursor_char_index);
+
+        if current_char.is_whitespace() || (self.skip_symbols && !current_char.is_alphanumeric()) {
+            return Ok(None);
+        }
+
+        let range: crate::char_index_range::CharIndexRange = if current_char.is_alphabetic()
+            && current_char.is_ascii_lowercase()
+        {
+            let start = {
+                let mut index = cursor_char_index;
+                loop {
+                    if index > CharIndex(0) && buffer.char(index - 1).is_ascii_lowercase() {
+                        index = index - 1;
+                    } else {
+                        break index;
+                    }
+                }
+            };
+            let end = {
+                let mut index = cursor_char_index;
+                loop {
+                    if index < last_char_index && buffer.char(index + 1).is_ascii_lowercase() {
+                        index = index + 1;
+                    } else {
+                        break index;
+                    }
+                }
+            };
+            start..end + 1
+        } else if current_char.is_ascii_uppercase() {
+            let start = {
+                let mut index = cursor_char_index;
+                if index < last_char_index && buffer.char(index + 1).is_lowercase() {
+                    index
+                } else {
+                    loop {
+                        if index == CharIndex(0) {
+                            break index;
+                        }
+                        let char = buffer.char(index - 1);
+                        if char.is_ascii_uppercase() {
+                            index = index - 1;
+                        } else {
+                            break index;
+                        }
+                    }
+                }
+            };
+            let end = {
+                let mut previous_is_uppercase = buffer.char(cursor_char_index).is_ascii_uppercase();
+                let mut index = cursor_char_index;
+                loop {
+                    println!("hello index = {index:?}");
+                    if index >= last_char_index {
+                        break index;
+                    }
+                    let char = buffer.char(index + 1);
+                    if char.is_ascii_lowercase() {
+                        previous_is_uppercase = char.is_ascii_uppercase();
+                        index = index + 1;
+                    } else if previous_is_uppercase && char.is_ascii_uppercase() {
+                        if index < last_char_index - 1
+                            && buffer.char(index + 2).is_ascii_lowercase()
+                        {
+                            break index;
+                        } else {
+                            previous_is_uppercase = char.is_ascii_uppercase();
+                            index = index + 1;
+                        }
+                    } else {
+                        break index;
+                    }
+                }
+            };
+            start..end + 1
+        } else if current_char.is_digit(10) {
+            let start = {
+                let mut index = cursor_char_index;
+                loop {
+                    if index > CharIndex(0) && buffer.char(index - 1).is_digit(10) {
+                        index = index - 1;
+                    } else {
+                        break index;
+                    }
+                }
+            };
+            let end = {
+                let mut index = cursor_char_index;
+                loop {
+                    if index < last_char_index && buffer.char(index + 1).is_digit(10) {
+                        index = index + 1;
+                    } else {
+                        break index;
+                    }
+                }
+            };
+            start..end + 1
+        } else {
+            cursor_char_index..cursor_char_index + 1
+        }
+        .into();
+
+        Ok(Some(ByteRange::new(
+            buffer.char_index_range_to_byte_range(range)?,
+        )))
     }
 }
 
@@ -171,7 +272,7 @@ fn get_word(
     position: SelectionPosition,
     skip_symbols: bool,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
-    if let Some(current_word) = Token::new(params.buffer, skip_symbols)?.current(
+    if let Some(current_word) = Token::new(skip_symbols)?.current(
         params.clone(),
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {

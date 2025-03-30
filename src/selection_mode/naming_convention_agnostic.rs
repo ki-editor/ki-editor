@@ -66,14 +66,17 @@ impl NamingConventionAgnostic {
 }
 
 impl SelectionMode for NamingConventionAgnostic {
-    fn iter<'a>(
-        &'a self,
-        params: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        let string = params.buffer.rope().to_string();
-        Ok(Box::new(
-            self.find_all(&string).into_iter().map(|(range, _)| range),
-        ))
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: crate::selection::CharIndex,
+    ) -> anyhow::Result<Option<super::ByteRange>> {
+        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+        Ok(self
+            .find_all(&buffer.rope().to_string())
+            .into_iter()
+            .find(|(range, _)| range.range.contains(&cursor_byte))
+            .map(|(range, _)| range))
     }
 }
 

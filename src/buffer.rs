@@ -9,7 +9,7 @@ use crate::{
     context::{LocalSearchConfig, LocalSearchConfigMode},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     position::Position,
-    selection::{CharIndex, Selection, SelectionSet},
+    selection::{CharIndex, SelectionSet},
     selection_mode::{AstGrep, ByteRange},
     syntax_highlight::{HighlightedSpan, HighlightedSpans},
     utils::find_previous,
@@ -420,13 +420,12 @@ impl Buffer {
 
     pub(crate) fn get_current_node<'a>(
         &'a self,
-        selection: &Selection,
+        range: CharIndexRange,
         get_largest_end: bool,
     ) -> anyhow::Result<Option<Node<'a>>> {
         let Some(tree) = self.tree.as_ref() else {
             return Ok(None);
         };
-        let range = selection.range();
         let start = self.char_to_byte(range.start)?;
         let (start, end) = if get_largest_end {
             (start, start + 1)
@@ -1063,6 +1062,16 @@ impl Buffer {
         } else {
             Ok(None)
         }
+    }
+
+    pub(crate) fn line_to_char_range(&self, line: usize) -> anyhow::Result<CharIndexRange> {
+        let start = self.line_to_char(line)?;
+        let end = self.line_to_char(line + 1)? - (1);
+        Ok((start..end).into())
+    }
+
+    pub(crate) fn char(&self, cursor_char_index: CharIndex) -> char {
+        self.rope.char(cursor_char_index.0)
     }
 }
 

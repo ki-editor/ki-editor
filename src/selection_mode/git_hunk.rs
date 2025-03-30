@@ -37,10 +37,16 @@ impl GitHunk {
 }
 
 impl SelectionMode for GitHunk {
-    fn iter<'a>(
-        &'a self,
-        _: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        Ok(Box::new(self.ranges.clone().into_iter()))
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: crate::selection::CharIndex,
+    ) -> anyhow::Result<Option<super::ByteRange>> {
+        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+        Ok(self
+            .ranges
+            .iter()
+            .find(|range| range.range.contains(&cursor_byte))
+            .cloned())
     }
 }

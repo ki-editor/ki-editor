@@ -1,8 +1,7 @@
 use ropey::Rope;
 
 use crate::{
-    buffer::Buffer, char_index_range::CharIndexRange, components::editor::IfCurrentNotFound,
-    selection::CharIndex,
+    char_index_range::CharIndexRange, components::editor::IfCurrentNotFound, selection::CharIndex,
 };
 
 use super::{ByteRange, SelectionMode};
@@ -12,12 +11,7 @@ pub struct Token {
 }
 
 impl Token {
-    pub(crate) fn new(buffer: &Buffer, skip_symbols: bool) -> anyhow::Result<Self> {
-        let config = crate::list::grep::RegexConfig {
-            escaped: false,
-            case_sensitive: false,
-            match_whole_word: false,
-        };
+    pub(crate) fn new(skip_symbols: bool) -> anyhow::Result<Self> {
         Ok(Self { skip_symbols })
     }
 }
@@ -25,210 +19,196 @@ impl Token {
 fn current_impl(
     rope: &Rope,
     cursor_char_index: CharIndex,
-    if_current_not_found: IfCurrentNotFound,
     skip_symbols: bool,
 ) -> anyhow::Result<Option<CharIndexRange>> {
     let last_char_index = CharIndex(rope.len_chars().saturating_sub(1));
+
+    // Define predicates once
     let is_word = |char: char| char.is_alphanumeric() || char == '_' || char == '-';
     let is_symbol = |char: char| !is_word(char) && !char.is_whitespace();
+    let is_target = |char: char| {
+        if skip_symbols {
+            is_word(char)
+        } else {
+            is_word(char) || is_symbol(char)
+        }
+    };
+
     if cursor_char_index > last_char_index {
         return Ok(None);
     }
-    let Some(current) = ({
-        let predicate = |char: char| {
-            if skip_symbols {
-                is_word(char)
-            } else {
-                is_word(char) || is_symbol(char)
-            }
-        };
-        match if_current_not_found {
-            IfCurrentNotFound::LookForward => {
-                let mut index = cursor_char_index;
-                loop {
-                    let char = rope.char(index.0);
-                    if !predicate(char) {
-                        index = index + 1
-                    } else {
-                        break Some(index);
-                    }
-                    if index >= last_char_index {
-                        break None;
-                    }
-                }
-            }
-            IfCurrentNotFound::LookBackward => {
-                let mut index = cursor_char_index;
-                loop {
-                    if index == CharIndex(0) {
-                        break None;
-                    }
-                    let char = rope.char(index.0);
-                    if !predicate(char) {
-                        index = index - 1
-                    } else {
-                        break Some(index);
-                    }
-                }
-            }
-        }
-    }) else {
-        return Ok(None);
-    };
-    if current.0 >= rope.len_chars() {
+
+    if !is_target(rope.char(cursor_char_index.0)) {
         return Ok(None);
     }
-    if !skip_symbols && is_symbol(rope.char(current.0)) {
-        return Ok(Some((current..current + 1).into()));
+
+    // Handle single symbol case
+    if !skip_symbols && is_symbol(rope.char(cursor_char_index.0)) {
+        return Ok(Some((cursor_char_index..cursor_char_index + 1).into()));
     }
-    let start = {
-        let mut index = current;
-        loop {
-            if index.0 == 0 {
-                break index;
-            }
-            let char = rope.char(index.0.saturating_sub(1));
-            if is_word(char) {
-                index = index - 1
-            } else {
-                break index;
-            }
-        }
-    };
-    let end = {
-        let mut index = current;
-        loop {
-            if index == last_char_index {
-                break index;
-            }
-            let char = rope.char(index.0 + 1);
-            if is_word(char) {
-                index = index + 1
-            } else {
-                break index;
-            }
-        }
-    } + 1;
-    debug_assert!(is_word(rope.char(current.0)));
+
+    // Find word boundaries
+    let start = find_word_start(rope, cursor_char_index, is_word);
+    let end = find_word_end(rope, cursor_char_index, last_char_index, is_word) + 1;
+
+    // Validate results
+    debug_assert!(is_word(rope.char(cursor_char_index.0)));
     debug_assert!(is_word(rope.char(start.0)));
     debug_assert!(is_word(rope.char((end - 1).0)));
+
     Ok(Some((start..end).into()))
 }
-impl SelectionMode for Token {
-    fn iter<'a>(
-        &'a self,
-        params: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
-        struct MyIterator<'a> {
-            params: super::SelectionModeParams<'a>,
-            cursor_char_index: CharIndex,
-            skip_symbols: bool,
-        }
-        impl<'a> Iterator for MyIterator<'a> {
-            type Item = ByteRange;
 
-            fn next(&mut self) -> Option<Self::Item> {
-                let next_char_index_range = current_impl(
-                    self.params.buffer.rope(),
-                    self.cursor_char_index,
-                    IfCurrentNotFound::LookForward,
-                    self.skip_symbols,
-                )
-                .ok()??;
-                let next_byte_range = ByteRange::new(
-                    self.params
-                        .buffer
-                        .char_index_range_to_byte_range(next_char_index_range)
-                        .ok()?,
-                );
+fn find_current_position(
+    rope: &Rope,
+    cursor_char_index: CharIndex,
+    if_current_not_found: IfCurrentNotFound,
+    is_target: impl Fn(char) -> bool,
+) -> anyhow::Result<Option<CharIndex>> {
+    let last_char_index = CharIndex(rope.len_chars().saturating_sub(1));
 
-                self.cursor_char_index = next_char_index_range.end;
-
-                Some(next_byte_range)
+    match if_current_not_found {
+        IfCurrentNotFound::LookForward => {
+            let mut index = cursor_char_index;
+            while index <= last_char_index {
+                if is_target(rope.char(index.0)) {
+                    return Ok(Some(index));
+                }
+                index = index + 1;
+                if index >= last_char_index {
+                    return Ok(None);
+                }
             }
+            Ok(None)
         }
-        Ok(Box::new(MyIterator {
-            params,
-            cursor_char_index: CharIndex(0),
-            skip_symbols: self.skip_symbols,
-        }))
+        IfCurrentNotFound::LookBackward => {
+            let mut index = cursor_char_index;
+            while index >= CharIndex(0) {
+                if is_target(rope.char(index.0)) {
+                    return Ok(Some(index));
+                }
+                if index == CharIndex(0) {
+                    return Ok(None);
+                }
+                index = index - 1;
+            }
+            Ok(None)
+        }
     }
+}
+
+fn find_word_start(rope: &Rope, current: CharIndex, is_word: impl Fn(char) -> bool) -> CharIndex {
+    // Create a reverse range from current.0 down to 1 (not including 0)
+    for i in (1..=current.0).rev() {
+        let prev_char = rope.char(i - 1);
+        if !is_word(prev_char) {
+            return CharIndex(i);
+        }
+    }
+    // If we've examined all characters to the start, return index 0
+    CharIndex(0)
+}
+
+fn find_word_end(
+    rope: &Rope,
+    current: CharIndex,
+    last_char_index: CharIndex,
+    is_word: impl Fn(char) -> bool,
+) -> CharIndex {
+    // Create a range from current.0+1 to last_char_index.0
+    for i in (current.0 + 1)..=last_char_index.0 {
+        let char = rope.char(i);
+        if !is_word(char) {
+            return CharIndex(i - 1);
+        }
+    }
+    // If we've examined all characters to the end, return the last index
+    last_char_index
+}
+impl SelectionMode for Token {
     fn first(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
-        let line = buffer.char_to_line(params.current_selection.range().start)?;
-        let byte_range = buffer.line_to_byte_range(line)?.range;
+        let current_line_index = buffer.char_to_line(params.cursor_char_index())?;
+        let line_start_char_index = buffer.line_to_char(current_line_index)?;
         let current_selection = params.current_selection.clone();
-        Ok(self
-            .iter_filtered(params)?
-            .find(|range| {
-                byte_range.start <= range.range.start && range.range.end <= byte_range.end
-            })
-            .and_then(|range| {
-                Some(
-                    current_selection
-                        .set_range(buffer.byte_range_to_char_index_range(&range.range).ok()?),
-                )
-            }))
+        if let Some(range) = self.get_current_selection_by_cursor_with_look(
+            &params.buffer,
+            line_start_char_index,
+            IfCurrentNotFound::LookForward,
+        )? {
+            if buffer.byte_to_line(range.range.start)? == current_line_index {
+                return Ok(Some(range.to_selection(buffer, &current_selection)?));
+            }
+        }
+        Ok(None)
     }
     fn last(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
-        let line = buffer.char_to_line(params.current_selection.range().start)?;
-        let byte_range = buffer.line_to_byte_range(line)?.range;
+        let next_line_index = buffer.char_to_line(params.cursor_char_index())? + 1;
+        let line_end_char_index = buffer.line_to_char(next_line_index)? - 1;
         let current_selection = params.current_selection.clone();
-        Ok(self
-            .iter_filtered(params)?
-            .filter(|range| {
-                byte_range.start <= range.range.start && range.range.end <= byte_range.end + 1
-            })
-            .last()
-            .and_then(|range| {
-                Some(
-                    current_selection
-                        .set_range(buffer.byte_range_to_char_index_range(&range.range).ok()?),
-                )
-            }))
+        if let Some(range) = self.get_current_selection_by_cursor_with_look(
+            &params.buffer,
+            line_end_char_index,
+            IfCurrentNotFound::LookBackward,
+        )? {
+            if buffer.byte_to_line(range.range.start)? == next_line_index {
+                return Ok(Some(range.to_selection(buffer, &current_selection)?));
+            }
+        }
+        Ok(None)
     }
-    fn current(
+    fn get_current_selection_by_cursor(
         &self,
-        params: super::SelectionModeParams,
-        if_current_not_found: IfCurrentNotFound,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let rope = params.buffer.rope();
-        let cursor = params.cursor_char_index();
-        Ok(
-            current_impl(rope, cursor, if_current_not_found, self.skip_symbols)?
-                .map(|range| params.current_selection.clone().set_range(range)),
-        )
-    }
-    fn right(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        Ok(current_impl(
-            params.buffer.rope(),
-            params.current_selection.range().end,
-            IfCurrentNotFound::LookForward,
-            self.skip_symbols,
-        )?
-        .map(|range| params.current_selection.clone().set_range(range)))
-    }
-    fn left(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        Ok(current_impl(
-            params.buffer.rope(),
-            params.current_selection.range().start - 1,
-            IfCurrentNotFound::LookForward,
-            self.skip_symbols,
-        )?
-        .map(|range| params.current_selection.clone().set_range(range)))
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: crate::selection::CharIndex,
+    ) -> anyhow::Result<Option<super::ByteRange>> {
+        let last_char_index = CharIndex(buffer.len_chars().saturating_sub(1));
+
+        // Define predicates once
+        let is_word = |char: char| char.is_alphanumeric() || char == '_' || char == '-';
+        let is_symbol = |char: char| !is_word(char) && !char.is_whitespace();
+        let is_target = |char: char| {
+            if self.skip_symbols {
+                is_word(char)
+            } else {
+                is_word(char) || is_symbol(char)
+            }
+        };
+
+        if cursor_char_index > last_char_index {
+            return Ok(None);
+        }
+
+        let rope = buffer.rope();
+        if !is_target(rope.char(cursor_char_index.0)) {
+            return Ok(None);
+        }
+
+        // Handle single symbol case
+        if !self.skip_symbols && is_symbol(rope.char(cursor_char_index.0)) {
+            let current_byte = rope.try_char_to_byte(cursor_char_index.0)?;
+            return Ok(Some(ByteRange::new(current_byte..current_byte + 1)));
+        }
+
+        // Find word boundaries
+        let start = find_word_start(rope, cursor_char_index, is_word);
+        let end = find_word_end(rope, cursor_char_index, last_char_index, is_word) + 1;
+
+        // Validate results
+        debug_assert!(is_word(rope.char(cursor_char_index.0)));
+        debug_assert!(is_word(rope.char(start.0)));
+        debug_assert!(is_word(rope.char((end - 1).0)));
+
+        Ok(Some(ByteRange::new(
+            rope.try_char_to_byte(start.0)?..rope.try_char_to_byte(end.0)?,
+        )))
     }
 }
 
@@ -244,7 +224,7 @@ mod test_token {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE kebab-case ->() 123 <_>",
         );
-        Token::new(&buffer, true).unwrap().assert_all_selections(
+        Token::new(true).unwrap().assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -265,7 +245,7 @@ mod test_token {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE kebab-case ->() 123 <_>",
         );
-        Token::new(&buffer, false).unwrap().assert_all_selections(
+        Token::new(false).unwrap().assert_all_selections(
             &buffer,
             Selection::default(),
             &[

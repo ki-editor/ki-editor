@@ -4440,3 +4440,66 @@ fn multicursor_insertion_at_same_range_is_not_counted_as_intersected_edits() -> 
         ])
     })
 }
+
+#[test]
+fn movement_up() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+foo bar
+    spam
+    baz
+tim
+"
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(MoveSelection(Last)),
+            Expect(CurrentSelectedTexts(&["tim"])),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token {
+                    skip_symbols: false,
+                },
+            )),
+            Editor(MoveSelection(Up)),
+            Expect(CurrentSelectedTexts(&["baz"])),
+        ])
+    })
+}
+
+#[test]
+fn movement_down() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+foo bar
+    spam
+    baz
+"
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token {
+                    skip_symbols: false,
+                },
+            )),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["spam"])),
+        ])
+    })
+}

@@ -1654,7 +1654,8 @@ impl Editor {
         loop {
             let edit_transaction =
                 get_actual_edit_transaction(&current_selection, &next_selection)?;
-            let current_node = buffer.get_current_node(&current_selection, false)?;
+            let current_node =
+                buffer.get_current_node(current_selection.extended_range(), false)?;
 
             let new_buffer = {
                 let mut new_buffer = self.buffer.borrow().clone();
@@ -1679,7 +1680,7 @@ impl Editor {
                 .selections()
                 .into_iter()
                 .map(|selection| -> anyhow::Result<_> {
-                    new_buffer.get_current_node(selection, false)
+                    new_buffer.get_current_node(selection.extended_range(), false)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
@@ -3057,7 +3058,10 @@ impl Editor {
 
     fn show_current_tree_sitter_node_sexp(&self) -> Result<Dispatches, anyhow::Error> {
         let buffer = self.buffer();
-        let node = buffer.get_current_node(self.selection_set.primary_selection(), false)?;
+        let node = buffer.get_current_node(
+            self.selection_set.primary_selection().extended_range(),
+            false,
+        )?;
         let info = node
             .map(|node| node.to_sexp())
             .unwrap_or("[No node found]".to_string());

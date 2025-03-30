@@ -202,6 +202,7 @@ impl SelectionSet {
                     })
                     .ok()?;
                 let result = iter
+                    .into_iter()
                     .filter_map(|range| -> Option<Selection> {
                         range.to_selection(buffer, &self.selections.head).ok()
                     })
@@ -482,7 +483,7 @@ impl SelectionMode {
                 Box::new(selection_mode::Word::new(buffer, *skip_symbols)?)
             }
             SelectionMode::Token { skip_symbols } => {
-                Box::new(selection_mode::Token::new(buffer, *skip_symbols)?)
+                Box::new(selection_mode::Token::new(*skip_symbols)?)
             }
             SelectionMode::Line => Box::new(selection_mode::LineTrimmed),
             SelectionMode::LineFull => Box::new(selection_mode::LineFull),
@@ -739,6 +740,16 @@ impl Selection {
             self.range
         };
         self.set_range(range).set_initial_range(None)
+    }
+
+    pub(crate) fn update_with_byte_range(
+        self,
+        buffer: &Buffer,
+        byte_range: selection_mode::ByteRange,
+    ) -> anyhow::Result<Selection> {
+        Ok(self
+            .set_info(byte_range.info())
+            .set_range(buffer.byte_range_to_char_index_range(byte_range.range())?))
     }
 }
 

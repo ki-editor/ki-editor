@@ -15,61 +15,6 @@ impl Character {
 }
 
 impl SelectionMode for Character {
-    fn iter<'a>(
-        &'a self,
-        SelectionModeParams {
-            buffer,
-            current_selection,
-            cursor_direction,
-            ..
-        }: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        let char_index = current_selection.to_char_index(cursor_direction);
-        let line = buffer.char_to_line(char_index)?;
-        let line_start_char_index = buffer.line_to_char(line)?;
-        let current_line = buffer.get_line_by_char_index(char_index)?;
-        let line_len = line_len_without_new_line(&current_line);
-
-        Ok(Box::new((0..line_len).flat_map(
-            move |column| -> anyhow::Result<ByteRange> {
-                let byte = buffer.char_to_byte(line_start_char_index + column)?;
-                Ok(ByteRange::new(byte..byte + 1))
-            },
-        )))
-    }
-    fn up(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> Result<std::option::Option<Selection>, anyhow::Error> {
-        self.move_vertically(true, params)
-    }
-
-    fn down(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> Result<std::option::Option<Selection>, anyhow::Error> {
-        self.move_vertically(false, params)
-    }
-
-    fn current(
-        &self,
-        params: SelectionModeParams,
-        if_current_not_found: crate::components::editor::IfCurrentNotFound,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let cursor = params.cursor_char_index();
-        Ok(Some(Self::make_selection(params, cursor)))
-    }
-
-    fn right(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        let cursor = params.cursor_char_index();
-        Ok(Some(Self::make_selection(params, cursor + 1)))
-    }
-
-    fn left(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        let cursor = params.cursor_char_index();
-        Ok(Some(Self::make_selection(params, cursor - 1)))
-    }
-
     fn first(
         &self,
         params: super::SelectionModeParams,
@@ -82,6 +27,15 @@ impl SelectionMode for Character {
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         get_char(params, SelectionPosition::Last)
+    }
+
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: crate::selection::CharIndex,
+    ) -> anyhow::Result<Option<ByteRange>> {
+        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+        Ok(Some(ByteRange::new(cursor_byte..cursor_byte + 1)))
     }
 }
 
