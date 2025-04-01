@@ -1,8 +1,10 @@
 pub(crate) struct SyntaxToken;
 
+use std::rc::Rc;
+
 use crate::{buffer::Buffer, components::editor::IfCurrentNotFound, selection_mode::SelectionMode};
 
-use super::{ByteRange, TopNode};
+use super::{get_current_selection_by_cursor_via_iter, ByteRange, TopNode};
 
 impl SelectionMode for SyntaxToken {
     fn expand(
@@ -21,15 +23,22 @@ impl SelectionMode for SyntaxToken {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
+        if_current_not_found: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
         let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
         let tree = buffer
             .tree()
             .ok_or(anyhow::anyhow!("Unable to find Treesitter language"))?;
-        Ok(
-            tree_sitter_traversal2::traverse(tree.walk(), tree_sitter_traversal2::Order::Post)
-                .find(|node| node.child_count() == 0 && node.byte_range().contains(&cursor_byte))
-                .map(|node| ByteRange::new(node.byte_range())),
+        get_current_selection_by_cursor_via_iter(
+            buffer,
+            cursor_char_index,
+            if_current_not_found,
+            Rc::new(
+                tree_sitter_traversal2::traverse(tree.walk(), tree_sitter_traversal2::Order::Post)
+                    .filter(|node| node.child_count() == 0)
+                    .map(|node| ByteRange::new(node.byte_range()))
+                    .collect(),
+            ),
         )
     }
 }

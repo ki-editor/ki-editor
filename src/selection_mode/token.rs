@@ -128,13 +128,13 @@ fn find_word_end(
 impl SelectionMode for Token {
     fn first(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
         let current_line_index = buffer.char_to_line(params.cursor_char_index())?;
         let line_start_char_index = buffer.line_to_char(current_line_index)?;
         let current_selection = params.current_selection.clone();
-        if let Some(range) = self.get_current_selection_by_cursor_with_look(
+        if let Some(range) = self.get_current_selection_by_cursor(
             &params.buffer,
             line_start_char_index,
             IfCurrentNotFound::LookForward,
@@ -147,18 +147,19 @@ impl SelectionMode for Token {
     }
     fn last(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
-        let next_line_index = buffer.char_to_line(params.cursor_char_index())? + 1;
+        let current_line_index = buffer.char_to_line(params.cursor_char_index())?;
+        let next_line_index = current_line_index + 1;
         let line_end_char_index = buffer.line_to_char(next_line_index)? - 1;
         let current_selection = params.current_selection.clone();
-        if let Some(range) = self.get_current_selection_by_cursor_with_look(
+        if let Some(range) = self.get_current_selection_by_cursor(
             &params.buffer,
             line_end_char_index,
             IfCurrentNotFound::LookBackward,
         )? {
-            if buffer.byte_to_line(range.range.start)? == next_line_index {
+            if buffer.byte_to_line(range.range.start)? == current_line_index {
                 return Ok(Some(range.to_selection(buffer, &current_selection)?));
             }
         }
@@ -168,6 +169,7 @@ impl SelectionMode for Token {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
+        if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
         let last_char_index = CharIndex(buffer.len_chars().saturating_sub(1));
 
@@ -186,23 +188,48 @@ impl SelectionMode for Token {
             return Ok(None);
         }
 
+        let last_char_index = CharIndex(buffer.len_chars().saturating_sub(1));
+
+        let current = {
+            let mut current = cursor_char_index;
+            loop {
+                if (CharIndex(0)..=last_char_index).contains(&current) {
+                    if is_target(buffer.char(current)) {
+                        break current;
+                    } else {
+                        match if_current_not_found {
+                            IfCurrentNotFound::LookForward if current < last_char_index => {
+                                current = current + 1
+                            }
+                            IfCurrentNotFound::LookBackward if current > CharIndex(0) => {
+                                current = current - 1
+                            }
+                            _ => break current,
+                        }
+                    }
+                } else {
+                    return Ok(None);
+                }
+            }
+        };
+
         let rope = buffer.rope();
-        if !is_target(rope.char(cursor_char_index.0)) {
+        if !is_target(rope.char(current.0)) {
             return Ok(None);
         }
 
         // Handle single symbol case
-        if !self.skip_symbols && is_symbol(rope.char(cursor_char_index.0)) {
-            let current_byte = rope.try_char_to_byte(cursor_char_index.0)?;
+        if !self.skip_symbols && is_symbol(rope.char(current.0)) {
+            let current_byte = rope.try_char_to_byte(current.0)?;
             return Ok(Some(ByteRange::new(current_byte..current_byte + 1)));
         }
 
         // Find word boundaries
-        let start = find_word_start(rope, cursor_char_index, is_word);
-        let end = find_word_end(rope, cursor_char_index, last_char_index, is_word) + 1;
+        let start = find_word_start(rope, current, is_word);
+        let end = find_word_end(rope, current, last_char_index, is_word) + 1;
 
         // Validate results
-        debug_assert!(is_word(rope.char(cursor_char_index.0)));
+        debug_assert!(is_word(rope.char(current.0)));
         debug_assert!(is_word(rope.char(start.0)));
         debug_assert!(is_word(rope.char((end - 1).0)));
 

@@ -1,6 +1,9 @@
 use itertools::Itertools;
 use nonempty::NonEmpty;
-use std::ops::{Add, Sub};
+use std::{
+    ops::{Add, Sub},
+    rc::Rc,
+};
 
 use crate::{
     buffer::Buffer,
@@ -480,7 +483,7 @@ impl SelectionMode {
         };
         Ok(match self {
             SelectionMode::Word { skip_symbols } => {
-                Box::new(selection_mode::Word::new(buffer, *skip_symbols)?)
+                Box::new(selection_mode::Word::new(*skip_symbols)?)
             }
             SelectionMode::Token { skip_symbols } => {
                 Box::new(selection_mode::Token::new(*skip_symbols)?)
@@ -515,7 +518,19 @@ impl SelectionMode {
             SelectionMode::GitHunk(diff_mode) => {
                 Box::new(selection_mode::GitHunk::new(diff_mode, buffer, context)?)
             }
-            SelectionMode::Mark => Box::new(selection_mode::Mark),
+            SelectionMode::Mark => Box::new(selection_mode::Mark {
+                ranges: Rc::new(
+                    buffer
+                        .marks()
+                        .into_iter()
+                        .filter_map(|range| {
+                            Some(selection_mode::ByteRange::new(
+                                buffer.char_index_range_to_byte_range(range).ok()?,
+                            ))
+                        })
+                        .collect(),
+                ),
+            }),
             SelectionMode::LocalQuickfix { .. } => {
                 Box::new(selection_mode::LocalQuickfix::new(params))
             }

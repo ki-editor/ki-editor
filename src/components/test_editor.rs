@@ -2976,12 +2976,14 @@ Editor(MatchLiteral(amos.foo())),
                 Editor(MatchLiteral("Editor".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 App(HandleKeyEvents(keys!("Q ( enter").to_vec())),
+                Expect(CurrentSelectedTexts(&["("])),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
                     Token {
                         skip_symbols: false,
                     },
                 )),
+                Expect(CurrentSelectedTexts(&["("])),
                 Editor(MoveSelection(Left)),
                 Expect(CurrentSelectedTexts(&["to_string"])),
             ])

@@ -67,6 +67,7 @@ impl SelectionMode for LineFull {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
+        _: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
         let line_index = buffer.char_to_line(cursor_char_index)?;
         let line_start_char_index = buffer.line_to_char(line_index)?;
@@ -89,7 +90,7 @@ fn is_blank(buffer: &crate::buffer::Buffer, byte_range: &super::ByteRange) -> Op
 }
 
 #[cfg(test)]
-mod test_line {
+mod test_line_full {
     use crate::{buffer::Buffer, selection::Selection};
 
     use super::*;

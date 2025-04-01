@@ -70,6 +70,7 @@ impl SelectionMode for NamingConventionAgnostic {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
+        if_current_not_found: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
         let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
         Ok(self

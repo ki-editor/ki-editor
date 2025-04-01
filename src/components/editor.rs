@@ -483,6 +483,15 @@ pub(crate) enum IfCurrentNotFound {
     LookForward,
     LookBackward,
 }
+impl IfCurrentNotFound {
+    pub(crate) fn inverse(&self) -> IfCurrentNotFound {
+        use IfCurrentNotFound::*;
+        match self {
+            LookForward => LookBackward,
+            LookBackward => LookForward,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Movement {
@@ -1847,7 +1856,7 @@ impl Editor {
                             current_selection,
                             cursor_direction: &self.cursor_direction,
                         };
-                        let first = selection_mode.first(params.clone()).ok()??.range();
+                        let first = selection_mode.first(&params).ok()??.range();
                         // Find the before current selection
                         let before_current = selection_mode.left(params).ok()??.range();
                         let first_range = current_selection.range();
@@ -1896,7 +1905,7 @@ impl Editor {
                         };
 
                         // Select from the first until before current
-                        let last = selection_mode.last(params.clone()).ok()??.range();
+                        let last = selection_mode.last(&params).ok()??.range();
                         // Find the before current selection
                         let after_current = selection_mode.right(params).ok()??.range();
                         let first_range = current_selection.range();

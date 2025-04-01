@@ -17,6 +17,7 @@ impl SelectionMode for Custom {
         &self,
         buffer: &crate::buffer::Buffer,
         _: crate::selection::CharIndex,
+        _: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<ByteRange>> {
         let range = self.current_selection.extended_range();
         let byte_range = buffer.char_index_range_to_byte_range(range)?;

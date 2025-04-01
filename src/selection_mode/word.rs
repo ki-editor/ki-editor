@@ -1,11 +1,9 @@
 use ropey::Rope;
 
 use super::{ByteRange, SelectionMode, Token};
-use crate::{buffer::Buffer, selection::CharIndex};
+use crate::{buffer::Buffer, components::editor::IfCurrentNotFound, selection::CharIndex};
 
 pub struct Word {
-    normal_regex: super::Regex,
-    symbol_skipping_regex: super::Regex,
     skip_symbols: bool,
 }
 
@@ -16,51 +14,32 @@ const SUBWORD_SYMBOL_SKIPPING_REGEX: &str =
     r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z]{2,}|[A-Z][a-z]+|[A-Z]|[a-z]+|[0-9]+";
 
 impl Word {
-    pub(crate) fn new(buffer: &Buffer, skip_symbols: bool) -> anyhow::Result<Self> {
-        Ok(Self {
-            normal_regex: super::Regex::from_config(
-                buffer,
-                SUBWORD_REGEX,
-                crate::list::grep::RegexConfig {
-                    escaped: false,
-                    case_sensitive: true,
-                    match_whole_word: false,
-                },
-            )?,
-            symbol_skipping_regex: super::Regex::from_config(
-                buffer,
-                SUBWORD_SYMBOL_SKIPPING_REGEX,
-                crate::list::grep::RegexConfig {
-                    escaped: false,
-                    case_sensitive: true,
-                    match_whole_word: false,
-                },
-            )?,
-            skip_symbols,
-        })
+    pub(crate) fn new(skip_symbols: bool) -> anyhow::Result<Self> {
+        Ok(Self { skip_symbols })
     }
 }
 
 impl SelectionMode for Word {
     fn first(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         get_word(params, SelectionPosition::First, self.skip_symbols)
     }
 
     fn last(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         get_word(params, SelectionPosition::Last, self.skip_symbols)
     }
 
     fn get_current_selection_by_cursor(
         &self,
-        buffer: &crate::buffer::Buffer,
-        cursor_char_index: crate::selection::CharIndex,
-    ) -> anyhow::Result<Option<super::ByteRange>> {
+        buffer: &Buffer,
+        cursor_char_index: CharIndex,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<ByteRange>> {
         let rope = buffer.rope();
         let last_char_index = CharIndex(rope.len_chars().saturating_sub(1));
 
@@ -68,108 +47,138 @@ impl SelectionMode for Word {
             return Ok(None);
         }
 
-        let current_char = buffer.char(cursor_char_index);
+        let predicate = |c: char| {
+            if self.skip_symbols {
+                c.is_ascii_alphanumeric()
+            } else {
+                !c.is_whitespace()
+            }
+        };
+        let current = {
+            let mut current = cursor_char_index;
+            loop {
+                if (CharIndex(0)..=last_char_index).contains(&current) {
+                    if predicate(buffer.char(current)) {
+                        break current;
+                    } else {
+                        match if_current_not_found {
+                            IfCurrentNotFound::LookForward if current < last_char_index => {
+                                current = current + 1
+                            }
+                            IfCurrentNotFound::LookBackward if current > CharIndex(0) => {
+                                current = current - 1
+                            }
+                            _ => break current,
+                        }
+                    }
+                } else {
+                    return Ok(None);
+                }
+            }
+        };
 
-        if current_char.is_whitespace() || (self.skip_symbols && !current_char.is_alphanumeric()) {
+        let current_char = buffer.char(current);
+
+        if current_char.is_whitespace()
+            || (self.skip_symbols && !current_char.is_ascii_alphanumeric())
+        {
             return Ok(None);
         }
 
-        let range: crate::char_index_range::CharIndexRange = if current_char.is_alphabetic()
-            && current_char.is_ascii_lowercase()
-        {
-            let start = {
-                let mut index = cursor_char_index;
-                loop {
-                    if index > CharIndex(0) && buffer.char(index - 1).is_ascii_lowercase() {
-                        index = index - 1;
-                    } else {
-                        break index;
-                    }
-                }
-            };
-            let end = {
-                let mut index = cursor_char_index;
-                loop {
-                    if index < last_char_index && buffer.char(index + 1).is_ascii_lowercase() {
-                        index = index + 1;
-                    } else {
-                        break index;
-                    }
-                }
-            };
-            start..end + 1
-        } else if current_char.is_ascii_uppercase() {
-            let start = {
-                let mut index = cursor_char_index;
-                if index < last_char_index && buffer.char(index + 1).is_lowercase() {
-                    index
-                } else {
+        let range: crate::char_index_range::CharIndexRange =
+            if current_char.is_alphabetic() && current_char.is_ascii_lowercase() {
+                let start = {
+                    let mut index = current;
                     loop {
-                        if index == CharIndex(0) {
-                            break index;
-                        }
-                        let char = buffer.char(index - 1);
-                        if char.is_ascii_uppercase() {
+                        if index > CharIndex(0) && buffer.char(index - 1).is_ascii_lowercase() {
                             index = index - 1;
                         } else {
                             break index;
                         }
                     }
-                }
-            };
-            let end = {
-                let mut previous_is_uppercase = buffer.char(cursor_char_index).is_ascii_uppercase();
-                let mut index = cursor_char_index;
-                loop {
-                    println!("hello index = {index:?}");
-                    if index >= last_char_index {
-                        break index;
-                    }
-                    let char = buffer.char(index + 1);
-                    if char.is_ascii_lowercase() {
-                        previous_is_uppercase = char.is_ascii_uppercase();
-                        index = index + 1;
-                    } else if previous_is_uppercase && char.is_ascii_uppercase() {
-                        if index < last_char_index - 1
-                            && buffer.char(index + 2).is_ascii_lowercase()
-                        {
-                            break index;
+                };
+                let end = {
+                    let mut index = current;
+                    loop {
+                        if index < last_char_index && buffer.char(index + 1).is_ascii_lowercase() {
+                            index = index + 1;
                         } else {
+                            break index;
+                        }
+                    }
+                };
+                start..end + 1
+            } else if current_char.is_ascii_uppercase() {
+                let start = {
+                    let mut index = current;
+                    if index < last_char_index && buffer.char(index + 1).is_lowercase() {
+                        index
+                    } else {
+                        loop {
+                            if index == CharIndex(0) {
+                                break index;
+                            }
+                            let char = buffer.char(index - 1);
+                            if char.is_ascii_uppercase() {
+                                index = index - 1;
+                            } else {
+                                break index;
+                            }
+                        }
+                    }
+                };
+                let end = {
+                    let mut previous_is_uppercase = buffer.char(current).is_ascii_uppercase();
+                    let mut index = current;
+                    loop {
+                        if index >= last_char_index {
+                            break index;
+                        }
+                        let char = buffer.char(index + 1);
+                        if char.is_ascii_lowercase() {
                             previous_is_uppercase = char.is_ascii_uppercase();
                             index = index + 1;
+                        } else if previous_is_uppercase && char.is_ascii_uppercase() {
+                            if index < last_char_index - 1
+                                && buffer.char(index + 2).is_ascii_lowercase()
+                            {
+                                break index;
+                            } else {
+                                previous_is_uppercase = char.is_ascii_uppercase();
+                                index = index + 1;
+                            }
+                        } else {
+                            break index;
                         }
-                    } else {
-                        break index;
                     }
-                }
-            };
-            start..end + 1
-        } else if current_char.is_digit(10) {
-            let start = {
-                let mut index = cursor_char_index;
-                loop {
-                    if index > CharIndex(0) && buffer.char(index - 1).is_digit(10) {
-                        index = index - 1;
-                    } else {
-                        break index;
+                };
+                start..end + 1
+            } else if current_char.is_digit(10) {
+                let start = {
+                    let mut index = current;
+                    loop {
+                        if index > CharIndex(0) && buffer.char(index - 1).is_digit(10) {
+                            index = index - 1;
+                        } else {
+                            break index;
+                        }
                     }
-                }
-            };
-            let end = {
-                let mut index = cursor_char_index;
-                loop {
-                    if index < last_char_index && buffer.char(index + 1).is_digit(10) {
-                        index = index + 1;
-                    } else {
-                        break index;
+                };
+                let end = {
+                    let mut index = current;
+                    loop {
+                        if index < last_char_index && buffer.char(index + 1).is_digit(10) {
+                            index = index + 1;
+                        } else {
+                            break index;
+                        }
                     }
-                }
-            };
-            start..end + 1
-        } else {
-            cursor_char_index..cursor_char_index + 1
-        }
-        .into();
+                };
+                start..end + 1
+            } else {
+                current..current + 1
+            }
+            .into();
 
         Ok(Some(ByteRange::new(
             buffer.char_index_range_to_byte_range(range)?,
@@ -188,7 +197,7 @@ mod test_word {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
         );
-        Word::new(&buffer, true).unwrap().assert_all_selections(
+        Word::new(true).unwrap().assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -214,7 +223,7 @@ mod test_word {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
         );
-        Word::new(&buffer, false).unwrap().assert_all_selections(
+        Word::new(false).unwrap().assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -246,7 +255,7 @@ mod test_word {
     #[test]
     fn consecutive_uppercase_letters() {
         let buffer = Buffer::new(None, "XMLParser JSONObject HTMLElement");
-        Word::new(&buffer, true).unwrap().assert_all_selections(
+        Word::new(true).unwrap().assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -268,7 +277,7 @@ pub(crate) enum SelectionPosition {
 }
 
 fn get_word(
-    params: super::SelectionModeParams,
+    params: &super::SelectionModeParams,
     position: SelectionPosition,
     skip_symbols: bool,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {

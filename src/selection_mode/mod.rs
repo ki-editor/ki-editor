@@ -30,7 +30,7 @@ pub(crate) use mark::Mark;
 pub(crate) use naming_convention_agnostic::NamingConventionAgnostic;
 use position_pair::ParsedChar;
 use ropey::Rope;
-use std::ops::Range;
+use std::{ops::Range, rc::Rc};
 pub(crate) use syntax_node::SyntaxNode;
 pub(crate) use syntax_token::SyntaxToken;
 pub(crate) use token::Token;
@@ -55,6 +55,10 @@ pub(crate) struct ByteRange {
 }
 impl ByteRange {
     pub(crate) fn new(range: Range<usize>) -> Self {
+        debug_assert!(
+            range.end >= range.start,
+            "range.end >= range.start, range = {range:?}"
+        );
         Self { range, info: None }
     }
 
@@ -137,13 +141,30 @@ impl ApplyMovementResult {
     }
 }
 
-pub trait SelectionMode {
-    fn get_current_selection_by_cursor(
-        &self,
-        buffer: &Buffer,
-        cursor_char_index: CharIndex,
-    ) -> anyhow::Result<Option<ByteRange>>;
+pub(crate) fn get_current_selection_by_cursor_via_iter(
+    buffer: &crate::buffer::Buffer,
+    cursor_char_index: crate::selection::CharIndex,
+    if_current_not_found: IfCurrentNotFound,
+    iter: Rc<Vec<ByteRange>>,
+) -> anyhow::Result<Option<ByteRange>> {
+    let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+    let mut previous_range: Option<&ByteRange> = None;
+    for range in iter.iter() {
+        if range.range().contains(&cursor_byte) {
+            return Ok(Some(range.clone()));
+        } else if range.range.start > cursor_byte {
+            match if_current_not_found {
+                IfCurrentNotFound::LookForward => return Ok(Some(range.clone())),
+                IfCurrentNotFound::LookBackward => return Ok(previous_range.cloned()),
+            }
+        } else {
+            previous_range = Some(range)
+        }
+    }
+    Ok(previous_range.cloned())
+}
 
+pub trait SelectionMode {
     fn all_selections<'a>(
         &'a self,
         params: SelectionModeParams<'a>,
@@ -151,7 +172,7 @@ pub trait SelectionMode {
         let mut cursor_char_index = CharIndex(0);
         let mut result = Vec::new();
         while cursor_char_index < CharIndex(params.buffer.len_chars()) {
-            if let Some(range) = self.get_current_selection_by_cursor_with_look(
+            if let Some(range) = self.get_current_selection_by_cursor(
                 &params.buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
@@ -159,10 +180,11 @@ pub trait SelectionMode {
                 cursor_char_index = params.buffer.byte_to_char(range.range.end)?;
 
                 if Some(&range) == result.last() {
+                    result.push(range);
                     break;
+                } else {
+                    result.push(range);
                 }
-
-                result.push(range);
             } else {
                 break;
             }
@@ -184,11 +206,11 @@ pub trait SelectionMode {
             Movement::Right => convert(self.right(params)),
 
             Movement::Left => convert(self.left(params)),
-            Movement::Last => convert(self.last(params)),
+            Movement::Last => convert(self.last(&params)),
             Movement::Current(if_current_not_found) => {
                 convert(self.current(params, if_current_not_found))
             }
-            Movement::First => convert(self.first(params)),
+            Movement::First => convert(self.first(&params)),
             Movement::Index(index) => convert(self.to_index(params, index)),
             Movement::Jump(range) => Ok(Some(ApplyMovementResult::from_selection(
                 params.current_selection.clone().set_range(range),
@@ -398,11 +420,9 @@ pub trait SelectionMode {
             )
         };
 
-        while let Some(result) = self.get_current_selection_by_cursor_with_look(
-            &params.buffer,
-            cursor_char_index,
-            first_look,
-        )? {
+        while let Some(result) =
+            self.get_current_selection_by_cursor(&params.buffer, new_cursor_char_index, first_look)?
+        {
             if buffer.byte_to_line(result.range.start)? == new_position.line {
                 return Ok(Some(
                     current_selection
@@ -410,9 +430,9 @@ pub trait SelectionMode {
                         .set_range(buffer.byte_range_to_char_index_range(&result.range)?)
                         .set_info(result.info),
                 ));
-            } else if let Some(result) = self.get_current_selection_by_cursor_with_look(
+            } else if let Some(result) = self.get_current_selection_by_cursor(
                 &params.buffer,
-                cursor_char_index,
+                new_cursor_char_index,
                 second_look,
             )? {
                 if buffer.byte_to_line(result.range.start)? == new_position.line {
@@ -457,7 +477,7 @@ pub trait SelectionMode {
             let mut result = Vec::new();
             let mut cursor_char_index = params.current_selection.range().start - 1;
             loop {
-                match self.get_current_selection_by_cursor_with_look(
+                match self.get_current_selection_by_cursor(
                     &params.buffer,
                     cursor_char_index,
                     IfCurrentNotFound::LookBackward,
@@ -467,8 +487,14 @@ pub trait SelectionMode {
                             .iter()
                             .any(|byte_range| byte_range.contains(&range.range.start)) =>
                     {
-                        cursor_char_index = params.buffer.byte_to_char(range.range.start)? - 1;
-                        result.push(range);
+                        let range_start = range.range.start;
+                        if result.iter().any(|existing_range| existing_range == &range) {
+                            result.push(range);
+                            break result;
+                        } else {
+                            result.push(range);
+                            cursor_char_index = params.buffer.byte_to_char(range_start)? - 1;
+                        }
                     }
                     _ => break result,
                 }
@@ -478,8 +504,14 @@ pub trait SelectionMode {
         let after_cursor_selections = {
             let mut result = Vec::new();
             let mut cursor_char_index = params.current_selection.range().end;
+            let last_range = self.last(params)?.and_then(|selection| {
+                params
+                    .buffer
+                    .char_index_range_to_byte_range(selection.range())
+                    .ok()
+            });
             loop {
-                match self.get_current_selection_by_cursor_with_look(
+                match self.get_current_selection_by_cursor(
                     &params.buffer,
                     cursor_char_index,
                     IfCurrentNotFound::LookForward,
@@ -489,8 +521,14 @@ pub trait SelectionMode {
                             .iter()
                             .any(|byte_range| byte_range.contains(&range.range.start)) =>
                     {
-                        cursor_char_index = params.buffer.byte_to_char(range.range.start)? + 1;
-                        result.push(range);
+                        let range_start = range.range.start;
+                        if result.iter().any(|existing_range| existing_range == &range) {
+                            result.push(range);
+                            break result;
+                        } else {
+                            result.push(range);
+                            cursor_char_index = params.buffer.byte_to_char(range_start)? + 1;
+                        }
                     }
                     _ => break result,
                 }
@@ -573,7 +611,7 @@ pub trait SelectionMode {
         let limit = CharIndex(params.buffer.len_chars());
         let mut current_index: usize = 0;
         while cursor_char_index < limit {
-            if let Some(range) = self.get_current_selection_by_cursor_with_look(
+            if let Some(range) = self.get_current_selection_by_cursor(
                 &params.buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
@@ -599,8 +637,8 @@ pub trait SelectionMode {
         self.left(params)
     }
 
-    fn first(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.get_current_selection_by_cursor_with_look(
+    fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.get_current_selection_by_cursor(
             &params.buffer,
             CharIndex(0),
             IfCurrentNotFound::LookForward,
@@ -609,8 +647,8 @@ pub trait SelectionMode {
         .transpose()
     }
 
-    fn last(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.get_current_selection_by_cursor_with_look(
+    fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.get_current_selection_by_cursor(
             &params.buffer,
             CharIndex(params.buffer.len_chars()) - 1,
             IfCurrentNotFound::LookBackward,
@@ -619,53 +657,47 @@ pub trait SelectionMode {
         .transpose()
     }
 
-    fn get_current_selection_by_cursor_with_look(
+    fn get_current_selection_by_cursor(
         &self,
         buffer: &Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
-    ) -> anyhow::Result<Option<ByteRange>> {
-        // TODO: get_current_selection_by_cursor should not take `if_current_not_found`
-        // if get_current_selection_by_cursor is None, then recursively call `self.left` or `self.right` depending on `if_current_not_found`
-        // until found
-        let mut cursor_char_index = cursor_char_index;
-        let limit = CharIndex(0)..CharIndex(buffer.len_chars());
-        while limit.contains(&cursor_char_index) {
-            if let Some(range) = self.get_current_selection_by_cursor(buffer, cursor_char_index)? {
-                return Ok(Some(range));
-            } else {
-                match if_current_not_found {
-                    IfCurrentNotFound::LookForward => cursor_char_index = cursor_char_index + 1,
-                    IfCurrentNotFound::LookBackward => cursor_char_index = cursor_char_index - 1,
-                }
-            }
-        }
+    ) -> anyhow::Result<Option<ByteRange>>;
 
-        Ok(None)
-    }
     fn current(
         &self,
         params: SelectionModeParams,
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.get_current_selection_by_cursor_with_look(
+        let range = self.get_current_selection_by_cursor(
             &params.buffer,
             params.cursor_char_index(),
             if_current_not_found,
-        )?
-        .map(|range| {
-            params
-                .current_selection
-                .clone()
-                .update_with_byte_range(params.buffer, range)
-        })
-        .transpose()
+        )?;
+        let range = if range.is_none() {
+            self.get_current_selection_by_cursor(
+                &params.buffer,
+                params.cursor_char_index(),
+                if_current_not_found.inverse(),
+            )?
+        } else {
+            range
+        };
+        range
+            .map(|range| {
+                params
+                    .current_selection
+                    .clone()
+                    .update_with_byte_range(params.buffer, range)
+            })
+            .transpose()
     }
+
     fn right(
         &self,
         params: SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.get_current_selection_by_cursor_with_look(
+        self.get_current_selection_by_cursor(
             params.buffer,
             params.current_selection.range().end,
             IfCurrentNotFound::LookForward,
@@ -682,7 +714,7 @@ pub trait SelectionMode {
         &self,
         params: SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.get_current_selection_by_cursor_with_look(
+        self.get_current_selection_by_cursor(
             &params.buffer,
             params.current_selection.range().start - 1,
             IfCurrentNotFound::LookBackward,
@@ -753,6 +785,7 @@ mod test_selection_mode {
             &self,
             buffer: &crate::buffer::Buffer,
             cursor_char_index: crate::selection::CharIndex,
+            _: crate::components::editor::IfCurrentNotFound,
         ) -> anyhow::Result<Option<super::ByteRange>> {
             todo!()
         }
@@ -864,6 +897,7 @@ mod test_selection_mode {
                 &self,
                 buffer: &crate::buffer::Buffer,
                 cursor_char_index: crate::selection::CharIndex,
+                if_current_not_found: crate::components::editor::IfCurrentNotFound,
             ) -> anyhow::Result<Option<super::ByteRange>> {
                 let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
                 Ok([

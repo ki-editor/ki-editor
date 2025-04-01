@@ -155,6 +155,7 @@ impl SelectionMode for SyntaxNode {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
+        if_current_not_found: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
         // Implement this code
         let node = buffer

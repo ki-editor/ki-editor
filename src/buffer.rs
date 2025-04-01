@@ -1066,7 +1066,7 @@ impl Buffer {
 
     pub(crate) fn line_to_char_range(&self, line: usize) -> anyhow::Result<CharIndexRange> {
         let start = self.line_to_char(line)?;
-        let end = self.line_to_char(line + 1)? - (1);
+        let end = self.line_to_char(line + 1)?;
         Ok((start..end).into())
     }
 

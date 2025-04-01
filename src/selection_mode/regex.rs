@@ -1,8 +1,11 @@
-use super::{ByteRange, SelectionMode};
+use super::{get_current_selection_by_cursor_via_iter, ByteRange, SelectionMode};
+use crate::components::editor::IfCurrentNotFound;
 use crate::{buffer::Buffer, list::grep::RegexConfig};
 use anyhow::Result;
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
@@ -88,18 +91,19 @@ impl SelectionMode for Regex {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
+        if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
-        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
-        Ok(self
-            .regex
-            .find_iter(&self.content)
-            .find_map(move |matches| {
-                let matches = matches.ok()?;
-                matches
-                    .range()
-                    .contains(&cursor_byte)
-                    .then(|| ByteRange::new(matches.start()..matches.end()))
-            }))
+        get_current_selection_by_cursor_via_iter(
+            buffer,
+            cursor_char_index,
+            if_current_not_found,
+            Rc::new(
+                self.regex
+                    .find_iter(&self.content)
+                    .filter_map(|match_| Some(ByteRange::new(match_.ok()?.range())))
+                    .collect(),
+            ),
+        )
     }
 }
 

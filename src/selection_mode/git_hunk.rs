@@ -1,10 +1,12 @@
+use std::rc::Rc;
+
 use crate::{buffer::Buffer, context::Context, git::GitOperation};
 use itertools::Itertools;
 
-use super::{ByteRange, SelectionMode};
+use super::{get_current_selection_by_cursor_via_iter, ByteRange, SelectionMode};
 
 pub(crate) struct GitHunk {
-    ranges: Vec<super::ByteRange>,
+    ranges: Rc<Vec<super::ByteRange>>,
 }
 
 impl GitHunk {
@@ -14,7 +16,9 @@ impl GitHunk {
         context: &Context,
     ) -> anyhow::Result<GitHunk> {
         let Some(path) = buffer.path() else {
-            return Ok(GitHunk { ranges: Vec::new() });
+            return Ok(GitHunk {
+                ranges: Rc::new(Vec::new()),
+            });
         };
         let binding = path.file_diff(
             &buffer.content(),
@@ -32,7 +36,9 @@ impl GitHunk {
                 Some(ByteRange::new(start..end).set_info(hunk.to_info()))
             })
             .collect_vec();
-        Ok(GitHunk { ranges })
+        Ok(GitHunk {
+            ranges: Rc::new(ranges),
+        })
     }
 }
 
@@ -41,12 +47,13 @@ impl SelectionMode for GitHunk {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
+        if_current_not_found: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
-        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
-        Ok(self
-            .ranges
-            .iter()
-            .find(|range| range.range.contains(&cursor_byte))
-            .cloned())
+        get_current_selection_by_cursor_via_iter(
+            buffer,
+            cursor_char_index,
+            if_current_not_found,
+            self.ranges.clone(),
+        )
     }
 }

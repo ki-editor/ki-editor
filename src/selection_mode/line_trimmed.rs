@@ -9,16 +9,55 @@ impl SelectionMode for LineTrimmed {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
+        if_current_not_found: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
-        let line_index = buffer.char_to_line(cursor_char_index)?;
-        let line_start_char_index = buffer.line_to_char(line_index)?;
+        if cursor_char_index >= CharIndex(buffer.len_chars()) {
+            return Ok(None);
+        }
+        let current = {
+            let current_line_index = buffer.char_to_line(cursor_char_index)?;
+            let mut current = cursor_char_index;
+            loop {
+                if buffer.char_to_line(current)? != current_line_index
+                    || !buffer.char(current).is_whitespace()
+                {
+                    break current;
+                }
+                match if_current_not_found {
+                    IfCurrentNotFound::LookForward
+                        if current < CharIndex(buffer.len_chars().saturating_sub(1)) =>
+                    {
+                        current = current + 1
+                    }
+                    IfCurrentNotFound::LookBackward if current > CharIndex(0) => {
+                        current = current - 1
+                    }
+                    _ => return Ok(None),
+                }
+            }
+        };
+        let line_index = buffer.char_to_line(current)?;
         let Some(line) = buffer.get_line_by_line_index(line_index) else {
             return Ok(None);
         };
+        let line_start_char_index = buffer.line_to_char(line_index)?;
         let leading_whitespace_count = line.chars().take_while(|c| c.is_whitespace()).count();
-        let trailing_whitespace_count = (line.len_chars().saturating_sub(1)..=0)
-            .take_while(|index| line.char(*index).is_whitespace())
-            .count();
+        if line.chars().all(|c| c.is_whitespace()) {
+            let line_start_byte_index =
+                buffer.char_to_byte(line_start_char_index + leading_whitespace_count - 1)?;
+            return Ok(Some(ByteRange::new(
+                line_start_byte_index..line_start_byte_index,
+            )));
+        }
+
+        let trailing_whitespace_count = if line.len_chars() == 0 {
+            0
+        } else {
+            (0..line.len_chars())
+                .rev()
+                .take_while(|index| line.char(*index).is_whitespace())
+                .count()
+        };
         let range = buffer.char_index_range_to_byte_range(
             (line_start_char_index + leading_whitespace_count
                 ..line_start_char_index + line.len_chars() - trailing_whitespace_count)

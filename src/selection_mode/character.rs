@@ -1,6 +1,9 @@
 use ropey::Rope;
 
-use crate::selection::{CharIndex, Selection};
+use crate::{
+    components::editor::IfCurrentNotFound,
+    selection::{CharIndex, Selection},
+};
 
 use super::{word::SelectionPosition, ByteRange, SelectionMode, SelectionModeParams, Word};
 
@@ -17,14 +20,14 @@ impl Character {
 impl SelectionMode for Character {
     fn first(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         get_char(params, SelectionPosition::First)
     }
 
     fn last(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         get_char(params, SelectionPosition::Last)
     }
@@ -33,6 +36,7 @@ impl SelectionMode for Character {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
+        _: IfCurrentNotFound,
     ) -> anyhow::Result<Option<ByteRange>> {
         let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
         Ok(Some(ByteRange::new(cursor_byte..cursor_byte + 1)))
@@ -98,10 +102,10 @@ impl Character {
 }
 
 fn get_char(
-    params: super::SelectionModeParams,
+    params: &super::SelectionModeParams,
     position: SelectionPosition,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
-    if let Some(current_word) = Word::new(params.buffer, false)?.current(
+    if let Some(current_word) = Word::new(false)?.current(
         params.clone(),
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {
