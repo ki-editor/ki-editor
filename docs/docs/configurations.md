@@ -39,6 +39,7 @@ For configuring keyboard layout, with the following possible values:
 1. `colemak_dh`
 1. `colemak_dh_semi_quote`
 1. `dvorak_iu`
+1. `workman`
 
 [^1]: For example, see [dwm](https://wiki.archlinux.org/title/dwm#Configuration) and [Xmonad](https://xmonad.org/TUTORIAL.html)
 [^2]: Neovim usually let's you glide through until it commits kamikaze
