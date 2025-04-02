@@ -11,32 +11,44 @@ impl SelectionMode for LineTrimmed {
         cursor_char_index: crate::selection::CharIndex,
         if_current_not_found: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
-        if cursor_char_index >= CharIndex(buffer.len_chars()) {
+        let last_cursor_char_index = CharIndex(buffer.len_chars());
+        if cursor_char_index >= last_cursor_char_index {
             return Ok(None);
         }
-        let current = {
+        let line_index = {
             let current_line_index = buffer.char_to_line(cursor_char_index)?;
-            let mut current = cursor_char_index;
-            loop {
-                if buffer.char_to_line(current)? != current_line_index
-                    || !buffer.char(current).is_whitespace()
-                {
-                    break current;
-                }
-                match if_current_not_found {
-                    IfCurrentNotFound::LookForward
-                        if current < CharIndex(buffer.len_chars().saturating_sub(1)) =>
-                    {
-                        current = current + 1
+            if !buffer.char(cursor_char_index).is_whitespace() {
+                current_line_index
+            } else {
+                let new_char_index = match if_current_not_found {
+                    IfCurrentNotFound::LookForward => {
+                        let mut index = cursor_char_index;
+                        loop {
+                            if index == last_cursor_char_index {
+                                return Ok(None);
+                            } else if buffer.char(index) == '\n' {
+                                break index + 1;
+                            } else {
+                                index = index + 1
+                            }
+                        }
                     }
-                    IfCurrentNotFound::LookBackward if current > CharIndex(0) => {
-                        current = current - 1
+                    IfCurrentNotFound::LookBackward => {
+                        let mut index = cursor_char_index;
+                        loop {
+                            if index == CharIndex(0) {
+                                return Ok(None);
+                            } else if buffer.char(index) == '\n' {
+                                break index;
+                            } else {
+                                index = index - 1
+                            }
+                        }
                     }
-                    _ => return Ok(None),
-                }
+                };
+                buffer.char_to_line(new_char_index)?
             }
         };
-        let line_index = buffer.char_to_line(current)?;
         let Some(line) = buffer.get_line_by_line_index(line_index) else {
             return Ok(None);
         };
@@ -132,6 +144,16 @@ mod test_line {
     use crate::{buffer::Buffer, components::editor::Direction, selection::Selection};
 
     use super::*;
+
+    #[test]
+    fn simple_case() {
+        let buffer = Buffer::new(None, "a\n\nb");
+        LineTrimmed.assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[(0..1, "a"), (2..2, ""), (3..4, "b")],
+        );
+    }
 
     #[test]
     fn case_1() {

@@ -85,100 +85,101 @@ impl SelectionMode for Word {
             return Ok(None);
         }
 
-        let range: crate::char_index_range::CharIndexRange =
-            if current_char.is_alphabetic() && current_char.is_ascii_lowercase() {
-                let start = {
-                    let mut index = current;
+        let range: crate::char_index_range::CharIndexRange = if current_char.is_ascii_lowercase() {
+            let start = {
+                let mut index = current;
+                loop {
+                    if index > CharIndex(0) && buffer.char(index - 1).is_ascii_lowercase() {
+                        index = index - 1;
+                    } else if index > CharIndex(0) && buffer.char(index - 1).is_ascii_uppercase() {
+                        break index - 1;
+                    } else {
+                        break index;
+                    }
+                }
+            };
+            let end = {
+                let mut index = current;
+                loop {
+                    if index < last_char_index && buffer.char(index + 1).is_ascii_lowercase() {
+                        index = index + 1;
+                    } else {
+                        break index;
+                    }
+                }
+            };
+            start..end + 1
+        } else if current_char.is_ascii_uppercase() {
+            let start = {
+                let mut index = current;
+                if index < last_char_index && buffer.char(index + 1).is_lowercase() {
+                    index
+                } else {
                     loop {
-                        if index > CharIndex(0) && buffer.char(index - 1).is_ascii_lowercase() {
+                        if index == CharIndex(0) {
+                            break index;
+                        }
+                        let char = buffer.char(index - 1);
+                        if char.is_ascii_uppercase() {
                             index = index - 1;
                         } else {
                             break index;
                         }
                     }
-                };
-                let end = {
-                    let mut index = current;
-                    loop {
-                        if index < last_char_index && buffer.char(index + 1).is_ascii_lowercase() {
-                            index = index + 1;
+                }
+            };
+            let end = {
+                let mut previous_is_uppercase = buffer.char(current).is_ascii_uppercase();
+                let mut index = current;
+                loop {
+                    if index >= last_char_index {
+                        break index;
+                    }
+                    let char = buffer.char(index + 1);
+                    if char.is_ascii_lowercase() {
+                        previous_is_uppercase = char.is_ascii_uppercase();
+                        index = index + 1;
+                    } else if previous_is_uppercase && char.is_ascii_uppercase() {
+                        if index < last_char_index - 1
+                            && buffer.char(index + 2).is_ascii_lowercase()
+                        {
+                            break index;
                         } else {
-                            break index;
-                        }
-                    }
-                };
-                start..end + 1
-            } else if current_char.is_ascii_uppercase() {
-                let start = {
-                    let mut index = current;
-                    if index < last_char_index && buffer.char(index + 1).is_lowercase() {
-                        index
-                    } else {
-                        loop {
-                            if index == CharIndex(0) {
-                                break index;
-                            }
-                            let char = buffer.char(index - 1);
-                            if char.is_ascii_uppercase() {
-                                index = index - 1;
-                            } else {
-                                break index;
-                            }
-                        }
-                    }
-                };
-                let end = {
-                    let mut previous_is_uppercase = buffer.char(current).is_ascii_uppercase();
-                    let mut index = current;
-                    loop {
-                        if index >= last_char_index {
-                            break index;
-                        }
-                        let char = buffer.char(index + 1);
-                        if char.is_ascii_lowercase() {
                             previous_is_uppercase = char.is_ascii_uppercase();
                             index = index + 1;
-                        } else if previous_is_uppercase && char.is_ascii_uppercase() {
-                            if index < last_char_index - 1
-                                && buffer.char(index + 2).is_ascii_lowercase()
-                            {
-                                break index;
-                            } else {
-                                previous_is_uppercase = char.is_ascii_uppercase();
-                                index = index + 1;
-                            }
-                        } else {
-                            break index;
                         }
+                    } else {
+                        break index;
                     }
-                };
-                start..end + 1
-            } else if current_char.is_digit(10) {
-                let start = {
-                    let mut index = current;
-                    loop {
-                        if index > CharIndex(0) && buffer.char(index - 1).is_digit(10) {
-                            index = index - 1;
-                        } else {
-                            break index;
-                        }
+                }
+            };
+            start..end + 1
+        } else if current_char.is_digit(10) {
+            let start = {
+                let mut index = current;
+                loop {
+                    if index > CharIndex(0) && buffer.char(index - 1).is_digit(10) {
+                        index = index - 1;
+                    } else {
+                        break index;
                     }
-                };
-                let end = {
-                    let mut index = current;
-                    loop {
-                        if index < last_char_index && buffer.char(index + 1).is_digit(10) {
-                            index = index + 1;
-                        } else {
-                            break index;
-                        }
+                }
+            };
+            let end = {
+                let mut index = current;
+                loop {
+                    if index < last_char_index && buffer.char(index + 1).is_digit(10) {
+                        index = index + 1;
+                    } else {
+                        break index;
                     }
-                };
-                start..end + 1
-            } else {
-                current..current + 1
-            }
-            .into();
+                }
+            };
+            start..end + 1
+        } else {
+            current..current + 1
+        }
+        .into();
 
         Ok(Some(ByteRange::new(
             buffer.char_index_range_to_byte_range(range)?,
@@ -190,6 +191,16 @@ impl SelectionMode for Word {
 mod test_word {
     use super::*;
     use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
+
+    #[test]
+    fn simple_case() {
+        let buffer = Buffer::new(None, "snake Case camel");
+        Word::new(true).unwrap().assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[(0..5, "snake"), (6..10, "Case"), (11..16, "camel")],
+        );
+    }
 
     #[test]
     fn skip_symbols() {

@@ -1,5 +1,7 @@
 use itertools::Itertools;
 
+use crate::selection::CharIndex;
+
 use super::{ByteRange, SelectionMode};
 
 pub(crate) struct LineFull;
@@ -10,7 +12,32 @@ impl SelectionMode for LineFull {
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
-        let mut line_index = buffer.char_to_line(params.cursor_char_index())?;
+        let start_char_index = {
+            let cursor_char_index = params.cursor_char_index();
+
+            // If current line is already an empty line,
+            // find the next group of empty lines
+            if buffer
+                .get_line_by_char_index(cursor_char_index)?
+                .chars()
+                .all(|char| char.is_whitespace())
+            {
+                let mut index = cursor_char_index;
+                loop {
+                    if index > CharIndex(buffer.len_chars().saturating_sub(1)) {
+                        return Ok(None);
+                    } else if buffer.char(index).is_whitespace() {
+                        index = index + 1
+                    } else {
+                        break index;
+                    }
+                }
+            } else {
+                cursor_char_index
+            }
+        };
+        let mut line_index = buffer.char_to_line(start_char_index)?;
+
         while line_index < buffer.len_lines() {
             if let Some(slice) = buffer.get_line_by_line_index(line_index) {
                 if slice.chars().all(|char| char.is_whitespace()) {
@@ -31,7 +58,33 @@ impl SelectionMode for LineFull {
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
-        let mut line_index = buffer.char_to_line(params.cursor_char_index())?;
+        let start_char_index = {
+            let cursor_char_index = params.cursor_char_index();
+
+            // If current line is already an empty line,
+            // find the previous group of empty lines
+            if buffer
+                .get_line_by_char_index(cursor_char_index)?
+                .chars()
+                .all(|char| char.is_whitespace())
+            {
+                let mut index = cursor_char_index;
+                loop {
+                    if buffer.char(index).is_whitespace() {
+                        if index == CharIndex(0) {
+                            return Ok(None);
+                        } else {
+                            index = index - 1
+                        }
+                    } else {
+                        break index;
+                    }
+                }
+            } else {
+                cursor_char_index
+            }
+        };
+        let mut line_index = buffer.char_to_line(start_char_index)?;
         loop {
             if let Some(slice) = buffer.get_line_by_line_index(line_index) {
                 if slice.chars().all(|char| char.is_whitespace()) {

@@ -1540,6 +1540,7 @@ fn main() {
                 .trim(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectedTexts(&["beta()"])),
             Editor(ShowJumps {
                 use_current_selection_mode: true,
             }),
@@ -1574,14 +1575,15 @@ fn highlight_and_jump() -> anyhow::Result<()> {
                 },
             )),
             Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["lives"])),
             Editor(EnableSelectionExtension),
             Editor(ShowJumps {
                 use_current_selection_mode: false,
             }),
-            // Expect the jump to be the first character of each word
+            // Expect the jump to be the first character of each word (except the current word 'lives')
             // Note 'y' and 'd' are excluded because they are out of view,
             // since the viewbox has only height of 1
-            Expect(JumpChars(&['w', 'l', 'o', 's', 's', '?'])),
+            Expect(JumpChars(&['w', 'o', 's', 's', '?'])),
             App(HandleKeyEvent(key!("s"))),
             App(HandleKeyEvent(key!("k"))),
             Expect(CurrentSelectedTexts(&["lives on sea shore"])),
@@ -1604,15 +1606,15 @@ fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
                 width: 100,
                 height: 1,
             })),
-            Editor(ShowJumps {
-                use_current_selection_mode: false,
-            }),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
                 Word {
                     skip_symbols: false,
                 },
             )),
+            Editor(ShowJumps {
+                use_current_selection_mode: false,
+            }),
             // Expect the jump to NOT be the first character of each word
             // Since, the first character of each selection are the same, which is 'w'
             Expect(JumpChars(&['d', 'k', 's', 'l'])),

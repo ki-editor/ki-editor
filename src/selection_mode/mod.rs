@@ -192,6 +192,35 @@ pub trait SelectionMode {
         return Ok(result);
     }
 
+    #[cfg(test)]
+    fn all_selections_gathered_inversely<'a>(
+        &'a self,
+        params: SelectionModeParams<'a>,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        let mut cursor_char_index = CharIndex(params.buffer.len_chars() - 1);
+        println!("all_selections_gathered_inversely: cursor char index = {cursor_char_index:?}");
+        let mut result = Vec::new();
+        loop {
+            if let Some(range) = self.get_current_selection_by_cursor(
+                &params.buffer,
+                cursor_char_index,
+                IfCurrentNotFound::LookBackward,
+            )? {
+                if range.range.start == 0 || Some(&range) == result.first() {
+                    result.insert(0, range);
+                    break;
+                } else {
+                    println!("cursor_char_index = {cursor_char_index:?}");
+                    cursor_char_index = params.buffer.byte_to_char(range.range.start - 1)?;
+                    result.insert(0, range);
+                }
+            } else {
+                break;
+            }
+        }
+        return Ok(result);
+    }
+
     fn apply_movement(
         &self,
         params: SelectionModeParams,
@@ -489,7 +518,6 @@ pub trait SelectionMode {
                     {
                         let range_start = range.range.start;
                         if result.iter().any(|existing_range| existing_range == &range) {
-                            result.push(range);
                             break result;
                         } else {
                             result.push(range);
@@ -521,13 +549,12 @@ pub trait SelectionMode {
                             .iter()
                             .any(|byte_range| byte_range.contains(&range.range.start)) =>
                     {
-                        let range_start = range.range.start;
+                        let range_end = range.range.end;
                         if result.iter().any(|existing_range| existing_range == &range) {
-                            result.push(range);
                             break result;
                         } else {
                             result.push(range);
-                            cursor_char_index = params.buffer.byte_to_char(range_start)? + 1;
+                            cursor_char_index = params.buffer.byte_to_char(range_end)?;
                         }
                     }
                     _ => break result,
@@ -556,10 +583,9 @@ pub trait SelectionMode {
         chars: Vec<char>,
         line_number_ranges: Vec<Range<usize>>,
     ) -> anyhow::Result<Vec<Jump>> {
-        let iter = self
-            .selections_in_line_number_range(&params, line_number_ranges)?
-            .into_iter();
-        let jumps = iter
+        let ranges = self.selections_in_line_number_range(&params, line_number_ranges)?;
+        let jumps = ranges
+            .into_iter()
             .filter_map(|range| {
                 let selection = range
                     .to_selection(params.buffer, params.current_selection)
@@ -710,6 +736,7 @@ pub trait SelectionMode {
         })
         .transpose()
     }
+
     fn left(
         &self,
         params: SelectionModeParams,
@@ -740,7 +767,7 @@ pub trait SelectionMode {
             .map(|(range, info)| (range.to_owned(), info.to_string()))
             .collect_vec();
 
-        let actual = self
+        let actual_forward = self
             .all_selections(SelectionModeParams {
                 buffer,
                 current_selection: &current_selection,
@@ -758,7 +785,27 @@ pub trait SelectionMode {
             })
             .collect_vec();
 
-        assert_eq!(expected, actual);
+        assert_eq!(expected, actual_forward);
+
+        let actual_backward = self
+            .all_selections_gathered_inversely(SelectionModeParams {
+                buffer,
+                current_selection: &current_selection,
+                cursor_direction: &Direction::default(),
+            })
+            .unwrap()
+            .into_iter()
+            .flat_map(|range| -> anyhow::Result<_> {
+                Ok((
+                    range.range.start..range.range.end,
+                    buffer
+                        .slice(&range.to_char_index_range(buffer)?)?
+                        .to_string(),
+                ))
+            })
+            .collect_vec();
+
+        assert_eq!(expected, actual_backward, "backward assertion");
     }
 }
 
