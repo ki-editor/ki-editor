@@ -4,15 +4,15 @@ use crate::{
     char_index_range::CharIndexRange, components::editor::IfCurrentNotFound, selection::CharIndex,
 };
 
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, PositionBased, PositionBasedSelectionMode};
 
 pub struct Token {
     skip_symbols: bool,
 }
 
 impl Token {
-    pub(crate) fn new(skip_symbols: bool) -> anyhow::Result<Self> {
-        Ok(Self { skip_symbols })
+    pub(crate) fn new(skip_symbols: bool) -> Self {
+        Self { skip_symbols }
     }
 }
 
@@ -125,7 +125,7 @@ fn find_word_end(
     // If we've examined all characters to the end, return the last index
     last_char_index
 }
-impl SelectionMode for Token {
+impl PositionBasedSelectionMode for Token {
     fn first(
         &self,
         params: &super::SelectionModeParams,
@@ -241,7 +241,11 @@ impl SelectionMode for Token {
 
 #[cfg(test)]
 mod test_token {
-    use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
+    use crate::{
+        buffer::Buffer,
+        selection::Selection,
+        selection_mode::{PositionBasedSelectionMode, SelectionMode},
+    };
 
     use super::*;
 
@@ -251,7 +255,7 @@ mod test_token {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE kebab-case ->() 123 <_>",
         );
-        Token::new(true).unwrap().assert_all_selections(
+        PositionBased(Token::new(true)).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -272,7 +276,7 @@ mod test_token {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE kebab-case ->() 123 <_>",
         );
-        Token::new(false).unwrap().assert_all_selections(
+        PositionBased(Token::new(false)).assert_all_selections(
             &buffer,
             Selection::default(),
             &[

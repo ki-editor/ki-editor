@@ -2,14 +2,20 @@ use itertools::Itertools;
 
 use crate::selection::CharIndex;
 
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, PositionBased, PositionBasedSelectionMode};
 
 pub(crate) struct LineFull;
 
-impl SelectionMode for LineFull {
+impl LineFull {
+    pub(crate) fn new() -> Self {
+        Self
+    }
+}
+
+impl PositionBasedSelectionMode for LineFull {
     fn right(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
         let start_char_index = {
@@ -55,7 +61,7 @@ impl SelectionMode for LineFull {
 
     fn left(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
         let start_char_index = {
@@ -104,16 +110,16 @@ impl SelectionMode for LineFull {
 
     fn delete_forward(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.down(params)
+        self.down_impl(params)
     }
 
     fn delete_backward(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.up(params)
+        self.up_impl(params)
     }
 
     fn get_current_selection_by_cursor(
@@ -144,14 +150,14 @@ fn is_blank(buffer: &crate::buffer::Buffer, byte_range: &super::ByteRange) -> Op
 
 #[cfg(test)]
 mod test_line_full {
-    use crate::{buffer::Buffer, selection::Selection};
+    use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode as _};
 
     use super::*;
 
     #[test]
     fn case_1() {
         let buffer = Buffer::new(None, "a\n\n\nb\nc\n  hello");
-        LineFull.assert_all_selections(
+        PositionBased(LineFull).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -170,6 +176,10 @@ mod test_line_full {
     #[test]
     fn single_line_without_trailing_newline_character() {
         let buffer = Buffer::new(None, "a");
-        LineFull.assert_all_selections(&buffer, Selection::default(), &[(0..1, "a")]);
+        PositionBased(LineFull).assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[(0..1, "a")],
+        );
     }
 }

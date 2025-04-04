@@ -1,6 +1,6 @@
 use ropey::Rope;
 
-use super::{ByteRange, SelectionMode, Token};
+use super::{ByteRange, PositionBased, PositionBasedSelectionMode, SelectionMode, Token};
 use crate::{buffer::Buffer, components::editor::IfCurrentNotFound, selection::CharIndex};
 
 pub struct Word {
@@ -14,12 +14,12 @@ const SUBWORD_SYMBOL_SKIPPING_REGEX: &str =
     r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z]{2,}|[A-Z][a-z]+|[A-Z]|[a-z]+|[0-9]+";
 
 impl Word {
-    pub(crate) fn new(skip_symbols: bool) -> anyhow::Result<Self> {
-        Ok(Self { skip_symbols })
+    pub(crate) fn new(skip_symbols: bool) -> Self {
+        Self { skip_symbols }
     }
 }
 
-impl SelectionMode for Word {
+impl PositionBasedSelectionMode for Word {
     fn first(
         &self,
         params: &super::SelectionModeParams,
@@ -190,12 +190,12 @@ impl SelectionMode for Word {
 #[cfg(test)]
 mod test_word {
     use super::*;
-    use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
+    use crate::{buffer::Buffer, selection::Selection, selection_mode::PositionBasedSelectionMode};
 
     #[test]
     fn simple_case() {
         let buffer = Buffer::new(None, "snake Case camel");
-        Word::new(true).unwrap().assert_all_selections(
+        PositionBased(Word::new(true)).assert_all_selections(
             &buffer,
             Selection::default(),
             &[(0..5, "snake"), (6..10, "Case"), (11..16, "camel")],
@@ -208,7 +208,7 @@ mod test_word {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
         );
-        Word::new(true).unwrap().assert_all_selections(
+        PositionBased(Word::new(true)).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -234,7 +234,7 @@ mod test_word {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
         );
-        Word::new(false).unwrap().assert_all_selections(
+        PositionBased(Word::new(false)).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -266,7 +266,7 @@ mod test_word {
     #[test]
     fn consecutive_uppercase_letters() {
         let buffer = Buffer::new(None, "XMLParser JSONObject HTMLElement");
-        Word::new(true).unwrap().assert_all_selections(
+        PositionBased(Word::new(true)).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -292,7 +292,7 @@ fn get_word(
     position: SelectionPosition,
     skip_symbols: bool,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
-    if let Some(current_word) = Token::new(skip_symbols)?.current(
+    if let Some(current_word) = PositionBased(Token::new(skip_symbols)).current(
         params.clone(),
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {

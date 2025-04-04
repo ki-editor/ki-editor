@@ -1,8 +1,7 @@
 use std::rc::Rc;
 
-use super::{get_current_selection_by_cursor_via_iter, ByteRange, SelectionMode};
+use super::{ByteRange, VectorBased, VectorBasedSelectionMode};
 
-// TODO: change this to custom selections, so it can also hold references, definitions etc
 pub(crate) struct LocalQuickfix {
     ranges: Rc<Vec<ByteRange>>,
 }
@@ -30,18 +29,8 @@ impl LocalQuickfix {
     }
 }
 
-impl SelectionMode for LocalQuickfix {
-    fn get_current_selection_by_cursor(
-        &self,
-        buffer: &crate::buffer::Buffer,
-        cursor_char_index: crate::selection::CharIndex,
-        if_current_not_found: crate::components::editor::IfCurrentNotFound,
-    ) -> anyhow::Result<Option<super::ByteRange>> {
-        get_current_selection_by_cursor_via_iter(
-            buffer,
-            cursor_char_index,
-            if_current_not_found,
-            self.ranges.clone(),
-        )
+impl VectorBasedSelectionMode for LocalQuickfix {
+    fn get_byte_ranges(&self, _: &crate::buffer::Buffer) -> anyhow::Result<Rc<Vec<ByteRange>>> {
+        Ok(self.ranges.clone())
     }
 }

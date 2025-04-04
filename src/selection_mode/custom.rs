@@ -1,6 +1,6 @@
 use crate::selection::Selection;
 
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, PositionBased, PositionBasedSelectionMode};
 
 pub(crate) struct Custom {
     current_selection: Selection,
@@ -12,7 +12,7 @@ impl Custom {
     }
 }
 
-impl SelectionMode for Custom {
+impl PositionBasedSelectionMode for Custom {
     fn get_current_selection_by_cursor(
         &self,
         buffer: &crate::buffer::Buffer,

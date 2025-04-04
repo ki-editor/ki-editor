@@ -3,7 +3,10 @@ use std::rc::Rc;
 use crate::{buffer::Buffer, context::Context, git::GitOperation};
 use itertools::Itertools;
 
-use super::{get_current_selection_by_cursor_via_iter, ByteRange, SelectionMode};
+use super::{
+    get_current_selection_by_cursor_via_iter, ByteRange, PositionBasedSelectionMode, VectorBased,
+    VectorBasedSelectionMode,
+};
 
 pub(crate) struct GitHunk {
     ranges: Rc<Vec<super::ByteRange>>,
@@ -42,18 +45,8 @@ impl GitHunk {
     }
 }
 
-impl SelectionMode for GitHunk {
-    fn get_current_selection_by_cursor(
-        &self,
-        buffer: &crate::buffer::Buffer,
-        cursor_char_index: crate::selection::CharIndex,
-        if_current_not_found: crate::components::editor::IfCurrentNotFound,
-    ) -> anyhow::Result<Option<super::ByteRange>> {
-        get_current_selection_by_cursor_via_iter(
-            buffer,
-            cursor_char_index,
-            if_current_not_found,
-            self.ranges.clone(),
-        )
+impl VectorBasedSelectionMode for GitHunk {
+    fn get_byte_ranges(&self, buffer: &Buffer) -> anyhow::Result<Rc<Vec<ByteRange>>> {
+        Ok(self.ranges.clone())
     }
 }

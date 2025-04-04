@@ -1,10 +1,13 @@
 use crate::{components::editor::IfCurrentNotFound, selection::CharIndex};
 
-use super::{ByteRange, SelectionMode, SelectionModeParams};
+use super::{
+    ByteRange, PositionBased, PositionBasedSelectionMode, SelectionMode, SelectionModeParams,
+};
 
+#[derive(Clone)]
 pub(crate) struct LineTrimmed;
 
-impl SelectionMode for LineTrimmed {
+impl PositionBasedSelectionMode for LineTrimmed {
     fn get_current_selection_by_cursor(
         &self,
         buffer: &crate::buffer::Buffer,
@@ -80,7 +83,7 @@ impl SelectionMode for LineTrimmed {
 
     fn left(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let SelectionModeParams {
             buffer,
@@ -98,11 +101,13 @@ impl SelectionMode for LineTrimmed {
                 let start = trim_leading_spaces(byte_range.range.start, &line.content);
                 let char_index_range =
                     buffer.byte_range_to_char_index_range(&(start..start + 1))?;
-                self.current(
-                    SelectionModeParams {
+                PositionBased(self.clone()).current(
+                    &SelectionModeParams {
                         buffer,
                         cursor_direction,
-                        current_selection: &current_selection.clone().set_range(char_index_range),
+                        current_selection: &(**current_selection)
+                            .clone()
+                            .set_range(char_index_range),
                     },
                     IfCurrentNotFound::LookForward,
                 )
@@ -113,16 +118,16 @@ impl SelectionMode for LineTrimmed {
 
     fn delete_forward(
         &self,
-        params: SelectionModeParams,
+        params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.down(params)
+        PositionBased(self.clone()).down(params)
     }
 
     fn delete_backward(
         &self,
-        params: SelectionModeParams,
+        params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.up(params)
+        PositionBased(self.clone()).up(params)
     }
 }
 
@@ -148,7 +153,7 @@ mod test_line {
     #[test]
     fn simple_case() {
         let buffer = Buffer::new(None, "a\n\nb");
-        LineTrimmed.assert_all_selections(
+        PositionBased(LineTrimmed).assert_all_selections(
             &buffer,
             Selection::default(),
             &[(0..1, "a"), (2..2, ""), (3..4, "b")],
@@ -158,7 +163,7 @@ mod test_line {
     #[test]
     fn case_1() {
         let buffer = Buffer::new(None, "a\n\n\nb\nc\n  hello\n  \nbye");
-        LineTrimmed.assert_all_selections(
+        PositionBased(LineTrimmed).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -178,7 +183,11 @@ mod test_line {
     #[test]
     fn single_line_without_trailing_newline_character() {
         let buffer = Buffer::new(None, "a");
-        LineTrimmed.assert_all_selections(&buffer, Selection::default(), &[(0..1, "a")]);
+        PositionBased(LineTrimmed).assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[(0..1, "a")],
+        );
     }
 
     #[test]
@@ -200,8 +209,8 @@ fn f() {
 
         let test = |selected_line: usize, expected: &str| {
             let start = buffer.line_to_char(selected_line).unwrap();
-            let result = LineTrimmed
-                .left(SelectionModeParams {
+            let result = PositionBased(LineTrimmed)
+                .left(&SelectionModeParams {
                     buffer: &buffer,
                     current_selection: &Selection::new((start..start + 1).into()),
                     cursor_direction: &Direction::default(),

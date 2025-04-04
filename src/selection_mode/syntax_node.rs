@@ -2,7 +2,9 @@ use itertools::Itertools;
 
 use crate::selection_mode::ApplyMovementResult;
 
-use super::{ByteRange, SelectionMode, SyntaxToken, TopNode};
+use super::{
+    ByteRange, PositionBased, PositionBasedSelectionMode, SelectionMode, SyntaxToken, TopNode,
+};
 
 pub(crate) struct SyntaxNode {
     /// If this is true:
@@ -11,7 +13,7 @@ pub(crate) struct SyntaxNode {
     pub coarse: bool,
 }
 
-impl SelectionMode for SyntaxNode {
+impl PositionBasedSelectionMode for SyntaxNode {
     fn revealed_selections<'a>(
         &'a self,
         params: super::SelectionModeParams<'a>,
@@ -43,42 +45,42 @@ impl SelectionMode for SyntaxNode {
             .map(|node| ByteRange::new(node.byte_range()))
             .collect_vec())
     }
-    fn jumps(
+    fn jumps_impl(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
         chars: Vec<char>,
         line_number_ranges: Vec<std::ops::Range<usize>>,
     ) -> anyhow::Result<Vec<crate::components::editor::Jump>> {
         if self.coarse {
-            TopNode.jumps(params, chars, line_number_ranges)
+            PositionBased(TopNode).jumps(params, chars, line_number_ranges)
         } else {
-            SyntaxToken.jumps(params, chars, line_number_ranges)
+            PositionBased(SyntaxToken).jumps(params, chars, line_number_ranges)
         }
     }
-    fn expand(
+    fn expand_impl(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.select_vertical(params.clone(), true)
+        self.select_vertical(params, true)
     }
-    fn down(
+    fn down_impl(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.select_vertical(params, false)
+        self.select_vertical(&params, false)
             .map(|result| result.map(|result| result.selection))
     }
 
-    fn up(
+    fn up_impl(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.select_vertical(params, true)
             .map(|result| result.map(|result| result.selection))
     }
     fn right(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
@@ -100,7 +102,7 @@ impl SelectionMode for SyntaxNode {
     }
     fn left(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
@@ -173,7 +175,7 @@ impl SelectionMode for SyntaxNode {
 impl SyntaxNode {
     pub(crate) fn select_vertical(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
         go_up: bool,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         let Some(mut node) = params
@@ -215,7 +217,7 @@ mod test_syntax_node {
         buffer::Buffer,
         components::editor::IfCurrentNotFound,
         selection::{CharIndex, Selection},
-        selection_mode::SelectionModeParams,
+        selection_mode::{SelectionMode, SelectionModeParams},
     };
 
     use super::*;
@@ -226,12 +228,12 @@ mod test_syntax_node {
             Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main() { let x = X {z,b,c:d} }",
         );
-        SyntaxNode { coarse: true }.assert_all_selections(
+        PositionBased(SyntaxNode { coarse: true }).assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
             &[(23..24, "z"), (25..26, "b"), (27..30, "c:d")],
         );
-        SyntaxNode { coarse: false }.assert_all_selections(
+        PositionBased(SyntaxNode { coarse: false }).assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
             &[
@@ -252,7 +254,7 @@ mod test_syntax_node {
             Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main() { let x = S(a); }",
         );
-        SyntaxNode { coarse: true }.assert_all_selections(
+        PositionBased(SyntaxNode { coarse: true }).assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(20)..CharIndex(21)).into()),
             &[(20..21, "S"), (21..24, "(a)")],
@@ -271,7 +273,7 @@ mod test_syntax_node {
 
         let child_text = buffer.slice(&child_range).unwrap();
         assert_eq!(child_text, "z");
-        let selection = SyntaxNode { coarse: false }.expand(SelectionModeParams {
+        let selection = PositionBased(SyntaxNode { coarse: false }).expand(&SelectionModeParams {
             buffer: &buffer,
             current_selection: &Selection::new(child_range),
             cursor_direction: &crate::components::editor::Direction::Start,
@@ -295,7 +297,7 @@ mod test_syntax_node {
 
             let parent_text = buffer.slice(&parent_range).unwrap();
             assert_eq!(parent_text, "{z}");
-            let selection = SyntaxNode { coarse }.down(SelectionModeParams {
+            let selection = PositionBased(SyntaxNode { coarse }).down(&SelectionModeParams {
                 buffer: &buffer,
                 current_selection: &Selection::new(parent_range),
                 cursor_direction: &crate::components::editor::Direction::Start,
@@ -324,8 +326,8 @@ fn main() {
 
             let range = (CharIndex(13)..CharIndex(17)).into();
             assert_eq!(buffer.slice(&range).unwrap(), " let");
-            let selection = SyntaxNode { coarse }.current(
-                SelectionModeParams {
+            let selection = PositionBased(SyntaxNode { coarse }).current(
+                &SelectionModeParams {
                     buffer: &buffer,
                     current_selection: &Selection::new(range),
                     cursor_direction: &crate::components::editor::Direction::Start,

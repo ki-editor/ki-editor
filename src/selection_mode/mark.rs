@@ -1,22 +1,35 @@
-use super::{get_current_selection_by_cursor_via_iter, ByteRange, SelectionMode};
+use crate::buffer::Buffer;
+
+use super::{
+    get_current_selection_by_cursor_via_iter, ByteRange, PositionBasedSelectionMode, VectorBased,
+    VectorBasedSelectionMode,
+};
 use std::rc::Rc;
 
 pub(crate) struct Mark {
-    pub(crate) ranges: Rc<Vec<ByteRange>>,
+    ranges: Rc<Vec<ByteRange>>,
 }
 
-impl SelectionMode for Mark {
-    fn get_current_selection_by_cursor(
-        &self,
-        buffer: &crate::buffer::Buffer,
-        cursor_char_index: crate::selection::CharIndex,
-        if_current_not_found: crate::components::editor::IfCurrentNotFound,
-    ) -> anyhow::Result<Option<super::ByteRange>> {
-        get_current_selection_by_cursor_via_iter(
-            buffer,
-            cursor_char_index,
-            if_current_not_found,
-            self.ranges.clone(),
-        )
+impl Mark {
+    pub(crate) fn new(buffer: &Buffer) -> anyhow::Result<Self> {
+        Ok(Mark {
+            ranges: Rc::new(
+                buffer
+                    .marks()
+                    .into_iter()
+                    .filter_map(|range| {
+                        Some(ByteRange::new(
+                            buffer.char_index_range_to_byte_range(range).ok()?,
+                        ))
+                    })
+                    .collect(),
+            ),
+        })
+    }
+}
+
+impl VectorBasedSelectionMode for Mark {
+    fn get_byte_ranges(&self, buffer: &Buffer) -> anyhow::Result<Rc<Vec<ByteRange>>> {
+        Ok(self.ranges.clone())
     }
 }

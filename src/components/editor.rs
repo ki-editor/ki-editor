@@ -786,7 +786,7 @@ impl Editor {
             .chain(self.hidden_parent_line_ranges()?)
             .collect_vec();
         let jumps = object.jumps(
-            selection_mode::SelectionModeParams {
+            &selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,
@@ -1858,7 +1858,7 @@ impl Editor {
                         };
                         let first = selection_mode.first(&params).ok()??.range();
                         // Find the before current selection
-                        let before_current = selection_mode.left(params).ok()??.range();
+                        let before_current = selection_mode.left(&params).ok()??.range();
                         let first_range = current_selection.range();
                         let second_range: CharIndexRange =
                             (first.start()..before_current.end()).into();
@@ -1907,7 +1907,7 @@ impl Editor {
                         // Select from the first until before current
                         let last = selection_mode.last(&params).ok()??.range();
                         // Find the before current selection
-                        let after_current = selection_mode.right(params).ok()??.range();
+                        let after_current = selection_mode.right(&params).ok()??.range();
                         let first_range = current_selection.range();
                         let second_range: CharIndexRange =
                             (after_current.start()..last.end()).into();

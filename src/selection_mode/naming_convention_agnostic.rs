@@ -1,7 +1,12 @@
+use std::rc::Rc;
+
 use itertools::Itertools;
 
-use super::{ByteRange, SelectionMode};
+use crate::buffer::Buffer;
 
+use super::{ByteRange, PositionBasedSelectionMode, VectorBasedSelectionMode};
+
+#[derive(Clone)]
 pub(crate) struct NamingConventionAgnostic {
     pattern: String,
 }
@@ -65,25 +70,24 @@ impl NamingConventionAgnostic {
     }
 }
 
-impl SelectionMode for NamingConventionAgnostic {
-    fn get_current_selection_by_cursor(
-        &self,
-        buffer: &crate::buffer::Buffer,
-        cursor_char_index: crate::selection::CharIndex,
-        if_current_not_found: crate::components::editor::IfCurrentNotFound,
-    ) -> anyhow::Result<Option<super::ByteRange>> {
-        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
-        Ok(self
-            .find_all(&buffer.rope().to_string())
-            .into_iter()
-            .find(|(range, _)| range.range.contains(&cursor_byte))
-            .map(|(range, _)| range))
+impl VectorBasedSelectionMode for NamingConventionAgnostic {
+    fn get_byte_ranges(&self, buffer: &Buffer) -> Result<Rc<Vec<ByteRange>>, anyhow::Error> {
+        Ok(Rc::new(
+            self.find_all(&buffer.rope().to_string())
+                .into_iter()
+                .map(|(range, _)| range)
+                .collect(),
+        ))
     }
 }
 
 #[cfg(test)]
 mod test_naming_convention_agnostic {
-    use crate::{buffer::Buffer, selection::Selection};
+    use crate::{
+        buffer::Buffer,
+        selection::Selection,
+        selection_mode::{SelectionMode, VectorBased},
+    };
 
     use super::*;
 
@@ -94,7 +98,7 @@ mod test_naming_convention_agnostic {
             "AliBu aliBu ali-bu ali_bu Ali Bu ALI BU ali bu ALI-BU ALI_BU Ali-Bu",
         );
         let selection_mode = NamingConventionAgnostic::new("ali bu".to_string());
-        selection_mode.assert_all_selections(
+        VectorBased(selection_mode.clone()).assert_all_selections(
             &buffer,
             Selection::default(),
             &[

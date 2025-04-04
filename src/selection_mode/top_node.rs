@@ -1,9 +1,9 @@
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, PositionBasedSelectionMode};
 use itertools::Itertools;
 
 pub(crate) struct TopNode;
 
-impl SelectionMode for TopNode {
+impl PositionBasedSelectionMode for TopNode {
     fn get_current_selection_by_cursor(
         &self,
         buffer: &crate::buffer::Buffer,
@@ -37,7 +37,11 @@ impl SelectionMode for TopNode {
 
 #[cfg(test)]
 mod test_top_node {
-    use crate::{buffer::Buffer, selection::Selection};
+    use crate::{
+        buffer::Buffer,
+        selection::Selection,
+        selection_mode::{PositionBased, SelectionMode},
+    };
 
     use super::*;
 
@@ -47,7 +51,7 @@ mod test_top_node {
             Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main(x: usize) { let x = 1; }",
         );
-        TopNode.assert_all_selections(
+        PositionBased(TopNode).assert_all_selections(
             &buffer,
             Selection::default(),
             &[

@@ -5,7 +5,10 @@ use crate::{
     selection::{CharIndex, Selection},
 };
 
-use super::{word::SelectionPosition, ByteRange, SelectionMode, SelectionModeParams, Word};
+use super::{
+    word::SelectionPosition, ByteRange, PositionBased, PositionBasedSelectionMode, SelectionMode,
+    SelectionModeParams, Word,
+};
 
 pub(crate) struct Character {
     current_column: usize,
@@ -17,7 +20,7 @@ impl Character {
     }
 }
 
-impl SelectionMode for Character {
+impl PositionBasedSelectionMode for Character {
     fn first(
         &self,
         params: &super::SelectionModeParams,
@@ -105,7 +108,7 @@ fn get_char(
     params: &super::SelectionModeParams,
     position: SelectionPosition,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
-    if let Some(current_word) = Word::new(false)?.current(
+    if let Some(current_word) = PositionBased(Word::new(false)).current(
         params.clone(),
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {
@@ -135,7 +138,8 @@ mod test_character {
 
         // First line
         let selection = Selection::default();
-        Character::new(0).assert_all_selections(
+        crate::selection_mode::SelectionMode::assert_all_selections(
+            &PositionBased(Character::new(0)),
             &buffer,
             selection,
             &[(0..1, "f"), (1..2, "o"), (2..3, "o")],
@@ -144,7 +148,8 @@ mod test_character {
         // Second line
         let char_index = buffer.line_to_char(1)?;
         let selection = Selection::default().set_range((char_index..char_index).into());
-        Character::new(0).assert_all_selections(
+        crate::selection_mode::SelectionMode::assert_all_selections(
+            &PositionBased(Character::new(0)),
             &buffer,
             selection,
             &[(4..5, "s"), (5..6, "p"), (6..7, "a"), (7..8, "m")],
@@ -170,13 +175,13 @@ gam
             let start = buffer.line_to_char(selected_line).unwrap();
             let selection_mode = Character::new(4);
             let method = if move_up {
-                Character::up
+                Character::up_impl
             } else {
-                Character::down
+                Character::down_impl
             };
             let result = method(
                 &selection_mode,
-                crate::selection_mode::SelectionModeParams {
+                &crate::selection_mode::SelectionModeParams {
                     buffer: &buffer,
                     current_selection: &Selection::new((start..start + 1).into()),
                     cursor_direction: &crate::components::editor::Direction::Start,

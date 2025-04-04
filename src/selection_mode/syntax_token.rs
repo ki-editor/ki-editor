@@ -2,16 +2,21 @@ pub(crate) struct SyntaxToken;
 
 use std::rc::Rc;
 
-use crate::{buffer::Buffer, components::editor::IfCurrentNotFound, selection_mode::SelectionMode};
+use crate::{
+    buffer::Buffer, components::editor::IfCurrentNotFound,
+    selection_mode::PositionBasedSelectionMode,
+};
 
-use super::{get_current_selection_by_cursor_via_iter, ByteRange, TopNode};
+use super::{
+    get_current_selection_by_cursor_via_iter, ByteRange, PositionBased, SelectionMode, TopNode,
+};
 
-impl SelectionMode for SyntaxToken {
-    fn expand(
+impl PositionBasedSelectionMode for SyntaxToken {
+    fn expand_impl(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection_mode::ApplyMovementResult>> {
-        Ok(TopNode
+        Ok(PositionBased(TopNode)
             .current(params, IfCurrentNotFound::LookForward)?
             .map(|selection| crate::selection_mode::ApplyMovementResult {
                 selection,
@@ -45,14 +50,14 @@ impl SelectionMode for SyntaxToken {
 
 #[cfg(test)]
 mod test_token {
-    use crate::{buffer::Buffer, selection::Selection};
+    use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
 
     use super::*;
 
     #[test]
     fn case_1() {
         let buffer = Buffer::new(Some(tree_sitter_rust::LANGUAGE.into()), "fn main() {}");
-        SyntaxToken.assert_all_selections(
+        PositionBased(SyntaxToken).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
