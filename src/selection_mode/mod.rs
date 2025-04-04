@@ -29,7 +29,8 @@ pub(crate) use local_quickfix::LocalQuickfix;
 pub(crate) use mark::Mark;
 pub(crate) use naming_convention_agnostic::NamingConventionAgnostic;
 use position_pair::ParsedChar;
-use std::ops::Range;
+use ropey::Rope;
+use std::{ops::Range, rc::Rc};
 pub(crate) use syntax_node::SyntaxNode;
 pub(crate) use syntax_token::SyntaxToken;
 pub(crate) use token::Token;
@@ -38,7 +39,7 @@ pub(crate) use word::Word;
 
 use crate::{
     buffer::Buffer,
-    char_index_range::CharIndexRange,
+    char_index_range::{range_intersects, CharIndexRange},
     components::{
         editor::{Direction, IfCurrentNotFound, Jump, Movement, SurroundKind},
         suggestive_editor::Info,
@@ -54,6 +55,10 @@ pub(crate) struct ByteRange {
 }
 impl ByteRange {
     pub(crate) fn new(range: Range<usize>) -> Self {
+        debug_assert!(
+            range.end >= range.start,
+            "range.end >= range.start, range = {range:?}"
+        );
         Self { range, info: None }
     }
 
@@ -85,6 +90,10 @@ impl ByteRange {
     pub(crate) fn range(&self) -> &Range<usize> {
         &self.range
     }
+
+    pub(crate) fn info(&self) -> Option<Info> {
+        self.info.clone()
+    }
 }
 
 impl PartialOrd for ByteRange {
@@ -102,112 +111,26 @@ impl Ord for ByteRange {
     }
 }
 
-#[derive(Clone)]
 pub(crate) struct SelectionModeParams<'a> {
     pub(crate) buffer: &'a Buffer,
     pub(crate) current_selection: &'a Selection,
     pub(crate) cursor_direction: &'a Direction,
 }
-#[derive(Debug, Clone)]
-pub(crate) struct ApplyMovementResult {
-    pub(crate) selection: Selection,
-    pub(crate) mode: Option<crate::selection::SelectionMode>,
-}
-
-impl ApplyMovementResult {
-    pub(crate) fn from_selection(selection: Selection) -> Self {
-        Self {
-            selection,
-            mode: None,
-        }
-    }
-}
-
-pub trait SelectionMode {
-    /// NOTE: this method should not be used directly,
-    /// Use `iter_filtered` instead.
-    /// I wish to have private trait methods :(
-    fn iter<'a>(
-        &'a self,
-        params: SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>>;
-
-    fn iter_filtered<'a>(
-        &'a self,
-        params: SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
-        Ok(Box::new(
-            self.iter(params)?
-                .chunk_by(|item| item.range.clone())
-                .into_iter()
-                .map(|(range, items)| {
-                    let infos = items.into_iter().filter_map(|item| item.info).collect_vec();
-                    let info = infos.split_first().map(|(head, tail)| {
-                        Info::new(
-                            Some(head.title())
-                                .into_iter()
-                                .chain(tail.iter().map(|tail| tail.title()))
-                                .unique()
-                                .join(" & "),
-                            Some(head.content())
-                                .into_iter()
-                                .chain(tail.iter().map(|tail| tail.content()))
-                                .unique()
-                                .join("\n=======\n"),
-                        )
-                        .set_decorations(head.decorations().clone())
-                    });
-                    ByteRange::new(range).set_info(info)
-                })
-                .collect_vec()
-                .into_iter(),
-        ))
+impl SelectionModeParams<'_> {
+    fn cursor_char_index(&self) -> CharIndex {
+        self.current_selection.to_char_index(self.cursor_direction)
     }
 
-    fn all_selections<'a>(
-        &'a self,
-        params: SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
-        self.iter_filtered(params)
+    fn cursor_byte(&self) -> anyhow::Result<usize> {
+        self.buffer.char_to_byte(self.cursor_char_index())
     }
 
-    fn apply_movement(
-        &self,
-        params: SelectionModeParams,
-        movement: Movement,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        fn convert(
-            result: anyhow::Result<Option<Selection>>,
-        ) -> anyhow::Result<Option<ApplyMovementResult>> {
-            Ok(result?.map(|result| result.into()))
-        }
-        match movement {
-            Movement::Right => convert(self.right(params)),
-
-            Movement::Left => convert(self.left(params)),
-            Movement::Last => convert(self.last(params)),
-            Movement::Current(if_current_not_found) => {
-                convert(self.current(params, if_current_not_found))
-            }
-            Movement::First => convert(self.first(params)),
-            Movement::Index(index) => convert(self.to_index(params, index)),
-            Movement::Jump(range) => Ok(Some(ApplyMovementResult::from_selection(
-                params.current_selection.clone().set_range(range),
-            ))),
-            Movement::Up => convert(self.up(params)),
-            Movement::Down => convert(self.down(params)),
-            Movement::Expand => self.expand(params),
-            Movement::DeleteBackward => convert(self.delete_backward(params)),
-            Movement::DeleteForward => convert(self.delete_forward(params)),
-        }
-    }
-
-    fn expand(&self, params: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
-        let buffer = params.buffer;
-        let selection = params.current_selection;
-        let range = params.current_selection.extended_range();
-        let range_start = params.current_selection.extended_range().start;
-        let range_end = params.current_selection.extended_range().end;
+    fn expand(&self) -> Result<Option<ApplyMovementResult>, anyhow::Error> {
+        let buffer = self.buffer;
+        let selection = self.current_selection;
+        let range = self.current_selection.extended_range();
+        let range_start = self.current_selection.extended_range().start;
+        let range_end = self.current_selection.extended_range().end;
         use position_pair::Position::*;
         use EnclosureKind::*;
         use SurroundKind::*;
@@ -347,45 +270,184 @@ pub trait SelectionMode {
             selection.clone().set_range(range),
         )))
     }
+}
+#[derive(Debug, Clone)]
+pub(crate) struct ApplyMovementResult {
+    pub(crate) selection: Selection,
+    pub(crate) mode: Option<crate::selection::SelectionMode>,
+}
 
-    fn up(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.select_vertical(params, std::cmp::Ordering::Less)
+impl ApplyMovementResult {
+    pub(crate) fn from_selection(selection: Selection) -> Self {
+        Self {
+            selection,
+            mode: None,
+        }
     }
+}
 
-    fn down(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.select_vertical(params, std::cmp::Ordering::Greater)
+pub(crate) fn get_current_selection_by_cursor_via_iter(
+    buffer: &crate::buffer::Buffer,
+    cursor_char_index: crate::selection::CharIndex,
+    if_current_not_found: IfCurrentNotFound,
+    vec: Rc<Vec<ByteRange>>,
+) -> anyhow::Result<Option<ByteRange>> {
+    debug_assert!(vec.iter().is_sorted());
+    let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+    let mut previous_range: Option<&ByteRange> = None;
+    let partition_point = vec.partition_point(|byte_range| byte_range.range().start < cursor_byte);
+    let calibrated_partition_point = match if_current_not_found {
+        IfCurrentNotFound::LookForward => partition_point,
+        IfCurrentNotFound::LookBackward => {
+            if partition_point == 0 {
+                return Ok(None);
+            } else {
+                partition_point - 1
+            }
+        }
+    };
+    return Ok(vec.iter().nth(calibrated_partition_point).cloned());
+
+    for range in vec.iter() {
+        if range.range().contains(&cursor_byte) {
+            return Ok(Some(range.clone()));
+        } else if range.range.start > cursor_byte {
+            match if_current_not_found {
+                IfCurrentNotFound::LookForward => return Ok(Some(range.clone())),
+                IfCurrentNotFound::LookBackward => return Ok(previous_range.cloned()),
+            }
+        } else {
+            previous_range = Some(range)
+        }
     }
+    Ok(None)
+}
 
-    fn select_vertical(
+/// This is so that any struct that implements PositionBasedSelectionMode
+/// gets a free implementation of SelectionMode.
+///
+/// See https://stackoverflow.com/a/40945952/6587634
+impl<T: PositionBasedSelectionMode> SelectionMode for PositionBased<T> {
+    fn revealed_selections<'a>(
+        &'a self,
+        params: SelectionModeParams<'a>,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        self.all_selections(params)
+    }
+    fn get_current_selection_by_cursor(
         &self,
-        params: SelectionModeParams,
-        ordering: std::cmp::Ordering,
+        buffer: &Buffer,
+        cursor_char_index: CharIndex,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<ByteRange>> {
+        self.0
+            .get_current_selection_by_cursor(buffer, cursor_char_index, if_current_not_found)
+    }
+
+    #[cfg(test)]
+    fn all_selections_gathered_inversely<'a>(
+        &'a self,
+        params: SelectionModeParams<'a>,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        let mut cursor_char_index = CharIndex(params.buffer.len_chars() - 1);
+        let mut result = Vec::new();
+        loop {
+            if let Some(range) = self.get_current_selection_by_cursor(
+                &params.buffer,
+                cursor_char_index,
+                IfCurrentNotFound::LookBackward,
+            )? {
+                if range.range.start == 0 || Some(&range) == result.first() {
+                    result.insert(0, range);
+                    break;
+                } else {
+                    cursor_char_index = params.buffer.byte_to_char(range.range.start - 1)?;
+                    result.insert(0, range);
+                }
+            } else {
+                break;
+            }
+        }
+        return Ok(result);
+    }
+
+    fn to_index(
+        &self,
+        params: &SelectionModeParams,
+        index: usize,
     ) -> anyhow::Result<Option<Selection>> {
-        let SelectionModeParams {
-            buffer,
-            current_selection,
-            ..
-        } = params;
-        let start = current_selection.range().start;
-        let current_position = buffer.char_to_position(start)?;
-        let current_line = buffer.char_to_line(start)?;
-        let selection = self
-            .iter_filtered(params)?
-            .filter_map(|range| {
-                let position = buffer.byte_to_position(range.range.start).ok()?;
-                Some((position, range))
-            })
-            .filter(|(position, _)| position.line.cmp(&current_line) == ordering)
-            .sorted_by_key(|(position, _)| {
-                (
-                    current_line.abs_diff(position.line),
-                    position.column.abs_diff(current_position.column),
-                )
-            })
-            .next()
-            .map(|(_, range)| range.to_selection(buffer, current_selection))
-            .transpose()?;
-        Ok(selection)
+        let current_selection = params.current_selection;
+        let buffer = params.buffer;
+        let mut cursor_char_index = CharIndex(0);
+        let limit = CharIndex(params.buffer.len_chars());
+        let mut current_index: usize = 0;
+        while cursor_char_index < limit {
+            if let Some(range) = self.get_current_selection_by_cursor(
+                &params.buffer,
+                cursor_char_index,
+                IfCurrentNotFound::LookForward,
+            )? {
+                if current_index == index {
+                    return Ok(Some(range.to_selection(buffer, current_selection)?));
+                } else {
+                    current_index += 1;
+                    cursor_char_index = buffer.byte_to_char(range.range.end)?
+                }
+            } else {
+                return Ok(None);
+            }
+        }
+        return Ok(None);
+    }
+
+    fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.0.first(params)
+    }
+
+    fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.0.last(params)
+    }
+
+    fn right(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.0.right(params)
+    }
+
+    fn left(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.0.left(params)
+    }
+
+    fn all_selections<'a>(
+        &'a self,
+        params: SelectionModeParams<'a>,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        self.0.all_selections(params)
+    }
+
+    fn up(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.0.up_impl(params)
+    }
+
+    fn down(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.0.down_impl(params)
+    }
+
+    fn expand(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
+        self.0.expand_impl(params)
+    }
+
+    fn jumps(
+        &self,
+        params: &SelectionModeParams,
+        chars: Vec<char>,
+        line_number_ranges: Vec<Range<usize>>,
+    ) -> anyhow::Result<Vec<Jump>> {
+        self.0.jumps_impl(params, chars, line_number_ranges)
     }
 
     fn selections_in_line_number_range(
@@ -393,43 +455,208 @@ pub trait SelectionMode {
         params: &SelectionModeParams,
         line_number_ranges: Vec<Range<usize>>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        let byte_ranges: Vec<_> = line_number_ranges
-            .into_iter()
-            .filter_map(|range| {
-                Some(
-                    params.buffer.line_to_byte(range.start).ok()?
-                        ..params.buffer.line_to_byte(range.end).ok()?,
-                )
-            })
-            .collect();
-
-        Ok(self
-            .iter(params.clone())?
-            .filter(|range| {
-                byte_ranges
-                    .iter()
-                    .any(|byte_range| byte_range.contains(&range.range.start))
-            })
-            .collect())
+        self.0
+            .selections_in_line_number_range_impl(params, line_number_ranges)
     }
+}
 
-    fn iter_revealed<'a>(
+pub trait SelectionMode {
+    fn all_selections<'a>(
         &'a self,
         params: SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
-        self.iter_filtered(params)
+    ) -> anyhow::Result<Vec<ByteRange>>;
+
+    #[cfg(test)]
+    fn all_selections_gathered_inversely<'a>(
+        &'a self,
+        params: SelectionModeParams<'a>,
+    ) -> anyhow::Result<Vec<ByteRange>>;
+
+    fn apply_movement(
+        &self,
+        params: &SelectionModeParams,
+        movement: Movement,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        fn convert(
+            result: anyhow::Result<Option<Selection>>,
+        ) -> anyhow::Result<Option<ApplyMovementResult>> {
+            Ok(result?.map(|result| result.into()))
+        }
+        match movement {
+            Movement::Right => convert(self.right(params)),
+
+            Movement::Left => convert(self.left(params)),
+            Movement::Last => convert(self.last(&params)),
+            Movement::Current(if_current_not_found) => {
+                convert(self.current(params, if_current_not_found))
+            }
+            Movement::First => convert(self.first(&params)),
+            Movement::Index(index) => convert(self.to_index(params, index)),
+            Movement::Jump(range) => Ok(Some(ApplyMovementResult::from_selection(
+                params.current_selection.clone().set_range(range),
+            ))),
+            Movement::Up => convert(self.up(params)),
+            Movement::Down => convert(self.down(params)),
+            Movement::Expand => self.expand(params),
+            Movement::DeleteBackward => convert(self.delete_backward(params)),
+            Movement::DeleteForward => convert(self.delete_forward(params)),
+        }
+    }
+
+    fn expand(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>>;
+
+    fn up(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
+
+    fn down(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
+
+    fn selections_in_line_number_range(
+        &self,
+        params: &SelectionModeParams,
+        line_number_ranges: Vec<Range<usize>>,
+    ) -> anyhow::Result<Vec<ByteRange>>;
+
+    fn revealed_selections<'a>(
+        &'a self,
+        params: SelectionModeParams<'a>,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        self.all_selections(params)
     }
 
     fn jumps(
         &self,
-        params: SelectionModeParams,
+        params: &SelectionModeParams,
+        chars: Vec<char>,
+        line_number_ranges: Vec<Range<usize>>,
+    ) -> anyhow::Result<Vec<Jump>>;
+
+    fn to_index(
+        &self,
+        params: &SelectionModeParams,
+        index: usize,
+    ) -> anyhow::Result<Option<Selection>>;
+
+    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.right(params)
+    }
+
+    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.left(params)
+    }
+
+    fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
+
+    fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
+
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &Buffer,
+        cursor_char_index: CharIndex,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<ByteRange>>;
+
+    fn current(
+        &self,
+        params: &SelectionModeParams,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let range = self.get_current_selection_by_cursor(
+            &params.buffer,
+            params.cursor_char_index(),
+            if_current_not_found,
+        )?;
+        let range = if range.is_none() {
+            self.get_current_selection_by_cursor(
+                &params.buffer,
+                params.cursor_char_index(),
+                if_current_not_found.inverse(),
+            )?
+        } else {
+            range
+        };
+        range
+            .map(|range| {
+                params
+                    .current_selection
+                    .clone()
+                    .update_with_byte_range(params.buffer, range)
+            })
+            .transpose()
+    }
+
+    fn right(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>>;
+
+    fn left(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>>;
+
+    #[cfg(test)]
+    fn assert_all_selections(
+        &self,
+        buffer: &Buffer,
+        current_selection: Selection,
+        selections: &[(Range<usize>, &'static str)],
+    ) {
+        let expected = selections
+            .iter()
+            .map(|(range, info)| (range.to_owned(), info.to_string()))
+            .collect_vec();
+
+        let actual_forward = self
+            .all_selections(SelectionModeParams {
+                buffer,
+                current_selection: &current_selection,
+                cursor_direction: &Direction::default(),
+            })
+            .unwrap()
+            .into_iter()
+            .flat_map(|range| -> anyhow::Result<_> {
+                Ok((
+                    range.range.start..range.range.end,
+                    buffer
+                        .slice(&range.to_char_index_range(buffer)?)?
+                        .to_string(),
+                ))
+            })
+            .collect_vec();
+
+        assert_eq!(expected, actual_forward);
+
+        let actual_backward = self
+            .all_selections_gathered_inversely(SelectionModeParams {
+                buffer,
+                current_selection: &current_selection,
+                cursor_direction: &Direction::default(),
+            })
+            .unwrap()
+            .into_iter()
+            .flat_map(|range| -> anyhow::Result<_> {
+                Ok((
+                    range.range.start..range.range.end,
+                    buffer
+                        .slice(&range.to_char_index_range(buffer)?)?
+                        .to_string(),
+                ))
+            })
+            .collect_vec();
+
+        assert_eq!(expected, actual_backward, "backward assertion");
+    }
+}
+
+pub trait PositionBasedSelectionMode {
+    fn jumps_impl(
+        &self,
+        params: &SelectionModeParams,
         chars: Vec<char>,
         line_number_ranges: Vec<Range<usize>>,
     ) -> anyhow::Result<Vec<Jump>> {
-        let iter = self
-            .selections_in_line_number_range(&params, line_number_ranges)?
-            .into_iter();
-        let jumps = iter
+        let ranges = self.selections_in_line_number_range_impl(&params, line_number_ranges)?;
+        let jumps = ranges
+            .into_iter()
             .filter_map(|range| {
                 let selection = range
                     .to_selection(params.buffer, params.current_selection)
@@ -470,185 +697,573 @@ pub trait SelectionMode {
         Ok(jumps)
     }
 
-    fn to_index(
+    fn selections_in_line_number_range_impl(
         &self,
-        params: SelectionModeParams,
-        index: usize,
-    ) -> anyhow::Result<Option<Selection>> {
-        let current_selection = params.current_selection;
-        let buffer = params.buffer;
-        let mut iter = self.iter_filtered(params)?.sorted();
-        if let Some(byte_range) = iter.nth(index) {
-            Ok(Some(byte_range.to_selection(buffer, current_selection)?))
-        } else {
-            Err(anyhow::anyhow!("Invalid index"))
-        }
-    }
-
-    fn right(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        let current_selection = params.current_selection.clone();
-        let buffer = params.buffer;
-        let byte_range = buffer.char_index_range_to_byte_range(current_selection.range())?;
-        Ok(self
-            .iter_filtered(params)?
-            .sorted()
-            .find(|range| {
-                range.range.start > byte_range.start
-                    || (range.range.start == byte_range.start && range.range.end > byte_range.end)
+        params: &SelectionModeParams,
+        line_number_ranges: Vec<Range<usize>>,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        let byte_ranges: Vec<_> = line_number_ranges
+            .clone()
+            .into_iter()
+            .filter_map(|range| {
+                Some(
+                    params.buffer.line_to_byte(range.start).ok()?
+                        ..params.buffer.line_to_byte(range.end).ok()?,
+                )
             })
-            .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
+            .collect();
+
+        let before_cursor_selections = {
+            let mut result = Vec::new();
+            let mut cursor_char_index = params.current_selection.range().start - 1;
+            loop {
+                match self.get_current_selection_by_cursor(
+                    &params.buffer,
+                    cursor_char_index,
+                    IfCurrentNotFound::LookBackward,
+                )? {
+                    Some(range)
+                        if byte_ranges
+                            .iter()
+                            .any(|byte_range| byte_range.contains(&range.range.start)) =>
+                    {
+                        let range_start = range.range.start;
+                        if result.iter().any(|existing_range| existing_range == &range) {
+                            break result;
+                        } else {
+                            result.push(range);
+                            cursor_char_index = params.buffer.byte_to_char(range_start)? - 1;
+                        }
+                    }
+                    _ => break result,
+                }
+            }
+        };
+
+        let after_cursor_selections = {
+            let mut result = Vec::new();
+            let mut cursor_char_index = params.current_selection.range().end;
+            let last_range = self.last(params)?.and_then(|selection| {
+                params
+                    .buffer
+                    .char_index_range_to_byte_range(selection.range())
+                    .ok()
+            });
+            loop {
+                match self.get_current_selection_by_cursor(
+                    &params.buffer,
+                    cursor_char_index,
+                    IfCurrentNotFound::LookForward,
+                )? {
+                    Some(range)
+                        if byte_ranges
+                            .iter()
+                            .any(|byte_range| byte_range.contains(&range.range.start)) =>
+                    {
+                        let range_end = range.range.end;
+                        if result.iter().any(|existing_range| existing_range == &range) {
+                            break result;
+                        } else {
+                            result.push(range);
+                            cursor_char_index = params.buffer.byte_to_char(range_end)?;
+                        }
+                    }
+                    _ => break result,
+                }
+            }
+        };
+
+        let result = before_cursor_selections
+            .into_iter()
+            .chain(after_cursor_selections)
+            .collect_vec();
+
+        Ok(result)
+    }
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &Buffer,
+        cursor_char_index: CharIndex,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<ByteRange>>;
+
+    fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.get_current_selection_by_cursor(
+            &params.buffer,
+            CharIndex(0),
+            IfCurrentNotFound::LookForward,
+        )?
+        .map(|byte_range| byte_range.to_selection(params.buffer, params.current_selection))
+        .transpose()
     }
 
-    fn left(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        let current_selection = params.current_selection.clone();
-        let buffer = params.buffer;
-        let byte_range = buffer.char_index_range_to_byte_range(current_selection.range())?;
-        let cursor_char_index = current_selection.to_char_index(params.cursor_direction);
-        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
-
-        Ok(self
-            .iter_filtered(params)?
-            .sorted()
-            .rev()
-            .find(|range| {
-                range.range.start < cursor_byte
-                    || (range.range.start == cursor_byte
-                        && (range.range.start == byte_range.start
-                            && range.range.end < byte_range.end))
-            })
-            .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
+    fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.get_current_selection_by_cursor(
+            &params.buffer,
+            CharIndex(params.buffer.len_chars()) - 1,
+            IfCurrentNotFound::LookBackward,
+        )?
+        .map(|byte_range| byte_range.to_selection(params.buffer, params.current_selection))
+        .transpose()
     }
-    fn delete_forward(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+
+    fn right(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.get_current_selection_by_cursor(
+            params.buffer,
+            params.current_selection.range().end,
+            IfCurrentNotFound::LookForward,
+        )?
+        .map(|range| {
+            params
+                .current_selection
+                .clone()
+                .update_with_byte_range(params.buffer, range)
+        })
+        .transpose()
+    }
+
+    fn left(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.get_current_selection_by_cursor(
+            &params.buffer,
+            params.current_selection.range().start - 1,
+            IfCurrentNotFound::LookBackward,
+        )?
+        .map(|range| {
+            params
+                .current_selection
+                .clone()
+                .update_with_byte_range(params.buffer, range)
+        })
+        .transpose()
+    }
+
+    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.right(params)
     }
 
-    fn delete_backward(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.left(params)
     }
 
-    /// This uses `all_selections` instead of `iter_filtered`.
-    fn first(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        Ok(self
-            .all_selections(params.clone())?
-            .sorted()
-            .next()
-            .and_then(|range| {
-                range
-                    .to_selection(params.buffer, params.current_selection)
-                    .ok()
-            }))
+    fn revealed_selections<'a>(
+        &'a self,
+        params: SelectionModeParams<'a>,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        self.all_selections(params)
     }
 
-    /// This uses `all_selections` instead of `iter_filtered`.
-    fn last(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        Ok(self
-            .all_selections(params.clone())?
-            .sorted()
-            .last()
-            .and_then(|range| {
-                range
-                    .to_selection(params.buffer, params.current_selection)
-                    .ok()
-            }))
-    }
+    fn all_selections<'a>(
+        &'a self,
+        params: SelectionModeParams<'a>,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        let mut cursor_char_index = CharIndex(0);
+        let mut result = Vec::new();
+        while cursor_char_index < CharIndex(params.buffer.len_chars()) {
+            if let Some(range) = self.get_current_selection_by_cursor(
+                &params.buffer,
+                cursor_char_index,
+                IfCurrentNotFound::LookForward,
+            )? {
+                cursor_char_index = params.buffer.byte_to_char(range.range.end)?;
 
-    fn current(
-        &self,
-        params: SelectionModeParams,
-        if_current_not_found: IfCurrentNotFound,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.current_default_impl(params, if_current_not_found)
-    }
-
-    fn current_default_impl(
-        &self,
-        params: SelectionModeParams,
-        if_current_not_found: IfCurrentNotFound,
-    ) -> anyhow::Result<Option<Selection>> {
-        let current_selection = params.current_selection;
-        let buffer = params.buffer;
-        let range = current_selection.range().trimmed(buffer)?;
-
-        if let Some((_, best_intersecting_match)) = {
-            let char_index = match params.cursor_direction {
-                Direction::Start => range.start,
-                Direction::End => range.end - 1,
-            };
-            let cursor_line = buffer.char_to_line(char_index)?;
-            let cursor_byte = buffer.char_to_byte(char_index)?;
-            self.iter_filtered(params.clone())?
-                .filter_map(|byte_range| {
-                    // Get intersecting matches
-                    if byte_range.range.contains(&cursor_byte) {
-                        let line = buffer.byte_to_line(byte_range.range.start).ok()?;
-                        Some((line, byte_range))
-                    } else {
-                        None
-                    }
-                })
-                .sorted_by_key(|(line, byte_range)| {
-                    (
-                        // Prioritize same line
-                        line.abs_diff(cursor_line),
-                        // Then by nearest range start
-                        byte_range.range.start.abs_diff(cursor_byte),
-                    )
-                })
-                .next()
-        } {
-            Ok(Some(
-                best_intersecting_match.to_selection(buffer, current_selection)?,
-            ))
-        }
-        // If no intersecting match found, look in the given direction
-        else {
-            let result = match if_current_not_found {
-                IfCurrentNotFound::LookForward => self.right(params.clone()),
-                IfCurrentNotFound::LookBackward => self.left(params.clone()),
-            }?;
-            if let Some(result) = result {
-                Ok(Some(result))
-            } else {
-                // Look in another direction if matching selection is not found in the
-                // preferred direction
-                match if_current_not_found {
-                    IfCurrentNotFound::LookForward => self.left(params),
-                    IfCurrentNotFound::LookBackward => self.right(params),
+                if Some(&range) == result.last() {
+                    result.push(range);
+                    break;
+                } else {
+                    result.push(range);
                 }
+            } else {
+                break;
             }
         }
+        return Ok(result);
+    }
+
+    fn expand_impl(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        params.expand()
+    }
+
+    fn up_impl(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.vertical_movement(params, true)
+    }
+
+    fn down_impl(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.vertical_movement(params, false)
+    }
+
+    fn vertical_movement(
+        &self,
+        params: &SelectionModeParams,
+        is_up: bool,
+    ) -> anyhow::Result<Option<Selection>> {
+        let cursor_char_index = params.cursor_char_index();
+        let SelectionModeParams {
+            buffer,
+            current_selection,
+            ..
+        } = params;
+        let current_position = buffer.char_to_position(cursor_char_index)?;
+
+        // Early return check
+        if (is_up && current_position.line == 0)
+            || (!is_up && current_position.line == buffer.len_lines().saturating_sub(1))
+        {
+            return Ok(None);
+        }
+
+        // Calculate the new line
+        let new_line = if is_up {
+            current_position.line - 1
+        } else {
+            current_position.line + 1
+        };
+
+        let mut new_position = current_position.set_line(new_line);
+        let mut new_cursor_char_index = buffer.position_to_char(new_position)?;
+
+        // Define which look direction to try first and second based on movement direction
+        let (first_look, second_look) = if is_up {
+            (
+                IfCurrentNotFound::LookBackward,
+                IfCurrentNotFound::LookForward,
+            )
+        } else {
+            (
+                IfCurrentNotFound::LookForward,
+                IfCurrentNotFound::LookBackward,
+            )
+        };
+
+        while let Some(result) =
+            self.get_current_selection_by_cursor(&params.buffer, new_cursor_char_index, first_look)?
+        {
+            if buffer.byte_to_line(result.range.start)? == new_position.line {
+                return Ok(Some(
+                    (*current_selection)
+                        .clone()
+                        .set_range(buffer.byte_range_to_char_index_range(&result.range)?)
+                        .set_info(result.info),
+                ));
+            } else if let Some(result) = self.get_current_selection_by_cursor(
+                &params.buffer,
+                new_cursor_char_index,
+                second_look,
+            )? {
+                if buffer.byte_to_line(result.range.start)? == new_position.line {
+                    return Ok(Some(
+                        (*current_selection)
+                            .clone()
+                            .set_range(buffer.byte_range_to_char_index_range(&result.range)?)
+                            .set_info(result.info),
+                    ));
+                }
+            }
+
+            // Move to next line
+            new_position.line = if is_up {
+                new_position.line.saturating_sub(1)
+            } else {
+                new_position.line + 1
+            };
+            new_cursor_char_index = buffer.position_to_char(new_position)?;
+        }
+
+        Ok(None)
+    }
+}
+pub(crate) struct PositionBased<T: PositionBasedSelectionMode>(pub(crate) T);
+pub(crate) struct VectorBased<T: VectorBasedSelectionMode>(pub(crate) T);
+
+impl<T: VectorBasedSelectionMode> SelectionMode for VectorBased<T> {
+    fn all_selections<'a>(
+        &'a self,
+        params: SelectionModeParams<'a>,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        Ok(self
+            .0
+            .get_byte_ranges(params.buffer)?
+            .iter()
+            .cloned()
+            .collect_vec())
     }
 
     #[cfg(test)]
-    fn assert_all_selections(
-        &self,
-        buffer: &Buffer,
-        current_selection: Selection,
-        selections: &[(Range<usize>, &'static str)],
-    ) {
-        let expected = selections
-            .iter()
-            .map(|(range, info)| (range.to_owned(), info.to_string()))
-            .collect_vec();
+    fn all_selections_gathered_inversely<'a>(
+        &'a self,
+        params: SelectionModeParams<'a>,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        self.all_selections(params)
+    }
 
-        let actual = self
-            .all_selections(SelectionModeParams {
-                buffer,
-                current_selection: &current_selection,
-                cursor_direction: &Direction::default(),
+    fn selections_in_line_number_range(
+        &self,
+        params: &SelectionModeParams,
+        line_number_ranges: Vec<Range<usize>>,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        let line_byte_ranges = line_number_ranges
+            .into_iter()
+            .flat_map(|lines| lines.flat_map(|line| params.buffer.line_to_byte_range(line).ok()))
+            .collect_vec();
+        Ok(self
+            .0
+            .get_byte_ranges(params.buffer)?
+            .iter()
+            .filter(|range| {
+                line_byte_ranges
+                    .iter()
+                    .any(|line_byte_range| range_intersects(line_byte_range.range(), range.range()))
             })
-            .unwrap()
-            .flat_map(|range| -> anyhow::Result<_> {
-                Ok((
-                    range.range.start..range.range.end,
-                    buffer
-                        .slice(&range.to_char_index_range(buffer)?)?
-                        .to_string(),
+            .cloned()
+            .collect_vec())
+    }
+
+    fn to_index(
+        &self,
+        params: &SelectionModeParams,
+        index: usize,
+    ) -> anyhow::Result<Option<Selection>> {
+        self.0
+            .get_byte_ranges(params.buffer)?
+            .get(index)
+            .map(|range| {
+                Ok(params.current_selection.clone().set_range(
+                    params
+                        .buffer
+                        .byte_range_to_char_index_range(range.range())?,
                 ))
             })
-            .collect_vec();
+            .transpose()
+    }
 
-        assert_eq!(expected, actual);
+    fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.to_index(params, 0)
+    }
+
+    fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.to_index(
+            params,
+            self.0
+                .get_byte_ranges(params.buffer)?
+                .len()
+                .saturating_sub(1),
+        )
+    }
+
+    fn right(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let byte_range = params
+            .buffer
+            .char_index_range_to_byte_range(params.current_selection.range())?;
+        let ranges = self.0.get_byte_ranges(params.buffer)?;
+        match ranges.binary_search_by(|range| range.range().clone().cmp(byte_range.clone())) {
+            Ok(index) if index < ranges.len().saturating_sub(1) => ranges
+                .get(index + 1)
+                .map(|byte_range| {
+                    Ok(params.current_selection.clone().set_range(
+                        params
+                            .buffer
+                            .byte_range_to_char_index_range(byte_range.range())?,
+                    ))
+                })
+                .transpose(),
+            _ => self.current(&params, IfCurrentNotFound::LookForward),
+        }
+    }
+
+    fn left(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let byte_ranges = self.0.get_byte_ranges(params.buffer)?;
+        let byte_range = params
+            .buffer
+            .char_index_range_to_byte_range(params.current_selection.range())?;
+        match byte_ranges.binary_search_by(|range| range.range().clone().cmp(byte_range.clone())) {
+            Ok(index) if index > 0 => byte_ranges
+                .get(index - 1)
+                .map(|byte_range| {
+                    Ok(params.current_selection.clone().set_range(
+                        params
+                            .buffer
+                            .byte_range_to_char_index_range(byte_range.range())?,
+                    ))
+                })
+                .transpose(),
+            _ => self.current(&params, IfCurrentNotFound::LookBackward),
+        }
+    }
+
+    fn up(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.0.up_impl(params)
+    }
+
+    fn down(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.0.down_impl(params)
+    }
+
+    fn expand(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
+        params.expand()
+    }
+
+    fn jumps(
+        &self,
+        params: &SelectionModeParams,
+        chars: Vec<char>,
+        line_number_ranges: Vec<Range<usize>>,
+    ) -> anyhow::Result<Vec<Jump>> {
+        todo!()
+    }
+
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &Buffer,
+        cursor_char_index: CharIndex,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<ByteRange>> {
+        self.0
+            .get_current_selection_by_cursor(buffer, cursor_char_index, if_current_not_found)
+    }
+}
+
+pub trait VectorBasedSelectionMode {
+    fn get_byte_ranges(&self, buffer: &Buffer) -> anyhow::Result<Rc<Vec<ByteRange>>>;
+
+    fn up_impl(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.vertical_movement(params, true)
+    }
+
+    fn down_impl(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.vertical_movement(params, false)
+    }
+
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &Buffer,
+        cursor_char_index: CharIndex,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<ByteRange>> {
+        let vec = self.get_byte_ranges(buffer)?;
+        debug_assert!(vec.iter().is_sorted());
+        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+        let mut previous_range: Option<&ByteRange> = None;
+        let partition_point =
+            vec.partition_point(|byte_range| byte_range.range().start < cursor_byte);
+        let calibrated_partition_point = match if_current_not_found {
+            IfCurrentNotFound::LookForward => partition_point,
+            IfCurrentNotFound::LookBackward => {
+                if partition_point == 0 {
+                    return Ok(None);
+                } else {
+                    partition_point - 1
+                }
+            }
+        };
+        return Ok(vec.iter().nth(calibrated_partition_point).cloned());
+
+        for range in vec.iter() {
+            if range.range().contains(&cursor_byte) {
+                return Ok(Some(range.clone()));
+            } else if range.range.start > cursor_byte {
+                match if_current_not_found {
+                    IfCurrentNotFound::LookForward => return Ok(Some(range.clone())),
+                    IfCurrentNotFound::LookBackward => return Ok(previous_range.cloned()),
+                }
+            } else {
+                previous_range = Some(range)
+            }
+        }
+        Ok(None)
+    }
+
+    fn vertical_movement(
+        &self,
+        params: &SelectionModeParams,
+        is_up: bool,
+    ) -> anyhow::Result<Option<Selection>> {
+        let cursor_char_index = params.cursor_char_index();
+        let SelectionModeParams {
+            buffer,
+            current_selection,
+            ..
+        } = params;
+        let current_position = buffer.char_to_position(cursor_char_index)?;
+
+        // Early return check
+        if (is_up && current_position.line == 0)
+            || (!is_up && current_position.line == buffer.len_lines().saturating_sub(1))
+        {
+            return Ok(None);
+        }
+
+        // Calculate the new line
+        let new_line = if is_up {
+            current_position.line - 1
+        } else {
+            current_position.line + 1
+        };
+
+        let mut new_position = current_position.set_line(new_line);
+        let mut new_cursor_char_index = buffer.position_to_char(new_position)?;
+
+        // Define which look direction to try first and second based on movement direction
+        let (first_look, second_look) = if is_up {
+            (
+                IfCurrentNotFound::LookBackward,
+                IfCurrentNotFound::LookForward,
+            )
+        } else {
+            (
+                IfCurrentNotFound::LookForward,
+                IfCurrentNotFound::LookBackward,
+            )
+        };
+
+        while let Some(result) =
+            self.get_current_selection_by_cursor(&params.buffer, new_cursor_char_index, first_look)?
+        {
+            if buffer.byte_to_line(result.range.start)? == new_position.line {
+                return Ok(Some(
+                    (*current_selection)
+                        .clone()
+                        .set_range(buffer.byte_range_to_char_index_range(&result.range)?)
+                        .set_info(result.info),
+                ));
+            } else if let Some(result) = self.get_current_selection_by_cursor(
+                &params.buffer,
+                new_cursor_char_index,
+                second_look,
+            )? {
+                if buffer.byte_to_line(result.range.start)? == new_position.line {
+                    return Ok(Some(
+                        (*current_selection)
+                            .clone()
+                            .set_range(buffer.byte_range_to_char_index_range(&result.range)?)
+                            .set_info(result.info),
+                    ));
+                }
+            }
+
+            // Move to next line
+            new_position.line = if is_up {
+                new_position.line.saturating_sub(1)
+            } else {
+                new_position.line + 1
+            };
+            new_cursor_char_index = buffer.position_to_char(new_position)?;
+        }
+
+        Ok(None)
     }
 }
 
@@ -664,22 +1279,21 @@ mod test_selection_mode {
             suggestive_editor::Info,
         },
         selection::{CharIndex, Selection},
+        selection_mode::{PositionBased, SelectionMode},
     };
 
-    use super::{ByteRange, SelectionMode, SelectionModeParams};
+    use super::{ByteRange, PositionBasedSelectionMode, SelectionModeParams};
     use pretty_assertions::assert_eq;
 
     struct Dummy;
-    impl SelectionMode for Dummy {
-        fn iter<'a>(
-            &'a self,
-            _: super::SelectionModeParams<'a>,
-        ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-            Ok(Box::new(
-                [(0..6), (1..6), (2..5), (3..4), (3..5)]
-                    .into_iter()
-                    .map(ByteRange::new),
-            ))
+    impl PositionBasedSelectionMode for Dummy {
+        fn get_current_selection_by_cursor(
+            &self,
+            buffer: &crate::buffer::Buffer,
+            cursor_char_index: crate::selection::CharIndex,
+            _: crate::components::editor::IfCurrentNotFound,
+        ) -> anyhow::Result<Option<super::ByteRange>> {
+            todo!()
         }
     }
 
@@ -696,8 +1310,8 @@ mod test_selection_mode {
             }),
             cursor_direction: &Direction::default(),
         };
-        let actual = Dummy
-            .apply_movement(params, movement)
+        let actual = PositionBased(Dummy)
+            .apply_movement(&params, movement)
             .unwrap()
             .unwrap()
             .selection
@@ -784,29 +1398,31 @@ mod test_selection_mode {
             cursor_direction: &Direction::default(),
         };
         struct Dummy;
-        impl SelectionMode for Dummy {
-            fn iter<'a>(
-                &'a self,
-                _: super::SelectionModeParams<'a>,
-            ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-                Ok(Box::new(
-                    [
-                        ByteRange::with_info(
-                            1..2,
-                            Info::new("Title".to_string(), "Spongebob".to_string()),
-                        ),
-                        ByteRange::with_info(
-                            1..2,
-                            Info::new("Title".to_string(), "Squarepants".to_string()),
-                        ),
-                    ]
-                    .into_iter(),
-                ))
+        impl PositionBasedSelectionMode for Dummy {
+            fn get_current_selection_by_cursor(
+                &self,
+                buffer: &crate::buffer::Buffer,
+                cursor_char_index: crate::selection::CharIndex,
+                if_current_not_found: crate::components::editor::IfCurrentNotFound,
+            ) -> anyhow::Result<Option<super::ByteRange>> {
+                let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+                Ok([
+                    ByteRange::with_info(
+                        1..2,
+                        Info::new("Title".to_string(), "Spongebob".to_string()),
+                    ),
+                    ByteRange::with_info(
+                        1..2,
+                        Info::new("Title".to_string(), "Squarepants".to_string()),
+                    ),
+                ]
+                .into_iter()
+                .find(|range| range.range.contains(&cursor_byte)))
             }
         }
         let run_test = |movement: Movement, expected_info: &str| {
-            let actual = Dummy
-                .apply_movement(params.clone(), movement)
+            let actual = PositionBased(Dummy)
+                .apply_movement(&params, movement)
                 .unwrap()
                 .unwrap()
                 .selection;
@@ -836,8 +1452,8 @@ mod test_selection_mode {
                 })),
             cursor_direction: &Direction::default(),
         };
-        let actual = Dummy
-            .apply_movement(params, Movement::Right)
+        let actual = PositionBased(Dummy)
+            .apply_movement(&params, Movement::Right)
             .unwrap()
             .unwrap()
             .selection

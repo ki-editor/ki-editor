@@ -1,6 +1,13 @@
+use std::rc::Rc;
+
 use ast_grep_core::{language::TSLanguage, NodeMatch, StrDoc};
 
-use super::{ByteRange, SelectionMode};
+use crate::buffer::Buffer;
+
+use super::{
+    get_current_selection_by_cursor_via_iter, ByteRange, PositionBasedSelectionMode, SelectionMode,
+    SelectionModeParams, VectorBased, VectorBasedSelectionMode,
+};
 
 pub(crate) struct AstGrep {
     pattern: ast_grep_core::matcher::Pattern<TSLanguage>,
@@ -38,20 +45,19 @@ impl AstGrep {
     }
 }
 
-impl SelectionMode for AstGrep {
-    fn iter<'a>(
-        &'a self,
-        _params: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        Ok(Box::new(
-            self.find_all().map(|node| ByteRange::new(node.range())),
+impl VectorBasedSelectionMode for AstGrep {
+    fn get_byte_ranges(&self, buffer: &Buffer) -> anyhow::Result<Rc<Vec<ByteRange>>> {
+        Ok(Rc::new(
+            self.find_all()
+                .map(|node| ByteRange::new(node.range()))
+                .collect(),
         ))
     }
 }
 
 #[cfg(test)]
 mod test_ast_grep {
-    use crate::{buffer::Buffer, selection::Selection};
+    use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
 
     use super::*;
 
@@ -61,12 +67,10 @@ mod test_ast_grep {
             Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main(x: usize) { let x = f(f(x)); }",
         );
-        AstGrep::new(&buffer, "f($Y)")
-            .unwrap()
-            .assert_all_selections(
-                &buffer,
-                Selection::default(),
-                &[(28..35, "f(f(x))"), (30..34, "f(x)")],
-            );
+        VectorBased(AstGrep::new(&buffer, "f($Y)").unwrap()).assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[(28..35, "f(f(x))"), (30..34, "f(x)")],
+        );
     }
 }

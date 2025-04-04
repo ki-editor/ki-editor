@@ -483,6 +483,15 @@ pub(crate) enum IfCurrentNotFound {
     LookForward,
     LookBackward,
 }
+impl IfCurrentNotFound {
+    pub(crate) fn inverse(&self) -> IfCurrentNotFound {
+        use IfCurrentNotFound::*;
+        match self {
+            LookForward => LookBackward,
+            LookBackward => LookForward,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Movement {
@@ -777,7 +786,7 @@ impl Editor {
             .chain(self.hidden_parent_line_ranges()?)
             .collect_vec();
         let jumps = object.jumps(
-            selection_mode::SelectionModeParams {
+            &selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,
@@ -1654,7 +1663,8 @@ impl Editor {
         loop {
             let edit_transaction =
                 get_actual_edit_transaction(&current_selection, &next_selection)?;
-            let current_node = buffer.get_current_node(&current_selection, false)?;
+            let current_node =
+                buffer.get_current_node(current_selection.extended_range(), false)?;
 
             let new_buffer = {
                 let mut new_buffer = self.buffer.borrow().clone();
@@ -1679,7 +1689,7 @@ impl Editor {
                 .selections()
                 .into_iter()
                 .map(|selection| -> anyhow::Result<_> {
-                    new_buffer.get_current_node(selection, false)
+                    new_buffer.get_current_node(selection.extended_range(), false)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
@@ -1846,9 +1856,9 @@ impl Editor {
                             current_selection,
                             cursor_direction: &self.cursor_direction,
                         };
-                        let first = selection_mode.first(params.clone()).ok()??.range();
+                        let first = selection_mode.first(&params).ok()??.range();
                         // Find the before current selection
-                        let before_current = selection_mode.left(params).ok()??.range();
+                        let before_current = selection_mode.left(&params).ok()??.range();
                         let first_range = current_selection.range();
                         let second_range: CharIndexRange =
                             (first.start()..before_current.end()).into();
@@ -1895,9 +1905,9 @@ impl Editor {
                         };
 
                         // Select from the first until before current
-                        let last = selection_mode.last(params.clone()).ok()??.range();
+                        let last = selection_mode.last(&params).ok()??.range();
                         // Find the before current selection
-                        let after_current = selection_mode.right(params).ok()??.range();
+                        let after_current = selection_mode.right(&params).ok()??.range();
                         let first_range = current_selection.range();
                         let second_range: CharIndexRange =
                             (after_current.start()..last.end()).into();
@@ -3057,7 +3067,10 @@ impl Editor {
 
     fn show_current_tree_sitter_node_sexp(&self) -> Result<Dispatches, anyhow::Error> {
         let buffer = self.buffer();
-        let node = buffer.get_current_node(self.selection_set.primary_selection(), false)?;
+        let node = buffer.get_current_node(
+            self.selection_set.primary_selection().extended_range(),
+            false,
+        )?;
         let info = node
             .map(|node| node.to_sexp())
             .unwrap_or("[No node found]".to_string());

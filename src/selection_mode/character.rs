@@ -1,8 +1,14 @@
 use ropey::Rope;
 
-use crate::selection::Selection;
+use crate::{
+    components::editor::IfCurrentNotFound,
+    selection::{CharIndex, Selection},
+};
 
-use super::{word::SelectionPosition, ByteRange, SelectionMode, SelectionModeParams, Word};
+use super::{
+    word::SelectionPosition, ByteRange, PositionBased, PositionBasedSelectionMode, SelectionMode,
+    SelectionModeParams, Word,
+};
 
 pub(crate) struct Character {
     current_column: usize,
@@ -14,55 +20,43 @@ impl Character {
     }
 }
 
-impl SelectionMode for Character {
-    fn iter<'a>(
-        &'a self,
-        SelectionModeParams {
-            buffer,
-            current_selection,
-            cursor_direction,
-            ..
-        }: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        let char_index = current_selection.to_char_index(cursor_direction);
-        let line = buffer.char_to_line(char_index)?;
-        let line_start_char_index = buffer.line_to_char(line)?;
-        let current_line = buffer.get_line_by_char_index(char_index)?;
-        let line_len = line_len_without_new_line(&current_line);
-
-        Ok(Box::new((0..line_len).flat_map(
-            move |column| -> anyhow::Result<ByteRange> {
-                let byte = buffer.char_to_byte(line_start_char_index + column)?;
-                Ok(ByteRange::new(byte..byte + 1))
-            },
-        )))
-    }
-    fn up(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> Result<std::option::Option<Selection>, anyhow::Error> {
-        self.move_vertically(true, params)
-    }
-
-    fn down(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> Result<std::option::Option<Selection>, anyhow::Error> {
-        self.move_vertically(false, params)
-    }
-
+impl PositionBasedSelectionMode for Character {
     fn first(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         get_char(params, SelectionPosition::First)
     }
 
     fn last(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         get_char(params, SelectionPosition::Last)
+    }
+
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: crate::selection::CharIndex,
+        _: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<ByteRange>> {
+        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+        Ok(Some(ByteRange::new(cursor_byte..cursor_byte + 1)))
+    }
+}
+
+impl Character {
+    fn make_selection(params: super::SelectionModeParams, char_index: CharIndex) -> Selection {
+        let start = char_index.clamp(
+            CharIndex(0),
+            CharIndex(params.buffer.len_chars().saturating_sub(1)),
+        );
+        let end = start + 1;
+        params
+            .current_selection
+            .clone()
+            .set_range((start..end).into())
     }
 }
 
@@ -111,10 +105,10 @@ impl Character {
 }
 
 fn get_char(
-    params: super::SelectionModeParams,
+    params: &super::SelectionModeParams,
     position: SelectionPosition,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
-    if let Some(current_word) = Word::new(params.buffer, false)?.current(
+    if let Some(current_word) = PositionBased(Word::new(false)).current(
         params.clone(),
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {
@@ -144,7 +138,8 @@ mod test_character {
 
         // First line
         let selection = Selection::default();
-        Character::new(0).assert_all_selections(
+        crate::selection_mode::SelectionMode::assert_all_selections(
+            &PositionBased(Character::new(0)),
             &buffer,
             selection,
             &[(0..1, "f"), (1..2, "o"), (2..3, "o")],
@@ -153,7 +148,8 @@ mod test_character {
         // Second line
         let char_index = buffer.line_to_char(1)?;
         let selection = Selection::default().set_range((char_index..char_index).into());
-        Character::new(0).assert_all_selections(
+        crate::selection_mode::SelectionMode::assert_all_selections(
+            &PositionBased(Character::new(0)),
             &buffer,
             selection,
             &[(4..5, "s"), (5..6, "p"), (6..7, "a"), (7..8, "m")],
@@ -179,13 +175,13 @@ gam
             let start = buffer.line_to_char(selected_line).unwrap();
             let selection_mode = Character::new(4);
             let method = if move_up {
-                Character::up
+                Character::up_impl
             } else {
-                Character::down
+                Character::down_impl
             };
             let result = method(
                 &selection_mode,
-                crate::selection_mode::SelectionModeParams {
+                &crate::selection_mode::SelectionModeParams {
                     buffer: &buffer,
                     current_selection: &Selection::new((start..start + 1).into()),
                     cursor_direction: &crate::components::editor::Direction::Start,

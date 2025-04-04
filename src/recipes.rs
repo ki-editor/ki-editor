@@ -1595,7 +1595,7 @@ head
                 expectations: Box::new([CurrentSelectedTexts(&["foo"])]),
                 terminal_height: Some(9),
                 similar_vim_combos: &[],
-                only: false,
+                only: true,
             },
             Recipe {
                 description: "Reveal Sibling Nodes",

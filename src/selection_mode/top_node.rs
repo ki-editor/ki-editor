@@ -1,41 +1,47 @@
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, PositionBasedSelectionMode};
 use itertools::Itertools;
 
 pub(crate) struct TopNode;
 
-impl SelectionMode for TopNode {
-    fn iter<'a>(
+impl PositionBasedSelectionMode for TopNode {
+    fn get_current_selection_by_cursor(
         &self,
-        params: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
-        let buffer = params.buffer;
-        let tree = buffer.tree().ok_or(anyhow::anyhow!(
-            "TopNode::iter: cannot find Treesitter language"
-        ))?;
-        let root_node_id = tree.root_node().id();
-        Ok(Box::new(
-            tree_sitter_traversal2::traverse(tree.walk(), tree_sitter_traversal2::Order::Pre)
-                .filter(|node| node.id() != root_node_id)
-                .chunk_by(|node| node.byte_range().start)
-                .into_iter()
-                .map(|(_, group)| {
-                    ByteRange::new(
-                        group
-                            .into_iter()
-                            .max_by_key(|node| node.byte_range().end)
-                            .unwrap()
-                            .byte_range(),
-                    )
-                })
-                .collect_vec()
-                .into_iter(),
-        ))
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: crate::selection::CharIndex,
+        if_current_not_found: crate::components::editor::IfCurrentNotFound,
+    ) -> anyhow::Result<Option<super::ByteRange>> {
+        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+        if let Some(tree) = buffer.tree() {
+            let root_node_id = tree.root_node().id();
+            Ok(
+                tree_sitter_traversal2::traverse(tree.walk(), tree_sitter_traversal2::Order::Pre)
+                    .filter(|node| node.id() != root_node_id)
+                    .chunk_by(|node| node.byte_range().start)
+                    .into_iter()
+                    .map(|(_, group)| {
+                        ByteRange::new(
+                            group
+                                .into_iter()
+                                .max_by_key(|node| node.byte_range().end)
+                                .unwrap()
+                                .byte_range(),
+                        )
+                    })
+                    .find(|byte_range| byte_range.range.contains(&cursor_byte)),
+            )
+        } else {
+            Ok(None)
+        }
     }
 }
 
 #[cfg(test)]
 mod test_top_node {
-    use crate::{buffer::Buffer, selection::Selection};
+    use crate::{
+        buffer::Buffer,
+        selection::Selection,
+        selection_mode::{PositionBased, SelectionMode},
+    };
 
     use super::*;
 
@@ -45,7 +51,7 @@ mod test_top_node {
             Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main(x: usize) { let x = 1; }",
         );
-        TopNode.assert_all_selections(
+        PositionBased(TopNode).assert_all_selections(
             &buffer,
             Selection::default(),
             &[

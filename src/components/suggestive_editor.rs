@@ -291,6 +291,7 @@ mod test_suggestive_editor {
     use crate::lsp::completion::{CompletionItemEdit, PositionalEdit};
     use crate::lsp::documentation::Documentation;
     use crate::position::Position;
+    use crate::selection::SelectionMode;
     use crate::{
         app::Dispatch,
         buffer::{Buffer, BufferOwner},
@@ -929,6 +930,7 @@ mod test_suggestive_editor {
                 // Expect the completion dropdown to not be opened,
                 // since the editor is not in insert mode
                 Expect(CompletionDropdownIsOpen(false)),
+                Expect(CurrentSelectionMode(SelectionMode::Line)),
                 Editor(MoveSelection(crate::components::editor::Movement::Right)),
                 Expect(CompletionDropdownIsOpen(false)),
             ])

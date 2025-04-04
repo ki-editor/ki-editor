@@ -837,12 +837,11 @@ impl Editor {
     ) -> anyhow::Result<Vec<ByteRange>> {
         Ok(self
             .get_selection_mode_trait_object(selection, true, context)?
-            .iter_revealed(selection_mode::SelectionModeParams {
+            .revealed_selections(selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,
-            })?
-            .collect())
+            })?)
     }
 }
 
