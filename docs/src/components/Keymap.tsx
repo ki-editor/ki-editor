@@ -95,6 +95,7 @@ const KeymapView = (props: { keymap: Keymap }) => {
   // Using the custom hook for each stored value
   const [showKeys, setShowKeys] = useLocalStorage(STORAGE_KEYS.SHOW_KEYS, true);
   const [split, setSplit] = useLocalStorage(STORAGE_KEYS.SPLIT, true);
+  const [stackKeymap, setStackKeymap] = useLocalStorage(STORAGE_KEYS.STACK_KEYMAP, false);
   const [keysArrangement, setKeysArrangement] =
     useLocalStorage<KeysArrangement>(
       STORAGE_KEYS.KEYS_ARRANGEMENT,
@@ -150,6 +151,14 @@ const KeymapView = (props: { keymap: Keymap }) => {
         />
         <span>Show keys</span>
       </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={stackKeymap}
+          onChange={() => setStackKeymap(!stackKeymap)}
+        />
+        <span>Stack keymap</span>
+      </label>
 
       {showKeys && (
         <select
@@ -193,6 +202,98 @@ const KeymapView = (props: { keymap: Keymap }) => {
     </div>
   );
 
+  function exhaustiveSwitchHelper(_: never): never {
+    throw new Error("You are missing cases in your switch");
+  }
+
+  type PanelRenderOption = 'All' | 'Left' | 'Right'
+
+  const getKeyPanelFilterPredicate = (panel: PanelRenderOption): (_: any, keyIndex: number) => boolean => {
+    switch (panel) {
+      case 'Left':
+        return (_: any, keyIndex: number) => (keyIndex < 5);
+      case 'Right':
+        return (_: any, keyIndex: number) => (keyIndex >= 5);
+      case 'All':
+        return (_: any, _keyIndex: number) => true;
+      default: exhaustiveSwitchHelper(panel)
+    }
+  }
+
+  const getIsHomeKeyPredicate = (panel: PanelRenderOption): (rowIndex: number, columnIndex: number) => boolean => {
+    switch (panel) {
+      case 'Left':
+        return (rowIndex: number, columnIndex: number) => rowIndex === 1 && (columnIndex === 3)
+      case 'Right':
+        return (rowIndex: number, columnIndex: number) => rowIndex === 1 && (columnIndex === 1)
+      case 'All':
+        return (rowIndex: number, columnIndex: number) => rowIndex === 1 && (columnIndex === 3 || columnIndex === 6)
+      default: exhaustiveSwitchHelper(panel)
+    }
+  }
+
+  // This now renders All the keyboard panels or just the Left or just the Right
+  const renderKeymap = (panel: PanelRenderOption) => {
+    const keyPredicate = getKeyPanelFilterPredicate(panel);
+    const rows = props.keymap.rows.map((row) => row.filter(keyPredicate));
+    const keyboardLayoutKeys = keyboardLayout.keys.map((row) => row.filter(keyPredicate));
+    const isHomeKey = getIsHomeKeyPredicate(panel);
+    return rows.map((row, rowIndex) => {
+      const marginLeft = keysArrangement === "Row Staggered" ? [0, 24, 56][rowIndex] : 0;
+      return (
+        <div
+          key={rowIndex}
+          style={{
+            display: "grid",
+            gridAutoFlow: "column",
+            gap: 4,
+            justifyContent: "start",
+            marginLeft: marginLeft,
+          }}
+        >
+          {row.map((key, columnIndex) => (
+            <React.Fragment key={`${rowIndex}-${columnIndex}`}>
+              {split && columnIndex === 5 && (
+                <div style={{ width: cellWidth / 1.618 }} />
+              )}
+              <div style={{ textAlign: "center" }}>
+                <div
+                  style={{
+                    ...cellStyle,
+                    gridArea: "1 / 1",
+                    overflow: "hidden",
+                    backgroundColor:
+                      isHomeKey(rowIndex, columnIndex)
+                        ? colorMode === "light"
+                          ? "lightyellow"
+                          : "darkblue"
+                        : undefined,
+                  }}
+                >
+                  {showKeys && (
+                    <div
+                      style={{
+                        backgroundColor:
+                          colorMode === "light" ? "black" : "white",
+                        color: colorMode === "light" ? "white" : "black",
+                        width: "100%",
+                      }}
+                    >
+                      {keyboardLayoutKeys[rowIndex][columnIndex]}
+                    </div>
+                  )}
+                  {key.alted ? <div>⌥ &nbsp;{key.alted}</div> : <div />}
+                  {key.shifted ? <div>⇧&nbsp;{key.shifted}</div> : <div />}
+                  {key.normal ? <div>{key.normal}</div> : <div />}
+                </div>
+              </div>
+            </React.Fragment>
+          ))}
+        </div>
+      );
+    })
+  }
+
   const Body = () => (
     <div
       style={{
@@ -204,62 +305,17 @@ const KeymapView = (props: { keymap: Keymap }) => {
         overflowX: "auto",
       }}
     >
-      {props.keymap.rows.map((row, rowIndex) => {
-        return (
-          <div
-            key={rowIndex}
-            style={{
-              display: "grid",
-              gridAutoFlow: "column",
-              gap: 4,
-              justifyContent: "start",
-              marginLeft:
-                keysArrangement === "Row Staggered" ? [0, 24, 56][rowIndex] : 0,
-            }}
-          >
-            {row.map((key, columnIndex) => (
-              <React.Fragment key={`${rowIndex}-${columnIndex}`}>
-                {split && columnIndex === 5 && (
-                  <div style={{ width: cellWidth / 1.618 }} />
-                )}
-                <div style={{ textAlign: "center" }}>
-                  <div
-                    style={{
-                      ...cellStyle,
-                      gridArea: "1 / 1",
-                      overflow: "hidden",
-                      backgroundColor:
-                        rowIndex === 1 && (columnIndex == 3 || columnIndex == 6)
-                          ? colorMode === "light"
-                            ? "lightyellow"
-                            : "darkblue"
-                          : undefined,
-                    }}
-                  >
-                    {showKeys && (
-                      <div
-                        style={{
-                          backgroundColor:
-                            colorMode === "light" ? "black" : "white",
-                          color: colorMode === "light" ? "white" : "black",
-                          width: "100%",
-                        }}
-                      >
-                        {keyboardLayout.keys[rowIndex][columnIndex]}
-                      </div>
-                    )}
-                    {key.alted ? <div>⌥ {key.alted}</div> : <div />}
-                    {key.shifted ? <div>⇧ {key.shifted}</div> : <div />}
-                    {key.normal ? <div>{key.normal}</div> : <div />}
-                  </div>
-                </div>
-              </React.Fragment>
-            ))}
-          </div>
-        );
-      })}
-    </div>
+      {stackKeymap ? (
+        <React.Fragment>
+          <h3>Left Key Panel</h3>
+          {renderKeymap('Left')}
+          <h3 style={{ paddingTop: 16 }}>Right Key Panel</h3>
+          {renderKeymap('Right')}
+        </React.Fragment>)
+        : renderKeymap('All')}
+    </div >
   );
+
   return (
     <div
       style={{
