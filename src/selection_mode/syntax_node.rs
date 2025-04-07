@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use crate::selection_mode::ApplyMovementResult;
 
-use super::{ByteRange, IterBasedSelectionMode, SelectionMode, SyntaxToken, TopNode};
+use super::{ByteRange, IterBasedSelectionMode, SyntaxToken, TopNode};
 
 pub(crate) struct SyntaxNode {
     /// If this is true:
@@ -58,7 +58,7 @@ impl IterBasedSelectionMode for SyntaxNode {
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.select_vertical(params.clone(), true)
+        self.select_vertical(params, true)
     }
     fn down(
         &self,

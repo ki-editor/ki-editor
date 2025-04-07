@@ -1,9 +1,6 @@
 use ropey::Rope;
 
-use crate::{
-    components::editor::IfCurrentNotFound,
-    selection::{CharIndex, Selection},
-};
+use crate::{components::editor::IfCurrentNotFound, selection::Selection};
 
 use super::{
     word::SelectionPosition, ByteRange, PositionBased, PositionBasedSelectionMode, SelectionMode,
@@ -51,20 +48,6 @@ impl PositionBasedSelectionMode for Character {
         is_up: bool,
     ) -> anyhow::Result<Option<Selection>> {
         self.move_vertically(params, is_up)
-    }
-}
-
-impl Character {
-    fn make_selection(params: super::SelectionModeParams, char_index: CharIndex) -> Selection {
-        let start = char_index.clamp(
-            CharIndex(0),
-            CharIndex(params.buffer.len_chars().saturating_sub(1)),
-        );
-        let end = start + 1;
-        params
-            .current_selection
-            .clone()
-            .set_range((start..end).into())
     }
 }
 
@@ -117,7 +100,7 @@ fn get_char(
     position: SelectionPosition,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
     if let Some(current_word) = PositionBased(Word::new(false)).current(
-        params.clone(),
+        params,
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {
         let start = match position {

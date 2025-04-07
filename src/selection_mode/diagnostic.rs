@@ -1,6 +1,6 @@
 use crate::{components::suggestive_editor::Info, quickfix_list::DiagnosticSeverityRange};
 
-use super::{IterBasedSelectionMode, SelectionMode};
+use super::IterBasedSelectionMode;
 
 // TODO: change this to custom selections, so it can also hold references, definitions etc
 pub(crate) struct Diagnostic {

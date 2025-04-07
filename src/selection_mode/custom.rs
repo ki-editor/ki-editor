@@ -1,6 +1,6 @@
 use crate::selection::Selection;
 
-use super::{IterBasedSelectionMode, SelectionMode};
+use super::IterBasedSelectionMode;
 
 pub(crate) struct Custom {
     current_selection: Selection,

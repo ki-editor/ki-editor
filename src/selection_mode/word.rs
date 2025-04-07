@@ -1,5 +1,3 @@
-use ropey::Rope;
-
 use super::{ByteRange, PositionBased, PositionBasedSelectionMode, SelectionMode, Token};
 use crate::{buffer::Buffer, components::editor::IfCurrentNotFound, selection::CharIndex};
 
@@ -9,9 +7,6 @@ pub struct Word {
 
 const SUBWORD_REGEX: &str =
     r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z]{2,}|[A-Z][a-z]+|[A-Z]|[a-z]+|[^\w\s]|_|[0-9]+";
-
-const SUBWORD_SYMBOL_SKIPPING_REGEX: &str =
-    r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z]{2,}|[A-Z][a-z]+|[A-Z]|[a-z]+|[0-9]+";
 
 impl Word {
     pub(crate) fn new(skip_symbols: bool) -> Self {
@@ -154,11 +149,11 @@ impl PositionBasedSelectionMode for Word {
                 }
             };
             start..end + 1
-        } else if current_char.is_digit(10) {
+        } else if current_char.is_ascii_digit() {
             let start = {
                 let mut index = current;
                 loop {
-                    if index > CharIndex(0) && buffer.char(index - 1).is_digit(10) {
+                    if index > CharIndex(0) && buffer.char(index - 1).is_ascii_digit() {
                         index = index - 1;
                     } else {
                         break index;
@@ -168,7 +163,7 @@ impl PositionBasedSelectionMode for Word {
             let end = {
                 let mut index = current;
                 loop {
-                    if index < last_char_index && buffer.char(index + 1).is_digit(10) {
+                    if index < last_char_index && buffer.char(index + 1).is_ascii_digit() {
                         index = index + 1;
                     } else {
                         break index;
@@ -190,7 +185,7 @@ impl PositionBasedSelectionMode for Word {
 #[cfg(test)]
 mod test_word {
     use super::*;
-    use crate::{buffer::Buffer, selection::Selection, selection_mode::PositionBasedSelectionMode};
+    use crate::{buffer::Buffer, selection::Selection};
 
     #[test]
     fn simple_case() {

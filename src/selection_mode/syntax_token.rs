@@ -1,6 +1,6 @@
 pub(crate) struct SyntaxToken;
 
-use crate::{components::editor::IfCurrentNotFound, selection_mode::SelectionMode};
+use crate::components::editor::IfCurrentNotFound;
 
 use super::{ByteRange, IterBasedSelectionMode, TopNode};
 

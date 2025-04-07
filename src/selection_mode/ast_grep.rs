@@ -1,6 +1,6 @@
 use ast_grep_core::{language::TSLanguage, NodeMatch, StrDoc};
 
-use super::{ByteRange, IterBasedSelectionMode, SelectionMode};
+use super::{ByteRange, IterBasedSelectionMode};
 
 pub(crate) struct AstGrep {
     pattern: ast_grep_core::matcher::Pattern<TSLanguage>,

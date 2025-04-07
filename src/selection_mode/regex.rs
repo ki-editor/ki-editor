@@ -1,6 +1,6 @@
 use crate::{buffer::Buffer, list::grep::RegexConfig};
 
-use super::{ByteRange, IterBasedSelectionMode, SelectionMode};
+use super::{ByteRange, IterBasedSelectionMode};
 
 pub(crate) struct Regex {
     regex: fancy_regex::Regex,

@@ -305,24 +305,20 @@ impl<T: PositionBasedSelectionMode> SelectionMode for PositionBased<T> {
     ) -> anyhow::Result<Vec<ByteRange>> {
         let mut cursor_char_index = CharIndex(params.buffer.len_chars() - 1);
         let mut result = Vec::new();
-        loop {
-            if let Some(range) = self.get_current_selection_by_cursor(
-                &params.buffer,
-                cursor_char_index,
-                IfCurrentNotFound::LookBackward,
-            )? {
-                if range.range.start == 0 || Some(&range) == result.first() {
-                    result.insert(0, range);
-                    break;
-                } else {
-                    cursor_char_index = params.buffer.byte_to_char(range.range.start - 1)?;
-                    result.insert(0, range);
-                }
-            } else {
+        while let Some(range) = self.get_current_selection_by_cursor(
+            params.buffer,
+            cursor_char_index,
+            IfCurrentNotFound::LookBackward,
+        )? {
+            if range.range.start == 0 || Some(&range) == result.first() {
+                result.insert(0, range);
                 break;
+            } else {
+                cursor_char_index = params.buffer.byte_to_char(range.range.start - 1)?;
+                result.insert(0, range);
             }
         }
-        return Ok(result);
+        Ok(result)
     }
 
     fn to_index(
@@ -337,7 +333,7 @@ impl<T: PositionBasedSelectionMode> SelectionMode for PositionBased<T> {
         let mut current_index: usize = 0;
         while cursor_char_index < limit {
             if let Some(range) = self.get_current_selection_by_cursor(
-                &params.buffer,
+                params.buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
             )? {
@@ -351,7 +347,7 @@ impl<T: PositionBasedSelectionMode> SelectionMode for PositionBased<T> {
                 return Ok(None);
             }
         }
-        return Ok(None);
+        Ok(None)
     }
 
     fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
@@ -439,11 +435,11 @@ pub trait SelectionMode {
             Movement::Right => convert(self.right(params)),
 
             Movement::Left => convert(self.left(params)),
-            Movement::Last => convert(self.last(&params)),
+            Movement::Last => convert(self.last(params)),
             Movement::Current(if_current_not_found) => {
                 convert(self.current(params, if_current_not_found))
             }
-            Movement::First => convert(self.first(&params)),
+            Movement::First => convert(self.first(params)),
             Movement::Index(index) => convert(self.to_index(params, index)),
             Movement::Jump(range) => Ok(Some(ApplyMovementResult::from_selection(
                 params.current_selection.clone().set_range(range),
@@ -481,7 +477,7 @@ pub trait SelectionMode {
         chars: Vec<char>,
         line_number_ranges: Vec<Range<usize>>,
     ) -> anyhow::Result<Vec<Jump>> {
-        let ranges = self.selections_in_line_number_ranges(&params, line_number_ranges)?;
+        let ranges = self.selections_in_line_number_ranges(params, line_number_ranges)?;
         let jumps = ranges
             .into_iter()
             .filter_map(|range| {
@@ -555,13 +551,13 @@ pub trait SelectionMode {
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let range = self.get_current_selection_by_cursor(
-            &params.buffer,
+            params.buffer,
             params.cursor_char_index(),
             if_current_not_found,
         )?;
         let range = if range.is_none() {
             self.get_current_selection_by_cursor(
-                &params.buffer,
+                params.buffer,
                 params.cursor_char_index(),
                 if_current_not_found.inverse(),
             )?
@@ -688,7 +684,7 @@ pub trait PositionBasedSelectionMode {
         let mut cursor_char_index = char_index_start;
         let result = loop {
             match self.get_current_selection_by_cursor(
-                &buffer,
+                buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
             )? {
@@ -717,7 +713,7 @@ pub trait PositionBasedSelectionMode {
 
     fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.get_current_selection_by_cursor(
-            &params.buffer,
+            params.buffer,
             CharIndex(0),
             IfCurrentNotFound::LookForward,
         )?
@@ -727,7 +723,7 @@ pub trait PositionBasedSelectionMode {
 
     fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.get_current_selection_by_cursor(
-            &params.buffer,
+            params.buffer,
             CharIndex(params.buffer.len_chars()) - 1,
             IfCurrentNotFound::LookBackward,
         )?
@@ -758,7 +754,7 @@ pub trait PositionBasedSelectionMode {
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.get_current_selection_by_cursor(
-            &params.buffer,
+            params.buffer,
             params.current_selection.range().start - 1,
             IfCurrentNotFound::LookBackward,
         )?
@@ -794,7 +790,7 @@ pub trait PositionBasedSelectionMode {
         let mut result = Vec::new();
         while cursor_char_index < CharIndex(params.buffer.len_chars()) {
             if let Some(range) = self.get_current_selection_by_cursor(
-                &params.buffer,
+                params.buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
             )? {
@@ -810,7 +806,7 @@ pub trait PositionBasedSelectionMode {
                 break;
             }
         }
-        return Ok(result);
+        Ok(result)
     }
 
     fn expand(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
@@ -869,7 +865,7 @@ pub trait PositionBasedSelectionMode {
         };
 
         while let Some(result) =
-            self.get_current_selection_by_cursor(&params.buffer, new_cursor_char_index, first_look)?
+            self.get_current_selection_by_cursor(params.buffer, new_cursor_char_index, first_look)?
         {
             if buffer.byte_to_line(result.range.start)? == new_position.line {
                 return Ok(Some(
@@ -879,7 +875,7 @@ pub trait PositionBasedSelectionMode {
                         .set_info(result.info),
                 ));
             } else if let Some(result) = self.get_current_selection_by_cursor(
-                &params.buffer,
+                params.buffer,
                 new_cursor_char_index,
                 second_look,
             )? {
@@ -913,14 +909,14 @@ impl<T: IterBasedSelectionMode> SelectionMode for IterBased<T> {
         &'a self,
         params: &SelectionModeParams<'a>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        Ok(self.0.all_selections(params)?.into_iter().collect_vec())
+        Ok(self.0.all_selections(params)?.collect_vec())
     }
 
     fn revealed_selections<'a>(
         &'a self,
         params: &SelectionModeParams<'a>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        Ok(self.0.iter_revealed(params)?.into_iter().collect_vec())
+        Ok(self.0.iter_revealed(params)?.collect_vec())
     }
 
     #[cfg(test)]
@@ -928,7 +924,7 @@ impl<T: IterBasedSelectionMode> SelectionMode for IterBased<T> {
         &'a self,
         params: &SelectionModeParams<'a>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        Ok(self.0.all_selections(params)?.into_iter().collect_vec())
+        Ok(self.0.all_selections(params)?.collect_vec())
     }
 
     fn expand(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
@@ -1224,7 +1220,7 @@ pub(crate) trait IterBasedSelectionMode {
         let current_position = buffer.char_to_position(start)?;
         let current_line = buffer.char_to_line(start)?;
         let selection = self
-            .iter_filtered(&params)?
+            .iter_filtered(params)?
             .filter_map(|range| {
                 let position = buffer.byte_to_position(range.range.start).ok()?;
                 Some((position, range))
@@ -1468,12 +1464,10 @@ mod test_selection_mode {
             suggestive_editor::Info,
         },
         selection::{CharIndex, Selection},
-        selection_mode::{IterBased, PositionBased, SelectionMode},
+        selection_mode::{IterBased, SelectionMode},
     };
 
-    use super::{
-        ByteRange, IterBasedSelectionMode, PositionBasedSelectionMode, SelectionModeParams,
-    };
+    use super::{ByteRange, IterBasedSelectionMode, SelectionModeParams};
     use pretty_assertions::assert_eq;
 
     struct Dummy;

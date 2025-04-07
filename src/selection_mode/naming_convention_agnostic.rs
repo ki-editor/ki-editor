@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use super::{ByteRange, IterBasedSelectionMode, SelectionMode};
+use super::{ByteRange, IterBasedSelectionMode};
 
 pub(crate) struct NamingConventionAgnostic {
     pattern: String,

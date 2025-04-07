@@ -1,10 +1,8 @@
 use ropey::Rope;
 
-use crate::{
-    char_index_range::CharIndexRange, components::editor::IfCurrentNotFound, selection::CharIndex,
-};
+use crate::{components::editor::IfCurrentNotFound, selection::CharIndex};
 
-use super::{ByteRange, PositionBased, PositionBasedSelectionMode};
+use super::{ByteRange, PositionBasedSelectionMode};
 
 pub struct Token {
     skip_symbols: bool,
@@ -13,87 +11,6 @@ pub struct Token {
 impl Token {
     pub(crate) fn new(skip_symbols: bool) -> Self {
         Self { skip_symbols }
-    }
-}
-
-fn current_impl(
-    rope: &Rope,
-    cursor_char_index: CharIndex,
-    skip_symbols: bool,
-) -> anyhow::Result<Option<CharIndexRange>> {
-    let last_char_index = CharIndex(rope.len_chars().saturating_sub(1));
-
-    // Define predicates once
-    let is_word = |char: char| char.is_alphanumeric() || char == '_' || char == '-';
-    let is_symbol = |char: char| !is_word(char) && !char.is_whitespace();
-    let is_target = |char: char| {
-        if skip_symbols {
-            is_word(char)
-        } else {
-            is_word(char) || is_symbol(char)
-        }
-    };
-
-    if cursor_char_index > last_char_index {
-        return Ok(None);
-    }
-
-    if !is_target(rope.char(cursor_char_index.0)) {
-        return Ok(None);
-    }
-
-    // Handle single symbol case
-    if !skip_symbols && is_symbol(rope.char(cursor_char_index.0)) {
-        return Ok(Some((cursor_char_index..cursor_char_index + 1).into()));
-    }
-
-    // Find word boundaries
-    let start = find_word_start(rope, cursor_char_index, is_word);
-    let end = find_word_end(rope, cursor_char_index, last_char_index, is_word) + 1;
-
-    // Validate results
-    debug_assert!(is_word(rope.char(cursor_char_index.0)));
-    debug_assert!(is_word(rope.char(start.0)));
-    debug_assert!(is_word(rope.char((end - 1).0)));
-
-    Ok(Some((start..end).into()))
-}
-
-fn find_current_position(
-    rope: &Rope,
-    cursor_char_index: CharIndex,
-    if_current_not_found: IfCurrentNotFound,
-    is_target: impl Fn(char) -> bool,
-) -> anyhow::Result<Option<CharIndex>> {
-    let last_char_index = CharIndex(rope.len_chars().saturating_sub(1));
-
-    match if_current_not_found {
-        IfCurrentNotFound::LookForward => {
-            let mut index = cursor_char_index;
-            while index <= last_char_index {
-                if is_target(rope.char(index.0)) {
-                    return Ok(Some(index));
-                }
-                index = index + 1;
-                if index >= last_char_index {
-                    return Ok(None);
-                }
-            }
-            Ok(None)
-        }
-        IfCurrentNotFound::LookBackward => {
-            let mut index = cursor_char_index;
-            while index >= CharIndex(0) {
-                if is_target(rope.char(index.0)) {
-                    return Ok(Some(index));
-                }
-                if index == CharIndex(0) {
-                    return Ok(None);
-                }
-                index = index - 1;
-            }
-            Ok(None)
-        }
     }
 }
 
@@ -135,7 +52,7 @@ impl PositionBasedSelectionMode for Token {
         let line_start_char_index = buffer.line_to_char(current_line_index)?;
         let current_selection = params.current_selection.clone();
         if let Some(range) = self.get_current_selection_by_cursor(
-            &params.buffer,
+            params.buffer,
             line_start_char_index,
             IfCurrentNotFound::LookForward,
         )? {
@@ -155,7 +72,7 @@ impl PositionBasedSelectionMode for Token {
         let line_end_char_index = buffer.line_to_char(next_line_index)? - 1;
         let current_selection = params.current_selection.clone();
         if let Some(range) = self.get_current_selection_by_cursor(
-            &params.buffer,
+            params.buffer,
             line_end_char_index,
             IfCurrentNotFound::LookBackward,
         )? {
@@ -244,7 +161,7 @@ mod test_token {
     use crate::{
         buffer::Buffer,
         selection::Selection,
-        selection_mode::{PositionBasedSelectionMode, SelectionMode},
+        selection_mode::{PositionBased, SelectionMode},
     };
 
     use super::*;

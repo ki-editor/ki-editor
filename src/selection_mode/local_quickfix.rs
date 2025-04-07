@@ -1,4 +1,4 @@
-use super::{ByteRange, IterBasedSelectionMode, SelectionMode};
+use super::{ByteRange, IterBasedSelectionMode};
 
 // TODO: change this to custom selections, so it can also hold references, definitions etc
 pub(crate) struct LocalQuickfix {

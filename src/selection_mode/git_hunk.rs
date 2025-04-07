@@ -1,7 +1,7 @@
 use crate::{buffer::Buffer, context::Context, git::GitOperation};
 use itertools::Itertools;
 
-use super::{ByteRange, IterBasedSelectionMode, SelectionMode};
+use super::{ByteRange, IterBasedSelectionMode};
 
 pub(crate) struct GitHunk {
     ranges: Vec<super::ByteRange>,

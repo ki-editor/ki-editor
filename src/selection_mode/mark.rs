@@ -1,4 +1,4 @@
-use super::{IterBasedSelectionMode, SelectionMode};
+use super::IterBasedSelectionMode;
 
 pub(crate) struct Mark;
 

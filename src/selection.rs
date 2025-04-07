@@ -1,9 +1,6 @@
 use itertools::Itertools;
 use nonempty::NonEmpty;
-use std::{
-    ops::{Add, Sub},
-    rc::Rc,
-};
+use std::ops::{Add, Sub};
 
 use crate::{
     buffer::Buffer,

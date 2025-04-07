@@ -1,4 +1,4 @@
-use super::{ByteRange, IterBasedSelectionMode, SelectionMode};
+use super::{ByteRange, IterBasedSelectionMode};
 use itertools::Itertools;
 
 pub(crate) struct TopNode;

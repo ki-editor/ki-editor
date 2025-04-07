@@ -1,8 +1,6 @@
-use itertools::Itertools;
-
 use crate::selection::CharIndex;
 
-use super::{ByteRange, PositionBased, PositionBasedSelectionMode};
+use super::{ByteRange, PositionBasedSelectionMode};
 
 pub(crate) struct LineFull;
 
@@ -91,18 +89,14 @@ impl PositionBasedSelectionMode for LineFull {
             }
         };
         let mut line_index = buffer.char_to_line(start_char_index)?;
-        loop {
-            if let Some(slice) = buffer.get_line_by_line_index(line_index) {
-                if slice.chars().all(|char| char.is_whitespace()) {
-                    let range = buffer.line_to_char_range(line_index)?;
-                    return Ok(Some(params.current_selection.clone().set_range(range)));
-                } else if line_index == 0 {
-                    break;
-                } else {
-                    line_index -= 1
-                }
-            } else {
+        while let Some(slice) = buffer.get_line_by_line_index(line_index) {
+            if slice.chars().all(|char| char.is_whitespace()) {
+                let range = buffer.line_to_char_range(line_index)?;
+                return Ok(Some(params.current_selection.clone().set_range(range)));
+            } else if line_index == 0 {
                 break;
+            } else {
+                line_index -= 1
             }
         }
         Ok(None)
@@ -140,17 +134,13 @@ impl PositionBasedSelectionMode for LineFull {
     }
 }
 
-fn is_blank(buffer: &crate::buffer::Buffer, byte_range: &super::ByteRange) -> Option<bool> {
-    let range = buffer
-        .byte_range_to_char_index_range(&byte_range.range)
-        .ok()?;
-    let content = buffer.slice(&range).ok()?;
-    Some(content.chars().all(|c| c.is_whitespace()))
-}
-
 #[cfg(test)]
 mod test_line_full {
-    use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode as _};
+    use crate::{
+        buffer::Buffer,
+        selection::Selection,
+        selection_mode::{PositionBased, SelectionMode as _},
+    };
 
     use super::*;
 
