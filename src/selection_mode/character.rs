@@ -44,6 +44,14 @@ impl PositionBasedSelectionMode for Character {
         let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
         Ok(Some(ByteRange::new(cursor_byte..cursor_byte + 1)))
     }
+
+    fn vertical_movement(
+        &self,
+        params: &SelectionModeParams,
+        is_up: bool,
+    ) -> anyhow::Result<Option<Selection>> {
+        self.move_vertically(params, is_up)
+    }
 }
 
 impl Character {
@@ -78,13 +86,13 @@ fn line_len_without_new_line(current_line: &ropey::Rope) -> usize {
 impl Character {
     fn move_vertically(
         &self,
-        go_up: bool,
         super::SelectionModeParams {
             buffer,
             current_selection,
             cursor_direction,
             ..
-        }: super::SelectionModeParams,
+        }: &super::SelectionModeParams,
+        go_up: bool,
     ) -> anyhow::Result<Option<Selection>> {
         let current_char_index = current_selection.to_char_index(cursor_direction);
         let current_line = buffer.char_to_line(current_char_index)?;
@@ -142,7 +150,16 @@ mod test_character {
             &PositionBased(Character::new(0)),
             &buffer,
             selection,
-            &[(0..1, "f"), (1..2, "o"), (2..3, "o")],
+            &[
+                (0..1, "f"),
+                (1..2, "o"),
+                (2..3, "o"),
+                (3..4, "\n"),
+                (4..5, "s"),
+                (5..6, "p"),
+                (6..7, "a"),
+                (7..8, "m"),
+            ],
         );
 
         // Second line
@@ -152,7 +169,16 @@ mod test_character {
             &PositionBased(Character::new(0)),
             &buffer,
             selection,
-            &[(4..5, "s"), (5..6, "p"), (6..7, "a"), (7..8, "m")],
+            &[
+                (0..1, "f"),
+                (1..2, "o"),
+                (2..3, "o"),
+                (3..4, "\n"),
+                (4..5, "s"),
+                (5..6, "p"),
+                (6..7, "a"),
+                (7..8, "m"),
+            ],
         );
         Ok(())
     }

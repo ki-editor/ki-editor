@@ -54,10 +54,6 @@ pub(crate) struct ByteRange {
 }
 impl ByteRange {
     pub(crate) fn new(range: Range<usize>) -> Self {
-        debug_assert!(
-            range.end >= range.start,
-            "range.end >= range.start, range = {range:?}"
-        );
         Self { range, info: None }
     }
 
@@ -1595,30 +1591,28 @@ mod test_selection_mode {
             cursor_direction: &Direction::default(),
         };
         struct Dummy;
-        impl PositionBasedSelectionMode for Dummy {
-            fn get_current_selection_by_cursor(
-                &self,
-                buffer: &crate::buffer::Buffer,
-                cursor_char_index: crate::selection::CharIndex,
-                _: crate::components::editor::IfCurrentNotFound,
-            ) -> anyhow::Result<Option<super::ByteRange>> {
-                let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
-                Ok([
-                    ByteRange::with_info(
-                        1..2,
-                        Info::new("Title".to_string(), "Spongebob".to_string()),
-                    ),
-                    ByteRange::with_info(
-                        1..2,
-                        Info::new("Title".to_string(), "Squarepants".to_string()),
-                    ),
-                ]
-                .into_iter()
-                .find(|range| range.range.contains(&cursor_byte)))
+        impl IterBasedSelectionMode for Dummy {
+            fn iter<'a>(
+                &'a self,
+                _: &super::SelectionModeParams<'a>,
+            ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
+                Ok(Box::new(
+                    [
+                        ByteRange::with_info(
+                            1..2,
+                            Info::new("Title".to_string(), "Spongebob".to_string()),
+                        ),
+                        ByteRange::with_info(
+                            1..2,
+                            Info::new("Title".to_string(), "Squarepants".to_string()),
+                        ),
+                    ]
+                    .into_iter(),
+                ))
             }
         }
         let run_test = |movement: Movement, expected_info: &str| {
-            let actual = PositionBased(Dummy)
+            let actual = IterBased(Dummy)
                 .apply_movement(&params, movement)
                 .unwrap()
                 .unwrap()
