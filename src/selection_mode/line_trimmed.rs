@@ -20,17 +20,24 @@ impl PositionBasedSelectionMode for LineTrimmed {
         }
         let line_index = {
             let current_line_index = buffer.char_to_line(cursor_char_index)?;
-            if !buffer.char(cursor_char_index).is_whitespace() {
+            let current_char = buffer.char(cursor_char_index);
+            if !current_char.is_whitespace() {
                 current_line_index
+            } else if current_char == '\n' {
+                match if_current_not_found {
+                    IfCurrentNotFound::LookForward => current_line_index + 1,
+                    IfCurrentNotFound::LookBackward => current_line_index,
+                }
             } else {
                 let new_char_index = match if_current_not_found {
                     IfCurrentNotFound::LookForward => {
                         let mut index = cursor_char_index;
                         loop {
+                            let char = buffer.char(index);
                             if index == last_cursor_char_index {
                                 return Ok(None);
-                            } else if buffer.char(index) == '\n' {
-                                break index + 1;
+                            } else if !char.is_whitespace() || char == '\n' {
+                                break index;
                             } else {
                                 index = index + 1
                             }
@@ -39,9 +46,10 @@ impl PositionBasedSelectionMode for LineTrimmed {
                     IfCurrentNotFound::LookBackward => {
                         let mut index = cursor_char_index;
                         loop {
+                            let char = buffer.char(index);
                             if index == CharIndex(0) {
                                 return Ok(None);
-                            } else if buffer.char(index) == '\n' {
+                            } else if !char.is_whitespace() || char == '\n' {
                                 break index;
                             } else {
                                 index = index - 1

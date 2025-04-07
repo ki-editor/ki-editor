@@ -112,14 +112,14 @@ impl PositionBasedSelectionMode for LineFull {
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.down_impl(params)
+        self.down(params)
     }
 
     fn delete_backward(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.up_impl(params)
+        self.up(params)
     }
 
     fn get_current_selection_by_cursor(

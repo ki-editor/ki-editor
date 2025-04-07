@@ -820,7 +820,7 @@ impl Editor {
             return Ok(Vec::new());
         }
 
-        object.selections_in_line_number_range(
+        object.selections_in_line_number_ranges(
             &selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
                 current_selection: selection,
@@ -837,7 +837,7 @@ impl Editor {
     ) -> anyhow::Result<Vec<ByteRange>> {
         Ok(self
             .get_selection_mode_trait_object(selection, true, context)?
-            .revealed_selections(selection_mode::SelectionModeParams {
+            .revealed_selections(&selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,

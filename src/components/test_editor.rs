@@ -1580,10 +1580,10 @@ fn highlight_and_jump() -> anyhow::Result<()> {
             Editor(ShowJumps {
                 use_current_selection_mode: false,
             }),
-            // Expect the jump to be the first character of each word (except the current word 'lives')
+            // Expect the jump to be the first character of each word
             // Note 'y' and 'd' are excluded because they are out of view,
             // since the viewbox has only height of 1
-            Expect(JumpChars(&['w', 'o', 's', 's', '?'])),
+            Expect(JumpChars(&['w', 'l', 'o', 's', 's', '?'])),
             App(HandleKeyEvent(key!("s"))),
             App(HandleKeyEvent(key!("k"))),
             Expect(CurrentSelectedTexts(&["lives on sea shore"])),
@@ -3665,7 +3665,7 @@ fn select_current_line_when_cursor_is_at_last_space_of_current_line() -> anyhow:
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&[" "])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Expect(CurrentSelectedTexts(&["abc "])),
+            Expect(CurrentSelectedTexts(&["abc"])),
         ])
     })
 }
@@ -4504,6 +4504,66 @@ foo bar
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Down)),
             Expect(CurrentSelectedTexts(&["spam"])),
+        ])
+    })
+}
+
+#[test]
+fn move_line_down() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+foo bar
+    spam
+    baz
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Expect(CurrentSelectedTexts(&["foo bar"])),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["spam"])),
+        ])
+    })
+}
+
+#[test]
+fn move_line_up() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+    spam
+    baz
+foo bar
+hello
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("foo bar".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Expect(CurrentSelectedTexts(&["foo bar"])),
+            Editor(MoveSelection(Up)),
+            Expect(CurrentSelectedTexts(&["baz"])),
         ])
     })
 }

@@ -16,7 +16,7 @@ use crate::{
     non_empty_extensions::{NonEmptyTryCollectOption, NonEmptyTryCollectResult},
     position::Position,
     quickfix_list::DiagnosticSeverityRange,
-    selection_mode::{self, ApplyMovementResult, PositionBased, SelectionModeParams, VectorBased},
+    selection_mode::{self, ApplyMovementResult, IterBased, PositionBased, SelectionModeParams},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -198,7 +198,7 @@ impl SelectionSet {
                     .ok()?;
 
                 let iter = object
-                    .all_selections(SelectionModeParams {
+                    .all_selections(&SelectionModeParams {
                         buffer,
                         current_selection: selection,
                         cursor_direction,
@@ -498,35 +498,35 @@ impl SelectionMode {
                     current_column,
                 )))
             }
-            SelectionMode::Custom => Box::new(PositionBased(selection_mode::Custom::new(
+            SelectionMode::Custom => Box::new(IterBased(selection_mode::Custom::new(
                 current_selection.clone(),
             ))),
             SelectionMode::Find { search } => match search.mode {
-                LocalSearchConfigMode::Regex(regex) => Box::new(VectorBased(
+                LocalSearchConfigMode::Regex(regex) => Box::new(IterBased(
                     selection_mode::Regex::from_config(buffer, &search.search, regex)?,
                 )),
-                LocalSearchConfigMode::AstGrep => Box::new(VectorBased(
+                LocalSearchConfigMode::AstGrep => Box::new(IterBased(
                     selection_mode::AstGrep::new(buffer, &search.search)?,
                 )),
-                LocalSearchConfigMode::NamingConventionAgnostic => Box::new(VectorBased(
+                LocalSearchConfigMode::NamingConventionAgnostic => Box::new(IterBased(
                     selection_mode::NamingConventionAgnostic::new(search.search.clone()),
                 )),
             },
             SelectionMode::SyntaxNode => {
-                Box::new(PositionBased(selection_mode::SyntaxNode { coarse: true }))
+                Box::new(IterBased(selection_mode::SyntaxNode { coarse: true }))
             }
             SelectionMode::SyntaxNodeFine => {
-                Box::new(PositionBased(selection_mode::SyntaxNode { coarse: false }))
+                Box::new(IterBased(selection_mode::SyntaxNode { coarse: false }))
             }
-            SelectionMode::Diagnostic(severity) => Box::new(VectorBased(
+            SelectionMode::Diagnostic(severity) => Box::new(IterBased(
                 selection_mode::Diagnostic::new(*severity, params),
             )),
-            SelectionMode::GitHunk(diff_mode) => Box::new(VectorBased(
-                selection_mode::GitHunk::new(diff_mode, buffer, context)?,
-            )),
-            SelectionMode::Mark => Box::new(VectorBased(selection_mode::Mark::new(buffer)?)),
+            SelectionMode::GitHunk(diff_mode) => Box::new(IterBased(selection_mode::GitHunk::new(
+                diff_mode, buffer, context,
+            )?)),
+            SelectionMode::Mark => Box::new(IterBased(selection_mode::Mark)),
             SelectionMode::LocalQuickfix { .. } => {
-                Box::new(VectorBased(selection_mode::LocalQuickfix::new(params)))
+                Box::new(IterBased(selection_mode::LocalQuickfix::new(params)))
             }
         })
     }

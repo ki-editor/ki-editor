@@ -1,12 +1,7 @@
-use std::rc::Rc;
-
 use itertools::Itertools;
 
-use crate::buffer::Buffer;
+use super::{ByteRange, IterBasedSelectionMode, SelectionMode};
 
-use super::{ByteRange, PositionBasedSelectionMode, VectorBasedSelectionMode};
-
-#[derive(Clone)]
 pub(crate) struct NamingConventionAgnostic {
     pattern: String,
 }
@@ -70,24 +65,21 @@ impl NamingConventionAgnostic {
     }
 }
 
-impl VectorBasedSelectionMode for NamingConventionAgnostic {
-    fn get_byte_ranges(&self, buffer: &Buffer) -> Result<Rc<Vec<ByteRange>>, anyhow::Error> {
-        Ok(Rc::new(
-            self.find_all(&buffer.rope().to_string())
-                .into_iter()
-                .map(|(range, _)| range)
-                .collect(),
+impl IterBasedSelectionMode for NamingConventionAgnostic {
+    fn iter<'a>(
+        &'a self,
+        params: &super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
+        let string = params.buffer.rope().to_string();
+        Ok(Box::new(
+            self.find_all(&string).into_iter().map(|(range, _)| range),
         ))
     }
 }
 
 #[cfg(test)]
 mod test_naming_convention_agnostic {
-    use crate::{
-        buffer::Buffer,
-        selection::Selection,
-        selection_mode::{SelectionMode, VectorBased},
-    };
+    use crate::{buffer::Buffer, selection::Selection};
 
     use super::*;
 
@@ -98,7 +90,7 @@ mod test_naming_convention_agnostic {
             "AliBu aliBu ali-bu ali_bu Ali Bu ALI BU ali bu ALI-BU ALI_BU Ali-Bu",
         );
         let selection_mode = NamingConventionAgnostic::new("ali bu".to_string());
-        VectorBased(selection_mode.clone()).assert_all_selections(
+        selection_mode.assert_all_selections(
             &buffer,
             Selection::default(),
             &[

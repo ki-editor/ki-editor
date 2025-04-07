@@ -1,15 +1,10 @@
-use std::rc::Rc;
-
 use crate::{buffer::Buffer, context::Context, git::GitOperation};
 use itertools::Itertools;
 
-use super::{
-    get_current_selection_by_cursor_via_iter, ByteRange, PositionBasedSelectionMode, VectorBased,
-    VectorBasedSelectionMode,
-};
+use super::{ByteRange, IterBasedSelectionMode, SelectionMode};
 
 pub(crate) struct GitHunk {
-    ranges: Rc<Vec<super::ByteRange>>,
+    ranges: Vec<super::ByteRange>,
 }
 
 impl GitHunk {
@@ -19,9 +14,7 @@ impl GitHunk {
         context: &Context,
     ) -> anyhow::Result<GitHunk> {
         let Some(path) = buffer.path() else {
-            return Ok(GitHunk {
-                ranges: Rc::new(Vec::new()),
-            });
+            return Ok(GitHunk { ranges: Vec::new() });
         };
         let binding = path.file_diff(
             &buffer.content(),
@@ -39,14 +32,15 @@ impl GitHunk {
                 Some(ByteRange::new(start..end).set_info(hunk.to_info()))
             })
             .collect_vec();
-        Ok(GitHunk {
-            ranges: Rc::new(ranges),
-        })
+        Ok(GitHunk { ranges })
     }
 }
 
-impl VectorBasedSelectionMode for GitHunk {
-    fn get_byte_ranges(&self, buffer: &Buffer) -> anyhow::Result<Rc<Vec<ByteRange>>> {
-        Ok(self.ranges.clone())
+impl IterBasedSelectionMode for GitHunk {
+    fn iter<'a>(
+        &'a self,
+        _: &super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
+        Ok(Box::new(self.ranges.clone().into_iter()))
     }
 }

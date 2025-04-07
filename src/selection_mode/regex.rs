@@ -1,52 +1,14 @@
-use super::{
-    get_current_selection_by_cursor_via_iter, ByteRange, PositionBasedSelectionMode, VectorBased,
-    VectorBasedSelectionMode,
-};
-use crate::components::editor::IfCurrentNotFound;
 use crate::{buffer::Buffer, list::grep::RegexConfig};
-use anyhow::Result;
-use itertools::Itertools;
-use once_cell::sync::Lazy;
-use std::collections::HashMap;
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 
-#[derive(Clone)]
+use super::{ByteRange, IterBasedSelectionMode, SelectionMode};
+
 pub(crate) struct Regex {
     regex: fancy_regex::Regex,
     content: String,
 }
 
-// Define a struct to use as the cache key
-#[derive(Hash, Eq, PartialEq, Clone)]
-struct RegexCacheKey {
-    pattern: String,
-    escaped: bool,
-    match_whole_word: bool,
-    case_sensitive: bool,
-}
-
-// Create a global cache using Lazy
-static REGEX_CACHE: Lazy<Arc<Mutex<HashMap<RegexCacheKey, fancy_regex::Regex>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
-
-pub(crate) fn get_regex(pattern: &str, config: RegexConfig) -> Result<fancy_regex::Regex> {
-    let key = RegexCacheKey {
-        pattern: pattern.to_string(),
-        escaped: config.escaped,
-        match_whole_word: config.match_whole_word,
-        case_sensitive: config.case_sensitive,
-    };
-
-    // Try to get from cache first
-    {
-        let cache = REGEX_CACHE.lock().unwrap();
-        if let Some(regex) = cache.get(&key) {
-            return Ok((*regex).clone());
-        }
-    }
-
-    // If not in cache, create the regex
+/// BOTTLENECK 3
+pub(crate) fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<fancy_regex::Regex> {
     let pattern = if config.escaped {
         regex::escape(pattern)
     } else {
@@ -63,16 +25,7 @@ pub(crate) fn get_regex(pattern: &str, config: RegexConfig) -> Result<fancy_rege
         format!("(?i){}", pattern)
     };
     let pattern = format!("(?m){}", pattern);
-
-    let regex = fancy_regex::Regex::new(&pattern)?;
-
-    // Store in cache
-    {
-        let mut cache = REGEX_CACHE.lock().unwrap();
-        cache.insert(key, regex.clone());
-    }
-
-    Ok(regex)
+    Ok(fancy_regex::Regex::new(&pattern)?)
 }
 
 impl Regex {
@@ -89,56 +42,54 @@ impl Regex {
     }
 }
 
-impl VectorBasedSelectionMode for Regex {
-    fn get_byte_ranges(&self, buffer: &Buffer) -> Result<Rc<Vec<ByteRange>>, anyhow::Error> {
-        Ok(Rc::new(
-            self.regex
-                .find_iter(&self.content)
-                .filter_map(|match_| Some(ByteRange::new(match_.ok()?.range())))
-                .collect(),
-        ))
+impl IterBasedSelectionMode for Regex {
+    fn iter<'a>(
+        &'a self,
+        _params: &super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
+        let matches = self.regex.find_iter(&self.content);
+        Ok(Box::new(matches.filter_map(move |matches| {
+            let matches = matches.ok()?;
+            Some(ByteRange::new(matches.start()..matches.end()))
+        })))
     }
 }
 
 #[cfg(test)]
 mod test_regex {
-    use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
+    use crate::{buffer::Buffer, selection::Selection};
 
     use super::*;
 
     #[test]
     fn escaped() {
         let buffer = Buffer::new(None, "fn main() { let x = m.in; }");
-        VectorBased(
-            crate::selection_mode::Regex::from_config(
-                &buffer,
-                "m.in",
-                RegexConfig {
-                    escaped: true,
-                    case_sensitive: false,
-                    match_whole_word: false,
-                },
-            )
-            .unwrap(),
+        crate::selection_mode::Regex::from_config(
+            &buffer,
+            "m.in",
+            RegexConfig {
+                escaped: true,
+                case_sensitive: false,
+                match_whole_word: false,
+            },
         )
+        .unwrap()
         .assert_all_selections(&buffer, Selection::default(), &[(20..24, "m.in")]);
     }
 
     #[test]
     fn unescaped() {
         let buffer = Buffer::new(None, "fn main() { let x = m.in; }");
-        VectorBased(
-            crate::selection_mode::Regex::from_config(
-                &buffer,
-                "m.in",
-                RegexConfig {
-                    escaped: false,
-                    case_sensitive: false,
-                    match_whole_word: false,
-                },
-            )
-            .unwrap(),
+        crate::selection_mode::Regex::from_config(
+            &buffer,
+            "m.in",
+            RegexConfig {
+                escaped: false,
+                case_sensitive: false,
+                match_whole_word: false,
+            },
         )
+        .unwrap()
         .assert_all_selections(
             &buffer,
             Selection::default(),
@@ -149,18 +100,16 @@ mod test_regex {
     #[test]
     fn ignore_case() {
         let buffer = Buffer::new(None, "fn Main() { let x = m.in; }");
-        VectorBased(
-            crate::selection_mode::Regex::from_config(
-                &buffer,
-                "m.in",
-                RegexConfig {
-                    escaped: false,
-                    case_sensitive: false,
-                    match_whole_word: false,
-                },
-            )
-            .unwrap(),
+        crate::selection_mode::Regex::from_config(
+            &buffer,
+            "m.in",
+            RegexConfig {
+                escaped: false,
+                case_sensitive: false,
+                match_whole_word: false,
+            },
         )
+        .unwrap()
         .assert_all_selections(
             &buffer,
             Selection::default(),
@@ -171,18 +120,16 @@ mod test_regex {
     #[test]
     fn match_whole_word() {
         let buffer = Buffer::new(None, "fn Main() { let x = main_war; }");
-        VectorBased(
-            crate::selection_mode::Regex::from_config(
-                &buffer,
-                "m.in",
-                RegexConfig {
-                    escaped: false,
-                    case_sensitive: false,
-                    match_whole_word: true,
-                },
-            )
-            .unwrap(),
+        crate::selection_mode::Regex::from_config(
+            &buffer,
+            "m.in",
+            RegexConfig {
+                escaped: false,
+                case_sensitive: false,
+                match_whole_word: true,
+            },
         )
+        .unwrap()
         .assert_all_selections(&buffer, Selection::default(), &[(3..7, "Main")]);
     }
 
@@ -197,18 +144,16 @@ mod test_regex {
 - [ ] d
 ",
         );
-        VectorBased(
-            crate::selection_mode::Regex::from_config(
-                &buffer,
-                r"^- \[ \](.*)$",
-                RegexConfig {
-                    escaped: false,
-                    case_sensitive: false,
-                    match_whole_word: false,
-                },
-            )
-            .unwrap(),
+        crate::selection_mode::Regex::from_config(
+            &buffer,
+            r"^- \[ \](.*)$",
+            RegexConfig {
+                escaped: false,
+                case_sensitive: false,
+                match_whole_word: false,
+            },
         )
+        .unwrap()
         .assert_all_selections(
             &buffer,
             Selection::default(),

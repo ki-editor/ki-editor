@@ -293,7 +293,7 @@ fn get_word(
     skip_symbols: bool,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
     if let Some(current_word) = PositionBased(Token::new(skip_symbols)).current(
-        params.clone(),
+        params,
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {
         let content = params.buffer.slice(&current_word.range())?.to_string();

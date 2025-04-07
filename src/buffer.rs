@@ -1,6 +1,7 @@
 use crate::history::History;
 use crate::lsp::diagnostic::Diagnostic;
 use crate::quickfix_list::QuickfixListItem;
+use crate::selection::Selection;
 use crate::selection_mode::naming_convention_agnostic::NamingConventionAgnostic;
 use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
 use crate::{
@@ -420,12 +421,13 @@ impl Buffer {
 
     pub(crate) fn get_current_node<'a>(
         &'a self,
-        range: CharIndexRange,
+        selection: &Selection,
         get_largest_end: bool,
     ) -> anyhow::Result<Option<Node<'a>>> {
         let Some(tree) = self.tree.as_ref() else {
             return Ok(None);
         };
+        let range = selection.range();
         let start = self.char_to_byte(range.start)?;
         let (start, end) = if get_largest_end {
             (start, start + 1)
@@ -1066,7 +1068,9 @@ impl Buffer {
 
     pub(crate) fn line_to_char_range(&self, line: usize) -> anyhow::Result<CharIndexRange> {
         let start = self.line_to_char(line)?;
+        println!("line = {line} line_to_char_range start = {start:?}");
         let end = self.line_to_char(line + 1)?;
+        println!("line_to_char_range end = {end:?}");
         Ok((start..end).into())
     }
 

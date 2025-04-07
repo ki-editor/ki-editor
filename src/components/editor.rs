@@ -518,6 +518,7 @@ impl Editor {
         self.get_parent_lines_given_line_index_and_scroll_offset(position.line, self.scroll_offset)
     }
 
+    // BOTTLENECK 5: This causes hiccup when navigating 10,000 lines CSV
     pub(crate) fn get_parent_lines_given_line_index_and_scroll_offset(
         &self,
         line_index: usize,
@@ -845,7 +846,7 @@ impl Editor {
                             Direction::Start => Movement::DeleteBackward,
                             Direction::End => Movement::DeleteForward,
                         };
-                        Selection::get_selection_(
+                        let result_selection = Selection::get_selection_(
                             &buffer,
                             start_selection,
                             &self.selection_set.mode,
@@ -854,7 +855,12 @@ impl Editor {
                             context,
                         )
                         .ok()
-                        .flatten()
+                        .flatten()?;
+                        if result_selection.selection.range() == start_selection.range() {
+                            None
+                        } else {
+                            Some(result_selection)
+                        }
                     };
                     let (delete_range, select_range) = {
                         if !self.selection_set.mode.is_contiguous() {
@@ -1663,8 +1669,7 @@ impl Editor {
         loop {
             let edit_transaction =
                 get_actual_edit_transaction(&current_selection, &next_selection)?;
-            let current_node =
-                buffer.get_current_node(current_selection.extended_range(), false)?;
+            let current_node = buffer.get_current_node(&current_selection, false)?;
 
             let new_buffer = {
                 let mut new_buffer = self.buffer.borrow().clone();
@@ -1689,7 +1694,7 @@ impl Editor {
                 .selections()
                 .into_iter()
                 .map(|selection| -> anyhow::Result<_> {
-                    new_buffer.get_current_node(selection.extended_range(), false)
+                    new_buffer.get_current_node(selection, false)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
@@ -3067,10 +3072,7 @@ impl Editor {
 
     fn show_current_tree_sitter_node_sexp(&self) -> Result<Dispatches, anyhow::Error> {
         let buffer = self.buffer();
-        let node = buffer.get_current_node(
-            self.selection_set.primary_selection().extended_range(),
-            false,
-        )?;
+        let node = buffer.get_current_node(self.selection_set.primary_selection(), false)?;
         let info = node
             .map(|node| node.to_sexp())
             .unwrap_or("[No node found]".to_string());

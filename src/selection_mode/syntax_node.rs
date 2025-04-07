@@ -2,9 +2,7 @@ use itertools::Itertools;
 
 use crate::selection_mode::ApplyMovementResult;
 
-use super::{
-    ByteRange, PositionBased, PositionBasedSelectionMode, SelectionMode, SyntaxToken, TopNode,
-};
+use super::{ByteRange, IterBasedSelectionMode, SelectionMode, SyntaxToken, TopNode};
 
 pub(crate) struct SyntaxNode {
     /// If this is true:
@@ -13,20 +11,20 @@ pub(crate) struct SyntaxNode {
     pub coarse: bool,
 }
 
-impl PositionBasedSelectionMode for SyntaxNode {
-    fn revealed_selections<'a>(
+impl IterBasedSelectionMode for SyntaxNode {
+    fn iter_revealed<'a>(
         &'a self,
-        params: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Vec<super::ByteRange>> {
+        params: &super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
         let node = buffer
-            .get_current_node(current_selection.extended_range(), self.coarse)?
+            .get_current_node(current_selection, false)?
             .ok_or(anyhow::anyhow!(
                 "SyntaxNode::iter.get_current_node: Cannot find Treesitter language"
             ))?;
         let Some(node) = node.parent() else {
-            return Ok(Default::default());
+            return Ok(Box::new(std::iter::empty()));
         };
         let mut cursor = params
             .buffer
@@ -40,38 +38,37 @@ impl PositionBasedSelectionMode for SyntaxNode {
         } else {
             node.children(&mut cursor).collect_vec()
         };
-        Ok(vector
-            .into_iter()
-            .map(|node| ByteRange::new(node.byte_range()))
-            .collect_vec())
+        Ok(Box::new(
+            vector
+                .into_iter()
+                .map(|node| ByteRange::new(node.byte_range())),
+        ))
     }
-    fn jumps_impl(
-        &self,
-        params: &super::SelectionModeParams,
-        chars: Vec<char>,
-        line_number_ranges: Vec<std::ops::Range<usize>>,
-    ) -> anyhow::Result<Vec<crate::components::editor::Jump>> {
+    fn iter<'a>(
+        &'a self,
+        params: &super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         if self.coarse {
-            PositionBased(TopNode).jumps(params, chars, line_number_ranges)
+            TopNode.iter(params)
         } else {
-            PositionBased(SyntaxToken).jumps(params, chars, line_number_ranges)
+            SyntaxToken.iter(params)
         }
     }
-    fn expand_impl(
+    fn expand(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.select_vertical(params, true)
+        self.select_vertical(params.clone(), true)
     }
-    fn down_impl(
+    fn down(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.select_vertical(&params, false)
+        self.select_vertical(params, false)
             .map(|result| result.map(|result| result.selection))
     }
 
-    fn up_impl(
+    fn up(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
@@ -85,7 +82,7 @@ impl PositionBasedSelectionMode for SyntaxNode {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
         let node = buffer
-            .get_current_node(current_selection.extended_range(), self.coarse)?
+            .get_current_node(current_selection, false)?
             .ok_or(anyhow::anyhow!(
                 "SyntaxNode::iter: Cannot find Treesitter language"
             ))?;
@@ -107,7 +104,7 @@ impl PositionBasedSelectionMode for SyntaxNode {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
         let node = buffer
-            .get_current_node(current_selection.extended_range(), self.coarse)?
+            .get_current_node(current_selection, false)?
             .ok_or(anyhow::anyhow!(
                 "SyntaxNode::iter: Cannot find Treesitter language"
             ))?;
@@ -124,12 +121,12 @@ impl PositionBasedSelectionMode for SyntaxNode {
     }
     fn all_selections<'a>(
         &'a self,
-        params: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Vec<ByteRange>> {
+        params: &super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
         let node = buffer
-            .get_current_node(current_selection.extended_range(), self.coarse)?
+            .get_current_node(current_selection, false)?
             .ok_or(anyhow::anyhow!(
                 "SyntaxNode::iter: Cannot find Treesitter language"
             ))?;
@@ -144,31 +141,14 @@ impl PositionBasedSelectionMode for SyntaxNode {
                     .filter_map(move |i| parent.child(i))
                     .collect_vec()
             };
-            Ok(children
-                .into_iter()
-                .map(|node| ByteRange::new(node.byte_range()))
-                .collect_vec())
+            Ok(Box::new(
+                children
+                    .into_iter()
+                    .map(|node| ByteRange::new(node.byte_range())),
+            ))
         } else {
-            Ok(Default::default())
+            Ok(Box::new(std::iter::empty()))
         }
-    }
-
-    fn get_current_selection_by_cursor(
-        &self,
-        buffer: &crate::buffer::Buffer,
-        cursor_char_index: crate::selection::CharIndex,
-        if_current_not_found: crate::components::editor::IfCurrentNotFound,
-    ) -> anyhow::Result<Option<super::ByteRange>> {
-        // Implement this code
-        let node = buffer
-            .get_current_node(
-                (cursor_char_index..cursor_char_index + 1).into(),
-                self.coarse,
-            )?
-            .ok_or(anyhow::anyhow!(
-                "SyntaxNode::iter.get_current_node: Cannot find Treesitter language"
-            ))?;
-        Ok(Some(ByteRange::new(node.byte_range())))
     }
 }
 
@@ -180,7 +160,7 @@ impl SyntaxNode {
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         let Some(mut node) = params
             .buffer
-            .get_current_node(params.current_selection.extended_range(), self.coarse)?
+            .get_current_node(params.current_selection, false)?
         else {
             return Ok(None);
         };
@@ -217,7 +197,7 @@ mod test_syntax_node {
         buffer::Buffer,
         components::editor::IfCurrentNotFound,
         selection::{CharIndex, Selection},
-        selection_mode::{SelectionMode, SelectionModeParams},
+        selection_mode::SelectionModeParams,
     };
 
     use super::*;
@@ -228,12 +208,12 @@ mod test_syntax_node {
             Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main() { let x = X {z,b,c:d} }",
         );
-        PositionBased(SyntaxNode { coarse: true }).assert_all_selections(
+        SyntaxNode { coarse: true }.assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
             &[(23..24, "z"), (25..26, "b"), (27..30, "c:d")],
         );
-        PositionBased(SyntaxNode { coarse: false }).assert_all_selections(
+        SyntaxNode { coarse: false }.assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
             &[
@@ -254,7 +234,7 @@ mod test_syntax_node {
             Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main() { let x = S(a); }",
         );
-        PositionBased(SyntaxNode { coarse: true }).assert_all_selections(
+        SyntaxNode { coarse: true }.assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(20)..CharIndex(21)).into()),
             &[(20..21, "S"), (21..24, "(a)")],
@@ -273,7 +253,7 @@ mod test_syntax_node {
 
         let child_text = buffer.slice(&child_range).unwrap();
         assert_eq!(child_text, "z");
-        let selection = PositionBased(SyntaxNode { coarse: false }).expand(&SelectionModeParams {
+        let selection = SyntaxNode { coarse: false }.expand(&SelectionModeParams {
             buffer: &buffer,
             current_selection: &Selection::new(child_range),
             cursor_direction: &crate::components::editor::Direction::Start,
@@ -297,7 +277,7 @@ mod test_syntax_node {
 
             let parent_text = buffer.slice(&parent_range).unwrap();
             assert_eq!(parent_text, "{z}");
-            let selection = PositionBased(SyntaxNode { coarse }).down(&SelectionModeParams {
+            let selection = SyntaxNode { coarse }.down(&SelectionModeParams {
                 buffer: &buffer,
                 current_selection: &Selection::new(parent_range),
                 cursor_direction: &crate::components::editor::Direction::Start,
@@ -326,7 +306,7 @@ fn main() {
 
             let range = (CharIndex(13)..CharIndex(17)).into();
             assert_eq!(buffer.slice(&range).unwrap(), " let");
-            let selection = PositionBased(SyntaxNode { coarse }).current(
+            let selection = SyntaxNode { coarse }.current(
                 &SelectionModeParams {
                     buffer: &buffer,
                     current_selection: &Selection::new(range),

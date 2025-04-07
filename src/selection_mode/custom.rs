@@ -1,6 +1,6 @@
 use crate::selection::Selection;
 
-use super::{ByteRange, PositionBased, PositionBasedSelectionMode};
+use super::{IterBasedSelectionMode, SelectionMode};
 
 pub(crate) struct Custom {
     current_selection: Selection,
@@ -12,17 +12,15 @@ impl Custom {
     }
 }
 
-impl PositionBasedSelectionMode for Custom {
-    fn get_current_selection_by_cursor(
-        &self,
-        buffer: &crate::buffer::Buffer,
-        _: crate::selection::CharIndex,
-        _: crate::components::editor::IfCurrentNotFound,
-    ) -> anyhow::Result<Option<ByteRange>> {
+impl IterBasedSelectionMode for Custom {
+    fn iter<'a>(
+        &'a self,
+        params: &super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
+        let buffer = params.buffer;
         let range = self.current_selection.extended_range();
-        let byte_range = buffer.char_index_range_to_byte_range(range)?;
-        Ok(Some(
-            ByteRange::new(byte_range).set_info(self.current_selection.info()),
-        ))
+        Ok(Box::new(std::iter::once(super::ByteRange::new(
+            buffer.char_to_byte(range.start)?..buffer.char_to_byte(range.end)?,
+        ))))
     }
 }

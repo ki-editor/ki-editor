@@ -175,9 +175,9 @@ gam
             let start = buffer.line_to_char(selected_line).unwrap();
             let selection_mode = Character::new(4);
             let method = if move_up {
-                Character::up_impl
+                Character::up
             } else {
-                Character::down_impl
+                Character::down
             };
             let result = method(
                 &selection_mode,
