@@ -653,7 +653,6 @@ pub trait PositionBasedSelectionMode {
             .into_iter()
             .flatten()
             .collect_vec();
-
         // Ensure no duplicated ranges
         debug_assert!(result.iter().unique_by(|range| range.range()).count() == result.len());
         Ok(result)
@@ -695,11 +694,18 @@ pub trait PositionBasedSelectionMode {
                     ) {
                         break result;
                     } else {
-                        cursor_char_index = buffer.byte_to_char(range.range().end)?;
-                        result.push(range);
+                        let new_cursor_char_index = buffer.byte_to_char(range.range().end)?;
+                        if new_cursor_char_index == cursor_char_index {
+                            break result;
+                        } else {
+                            cursor_char_index = buffer.byte_to_char(range.range().end)?;
+                            result.push(range);
+                        }
                     }
                 }
-                _ => break result,
+                _ => {
+                    break result;
+                }
             }
         };
         Ok(result)
