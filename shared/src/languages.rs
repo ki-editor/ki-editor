@@ -636,7 +636,7 @@ const fn rust() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "rust",
             url: "https://github.com/tree-sitter/tree-sitter-rust",
-            commit: "master",
+            commit: "e86119bdb4968b9799f6a014ca2401c178d54b5f",
             subpath: None,
         }),
         ..Language::new()
