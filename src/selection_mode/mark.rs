@@ -1,11 +1,11 @@
-use super::SelectionMode;
+use super::IterBasedSelectionMode;
 
 pub(crate) struct Mark;
 
-impl SelectionMode for Mark {
+impl IterBasedSelectionMode for Mark {
     fn iter<'a>(
         &'a self,
-        params: super::SelectionModeParams<'a>,
+        params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         let buffer = params.buffer;
         Ok(Box::new(buffer.marks().into_iter().filter_map(|range| {

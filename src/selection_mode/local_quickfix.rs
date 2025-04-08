@@ -1,4 +1,4 @@
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, IterBasedSelectionMode};
 
 // TODO: change this to custom selections, so it can also hold references, definitions etc
 pub(crate) struct LocalQuickfix {
@@ -26,10 +26,10 @@ impl LocalQuickfix {
     }
 }
 
-impl SelectionMode for LocalQuickfix {
+impl IterBasedSelectionMode for LocalQuickfix {
     fn iter<'a>(
         &'a self,
-        _: super::SelectionModeParams<'a>,
+        _: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         Ok(Box::new(self.ranges.clone().into_iter()))
     }

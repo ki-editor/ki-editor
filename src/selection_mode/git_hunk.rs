@@ -1,7 +1,7 @@
 use crate::{buffer::Buffer, context::Context, git::GitOperation};
 use itertools::Itertools;
 
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, IterBasedSelectionMode};
 
 pub(crate) struct GitHunk {
     ranges: Vec<super::ByteRange>,
@@ -36,10 +36,10 @@ impl GitHunk {
     }
 }
 
-impl SelectionMode for GitHunk {
+impl IterBasedSelectionMode for GitHunk {
     fn iter<'a>(
         &'a self,
-        _: super::SelectionModeParams<'a>,
+        _: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         Ok(Box::new(self.ranges.clone().into_iter()))
     }

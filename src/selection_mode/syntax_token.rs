@@ -1,13 +1,13 @@
 pub(crate) struct SyntaxToken;
 
-use crate::{components::editor::IfCurrentNotFound, selection_mode::SelectionMode};
+use crate::components::editor::IfCurrentNotFound;
 
-use super::{ByteRange, TopNode};
+use super::{ByteRange, IterBasedSelectionMode, TopNode};
 
-impl SelectionMode for SyntaxToken {
+impl IterBasedSelectionMode for SyntaxToken {
     fn iter<'a>(
         &self,
-        params: super::SelectionModeParams<'a>,
+        params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
         let tree = buffer
@@ -22,7 +22,7 @@ impl SelectionMode for SyntaxToken {
 
     fn expand(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection_mode::ApplyMovementResult>> {
         Ok(TopNode
             .current(params, IfCurrentNotFound::LookForward)?

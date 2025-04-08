@@ -240,7 +240,10 @@ impl ExpectKind {
                 line.to_string(),
             ),
             JumpChars(chars) => {
-                contextualize(component.borrow().editor().jump_chars(), chars.to_vec())
+                contextualize(
+                    component.borrow().editor().jump_chars().into_iter().sorted().collect_vec(),
+                    chars.iter().sorted().cloned().collect_vec()
+                )
             }
             CurrentViewAlignment(view_alignment) => contextualize(
                 component.borrow().editor().current_view_alignment(),

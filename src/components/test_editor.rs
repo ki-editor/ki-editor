@@ -1540,6 +1540,7 @@ fn main() {
                 .trim(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectedTexts(&["beta()"])),
             Editor(ShowJumps {
                 use_current_selection_mode: true,
             }),
@@ -1574,6 +1575,7 @@ fn highlight_and_jump() -> anyhow::Result<()> {
                 },
             )),
             Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["lives"])),
             Editor(EnableSelectionExtension),
             Editor(ShowJumps {
                 use_current_selection_mode: false,
@@ -1604,15 +1606,15 @@ fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
                 width: 100,
                 height: 1,
             })),
-            Editor(ShowJumps {
-                use_current_selection_mode: false,
-            }),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
                 Word {
                     skip_symbols: false,
                 },
             )),
+            Editor(ShowJumps {
+                use_current_selection_mode: false,
+            }),
             // Expect the jump to NOT be the first character of each word
             // Since, the first character of each selection are the same, which is 'w'
             Expect(JumpChars(&['d', 'k', 's', 'l'])),
@@ -2976,12 +2978,14 @@ Editor(MatchLiteral(amos.foo())),
                 Editor(MatchLiteral("Editor".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 App(HandleKeyEvents(keys!("Q ( enter").to_vec())),
+                Expect(CurrentSelectedTexts(&["("])),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
                     Token {
                         skip_symbols: false,
                     },
                 )),
+                Expect(CurrentSelectedTexts(&["("])),
                 Editor(MoveSelection(Left)),
                 Expect(CurrentSelectedTexts(&["to_string"])),
             ])
@@ -3661,7 +3665,7 @@ fn select_current_line_when_cursor_is_at_last_space_of_current_line() -> anyhow:
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&[" "])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Expect(CurrentSelectedTexts(&["abc "])),
+            Expect(CurrentSelectedTexts(&["abc"])),
         ])
     })
 }
@@ -4437,6 +4441,129 @@ fn multicursor_insertion_at_same_range_is_not_counted_as_intersected_edits() -> 
             Editor(Change),
             App(HandleKeyEvents(keys!("x y").to_vec())),
             Expect(CurrentComponentContent("xyxy")),
+        ])
+    })
+}
+
+#[test]
+fn movement_up() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+foo bar
+    spam
+    baz
+tim
+"
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(MoveSelection(Last)),
+            Expect(CurrentSelectedTexts(&["tim"])),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token {
+                    skip_symbols: false,
+                },
+            )),
+            Editor(MoveSelection(Up)),
+            Expect(CurrentSelectedTexts(&["baz"])),
+        ])
+    })
+}
+
+#[test]
+fn movement_down() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+foo bar
+    spam
+    baz
+"
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Token {
+                    skip_symbols: false,
+                },
+            )),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["spam"])),
+        ])
+    })
+}
+
+#[test]
+fn move_line_down() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+foo bar
+    spam
+    baz
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Expect(CurrentSelectedTexts(&["foo bar"])),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["spam"])),
+        ])
+    })
+}
+
+#[test]
+fn move_line_up() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+    spam
+    baz
+foo bar
+hello
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("foo bar".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Expect(CurrentSelectedTexts(&["foo bar"])),
+            Editor(MoveSelection(Up)),
+            Expect(CurrentSelectedTexts(&["baz"])),
         ])
     })
 }

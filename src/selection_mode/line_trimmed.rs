@@ -1,48 +1,97 @@
-use crate::components::editor::IfCurrentNotFound;
+use crate::{components::editor::IfCurrentNotFound, selection::CharIndex};
 
-use super::{SelectionMode, SelectionModeParams};
+use super::{
+    ByteRange, PositionBased, PositionBasedSelectionMode, SelectionMode, SelectionModeParams,
+};
 
+#[derive(Clone)]
 pub(crate) struct LineTrimmed;
 
-impl SelectionMode for LineTrimmed {
-    fn iter<'a>(
-        &'a self,
-        params: super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        let buffer = params.buffer;
-        let len_lines = buffer.len_lines();
+impl PositionBasedSelectionMode for LineTrimmed {
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: crate::selection::CharIndex,
+        if_current_not_found: crate::components::editor::IfCurrentNotFound,
+    ) -> anyhow::Result<Option<super::ByteRange>> {
+        let last_cursor_char_index = CharIndex(buffer.len_chars());
+        if cursor_char_index >= last_cursor_char_index {
+            return Ok(None);
+        }
+        let line_index = {
+            let current_line_index = buffer.char_to_line(cursor_char_index)?;
+            let current_char = buffer.char(cursor_char_index);
+            if !current_char.is_whitespace() {
+                current_line_index
+            } else if current_char == '\n' {
+                match if_current_not_found {
+                    IfCurrentNotFound::LookForward => current_line_index + 1,
+                    IfCurrentNotFound::LookBackward => current_line_index,
+                }
+            } else {
+                let new_char_index = match if_current_not_found {
+                    IfCurrentNotFound::LookForward => {
+                        let mut index = cursor_char_index;
+                        loop {
+                            let char = buffer.char(index);
+                            if index == last_cursor_char_index {
+                                return Ok(None);
+                            } else if !char.is_whitespace() || char == '\n' {
+                                break index;
+                            } else {
+                                index = index + 1
+                            }
+                        }
+                    }
+                    IfCurrentNotFound::LookBackward => {
+                        let mut index = cursor_char_index;
+                        loop {
+                            let char = buffer.char(index);
+                            if index == CharIndex(0) {
+                                return Ok(None);
+                            } else if !char.is_whitespace() || char == '\n' {
+                                break index;
+                            } else {
+                                index = index - 1
+                            }
+                        }
+                    }
+                };
+                buffer.char_to_line(new_char_index)?
+            }
+        };
+        let Some(line) = buffer.get_line_by_line_index(line_index) else {
+            return Ok(None);
+        };
+        let line_start_char_index = buffer.line_to_char(line_index)?;
+        let leading_whitespace_count = line.chars().take_while(|c| c.is_whitespace()).count();
+        if line.chars().all(|c| c.is_whitespace()) {
+            let line_start_byte_index =
+                buffer.char_to_byte(line_start_char_index + leading_whitespace_count - 1)?;
+            return Ok(Some(ByteRange::new(
+                line_start_byte_index..line_start_byte_index,
+            )));
+        }
 
-        Ok(Box::new(
-            (0..len_lines)
-                .take(
-                    // This is a weird hack, because `rope.len_lines`
-                    // returns an extra line which is empty if the rope ends with the newline character
-                    if buffer.rope().to_string().ends_with('\n') {
-                        len_lines.saturating_sub(1)
-                    } else {
-                        len_lines
-                    },
-                )
-                .filter_map(move |line_index| {
-                    let line = buffer.get_line_by_line_index(line_index)?;
-
-                    let start = buffer.line_to_byte(line_index).ok()?;
-                    let len_bytes = line.len_bytes();
-                    let end = start
-                        + if line.to_string().ends_with('\n') {
-                            len_bytes.saturating_sub(1)
-                        } else {
-                            len_bytes
-                        };
-                    let start = trim_leading_spaces(start, &line.to_string()).min(end);
-                    Some(super::ByteRange::new(start..end))
-                }),
-        ))
+        let trailing_whitespace_count = if line.len_chars() == 0 {
+            0
+        } else {
+            (0..line.len_chars())
+                .rev()
+                .take_while(|index| line.char(*index).is_whitespace())
+                .count()
+        };
+        let range = buffer.char_index_range_to_byte_range(
+            (line_start_char_index + leading_whitespace_count
+                ..line_start_char_index + line.len_chars() - trailing_whitespace_count)
+                .into(),
+        )?;
+        Ok(Some(ByteRange::new(range)))
     }
 
     fn left(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let SelectionModeParams {
             buffer,
@@ -60,11 +109,13 @@ impl SelectionMode for LineTrimmed {
                 let start = trim_leading_spaces(byte_range.range.start, &line.content);
                 let char_index_range =
                     buffer.byte_range_to_char_index_range(&(start..start + 1))?;
-                self.current(
-                    SelectionModeParams {
+                PositionBased(self.clone()).current(
+                    &SelectionModeParams {
                         buffer,
                         cursor_direction,
-                        current_selection: &current_selection.clone().set_range(char_index_range),
+                        current_selection: &(**current_selection)
+                            .clone()
+                            .set_range(char_index_range),
                     },
                     IfCurrentNotFound::LookForward,
                 )
@@ -75,16 +126,16 @@ impl SelectionMode for LineTrimmed {
 
     fn delete_forward(
         &self,
-        params: SelectionModeParams,
+        params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.down(params)
+        PositionBased(self.clone()).down(params)
     }
 
     fn delete_backward(
         &self,
-        params: SelectionModeParams,
+        params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.up(params)
+        PositionBased(self.clone()).up(params)
     }
 }
 
@@ -108,9 +159,19 @@ mod test_line {
     use super::*;
 
     #[test]
+    fn simple_case() {
+        let buffer = Buffer::new(None, "a\n\nb");
+        PositionBased(LineTrimmed).assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[(0..1, "a"), (2..2, ""), (3..4, "b")],
+        );
+    }
+
+    #[test]
     fn case_1() {
         let buffer = Buffer::new(None, "a\n\n\nb\nc\n  hello\n  \nbye");
-        LineTrimmed.assert_all_selections(
+        PositionBased(LineTrimmed).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -130,7 +191,11 @@ mod test_line {
     #[test]
     fn single_line_without_trailing_newline_character() {
         let buffer = Buffer::new(None, "a");
-        LineTrimmed.assert_all_selections(&buffer, Selection::default(), &[(0..1, "a")]);
+        PositionBased(LineTrimmed).assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[(0..1, "a")],
+        );
     }
 
     #[test]
@@ -152,8 +217,8 @@ fn f() {
 
         let test = |selected_line: usize, expected: &str| {
             let start = buffer.line_to_char(selected_line).unwrap();
-            let result = LineTrimmed
-                .left(SelectionModeParams {
+            let result = PositionBased(LineTrimmed)
+                .left(&SelectionModeParams {
                     buffer: &buffer,
                     current_selection: &Selection::new((start..start + 1).into()),
                     cursor_direction: &Direction::default(),

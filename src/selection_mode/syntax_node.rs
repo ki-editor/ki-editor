@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use crate::selection_mode::ApplyMovementResult;
 
-use super::{ByteRange, SelectionMode, SyntaxToken, TopNode};
+use super::{ByteRange, IterBasedSelectionMode, SyntaxToken, TopNode};
 
 pub(crate) struct SyntaxNode {
     /// If this is true:
@@ -11,10 +11,10 @@ pub(crate) struct SyntaxNode {
     pub coarse: bool,
 }
 
-impl SelectionMode for SyntaxNode {
+impl IterBasedSelectionMode for SyntaxNode {
     fn iter_revealed<'a>(
         &'a self,
-        params: super::SelectionModeParams<'a>,
+        params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
@@ -46,7 +46,7 @@ impl SelectionMode for SyntaxNode {
     }
     fn iter<'a>(
         &'a self,
-        params: super::SelectionModeParams<'a>,
+        params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         if self.coarse {
             TopNode.iter(params)
@@ -56,13 +56,13 @@ impl SelectionMode for SyntaxNode {
     }
     fn expand(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.select_vertical(params.clone(), true)
+        self.select_vertical(params, true)
     }
     fn down(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.select_vertical(params, false)
             .map(|result| result.map(|result| result.selection))
@@ -70,14 +70,14 @@ impl SelectionMode for SyntaxNode {
 
     fn up(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.select_vertical(params, true)
             .map(|result| result.map(|result| result.selection))
     }
     fn right(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
@@ -99,7 +99,7 @@ impl SelectionMode for SyntaxNode {
     }
     fn left(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
@@ -121,7 +121,7 @@ impl SelectionMode for SyntaxNode {
     }
     fn all_selections<'a>(
         &'a self,
-        params: super::SelectionModeParams<'a>,
+        params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
@@ -155,7 +155,7 @@ impl SelectionMode for SyntaxNode {
 impl SyntaxNode {
     pub(crate) fn select_vertical(
         &self,
-        params: super::SelectionModeParams,
+        params: &super::SelectionModeParams,
         go_up: bool,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         let Some(mut node) = params
@@ -253,7 +253,7 @@ mod test_syntax_node {
 
         let child_text = buffer.slice(&child_range).unwrap();
         assert_eq!(child_text, "z");
-        let selection = SyntaxNode { coarse: false }.expand(SelectionModeParams {
+        let selection = SyntaxNode { coarse: false }.expand(&SelectionModeParams {
             buffer: &buffer,
             current_selection: &Selection::new(child_range),
             cursor_direction: &crate::components::editor::Direction::Start,
@@ -277,7 +277,7 @@ mod test_syntax_node {
 
             let parent_text = buffer.slice(&parent_range).unwrap();
             assert_eq!(parent_text, "{z}");
-            let selection = SyntaxNode { coarse }.down(SelectionModeParams {
+            let selection = SyntaxNode { coarse }.down(&SelectionModeParams {
                 buffer: &buffer,
                 current_selection: &Selection::new(parent_range),
                 cursor_direction: &crate::components::editor::Direction::Start,
@@ -307,7 +307,7 @@ fn main() {
             let range = (CharIndex(13)..CharIndex(17)).into();
             assert_eq!(buffer.slice(&range).unwrap(), " let");
             let selection = SyntaxNode { coarse }.current(
-                SelectionModeParams {
+                &SelectionModeParams {
                     buffer: &buffer,
                     current_selection: &Selection::new(range),
                     cursor_direction: &crate::components::editor::Direction::Start,

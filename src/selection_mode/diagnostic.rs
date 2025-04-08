@@ -1,6 +1,6 @@
 use crate::{components::suggestive_editor::Info, quickfix_list::DiagnosticSeverityRange};
 
-use super::SelectionMode;
+use super::IterBasedSelectionMode;
 
 // TODO: change this to custom selections, so it can also hold references, definitions etc
 pub(crate) struct Diagnostic {
@@ -20,10 +20,10 @@ impl Diagnostic {
     }
 }
 
-impl SelectionMode for Diagnostic {
+impl IterBasedSelectionMode for Diagnostic {
     fn iter<'a>(
         &'a self,
-        params: super::SelectionModeParams<'a>,
+        params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         let buffer = params.buffer;
 

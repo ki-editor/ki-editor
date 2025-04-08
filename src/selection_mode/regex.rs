@@ -1,6 +1,6 @@
 use crate::{buffer::Buffer, list::grep::RegexConfig};
 
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, IterBasedSelectionMode};
 
 pub(crate) struct Regex {
     regex: fancy_regex::Regex,
@@ -42,10 +42,10 @@ impl Regex {
     }
 }
 
-impl SelectionMode for Regex {
+impl IterBasedSelectionMode for Regex {
     fn iter<'a>(
         &'a self,
-        _params: super::SelectionModeParams<'a>,
+        _params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let matches = self.regex.find_iter(&self.content);
         Ok(Box::new(matches.filter_map(move |matches| {

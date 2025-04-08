@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, IterBasedSelectionMode};
 
 pub(crate) struct NamingConventionAgnostic {
     pattern: String,
@@ -65,10 +65,10 @@ impl NamingConventionAgnostic {
     }
 }
 
-impl SelectionMode for NamingConventionAgnostic {
+impl IterBasedSelectionMode for NamingConventionAgnostic {
     fn iter<'a>(
         &'a self,
-        params: super::SelectionModeParams<'a>,
+        params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         let string = params.buffer.rope().to_string();
         Ok(Box::new(

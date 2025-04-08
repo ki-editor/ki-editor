@@ -1,12 +1,12 @@
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, IterBasedSelectionMode};
 use itertools::Itertools;
 
 pub(crate) struct TopNode;
 
-impl SelectionMode for TopNode {
+impl IterBasedSelectionMode for TopNode {
     fn iter<'a>(
         &self,
-        params: super::SelectionModeParams<'a>,
+        params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
         let tree = buffer.tree().ok_or(anyhow::anyhow!(

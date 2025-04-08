@@ -1,6 +1,6 @@
 use ast_grep_core::{language::TSLanguage, NodeMatch, StrDoc};
 
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, IterBasedSelectionMode};
 
 pub(crate) struct AstGrep {
     pattern: ast_grep_core::matcher::Pattern<TSLanguage>,
@@ -38,10 +38,10 @@ impl AstGrep {
     }
 }
 
-impl SelectionMode for AstGrep {
+impl IterBasedSelectionMode for AstGrep {
     fn iter<'a>(
         &'a self,
-        _params: super::SelectionModeParams<'a>,
+        _: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         Ok(Box::new(
             self.find_all().map(|node| ByteRange::new(node.range())),

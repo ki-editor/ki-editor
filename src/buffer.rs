@@ -1,6 +1,7 @@
 use crate::history::History;
 use crate::lsp::diagnostic::Diagnostic;
 use crate::quickfix_list::QuickfixListItem;
+use crate::selection::Selection;
 use crate::selection_mode::naming_convention_agnostic::NamingConventionAgnostic;
 use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
 use crate::{
@@ -9,7 +10,7 @@ use crate::{
     context::{LocalSearchConfig, LocalSearchConfigMode},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     position::Position,
-    selection::{CharIndex, Selection, SelectionSet},
+    selection::{CharIndex, SelectionSet},
     selection_mode::{AstGrep, ByteRange},
     syntax_highlight::{HighlightedSpan, HighlightedSpans},
     utils::find_previous,
@@ -1063,6 +1064,16 @@ impl Buffer {
         } else {
             Ok(None)
         }
+    }
+
+    pub(crate) fn line_to_char_range(&self, line: usize) -> anyhow::Result<CharIndexRange> {
+        let start = self.line_to_char(line)?;
+        let end = self.line_to_char(line + 1)?;
+        Ok((start..end).into())
+    }
+
+    pub(crate) fn char(&self, cursor_char_index: CharIndex) -> char {
+        self.rope.char(cursor_char_index.0)
     }
 }
 

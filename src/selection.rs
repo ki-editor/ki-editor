@@ -13,7 +13,7 @@ use crate::{
     non_empty_extensions::{NonEmptyTryCollectOption, NonEmptyTryCollectResult},
     position::Position,
     quickfix_list::DiagnosticSeverityRange,
-    selection_mode::{self, ApplyMovementResult, SelectionModeParams},
+    selection_mode::{self, ApplyMovementResult, IterBased, PositionBased, SelectionModeParams},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -195,13 +195,14 @@ impl SelectionSet {
                     .ok()?;
 
                 let iter = object
-                    .all_selections(SelectionModeParams {
+                    .all_selections(&SelectionModeParams {
                         buffer,
                         current_selection: selection,
                         cursor_direction,
                     })
                     .ok()?;
                 let result = iter
+                    .into_iter()
                     .filter_map(|range| -> Option<Selection> {
                         range.to_selection(buffer, &self.selections.head).ok()
                     })
@@ -479,44 +480,50 @@ impl SelectionMode {
         };
         Ok(match self {
             SelectionMode::Word { skip_symbols } => {
-                Box::new(selection_mode::Word::new(buffer, *skip_symbols)?)
+                Box::new(PositionBased(selection_mode::Word::new(*skip_symbols)))
             }
             SelectionMode::Token { skip_symbols } => {
-                Box::new(selection_mode::Token::new(buffer, *skip_symbols)?)
+                Box::new(PositionBased(selection_mode::Token::new(*skip_symbols)))
             }
-            SelectionMode::Line => Box::new(selection_mode::LineTrimmed),
-            SelectionMode::LineFull => Box::new(selection_mode::LineFull),
+            SelectionMode::Line => Box::new(PositionBased(selection_mode::LineTrimmed)),
+            SelectionMode::LineFull => Box::new(PositionBased(selection_mode::LineFull::new())),
             SelectionMode::Character => {
                 let current_column = buffer
                     .char_to_position(current_selection.to_char_index(cursor_direction))?
                     .column;
-                Box::new(selection_mode::Character::new(current_column))
+                Box::new(PositionBased(selection_mode::Character::new(
+                    current_column,
+                )))
             }
-            SelectionMode::Custom => {
-                Box::new(selection_mode::Custom::new(current_selection.clone()))
-            }
+            SelectionMode::Custom => Box::new(IterBased(selection_mode::Custom::new(
+                current_selection.clone(),
+            ))),
             SelectionMode::Find { search } => match search.mode {
-                LocalSearchConfigMode::Regex(regex) => Box::new(
+                LocalSearchConfigMode::Regex(regex) => Box::new(IterBased(
                     selection_mode::Regex::from_config(buffer, &search.search, regex)?,
-                ),
-                LocalSearchConfigMode::AstGrep => {
-                    Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
-                }
-                LocalSearchConfigMode::NamingConventionAgnostic => Box::new(
+                )),
+                LocalSearchConfigMode::AstGrep => Box::new(IterBased(
+                    selection_mode::AstGrep::new(buffer, &search.search)?,
+                )),
+                LocalSearchConfigMode::NamingConventionAgnostic => Box::new(IterBased(
                     selection_mode::NamingConventionAgnostic::new(search.search.clone()),
-                ),
+                )),
             },
-            SelectionMode::SyntaxNode => Box::new(selection_mode::SyntaxNode { coarse: true }),
-            SelectionMode::SyntaxNodeFine => Box::new(selection_mode::SyntaxNode { coarse: false }),
-            SelectionMode::Diagnostic(severity) => {
-                Box::new(selection_mode::Diagnostic::new(*severity, params))
+            SelectionMode::SyntaxNode => {
+                Box::new(IterBased(selection_mode::SyntaxNode { coarse: true }))
             }
-            SelectionMode::GitHunk(diff_mode) => {
-                Box::new(selection_mode::GitHunk::new(diff_mode, buffer, context)?)
+            SelectionMode::SyntaxNodeFine => {
+                Box::new(IterBased(selection_mode::SyntaxNode { coarse: false }))
             }
-            SelectionMode::Mark => Box::new(selection_mode::Mark),
+            SelectionMode::Diagnostic(severity) => Box::new(IterBased(
+                selection_mode::Diagnostic::new(*severity, params),
+            )),
+            SelectionMode::GitHunk(diff_mode) => Box::new(IterBased(selection_mode::GitHunk::new(
+                diff_mode, buffer, context,
+            )?)),
+            SelectionMode::Mark => Box::new(IterBased(selection_mode::Mark)),
             SelectionMode::LocalQuickfix { .. } => {
-                Box::new(selection_mode::LocalQuickfix::new(params))
+                Box::new(IterBased(selection_mode::LocalQuickfix::new(params)))
             }
         })
     }
@@ -648,7 +655,7 @@ impl Selection {
             cursor_direction,
         };
 
-        selection_mode.apply_movement(params, *direction)
+        selection_mode.apply_movement(&params, *direction)
     }
     #[cfg(test)]
     pub(crate) fn disable_extension(&mut self) {
@@ -739,6 +746,16 @@ impl Selection {
             self.range
         };
         self.set_range(range).set_initial_range(None)
+    }
+
+    pub(crate) fn update_with_byte_range(
+        self,
+        buffer: &Buffer,
+        byte_range: selection_mode::ByteRange,
+    ) -> anyhow::Result<Selection> {
+        Ok(self
+            .set_info(byte_range.info())
+            .set_range(buffer.byte_range_to_char_index_range(byte_range.range())?))
     }
 }
 
