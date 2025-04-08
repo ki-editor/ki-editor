@@ -54,8 +54,8 @@ type Keymap = z.infer<typeof keymapSchema>;
 const STORAGE_KEYS = {
   KEYBOARD_LAYOUT: "keymap-keyboard-layout",
   SHOW_KEYS: "keymap-show-keys",
-  SPLIT: "keymap-split",
-  KEYS_ARRANGEMENT: "keymap-keys-arrangement",
+  GRID_ALIGNMENT: "grid-alignment",
+  PANEL_LAYOUT: "panel-layout",
 } as const;
 
 export const Keymap = (props: { filename: string }) => {
@@ -88,19 +88,23 @@ export const Keymap = (props: { filename: string }) => {
   );
 };
 
-const keysArrangements = ["Row Staggered", "Ortholinear"] as const;
-type KeysArrangement = (typeof keysArrangements)[number];
+const gridAlignments = ["Row Staggered", "Ortholinear"] as const;
+type GridAlignment = (typeof gridAlignments)[number];
+
+const panelLayouts = ["Unified", "Split", "Stack"] as const;
+type PanelLayout = (typeof panelLayouts)[number];
 
 const KeymapView = (props: { keymap: Keymap }) => {
   // Using the custom hook for each stored value
   const [showKeys, setShowKeys] = useLocalStorage(STORAGE_KEYS.SHOW_KEYS, true);
-  const [split, setSplit] = useLocalStorage(STORAGE_KEYS.SPLIT, true);
-  const [stackKeymap, setStackKeymap] = useLocalStorage(STORAGE_KEYS.STACK_KEYMAP, false);
-  const [keysArrangement, setKeysArrangement] =
-    useLocalStorage<KeysArrangement>(
-      STORAGE_KEYS.KEYS_ARRANGEMENT,
-      "Ortholinear"
-    );
+  const [panelLayout, setPanelLayout] = useLocalStorage<PanelLayout>(
+    STORAGE_KEYS.PANEL_LAYOUT,
+    "Unified"
+  );
+  const [gridAlignment, setGridAlignment] = useLocalStorage<GridAlignment>(
+    STORAGE_KEYS.GRID_ALIGNMENT,
+    "Ortholinear"
+  );
 
   // Special handling for keyboard layout since we need to find the layout object
   const [layoutName, setLayoutName] = useLocalStorage(
@@ -151,14 +155,6 @@ const KeymapView = (props: { keymap: Keymap }) => {
         />
         <span>Show keys</span>
       </label>
-      <label>
-        <input
-          type="checkbox"
-          checked={stackKeymap}
-          onChange={() => setStackKeymap(!stackKeymap)}
-        />
-        <span>Stack keymap</span>
-      </label>
 
       {showKeys && (
         <select
@@ -178,22 +174,29 @@ const KeymapView = (props: { keymap: Keymap }) => {
         </select>
       )}
 
-      <label>
-        <input
-          type="checkbox"
-          checked={split}
-          onChange={() => setSplit(!split)}
-        />
-        <span>Split</span>
-      </label>
+      <select
+        value={panelLayout}
+        onChange={(e) => {
+          setPanelLayout(e.target.value as PanelLayout);
+        }}
+        className="px-2 py-1 border rounded"
+      >
+        {Array(...panelLayouts)
+          .sort()
+          .map((panelLayout) => (
+            <option key={panelLayout} value={panelLayout}>
+              {panelLayout}
+            </option>
+          ))}
+      </select>
 
       <select
-        value={keysArrangement}
+        value={gridAlignment}
         onChange={(e) => {
-          setKeysArrangement(e.target.value as KeysArrangement);
+          setGridAlignment(e.target.value as GridAlignment);
         }}
       >
-        {keysArrangements.map((arrangement) => (
+        {gridAlignments.map((arrangement) => (
           <option key={arrangement} value={arrangement}>
             {arrangement}
           </option>
@@ -206,40 +209,52 @@ const KeymapView = (props: { keymap: Keymap }) => {
     throw new Error("You are missing cases in your switch");
   }
 
-  type PanelRenderOption = 'All' | 'Left' | 'Right'
+  type PanelRenderOption = "All" | "Left" | "Right";
 
-  const getKeyPanelFilterPredicate = (panel: PanelRenderOption): (_: any, keyIndex: number) => boolean => {
+  const getKeyPanelFilterPredicate = (
+    panel: PanelRenderOption
+  ): ((_: unknown, keyIndex: number) => boolean) => {
     switch (panel) {
-      case 'Left':
-        return (_: any, keyIndex: number) => (keyIndex < 5);
-      case 'Right':
-        return (_: any, keyIndex: number) => (keyIndex >= 5);
-      case 'All':
-        return (_: any, _keyIndex: number) => true;
-      default: exhaustiveSwitchHelper(panel)
+      case "Left":
+        return (_: unknown, keyIndex: number) => keyIndex < 5;
+      case "Right":
+        return (_: unknown, keyIndex: number) => keyIndex >= 5;
+      case "All":
+        return (_: unknown, _keyIndex: number) => true;
+      default:
+        exhaustiveSwitchHelper(panel);
     }
-  }
+  };
 
-  const getIsHomeKeyPredicate = (panel: PanelRenderOption): (rowIndex: number, columnIndex: number) => boolean => {
+  const getIsHomeKeyPredicate = (
+    panel: PanelRenderOption
+  ): ((rowIndex: number, columnIndex: number) => boolean) => {
     switch (panel) {
-      case 'Left':
-        return (rowIndex: number, columnIndex: number) => rowIndex === 1 && (columnIndex === 3)
-      case 'Right':
-        return (rowIndex: number, columnIndex: number) => rowIndex === 1 && (columnIndex === 1)
-      case 'All':
-        return (rowIndex: number, columnIndex: number) => rowIndex === 1 && (columnIndex === 3 || columnIndex === 6)
-      default: exhaustiveSwitchHelper(panel)
+      case "Left":
+        return (rowIndex: number, columnIndex: number) =>
+          rowIndex === 1 && columnIndex === 3;
+      case "Right":
+        return (rowIndex: number, columnIndex: number) =>
+          rowIndex === 1 && columnIndex === 1;
+      case "All":
+        return (rowIndex: number, columnIndex: number) =>
+          rowIndex === 1 && (columnIndex === 3 || columnIndex === 6);
+      default:
+        exhaustiveSwitchHelper(panel);
     }
-  }
+  };
 
   // This now renders All the keyboard panels or just the Left or just the Right
   const renderKeymap = (panel: PanelRenderOption) => {
     const keyPredicate = getKeyPanelFilterPredicate(panel);
     const rows = props.keymap.rows.map((row) => row.filter(keyPredicate));
-    const keyboardLayoutKeys = keyboardLayout.keys.map((row) => row.filter(keyPredicate));
+    const keyboardLayoutKeys = keyboardLayout.keys.map((row) =>
+      row.filter(keyPredicate)
+    );
     const isHomeKey = getIsHomeKeyPredicate(panel);
     return rows.map((row, rowIndex) => {
-      const marginLeft = keysArrangement === "Row Staggered" ? [0, 24, 56][rowIndex] : 0;
+      const marginLeft =
+        gridAlignment === "Row Staggered" ? [0, 24, 56][rowIndex] : 0;
       return (
         <div
           key={rowIndex}
@@ -253,7 +268,7 @@ const KeymapView = (props: { keymap: Keymap }) => {
         >
           {row.map((key, columnIndex) => (
             <React.Fragment key={`${rowIndex}-${columnIndex}`}>
-              {split && columnIndex === 5 && (
+              {panelLayout === "Split" && columnIndex === 5 && (
                 <div style={{ width: cellWidth / 1.618 }} />
               )}
               <div style={{ textAlign: "center" }}>
@@ -262,12 +277,11 @@ const KeymapView = (props: { keymap: Keymap }) => {
                     ...cellStyle,
                     gridArea: "1 / 1",
                     overflow: "hidden",
-                    backgroundColor:
-                      isHomeKey(rowIndex, columnIndex)
-                        ? colorMode === "light"
-                          ? "lightyellow"
-                          : "darkblue"
-                        : undefined,
+                    backgroundColor: isHomeKey(rowIndex, columnIndex)
+                      ? colorMode === "light"
+                        ? "lightyellow"
+                        : "darkblue"
+                      : undefined,
                   }}
                 >
                   {showKeys && (
@@ -291,8 +305,8 @@ const KeymapView = (props: { keymap: Keymap }) => {
           ))}
         </div>
       );
-    })
-  }
+    });
+  };
 
   const Body = () => (
     <div
@@ -305,15 +319,17 @@ const KeymapView = (props: { keymap: Keymap }) => {
         overflowX: "auto",
       }}
     >
-      {stackKeymap ? (
+      {panelLayout === "Stack" ? (
         <React.Fragment>
           <h3>Left Key Panel</h3>
-          {renderKeymap('Left')}
+          {renderKeymap("Left")}
           <h3 style={{ paddingTop: 16 }}>Right Key Panel</h3>
-          {renderKeymap('Right')}
-        </React.Fragment>)
-        : renderKeymap('All')}
-    </div >
+          {renderKeymap("Right")}
+        </React.Fragment>
+      ) : (
+        renderKeymap("All")
+      )}
+    </div>
   );
 
   return (
