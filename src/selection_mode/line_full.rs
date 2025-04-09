@@ -30,7 +30,7 @@ impl PositionBasedSelectionMode for LineFull {
                 loop {
                     if index > CharIndex(buffer.len_chars().saturating_sub(1)) {
                         return Ok(None);
-                    } else if buffer.char(index).is_whitespace() {
+                    } else if buffer.char(index)?.is_whitespace() {
                         index = index + 1
                     } else {
                         break index;
@@ -74,7 +74,7 @@ impl PositionBasedSelectionMode for LineFull {
             {
                 let mut index = cursor_char_index;
                 loop {
-                    if buffer.char(index).is_whitespace() {
+                    if buffer.char(index)?.is_whitespace() {
                         if index == CharIndex(0) {
                             return Ok(None);
                         } else {

@@ -348,7 +348,16 @@ impl Buffer {
     }
 
     pub(crate) fn len_lines(&self) -> usize {
-        self.rope.len_lines()
+        // Need to minus 1 if last character is a newline.
+        // For some reason, Rope::len_lines will return an extra line
+        // if the last character is a newline.
+        let deduction =
+            if let Some('\n') = self.rope.get_char(self.rope.len_chars().saturating_sub(1)) {
+                1
+            } else {
+                0
+            };
+        self.rope.len_lines().saturating_sub(deduction)
     }
 
     pub(crate) fn char_to_line(&self, char_index: CharIndex) -> anyhow::Result<usize> {
@@ -1072,8 +1081,10 @@ impl Buffer {
         Ok((start..end).into())
     }
 
-    pub(crate) fn char(&self, cursor_char_index: CharIndex) -> char {
-        self.rope.char(cursor_char_index.0)
+    pub(crate) fn char(&self, cursor_char_index: CharIndex) -> anyhow::Result<char> {
+        self.rope
+            .get_char(cursor_char_index.0)
+            .ok_or_else(|| anyhow::anyhow!("Unable to get char at {cursor_char_index:?}"))
     }
 }
 

@@ -145,7 +145,9 @@ pub(crate) enum ExpectKind {
     SelectionExtensionEnabled(bool),
 }
 fn log<T: std::fmt::Debug>(s: T) {
-    println!("===========\n{s:?}",);
+    if !is_ci::cached() {
+        println!("===========\n{s:?}",);
+    }
 }
 impl ExpectKind {
     fn run(&self, app: &mut App<MockFrontend>) -> anyhow::Result<()> {
@@ -210,8 +212,8 @@ impl ExpectKind {
             AppGrid(grid) => {
                 let expected = grid.to_string().trim_matches('\n').to_string();
                 let actual = app.get_screen()?.stringify().trim_matches('\n').to_string();
-                println!("expected =\n{}", expected);
-                println!("actual =\n{}", actual);
+                log(format!("expected =\n{}", expected));
+                log(format!("actual =\n{}", actual));
                 contextualize(actual, expected)
             }
             CurrentPath(path) => contextualize(app.get_current_file_path().unwrap(), path.clone()),
@@ -292,7 +294,7 @@ impl ExpectKind {
                         .rows[position.line][position.column]
                         .source;
                     if actual_style_key!=style_key {
-                        println!("Expected {position:?} to be styled as {style_key:?}, but got {actual_style_key:?}");
+                        log(format!("Expected {position:?} to be styled as {style_key:?}, but got {actual_style_key:?}"));
                     }
                     actual_style_key == style_key
                 }),
@@ -320,8 +322,8 @@ impl ExpectKind {
             QuickfixListContent(content) => {
                 let expected = app.get_quickfix_list().unwrap().render().content;
                 let actual = content.to_string();
-                println!("expected =\n{expected}");
-                println!("actual =\n{actual}");
+                log(format!("expected =\n{expected}"));
+                log(format!("actual =\n{actual}"));
                 contextualize(expected, actual)
             }
             DropdownInfosCount(expected) => {
@@ -357,7 +359,7 @@ impl ExpectKind {
                     .iter()
                     .inspect(|&span| {
                         // For debugging purposes
-                        println!("xx {span:?} {}", span.style_key.display());
+                        log(format!("xx {span:?} {}", span.style_key.display()));
                     })
                     .collect_vec()
                     .into_iter()
@@ -442,7 +444,7 @@ impl ExpectKind {
                     .map(|row| {
                         row.iter()
                             .filter(|cell| {
-                                println!("style = {:?}", cell.source);
+                                log(format!("style = {:?}", cell.source));
                                 cell.source.as_ref() == Some(style_key)
                             })
                             .count()

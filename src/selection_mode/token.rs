@@ -47,6 +47,7 @@ impl PositionBasedSelectionMode for Token {
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        // return Token { skip_symbols: !self.skip_symbols, } .left(params);
         let buffer = params.buffer;
         let current_line_index = buffer.char_to_line(params.cursor_char_index())?;
         let line_start_char_index = buffer.line_to_char(current_line_index)?;
@@ -66,6 +67,7 @@ impl PositionBasedSelectionMode for Token {
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        // return Token { skip_symbols: !self.skip_symbols, } .right(params);
         let buffer = params.buffer;
         let current_line_index = buffer.char_to_line(params.cursor_char_index())?;
         let next_line_index = current_line_index + 1;
@@ -111,7 +113,7 @@ impl PositionBasedSelectionMode for Token {
             let mut current = cursor_char_index;
             loop {
                 if (CharIndex(0)..=last_char_index).contains(&current) {
-                    if is_target(buffer.char(current)) {
+                    if is_target(buffer.char(current)?) {
                         break current;
                     } else {
                         match if_current_not_found {

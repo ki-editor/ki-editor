@@ -4567,3 +4567,49 @@ hello
         ])
     })
 }
+
+#[test]
+fn move_down_from_indented_line_to_last_dedented_line() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("    fo\nb".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Expect(CurrentSelectedTexts(&["fo"])),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["b"])),
+            Editor(MoveSelection(Up)),
+            Expect(CurrentSelectedTexts(&["fo"])),
+        ])
+    })
+}
+
+#[test]
+fn delete_forward_last_dedented_lines() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("    fo\nb".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Expect(CurrentSelectedTexts(&["fo"])),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["b"])),
+            Editor(Delete(Direction::End)),
+            Expect(CurrentSelectedTexts(&["fo"])),
+        ])
+    })
+}

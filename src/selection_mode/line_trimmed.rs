@@ -12,54 +12,13 @@ impl PositionBasedSelectionMode for LineTrimmed {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
-        if_current_not_found: crate::components::editor::IfCurrentNotFound,
+        _: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
         let last_cursor_char_index = CharIndex(buffer.len_chars());
         if cursor_char_index >= last_cursor_char_index {
             return Ok(None);
         }
-        let line_index = {
-            let current_line_index = buffer.char_to_line(cursor_char_index)?;
-            let current_char = buffer.char(cursor_char_index);
-            if !current_char.is_whitespace() {
-                current_line_index
-            } else if current_char == '\n' {
-                match if_current_not_found {
-                    IfCurrentNotFound::LookForward => current_line_index + 1,
-                    IfCurrentNotFound::LookBackward => current_line_index,
-                }
-            } else {
-                let new_char_index = match if_current_not_found {
-                    IfCurrentNotFound::LookForward => {
-                        let mut index = cursor_char_index;
-                        loop {
-                            let char = buffer.char(index);
-                            if index == last_cursor_char_index {
-                                return Ok(None);
-                            } else if !char.is_whitespace() || char == '\n' {
-                                break index;
-                            } else {
-                                index = index + 1
-                            }
-                        }
-                    }
-                    IfCurrentNotFound::LookBackward => {
-                        let mut index = cursor_char_index;
-                        loop {
-                            let char = buffer.char(index);
-                            if index == CharIndex(0) {
-                                return Ok(None);
-                            } else if !char.is_whitespace() || char == '\n' {
-                                break index;
-                            } else {
-                                index = index - 1
-                            }
-                        }
-                    }
-                };
-                buffer.char_to_line(new_char_index)?
-            }
-        };
+        let line_index = buffer.char_to_line(cursor_char_index)?;
         let Some(line) = buffer.get_line_by_line_index(line_index) else {
             return Ok(None);
         };
@@ -87,6 +46,25 @@ impl PositionBasedSelectionMode for LineTrimmed {
                 .into(),
         )?;
         Ok(Some(ByteRange::new(range)))
+    }
+
+    fn next_char_index(
+        &self,
+        params: &SelectionModeParams,
+        range: crate::char_index_range::CharIndexRange,
+    ) -> anyhow::Result<CharIndex> {
+        let line_index = params.buffer.char_to_line(range.start)?;
+        params.buffer.line_to_char(line_index + 1)
+    }
+
+    #[cfg(test)]
+    fn previous_char_index(
+        &self,
+        params: &SelectionModeParams,
+        range: crate::char_index_range::CharIndexRange,
+    ) -> anyhow::Result<CharIndex> {
+        let line_index = params.buffer.char_to_line(range.start)?;
+        params.buffer.line_to_char(line_index - 1)
     }
 
     fn left(
@@ -122,6 +100,13 @@ impl PositionBasedSelectionMode for LineTrimmed {
             })
             .transpose()?
             .flatten())
+    }
+
+    fn right(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.down(params)
     }
 
     fn delete_forward(
@@ -170,7 +155,7 @@ mod test_line {
 
     #[test]
     fn case_1() {
-        let buffer = Buffer::new(None, "a\n\n\nb\nc\n  hello\n  \nbye");
+        let buffer = Buffer::new(None, "a\n\n\nb  \nc\n  hello\n  \nbye\n\n");
         PositionBased(LineTrimmed).assert_all_selections(
             &buffer,
             Selection::default(),
@@ -179,11 +164,11 @@ mod test_line {
                 (2..2, ""),
                 (3..3, ""),
                 (4..5, "b"),
-                (6..7, "c"),
-                // Should not include leading whitespaces
-                (10..15, "hello"),
-                (18..18, ""),
-                (19..22, "bye"),
+                (8..9, "c"),
+                (12..17, "hello"),
+                (20..20, ""),
+                (21..24, "bye"),
+                (25..25, ""),
             ],
         );
     }

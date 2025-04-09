@@ -43,6 +43,7 @@ use crate::{
         editor::{Direction, IfCurrentNotFound, Jump, Movement, SurroundKind},
         suggestive_editor::Info,
     },
+    position::Position,
     selection::{CharIndex, Selection},
     surround::EnclosureKind,
 };
@@ -303,22 +304,7 @@ impl<T: PositionBasedSelectionMode> SelectionMode for PositionBased<T> {
         &'a self,
         params: &SelectionModeParams<'a>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        let mut cursor_char_index = CharIndex(params.buffer.len_chars() - 1);
-        let mut result = Vec::new();
-        while let Some(range) = self.get_current_selection_by_cursor(
-            params.buffer,
-            cursor_char_index,
-            IfCurrentNotFound::LookBackward,
-        )? {
-            if range.range.start == 0 || Some(&range) == result.first() {
-                result.insert(0, range);
-                break;
-            } else {
-                cursor_char_index = params.buffer.byte_to_char(range.range.start - 1)?;
-                result.insert(0, range);
-            }
-        }
-        Ok(result)
+        self.0.all_selections_gathered_inversely(params)
     }
 
     fn to_index(
@@ -743,7 +729,11 @@ pub trait PositionBasedSelectionMode {
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.get_current_selection_by_cursor(
             params.buffer,
-            params.current_selection.range().end,
+            params
+                .current_selection
+                .range()
+                .end
+                .min(CharIndex(params.buffer.len_chars().saturating_sub(1))),
             IfCurrentNotFound::LookForward,
         )?
         .map(|range| {
@@ -800,7 +790,10 @@ pub trait PositionBasedSelectionMode {
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
             )? {
-                cursor_char_index = params.buffer.byte_to_char(range.range.end)?;
+                cursor_char_index = self.next_char_index(
+                    params,
+                    params.buffer.byte_range_to_char_index_range(&range.range)?,
+                )?;
 
                 if Some(&range) == result.last() {
                     result.push(range);
@@ -813,6 +806,49 @@ pub trait PositionBasedSelectionMode {
             }
         }
         Ok(result)
+    }
+
+    #[cfg(test)]
+    fn all_selections_gathered_inversely<'a>(
+        &'a self,
+        params: &SelectionModeParams<'a>,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        let mut cursor_char_index = CharIndex(params.buffer.len_chars() - 1);
+        let mut result = Vec::new();
+        while let Some(range) = self.get_current_selection_by_cursor(
+            params.buffer,
+            cursor_char_index,
+            IfCurrentNotFound::LookBackward,
+        )? {
+            if range.range.start == 0 || Some(&range) == result.first() {
+                result.insert(0, range);
+                break;
+            } else {
+                cursor_char_index = self.previous_char_index(
+                    params,
+                    params.buffer.byte_range_to_char_index_range(&range.range)?,
+                )?;
+                result.insert(0, range);
+            }
+        }
+        Ok(result)
+    }
+
+    #[cfg(test)]
+    fn previous_char_index(
+        &self,
+        _: &SelectionModeParams,
+        range: CharIndexRange,
+    ) -> anyhow::Result<CharIndex> {
+        Ok(range.start - 1)
+    }
+
+    fn next_char_index(
+        &self,
+        _: &SelectionModeParams,
+        range: CharIndexRange,
+    ) -> anyhow::Result<CharIndex> {
+        Ok(range.end)
     }
 
     fn expand(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
@@ -854,7 +890,17 @@ pub trait PositionBasedSelectionMode {
             current_position.line + 1
         };
 
-        let mut new_position = current_position.set_line(new_line);
+        let get_column = |new_line: usize| {
+            let line_length = buffer
+                .get_line_by_line_index(new_line)
+                .map(|slice| slice.len_chars())
+                .unwrap_or_default();
+            line_length.saturating_sub(1).min(current_position.column)
+        };
+        let mut new_position = current_position
+            .set_line(new_line)
+            .set_column(get_column(new_line));
+
         let mut new_cursor_char_index = buffer.position_to_char(new_position)?;
 
         // Define which look direction to try first and second based on movement direction
@@ -870,21 +916,23 @@ pub trait PositionBasedSelectionMode {
             )
         };
 
-        while let Some(result) =
-            self.get_current_selection_by_cursor(params.buffer, new_cursor_char_index, first_look)?
-        {
-            if buffer.byte_to_line(result.range.start)? == new_position.line {
-                return Ok(Some(
-                    (*current_selection)
-                        .clone()
-                        .set_range(buffer.byte_range_to_char_index_range(&result.range)?)
-                        .set_info(result.info),
-                ));
-            } else if let Some(result) = self.get_current_selection_by_cursor(
-                params.buffer,
-                new_cursor_char_index,
-                second_look,
-            )? {
+        loop {
+            if let Some(result) =
+                self.get_current_selection_by_cursor(buffer, new_cursor_char_index, first_look)?
+            {
+                if buffer.byte_to_line(result.range.start)? == new_position.line {
+                    return Ok(Some(
+                        (*current_selection)
+                            .clone()
+                            .set_range(buffer.byte_range_to_char_index_range(&result.range)?)
+                            .set_info(result.info),
+                    ));
+                }
+            }
+
+            if let Some(result) =
+                self.get_current_selection_by_cursor(buffer, new_cursor_char_index, second_look)?
+            {
                 if buffer.byte_to_line(result.range.start)? == new_position.line {
                     return Ok(Some(
                         (*current_selection)
@@ -896,12 +944,21 @@ pub trait PositionBasedSelectionMode {
             }
 
             // Move to next line
-            new_position.line = if is_up {
+            let new_line = if is_up {
                 new_position.line.saturating_sub(1)
             } else {
                 new_position.line + 1
             };
-            new_cursor_char_index = buffer.position_to_char(new_position)?;
+            let new_column = get_column(new_line);
+
+            new_position = Position::new(new_line, new_column);
+
+            let next_cursor_char_index = buffer.position_to_char(new_position)?;
+            if next_cursor_char_index == new_cursor_char_index {
+                break;
+            } else {
+                new_cursor_char_index = next_cursor_char_index
+            }
         }
 
         Ok(None)

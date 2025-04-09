@@ -3322,16 +3322,20 @@ impl Editor {
 
                     let delete_range = buffer.line_range_to_full_char_index_range(line_range)?;
 
-                    let select_range = Selection::get_selection_(
-                        &buffer,
-                        &selection.clone().collapsed_to_anchor_range(&Direction::End),
-                        &self.selection_set.mode,
-                        &Movement::Down,
-                        &self.cursor_direction,
-                        context,
-                    )?
-                    .map(|result| result.selection.range())
-                    .unwrap_or_else(|| selection.range());
+                    let get_selection = |movement: Movement| {
+                        Selection::get_selection_(
+                            &buffer,
+                            &selection.clone().collapsed_to_anchor_range(&Direction::End),
+                            &self.selection_set.mode,
+                            &movement,
+                            &self.cursor_direction,
+                            context,
+                        )
+                    };
+                    let select_range = get_selection(Movement::Down)?
+                        .or_else(|| get_selection(Movement::Up).ok().flatten())
+                        .map(|result| result.selection.range())
+                        .unwrap_or_else(|| selection.range());
 
                     Ok([
                         ActionGroup::new(
