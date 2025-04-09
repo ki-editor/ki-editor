@@ -65,6 +65,13 @@ impl Position {
             column: self.column + column,
         }
     }
+
+    pub(crate) fn set_column(self, new_column: usize) -> Position {
+        Position {
+            column: new_column,
+            ..self
+        }
+    }
 }
 
 impl Ord for Position {

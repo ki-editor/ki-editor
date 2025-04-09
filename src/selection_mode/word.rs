@@ -53,7 +53,7 @@ impl PositionBasedSelectionMode for Word {
             let mut current = cursor_char_index;
             loop {
                 if (CharIndex(0)..=last_char_index).contains(&current) {
-                    if predicate(buffer.char(current)) {
+                    if predicate(buffer.char(current)?) {
                         break current;
                     } else {
                         match if_current_not_found {
@@ -72,7 +72,7 @@ impl PositionBasedSelectionMode for Word {
             }
         };
 
-        let current_char = buffer.char(current);
+        let current_char = buffer.char(current)?;
 
         if current_char.is_whitespace()
             || (self.skip_symbols && !current_char.is_ascii_alphanumeric())
@@ -84,9 +84,9 @@ impl PositionBasedSelectionMode for Word {
             let start = {
                 let mut index = current;
                 loop {
-                    if index > CharIndex(0) && buffer.char(index - 1).is_ascii_lowercase() {
+                    if index > CharIndex(0) && buffer.char(index - 1)?.is_ascii_lowercase() {
                         index = index - 1;
-                    } else if index > CharIndex(0) && buffer.char(index - 1).is_ascii_uppercase() {
+                    } else if index > CharIndex(0) && buffer.char(index - 1)?.is_ascii_uppercase() {
                         break index - 1;
                     } else {
                         break index;
@@ -96,7 +96,7 @@ impl PositionBasedSelectionMode for Word {
             let end = {
                 let mut index = current;
                 loop {
-                    if index < last_char_index && buffer.char(index + 1).is_ascii_lowercase() {
+                    if index < last_char_index && buffer.char(index + 1)?.is_ascii_lowercase() {
                         index = index + 1;
                     } else {
                         break index;
@@ -107,14 +107,14 @@ impl PositionBasedSelectionMode for Word {
         } else if current_char.is_ascii_uppercase() {
             let start = {
                 let mut index = current;
-                if index < last_char_index && buffer.char(index + 1).is_lowercase() {
+                if index < last_char_index && buffer.char(index + 1)?.is_lowercase() {
                     index
                 } else {
                     loop {
                         if index == CharIndex(0) {
                             break index;
                         }
-                        let char = buffer.char(index - 1);
+                        let char = buffer.char(index - 1)?;
                         if char.is_ascii_uppercase() {
                             index = index - 1;
                         } else {
@@ -124,19 +124,19 @@ impl PositionBasedSelectionMode for Word {
                 }
             };
             let end = {
-                let mut previous_is_uppercase = buffer.char(current).is_ascii_uppercase();
+                let mut previous_is_uppercase = buffer.char(current)?.is_ascii_uppercase();
                 let mut index = current;
                 loop {
                     if index >= last_char_index {
                         break index;
                     }
-                    let char = buffer.char(index + 1);
+                    let char = buffer.char(index + 1)?;
                     if char.is_ascii_lowercase() {
                         previous_is_uppercase = char.is_ascii_uppercase();
                         index = index + 1;
                     } else if previous_is_uppercase && char.is_ascii_uppercase() {
                         if index < last_char_index - 1
-                            && buffer.char(index + 2).is_ascii_lowercase()
+                            && buffer.char(index + 2)?.is_ascii_lowercase()
                         {
                             break index;
                         } else {
@@ -153,7 +153,7 @@ impl PositionBasedSelectionMode for Word {
             let start = {
                 let mut index = current;
                 loop {
-                    if index > CharIndex(0) && buffer.char(index - 1).is_ascii_digit() {
+                    if index > CharIndex(0) && buffer.char(index - 1)?.is_ascii_digit() {
                         index = index - 1;
                     } else {
                         break index;
@@ -163,7 +163,7 @@ impl PositionBasedSelectionMode for Word {
             let end = {
                 let mut index = current;
                 loop {
-                    if index < last_char_index && buffer.char(index + 1).is_ascii_digit() {
+                    if index < last_char_index && buffer.char(index + 1)?.is_ascii_digit() {
                         index = index + 1;
                     } else {
                         break index;
