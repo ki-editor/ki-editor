@@ -1,4 +1,5 @@
 use convert_case::Casing;
+use itertools::Itertools;
 use shared::process_command::ProcessCommand;
 
 use crate::{
@@ -67,7 +68,21 @@ impl Transformation {
                 .unwrap()
                 .replace_all(&string, " ")
                 .to_string()),
-            Transformation::Wrap => Ok(soft_wrap(&string, 80).to_string()),
+            Transformation::Wrap => Ok({
+                let result = soft_wrap(&string, 80)
+                    .to_string()
+                    .lines()
+                    .map(|line| line.trim_end())
+                    .join("\n");
+
+                debug_assert!(result.lines().all(|line| !line
+                    .chars()
+                    .last()
+                    .unwrap()
+                    .is_whitespace()));
+
+                result
+            }),
             Transformation::PipeToShell { command } => {
                 ProcessCommand::new("bash", &["-c", command]).run_with_input(&string)
             }
@@ -116,6 +131,6 @@ pineapple?
 who lives in a pineapple under the sea? Spongebob Squarepants! absorbent and yellow and porous is he? Spongebob Squarepants
 "
             .trim().to_string()).unwrap();
-        assert_eq!(result, "who lives in a pineapple under the sea? Spongebob Squarepants! absorbent and \nyellow and porous is he? Spongebob Squarepants")
+        assert_eq!(result, "who lives in a pineapple under the sea? Spongebob Squarepants! absorbent and\nyellow and porous is he? Spongebob Squarepants")
     }
 }
