@@ -573,8 +573,10 @@ impl Editor {
     }
 
     pub(crate) fn from_buffer(buffer: Rc<RefCell<Buffer>>) -> Self {
-        Self {
-            selection_set: SelectionSet::default(),
+        let selection_set = SelectionSet::default();
+        let selection_mode = selection_set.mode.clone();
+        let mut result = Self {
+            selection_set,
             jumps: None,
             mode: Mode::Normal,
             cursor_direction: Direction::Start,
@@ -588,7 +590,15 @@ impl Editor {
             copied_text_history_offset: Default::default(),
             normal_mode_override: None,
             reveal: None,
-        }
+        };
+
+        // Select the first line of the file
+        let _ = result.select(
+            selection_mode,
+            Movement::Current(IfCurrentNotFound::LookForward),
+            &Context::default(),
+        );
+        result
     }
 
     pub(crate) fn current_line(&self) -> anyhow::Result<String> {

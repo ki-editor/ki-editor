@@ -4433,3 +4433,17 @@ fn delete_forward_last_dedented_lines() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn the_first_line_should_be_selected_when_a_file_is_opened() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentSelectedTexts(&["mod foo;"])),
+        ])
+    })
+}
