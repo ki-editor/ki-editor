@@ -473,8 +473,8 @@ impl Dropdown {
             Movement::Right => self.next_item(),
             Movement::Current(_) => {}
             Movement::Left => self.previous_item(),
-            Movement::Last => self.last_item(),
-            Movement::First => self.first_item(),
+            Movement::Beta => self.last_item(),
+            Movement::Alpha => self.first_item(),
             Movement::Up => self.previous_group(),
             Movement::Down => self.next_group(),
             _ => {}

@@ -1,4 +1,4 @@
-use super::{ByteRange, PositionBased, PositionBasedSelectionMode, SelectionMode, Token};
+use super::{ByteRange, PositionBasedSelectionMode, SelectionModeTrait, Token};
 use crate::{buffer::Buffer, components::editor::IfCurrentNotFound, selection::CharIndex};
 
 pub struct Word {
@@ -15,18 +15,18 @@ impl Word {
 }
 
 impl PositionBasedSelectionMode for Word {
-    fn first(
+    fn alpha(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        get_word(params, SelectionPosition::First, self.skip_symbols)
+        get_word(params, SelectionPosition::First)
     }
 
-    fn last(
+    fn beta(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        get_word(params, SelectionPosition::Last, self.skip_symbols)
+        get_word(params, SelectionPosition::Last)
     }
 
     fn get_current_selection_by_cursor(
@@ -185,7 +185,7 @@ impl PositionBasedSelectionMode for Word {
 #[cfg(test)]
 mod test_word {
     use super::*;
-    use crate::{buffer::Buffer, selection::Selection};
+    use crate::{buffer::Buffer, selection::Selection, selection_mode::PositionBased};
 
     #[test]
     fn simple_case() {
@@ -285,9 +285,8 @@ pub(crate) enum SelectionPosition {
 fn get_word(
     params: &super::SelectionModeParams,
     position: SelectionPosition,
-    skip_symbols: bool,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
-    if let Some(current_word) = PositionBased(Token::new(skip_symbols)).current(
+    if let Some(current_word) = Token.current(
         params,
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {

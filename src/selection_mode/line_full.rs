@@ -139,7 +139,7 @@ mod test_line_full {
     use crate::{
         buffer::Buffer,
         selection::Selection,
-        selection_mode::{PositionBased, SelectionMode as _},
+        selection_mode::{PositionBased, SelectionModeTrait as _},
     };
 
     use super::*;

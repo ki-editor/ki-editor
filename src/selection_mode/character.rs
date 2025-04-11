@@ -3,8 +3,8 @@ use ropey::Rope;
 use crate::{components::editor::IfCurrentNotFound, selection::Selection};
 
 use super::{
-    word::SelectionPosition, ByteRange, PositionBased, PositionBasedSelectionMode, SelectionMode,
-    SelectionModeParams, Word,
+    word::SelectionPosition, ByteRange, PositionBased, PositionBasedSelectionMode,
+    SelectionModeParams, SelectionModeTrait, Word,
 };
 
 pub(crate) struct Character {
@@ -18,14 +18,14 @@ impl Character {
 }
 
 impl PositionBasedSelectionMode for Character {
-    fn first(
+    fn alpha(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         get_char(params, SelectionPosition::First)
     }
 
-    fn last(
+    fn beta(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
@@ -129,7 +129,7 @@ mod test_character {
 
         // First line
         let selection = Selection::default();
-        crate::selection_mode::SelectionMode::assert_all_selections(
+        crate::selection_mode::SelectionModeTrait::assert_all_selections(
             &PositionBased(Character::new(0)),
             &buffer,
             selection,
@@ -148,7 +148,7 @@ mod test_character {
         // Second line
         let char_index = buffer.line_to_char(1)?;
         let selection = Selection::default().set_range((char_index..char_index).into());
-        crate::selection_mode::SelectionMode::assert_all_selections(
+        crate::selection_mode::SelectionModeTrait::assert_all_selections(
             &PositionBased(Character::new(0)),
             &buffer,
             selection,

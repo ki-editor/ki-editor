@@ -1,7 +1,7 @@
 use crate::{components::editor::IfCurrentNotFound, selection::CharIndex};
 
 use super::{
-    ByteRange, PositionBased, PositionBasedSelectionMode, SelectionMode, SelectionModeParams,
+    ByteRange, PositionBased, PositionBasedSelectionMode, SelectionModeParams, SelectionModeTrait,
 };
 
 #[derive(Clone)]

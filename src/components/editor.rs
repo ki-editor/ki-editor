@@ -497,11 +497,11 @@ impl IfCurrentNotFound {
 pub(crate) enum Movement {
     Right,
     Left,
-    Last,
+    Beta,
     Current(IfCurrentNotFound),
     Up,
     Down,
-    First,
+    Alpha,
     /// 0-based
     Index(usize),
     Jump(CharIndexRange),
@@ -755,7 +755,7 @@ impl Editor {
         selection: &Selection,
         use_current_selection_mode: bool,
         context: &Context,
-    ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
+    ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         if use_current_selection_mode {
             self.selection_set.mode.clone()
         } else {
@@ -1831,8 +1831,8 @@ impl Editor {
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
         match movement {
-            Movement::Last => self.swap_till_last(context),
-            Movement::First => self.swap_till_first(context),
+            Movement::Beta => self.swap_till_last(context),
+            Movement::Alpha => self.swap_till_first(context),
             _ => self.replace_faultlessly(&self.selection_set.mode.clone(), movement, context),
         }
     }
@@ -1861,7 +1861,7 @@ impl Editor {
                             current_selection,
                             cursor_direction: &self.cursor_direction,
                         };
-                        let first = selection_mode.first(&params).ok()??.range();
+                        let first = selection_mode.alpha(&params).ok()??.range();
                         // Find the before current selection
                         let before_current = selection_mode.left(&params).ok()??.range();
                         let first_range = current_selection.range();
@@ -1910,7 +1910,7 @@ impl Editor {
                         };
 
                         // Select from the first until before current
-                        let last = selection_mode.last(&params).ok()??.range();
+                        let last = selection_mode.beta(&params).ok()??.range();
                         // Find the before current selection
                         let after_current = selection_mode.right(&params).ok()??.range();
                         let first_range = current_selection.range();
@@ -1949,8 +1949,8 @@ impl Editor {
             )
         };
         match movement {
-            Movement::First => while let Ok(true) = add_selection(&Movement::Left) {},
-            Movement::Last => while let Ok(true) = add_selection(&Movement::Right) {},
+            Movement::Alpha => while let Ok(true) = add_selection(&Movement::Left) {},
+            Movement::Beta => while let Ok(true) = add_selection(&Movement::Right) {},
             other_movement => {
                 add_selection(other_movement)?;
             }
@@ -2047,9 +2047,7 @@ impl Editor {
                                     skip_symbols: false,
                                 }
                             } else {
-                                SelectionMode::Token {
-                                    skip_symbols: false,
-                                }
+                                SelectionMode::Token
                             },
                             &movement,
                             &self.cursor_direction,
@@ -2622,9 +2620,9 @@ impl Editor {
             context,
             [
                 DisableSelectionExtension,
-                (MoveSelection(Movement::First)),
+                (MoveSelection(Movement::Alpha)),
                 EnableSelectionExtension,
-                (MoveSelection(Movement::Last)),
+                (MoveSelection(Movement::Beta)),
             ]
             .to_vec(),
         )

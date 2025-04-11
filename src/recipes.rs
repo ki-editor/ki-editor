@@ -185,7 +185,7 @@ Why?
                     content: "camelCase snake_case PascalCase".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s . H H"),
+                    events: keys!("s l l H H"),
                     expectations: Box::new([CurrentSelectedTexts(&["camelCase"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -196,7 +196,7 @@ Why?
                     content: "foo bar spam".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s . h h"),
+                    events: keys!("s l l h h"),
                     expectations: Box::new([CurrentSelectedTexts(&["foo"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -621,7 +621,7 @@ snake_case 99 PascalCase
                     only: false,
                 },
                 Recipe {
-                    description: "Word: first/last movement",
+                    description: "Word: alpha/beta movement",
                     content: "hello HTTPNetworkRequestMiddleware world"
                     .trim(),
                     file_extension: "md",
@@ -656,51 +656,29 @@ camelCase , kebab-case snake_case
             .to_vec(),
         },
         RecipeGroup {
-            filename: "Token",
+            filename: "token",
             recipes: [
                 Recipe {
-                    description: "Token (skip symbols)",
+                    description: "Token: Left/Right skip symbols",
                     content: "
-camelCase ,  kebab-case 
-snake_case + PascalCase
+camelCase , kebab-case -> snake_case 
 "
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s l k j i"),
+                    events: keys!("s l l j j"),
                     expectations: Box::new([CurrentSelectedTexts(&["camelCase"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
                 },
                 Recipe {
-                    description: "Token: first/last movement (line boundary)",
-                    content: "The quick brown fox jumps\nOver the lazy dog today...".trim(),
+                    description: "Token: Alpha/Beta moves to symbols only",
+                    content: "camelCase , kebab-case -> snake_case".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s . k , i ."),
-                    expectations: Box::new([CurrentSelectedTexts(&["jumps"])]),
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-            ]
-            .to_vec(),
-        },
-        RecipeGroup {
-            filename: "token-fine",
-            recipes: [
-                Recipe {
-                    description: "Fine Token Movements",
-                    content: "
-camelCase ,  kebab-case 
-snake_case + PascalCase
-"
-                    .trim(),
-                    file_extension: "md",
-                    prepare_events: &[],
-                    events: keys!("S l l k j j i"),
-                    expectations: Box::new([CurrentSelectedTexts(&["camelCase"])]),
+                    events: keys!("s . . , ,"),
+                    expectations: Box::new([CurrentSelectedTexts(&[","])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
@@ -727,7 +705,7 @@ snake
                     only: false,
                 },
                 Recipe {
-                    description: "Char: first/last movement (first/last char of current word)",
+                    description: "Char: alpha/beta movement (alpha/beta char of current word)",
                     content: "campHelloDun".trim(),
                     file_extension: "md",
                     prepare_events: keys!("q h e l l o enter"),
@@ -899,7 +877,7 @@ foo ha"
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s . r j j"),
+                    events: keys!("a / s r j j"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["bar", "spam", "baz"]),
                     ]),
@@ -1519,7 +1497,7 @@ fn syntax_node() -> RecipeGroup {
                 only: false,
             },
             Recipe {
-                description: "Navigate sibling nodes via First/Last movement",
+                description: "Navigate sibling nodes via alpha/beta movement",
                 content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                 file_extension: "json",
                 prepare_events: keys!("w l"),
@@ -1695,7 +1673,7 @@ fn main() {
                 file_extension: "md",
                 prepare_events: &[],
                 events: keys!("a / s"),
-                expectations: Box::new([CurrentSelectedTexts(&["baz"])]),
+                expectations: Box::new([CurrentSelectedTexts(&[")"])]),
                 terminal_height: None,
                 similar_vim_combos: &[],
                 only: false,

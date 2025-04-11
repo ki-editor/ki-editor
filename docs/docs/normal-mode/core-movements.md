@@ -16,7 +16,7 @@ There are 9 movements in total:
 
 1. [Left/Right](#--leftright)
 1. [Up/Down](#--updown)
-1. [First/Last](#--firstlast)
+1. [Alpha/Beta](#--alphabeta)
 1. [Jump](#jump)
 1. [To Index](#index-jump-to-index)
 1. [Current](#current)
@@ -46,16 +46,22 @@ the following selection modes:
 | Syntax Node    | Parent or First-Sibling             |
 | Quickfix       | To first item of next/previous file |
 
-### `◀◀` `▶▶` First/Last
+### `◀◀` `▶▶` Alpha/Beta
 
-| Selection Mode   | Meaning                                  |
-| ---------------- | ---------------------------------------- |
-| Syntax Node      | First/Last named sibling                 |
-| Quickfix         | First/Last item                          |
-| Char             | First/Last char in the current word      |
-| Word             | First/Last word in the current token     |
-| Token            | First/Last token in the current sentence |
-| Line & Full Line | First/Last line of the current file      |
+By default, Alpha/Beta moves to the First/Last selection of the current selection mode.
+
+However, since First/Last functionality isn't equally useful across all selection modes, certain modes like Token override this default behavior to provide more practical functionality.
+
+This is why the movement was renamed from First/Last to the more generic Alpha/Beta.
+
+| Selection Mode   | Meaning                              |
+| ---------------- | ------------------------------------ |
+| Syntax Node      | First/Last named sibling             |
+| Quickfix         | First/Last item                      |
+| Char             | First/Last char in the current word  |
+| Word             | First/Last word in the current token |
+| Token            | Previous/Next symbolic tokens        |
+| Line & Full Line | First/Last line of the current file  |
 
 ### `Jump`
 

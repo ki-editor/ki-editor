@@ -621,10 +621,7 @@ fn reveal_cursor_selection_extension() -> anyhow::Result<()> {
                 .trim(),
             )),
             Editor(EnableSelectionExtension),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                Token { skip_symbols: true },
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(MoveSelection(Right)),
             Expect(EditorGrid(
                 "

@@ -56,16 +56,16 @@ impl Editor {
                 Dispatch::ToEditor(MoveSelection(Down)),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::First),
+                context.keyboard_layout_kind().get_key(&Meaning::Alpha),
                 "◀◀".to_string(),
-                "First".to_string(),
-                Dispatch::ToEditor(MoveSelection(Movement::First)),
+                "Alph".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Alpha)),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Last_),
+                context.keyboard_layout_kind().get_key(&Meaning::Beta_),
                 "▶▶".to_string(),
-                "Last".to_string(),
-                Dispatch::ToEditor(MoveSelection(Movement::Last)),
+                "Beta".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Beta)),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Jump_),
@@ -200,23 +200,12 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Tokn_),
+                context.keyboard_layout_kind().get_key(&Meaning::Token),
                 "Token".to_string(),
                 "Select Token".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(
                     self.cursor_direction.reverse().to_if_current_not_found(),
-                    Token { skip_symbols: true },
-                )),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::FTokn),
-                "Token*".to_string(),
-                "Select Token*".to_string(),
-                Dispatch::ToEditor(SetSelectionMode(
-                    self.cursor_direction.reverse().to_if_current_not_found(),
-                    Token {
-                        skip_symbols: false,
-                    },
+                    Token,
                 )),
             ),
             Keymap::new_extended(

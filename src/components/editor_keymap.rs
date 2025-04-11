@@ -18,10 +18,10 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         SrchN, WordF, SrchC, MultC, Swap_, /****/ FindP, InstP, Up___, InstN, FindN,
     ],
     [
-        Line_, Tokn_, Sytx_, Extnd, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
+        Line_, Token, Sytx_, Extnd, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
     ],
     [
-        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ Globl, Chng_, First, Last_, XAchr,
+        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ Globl, Chng_, Alpha, Beta_, XAchr,
     ],
 ];
 
@@ -30,7 +30,7 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         SrchP, Word_, Char_, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
     ],
     [
-        LineF, FTokn, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
+        LineF, _____, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
     ],
     [
         Redo_, PRplc, RplcX, PsteP, MarkF, /****/ _____, ChngX, _____, _____, SSEnd,
@@ -531,8 +531,8 @@ pub(crate) enum Meaning {
     FindN,
     /// Local find backward
     FindP,
-    /// First
-    First,
+    /// Alpha
+    Alpha,
     /// Go back
     GBack,
     /// Go forward
@@ -557,8 +557,8 @@ pub(crate) enum Meaning {
     KilLN,
     /// Kill to line start
     KilLP,
-    /// Last
-    Last_,
+    /// Beta
+    Beta_,
     /// Left
     Left_,
     /// Line Up
@@ -622,9 +622,7 @@ pub(crate) enum Meaning {
     /// GoToIndex
     ToIdx,
     /// Select Token
-    Tokn_,
-    /// Select Fine Token
-    FTokn,
+    Token,
     /// Transform
     Trsfm,
     /// Paste (End)
