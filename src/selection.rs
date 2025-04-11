@@ -409,7 +409,7 @@ impl SelectionSet {
 pub(crate) enum SelectionMode {
     // Regex
     Word { skip_symbols: bool },
-    Token { skip_symbols: bool },
+    Token,
     Line,
     Character,
     Custom,
@@ -460,9 +460,7 @@ impl SelectionMode {
             SelectionMode::Word { skip_symbols } => {
                 format!("{}WORD", if *skip_symbols { "" } else { "FINE " })
             }
-            SelectionMode::Token { skip_symbols } => {
-                format!("{}TOKEN", if *skip_symbols { "" } else { "FINE " })
-            }
+            SelectionMode::Token => "Token".to_string(),
         }
     }
 
@@ -472,7 +470,7 @@ impl SelectionMode {
         current_selection: &Selection,
         cursor_direction: &Direction,
         context: &Context,
-    ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
+    ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         let params = SelectionModeParams {
             buffer,
             current_selection,
@@ -482,9 +480,7 @@ impl SelectionMode {
             SelectionMode::Word { skip_symbols } => {
                 Box::new(PositionBased(selection_mode::Word::new(*skip_symbols)))
             }
-            SelectionMode::Token { skip_symbols } => {
-                Box::new(PositionBased(selection_mode::Token::new(*skip_symbols)))
-            }
+            SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::Line => Box::new(PositionBased(selection_mode::LineTrimmed)),
             SelectionMode::LineFull => Box::new(PositionBased(selection_mode::LineFull::new())),
             SelectionMode::Character => {

@@ -99,7 +99,7 @@ and trailing spaces of each line are not selected.
 | Movement   | Meaning                                         |
 | ---------- | ----------------------------------------------- |
 | Up/Down    | Move to line above/below                        |
-| First/Last | Move to the first/last line of the current file |
+| Alpha/Beta | Move to the first/last line of the current file |
 | Left       | Move to the parent line                         |
 
 Parent lines are highlighted lines that represent the parent nodes of the current selection.
@@ -118,21 +118,52 @@ Same as [Line](#line), however, leading whitespaces are selected, and trailing w
 
 ## `Token`
 
-Token (skip symbols).
+Token.
 
 Each unit is a sequence of alphanumeric characters including `-` and `_`.
+
+| Movement   | Symbols | Alphanumeric |
+| ---------- | ------- | ------------ |
+| Left/Right |         | ✓            |
+| Alpha/Beta | ✓       |              |
+| Jump       | ✓       | ✓            |
+| Up/Down    | ✓       | ✓            |
+| Current    | ✓       | ✓            |
+
+Left/Right movement skips symbols, while Alpha/Beta movement moves to symbols only.
+
+This means Left/Right movements are optimized for navigating alphanumeric tokens,
+while Alpha/Beta movements are optimized for symbolic tokens, which is useful for navigating sentences.
+
+Why don't Left/Right movements also navigate symbols? Because they would be too slow; it would take a lot of unnecessary keypresses to reach the target.
+
+Suppose the following example:
+
+```rs
+use crate::{components::editor::OpenFile, char_index::CharIndex};
+```
+
+If the current selection is selecting `use`, the following table demonstrates how many steps it takes to navigate to `OpenFile`.
+
+| Navigation include/exclude symbols | Steps                                                                | Count |
+| ---------------------------------- | -------------------------------------------------------------------- | ----- |
+| Include                            | `crate` `:` `:` `{` `components` `:` `:` `editor` `:` `:` `OpenFile` | 11    |
+| Exclude                            | `crate` `components` `editor` `OpenFile`                             | 4     |
+
+Why do we need the Alpha/Beta movements to navigate symbols? Because sometimes, we just need to move to a symbol.
+
+For example, in the following code, suppose we wanted to add an `&` symbol before `[Color]`.
+
+```rs
+fn apply_style(&self, colors: [Color]);
+```
+
+If there are no movements for Token which navigate to symbols, then we are forced to change the selection mode to either Word or Char, before inserting.
 
 <TutorialFallback filename="token"/>
 
 [^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
-
-## `Token*`
-
-Fine Token.
-
-This is similar to Token, but does not skip symbols.
-
-<TutorialFallback filename="token-fine"/>
+[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 
 ## `Word`
 
@@ -158,6 +189,6 @@ Character.
 
 In this selection mode, the movements behave like the usual editor, where [Left/Right](./../core-movements.md#--leftright) means left/right, and so on.
 
-[First/Last](./../core-movements.md#--firstlast) means the first/last character of the current word.
+[Alpha/Beta](./../core-movements.md#--alphabeta) means the first/last character of the current word.
 
 <TutorialFallback filename="char"/>

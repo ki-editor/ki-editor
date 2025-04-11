@@ -282,21 +282,12 @@ impl ApplyMovementResult {
 /// gets a free implementation of SelectionMode.
 ///
 /// See https://stackoverflow.com/a/40945952/6587634
-impl<T: PositionBasedSelectionMode> SelectionMode for PositionBased<T> {
+impl<T: PositionBasedSelectionMode> SelectionModeTrait for PositionBased<T> {
     fn revealed_selections<'a>(
         &'a self,
         params: &SelectionModeParams<'a>,
     ) -> anyhow::Result<Vec<ByteRange>> {
         self.0.revealed_selections(params)
-    }
-    fn get_current_selection_by_cursor(
-        &self,
-        buffer: &Buffer,
-        cursor_char_index: CharIndex,
-        if_current_not_found: IfCurrentNotFound,
-    ) -> anyhow::Result<Option<ByteRange>> {
-        self.0
-            .get_current_selection_by_cursor(buffer, cursor_char_index, if_current_not_found)
     }
 
     #[cfg(test)]
@@ -312,36 +303,15 @@ impl<T: PositionBasedSelectionMode> SelectionMode for PositionBased<T> {
         params: &SelectionModeParams,
         index: usize,
     ) -> anyhow::Result<Option<Selection>> {
-        let current_selection = params.current_selection;
-        let buffer = params.buffer;
-        let mut cursor_char_index = CharIndex(0);
-        let limit = CharIndex(params.buffer.len_chars());
-        let mut current_index: usize = 0;
-        while cursor_char_index < limit {
-            if let Some(range) = self.get_current_selection_by_cursor(
-                params.buffer,
-                cursor_char_index,
-                IfCurrentNotFound::LookForward,
-            )? {
-                if current_index == index {
-                    return Ok(Some(range.to_selection(buffer, current_selection)?));
-                } else {
-                    current_index += 1;
-                    cursor_char_index = buffer.byte_to_char(range.range.end)?
-                }
-            } else {
-                return Ok(None);
-            }
-        }
-        Ok(None)
+        self.0.to_index(params, index)
     }
 
-    fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.first(params)
+    fn alpha(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.0.alpha(params)
     }
 
-    fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.last(params)
+    fn beta(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.0.beta(params)
     }
 
     fn right(
@@ -393,13 +363,26 @@ impl<T: PositionBasedSelectionMode> SelectionMode for PositionBased<T> {
     fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.0.delete_backward(params)
     }
+
+    fn current(
+        &self,
+        params: &SelectionModeParams,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.0.current(params, if_current_not_found)
+    }
 }
 
-pub trait SelectionMode {
+pub trait SelectionModeTrait {
     fn all_selections<'a>(
         &'a self,
         params: &SelectionModeParams<'a>,
-    ) -> anyhow::Result<Vec<ByteRange>>;
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        self.selections_in_line_number_ranges(
+            params,
+            Some(0..params.buffer.len_lines()).into_iter().collect(),
+        )
+    }
 
     #[cfg(test)]
     fn all_selections_gathered_inversely<'a>(
@@ -421,11 +404,11 @@ pub trait SelectionMode {
             Movement::Right => convert(self.right(params)),
 
             Movement::Left => convert(self.left(params)),
-            Movement::Last => convert(self.last(params)),
+            Movement::Beta => convert(self.beta(params)),
             Movement::Current(if_current_not_found) => {
                 convert(self.current(params, if_current_not_found))
             }
-            Movement::First => convert(self.first(params)),
+            Movement::Alpha => convert(self.alpha(params)),
             Movement::Index(index) => convert(self.to_index(params, index)),
             Movement::Jump(range) => Ok(Some(ApplyMovementResult::from_selection(
                 params.current_selection.clone().set_range(range),
@@ -520,45 +503,15 @@ pub trait SelectionMode {
         self.left(params)
     }
 
-    fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
+    fn alpha(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
 
-    fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
-
-    fn get_current_selection_by_cursor(
-        &self,
-        buffer: &Buffer,
-        cursor_char_index: CharIndex,
-        if_current_not_found: IfCurrentNotFound,
-    ) -> anyhow::Result<Option<ByteRange>>;
+    fn beta(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
 
     fn current(
         &self,
         params: &SelectionModeParams,
         if_current_not_found: IfCurrentNotFound,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let range = self.get_current_selection_by_cursor(
-            params.buffer,
-            params.cursor_char_index(),
-            if_current_not_found,
-        )?;
-        let range = if range.is_none() {
-            self.get_current_selection_by_cursor(
-                params.buffer,
-                params.cursor_char_index(),
-                if_current_not_found.inverse(),
-            )?
-        } else {
-            range
-        };
-        range
-            .map(|range| {
-                params
-                    .current_selection
-                    .clone()
-                    .update_with_byte_range(params.buffer, range)
-            })
-            .transpose()
-    }
+    ) -> anyhow::Result<Option<crate::selection::Selection>>;
 
     fn right(
         &self,
@@ -680,11 +633,14 @@ pub trait PositionBasedSelectionMode {
                     ) {
                         break result;
                     } else {
-                        let new_cursor_char_index = buffer.byte_to_char(range.range().end)?;
-                        if new_cursor_char_index == cursor_char_index {
+                        let new_char_index = self.next_char_index(
+                            params,
+                            buffer.byte_range_to_char_index_range(range.range())?,
+                        )?;
+                        if new_char_index == cursor_char_index {
                             break result;
                         } else {
-                            cursor_char_index = buffer.byte_to_char(range.range().end)?;
+                            cursor_char_index = new_char_index;
                             result.push(range);
                         }
                     }
@@ -703,7 +659,7 @@ pub trait PositionBasedSelectionMode {
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<ByteRange>>;
 
-    fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn alpha(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.get_current_selection_by_cursor(
             params.buffer,
             CharIndex(0),
@@ -713,7 +669,7 @@ pub trait PositionBasedSelectionMode {
         .transpose()
     }
 
-    fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn beta(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.get_current_selection_by_cursor(
             params.buffer,
             CharIndex(params.buffer.len_chars()) - 1,
@@ -963,11 +919,69 @@ pub trait PositionBasedSelectionMode {
 
         Ok(None)
     }
+
+    fn current(
+        &self,
+        params: &SelectionModeParams,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let range = self.get_current_selection_by_cursor(
+            params.buffer,
+            params.cursor_char_index(),
+            if_current_not_found,
+        )?;
+        let range = if range.is_none() {
+            self.get_current_selection_by_cursor(
+                params.buffer,
+                params.cursor_char_index(),
+                if_current_not_found.inverse(),
+            )?
+        } else {
+            range
+        };
+        range
+            .map(|range| {
+                params
+                    .current_selection
+                    .clone()
+                    .update_with_byte_range(params.buffer, range)
+            })
+            .transpose()
+    }
+
+    fn to_index(
+        &self,
+        params: &SelectionModeParams,
+        index: usize,
+    ) -> anyhow::Result<Option<Selection>> {
+        let current_selection = params.current_selection;
+        let buffer = params.buffer;
+        let mut cursor_char_index = CharIndex(0);
+        let limit = CharIndex(params.buffer.len_chars());
+        let mut current_index: usize = 0;
+        while cursor_char_index < limit {
+            if let Some(range) = self.get_current_selection_by_cursor(
+                params.buffer,
+                cursor_char_index,
+                IfCurrentNotFound::LookForward,
+            )? {
+                if current_index == index {
+                    return Ok(Some(range.to_selection(buffer, current_selection)?));
+                } else {
+                    current_index += 1;
+                    cursor_char_index = buffer.byte_to_char(range.range.end)?
+                }
+            } else {
+                return Ok(None);
+            }
+        }
+        Ok(None)
+    }
 }
 pub(crate) struct PositionBased<T: PositionBasedSelectionMode>(pub(crate) T);
 pub(crate) struct IterBased<T: IterBasedSelectionMode>(pub(crate) T);
 
-impl<T: IterBasedSelectionMode> SelectionMode for IterBased<T> {
+impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
     fn all_selections<'a>(
         &'a self,
         params: &SelectionModeParams<'a>,
@@ -1019,11 +1033,11 @@ impl<T: IterBasedSelectionMode> SelectionMode for IterBased<T> {
         self.0.to_index(params, index)
     }
 
-    fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn alpha(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.0.first(params)
     }
 
-    fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn beta(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.0.last(params)
     }
 
@@ -1033,15 +1047,6 @@ impl<T: IterBasedSelectionMode> SelectionMode for IterBased<T> {
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.0.current(params, if_current_not_found)
-    }
-
-    fn get_current_selection_by_cursor(
-        &self,
-        _: &Buffer,
-        _: CharIndex,
-        _: IfCurrentNotFound,
-    ) -> anyhow::Result<Option<ByteRange>> {
-        unreachable!()
     }
 
     fn right(
@@ -1527,7 +1532,7 @@ mod test_selection_mode {
             suggestive_editor::Info,
         },
         selection::{CharIndex, Selection},
-        selection_mode::{IterBased, SelectionMode},
+        selection_mode::{IterBased, SelectionModeTrait},
     };
 
     use super::{ByteRange, IterBasedSelectionMode, SelectionModeParams};
@@ -1596,12 +1601,12 @@ mod test_selection_mode {
 
     #[test]
     fn first() {
-        test(Movement::First, 0..1, 0..6);
+        test(Movement::Alpha, 0..1, 0..6);
     }
 
     #[test]
     fn last() {
-        test(Movement::Last, 0..0, 3..5);
+        test(Movement::Beta, 0..0, 3..5);
     }
 
     #[test]
