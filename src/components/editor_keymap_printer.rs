@@ -135,7 +135,13 @@ impl KeymapPrintSection {
                 .keys
                 .iter()
                 .filter_map(|row| row.get(column_index))
-                .map(|key| key.display(show_shift_alt_keys).len())
+                .map(|key| {
+                    key.display(show_shift_alt_keys)
+                        .lines()
+                        .map(|line| line.len())
+                        .max()
+                        .unwrap_or(0)
+                })
                 .max()
                 .unwrap_or_default() as u16;
             ColumnConstraint::LowerBoundary(Width::Fixed(min_width.min(max_column_width)))
