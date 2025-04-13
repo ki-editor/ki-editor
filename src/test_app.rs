@@ -1015,7 +1015,8 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(Insert("// Hello".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("/ / space H e l l o").to_vec())),
             // Save the files,
             App(SaveAll),
             // Add a new file
@@ -1067,7 +1068,8 @@ pub(crate) fn non_git_ignored_files() -> Result<(), anyhow::Error> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(Insert("*.txt\n".to_string())),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvents(keys!("enter * . t x t").to_vec())),
             App(SaveAll),
             // Add new txt file
             App(AddPath(s.new_path("temp.txt").display().to_string())),
