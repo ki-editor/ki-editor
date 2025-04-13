@@ -138,9 +138,9 @@ impl KeymapPrintSection {
                 .map(|key| {
                     key.display(show_shift_alt_keys)
                         .lines()
-                        .map(|line| line.len())
+                        .map(|line| line.chars().count())
                         .max()
-                        .unwrap_or(0)
+                        .unwrap_or_default() as u16
                 })
                 .max()
                 .unwrap_or_default() as u16;
