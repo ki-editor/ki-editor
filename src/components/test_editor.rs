@@ -1181,12 +1181,16 @@ fn replace_from_clipboard() -> anyhow::Result<()> {
                 copied_texts: CopiedTexts::one("let z = S(c);".to_string()),
                 use_system_clipboard: false,
             }),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Token,
+            )),
             Editor(ReplaceWithCopiedText {
                 cut: false,
                 use_system_clipboard: false,
             }),
             Expect(CurrentComponentContent(
-                "let z = S(c);fn f(){ let x = S(a); let y = S(b); }",
+                "let z = S(c); f(){ let x = S(a); let y = S(b); }",
             )),
         ])
     })
@@ -4000,7 +4004,9 @@ fn git_hunk_should_compare_against_buffer_content_not_file_content() -> anyhow::
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(Insert("hello".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("h e l l o").to_vec())),
+            Editor(EnterNormalMode),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
                 GitHunk(crate::git::DiffMode::UnstagedAgainstCurrentBranch),
@@ -4430,6 +4436,20 @@ fn delete_forward_last_dedented_lines() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["b"])),
             Editor(Delete(Direction::End)),
             Expect(CurrentSelectedTexts(&["fo"])),
+        ])
+    })
+}
+
+#[test]
+fn the_first_line_should_be_selected_when_a_file_is_opened() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentSelectedTexts(&["mod foo;"])),
         ])
     })
 }
