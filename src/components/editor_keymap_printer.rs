@@ -143,7 +143,7 @@ impl KeymapPrintSection {
                         .unwrap_or_default() as u16
                 })
                 .max()
-                .unwrap_or_default() as u16;
+                .unwrap_or_default();
             ColumnConstraint::LowerBoundary(Width::Fixed(min_width.min(max_column_width)))
         };
 
