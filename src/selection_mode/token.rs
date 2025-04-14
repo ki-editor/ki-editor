@@ -222,7 +222,11 @@ fn get_current_token_by_cursor(
     cursor_char_index: crate::selection::CharIndex,
     if_current_not_found: IfCurrentNotFound,
 ) -> anyhow::Result<Option<super::ByteRange>> {
-    let last_char_index = CharIndex(buffer.len_chars().saturating_sub(1));
+    let len_chars = buffer.len_chars();
+    if len_chars == 0 {
+        return Ok(None);
+    }
+    let last_char_index = CharIndex(len_chars - 1);
 
     // Define predicates once
     let is_target = |char: char| {
@@ -439,6 +443,29 @@ mod test_token {
                 Expect(CurrentSelectedTexts(&["foo"])),
                 Editor(Delete(Direction::End)),
                 Expect(CurrentSelectedTexts(&["."])),
+            ])
+        })
+    }
+
+    #[test]
+    fn empty_buffer_should_not_be_token_selectable() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Token,
+                )),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(MoveSelection(Down)),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(MoveSelection(Up)),
+                Expect(CurrentSelectedTexts(&[""])),
             ])
         })
     }
