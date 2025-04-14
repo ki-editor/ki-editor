@@ -38,8 +38,13 @@ impl PositionBasedSelectionMode for Character {
         cursor_char_index: crate::selection::CharIndex,
         _: IfCurrentNotFound,
     ) -> anyhow::Result<Option<ByteRange>> {
-        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
-        Ok(Some(ByteRange::new(cursor_byte..cursor_byte + 1)))
+        let len_chars = buffer.len_chars();
+        if len_chars == 0 {
+            Ok(None)
+        } else {
+            let cursor_byte = buffer.char_to_byte(cursor_char_index)?.min(len_chars - 1);
+            Ok(Some(ByteRange::new(cursor_byte..cursor_byte + 1)))
+        }
     }
 
     fn vertical_movement(
@@ -77,12 +82,17 @@ impl Character {
         }: &super::SelectionModeParams,
         go_up: bool,
     ) -> anyhow::Result<Option<Selection>> {
+        if buffer.len_chars() == 0 {
+            return Ok(None);
+        };
         let current_char_index = current_selection.to_char_index(cursor_direction);
         let current_line = buffer.char_to_line(current_char_index)?;
         let line_index = if go_up {
             current_line.saturating_sub(1)
         } else {
-            current_line.saturating_add(1)
+            current_line
+                .saturating_add(1)
+                .min(buffer.len_lines().saturating_sub(1))
         };
         let line_len = buffer
             .get_line_by_line_index(line_index)
@@ -119,6 +129,9 @@ fn get_char(
 
 #[cfg(test)]
 mod test_character {
+    use crate::buffer::BufferOwner;
+    use crate::test_app::*;
+
     use crate::{buffer::Buffer, selection::Selection};
 
     use super::*;
@@ -130,7 +143,7 @@ mod test_character {
         // First line
         let selection = Selection::default();
         crate::selection_mode::SelectionModeTrait::assert_all_selections(
-            &PositionBased(Character::new(0)),
+            &PositionBased(super::Character::new(0)),
             &buffer,
             selection,
             &[
@@ -149,7 +162,7 @@ mod test_character {
         let char_index = buffer.line_to_char(1)?;
         let selection = Selection::default().set_range((char_index..char_index).into());
         crate::selection_mode::SelectionModeTrait::assert_all_selections(
-            &PositionBased(Character::new(0)),
+            &PositionBased(super::Character::new(0)),
             &buffer,
             selection,
             &[
@@ -182,11 +195,11 @@ gam
 
         let test = |selected_line: usize, move_up: bool, expected: &str| {
             let start = buffer.line_to_char(selected_line).unwrap();
-            let selection_mode = Character::new(4);
+            let selection_mode = super::Character::new(4);
             let method = if move_up {
-                Character::up
+                super::Character::up
             } else {
-                Character::down
+                super::Character::down
             };
             let result = method(
                 &selection_mode,
@@ -216,5 +229,45 @@ gam
         test_move_down(1, "o");
         test_move_down(2, "m");
         test_move_down(3, "u");
+    }
+
+    #[test]
+    fn last_char_of_file_should_not_exceed_bound() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("f".to_string())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
+                Expect(CurrentSelectedTexts(&["f"])),
+                Editor(MoveSelection(Down)),
+                Expect(CurrentSelectedTexts(&["f"])),
+                Editor(MoveSelection(Right)),
+                Expect(CurrentSelectedTexts(&["f"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn empty_buffer_should_not_be_character_selectable() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("".to_string())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(MoveSelection(Down)),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(MoveSelection(Up)),
+                Expect(CurrentSelectedTexts(&[""])),
+            ])
+        })
     }
 }

@@ -36,7 +36,11 @@ impl PositionBasedSelectionMode for Word {
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<ByteRange>> {
         let rope = buffer.rope();
-        let last_char_index = CharIndex(rope.len_chars().saturating_sub(1));
+        let len_chars = rope.len_chars();
+        if len_chars == 0 {
+            return Ok(None);
+        }
+        let last_char_index = CharIndex(len_chars - 1);
 
         if cursor_char_index > last_char_index {
             return Ok(None);
@@ -185,12 +189,14 @@ impl PositionBasedSelectionMode for Word {
 #[cfg(test)]
 mod test_word {
     use super::*;
+    use crate::buffer::BufferOwner;
+    use crate::test_app::*;
     use crate::{buffer::Buffer, selection::Selection, selection_mode::PositionBased};
 
     #[test]
     fn simple_case() {
         let buffer = Buffer::new(None, "snake Case camel");
-        PositionBased(Word::new(true)).assert_all_selections(
+        PositionBased(super::Word::new(true)).assert_all_selections(
             &buffer,
             Selection::default(),
             &[(0..5, "snake"), (6..10, "Case"), (11..16, "camel")],
@@ -203,7 +209,7 @@ mod test_word {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
         );
-        PositionBased(Word::new(true)).assert_all_selections(
+        PositionBased(super::Word::new(true)).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -229,7 +235,7 @@ mod test_word {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
         );
-        PositionBased(Word::new(false)).assert_all_selections(
+        PositionBased(super::Word::new(false)).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -261,7 +267,7 @@ mod test_word {
     #[test]
     fn consecutive_uppercase_letters() {
         let buffer = Buffer::new(None, "XMLParser JSONObject HTMLElement");
-        PositionBased(Word::new(true)).assert_all_selections(
+        PositionBased(super::Word::new(true)).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -273,6 +279,31 @@ mod test_word {
                 (25..32, "Element"),
             ],
         );
+    }
+
+    #[test]
+    fn empty_buffer_should_not_be_word_selectable() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    crate::selection::SelectionMode::Word {
+                        skip_symbols: false,
+                    },
+                )),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(MoveSelection(Down)),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(MoveSelection(Up)),
+                Expect(CurrentSelectedTexts(&[""])),
+            ])
+        })
     }
 }
 
