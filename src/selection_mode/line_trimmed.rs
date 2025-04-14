@@ -1,4 +1,7 @@
-use crate::{components::editor::IfCurrentNotFound, selection::CharIndex};
+use crate::{
+    components::editor::{Direction, IfCurrentNotFound},
+    selection::CharIndex,
+};
 
 use super::{
     ByteRange, PositionBased, PositionBasedSelectionMode, SelectionModeParams, SelectionModeTrait,
@@ -122,6 +125,41 @@ impl PositionBasedSelectionMode for LineTrimmed {
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         PositionBased(self.clone()).up(params)
     }
+
+    fn process_paste_gap(
+        &self,
+        prev_gap: String,
+        next_gap: String,
+        direction: &Direction,
+    ) -> String {
+        process_paste_gap(prev_gap, next_gap, direction)
+    }
+}
+
+pub(crate) fn process_paste_gap(
+    prev_gap: String,
+    next_gap: String,
+    direction: &Direction,
+) -> String {
+    let add_newline = |gap: String, direction: Direction| {
+        if gap.chars().any(|c| c == '\n') {
+            gap
+        } else {
+            match direction {
+                Direction::Start => format!("\n{gap}"),
+                Direction::End => format!("{gap}\n"),
+            }
+        }
+    };
+    let prev_gap = add_newline(prev_gap, Direction::Start);
+    let next_gap = add_newline(next_gap, Direction::End);
+    let larger = next_gap.chars().count() > prev_gap.chars().count();
+    match (direction, larger) {
+        (Direction::Start, true) => prev_gap,
+        (Direction::Start, false) => next_gap,
+        (Direction::End, true) => next_gap,
+        (Direction::End, false) => prev_gap,
+    }
 }
 
 pub(crate) fn trim_leading_spaces(byte_start: usize, line: &str) -> usize {
@@ -139,6 +177,10 @@ pub(crate) fn trim_leading_spaces(byte_start: usize, line: &str) -> usize {
 
 #[cfg(test)]
 mod test_line {
+    use crate::buffer::BufferOwner;
+    use crate::selection::SelectionMode;
+    use crate::test_app::*;
+
     use crate::{buffer::Buffer, components::editor::Direction, selection::Selection};
 
     use super::*;
@@ -218,5 +260,120 @@ fn f() {
         test(4, "fn g() {");
 
         test(1, "fn f() {");
+    }
+
+    #[test]
+    fn paste_forward_use_larger_indent() -> anyhow::Result<()> {
+        let run_test = |direction: Direction, expected_result: &'static str| {
+            execute_test(|s| {
+                Box::new([
+                    App(OpenFile {
+                        path: s.main_rs(),
+                        owner: BufferOwner::User,
+                        focus: true,
+                    }),
+                    Editor(SetContent(
+                        "
+foo
+  bar
+    spam
+"
+                        .trim()
+                        .to_string(),
+                    )),
+                    Editor(MatchLiteral("bar".to_string())),
+                    Editor(SetSelectionMode(
+                        IfCurrentNotFound::LookForward,
+                        SelectionMode::Line,
+                    )),
+                    Editor(Copy {
+                        use_system_clipboard: false,
+                    }),
+                    Editor(Paste {
+                        use_system_clipboard: false,
+                        direction: direction.clone(),
+                    }),
+                    Expect(CurrentComponentContent(expected_result)),
+                ])
+            })
+        };
+        run_test(
+            Direction::End,
+            "
+foo
+  bar
+    bar
+    spam
+"
+            .trim(),
+        )?;
+        run_test(
+            Direction::Start,
+            "
+foo
+  bar
+  bar
+    spam
+"
+            .trim(),
+        )
+    }
+
+    #[test]
+    fn still_paste_to_newline_despite_only_one_line_present() -> anyhow::Result<()> {
+        let run_test = |direction: Direction| {
+            execute_test(|s| {
+                Box::new([
+                    App(OpenFile {
+                        path: s.main_rs(),
+                        owner: BufferOwner::User,
+                        focus: true,
+                    }),
+                    Editor(SetContent("foo".to_string())),
+                    Editor(SetSelectionMode(
+                        IfCurrentNotFound::LookForward,
+                        SelectionMode::Line,
+                    )),
+                    Editor(Copy {
+                        use_system_clipboard: false,
+                    }),
+                    Editor(Paste {
+                        use_system_clipboard: false,
+                        direction: direction.clone(),
+                    }),
+                    Expect(CurrentComponentContent("foo\nfoo")),
+                ])
+            })
+        };
+        run_test(Direction::End)?;
+        run_test(Direction::Start)
+    }
+
+    #[test]
+    fn paste_previous_using_last_line() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo\nbar".to_string())),
+                Editor(MatchLiteral("bar".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Expect(CurrentSelectedTexts(&["bar"])),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
+                Editor(Paste {
+                    use_system_clipboard: false,
+                    direction: Direction::Start,
+                }),
+                Expect(CurrentComponentContent("foo\nbar\nbar")),
+            ])
+        })
     }
 }

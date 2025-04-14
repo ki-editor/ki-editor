@@ -1,5 +1,9 @@
 use super::{ByteRange, PositionBasedSelectionMode, SelectionModeTrait, Token};
-use crate::{buffer::Buffer, components::editor::IfCurrentNotFound, selection::CharIndex};
+use crate::{
+    buffer::Buffer,
+    components::editor::{Direction, IfCurrentNotFound},
+    selection::CharIndex,
+};
 
 pub struct Word {
     skip_symbols: bool,
@@ -184,12 +188,18 @@ impl PositionBasedSelectionMode for Word {
             buffer.char_index_range_to_byte_range(range)?,
         )))
     }
+
+    fn process_paste_gap(&self, prev_gap: String, next_gap: String, _: &Direction) -> String {
+        super::token::process_paste_gap(prev_gap, next_gap)
+    }
 }
 
 #[cfg(test)]
 mod test_word {
     use super::*;
     use crate::buffer::BufferOwner;
+    use crate::components::editor::Direction;
+    use crate::selection::SelectionMode;
     use crate::test_app::*;
     use crate::{buffer::Buffer, selection::Selection, selection_mode::PositionBased};
 
@@ -304,6 +314,40 @@ mod test_word {
                 Expect(CurrentSelectedTexts(&[""])),
             ])
         })
+    }
+
+    #[test]
+    fn paste_gap() -> anyhow::Result<()> {
+        let run_test = |direction: Direction| {
+            execute_test(|s| {
+                Box::new([
+                    App(OpenFile {
+                        path: s.main_rs(),
+                        owner: BufferOwner::User,
+                        focus: true,
+                    }),
+                    Editor(SetContent("foo bar\nspam".to_string())),
+                    Editor(SetSelectionMode(
+                        IfCurrentNotFound::LookForward,
+                        SelectionMode::Word {
+                            skip_symbols: false,
+                        },
+                    )),
+                    Editor(MoveSelection(Right)),
+                    Expect(CurrentSelectedTexts(&["bar"])),
+                    Editor(Copy {
+                        use_system_clipboard: false,
+                    }),
+                    Editor(Paste {
+                        use_system_clipboard: false,
+                        direction: direction.clone(),
+                    }),
+                    Expect(CurrentComponentContent("foo bar bar\nspam")),
+                ])
+            })
+        };
+        run_test(Direction::End)?;
+        run_test(Direction::Start)
     }
 }
 

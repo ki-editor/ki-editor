@@ -132,6 +132,15 @@ impl PositionBasedSelectionMode for LineFull {
         )?;
         Ok(Some(ByteRange::new(range)))
     }
+
+    fn process_paste_gap(
+        &self,
+        prev_gap: String,
+        next_gap: String,
+        direction: &crate::components::editor::Direction,
+    ) -> String {
+        super::line_trimmed::process_paste_gap(prev_gap, next_gap, direction)
+    }
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use crate::selection_mode::ApplyMovementResult;
+use crate::{components::editor::Direction, selection_mode::ApplyMovementResult};
 
 use super::{ByteRange, IterBasedSelectionMode, SyntaxToken, TopNode};
 
@@ -119,6 +119,7 @@ impl IterBasedSelectionMode for SyntaxNode {
                 .ok()
         }))
     }
+
     fn all_selections<'a>(
         &'a self,
         params: &super::SelectionModeParams<'a>,
@@ -148,6 +149,14 @@ impl IterBasedSelectionMode for SyntaxNode {
             ))
         } else {
             Ok(Box::new(std::iter::empty()))
+        }
+    }
+
+    fn process_paste_gap(&self, prev_gap: String, next_gap: String, _: &Direction) -> String {
+        if prev_gap.chars().count() > next_gap.chars().count() {
+            prev_gap
+        } else {
+            next_gap
         }
     }
 }
@@ -193,6 +202,10 @@ pub(crate) fn get_node(
 
 #[cfg(test)]
 mod test_syntax_node {
+    use crate::buffer::BufferOwner;
+    use crate::components::editor::Direction;
+    use crate::selection::SelectionMode;
+    use crate::test_app::*;
     use crate::{
         buffer::Buffer,
         components::editor::IfCurrentNotFound,
@@ -208,12 +221,12 @@ mod test_syntax_node {
             Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main() { let x = X {z,b,c:d} }",
         );
-        SyntaxNode { coarse: true }.assert_all_selections(
+        super::SyntaxNode { coarse: true }.assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
             &[(23..24, "z"), (25..26, "b"), (27..30, "c:d")],
         );
-        SyntaxNode { coarse: false }.assert_all_selections(
+        super::SyntaxNode { coarse: false }.assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
             &[
@@ -234,7 +247,7 @@ mod test_syntax_node {
             Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main() { let x = S(a); }",
         );
-        SyntaxNode { coarse: true }.assert_all_selections(
+        super::SyntaxNode { coarse: true }.assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(20)..CharIndex(21)).into()),
             &[(20..21, "S"), (21..24, "(a)")],
@@ -253,7 +266,7 @@ mod test_syntax_node {
 
         let child_text = buffer.slice(&child_range).unwrap();
         assert_eq!(child_text, "z");
-        let selection = SyntaxNode { coarse: false }.expand(&SelectionModeParams {
+        let selection = super::SyntaxNode { coarse: false }.expand(&SelectionModeParams {
             buffer: &buffer,
             current_selection: &Selection::new(child_range),
             cursor_direction: &crate::components::editor::Direction::Start,
@@ -277,7 +290,7 @@ mod test_syntax_node {
 
             let parent_text = buffer.slice(&parent_range).unwrap();
             assert_eq!(parent_text, "{z}");
-            let selection = SyntaxNode { coarse }.down(&SelectionModeParams {
+            let selection = super::SyntaxNode { coarse }.down(&SelectionModeParams {
                 buffer: &buffer,
                 current_selection: &Selection::new(parent_range),
                 cursor_direction: &crate::components::editor::Direction::Start,
@@ -306,7 +319,7 @@ fn main() {
 
             let range = (CharIndex(13)..CharIndex(17)).into();
             assert_eq!(buffer.slice(&range).unwrap(), " let");
-            let selection = SyntaxNode { coarse }.current(
+            let selection = super::SyntaxNode { coarse }.current(
                 &SelectionModeParams {
                     buffer: &buffer,
                     current_selection: &Selection::new(range),
@@ -320,5 +333,37 @@ fn main() {
         }
         test(true, "let x = X;");
         test(false, "let");
+    }
+
+    #[test]
+    fn paste_gap() -> anyhow::Result<()> {
+        let run_test = |direction: Direction| {
+            execute_test(|s| {
+                Box::new([
+                    App(OpenFile {
+                        path: s.main_rs(),
+                        owner: BufferOwner::User,
+                        focus: true,
+                    }),
+                    Editor(SetContent("fn f(x: X, y: Y) {}".to_string())),
+                    Editor(MatchLiteral("x: X".to_string())),
+                    Editor(SetSelectionMode(
+                        IfCurrentNotFound::LookForward,
+                        SelectionMode::SyntaxNode,
+                    )),
+                    Editor(MoveSelection(Right)),
+                    Editor(Copy {
+                        use_system_clipboard: false,
+                    }),
+                    Editor(Paste {
+                        use_system_clipboard: false,
+                        direction: direction.clone(),
+                    }),
+                    Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
+                ])
+            })
+        };
+        run_test(Direction::End)?;
+        run_test(Direction::Start)
     }
 }
