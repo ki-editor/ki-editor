@@ -39,9 +39,8 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     // Because Raise is a special-case of Swap where the movement is Up
 ];
 
-pub(crate) const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
-    // TODO: Implement Up Line and Down Line
-    // The cursor should be placed at the of the line
+/// Meta also means Alt (Windows) or Option (Mac).
+pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
     [
         KilLP, CSrch, LineU, _____, KilLN, /****/ NBack, GBack, ScrlU, GForw, NForw,
     ],
@@ -256,13 +255,13 @@ impl KeySet {
                     .zip(layout.into_iter().flatten().map(shifted)),
             ),
             normal_control: HashMap::from_iter(
-                KEYMAP_CONTROL
+                KEYMAP_META
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten().map(alted)),
             ),
             insert_control: HashMap::from_iter(
-                KEYMAP_CONTROL
+                KEYMAP_META
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten().map(alted)),
