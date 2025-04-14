@@ -3555,6 +3555,40 @@ impl Editor {
     fn last_visible_line(&self, context: &Context) -> u16 {
         (self.render_area(context).height + self.scroll_offset).saturating_sub(1)
     }
+
+    pub(crate) fn update_current_line(
+        &mut self,
+        context: &Context,
+        replacement: &str,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let current_line_index = self.buffer().char_to_line(
+            self.selection_set
+                .primary_selection()
+                .range()
+                .as_char_index(&self.cursor_direction),
+        )?;
+        let edit_transaction = EditTransaction::from_action_groups({
+            let line_char_index = self.buffer().line_to_char(current_line_index)?;
+            let line_length = self
+                .buffer()
+                .get_line_by_line_index(current_line_index)
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Unable to get line at line index {current_line_index:?}")
+                })?
+                .len_chars();
+
+            [ActionGroup::new(
+                [Action::Edit(Edit::new(
+                    self.buffer().rope(),
+                    (line_char_index..line_char_index + line_length).into(),
+                    replacement.into(),
+                ))]
+                .to_vec(),
+            )]
+            .to_vec()
+        });
+        self.apply_edit_transaction(edit_transaction, context)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]

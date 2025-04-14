@@ -2732,3 +2732,24 @@ fn close_buffer_should_remove_mark() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn using_suggested_search_term() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            Expect(CompletionDropdownContent("bar\nfoo\nspam")),
+            App(HandleKeyEvents(keys!("f o alt+l").to_vec())),
+            Expect(CurrentComponentContent("foo")),
+        ])
+    })
+}

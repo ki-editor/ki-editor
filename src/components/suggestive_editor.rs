@@ -271,6 +271,14 @@ impl SuggestiveEditor {
             Ok(Default::default())
         }
     }
+
+    pub(crate) fn update_current_line(
+        &mut self,
+        context: &Context,
+        display: &str,
+    ) -> anyhow::Result<Dispatches> {
+        self.editor_mut().update_current_line(context, display)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
