@@ -2177,25 +2177,29 @@ impl Editor {
         scroll_height: usize,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        let dispatch = self.update_selection_set(
+        let position = self
+            .selection_set
+            .primary_selection()
+            .extended_range()
+            .start
+            .to_position(&self.buffer());
+        let line = if direction == Direction::End {
+            position.line.saturating_add(scroll_height)
+        } else {
+            position.line.saturating_sub(scroll_height)
+        }
+        .min(self.buffer().len_lines().saturating_sub(1));
+        let position = Position { line, column: 0 };
+        let start = position.to_char_index(&self.buffer())?;
+        let selection_mode = self.selection_set.mode.clone();
+        self.selection_set = SelectionSet::new(NonEmpty::new(
             self.selection_set
-                .apply(self.selection_set.mode.clone(), |selection| {
-                    let position = selection.extended_range().start.to_position(&self.buffer());
-                    let line = if direction == Direction::End {
-                        position.line.saturating_add(scroll_height)
-                    } else {
-                        position.line.saturating_sub(scroll_height)
-                    };
-                    let position = Position { line, ..position };
-                    let start = position.to_char_index(&self.buffer())?;
-                    Ok(selection.clone().set_range((start..start).into()))
-                })?,
-            false,
-            context,
-        );
-        self.align_cursor_to_center(context);
-
-        Ok(dispatch)
+                .primary_selection()
+                .clone()
+                .set_range((start..start).into()),
+        ))
+        .set_mode(selection_mode);
+        self.handle_movement(context, Movement::Current(IfCurrentNotFound::LookForward))
     }
 
     /// This returns a vector of selections
