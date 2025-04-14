@@ -122,6 +122,23 @@ impl Prompt {
             dispatches,
         )
     }
+
+    fn replace_current_query_with_focused_item(
+        &mut self,
+        context: &Context,
+        event: event::KeyEvent,
+    ) -> Result<Dispatches, anyhow::Error> {
+        if self.editor.completion_dropdown_opened() {
+            if let Some(item) = self.editor.completion_dropdown_current_item() {
+                let dispatches = self.editor.update_current_line(context, &item.display())?;
+                Ok(dispatches.chain(self.editor_mut().move_to_line_end()?))
+            } else {
+                Ok(Default::default())
+            }
+        } else {
+            self.editor_mut().handle_key_event(context, event)
+        }
+    }
 }
 
 impl Component for Prompt {
@@ -151,16 +168,9 @@ impl Component for Prompt {
                 Ok(Dispatches::one(Dispatch::CloseCurrentWindow)
                     .chain(self.fire_dispatches_on_change.clone().unwrap_or_default()))
             }
-            key!("tab") => {
-                if self.editor.completion_dropdown_opened() {
-                    if let Some(item) = self.editor.completion_dropdown_current_item() {
-                        self.editor.set_content(&item.display(), context)?;
-                        return self.editor_mut().move_to_line_end();
-                    }
-                    Ok(Default::default())
-                } else {
-                    self.editor_mut().handle_key_event(context, event)
-                }
+            key!("tab") => self.replace_current_query_with_focused_item(context, event),
+            _ if event.display() == context.keyboard_layout_kind().get_key(&Meaning::MrkFN) => {
+                self.replace_current_query_with_focused_item(context, event)
             }
             key!("enter") => {
                 let (line, dispatches) = if self.enter_selects_first_matching_item
@@ -224,7 +234,10 @@ impl Prompt {
 mod test_prompt {
     use crate::{
         buffer::BufferOwner,
-        components::{editor::Direction, suggestive_editor::Info},
+        components::{
+            editor::{Direction, IfCurrentNotFound},
+            suggestive_editor::Info,
+        },
         lsp::completion::CompletionItem,
         test_app::*,
     };
@@ -568,6 +581,33 @@ mod test_prompt {
                 Expect(CompletionDropdownContent("Patrick")),
                 App(HandleKeyEvents(keys!("alt+s alt+t").to_vec())),
                 Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
+            ])
+        })
+    }
+
+    #[test]
+    fn replace_current_query_with_focused_item_should_replace_only_current_line(
+    ) -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo bar spam".to_string())),
+                App(OpenSearchPrompt {
+                    scope: Scope::Local,
+                    if_current_not_found: IfCurrentNotFound::LookForward,
+                }),
+                App(HandleKeyEvents(keys!("f o enter").to_vec())), // Populate search history with "fo"
+                App(OpenSearchPrompt {
+                    scope: Scope::Local,
+                    if_current_not_found: IfCurrentNotFound::LookForward,
+                }),
+                Expect(CurrentComponentContent("fo\n")),
+                App(HandleKeyEvents(keys!("f o alt+l").to_vec())),
+                Expect(CurrentComponentContent("fo\nfoo")),
             ])
         })
     }
