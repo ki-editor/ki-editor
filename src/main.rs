@@ -61,7 +61,7 @@ fn main() {
     cli::cli().unwrap();
 }
 
-#[derive(Default)]
+#[derive(Default, PartialEq, Debug)]
 pub(crate) struct RunConfig {
     pub(crate) entry_path: Option<CanonicalizedPath>,
     pub(crate) working_directory: Option<CanonicalizedPath>,
