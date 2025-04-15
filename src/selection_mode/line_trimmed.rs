@@ -28,10 +28,13 @@ impl PositionBasedSelectionMode for LineTrimmed {
             return Ok(None);
         };
         let line_start_char_index = buffer.line_to_char(line_index)?;
-        let leading_whitespace_count = line.chars().take_while(|c| c.is_whitespace()).count();
+        let leading_whitespace_count = line
+            .chars()
+            .take_while(|c| c.is_whitespace() && c != &'\n')
+            .count();
         if line.chars().all(|c| c.is_whitespace()) {
             let line_start_byte_index =
-                buffer.char_to_byte(line_start_char_index + leading_whitespace_count - 1)?;
+                buffer.char_to_byte(line_start_char_index + leading_whitespace_count - 0)?;
             return Ok(Some(ByteRange::new(
                 line_start_byte_index..line_start_byte_index,
             )));
@@ -396,5 +399,41 @@ foo
                 Expect(CurrentComponentContent("foo\nbar\nbar")),
             ])
         })
+    }
+
+    #[test]
+    fn copy_pasting_nothing_but_with_indentation() -> anyhow::Result<()> {
+        let run_test = |direction: Direction| {
+            execute_test(|s| {
+                Box::new([
+                    App(OpenFile {
+                        path: s.main_rs(),
+                        owner: BufferOwner::User,
+                        focus: true,
+                    }),
+                    Editor(SetContent(" ".to_string())),
+                    Editor(SetSelectionMode(
+                        IfCurrentNotFound::LookForward,
+                        SelectionMode::Line,
+                    )),
+                    Expect(CurrentSelectedTexts(&[""])),
+                    Editor(Copy {
+                        use_system_clipboard: false,
+                    }),
+                    Editor(Paste {
+                        use_system_clipboard: false,
+                        direction: direction.clone(),
+                    }),
+                    Expect(CurrentComponentContent(" \n ")),
+                    Editor(Paste {
+                        use_system_clipboard: false,
+                        direction: direction.clone(),
+                    }),
+                    Expect(CurrentComponentContent(" \n \n ")),
+                ])
+            })
+        };
+        run_test(Direction::End)?;
+        run_test(Direction::Start)
     }
 }
