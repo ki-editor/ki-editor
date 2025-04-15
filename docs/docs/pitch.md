@@ -12,7 +12,7 @@ No land in the archipelago of the modal editors has more economic keybindings fo
 
 > Being first-class means that it is not an extra or even sidekick; it is the **protagonist**.
 
-To select the largest syntax node under the cursor, simply press `s` (Qwerty).
+To select the largest syntax node under the cursor, simply press `d` (Qwerty).
 
 This feature is handy if you ever asked this question:
 
