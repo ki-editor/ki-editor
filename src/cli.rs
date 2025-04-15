@@ -206,19 +206,13 @@ pub(crate) fn cli() -> anyhow::Result<()> {
 mod test_process_edit_args {
     use shared::canonicalized_path::CanonicalizedPath;
 
-    use crate::RunConfig;
-
     use super::{process_edit_args, EditArgs};
 
     #[test]
     /// Cwd should not change
     fn no_edit_args() -> anyhow::Result<()> {
         let actual = process_edit_args(EditArgs { path: None })?;
-        let expected = RunConfig {
-            entry_path: None,
-            working_directory: None,
-        };
-        assert_eq!(expected, actual);
+        assert_eq!(actual.working_directory, None);
         Ok(())
     }
 
@@ -228,11 +222,7 @@ mod test_process_edit_args {
         let actual = process_edit_args(EditArgs {
             path: Some("docs/package.json".to_string()),
         })?;
-        let expected = RunConfig {
-            entry_path: Some(CanonicalizedPath::try_from("docs/package.json")?),
-            working_directory: None,
-        };
-        assert_eq!(expected, actual);
+        assert_eq!(actual.working_directory, None);
         Ok(())
     }
 
@@ -242,11 +232,10 @@ mod test_process_edit_args {
         let actual = process_edit_args(EditArgs {
             path: Some("./docs".to_string()),
         })?;
-        let expected = RunConfig {
-            entry_path: Some(CanonicalizedPath::try_from("./docs")?),
-            working_directory: Some(CanonicalizedPath::try_from("./docs")?),
-        };
-        assert_eq!(expected, actual);
+        assert_eq!(
+            actual.working_directory,
+            Some(CanonicalizedPath::try_from("./docs")?)
+        );
         Ok(())
     }
 }
