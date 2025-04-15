@@ -4460,3 +4460,30 @@ fn the_first_line_should_be_selected_when_a_file_is_opened() -> anyhow::Result<(
         ])
     })
 }
+
+#[test]
+fn insert_multiwidth_unicode_characters() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("hello world".trim().to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Word {
+                        skip_symbols: false,
+                    },
+                )),
+                Expect(CurrentSelectedTexts(&["hello"])),
+                Editor(EnterInsertMode(Direction::End)),
+                Editor(Insert("仁".to_string())),
+                App(HandleKeyEvents(keys!("!").to_vec())),
+                Expect(CurrentComponentContent("hello仁! world")),
+            ])
+        }
+    })
+}
