@@ -969,7 +969,10 @@ pub trait PositionBasedSelectionMode {
                     return Ok(Some(range.to_selection(buffer, current_selection)?));
                 } else {
                     current_index += 1;
-                    cursor_char_index = buffer.byte_to_char(range.range.end)?
+                    cursor_char_index = self.next_char_index(
+                        params,
+                        buffer.byte_range_to_char_index_range(range.range())?,
+                    )?
                 }
             } else {
                 return Ok(None);
