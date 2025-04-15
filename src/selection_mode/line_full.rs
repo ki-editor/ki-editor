@@ -135,11 +135,12 @@ impl PositionBasedSelectionMode for LineFull {
 
     fn process_paste_gap(
         &self,
-        prev_gap: String,
-        next_gap: String,
+        params: &super::SelectionModeParams,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
         direction: &crate::components::editor::Direction,
     ) -> String {
-        super::line_trimmed::process_paste_gap(prev_gap, next_gap, direction)
+        super::line_trimmed::process_paste_gap(params, prev_gap, next_gap, direction)
     }
 }
 

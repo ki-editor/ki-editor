@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use crate::{
     components::editor::{Direction, IfCurrentNotFound},
     selection::CharIndex,
@@ -128,37 +130,56 @@ impl PositionBasedSelectionMode for LineTrimmed {
 
     fn process_paste_gap(
         &self,
-        prev_gap: String,
-        next_gap: String,
-        direction: &Direction,
+        params: &super::SelectionModeParams,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
+        direction: &crate::components::editor::Direction,
     ) -> String {
-        process_paste_gap(prev_gap, next_gap, direction)
+        process_paste_gap(params, prev_gap, next_gap, direction)
     }
 }
 
 pub(crate) fn process_paste_gap(
-    prev_gap: String,
-    next_gap: String,
+    params: &SelectionModeParams,
+    prev_gap: Option<String>,
+    next_gap: Option<String>,
     direction: &Direction,
 ) -> String {
-    let add_newline = |gap: String, direction: Direction| {
+    let add_newline = |gap: String| {
         if gap.chars().any(|c| c == '\n') {
             gap
         } else {
-            match direction {
-                Direction::Start => format!("\n{gap}"),
-                Direction::End => format!("{gap}\n"),
-            }
+            format!("\n{gap}")
         }
     };
-    let prev_gap = add_newline(prev_gap, Direction::Start);
-    let next_gap = add_newline(next_gap, Direction::End);
-    let larger = next_gap.chars().count() > prev_gap.chars().count();
-    match (direction, larger) {
-        (Direction::Start, true) => prev_gap,
-        (Direction::Start, false) => next_gap,
-        (Direction::End, true) => next_gap,
-        (Direction::End, false) => prev_gap,
+    match (prev_gap, next_gap) {
+        (None, None) => {
+            // Get the indent of the current line
+            let current_line = params
+                .buffer
+                .get_line_by_char_index(params.cursor_char_index())
+                .unwrap_or_default();
+
+            let indentation = current_line
+                .chars()
+                .take_while(|c| c.is_ascii_whitespace())
+                .join("");
+
+            add_newline(indentation)
+        }
+        (Some(gap), None) => add_newline(gap),
+        (None, Some(gap)) => add_newline(gap),
+        (Some(prev_gap), Some(next_gap)) => {
+            let prev_gap = add_newline(prev_gap);
+            let next_gap = add_newline(next_gap);
+            let larger = next_gap.chars().count() > prev_gap.chars().count();
+            match (direction, larger) {
+                (Direction::Start, true) => prev_gap,
+                (Direction::Start, false) => next_gap,
+                (Direction::End, true) => next_gap,
+                (Direction::End, false) => prev_gap,
+            }
+        }
     }
 }
 
@@ -320,7 +341,7 @@ foo
     }
 
     #[test]
-    fn still_paste_to_newline_despite_only_one_line_present() -> anyhow::Result<()> {
+    fn still_paste_to_newline_with_indent_despite_only_one_line_present() -> anyhow::Result<()> {
         let run_test = |direction: Direction| {
             execute_test(|s| {
                 Box::new([
@@ -329,7 +350,7 @@ foo
                         owner: BufferOwner::User,
                         focus: true,
                     }),
-                    Editor(SetContent("foo".to_string())),
+                    Editor(SetContent("  foo".to_string())),
                     Editor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
                         SelectionMode::Line,
@@ -341,7 +362,7 @@ foo
                         use_system_clipboard: false,
                         direction: direction.clone(),
                     }),
-                    Expect(CurrentComponentContent("foo\nfoo")),
+                    Expect(CurrentComponentContent("  foo\n  foo")),
                 ])
             })
         };

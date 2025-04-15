@@ -1,9 +1,5 @@
 use super::{ByteRange, PositionBasedSelectionMode, SelectionModeTrait, Token};
-use crate::{
-    buffer::Buffer,
-    components::editor::{Direction, IfCurrentNotFound},
-    selection::CharIndex,
-};
+use crate::{buffer::Buffer, components::editor::IfCurrentNotFound, selection::CharIndex};
 
 pub struct Word {
     skip_symbols: bool,
@@ -189,7 +185,13 @@ impl PositionBasedSelectionMode for Word {
         )))
     }
 
-    fn process_paste_gap(&self, prev_gap: String, next_gap: String, _: &Direction) -> String {
+    fn process_paste_gap(
+        &self,
+        _: &super::SelectionModeParams,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
+        _: &crate::components::editor::Direction,
+    ) -> String {
         super::token::process_paste_gap(prev_gap, next_gap)
     }
 }

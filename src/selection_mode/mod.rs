@@ -374,11 +374,13 @@ impl<T: PositionBasedSelectionMode> SelectionModeTrait for PositionBased<T> {
 
     fn process_paste_gap(
         &self,
-        prev_gap: String,
-        next_gap: String,
+        params: &SelectionModeParams,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
         direction: &Direction,
     ) -> String {
-        self.0.process_paste_gap(prev_gap, next_gap, direction)
+        self.0
+            .process_paste_gap(params, prev_gap, next_gap, direction)
     }
 }
 
@@ -604,15 +606,16 @@ pub trait SelectionModeTrait {
                 Some(buffer.slice(&in_between_range.into()).ok()?.to_string())
             }
         };
-        let prev_gap = get_in_between_gap(Direction::Start).unwrap_or_default();
-        let next_gap = get_in_between_gap(Direction::End).unwrap_or_default();
-        self.process_paste_gap(prev_gap, next_gap, direction)
+        let prev_gap = get_in_between_gap(Direction::Start);
+        let next_gap = get_in_between_gap(Direction::End);
+        self.process_paste_gap(params, prev_gap, next_gap, direction)
     }
 
     fn process_paste_gap(
         &self,
-        prev_gap: String,
-        next_gap: String,
+        params: &SelectionModeParams,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
         direction: &Direction,
     ) -> String;
 }
@@ -1019,7 +1022,13 @@ pub trait PositionBasedSelectionMode {
     }
 
     /// By default, paste gap should be empty string
-    fn process_paste_gap(&self, _: String, _: String, _: &Direction) -> String {
+    fn process_paste_gap(
+        &self,
+        _: &SelectionModeParams,
+        _: Option<String>,
+        _: Option<String>,
+        _: &Direction,
+    ) -> String {
         Default::default()
     }
 }
@@ -1118,11 +1127,13 @@ impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
 
     fn process_paste_gap(
         &self,
-        prev_gap: String,
-        next_gap: String,
+        params: &SelectionModeParams,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
         direction: &Direction,
     ) -> String {
-        self.0.process_paste_gap(prev_gap, next_gap, direction)
+        self.0
+            .process_paste_gap(params, prev_gap, next_gap, direction)
     }
 }
 
@@ -1574,7 +1585,13 @@ pub(crate) trait IterBasedSelectionMode {
     }
 
     /// By default, paste gap should be empty string
-    fn process_paste_gap(&self, _: String, _: String, _: &Direction) -> String {
+    fn process_paste_gap(
+        &self,
+        _: &SelectionModeParams,
+        _: Option<String>,
+        _: Option<String>,
+        _: &Direction,
+    ) -> String {
         Default::default()
     }
 }

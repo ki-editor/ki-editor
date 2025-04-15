@@ -1,9 +1,6 @@
 use ropey::Rope;
 
-use crate::{
-    components::editor::{Direction, IfCurrentNotFound},
-    selection::CharIndex,
-};
+use crate::{components::editor::IfCurrentNotFound, selection::CharIndex};
 
 use super::{ByteRange, PositionBasedSelectionMode, SelectionModeTrait};
 
@@ -134,23 +131,35 @@ impl SelectionModeTrait for Token {
         TokenSkipSymbol.left(params)
     }
 
-    fn process_paste_gap(&self, prev_gap: String, next_gap: String, _: &Direction) -> String {
+    fn process_paste_gap(
+        &self,
+        _: &super::SelectionModeParams,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
+        _: &crate::components::editor::Direction,
+    ) -> String {
         process_paste_gap(prev_gap, next_gap)
     }
 }
 
-pub(crate) fn process_paste_gap(prev_gap: String, next_gap: String) -> String {
-    let trim = |s: String| {
-        s.trim_end_matches('\n')
-            .trim_start_matches('\n')
-            .to_string()
-    };
-    let prev_gap = trim(prev_gap);
-    let next_gap = trim(next_gap);
-    if prev_gap.chars().count() > next_gap.chars().count() {
-        prev_gap
-    } else {
-        next_gap
+pub(crate) fn process_paste_gap(prev_gap: Option<String>, next_gap: Option<String>) -> String {
+    match (prev_gap, next_gap) {
+        (None, None) => Default::default(),
+        (None, Some(gap)) | (Some(gap), None) => gap,
+        (Some(prev_gap), Some(next_gap)) => {
+            let trim = |s: String| {
+                s.trim_end_matches('\n')
+                    .trim_start_matches('\n')
+                    .to_string()
+            };
+            let prev_gap = trim(prev_gap);
+            let next_gap = trim(next_gap);
+            if prev_gap.chars().count() > next_gap.chars().count() {
+                prev_gap
+            } else {
+                next_gap
+            }
+        }
     }
 }
 
