@@ -1384,30 +1384,32 @@ impl Editor {
     }
 
     pub(crate) fn insert(&mut self, s: &str, context: &Context) -> anyhow::Result<Dispatches> {
-        let edit_transaction =
-            EditTransaction::from_action_groups(
-                self.selection_set
-                    .map(|selection| {
-                        let range = selection.extended_range();
-                        ActionGroup::new(
-                            [
-                                Action::Edit(Edit::new(
-                                    self.buffer().rope(),
-                                    {
-                                        let start = selection.to_char_index(&Direction::End);
-                                        (start..start).into()
-                                    },
-                                    Rope::from_str(s),
-                                )),
-                                Action::Select(selection.clone().set_range(
-                                    (range.start + s.len()..range.start + s.len()).into(),
-                                )),
-                            ]
-                            .to_vec(),
-                        )
-                    })
-                    .into(),
-            );
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| {
+                    let range = selection.extended_range();
+                    let new_char_index = range.start + s.chars().count();
+                    ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                {
+                                    let start = selection.to_char_index(&Direction::End);
+                                    (start..start).into()
+                                },
+                                Rope::from_str(s),
+                            )),
+                            Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range((new_char_index..new_char_index).into()),
+                            ),
+                        ]
+                        .to_vec(),
+                    )
+                })
+                .into(),
+        );
 
         self.apply_edit_transaction(edit_transaction, context)
     }
