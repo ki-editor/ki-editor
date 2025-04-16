@@ -607,9 +607,7 @@ impl Editor {
             .buffer
             .borrow()
             .get_line_by_char_index(cursor)?
-            .to_string()
-            .trim()
-            .into())
+            .to_string())
     }
 
     pub(crate) fn get_current_word(&self) -> anyhow::Result<String> {
