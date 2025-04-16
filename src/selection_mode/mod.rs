@@ -371,6 +371,17 @@ impl<T: PositionBasedSelectionMode> SelectionModeTrait for PositionBased<T> {
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.0.current(params, if_current_not_found)
     }
+
+    fn process_paste_gap(
+        &self,
+        params: &SelectionModeParams,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
+        direction: &Direction,
+    ) -> String {
+        self.0
+            .process_paste_gap(params, prev_gap, next_gap, direction)
+    }
 }
 
 pub trait SelectionModeTrait {
@@ -575,6 +586,38 @@ pub trait SelectionModeTrait {
 
         assert_eq!(expected, actual_backward, "backward assertion");
     }
+
+    fn get_paste_gap(&self, params: &SelectionModeParams, direction: &Direction) -> String {
+        let buffer = params.buffer;
+        let selection = params.current_selection;
+        let get_in_between_gap = |direction: Direction| {
+            let other = match direction {
+                Direction::Start => self.delete_backward(params),
+                Direction::End => self.delete_forward(params),
+            }
+            .ok()??;
+            if other.range() == selection.range() {
+                Default::default()
+            } else {
+                let current_range = selection.range();
+                let other_range = other.range();
+                let in_between_range = current_range.end.min(other_range.end)
+                    ..current_range.start.max(other_range.start);
+                Some(buffer.slice(&in_between_range.into()).ok()?.to_string())
+            }
+        };
+        let prev_gap = get_in_between_gap(Direction::Start);
+        let next_gap = get_in_between_gap(Direction::End);
+        self.process_paste_gap(params, prev_gap, next_gap, direction)
+    }
+
+    fn process_paste_gap(
+        &self,
+        params: &SelectionModeParams,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
+        direction: &Direction,
+    ) -> String;
 }
 
 pub trait PositionBasedSelectionMode {
@@ -980,6 +1023,17 @@ pub trait PositionBasedSelectionMode {
         }
         Ok(None)
     }
+
+    /// By default, paste gap should be empty string
+    fn process_paste_gap(
+        &self,
+        _: &SelectionModeParams,
+        _: Option<String>,
+        _: Option<String>,
+        _: &Direction,
+    ) -> String {
+        Default::default()
+    }
 }
 pub(crate) struct PositionBased<T: PositionBasedSelectionMode>(pub(crate) T);
 pub(crate) struct IterBased<T: IterBasedSelectionMode>(pub(crate) T);
@@ -1072,6 +1126,17 @@ impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
 
     fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.0.delete_backward(params)
+    }
+
+    fn process_paste_gap(
+        &self,
+        params: &SelectionModeParams,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
+        direction: &Direction,
+    ) -> String {
+        self.0
+            .process_paste_gap(params, prev_gap, next_gap, direction)
     }
 }
 
@@ -1520,6 +1585,17 @@ pub(crate) trait IterBasedSelectionMode {
             .collect_vec();
 
         assert_eq!(expected, actual);
+    }
+
+    /// By default, paste gap should be empty string
+    fn process_paste_gap(
+        &self,
+        _: &SelectionModeParams,
+        _: Option<String>,
+        _: Option<String>,
+        _: &Direction,
+    ) -> String {
+        Default::default()
     }
 }
 

@@ -132,22 +132,52 @@ impl PositionBasedSelectionMode for LineFull {
         )?;
         Ok(Some(ByteRange::new(range)))
     }
+
+    fn process_paste_gap(
+        &self,
+        _: &super::SelectionModeParams,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
+        _: &crate::components::editor::Direction,
+    ) -> String {
+        let add_newline = |gap: String| {
+            if gap.chars().any(|c| c == '\n') {
+                gap
+            } else {
+                format!("\n{gap}")
+            }
+        };
+        add_newline(match (prev_gap, next_gap) {
+            (None, None) => "".to_string(),
+            (None, Some(gap)) | (Some(gap), None) => gap,
+            (Some(prev_gap), Some(next_gap)) => {
+                if prev_gap.len() > next_gap.len() {
+                    prev_gap
+                } else {
+                    next_gap
+                }
+            }
+        })
+    }
 }
 
 #[cfg(test)]
 mod test_line_full {
+    use crate::buffer::BufferOwner;
+    use crate::components::editor::{Direction, IfCurrentNotFound};
+    use crate::selection::SelectionMode;
+    use crate::test_app::*;
+
     use crate::{
         buffer::Buffer,
         selection::Selection,
         selection_mode::{PositionBased, SelectionModeTrait as _},
     };
 
-    use super::*;
-
     #[test]
     fn case_1() {
         let buffer = Buffer::new(None, "a\n\n\nb\nc\n  hello");
-        PositionBased(LineFull).assert_all_selections(
+        PositionBased(super::LineFull).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -166,10 +196,44 @@ mod test_line_full {
     #[test]
     fn single_line_without_trailing_newline_character() {
         let buffer = Buffer::new(None, "a");
-        PositionBased(LineFull).assert_all_selections(
+        PositionBased(super::LineFull).assert_all_selections(
             &buffer,
             Selection::default(),
             &[(0..1, "a")],
         );
+    }
+
+    #[test]
+    fn still_paste_to_newline_despite_only_one_line_present() -> anyhow::Result<()> {
+        let run_test = |direction: Direction| {
+            execute_test(|s| {
+                Box::new([
+                    App(OpenFile {
+                        path: s.main_rs(),
+                        owner: BufferOwner::User,
+                        focus: true,
+                    }),
+                    Editor(SetContent("  foo".to_string())),
+                    Editor(SetSelectionMode(
+                        IfCurrentNotFound::LookForward,
+                        SelectionMode::LineFull,
+                    )),
+                    Editor(Copy {
+                        use_system_clipboard: false,
+                    }),
+                    Editor(Paste {
+                        use_system_clipboard: false,
+                        direction: direction.clone(),
+                    }),
+                    Editor(Paste {
+                        use_system_clipboard: false,
+                        direction: direction.clone(),
+                    }),
+                    Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
+                ])
+            })
+        };
+        run_test(Direction::End)?;
+        run_test(Direction::Start)
     }
 }

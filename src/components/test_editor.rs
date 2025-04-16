@@ -3809,7 +3809,7 @@ yo"
                 .to_string(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Down)),
             Expect(CurrentSelectedTexts(&[""])),
             Editor(Delete(Direction::End)),
             Expect(CurrentSelectedTexts(&["world"])),

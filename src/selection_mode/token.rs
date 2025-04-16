@@ -130,6 +130,37 @@ impl SelectionModeTrait for Token {
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         TokenSkipSymbol.left(params)
     }
+
+    fn process_paste_gap(
+        &self,
+        _: &super::SelectionModeParams,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
+        _: &crate::components::editor::Direction,
+    ) -> String {
+        process_paste_gap(prev_gap, next_gap)
+    }
+}
+
+pub(crate) fn process_paste_gap(prev_gap: Option<String>, next_gap: Option<String>) -> String {
+    match (prev_gap, next_gap) {
+        (None, None) => Default::default(),
+        (None, Some(gap)) | (Some(gap), None) => gap,
+        (Some(prev_gap), Some(next_gap)) => {
+            let trim = |s: String| {
+                s.trim_end_matches('\n')
+                    .trim_start_matches('\n')
+                    .to_string()
+            };
+            let prev_gap = trim(prev_gap);
+            let next_gap = trim(next_gap);
+            if prev_gap.chars().count() > next_gap.chars().count() {
+                prev_gap
+            } else {
+                next_gap
+            }
+        }
+    }
 }
 
 struct TokenSymbolOnly;
@@ -468,5 +499,37 @@ mod test_token {
                 Expect(CurrentSelectedTexts(&[""])),
             ])
         })
+    }
+
+    #[test]
+    fn paste_gap() -> anyhow::Result<()> {
+        let run_test = |direction: Direction| {
+            execute_test(|s| {
+                Box::new([
+                    App(OpenFile {
+                        path: s.main_rs(),
+                        owner: BufferOwner::User,
+                        focus: true,
+                    }),
+                    Editor(SetContent("fooFoo barBar\nspamSpam".to_string())),
+                    Editor(SetSelectionMode(
+                        IfCurrentNotFound::LookForward,
+                        SelectionMode::Token,
+                    )),
+                    Editor(MoveSelection(Right)),
+                    Expect(CurrentSelectedTexts(&["barBar"])),
+                    Editor(Copy {
+                        use_system_clipboard: false,
+                    }),
+                    Editor(Paste {
+                        use_system_clipboard: false,
+                        direction: direction.clone(),
+                    }),
+                    Expect(CurrentComponentContent("fooFoo barBar barBar\nspamSpam")),
+                ])
+            })
+        };
+        run_test(Direction::End)?;
+        run_test(Direction::Start)
     }
 }
