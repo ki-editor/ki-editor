@@ -320,10 +320,10 @@ impl ExpectKind {
                 item,
             ),
             QuickfixListContent(content) => {
-                let expected = app.get_quickfix_list().unwrap().render().content;
-                let actual = content.to_string();
+                let actual = app.get_quickfix_list().unwrap().render().content;
+                let expected = content.to_string();
                 log(format!("expected =\n{expected}"));
-                log(format!("actual =\n{actual}"));
+                log(format!("actual   =\n{actual}"));
                 contextualize(expected, actual)
             }
             DropdownInfosCount(expected) => {
@@ -1572,30 +1572,30 @@ foo a // Line 10
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine("├─ 2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
+            Expect(QuickfixListCurrentLine(" ├─ 2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)\n")),
             Expect(CurrentPath(s.foo_rs())),
-            Expect(CurrentLine("foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
+            Expect(CurrentLine("foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)\n")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Expect(ComponentCount(2)),
             Editor(MoveSelection(Right)),
             Expect(ComponentCount(2)),
-            Expect(QuickfixListCurrentLine("└─ 10:1  foo a // Line 10")),
+            Expect(QuickfixListCurrentLine(" └─ 10:1  foo a // Line 10\n")),
             Expect(CurrentLine("foo a // Line 10")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Right)),
-            Expect(CurrentLine("foo d")),
+            Expect(CurrentLine("foo d\n")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Right)),
             Expect(CurrentLine("foo c")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Left)),
-            Expect(CurrentLine("foo d")),
+            Expect(CurrentLine("foo d\n")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Left)),
             Expect(CurrentLine("foo a // Line 10")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Left)),
-            Expect(CurrentLine("foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
+            Expect(CurrentLine("foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)\n")),
             Expect(CurrentSelectedTexts(&["foo"])),
         ])
     })

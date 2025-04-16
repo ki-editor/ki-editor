@@ -1375,7 +1375,7 @@ fn scroll_page() -> anyhow::Result<()> {
                 height: 3,
             })),
             Editor(ScrollPageDown),
-            Expect(CurrentLine("2 hey")),
+            Expect(CurrentLine("2 hey\n")),
             Editor(ScrollPageDown),
             Editor(MatchLiteral("hey".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
@@ -1387,13 +1387,13 @@ fn scroll_page() -> anyhow::Result<()> {
             Expect(CurrentLine("3")),
             Expect(CurrentSelectedTexts(&["3"])),
             Editor(ScrollPageUp),
-            Expect(CurrentLine("2 hey")),
+            Expect(CurrentLine("2 hey\n")),
             Expect(CurrentSelectedTexts(&["2"])),
             Editor(ScrollPageUp),
-            Expect(CurrentLine("1")),
+            Expect(CurrentLine("1\n")),
             Expect(CurrentSelectedTexts(&["1"])),
             Editor(ScrollPageUp),
-            Expect(CurrentLine("1")),
+            Expect(CurrentLine("1\n")),
             Expect(CurrentSelectedTexts(&["1"])),
             Expect(CurrentSelectionMode(Token)),
         ])
@@ -3809,7 +3809,7 @@ yo"
                 .to_string(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(MoveSelection(Down)),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&[""])),
             Editor(Delete(Direction::End)),
             Expect(CurrentSelectedTexts(&["world"])),
@@ -4505,6 +4505,29 @@ fn go_to_line_number() -> Result<(), anyhow::Error> {
             App(OpenMoveToIndexPrompt),
             App(HandleKeyEvents(keys!("3 enter").to_vec())),
             Expect(CurrentSelectedTexts(&["spam"])),
+        ])
+    })
+}
+
+#[test]
+fn test_search_query_should_not_trim_surrounding_whitespace() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("xfoo foobarfoo foo".trim().to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("f o o space enter").to_vec())),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentSelectedTexts(&["foo ", "foo "])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Expect(CurrentSelectedTexts(&["xfoo", "foobarfoo"])),
         ])
     })
 }
