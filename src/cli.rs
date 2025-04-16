@@ -1,4 +1,5 @@
 use crate::components::editor_keymap_printer;
+use crate::RunConfig;
 use chrono::Local;
 use clap::{Args, Parser, Subcommand};
 use shared::canonicalized_path::CanonicalizedPath;
@@ -112,6 +113,11 @@ fn read_stdin() -> anyhow::Result<PathBuf> {
 }
 
 fn run_edit_command(args: EditArgs) -> anyhow::Result<()> {
+    let config = process_edit_args(args)?;
+    crate::run(config)
+}
+
+fn process_edit_args(args: EditArgs) -> anyhow::Result<RunConfig> {
     match args.path {
         Some(path) => {
             let tmp_path = std::path::PathBuf::from(path.clone());
@@ -122,11 +128,10 @@ fn run_edit_command(args: EditArgs) -> anyhow::Result<()> {
             let path: Option<CanonicalizedPath> = Some(path.try_into()?);
             let working_directory = match path.clone() {
                 Some(value) if value.is_dir() => Some(value),
-                Some(value) => value.parent()?,
                 _ => Default::default(),
             };
 
-            crate::run(crate::RunConfig {
+            Ok(crate::RunConfig {
                 entry_path: path,
                 working_directory,
             })
@@ -138,12 +143,12 @@ fn run_edit_command(args: EditArgs) -> anyhow::Result<()> {
                 let canonicalized_path: Option<CanonicalizedPath> =
                     Some(path.to_string_lossy().to_string().try_into()?);
 
-                crate::run(crate::RunConfig {
+                Ok(crate::RunConfig {
                     entry_path: canonicalized_path,
                     working_directory: None,
                 })
             } else {
-                crate::run(Default::default())
+                Ok(Default::default())
             }
         }
     }
@@ -194,5 +199,43 @@ pub(crate) fn cli() -> anyhow::Result<()> {
             }),
         },
         None => run_edit_command(cli.edit),
+    }
+}
+
+#[cfg(test)]
+mod test_process_edit_args {
+    use shared::canonicalized_path::CanonicalizedPath;
+
+    use super::{process_edit_args, EditArgs};
+
+    #[test]
+    /// Cwd should not change
+    fn no_edit_args() -> anyhow::Result<()> {
+        let actual = process_edit_args(EditArgs { path: None })?;
+        assert_eq!(actual.working_directory, None);
+        Ok(())
+    }
+
+    #[test]
+    /// Cwd should not change
+    fn args_is_nested_file() -> anyhow::Result<()> {
+        let actual = process_edit_args(EditArgs {
+            path: Some("docs/package.json".to_string()),
+        })?;
+        assert_eq!(actual.working_directory, None);
+        Ok(())
+    }
+
+    #[test]
+    /// Cwd should change to the provided directory
+    fn args_is_directory() -> anyhow::Result<()> {
+        let actual = process_edit_args(EditArgs {
+            path: Some("./docs".to_string()),
+        })?;
+        assert_eq!(
+            actual.working_directory,
+            Some(CanonicalizedPath::try_from("./docs")?)
+        );
+        Ok(())
     }
 }

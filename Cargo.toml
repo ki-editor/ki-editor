@@ -123,4 +123,4 @@ is_ci = "1.2.0"
 
 
 [profile.release]
-debug = true
+debug = false # Set this to true when using `sudo cargo flamegraph`

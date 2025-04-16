@@ -4487,3 +4487,24 @@ fn insert_multiwidth_unicode_characters() -> Result<(), anyhow::Error> {
         }
     })
 }
+
+#[test]
+fn go_to_line_number() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo\nbar\nspam".trim().to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            App(OpenMoveToIndexPrompt),
+            App(HandleKeyEvents(keys!("3 enter").to_vec())),
+            Expect(CurrentSelectedTexts(&["spam"])),
+        ])
+    })
+}

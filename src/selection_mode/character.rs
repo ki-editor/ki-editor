@@ -42,8 +42,11 @@ impl PositionBasedSelectionMode for Character {
         if len_chars == 0 {
             Ok(None)
         } else {
-            let cursor_byte = buffer.char_to_byte(cursor_char_index)?.min(len_chars - 1);
-            Ok(Some(ByteRange::new(cursor_byte..cursor_byte + 1)))
+            let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+            let char = buffer.char(cursor_char_index)?;
+            Ok(Some(ByteRange::new(
+                cursor_byte..cursor_byte + char.len_utf8(),
+            )))
         }
     }
 
@@ -269,5 +272,15 @@ gam
                 Expect(CurrentSelectedTexts(&[""])),
             ])
         })
+    }
+
+    #[test]
+    fn multiwidth_unicode_char() {
+        let buffer = Buffer::new(None, "大學之道");
+        PositionBased(super::Character::new(0)).assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[(0..3, "大"), (3..6, "學"), (6..9, "之"), (9..12, "道")],
+        );
     }
 }
