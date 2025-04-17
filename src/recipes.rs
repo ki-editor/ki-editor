@@ -1291,6 +1291,21 @@ foo bar spam
         }].to_vec(),
         },
         RecipeGroup {
+            filename: "enter-normal-mode",
+            recipes: [
+            Recipe {
+                description: "Enter Normal mode select selection before cursor",
+                content: "foo bar spam",
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("s l o o k esc"),
+                expectations: Box::new([CurrentSelectedTexts(&["barok"])]),
+                terminal_height: None,
+                similar_vim_combos: &[],
+                only: false,
+            }].to_vec(),
+        },
+        RecipeGroup {
             filename: "recipes",
             recipes: recipes(),
         },
