@@ -1,6 +1,9 @@
 use ropey::Rope;
 
-use crate::{components::editor::IfCurrentNotFound, selection::Selection};
+use crate::{
+    components::editor::IfCurrentNotFound,
+    selection::{CharIndex, Selection},
+};
 
 use super::{
     word::SelectionPosition, ByteRange, PositionBased, PositionBasedSelectionMode,
@@ -39,7 +42,7 @@ impl PositionBasedSelectionMode for Character {
         _: IfCurrentNotFound,
     ) -> anyhow::Result<Option<ByteRange>> {
         let len_chars = buffer.len_chars();
-        if len_chars == 0 {
+        if len_chars == 0 || cursor_char_index > CharIndex(len_chars - 1) {
             Ok(None)
         } else {
             let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
@@ -132,6 +135,7 @@ fn get_char(
 
 #[cfg(test)]
 mod test_character {
+    use crate::app::Dimension;
     use crate::buffer::BufferOwner;
     use crate::test_app::*;
 
@@ -282,5 +286,30 @@ gam
             Selection::default(),
             &[(0..3, "大"), (3..6, "學"), (6..9, "之"), (9..12, "道")],
         );
+    }
+
+    #[test]
+    fn jump_char() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo\nbar\nspam".to_string())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
+                App(TerminalDimensionChanged(Dimension {
+                    height: 10,
+                    width: 10,
+                })),
+                Editor(ShowJumps {
+                    use_current_selection_mode: true,
+                }),
+                Expect(JumpChars(&[
+                    '\n', '\n', 'a', 'a', 'b', 'f', 'm', 'o', 'o', 'p', 'r', 's',
+                ])),
+            ])
+        })
     }
 }
