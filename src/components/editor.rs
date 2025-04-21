@@ -601,12 +601,15 @@ impl Editor {
         result
     }
 
+    /// The returned value includes leading whitespaces but elides trailing newline character
     pub(crate) fn current_line(&self) -> anyhow::Result<String> {
         let cursor = self.get_cursor_char_index();
         Ok(self
             .buffer
             .borrow()
             .get_line_by_char_index(cursor)?
+            .to_string()
+            .trim_end_matches("\n")
             .to_string())
     }
 

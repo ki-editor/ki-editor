@@ -233,11 +233,13 @@ impl Prompt {
 #[cfg(test)]
 mod test_prompt {
     use crate::{
+        app::LocalSearchConfigUpdate,
         buffer::BufferOwner,
         components::{
             editor::{Direction, IfCurrentNotFound},
             suggestive_editor::Info,
         },
+        list::grep::RegexConfig,
         lsp::completion::CompletionItem,
         test_app::*,
     };
@@ -608,6 +610,48 @@ mod test_prompt {
                 Expect(CurrentComponentContent("fo\n")),
                 App(HandleKeyEvents(keys!("f o alt+l").to_vec())),
                 Expect(CurrentComponentContent("fo\nfoo")),
+            ])
+        })
+    }
+
+    #[test]
+    fn using_history_entries() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foox bar spam fooy".to_string())),
+                App(UpdateLocalSearchConfig {
+                    update: LocalSearchConfigUpdate::Mode(
+                        crate::context::LocalSearchConfigMode::Regex(RegexConfig {
+                            escaped: false,
+                            case_sensitive: false,
+                            match_whole_word: false,
+                        }),
+                    ),
+                    scope: Scope::Local,
+                    show_config_after_enter: false,
+                    if_current_not_found: IfCurrentNotFound::LookForward,
+                    run_search_after_config_updated: false,
+                }),
+                App(OpenSearchPrompt {
+                    scope: Scope::Local,
+                    if_current_not_found: IfCurrentNotFound::LookForward,
+                }),
+                App(HandleKeyEvents(keys!("f o o . enter").to_vec())), // Populate search history with "foo."
+                App(OpenSearchPrompt {
+                    scope: Scope::Local,
+                    if_current_not_found: IfCurrentNotFound::LookForward,
+                }),
+                Expect(CurrentComponentContent("foo.\n")),
+                // Navigate upwards and use the history
+                Editor(EnterNormalMode),
+                Editor(MoveSelection(Up)),
+                App(HandleKeyEvent(key!("enter"))),
+                Expect(CurrentSearch(Scope::Local, "foo.")),
             ])
         })
     }
