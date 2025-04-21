@@ -162,18 +162,22 @@ fn from_theme_content(theme: ThemeContent) -> Theme {
         .first()
         .and_then(|player| from_some_hex(player.selection.clone()))
         .unwrap_or_default();
-    let cursor = {
-        let background = theme
-            .style
-            .players
-            .first()
-            .and_then(|player| from_some_hex(player.cursor.clone()))
-            .unwrap_or_default();
-        let foreground = background.get_contrasting_color();
+
+    let primary_cursor_background = theme
+        .style
+        .players
+        .first()
+        .and_then(|player| from_some_hex(player.cursor.clone()))
+        .unwrap_or_default();
+    let get_cursor_style = |background: Color| {
+        let foreground = primary_cursor_background.get_contrasting_color();
         Style::new()
             .background_color(background)
             .foreground_color(foreground)
     };
+    let primary_cursor = get_cursor_style(primary_cursor_background);
+    let secondary_cursor =
+        get_cursor_style(primary_cursor_background.apply_custom_alpha(background, 0.5));
     let parent_lines_background = primary_selection_background.apply_custom_alpha(background, 0.25);
     let section_divider_background =
         primary_selection_background.apply_custom_alpha(background, 0.25);
@@ -248,11 +252,11 @@ fn from_theme_content(theme: ThemeContent) -> Theme {
             text_foreground: text_color,
             primary_selection_background,
             primary_selection_anchor_background: primary_selection_background,
-            primary_selection_secondary_cursor: cursor,
+            primary_selection_secondary_cursor: secondary_cursor,
             secondary_selection_background: primary_selection_background,
             secondary_selection_anchor_background: primary_selection_background,
-            secondary_selection_primary_cursor: cursor,
-            secondary_selection_secondary_cursor: cursor,
+            secondary_selection_primary_cursor: primary_cursor,
+            secondary_selection_secondary_cursor: secondary_cursor,
             line_number: Style::new()
                 .set_some_foreground_color(from_some_hex(theme.style.editor_line_number)),
             border: Style::new()
