@@ -16,11 +16,11 @@ use crate::{
     selection_mode::{self, ApplyMovementResult, IterBased, PositionBased, SelectionModeParams},
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SelectionSet {
     /// 0 means the cursor is at the first selection
-    cursor_index: usize,
-    selections: NonEmpty<Selection>,
+    pub(crate) cursor_index: usize,
+    pub(crate) selections: NonEmpty<Selection>,
     pub(crate) mode: SelectionMode,
 }
 
@@ -553,15 +553,15 @@ impl From<Selection> for ApplyMovementResult {
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default)]
 pub(crate) struct Selection {
-    range: CharIndexRange,
+    pub range: CharIndexRange,
 
     /// Used for extended selection.
     /// Some = the selection is being extended
     /// None = the selection is not being extended
-    initial_range: Option<CharIndexRange>,
+    pub initial_range: Option<CharIndexRange>,
 
     /// For example, used for Diagnostic and Git Hunk
-    info: Option<Info>,
+    pub info: Option<Info>,
 }
 
 impl Selection {

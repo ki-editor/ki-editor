@@ -12,18 +12,17 @@ members = [
   'grammar',
   'shared',
   'tree_sitter_quickfix',
-  'zed_theme'
+  'zed_theme',
+  'ki-protocol-types',
 ]
-exclude = [
-  'tests/mock_repos/rust1'
-]
+exclude = ['tests/mock_repos/rust1']
 
 [workspace.dependencies]
 # `use-dev-tty` is needed so that the app doesn't hang if STDIN is present
 # See:
 # - https://github.com/crossterm-rs/crossterm/pull/956
 # - https://github.com/crossterm-rs/crossterm/issues/828
-crossterm = {version = "0.28.1", features = ["use-dev-tty"]}
+crossterm = { version = "0.28.1", features = ["use-dev-tty"] }
 convert_case = "0.6.0"
 regex = "1.8.1"
 fancy-regex = "0.14.0"
@@ -31,10 +30,10 @@ tree-sitter = "0.24.6"
 serde_json = "1.0.96"
 anyhow = "1.0.70"
 once_cell = "1.18.0"
-serde = {version="1.0.163", features = ["derive"]}
+serde = { version = "1.0.163", features = ["derive"] }
 lsp-types = "0.95.0"
 tempfile = "3.6.0"
-log = "0.4.17"
+log = { version = "0.4.17", features = ["std"] }
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
 itertools = "~0.13.0"
@@ -42,12 +41,22 @@ itertools = "~0.13.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-wayland = [ "arboard/wayland-data-control" ]
-
+wayland = ["arboard/wayland-data-control"]
+vscode = [
+  "dep:ts-rs",
+  "dep:thiserror",
+  "dep:uuid",
+  "dep:url",
+  "dep:ki-protocol-types",
+  "dep:tungstenite",
+]
+default = ["vscode"]
 
 [build-dependencies]
-grammar = {path = "grammar"}
-shared = {path = "shared"}
+grammar = { path = "grammar" }
+shared = { path = "shared" }
+ts-rs = { version = "10.1", optional = true }
+ki-protocol-types = { path = "ki-protocol-types", optional = true }
 
 [dependencies]
 anyhow.workspace = true
@@ -64,6 +73,7 @@ serde_json.workspace = true
 serde.workspace = true
 tree-sitter.workspace = true
 itertools.workspace = true
+thiserror = { version = "1.0.56", optional = true }
 tree-sitter-md = "~0.3.2"
 portable-pty = "0.8.1"
 vt100 = "0.15.2"
@@ -75,12 +85,12 @@ grep-searcher = "0.1.11"
 grep-regex = "0.1.11"
 json-rpc-types = "1.3.0"
 arboard = { version = "3.2" }
-event = {path = "event"}
-grammar = {path = "grammar"}
-shared = {path = "shared"}
-tree-sitter-quickfix = {path = "tree_sitter_quickfix"}
-zed-theme = {path = "zed_theme"}
-my_proc_macros = {path = "my_proc_macros"}
+event = { path = "event" }
+grammar = { path = "grammar" }
+shared = { path = "shared" }
+tree-sitter-quickfix = { path = "tree_sitter_quickfix" }
+zed-theme = { path = "zed_theme" }
+my_proc_macros = { path = "my_proc_macros" }
 pretty_assertions = "1.3.0"
 tree-sitter-highlight = "0.24.6"
 rand = "0.8.5"
@@ -88,10 +98,10 @@ convert_case.workspace = true
 ignore = "0.4.20"
 crossbeam = "0.8.2"
 diff = "0.1.13"
-clap = { version = "~4.5.23", features = ["derive"] } 
+clap = { version = "~4.5.23", features = ["derive"] }
 undo = "0.51.0"
 rayon = "1.8.0"
-similar = {version = "2.4.0", features = ["unicode", "inline"]}
+similar = { version = "2.4.0", features = ["unicode", "inline"] }
 tree-sitter-traversal2 = { git = "https://github.com/airbus-cert/tree-sitter-traversal" }
 indexmap = "2.2.2"
 globset = "0.4.14"
@@ -109,6 +119,14 @@ num = "0.4.3"
 serde_json5 = "0.1.0"
 comfy-table = "7.1.3"
 chrono = "0.4.39"
+ki-protocol-types = { path = "ki-protocol-types", optional = true }
+uuid = { version = "1.4.1", features = ["v4", "serde"], optional = true }
+url = { version = "2.5.2", optional = true }
+
+# Add tungstenite for WebSocket support
+tungstenite = { version = "0.21", features = [
+  "native-tls",
+], optional = true } # Or use "rustls-tls" if preferred
 
 [dev-dependencies]
 serial_test = "~3.2.0"

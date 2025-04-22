@@ -1,0 +1,691 @@
+{
+    "name": "ki-vscode",
+    "version": "1.0.0",
+    "description": "VSCode extension for Ki Editor",
+    "main": "dist/extension.js",
+    "scripts": {
+        "test": "jest",
+        "test:unit": "jest 'test/unit/.*\\.test\\.ts$'",
+        "test:integration": "jest 'test/integration/.*\\.test\\.ts$'",
+        "test:e2e": "jest 'test/e2e/.*\\.test\\.ts$'",
+        "test:watch": "jest --watch",
+        "test:coverage": "jest --coverage",
+        "test:ci": "jest --ci --coverage --reporters='default' --reporters='jest-junit'",
+        "compile": "tsc -p .",
+        "watch": "tsc -watch -p .",
+        "package": "vsce package",
+        "vscode:prepublish": "npm run compile",
+        "lint": "eslint src --ext ts"
+    },
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "contributes": {
+        "configuration": {
+            "title": "Ki Editor",
+            "properties": {
+                "ki-vscode.backendPath": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Path to the Ki editor backend executable"
+                }
+            }
+        },
+        "commands": [
+            {
+                "command": "ki-vscode.showLogs",
+                "title": "Ki: Show Logs",
+                "category": "Ki"
+            },
+            {
+                "command": "ki-vscode.pingKi",
+                "title": "Ki: Ping Backend",
+                "category": "Ki"
+            },
+            {
+                "command": "ki-vscode.restartKi",
+                "title": "Ki: Restart Backend",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.showCommandPalette",
+                "title": "Ki: Show Command Palette",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.selectMode",
+                "title": "Ki: Select Mode",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.selectMode.word",
+                "title": "Ki: Select Word Mode",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.selectMode.token",
+                "title": "Ki: Select Token Mode",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.selectMode.character",
+                "title": "Ki: Select Character Mode",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.selectMode.line",
+                "title": "Ki: Select Line Mode",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.selectMode.lineTrimmed",
+                "title": "Ki: Select Line Trimmed Mode",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.showModeHelp",
+                "title": "Ki: Show Mode Help",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.showModeCommands",
+                "title": "Ki: Show Mode Commands",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.toggleSubmode",
+                "title": "Ki: Toggle Submode",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.transitionToNormal",
+                "title": "Ki: Switch to Normal Mode",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.transitionToInsert",
+                "title": "Ki: Switch to Insert Mode",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.transitionToVisual",
+                "title": "Ki: Switch to Visual Mode",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.transitionToCommand",
+                "title": "Ki: Switch to Command Mode",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.cursor.addCursorBelow",
+                "title": "Ki: Add Cursor Below",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.cursor.addCursorAbove",
+                "title": "Ki: Add Cursor Above",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.cursor.addCursorsToLineEnds",
+                "title": "Ki: Add Cursors to Line Ends",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.cursor.addCursorsToWordOccurrences",
+                "title": "Ki: Add Cursors to Word Occurrences",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.forceReconnect",
+                "title": "Ki: Force Reconnect to Backend",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.normalMode",
+                "title": "Ki: Force Normal Mode",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.insertMode",
+                "title": "Ki: Force Insert Mode",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.visualMode",
+                "title": "Ki: Force Visual Mode",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.escape",
+                "title": "Ki: Handle Escape Key",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.backspace",
+                "title": "Ki: Handle Backspace Key",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.delete",
+                "title": "Ki: Handle Delete Key",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.enter",
+                "title": "Ki: Handle Enter Key",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.tab",
+                "title": "Ki: Handle Tab Key",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.home",
+                "title": "Ki: Handle Home Key",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.end",
+                "title": "Ki: Handle End Key",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.pageup",
+                "title": "Ki: Handle PageUp Key",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.pagedown",
+                "title": "Ki: Handle PageDown Key",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.up",
+                "title": "Ki: Handle Up Arrow Key",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.down",
+                "title": "Ki: Handle Down Arrow Key",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.left",
+                "title": "Ki: Handle Left Arrow Key",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.right",
+                "title": "Ki: Handle Right Arrow Key",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.sync",
+                "title": "Ki: Sync State with Editor"
+            },
+            {
+                "command": "ki.enableKeyInterception",
+                "title": "Ki: Enable Keyboard Interception"
+            },
+            {
+                "command": "ki.disableKeyInterception",
+                "title": "Ki: Disable Keyboard Interception"
+            }
+        ],
+        "keybindings": [
+            {
+                "command": "ki.selectMode",
+                "key": "ctrl+k ctrl+s",
+                "mac": "cmd+k cmd+s",
+                "when": "editorTextFocus && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.selectMode.word",
+                "key": "ctrl+k ctrl+w",
+                "mac": "cmd+k cmd+w",
+                "when": "editorTextFocus && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.selectMode.token",
+                "key": "ctrl+k ctrl+t",
+                "mac": "cmd+k cmd+t",
+                "when": "editorTextFocus && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.selectMode.character",
+                "key": "ctrl+k ctrl+c",
+                "mac": "cmd+k cmd+c",
+                "when": "editorTextFocus && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.selectMode.line",
+                "key": "ctrl+k ctrl+l",
+                "mac": "cmd+k cmd+l",
+                "when": "editorTextFocus && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.selectMode.lineTrimmed",
+                "key": "ctrl+k ctrl+i",
+                "mac": "cmd+k cmd+i",
+                "when": "editorTextFocus && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.showModeHelp",
+                "key": "alt+h",
+                "mac": "option+h",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "ki.showModeCommands",
+                "key": "alt+p",
+                "mac": "option+p",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "ki.transitionToNormal",
+                "key": "escape",
+                "when": "editorTextFocus && !ki.isNormal"
+            },
+            {
+                "command": "ki.transitionToInsert",
+                "key": "i",
+                "when": "editorTextFocus && ki.isNormal"
+            },
+            {
+                "command": "ki.transitionToVisual",
+                "key": "v",
+                "when": "editorTextFocus && ki.isNormal"
+            },
+            {
+                "command": "ki.transitionToCommand",
+                "key": "shift+;",
+                "when": "editorTextFocus && ki.isNormal"
+            },
+            {
+                "command": "ki.toggleSubmode.find",
+                "key": "f",
+                "when": "editorTextFocus && ki.isNormal && !ki.hasSubmode"
+            },
+            {
+                "command": "ki.toggleSubmode.ast",
+                "key": "a",
+                "when": "editorTextFocus && ki.isNormal && !ki.hasSubmode"
+            },
+            {
+                "command": "ki.toggleSubmode.jump",
+                "key": "j",
+                "when": "editorTextFocus && ki.isNormal && !ki.hasSubmode"
+            },
+            {
+                "command": "ki.cursor.addCursorBelow",
+                "key": "ctrl+alt+down",
+                "mac": "cmd+alt+down",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "ki.cursor.addCursorAbove",
+                "key": "ctrl+alt+up",
+                "mac": "cmd+alt+up",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "ki.cursor.addCursorsToLineEnds",
+                "key": "alt+shift+i",
+                "mac": "option+shift+i",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "ki.cursor.addCursorsToWordOccurrences",
+                "key": "ctrl+shift+l",
+                "mac": "cmd+shift+l",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "ki.normalMode",
+                "key": "ctrl+k n",
+                "mac": "cmd+k n",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "ki.insertMode",
+                "key": "ctrl+k i",
+                "mac": "cmd+k i",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "ki.visualMode",
+                "key": "ctrl+k v",
+                "mac": "cmd+k v",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "ki.escape",
+                "key": "escape",
+                "when": "editorTextFocus && (ki.editorMode == 'normal' || ki.editorMode == 'visual')"
+            },
+            {
+                "command": "ki.backspace",
+                "key": "backspace",
+                "when": "editorTextFocus && (ki.editorMode == 'normal' || ki.editorMode == 'visual')"
+            },
+            {
+                "command": "ki.delete",
+                "key": "delete",
+                "when": "editorTextFocus && (ki.editorMode == 'normal' || ki.editorMode == 'visual')"
+            },
+            {
+                "command": "ki.enter",
+                "key": "enter",
+                "when": "editorTextFocus && (ki.editorMode == 'normal' || ki.editorMode == 'visual')"
+            },
+            {
+                "command": "ki.tab",
+                "key": "tab",
+                "when": "editorTextFocus && (ki.editorMode == 'normal' || ki.editorMode == 'visual')"
+            },
+            {
+                "command": "ki.home",
+                "key": "home",
+                "when": "editorTextFocus && (ki.editorMode == 'normal' || ki.editorMode == 'visual')"
+            },
+            {
+                "command": "ki.end",
+                "key": "end",
+                "when": "editorTextFocus && (ki.editorMode == 'normal' || ki.editorMode == 'visual')"
+            },
+            {
+                "command": "ki.pageup",
+                "key": "pageup",
+                "when": "editorTextFocus && (ki.editorMode == 'normal' || ki.editorMode == 'visual')"
+            },
+            {
+                "command": "ki.pagedown",
+                "key": "pagedown",
+                "when": "editorTextFocus && (ki.editorMode == 'normal' || ki.editorMode == 'visual')"
+            },
+            {
+                "command": "ki.up",
+                "key": "up",
+                "when": "editorTextFocus && (ki.editorMode == 'normal' || ki.editorMode == 'visual')"
+            },
+            {
+                "command": "ki.down",
+                "key": "down",
+                "when": "editorTextFocus && (ki.editorMode == 'normal' || ki.editorMode == 'visual')"
+            },
+            {
+                "command": "ki.left",
+                "key": "left",
+                "when": "editorTextFocus && (ki.editorMode == 'normal' || ki.editorMode == 'visual')"
+            },
+            {
+                "command": "ki.right",
+                "key": "right",
+                "when": "editorTextFocus && (ki.editorMode == 'normal' || ki.editorMode == 'visual')"
+            },
+            {
+                "command": "ki.type.escape",
+                "key": "escape",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled"
+            },
+            {
+                "command": "ki.type.enter",
+                "key": "enter",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled"
+            },
+            {
+                "command": "ki.type.backspace",
+                "key": "backspace",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled"
+            },
+            {
+                "command": "ki.type.delete",
+                "key": "delete",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled"
+            },
+            {
+                "command": "ki.type.tab",
+                "key": "tab",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled"
+            },
+            {
+                "command": "ki.type.up",
+                "key": "up",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled"
+            },
+            {
+                "command": "ki.type.down",
+                "key": "down",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled"
+            },
+            {
+                "command": "ki.type.left",
+                "key": "left",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled"
+            },
+            {
+                "command": "ki.type.right",
+                "key": "right",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled"
+            },
+            {
+                "command": "ki.type.home",
+                "key": "home",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled"
+            },
+            {
+                "command": "ki.type.end",
+                "key": "end",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled"
+            },
+            {
+                "command": "ki.type.pageup",
+                "key": "pageup",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled"
+            },
+            {
+                "command": "ki.type.pagedown",
+                "key": "pagedown",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled"
+            },
+            {
+                "command": "ki.type.a",
+                "key": "a",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.b",
+                "key": "b",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.c",
+                "key": "c",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.d",
+                "key": "d",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.e",
+                "key": "e",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.f",
+                "key": "f",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.g",
+                "key": "g",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.h",
+                "key": "h",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.i",
+                "key": "i",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.j",
+                "key": "j",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.k",
+                "key": "k",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.l",
+                "key": "l",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.m",
+                "key": "m",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.n",
+                "key": "n",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.o",
+                "key": "o",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.p",
+                "key": "p",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.q",
+                "key": "q",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.r",
+                "key": "r",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.s",
+                "key": "s",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.t",
+                "key": "t",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.u",
+                "key": "u",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.v",
+                "key": "v",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.w",
+                "key": "w",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.x",
+                "key": "x",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.y",
+                "key": "y",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.z",
+                "key": "z",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.A",
+                "key": "shift+a",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.B",
+                "key": "shift+b",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.C",
+                "key": "shift+c",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.D",
+                "key": "shift+d",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.G",
+                "key": "shift+g",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.I",
+                "key": "shift+i",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            },
+            {
+                "command": "ki.type.O",
+                "key": "shift+o",
+                "when": "editorTextFocus && ki.keyInterceptionEnabled && ki.editorMode == 'normal'"
+            }
+        ]
+    },
+    "devDependencies": {
+        "@types/jest": "29.5.14",
+        "@types/node": "^20.11.0",
+        "@types/vscode": "1.99.1",
+        "@types/ws": "8.18.1",
+        "@typescript-eslint/eslint-plugin": "^6.21.0",
+        "@typescript-eslint/parser": "^6.21.0",
+        "eslint": "^8.56.0",
+        "jest": "^29.7.0",
+        "jest-junit": "^16.0.0",
+        "ts-jest": "^29.1.0",
+        "typescript": "^5.3.0",
+        "vsce": "^2.15.0"
+    },
+    "engines": {
+        "vscode": "^1.99.0"
+    },
+    "jest-junit": {
+        "outputDirectory": "reports",
+        "outputName": "jest-junit.xml",
+        "ancestorSeparator": " › ",
+        "uniqueOutputName": "false",
+        "suiteNameTemplate": "{filepath}",
+        "classNameTemplate": "{classname}",
+        "titleTemplate": "{title}"
+    },
+    "dependencies": {
+        "async-mutex": "0.5.0",
+        "ws": "8.18.1"
+    }
+}

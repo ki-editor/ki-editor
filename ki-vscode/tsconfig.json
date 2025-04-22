@@ -1,0 +1,40 @@
+{
+    "compilerOptions": {
+        "module": "CommonJS",
+        "target": "ES2020",
+        // Adjust outDir relative to the new location (ki-vscode/src)
+        // Assuming compiled output should go to ki-vscode/dist
+        "outDir": "./dist",
+        // rootDir is now the current directory (ki-vscode/src)
+        "rootDir": "./src",
+        "lib": [
+            "ESNext"
+        ],
+        "sourceMap": true,
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "moduleResolution": "node",
+        "resolveJsonModule": true,
+        "downlevelIteration": true,
+        "types": [
+            "node",
+            "vscode"
+        ],
+        // Explicitly tell TS where to find the installed @types packages
+        "typeRoots": [
+            "./node_modules/@types"
+        ]
+    },
+    // Include all .ts files within the current directory (ki-vscode/src) and its subdirectories
+    "include": [
+        "src/**/*.ts"
+    ],
+    // Exclude node_modules relative to the package.json location (ki-vscode/src/extension)
+    "exclude": [
+        "./node_modules",
+        "./dist",
+        "src/test/**/*.ts"
+    ] // Exclude node_modules, the output dir, and test files
+}

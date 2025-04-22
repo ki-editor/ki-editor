@@ -38,6 +38,8 @@ use crate::{
 };
 use event::event::Event;
 use itertools::{Either, Itertools};
+#[cfg(feature = "vscode")]
+use log::{trace, warn};
 use name_variant::NamedVariant;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
@@ -62,6 +64,10 @@ pub(crate) struct App<T: Frontend> {
     /// - Events from crossterm
     /// - Notifications from language server
     receiver: Receiver<AppMessage>,
+
+    #[cfg(feature = "vscode")]
+    // Sender for notifications to VSCodeApp
+    vscode_notification_sender: Option<Sender<ki_protocol_types::OutputMessageWrapper>>,
 
     lsp_manager: LspManager,
     enable_lsp: bool,
@@ -110,6 +116,8 @@ impl<T: Frontend> App<T> {
             sender,
             receiver,
             status_line_components,
+            #[cfg(feature = "vscode")]
+            None,
         )
     }
 
@@ -124,6 +132,9 @@ impl<T: Frontend> App<T> {
         sender: Sender<AppMessage>,
         receiver: Receiver<AppMessage>,
         status_line_components: Vec<StatusLineComponent>,
+        #[cfg(feature = "vscode")] vscode_notification_sender: Option<
+            Sender<ki_protocol_types::OutputMessageWrapper>,
+        >,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let app = App {
@@ -143,9 +154,12 @@ impl<T: Frontend> App<T> {
             status_line_components,
             last_action_description: None,
             last_action_short_description: None,
+            #[cfg(feature = "vscode")]
+            vscode_notification_sender,
         };
         Ok(app)
     }
+
     fn update_highlighted_spans(
         &self,
         component_id: ComponentId,
@@ -178,24 +192,7 @@ impl<T: Frontend> App<T> {
         self.render()?;
 
         while let Ok(message) = self.receiver.recv() {
-            match message {
-                AppMessage::Event(event) => self.handle_event(event),
-                AppMessage::LspNotification(notification) => {
-                    self.handle_lsp_notification(notification).map(|_| false)
-                }
-                AppMessage::QuitAll => {
-                    self.quit()?;
-                    Ok(true)
-                }
-                AppMessage::SyntaxHighlightResponse {
-                    component_id,
-                    batch_id,
-                    highlighted_spans,
-                } => self
-                    .update_highlighted_spans(component_id, batch_id, highlighted_spans)
-                    .map(|_| false),
-            }
-            .unwrap_or_else(|e| {
+            self.process_message(message).unwrap_or_else(|e| {
                 self.show_global_info(Info::new("ERROR".to_string(), e.to_string()));
                 false
             });
@@ -208,6 +205,26 @@ impl<T: Frontend> App<T> {
         }
 
         self.quit()
+    }
+
+    pub(crate) fn process_message(&mut self, message: AppMessage) -> anyhow::Result<bool> {
+        match message {
+            AppMessage::Event(event) => self.handle_event(event),
+            AppMessage::LspNotification(notification) => {
+                self.handle_lsp_notification(notification).map(|_| false)
+            }
+            AppMessage::QuitAll => {
+                self.quit()?;
+                Ok(true)
+            }
+            AppMessage::SyntaxHighlightResponse {
+                component_id,
+                batch_id,
+                highlighted_spans,
+            } => self
+                .update_highlighted_spans(component_id, batch_id, highlighted_spans)
+                .map(|_| false),
+        }
     }
 
     pub(crate) fn quit(&mut self) -> anyhow::Result<()> {
@@ -225,7 +242,7 @@ impl<T: Frontend> App<T> {
     }
 
     /// Returns true if the app should quit.
-    fn handle_event(&mut self, event: Event) -> anyhow::Result<bool> {
+    pub(crate) fn handle_event(&mut self, event: Event) -> anyhow::Result<bool> {
         // Pass event to focused window
         let component = self.current_component();
         match event {
@@ -687,7 +704,6 @@ impl<T: Frontend> App<T> {
                 .context
                 .set_clipboard_content(contents, use_system_clipboard)?,
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
-
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
                 self.handle_event(Event::Key(key_event))?;
@@ -1605,6 +1621,140 @@ impl<T: Frontend> App<T> {
             .handle_dispatch_editor(&mut self.context, dispatch_editor)?;
 
         self.handle_dispatches(dispatches)?;
+
+        #[cfg(feature = "vscode")]
+        {
+            if let Some(editor) = component
+                .borrow_mut()
+                .as_any_mut()
+                .downcast_ref::<SuggestiveEditor>()
+            {
+                if let Some(buffer_id_owned) = editor
+                    .editor()
+                    .buffer()
+                    .path()
+                    .map(|p| p.display_absolute())
+                {
+                    trace!("Buffer ID found: {}", buffer_id_owned);
+                    // 1. Send Mode Updates
+                    let current_mode = editor.editor().mode.clone();
+                    let current_selection_mode = editor.editor().display_selection_mode();
+                    trace!(
+                        "Current Mode: {:?}, Selection Mode: {}",
+                        current_mode,
+                        current_selection_mode
+                    );
+
+                    let mode_params = ki_protocol_types::ModeParams {
+                        buffer_id: Some(buffer_id_owned.clone()),
+                        mode: crate::vscode::utils::mode_to_protocol(&current_mode),
+                    };
+                    trace!("Sending ModeChanged notification: {:?}", mode_params);
+                    self.send_vscode_notification(ki_protocol_types::OutputMessageWrapper {
+                        id: 0,
+
+                        message: ki_protocol_types::OutputMessage::ModeChange(mode_params),
+                        error: None,
+                    })?;
+
+                    let sel_mode_params = ki_protocol_types::ModeParams {
+                        buffer_id: Some(buffer_id_owned.clone()),
+                        mode: crate::vscode::utils::selection_mode_to_protocol(
+                            &current_selection_mode,
+                        ),
+                    };
+                    trace!(
+                        "Sending SelectionModeChanged notification: {:?}",
+                        sel_mode_params
+                    );
+                    self.send_vscode_notification(ki_protocol_types::OutputMessageWrapper {
+                        id: 0,
+                        message: ki_protocol_types::OutputMessage::SelectionModeChange(
+                            sel_mode_params,
+                        ),
+                        error: None,
+                    })?;
+
+                    // 2. & 3. Send Cursor and Selection Updates based on current SelectionSet
+                    let internal_selection_set = editor.editor().selection_set.clone();
+                    let ki_selections = &internal_selection_set.selections;
+                    let buffer = editor.editor().buffer();
+
+                    // --- Prepare Data for Both Notifications ---
+                    let mut anchors = Vec::with_capacity(ki_selections.len());
+                    let mut actives = Vec::with_capacity(ki_selections.len());
+                    let mut vscode_selections: Vec<ki_protocol_types::Selection> =
+                        Vec::with_capacity(ki_selections.len());
+
+                    for sel in ki_selections {
+                        let is_extended = sel.initial_range.is_some();
+
+                        let range = sel.extended_range();
+                        let anchor_char_index = range.start;
+                        let active_char_index = range.end;
+
+                        // Convert CharIndex to internal Position
+                        let anchor_internal_pos = anchor_char_index.to_position(&buffer);
+                        let active_internal_pos = active_char_index.to_position(&buffer);
+
+                        // Convert internal Position to protocol Position
+                        let anchor_vscode_pos =
+                            crate::vscode::utils::ki_position_to_vscode_position(
+                                &anchor_internal_pos,
+                            );
+                        let active_vscode_pos =
+                            crate::vscode::utils::ki_position_to_vscode_position(
+                                &active_internal_pos,
+                            );
+
+                        // For CursorUpdate
+                        anchors.push(anchor_vscode_pos.clone());
+                        actives.push(active_vscode_pos.clone());
+
+                        vscode_selections.push(ki_protocol_types::Selection {
+                            anchor: anchor_vscode_pos,
+                            active: active_vscode_pos,
+                            is_extended,
+                        });
+                    }
+
+                    // --- Send Cursor Update ---
+                    let cursor_params = ki_protocol_types::CursorParams {
+                        buffer_id: buffer_id_owned.clone(),
+                        anchors,
+                        actives,
+                    };
+                    trace!("Sending CursorUpdate notification: {:?}", cursor_params);
+                    self.send_vscode_notification(ki_protocol_types::OutputMessageWrapper {
+                        id: 0,
+                        message: ki_protocol_types::OutputMessage::CursorUpdate(cursor_params),
+                        error: None,
+                    })?;
+
+                    // --- Send Selection Update ---
+                    let selection_params = ki_protocol_types::SelectionSet {
+                        buffer_id: buffer_id_owned.clone(),
+                        selections: vscode_selections,
+                        primary: internal_selection_set.cursor_index,
+                    };
+                    trace!(
+                        "Sending SelectionChange notification: {:?}",
+                        selection_params
+                    );
+                    self.send_vscode_notification(ki_protocol_types::OutputMessageWrapper {
+                        id: 0,
+                        message: ki_protocol_types::OutputMessage::SelectionUpdate(
+                            selection_params,
+                        ),
+                        error: None,
+                    })?;
+                } else {
+                    trace!("Could not get buffer ID for component");
+                }
+            } else {
+                trace!("Component is not a SuggestiveEditor after dispatch OR borrow failed, cannot send state notifications.");
+            }
+        }
         Ok(())
     }
 
@@ -1662,7 +1812,7 @@ impl<T: Frontend> App<T> {
         self.context.set_mode(mode);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "vscode"))]
     pub(crate) fn context(&self) -> &Context {
         &self.context
     }
@@ -2385,6 +2535,28 @@ impl<T: Frontend> App<T> {
         if let Some(path) = self.get_current_file_path() {
             if let Some(new_path) = self.context.toggle_file_mark(path).cloned() {
                 self.open_file(&new_path, BufferOwner::User, true, true)?;
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "vscode")]
+    /// Sends a notification to the VSCode integration if the channel is set up.
+    fn send_vscode_notification(
+        &self,
+        notification: ki_protocol_types::OutputMessageWrapper,
+    ) -> Result<(), anyhow::Error> {
+        if let Some(sender) = &self.vscode_notification_sender {
+            match sender.send(notification.clone()) {
+                Ok(_) => {
+                    trace!("Sent notification to VSCode: {:?}", notification);
+                }
+                Err(e) => {
+                    warn!(
+                        "Failed to send notification to VSCode: {}. Channel might be disconnected.",
+                        e
+                    );
+                }
             }
         }
         Ok(())

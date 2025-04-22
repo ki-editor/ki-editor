@@ -1235,7 +1235,7 @@ impl Editor {
         self.recalculate_scroll_offset(context)
     }
 
-    fn get_selection_set(
+    pub(crate) fn get_selection_set(
         &self,
         mode: &SelectionMode,
         movement: Movement,
@@ -2831,7 +2831,7 @@ impl Editor {
         }
     }
 
-    fn set_selection_set(&mut self, selection_set: SelectionSet, context: &Context) {
+    pub(crate) fn set_selection_set(&mut self, selection_set: SelectionSet, context: &Context) {
         self.selection_set = selection_set;
         self.recalculate_scroll_offset(context)
     }

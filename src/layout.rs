@@ -67,7 +67,7 @@ impl Layout {
         self.get_component(self.tree.focused_component_id())
     }
 
-    fn get_component(&self, id: NodeId) -> Rc<RefCell<dyn Component>> {
+    pub(crate) fn get_component(&self, id: NodeId) -> Rc<RefCell<dyn Component>> {
         self.tree
             .get(id)
             .map(|node| node.data().component())
