@@ -390,6 +390,7 @@ impl<T: Frontend> App<T> {
                 }]
                 .to_vec(),
                 self.context.theme(),
+                None,
             );
             Window::new(
                 grid,

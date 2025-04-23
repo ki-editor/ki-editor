@@ -57,6 +57,9 @@ impl Theme {
             StyleKey::UiPrimarySelection => {
                 Style::new().background_color(self.ui.primary_selection_background)
             }
+            StyleKey::UiCursorLineNumber => {
+                Style::new().background_color(self.ui.primary_selection_background)
+            }
             StyleKey::UiPrimarySelectionAnchors => {
                 Style::new().background_color(self.ui.primary_selection_anchor_background)
             }
