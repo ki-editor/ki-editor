@@ -5,6 +5,7 @@
 /target
 tree_sitter_quickfix/build/
 tree_sitter_quickfix/node_modules/
+ki-vscode/node_modules/
 docs/assets/recipes.json
 .roo
 .direnv

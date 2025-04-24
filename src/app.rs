@@ -1690,8 +1690,14 @@ impl<T: Frontend> App<T> {
                         let is_extended = sel.initial_range.is_some();
 
                         let range = sel.extended_range();
-                        let anchor_char_index = range.start;
-                        let active_char_index = range.end;
+                        let active_char_index = match editor.editor().cursor_direction {
+                            Direction::Start => range.start,
+                            Direction::End => range.end,
+                        };
+                        let anchor_char_index = match editor.editor().cursor_direction {
+                            Direction::Start => range.end,
+                            Direction::End => range.start,
+                        };
 
                         // Convert CharIndex to internal Position
                         let anchor_internal_pos = anchor_char_index.to_position(&buffer);
