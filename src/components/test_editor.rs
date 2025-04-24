@@ -4587,3 +4587,62 @@ fn enter_normal_mode_select_previous_selection() -> anyhow::Result<()> {
     )?;
     Ok(())
 }
+
+#[test]
+fn paste_maintains_relative_indentations_of_each_line() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+fn foo() {
+    fn bar() {
+       spam();
+    }
+    fn chavez() {
+        loka();
+    }
+}
+
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("fn bar()".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
+            Editor(MatchLiteral("loka();".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(Paste {
+                direction: Direction::End,
+                use_system_clipboard: false,
+            }),
+            Expect(CurrentComponentContent(
+                "
+fn foo() {
+    fn bar() {
+       spam();
+    }
+    fn chavez() {
+        loka();
+        fn bar() {
+           spam();
+        }
+    }
+}
+
+"
+                .trim(),
+            )),
+            Expect(CurrentSelectedTexts(&["fn bar() {
+           spam();
+        }"])),
+        ])
+    })
+}

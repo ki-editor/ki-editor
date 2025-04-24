@@ -165,14 +165,20 @@ impl ExpectKind {
         fn contextualize<T: PartialEq + std::fmt::Debug>(a: T, b: T) -> (bool, String) {
             (a == b, format!("\n{a:?}\n == \n{b:?}\n",))
         }
+        fn contextualize_string(a: &String, b: &String) -> (bool, String) {
+            (
+                a == b,
+                format!("ESCAPED:\n\n{a:?}\n == \n{b:?}\n\n NOT ESCAPED:\n\n{a}\n == \n{b}\n\n",),
+            )
+        }
         fn to_vec(strs: &[&str]) -> Vec<String> {
             strs.iter().map(|t| t.to_string()).collect()
         }
         let component = app.current_component();
         Ok(match self {
-            CurrentComponentContent(expected_content) => contextualize(
-                app.get_current_component_content(),
-                expected_content.to_string(),
+            CurrentComponentContent(expected_content) => contextualize_string(
+                &app.get_current_component_content(),
+                &expected_content.to_string(),
             ),
             FileContent(path, expected_content) => {
                 contextualize(app.get_file_content(path), expected_content.clone())

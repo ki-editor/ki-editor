@@ -32,7 +32,7 @@ use event::KeyEvent;
 use itertools::{Either, Itertools};
 use my_proc_macros::key;
 use nonempty::NonEmpty;
-use ropey::Rope;
+use ropey::{Rope, RopeSlice};
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -1093,24 +1093,69 @@ impl Editor {
                     let copied_text_len = copied_text.len_chars();
 
                     let (selection_range, paste_text) = if self.mode == Mode::Normal {
-                        let range: CharIndexRange =
-                            (insertion_range_start..insertion_range_start + copied_text_len).into();
-                        let selection_range = match direction {
-                            Direction::Start => range,
-                            Direction::End => range.shift_right(gap.len_chars()),
-                        };
+                        let gap_len_chars = gap.len_chars();
                         let paste_text = {
                             match direction {
-                                Direction::Start => {
-                                    let mut paste_text = copied_text;
-                                    paste_text.append(gap);
-                                    paste_text
-                                }
+                                Direction::Start => copied_text,
                                 Direction::End => {
-                                    let mut gap = gap;
-                                    gap.append(copied_text);
-                                    gap
+                                    fn count_indent_width(line: RopeSlice) -> usize {
+                                        line.chars().take_while(|c| c.is_ascii_whitespace()).count()
+                                    }
+                                    let new_indent_width = gap
+                                        .lines()
+                                        .last()
+                                        .map(count_indent_width)
+                                        .unwrap_or_default();
+                                    let smallest_indent_width = copied_text
+                                        .lines()
+                                        .skip(1)
+                                        .map(count_indent_width)
+                                        .min()
+                                        .unwrap_or_default();
+                                    let first_indent_width = copied_text
+                                        .lines()
+                                        .next()
+                                        .map(count_indent_width)
+                                        .unwrap_or_default();
+                                    let adjusment =
+                                        new_indent_width.saturating_sub(smallest_indent_width);
+                                    let indent_adjusted_copied_text = copied_text
+                                        .lines()
+                                        .enumerate()
+                                        .map(|(index, line)| {
+                                            if index == 0 {
+                                                line.to_string()
+                                            } else {
+                                                let new_indent_width =
+                                                    count_indent_width(line) + adjusment;
+                                                (0..new_indent_width)
+                                                    .map(|_| ' ')
+                                                    .chain(
+                                                        line.chars()
+                                                            .skip_while(|c| c.is_whitespace()),
+                                                    )
+                                                    .join("")
+                                            }
+                                        })
+                                        .join("");
+                                    indent_adjusted_copied_text.into()
                                 }
+                            }
+                        };
+
+                        let range: CharIndexRange = (insertion_range_start
+                            ..insertion_range_start + paste_text.len_chars())
+                            .into();
+                        let selection_range = match direction {
+                            Direction::Start => range,
+                            Direction::End => range.shift_right(gap_len_chars),
+                        };
+                        let paste_text = match direction {
+                            Direction::Start => {
+                                format!("{}{}", paste_text.to_string(), gap.to_string())
+                            }
+                            Direction::End => {
+                                format!("{}{}", gap.to_string(), paste_text.to_string())
                             }
                         };
                         (selection_range, paste_text)
@@ -1118,14 +1163,14 @@ impl Editor {
                         let start = insertion_range_start + copied_text_len;
                         let selection_range = (start..start).into();
                         let paste_text = copied_text;
-                        (selection_range, paste_text)
+                        (selection_range, paste_text.to_string())
                     };
                     ActionGroup::new(
                         [
                             Action::Edit(Edit::new(
                                 self.buffer().rope(),
                                 insertion_range.into(),
-                                paste_text,
+                                paste_text.into(),
                             )),
                             Action::Select(
                                 selection.set_range(selection_range).set_initial_range(None),
