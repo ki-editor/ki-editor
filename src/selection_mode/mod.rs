@@ -40,7 +40,7 @@ use crate::{
     buffer::Buffer,
     char_index_range::{range_intersects, CharIndexRange},
     components::{
-        editor::{Direction, IfCurrentNotFound, Jump, Movement, SurroundKind},
+        editor::{Direction, IfCurrentNotFound, Jump, MovementApplicandum, SurroundKind},
         suggestive_editor::Info,
     },
     position::Position,
@@ -267,6 +267,7 @@ impl SelectionModeParams<'_> {
 pub(crate) struct ApplyMovementResult {
     pub(crate) selection: Selection,
     pub(crate) mode: Option<crate::selection::SelectionMode>,
+    pub(crate) sticky_column_index: Option<usize>,
 }
 
 impl ApplyMovementResult {
@@ -274,6 +275,7 @@ impl ApplyMovementResult {
         Self {
             selection,
             mode: None,
+            sticky_column_index: None,
         }
     }
 }
@@ -335,12 +337,20 @@ impl<T: PositionBasedSelectionMode> SelectionModeTrait for PositionBased<T> {
         self.0.all_selections(params)
     }
 
-    fn up(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.up(params)
+    fn up(
+        &self,
+        params: &SelectionModeParams,
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        self.0.up(params, sticky_column_index)
     }
 
-    fn down(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.down(params)
+    fn down(
+        &self,
+        params: &SelectionModeParams,
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        self.0.down(params, sticky_column_index)
     }
 
     fn expand(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
@@ -404,7 +414,7 @@ pub trait SelectionModeTrait {
     fn apply_movement(
         &self,
         params: &SelectionModeParams,
-        movement: Movement,
+        movement: MovementApplicandum,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         fn convert(
             result: anyhow::Result<Option<Selection>>,
@@ -412,31 +422,43 @@ pub trait SelectionModeTrait {
             Ok(result?.map(|result| result.into()))
         }
         match movement {
-            Movement::Right => convert(self.right(params)),
+            MovementApplicandum::Right => convert(self.right(params)),
 
-            Movement::Left => convert(self.left(params)),
-            Movement::Beta => convert(self.beta(params)),
-            Movement::Current(if_current_not_found) => {
+            MovementApplicandum::Left => convert(self.left(params)),
+            MovementApplicandum::Beta => convert(self.beta(params)),
+            MovementApplicandum::Current(if_current_not_found) => {
                 convert(self.current(params, if_current_not_found))
             }
-            Movement::Alpha => convert(self.alpha(params)),
-            Movement::Index(index) => convert(self.to_index(params, index)),
-            Movement::Jump(range) => Ok(Some(ApplyMovementResult::from_selection(
+            MovementApplicandum::Alpha => convert(self.alpha(params)),
+            MovementApplicandum::Index(index) => convert(self.to_index(params, index)),
+            MovementApplicandum::Jump(range) => Ok(Some(ApplyMovementResult::from_selection(
                 params.current_selection.clone().set_range(range),
             ))),
-            Movement::Up => convert(self.up(params)),
-            Movement::Down => convert(self.down(params)),
-            Movement::Expand => self.expand(params),
-            Movement::DeleteBackward => convert(self.delete_backward(params)),
-            Movement::DeleteForward => convert(self.delete_forward(params)),
+            MovementApplicandum::Up {
+                sticky_column_index,
+            } => self.up(params, sticky_column_index),
+            MovementApplicandum::Down {
+                sticky_column_index,
+            } => self.down(params, sticky_column_index),
+            MovementApplicandum::Expand => self.expand(params),
+            MovementApplicandum::DeleteBackward => convert(self.delete_backward(params)),
+            MovementApplicandum::DeleteForward => convert(self.delete_forward(params)),
         }
     }
 
     fn expand(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>>;
 
-    fn up(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
+    fn up(
+        &self,
+        params: &SelectionModeParams,
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>>;
 
-    fn down(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
+    fn down(
+        &self,
+        params: &SelectionModeParams,
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>>;
 
     fn selections_in_line_number_ranges(
         &self,
@@ -854,26 +876,40 @@ pub trait PositionBasedSelectionMode {
         params.expand()
     }
 
-    fn up(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.vertical_movement(params, true)
+    fn up(
+        &self,
+        params: &SelectionModeParams,
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        self.vertical_movement(params, true, sticky_column_index)
     }
 
-    fn down(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.vertical_movement(params, false)
+    fn down(
+        &self,
+        params: &SelectionModeParams,
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        self.vertical_movement(params, false, sticky_column_index)
     }
 
     fn vertical_movement(
         &self,
         params: &SelectionModeParams,
         is_up: bool,
-    ) -> anyhow::Result<Option<Selection>> {
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
         let cursor_char_index = params.cursor_char_index();
         let SelectionModeParams {
             buffer,
             current_selection,
             ..
         } = params;
-        let current_position = buffer.char_to_position(cursor_char_index)?;
+        let sticky_column_index = sticky_column_index
+            .or_else(|| Some(buffer.char_to_position(cursor_char_index).ok()?.column));
+        let current_position = {
+            let cursor_position = buffer.char_to_position(cursor_char_index)?;
+            cursor_position.set_column(sticky_column_index.unwrap_or(cursor_position.column))
+        };
 
         // Early return check
         if (is_up && current_position.line == 0)
@@ -914,18 +950,20 @@ pub trait PositionBasedSelectionMode {
                 IfCurrentNotFound::LookBackward,
             )
         };
-
         loop {
             if let Some(result) =
                 self.get_current_selection_by_cursor(buffer, new_cursor_char_index, first_look)?
             {
                 if buffer.byte_to_line(result.range.start)? == new_position.line {
-                    return Ok(Some(
-                        (*current_selection)
-                            .clone()
-                            .set_range(buffer.byte_range_to_char_index_range(&result.range)?)
-                            .set_info(result.info),
-                    ));
+                    let selection = (*current_selection)
+                        .clone()
+                        .set_range(buffer.byte_range_to_char_index_range(&result.range)?)
+                        .set_info(result.info);
+                    return Ok(Some(ApplyMovementResult {
+                        selection,
+                        mode: None,
+                        sticky_column_index,
+                    }));
                 }
             }
 
@@ -933,12 +971,15 @@ pub trait PositionBasedSelectionMode {
                 self.get_current_selection_by_cursor(buffer, new_cursor_char_index, second_look)?
             {
                 if buffer.byte_to_line(result.range.start)? == new_position.line {
-                    return Ok(Some(
-                        (*current_selection)
-                            .clone()
-                            .set_range(buffer.byte_range_to_char_index_range(&result.range)?)
-                            .set_info(result.info),
-                    ));
+                    let selection = (*current_selection)
+                        .clone()
+                        .set_range(buffer.byte_range_to_char_index_range(&result.range)?)
+                        .set_info(result.info);
+                    return Ok(Some(ApplyMovementResult {
+                        selection,
+                        mode: None,
+                        sticky_column_index,
+                    }));
                 }
             }
 
@@ -1065,12 +1106,20 @@ impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
         self.0.expand(params)
     }
 
-    fn up(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.up(params)
+    fn up(
+        &self,
+        params: &SelectionModeParams,
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        self.0.up(params, sticky_column_index)
     }
 
-    fn down(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.down(params)
+    fn down(
+        &self,
+        params: &SelectionModeParams,
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        self.0.down(params, sticky_column_index)
     }
 
     fn selections_in_line_number_ranges(
@@ -1334,19 +1383,28 @@ pub(crate) trait IterBasedSelectionMode {
         )))
     }
 
-    fn up(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.select_vertical(params, std::cmp::Ordering::Less)
+    fn up(
+        &self,
+        params: &SelectionModeParams,
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        self.select_vertical(params, std::cmp::Ordering::Less, sticky_column_index)
     }
 
-    fn down(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.select_vertical(params, std::cmp::Ordering::Greater)
+    fn down(
+        &self,
+        params: &SelectionModeParams,
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        self.select_vertical(params, std::cmp::Ordering::Greater, sticky_column_index)
     }
 
     fn select_vertical(
         &self,
         params: &SelectionModeParams,
         ordering: std::cmp::Ordering,
-    ) -> anyhow::Result<Option<Selection>> {
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
         let SelectionModeParams {
             buffer,
             current_selection,
@@ -1365,13 +1423,19 @@ pub(crate) trait IterBasedSelectionMode {
             .sorted_by_key(|(position, _)| {
                 (
                     current_line.abs_diff(position.line),
-                    position.column.abs_diff(current_position.column),
+                    position
+                        .column
+                        .abs_diff(sticky_column_index.unwrap_or(current_position.column)),
                 )
             })
             .next()
             .map(|(_, range)| range.to_selection(buffer, current_selection))
             .transpose()?;
-        Ok(selection)
+        Ok(selection.map(|selection| ApplyMovementResult {
+            selection,
+            mode: None,
+            sticky_column_index: Some(sticky_column_index.unwrap_or(current_position.column)),
+        }))
     }
 
     fn selections_in_line_number_ranges(
@@ -1607,7 +1671,7 @@ mod test_selection_mode {
         buffer::Buffer,
         char_index_range::CharIndexRange,
         components::{
-            editor::{Direction, IfCurrentNotFound, Movement},
+            editor::{Direction, IfCurrentNotFound, Movement, MovementApplicandum},
             suggestive_editor::Info,
         },
         selection::{CharIndex, Selection},
@@ -1632,7 +1696,7 @@ mod test_selection_mode {
     }
 
     fn test(
-        movement: Movement,
+        movement: MovementApplicandum,
         current_selection_byte_range: Range<usize>,
         expected_selection_byte_range: Range<usize>,
     ) {
@@ -1663,50 +1727,50 @@ mod test_selection_mode {
 
     #[test]
     fn previous() {
-        test(Movement::Left, 1..6, 0..6);
-        test(Movement::Left, 2..5, 1..6);
-        test(Movement::Left, 3..5, 3..4);
+        test(MovementApplicandum::Left, 1..6, 0..6);
+        test(MovementApplicandum::Left, 2..5, 1..6);
+        test(MovementApplicandum::Left, 3..5, 3..4);
 
-        test(Movement::Left, 3..4, 2..5);
+        test(MovementApplicandum::Left, 3..4, 2..5);
     }
 
     #[test]
     fn next() {
-        test(Movement::Right, 0..6, 1..6);
-        test(Movement::Right, 1..6, 2..5);
-        test(Movement::Right, 2..5, 3..4);
-        test(Movement::Right, 3..4, 3..5);
+        test(MovementApplicandum::Right, 0..6, 1..6);
+        test(MovementApplicandum::Right, 1..6, 2..5);
+        test(MovementApplicandum::Right, 2..5, 3..4);
+        test(MovementApplicandum::Right, 3..4, 3..5);
     }
 
     #[test]
     fn first() {
-        test(Movement::Alpha, 0..1, 0..6);
+        test(MovementApplicandum::Alpha, 0..1, 0..6);
     }
 
     #[test]
     fn last() {
-        test(Movement::Beta, 0..0, 3..5);
+        test(MovementApplicandum::Beta, 0..0, 3..5);
     }
 
     #[test]
     fn current() {
         test(
-            Movement::Current(IfCurrentNotFound::LookForward),
+            MovementApplicandum::Current(IfCurrentNotFound::LookForward),
             0..1,
             0..6,
         );
         test(
-            Movement::Current(IfCurrentNotFound::LookForward),
+            MovementApplicandum::Current(IfCurrentNotFound::LookForward),
             5..6,
             1..6,
         );
         test(
-            Movement::Current(IfCurrentNotFound::LookForward),
+            MovementApplicandum::Current(IfCurrentNotFound::LookForward),
             1..2,
             1..6,
         );
         test(
-            Movement::Current(IfCurrentNotFound::LookForward),
+            MovementApplicandum::Current(IfCurrentNotFound::LookForward),
             3..3,
             3..4,
         );
@@ -1715,8 +1779,8 @@ mod test_selection_mode {
     #[test]
     fn to_index() {
         let current = 0..0;
-        test(Movement::Index(0), current.clone(), 0..6);
-        test(Movement::Index(1), current, 1..6)
+        test(MovementApplicandum::Index(0), current.clone(), 0..6);
+        test(MovementApplicandum::Index(1), current, 1..6)
     }
 
     #[test]
@@ -1754,7 +1818,7 @@ mod test_selection_mode {
         }
         let run_test = |movement: Movement, expected_info: &str| {
             let actual = IterBased(Dummy)
-                .apply_movement(&params, movement)
+                .apply_movement(&params, movement.into_movement_applicandum(&None))
                 .unwrap()
                 .unwrap()
                 .selection;
@@ -1785,7 +1849,7 @@ mod test_selection_mode {
             cursor_direction: &Direction::default(),
         };
         let actual = IterBased(Dummy)
-            .apply_movement(&params, Movement::Right)
+            .apply_movement(&params, MovementApplicandum::Right)
             .unwrap()
             .unwrap()
             .selection

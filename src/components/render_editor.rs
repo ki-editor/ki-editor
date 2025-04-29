@@ -486,34 +486,35 @@ impl Editor {
         use StyleKey::*;
         let theme = context.theme();
         let buffer = self.buffer();
-        let possible_selections = if self.selection_set.mode.is_contiguous() {
-            Default::default()
-        } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
-            protected_range
-                .and_then(|protected_range| {
-                    buffer.char_index_range_to_byte_range(protected_range).ok()
-                })
-                .into_iter()
-                .map(ByteRange::new)
-                .collect()
-        } else {
-            self
-                //.possible_selections(self.selection_set.primary_selection(), context)
-                .possible_selections_in_line_number_range(
-                    self.selection_set.primary_selection(),
-                    context,
-                    visible_line_range,
-                )
-                .unwrap_or_default()
-        }
-        .into_iter()
-        .map(|range| HighlightSpan {
-            set_symbol: None,
-            is_cursor: false,
-            range: HighlightSpanRange::ByteRange(range.range().clone()),
-            source: Source::StyleKey(UiPossibleSelection),
-            is_protected_range_start: false,
-        });
+        let possible_selections =
+            if self.selection_set.mode.is_contiguous() && self.reveal.is_none() {
+                Default::default()
+            } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
+                protected_range
+                    .and_then(|protected_range| {
+                        buffer.char_index_range_to_byte_range(protected_range).ok()
+                    })
+                    .into_iter()
+                    .map(ByteRange::new)
+                    .collect()
+            } else {
+                self
+                    //.possible_selections(self.selection_set.primary_selection(), context)
+                    .possible_selections_in_line_number_range(
+                        self.selection_set.primary_selection(),
+                        context,
+                        visible_line_range,
+                    )
+                    .unwrap_or_default()
+            }
+            .into_iter()
+            .map(|range| HighlightSpan {
+                set_symbol: None,
+                is_cursor: false,
+                range: HighlightSpanRange::ByteRange(range.range().clone()),
+                source: Source::StyleKey(UiPossibleSelection),
+                is_protected_range_start: false,
+            });
 
         let marks = buffer
             .marks()
