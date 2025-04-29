@@ -46,6 +46,16 @@ the following selection modes:
 | Syntax Node    | Parent or First-Sibling             |
 | Quickfix       | To first item of next/previous file |
 
+#### Sticky Column
+
+When a vertical movement is executed, the current cursor column will be stored as
+the sticky column, such that subsequent vertical movements will try to adhere as much
+as possible to that sticky column.
+
+The sticky column will be cleared once any non-vertical movement is executed.
+
+<TutorialFallback filename="sticky-column"/>
+
 ### `◀◀` `▶▶` Alpha/Beta
 
 By default, Alpha/Beta moves to the First/Last selection of the current selection mode.
