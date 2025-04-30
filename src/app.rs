@@ -347,12 +347,16 @@ impl<T: Frontend> App<T> {
                     .iter()
                     .filter_map(|component| match component {
                         StatusLineComponent::CurrentWorkingDirectory => {
-                            Some(FlexLayoutComponent::Text(
-                                self.working_directory
+                            Some(FlexLayoutComponent::Text({
+                                let cwd = self
+                                    .working_directory
                                     .display_relative_to_home()
                                     .ok()
-                                    .unwrap_or_else(|| self.working_directory.display_absolute()),
-                            ))
+                                    .unwrap_or_else(|| self.working_directory.display_absolute());
+                                self.current_branch()
+                                    .map(|branch| format!("{cwd} ({branch})"))
+                                    .unwrap_or(cwd)
+                            }))
                         }
                         StatusLineComponent::GitBranch => {
                             self.current_branch().map(FlexLayoutComponent::Text)
@@ -417,19 +421,42 @@ impl<T: Frontend> App<T> {
                             "PID:{}",
                             std::process::id()
                         ))),
-                        StatusLineComponent::LineColumn => self
-                            .current_component()
-                            .borrow()
-                            .editor()
-                            .get_cursor_position()
-                            .ok()
-                            .map(|position| {
-                                FlexLayoutComponent::Text(format!(
-                                    "{}:{}",
-                                    position.line + 1,
-                                    position.column + 1
-                                ))
-                            }),
+                        StatusLineComponent::LineColumn => {
+                            let primary_selection_range = self
+                                .current_component()
+                                .borrow()
+                                .editor()
+                                .editor()
+                                .selection_set
+                                .primary_selection()
+                                .extended_range();
+                            fn format_position(position: Position) -> String {
+                                format!("{}:{}", position.line + 1, position.column + 1)
+                            }
+                            self.current_component()
+                                .borrow()
+                                .editor()
+                                .buffer()
+                                .char_index_range_to_position_range(primary_selection_range)
+                                .ok()
+                                .map(|range| {
+                                    FlexLayoutComponent::Text(if range.start == range.end {
+                                        format_position(range.start)
+                                    } else if range.start.line == range.end.line {
+                                        format!(
+                                            "{}-{}",
+                                            format_position(range.start),
+                                            range.end.column
+                                        )
+                                    } else {
+                                        format!(
+                                            "{}-{}",
+                                            format_position(range.start),
+                                            format_position(range.end)
+                                        )
+                                    })
+                                })
+                        }
                     })
                     .collect_vec(),
             )
@@ -2314,9 +2341,18 @@ impl<T: Frontend> App<T> {
                 on_enter: DispatchPrompt::Null,
                 items: KeyboardLayoutKind::iter()
                     .map(|keyboard_layout| {
-                        DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
-                            Dispatches::one(Dispatch::SetKeyboardLayoutKind(keyboard_layout)),
-                        )
+                        DropdownItem::new(keyboard_layout.display().to_string())
+                            .set_info(Some(Info::new(
+                                "Layout".to_string(),
+                                keyboard_layout
+                                    .get_keyboard_layout()
+                                    .into_iter()
+                                    .map(|row| row.join(" "))
+                                    .join("\n"),
+                            )))
+                            .set_dispatches(Dispatches::one(Dispatch::SetKeyboardLayoutKind(
+                                keyboard_layout,
+                            )))
                     })
                     .collect_vec(),
                 title: "Keyboard Layout".to_string(),

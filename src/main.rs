@@ -96,12 +96,11 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
                 StatusLine::new(
                     [
                         CurrentWorkingDirectory,
-                        GitBranch,
-                        Spacer,
                         ProcessId,
-                        LocalSearchConfig,
                         KeyboardLayout,
+                        LocalSearchConfig,
                         Help,
+                        Spacer,
                         LineColumn,
                     ]
                     .to_vec(),
