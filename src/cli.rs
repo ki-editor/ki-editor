@@ -50,7 +50,7 @@ enum Commands {
         command: HighlightQuery,
     },
     /// Prints the log file path
-    Log,
+    Log(LogArgs),
     /// Display the keymap in various formats
     Keymap {
         #[command(subcommand)]
@@ -70,6 +70,13 @@ struct EditArgs {
 #[derive(Args)]
 struct InArgs {
     path: String,
+}
+
+#[derive(Args)]
+struct LogArgs {
+    /// Get the log path of the given Ki's process ID.
+    /// If this is undefined, the path of most recently created log will be returned.
+    process_id: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -176,11 +183,16 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                 };
                 Ok(())
             }
-            Commands::Log => {
-                println!(
-                    "{}",
-                    CanonicalizedPath::try_from(grammar::default_log_file())?.display_absolute(),
-                );
+            Commands::Log(args) => {
+                if let Some(path) = grammar::get_log_file(args.process_id)? {
+                    println!("{}", CanonicalizedPath::try_from(path)?.display_absolute(),);
+                } else {
+                    println!(
+                        "No log files found at {}",
+                        CanonicalizedPath::try_from(grammar::log_dir())?
+                            .try_display_relative_to_home()
+                    );
+                }
                 Ok(())
             }
             Commands::Keymap { command } => {

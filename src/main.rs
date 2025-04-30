@@ -46,6 +46,7 @@ mod utils;
 mod divide_viewport;
 mod env;
 mod format_path_list;
+mod render_flex_layout;
 use std::{rc::Rc, sync::Mutex};
 
 use anyhow::Context;
@@ -53,7 +54,7 @@ use frontend::crossterm::Crossterm;
 use log::LevelFilter;
 use shared::canonicalized_path::CanonicalizedPath;
 
-use app::{App, StatusLineComponent};
+use app::{App, StatusLine, StatusLineComponent};
 
 use crate::app::AppMessage;
 
@@ -69,6 +70,7 @@ pub(crate) struct RunConfig {
 
 pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
     std::fs::create_dir_all(grammar::cache_dir()).context("Failed to create cache_dir")?;
+    grammar::initialize_log_file(None);
     simple_logging::log_to_file(grammar::default_log_file(), LevelFilter::Info)?;
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
@@ -77,19 +79,37 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         config.working_directory.unwrap_or(".".try_into()?),
         sender,
         receiver,
-        [
-            StatusLineComponent::Help,
-            StatusLineComponent::KeyboardLayout,
-            StatusLineComponent::CurrentWorkingDirectory,
-            StatusLineComponent::GitBranch,
-            StatusLineComponent::ViewAlignment,
-            StatusLineComponent::Reveal,
-            StatusLineComponent::Mode,
-            StatusLineComponent::SelectionMode,
-            StatusLineComponent::LocalSearchConfig,
-            StatusLineComponent::LastDispatch,
-        ]
-        .to_vec(),
+        {
+            use StatusLineComponent::*;
+            [
+                StatusLine::new(
+                    [
+                        Mode,
+                        SelectionMode,
+                        ViewAlignment,
+                        Reveal,
+                        Spacer,
+                        LastDispatch,
+                    ]
+                    .to_vec(),
+                ),
+                StatusLine::new(
+                    [
+                        CurrentWorkingDirectory,
+                        GitBranch,
+                        Spacer,
+                        ProcessId,
+                        LocalSearchConfig,
+                        KeyboardLayout,
+                        Help,
+                        LineColumn,
+                    ]
+                    .to_vec(),
+                ),
+            ]
+            .into_iter()
+            .collect()
+        },
     )?;
     app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 

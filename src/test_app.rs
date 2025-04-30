@@ -22,7 +22,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
     app::{
-        App, Dimension, Dispatch, LocalSearchConfigUpdate, RequestParams, Scope,
+        App, Dimension, Dispatch, LocalSearchConfigUpdate, RequestParams, Scope, StatusLine,
         StatusLineComponent,
     },
     buffer::BufferOwner,
@@ -506,7 +506,11 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
     execute_test_helper(
         || Box::new(NullWriter),
         false,
-        [StatusLineComponent::LastDispatch].to_vec(),
+        [StatusLine::new(
+            [StatusLineComponent::LastDispatch].to_vec(),
+        )]
+        .into_iter()
+        .collect_vec(),
         callback,
         true,
     )?;
@@ -520,12 +524,16 @@ pub(crate) fn execute_recipe(
     execute_test_helper(
         || Box::new(StringWriter::new()),
         true,
-        [
-            StatusLineComponent::Mode,
-            StatusLineComponent::SelectionMode,
-            StatusLineComponent::LastDispatch,
-        ]
-        .to_vec(),
+        [StatusLine::new(
+            [
+                StatusLineComponent::Mode,
+                StatusLineComponent::SelectionMode,
+                StatusLineComponent::LastDispatch,
+            ]
+            .to_vec(),
+        )]
+        .into_iter()
+        .collect_vec(),
         callback,
         assert_last_step_is_expect,
     )
@@ -534,11 +542,11 @@ pub(crate) fn execute_recipe(
 fn execute_test_helper(
     writer: fn() -> Box<dyn MyWriter>,
     render: bool,
-    status_line_components: Vec<StatusLineComponent>,
+    status_lines: Vec<StatusLine>,
     callback: impl Fn(State) -> Box<[Step]>,
     assert_last_step_is_expect: bool,
 ) -> anyhow::Result<Option<String>> {
-    run_test(writer, status_line_components, |mut app, temp_dir| {
+    run_test(writer, status_lines, |mut app, temp_dir| {
         let steps = {
             callback(State {
                 main_rs: temp_dir.join("src/main.rs").unwrap(),
@@ -609,17 +617,13 @@ fn execute_test_helper(
 
 fn run_test(
     writer: fn() -> Box<dyn MyWriter>,
-    status_line_components: Vec<StatusLineComponent>,
+    status_lines: Vec<StatusLine>,
     callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<()>,
 ) -> anyhow::Result<Option<String>> {
     TestRunner::run(move |temp_dir| {
         let frontend = Rc::new(Mutex::new(MockFrontend::new(writer())));
 
-        let mut app = App::new(
-            frontend.clone(),
-            temp_dir.clone(),
-            status_line_components.clone(),
-        )?;
+        let mut app = App::new(frontend.clone(), temp_dir.clone(), status_lines.clone())?;
         app.disable_lsp();
         callback(app, temp_dir)?;
         use std::borrow::Borrow;

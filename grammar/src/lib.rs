@@ -1,4 +1,5 @@
 pub mod grammar;
+use itertools::Itertools;
 
 use etcetera::base_strategy::{choose_base_strategy, BaseStrategy};
 use std::path::{Path, PathBuf};
@@ -112,7 +113,31 @@ pub fn lang_config_file() -> PathBuf {
 }
 
 pub fn default_log_file() -> PathBuf {
-    cache_dir().join("ki.log")
+    use chrono::Local;
+    use std::process;
+
+    let pid = process::id();
+    let timestamp = Local::now().format("%Y-%m-%d_%H-%M");
+
+    log_dir().join(format!("ki_{}_{}.log", timestamp, pid))
+}
+
+pub fn log_dir() -> PathBuf {
+    cache_dir().join("logs")
+}
+
+/// If `process_id` is not provided, the latest log file will be returned.
+pub fn get_log_file(process_id: Option<String>) -> anyhow::Result<Option<PathBuf>> {
+    let mut ls = std::fs::read_dir(log_dir())?
+        .into_iter()
+        .filter_map(|path| path.ok()?.file_name().into_string().ok());
+    if let Some(process_id) = process_id {
+        Ok(ls
+            .find(|path| path.contains(&process_id))
+            .map(|path| path.into()))
+    } else {
+        Ok(ls.sorted().last().map(|path| log_dir().join(path)))
+    }
 }
 
 /// Finds the current workspace folder.

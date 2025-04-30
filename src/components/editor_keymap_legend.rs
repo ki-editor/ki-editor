@@ -58,7 +58,7 @@ impl Editor {
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Alpha),
                 "◀◀".to_string(),
-                "Alph".to_string(),
+                "Alpha".to_string(),
                 Dispatch::ToEditor(MoveSelection(Movement::Alpha)),
             ),
             Keymap::new_extended(
