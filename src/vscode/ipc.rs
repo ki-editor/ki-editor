@@ -180,25 +180,39 @@ impl WebSocketIpc {
             // 2. Try to receive message from main thread to send to VSCode
             match from_main_receiver.try_recv() {
                 Ok(wrapper_to_send) => {
+                    let id = wrapper_to_send.id;
+                    let message_type = format!("{:?}", wrapper_to_send.message);
+
+                    debug!("WebSocket handler: Received message from main thread to send to VSCode: id={}, type={}",
+                        id, message_type);
+
                     match serde_json::to_string(&wrapper_to_send) {
                         Ok(serialized) => {
+                            debug!(
+                                "WebSocket handler: Serialized message: id={}, type={}, length={}",
+                                id,
+                                message_type,
+                                serialized.len()
+                            );
+
                             match websocket.send(WsMessage::Text(serialized)) {
                                 Ok(_) => {
-                                    trace!(
-                                        "Sent message id={}, method={}",
-                                        wrapper_to_send.id,
-                                        wrapper_to_send.message.method_name()
+                                    info!(
+                                        "WebSocket handler: Successfully sent message to VSCode: id={}, type={}",
+                                        id, message_type
                                     );
                                 }
                                 Err(e) => {
-                                    error!("Failed to write message to WebSocket: {}", e);
+                                    error!("WebSocket handler: Failed to write message to WebSocket: id={}, type={}, error={}",
+                                        id, message_type, e);
                                     // If write fails, assume connection is broken
                                     break;
                                 }
                             }
                         }
                         Err(e) => {
-                            error!("Failed to serialize message for WebSocket: {}", e);
+                            error!("WebSocket handler: Failed to serialize message for WebSocket: id={}, type={}, error={}",
+                                id, message_type, e);
                             // Log error but don't break, maybe the next message is fine
                         }
                     }
@@ -207,7 +221,7 @@ impl WebSocketIpc {
                     // No message from main thread, continue loop
                 }
                 Err(TryRecvError::Disconnected) => {
-                    info!("Main thread channel disconnected. Shutting down connection handler.");
+                    info!("WebSocket handler: Main thread channel disconnected. Shutting down connection handler.");
                     break; // Channel broken, exit thread
                 }
             }
@@ -223,9 +237,28 @@ impl WebSocketIpc {
 
     /// Sends a message to the VSCode extension via the handler thread.
     pub fn send_message_to_vscode(&self, message: OutputMessageWrapper) -> Result<(), IpcError> {
-        self.to_vscode_sender
-            .send(message)
-            .map_err(|e| IpcError::SendError(e.to_string()))
+        let id = message.id;
+        let message_type = format!("{:?}", message.message);
+
+        debug!(
+            "WebSocketIpc: Sending message to VSCode: id={}, type={}",
+            id, message_type
+        );
+
+        match self.to_vscode_sender.send(message) {
+            Ok(_) => {
+                debug!(
+                    "WebSocketIpc: Successfully sent message to handler thread: id={}, type={}",
+                    id, message_type
+                );
+                Ok(())
+            }
+            Err(e) => {
+                error!("WebSocketIpc: Failed to send message to handler thread: id={}, type={}, error={}",
+                    id, message_type, e);
+                Err(IpcError::SendError(e.to_string()))
+            }
+        }
     }
 
     /// Receives a message from the VSCode extension via the handler thread.

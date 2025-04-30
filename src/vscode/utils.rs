@@ -1,6 +1,5 @@
-use crate::components::editor::Mode as KiMode;
 use crate::position::Position as KiPosition;
-use ki_protocol_types::Position as VSCodePosition; // Assuming Range might be needed later
+use ki_protocol_types::Position as VSCodePosition;
 use shared::canonicalized_path::CanonicalizedPath;
 use url::Url;
 
@@ -12,6 +11,14 @@ pub(crate) fn ki_position_to_vscode_position(pos: &KiPosition) -> VSCodePosition
     }
 }
 
+// Convert VSCode protocol position to Ki editor position
+pub(crate) fn vscode_position_to_ki_position(pos: &VSCodePosition) -> KiPosition {
+    KiPosition {
+        line: pos.line,
+        column: pos.character, // VSCode uses 'character', Ki uses 'column'
+    }
+}
+
 // Convert a CanonicalizedPath to a file URI string
 pub(crate) fn path_to_uri(path: &CanonicalizedPath) -> String {
     Url::from_file_path(path.as_ref())
@@ -20,35 +27,51 @@ pub(crate) fn path_to_uri(path: &CanonicalizedPath) -> String {
 }
 
 // Convert a file URI string back to a CanonicalizedPath
-pub(crate) fn uri_to_path(uri: &str) -> Option<CanonicalizedPath> {
-    Url::parse(uri)
-        .ok()
-        .and_then(|url| url.to_file_path().ok())
-        .and_then(|path_buf| path_buf.try_into().ok())
-}
-
-// Convert Ki editor mode to VSCode protocol mode string
-pub(crate) fn mode_to_protocol(mode: &KiMode) -> String {
-    match mode {
-        KiMode::Normal => "normal".to_string(),
-        KiMode::Insert => "insert".to_string(),
-        KiMode::MultiCursor => "multi_cursor".to_string(),
-        KiMode::FindOneChar(_) => "find_one_char".to_string(),
-        KiMode::Swap => "swap".to_string(),
-        KiMode::Replace => "replace".to_string(),
-        KiMode::Extend => "extend".to_string(),
-        // Add other specific modes if they exist and need distinct protocol names
-        // _ => "unknown".to_string(), // Optional catch-all
+pub(crate) fn uri_to_path(uri: &str) -> anyhow::Result<CanonicalizedPath> {
+    // First, check if the URI is already in the form of a CanonicalizedPath string
+    if let Some(path_str) = extract_canonicalized_path(uri) {
+        return path_str.try_into().map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to convert extracted path to CanonicalizedPath: {}",
+                e
+            )
+        });
     }
+
+    // Try to parse as a URL first
+    if let Ok(url) = Url::parse(uri) {
+        if let Ok(path_buf) = url.to_file_path() {
+            return path_buf.try_into().map_err(|e| {
+                anyhow::anyhow!("Failed to convert URL path to CanonicalizedPath: {}", e)
+            });
+        }
+    }
+
+    // If URL parsing fails, try direct conversion
+    // Remove the file:// prefix if present
+    let path_str = if uri.starts_with("file://") {
+        &uri[7..]
+    } else {
+        uri
+    };
+
+    // Convert to CanonicalizedPath
+    path_str
+        .try_into()
+        .map_err(|e| anyhow::anyhow!("Failed to convert URI to path: {}", e))
 }
 
-// Convert Ki editor selection mode display string to VSCode protocol string
-// Note: This assumes the input `mode_str` is already the display representation.
-pub(crate) fn selection_mode_to_protocol(mode_str: &str) -> String {
-    // Directly use the string representation from `display_selection_mode`
-    // This might need adjustment if the protocol expects specific identifiers
-    mode_str.to_lowercase().replace(' ', "_") // Example basic transformation
+/// Extract a path string from a CanonicalizedPath representation
+fn extract_canonicalized_path(s: &str) -> Option<&str> {
+    // Match patterns like CanonicalizedPath("/path/to/file")
+    let re = regex::Regex::new(r#"CanonicalizedPath\("([^"]+)"\)"#).ok()?;
+    re.captures(s)
+        .and_then(|caps| caps.get(1))
+        .map(|m| m.as_str())
 }
+
+// These functions have been removed as they are no longer used.
+// Mode and selection mode conversion is now handled directly in the integration event handler.
 
 // // Convert Ki editor SelectionSet to VSCode protocol SelectionSet (Example - Needs Ki's SelectionSet definition)
 // use crate::selection::SelectionSet as KiSelectionSet; // Hypothetical import

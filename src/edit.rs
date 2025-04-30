@@ -99,7 +99,7 @@ impl Action {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct EditTransaction {
     /// This `action_group` should be always normalized.
     action_group: ActionGroup,

@@ -15,12 +15,24 @@ type InputMessageParamsMap = {
 // Define the set of message tags that are expected as unsolicited notifications
 // These are message types that the backend might send without a prior request from the frontend.
 const KNOWN_NOTIFICATION_TAGS: ReadonlySet<OutputMessage["tag"]> = new Set([
-    "buffer.ack",
-    "buffer.change",
-    "cursor.update",
-    "selection.update",
+    "buffer.diff", // Added buffer.diff to handle buffer synchronization from Ki
+    "selection.update", // Now includes cursor information
     "mode.change", // Example: backend informs frontend of mode change
     "selection_mode.change", // Example: backend informs frontend of selection mode change
+    "search.results", // Added search.results for completeness
+    "editor.action", // Added editor.action for undo/redo operations
+    "buffer.activated",
+    "buffer.open",
+    "buffer.close",
+    "buffer.save",
+    "error",
+    "ping",
+    "ki.log",
+    "success",
+    "external_buffer.created",
+    "external_buffer.updated",
+    "command.executed",
+    "viewport.change",
     // Add any other tags that are definitely notifications
 ]);
 
@@ -69,7 +81,10 @@ export class IPC extends EventEmitter {
             // Spawn process
             this.process = cp.spawn(command, args, {
                 stdio: ["pipe", "pipe", "pipe"], // Keep pipes for stdout/stderr
-                env: process.env,
+                env: {
+                    ...process.env,
+                    RUST_LOG: "trace",
+                },
                 shell: false,
                 windowsHide: true,
             });

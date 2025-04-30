@@ -1,22 +1,27 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { kiConfig } from "./config";
+import { ConfigManager } from "./config_manager";
 import { Dispatcher } from "./dispatcher";
-import { BufferHandler } from "./handlers/buffer_handler";
-import { CursorHandler } from "./handlers/cursor_handler";
-import { KeyboardHandler } from "./handlers/keyboard_handler";
-import { ModeHandler } from "./handlers/mode_handler";
-import { SearchHandler } from "./handlers/search_handler";
-import { SelectionHandler } from "./handlers/selection_handler";
-import { SelectionModeHandler } from "./handlers/selection_mode_handler";
+import { ErrorHandler, ErrorSeverity } from "./error_handler";
 import { IPC } from "./ipc";
 import { Logger } from "./logger";
+import {
+    BufferManager,
+    CommandManager,
+    CursorManager,
+    EventHandler,
+    KeyboardManager,
+    ModeManager,
+    SelectionManager,
+} from "./managers";
 
 // Track main extension state
 let ipc: IPC | undefined;
 let dispatcher: Dispatcher | undefined;
-let handlers: vscode.Disposable[] = [];
+let configManager: ConfigManager | undefined;
+let errorHandler: ErrorHandler | undefined;
+let disposables: vscode.Disposable[] = [];
 
 /**
  * This method is called when the extension is activated
@@ -27,12 +32,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     logger.log("Activating Ki extension");
 
     try {
-        // Create IPC and dispatcher
+        // Create config manager, error handler, IPC, and dispatcher
+        configManager = new ConfigManager(logger);
+        errorHandler = new ErrorHandler(logger);
         ipc = new IPC(logger);
         dispatcher = new Dispatcher(ipc, logger);
 
         // Get Ki path from config or use fallback paths
-        let kiPath = kiConfig.getBackendPath();
+        let kiPath = configManager.getBackendPath();
 
         if (!kiPath) {
             // First try to use ../target/debug/ki relative to extension
@@ -55,8 +62,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         // Check if file exists
         if (!fs.existsSync(kiPath)) {
-            logger.error(`Ki executable not found at: ${kiPath}`);
-            vscode.window.showErrorMessage(`Ki executable not found at: ${kiPath}`);
+            errorHandler.handleError(
+                `Ki executable not found at: ${kiPath}`,
+                { component: "Extension", operation: "Startup" },
+                ErrorSeverity.Fatal,
+                true,
+            );
             throw new Error(`Ki executable not found at: ${kiPath}`);
         }
 
@@ -65,61 +76,105 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             const stats = fs.statSync(kiPath);
             logger.log(`Ki executable stats: size=${stats.size}, permissions=${stats.mode.toString(8)}`);
         } catch (err) {
-            logger.error(`Error getting file stats: ${err}`);
+            errorHandler.handleError(
+                err,
+                { component: "Extension", operation: "GetFileStats", details: { path: kiPath } },
+                ErrorSeverity.Warning,
+            );
         }
 
         // Start the Ki process with vscode flag instead of debug
         ipc.start(kiPath, ["--vs-code"]);
 
-        // Create and register handlers
-        const bufferHandler = new BufferHandler(dispatcher, logger);
-        const cursorHandler = new CursorHandler(dispatcher, logger);
-        // Create mode handler first since keyboard handler depends on it
-        const modeHandler = new ModeHandler(dispatcher, logger, context);
-        const keyboardHandler = new KeyboardHandler(dispatcher, logger, modeHandler);
-        const selectionHandler = new SelectionHandler(dispatcher, logger);
-        const selectionModeHandler = new SelectionModeHandler(dispatcher, logger);
-        const searchHandler = new SearchHandler(dispatcher, logger);
+        // Create event handler
+        const eventHandler = new EventHandler(dispatcher, logger, errorHandler);
 
-        // Add handlers to our tracking array
-        handlers = [
-            bufferHandler,
-            cursorHandler,
-            keyboardHandler,
-            modeHandler,
-            selectionHandler,
-            selectionModeHandler,
-            searchHandler,
+        // Create managers
+        const modeManager = new ModeManager(dispatcher, logger, eventHandler, context);
+        const bufferManager = new BufferManager(dispatcher, logger, eventHandler);
+        const cursorManager = new CursorManager(dispatcher, logger, eventHandler);
+        const keyboardManager = new KeyboardManager(dispatcher, logger, eventHandler, modeManager);
+        const selectionManager = new SelectionManager(dispatcher, logger, eventHandler);
+        const commandManager = new CommandManager(dispatcher, logger, eventHandler);
+
+        // Initialize managers
+        modeManager.initialize();
+        bufferManager.initialize();
+        cursorManager.initialize();
+        keyboardManager.initialize();
+        selectionManager.initialize();
+        commandManager.initialize();
+
+        // Add managers and dispatcher to disposables
+        disposables = [
+            bufferManager,
+            cursorManager,
+            keyboardManager,
+            modeManager,
+            selectionManager,
+            commandManager,
             dispatcher,
         ];
 
         // Register all disposables
-        context.subscriptions.push(...handlers);
+        context.subscriptions.push(...disposables);
 
-        // Create a sync command
-        const syncCommand = vscode.commands.registerCommand("ki.sync", () => {
-            logger.log("Manually syncing Ki state");
-            dispatcher?.emit("ki.sync", {});
-        });
-        context.subscriptions.push(syncCommand);
+        // The sync command has been removed as it's unnecessary.
+        // Ki should be the source of truth, and we should only be reacting to events from Ki,
+        // not proactively syncing.
 
-        // Initialize with currently open editors
-        bufferHandler.initializeOpenEditors();
+        // Register utility commands
+        let outputChannel: vscode.OutputChannel | undefined;
+        context.subscriptions.push(
+            vscode.commands.registerCommand("ki.showLogs", () => {
+                // Create output channel if it doesn't exist
+                if (!outputChannel) {
+                    outputChannel = vscode.window.createOutputChannel("Ki");
+                }
+                outputChannel.show();
+            }),
+            vscode.commands.registerCommand("ki.pingKi", async () => {
+                if (dispatcher) {
+                    try {
+                        const response = await dispatcher.sendRequest("ping");
+                        vscode.window.showInformationMessage(`Ki ping response: ${JSON.stringify(response)}`);
+                    } catch (err) {
+                        errorHandler?.handleError(
+                            err,
+                            { component: "Extension", operation: "PingKi" },
+                            ErrorSeverity.Error,
+                            true,
+                        );
+                    }
+                } else {
+                    vscode.window.showErrorMessage("Ki is not initialized");
+                }
+            }),
+            vscode.commands.registerCommand("ki.restartKi", () => {
+                // Deactivate and reactivate
+                deactivate();
+                activate(context);
+            }),
+        );
 
-        // Set up periodic sync to ensure Ki and VSCode stay in sync
-        const syncInterval = setInterval(() => {
-            if (dispatcher) {
-                dispatcher.emit("ki.sync", {});
-            }
-        }, 5000); // Sync every 5 seconds
-
-        // Add sync interval to disposables
-        context.subscriptions.push({ dispose: () => clearInterval(syncInterval) });
+        // The periodic sync timer has been removed.
+        // Ki should be the source of truth, and we should only be reacting to events from Ki,
+        // not proactively syncing.
 
         logger.log("Ki extension activated successfully");
     } catch (err) {
-        logger.error("Failed to activate Ki extension:", err);
-        vscode.window.showErrorMessage("Failed to initialize Ki extension");
+        if (errorHandler) {
+            errorHandler.handleError(
+                err,
+                { component: "Extension", operation: "Activation" },
+                ErrorSeverity.Fatal,
+                true,
+            );
+        } else {
+            // Fallback if errorHandler isn't initialized yet
+            logger.error("Failed to activate Ki extension:", err);
+            vscode.window.showErrorMessage("Failed to initialize Ki extension");
+        }
 
         // Clean up if activation failed
         deactivate();
@@ -131,9 +186,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
  */
 export function deactivate(): void {
     // Clean up resources
-    if (handlers.length > 0) {
-        handlers.forEach((handler) => handler.dispose());
-        handlers = [];
+    if (disposables.length > 0) {
+        disposables.forEach((disposable) => disposable.dispose());
+        disposables = [];
     }
 
     if (ipc) {
@@ -141,5 +196,12 @@ export function deactivate(): void {
         ipc = undefined;
     }
 
+    // Clean up other resources
+    if (configManager) {
+        configManager.dispose();
+        configManager = undefined;
+    }
+
     dispatcher = undefined;
+    errorHandler = undefined;
 }

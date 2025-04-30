@@ -51,7 +51,7 @@ pub(crate) struct Buffer {
     selection_set_history: History<SelectionSet>,
     dirty: bool,
     owner: BufferOwner,
-    undo_stack: Vec<EditHistory>,
+    pub(crate) undo_stack: Vec<EditHistory>,
     redo_stack: Vec<EditHistory>,
     batch_id: SyntaxHighlightRequestBatchId,
 }
@@ -486,7 +486,7 @@ impl Buffer {
         self.tree.as_ref().map(|tree| traverse(tree.walk(), order))
     }
 
-    /// Returns the new selection set
+    /// Returns the new selection set and the edit transaction
     pub(crate) fn apply_edit_transaction(
         &mut self,
         edit_transaction: &EditTransaction,
@@ -494,7 +494,7 @@ impl Buffer {
         reparse_tree: bool,
         update_undo_stack: bool,
         last_visible_line: u16,
-    ) -> Result<SelectionSet, anyhow::Error> {
+    ) -> Result<(SelectionSet, EditTransaction), anyhow::Error> {
         let new_selection_set = edit_transaction
             .non_empty_selections()
             .map(|selections| current_selection_set.clone().set_selections(selections))
@@ -533,7 +533,8 @@ impl Buffer {
 
         self.batch_id.increment();
 
-        Ok(new_selection_set)
+        // Return both the new selection set and a clone of the edit transaction
+        Ok((new_selection_set, edit_transaction.clone()))
     }
 
     // Add these methods for undo/redo
@@ -722,13 +723,14 @@ impl Buffer {
         last_visible_line: u16,
     ) -> anyhow::Result<SelectionSet> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
-        self.apply_edit_transaction(
+        let (selection_set, _) = self.apply_edit_transaction(
             &edit_transaction,
             current_selection_set,
             true,
             true,
             last_visible_line,
-        )
+        )?;
+        Ok(selection_set)
     }
 
     /// The resulting spans must be sorted by range
@@ -958,7 +960,7 @@ impl Buffer {
                 )
             }
         };
-        let selection_set = self.apply_edit_transaction(
+        let (selection_set, _) = self.apply_edit_transaction(
             &edit_transaction,
             current_selection_set,
             true,
@@ -1040,17 +1042,24 @@ impl Buffer {
     pub(crate) fn redo(
         &mut self,
         last_visible_line: u16,
-    ) -> Result<Option<SelectionSet>, anyhow::Error> {
+    ) -> Result<Option<(SelectionSet, EditTransaction)>, anyhow::Error> {
         if let Some(history) = self.redo_stack.pop() {
+            // Store the edit transaction for returning later
+            let applied_transaction = history.edit_transaction.clone();
+
+            // Apply the edits
             history
                 .edit_transaction
                 .edits()
                 .into_iter()
                 .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
             self.reparse_tree()?;
+
             let selection_set = history.old_state.selection_set.clone();
             self.undo_stack.push(history.inverse());
-            Ok(Some(selection_set))
+
+            // Return both the selection set and the applied transaction
+            Ok(Some((selection_set, applied_transaction)))
         } else {
             Ok(None)
         }
@@ -1059,18 +1068,71 @@ impl Buffer {
     pub(crate) fn undo(
         &mut self,
         last_visible_line: u16,
-    ) -> Result<Option<SelectionSet>, anyhow::Error> {
+    ) -> Result<Option<(SelectionSet, EditTransaction)>, anyhow::Error> {
+        #[cfg(feature = "vscode")]
+        log::info!(
+            "buffer.undo: Starting undo operation with undo_stack size={}, last_visible_line={}",
+            self.undo_stack.len(),
+            last_visible_line
+        );
+
         if let Some(history) = self.undo_stack.pop() {
-            history
-                .edit_transaction
-                .edits()
-                .into_iter()
-                .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
-            self.reparse_tree()?;
+            // Store the edit transaction for returning later
+            let applied_transaction = history.edit_transaction.clone();
+
+            #[cfg(feature = "vscode")]
+            log::info!(
+                "buffer.undo: Popped history item with {} edits",
+                history.edit_transaction.edits().len()
+            );
+
+            // Apply the edits
+            #[cfg(feature = "vscode")]
+            log::info!("buffer.undo: Applying edits from transaction");
+
+            // Apply each edit with detailed logging
+            for (i, edit) in history.edit_transaction.edits().iter().enumerate() {
+                #[cfg(feature = "vscode")]
+                log::info!(
+                    "buffer.undo: Applying edit {}/{}: range={:?}, new_text_len={}",
+                    i + 1,
+                    history.edit_transaction.edits().len(),
+                    edit.range,
+                    edit.new.len_chars()
+                );
+
+                if let Err(e) = self.apply_edit(edit, last_visible_line) {
+                    #[cfg(feature = "vscode")]
+                    log::error!("buffer.undo: Error applying edit {}: {}", i + 1, e);
+                    return Err(e);
+                }
+            }
+
+            #[cfg(feature = "vscode")]
+            log::info!("buffer.undo: Reparsing tree");
+
+            if let Err(e) = self.reparse_tree() {
+                #[cfg(feature = "vscode")]
+                log::error!("buffer.undo: Error reparsing tree: {}", e);
+                return Err(e);
+            }
+
             let selection_set = history.old_state.selection_set.clone();
             self.redo_stack.push(history.inverse());
-            Ok(Some(selection_set))
+
+            #[cfg(feature = "vscode")]
+            log::info!(
+                "buffer.undo: Successfully completed undo operation, returning selection_set with {} selections and transaction with {} edits",
+                selection_set.len(),
+                applied_transaction.edits().len()
+            );
+
+            // Return both the selection set and the applied transaction
+            Ok(Some((selection_set, applied_transaction)))
         } else {
+            #[cfg(feature = "vscode")]
+            log::info!("buffer.undo: No history items in undo stack, returning None");
+
             Ok(None)
         }
     }
@@ -1148,7 +1210,7 @@ fn f(
 ) -> Result<
   A,
   B
-> { 
+> {
   hello
 }",
         );
@@ -1458,7 +1520,7 @@ fn f(
             let old = r#"
 fn main() {
     let x = x;
-    
+
 let z = z;
 
     let y = y;

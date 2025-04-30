@@ -31,7 +31,7 @@
     "include": [
         "src/**/*.ts"
     ],
-    // Exclude node_modules relative to the package.json location (ki-vscode/src/extension)
+    // Exclude node_modules and test files
     "exclude": [
         "./node_modules",
         "./dist",

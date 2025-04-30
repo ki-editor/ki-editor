@@ -33,8 +33,8 @@ pub struct Selection {
 impl Selection {
     pub fn new(anchor: Position, active: Position, is_extended: bool) -> Self {
         Selection {
-            anchor: anchor.clone(),
-            active: active.clone(),
+            anchor,
+            active,
             is_extended,
         }
     }
@@ -47,9 +47,95 @@ pub struct SelectionSet {
     #[serde(default)]
     pub primary: usize,
     pub selections: Vec<Selection>,
+    // Added mode field to track the current selection mode
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub mode: Option<SelectionMode>,
+}
+
+// Represents a single text edit operation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS)]
+#[ts(export)]
+pub struct DiffEdit {
+    pub range: Range,     // The range of the text to be replaced.
+    pub new_text: String, // The new text to insert.
+}
+
+// Editor Mode enum for type-safe mode representation
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum EditorMode {
+    Normal,
+    Insert,
+    MultiCursor,
+    FindOneChar,
+    Swap,
+    Replace,
+    Extend,
+    // Add other modes as needed
+}
+
+// Selection Mode enum for type-safe selection mode representation
+// This should match Ki's internal SelectionMode enum as closely as possible
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[ts(export)]
+#[serde(tag = "type", content = "params")]
+pub enum SelectionMode {
+    Character,
+    Line,
+    LineFull,
+    #[serde(rename = "word")]
+    CoarseWord, // Word { skip_symbols: true }
+    #[serde(rename = "fine_word")]
+    FineWord, // Word { skip_symbols: false }
+    Token,
+    Custom,
+    SyntaxNode,
+    SyntaxNodeFine,
+    Mark,
+    // Simplified versions of complex modes
+    Find,          // Find { search: Search }
+    Diagnostic,    // Diagnostic(DiagnosticSeverityRange)
+    GitHunk,       // GitHunk(DiffMode)
+    LocalQuickfix, // LocalQuickfix { title: String }
+}
+
+// Editor actions enum for type-safe editor operations
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum EditorAction {
+    Undo,
+    Redo,
+    Save,
+    ForceSave,
+    Copy,
+    Cut,
+    Paste,
+    SelectAll,
+    // Add other actions as needed to match DispatchEditor
+}
+
+// Implement Display for EditorAction for better logging and error messages
+impl std::fmt::Display for EditorAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EditorAction::Undo => write!(f, "Undo"),
+            EditorAction::Redo => write!(f, "Redo"),
+            EditorAction::Save => write!(f, "Save"),
+            EditorAction::ForceSave => write!(f, "ForceSave"),
+            EditorAction::Copy => write!(f, "Copy"),
+            EditorAction::Cut => write!(f, "Cut"),
+            EditorAction::Paste => write!(f, "Paste"),
+            EditorAction::SelectAll => write!(f, "SelectAll"),
+        }
+    }
 }
 
 // Message parameter structures
+
+// Parameters for buffer events
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct BufferParams {
@@ -59,34 +145,59 @@ pub struct BufferParams {
     pub version: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+// Parameters for buffer diff events
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
 #[ts(export)]
-pub struct BufferChange {
+pub struct BufferDiffParams {
     pub buffer_id: String,
-    pub start_line: usize,
-    pub end_line: usize,
-    pub content: String,
-    pub version: i32,
-    #[ts(type = "number")]
-    pub message_id: u64,
-    pub retry_count: u32,
+    pub edits: Vec<DiffEdit>, // A list of edits to apply sequentially.
 }
 
+// Parameters for cursor update events
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct CursorParams {
     pub buffer_id: String,
-    pub anchors: Vec<Position>, // Anchor positions for multi-cursor (optional, for future use)
+    pub anchors: Vec<Position>, // Anchor positions for multi-cursor
     pub actives: Vec<Position>, // Active/cursor positions for multi-cursor
 }
 
+// Parameters for mode change events
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct ModeParams {
-    pub mode: String,
+    pub mode: String, // Using string for backward compatibility
     pub buffer_id: Option<String>,
 }
 
+// Parameters for typed mode change events
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct TypedModeParams {
+    pub mode: EditorMode,
+    pub buffer_id: Option<String>,
+}
+
+// Parameters for selection mode change events
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct SelectionModeParams {
+    pub mode: SelectionMode,
+    pub buffer_id: Option<String>,
+}
+
+// Parameters for viewport change events
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ViewportParams {
+    pub buffer_id: String,
+    #[ts(type = "number")]
+    pub start_line: usize,
+    #[ts(type = "number")]
+    pub end_line: usize,
+}
+
+// Parameters for keyboard input events
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
 #[ts(export)]
 pub struct KeyboardParams {
@@ -97,6 +208,32 @@ pub struct KeyboardParams {
     pub is_composed: bool,
 }
 
+// Parameters for editor actions
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct EditorActionParams {
+    pub action: EditorAction,
+    pub buffer_id: Option<String>,
+}
+
+// Parameters for external buffer events
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ExternalBufferParams {
+    pub buffer_id: String,
+    pub content: String,
+}
+
+// Parameters for command execution
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct CommandParams {
+    pub name: String,
+    pub args: Vec<String>,
+    pub success: Option<bool>,
+}
+
+// Parameters for search operations
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct SearchParams {
@@ -110,13 +247,7 @@ pub struct SearchParams {
     pub regex: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct CommandParams {
-    pub name: String,
-    pub args: Vec<String>,
-}
-
+// Parameters for logging
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct LogParams {
@@ -129,6 +260,10 @@ pub struct LogParams {
 #[ts(export)]
 #[serde(tag = "tag", content = "params")]
 pub enum InputMessage {
+    // System operations
+    #[serde(rename = "ping")]
+    Ping(Option<String>),
+
     // Buffer operations
     #[serde(rename = "buffer.open")]
     BufferOpen(BufferParams),
@@ -137,37 +272,35 @@ pub enum InputMessage {
     #[serde(rename = "buffer.save")]
     BufferSave(BufferParams),
     #[serde(rename = "buffer.change")]
-    BufferChange(BufferChange),
+    BufferChange(BufferDiffParams),
     #[serde(rename = "buffer.active")]
     BufferActive(BufferParams),
 
-    // Cursor/Selection operations
-    #[serde(rename = "cursor.update")]
-    CursorUpdate(CursorParams),
-    #[serde(rename = "cursor.get")]
-    CursorGet,
+    // Selection operations (includes cursor information)
     #[serde(rename = "selection.set")]
     SelectionSet(SelectionSet),
-    #[serde(rename = "selection.get")]
-    SelectionGet,
 
     // Mode operations
     #[serde(rename = "mode.set")]
-    ModeSet(ModeParams),
+    ModeSet(TypedModeParams),
     #[serde(rename = "selection_mode.set")]
-    SelectionModeSet(ModeParams),
+    SelectionModeSet(SelectionModeParams),
 
     // Input operations
     #[serde(rename = "keyboard.input")]
     KeyboardInput(KeyboardParams),
 
+    // Editor actions
+    #[serde(rename = "editor.action")]
+    EditorAction(EditorActionParams),
+
     // Search operations
     #[serde(rename = "search.find")]
     SearchFind(SearchParams),
 
-    // System operations
-    #[serde(rename = "ping")]
-    Ping(Option<String>),
+    // Viewport operations
+    #[serde(rename = "viewport.change")]
+    ViewportChange(ViewportParams),
 }
 
 // Output Messages (Ki -> VSCode)
@@ -175,6 +308,16 @@ pub enum InputMessage {
 #[ts(export)]
 #[serde(tag = "tag", content = "params")]
 pub enum OutputMessage {
+    // System operations
+    #[serde(rename = "ping")]
+    Ping(String),
+    #[serde(rename = "ki.log")]
+    Log(LogParams),
+    #[serde(rename = "error")]
+    Error(String),
+    #[serde(rename = "success")]
+    Success(bool),
+
     // Buffer operations
     #[serde(rename = "buffer.open")]
     BufferOpen(BufferParams),
@@ -182,48 +325,42 @@ pub enum OutputMessage {
     BufferClose(BufferParams),
     #[serde(rename = "buffer.save")]
     BufferSave(BufferParams),
-    #[serde(rename = "buffer.change")]
-    BufferChange(BufferChange),
-    #[serde(rename = "buffer.update")]
-    BufferUpdate(BufferChange),
     #[serde(rename = "buffer.diff")]
-    BufferDiff(BufferChange),
-    #[serde(rename = "buffer.ack")]
-    BufferAck(u64), // message_id
+    BufferDiff(BufferDiffParams),
+    #[serde(rename = "buffer.activated")]
+    BufferActivated(BufferParams),
 
-    // Cursor/Selection operations
-    #[serde(rename = "cursor.update")]
-    CursorUpdate(CursorParams),
+    // Selection operations (includes cursor information)
     #[serde(rename = "selection.update")]
     SelectionUpdate(SelectionSet),
 
     // Mode operations
     #[serde(rename = "mode.change")]
-    ModeChange(ModeParams),
+    ModeChange(TypedModeParams),
     #[serde(rename = "selection_mode.change")]
-    SelectionModeChange(ModeParams),
+    SelectionModeChange(SelectionModeParams),
+
+    // Viewport operations
+    #[serde(rename = "viewport.change")]
+    ViewportChange(ViewportParams),
+
+    // External buffer operations
+    #[serde(rename = "external_buffer.created")]
+    ExternalBufferCreated(ExternalBufferParams),
+    #[serde(rename = "external_buffer.updated")]
+    ExternalBufferUpdated(ExternalBufferParams),
 
     // Command operations
-    #[serde(rename = "command")]
-    Command(CommandParams),
-
-    // System operations
-    #[serde(rename = "ki.log")]
-    Log(LogParams),
-    #[serde(rename = "ping")]
-    Ping(String),
-
-    // Error handling
-    #[serde(rename = "error")]
-    Error(String),
+    #[serde(rename = "command.executed")]
+    CommandExecuted(CommandParams),
 
     // Search operations
     #[serde(rename = "search.results")]
     SearchResults(String),
 
-    // Success response
-    #[serde(rename = "success")]
-    Success(bool),
+    // Editor actions
+    #[serde(rename = "editor.action")]
+    EditorAction(EditorActionParams),
 }
 
 // Main message wrapper
@@ -241,7 +378,6 @@ pub struct OutputMessageWrapper {
     pub message: OutputMessage,
     #[ts(type = "number")]
     pub id: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub error: Option<ResponseError>,
 }
@@ -251,7 +387,6 @@ pub struct OutputMessageWrapper {
 pub struct ResponseError {
     pub code: i32,
     pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(type = "any | null")]
     pub data: Option<serde_json::Value>,
 }
@@ -275,14 +410,13 @@ impl MessageMethod for InputMessage {
             Self::BufferSave(_) => Cow::Borrowed("buffer.save"),
             Self::BufferChange(_) => Cow::Borrowed("buffer.change"),
             Self::BufferActive(_) => Cow::Borrowed("buffer.active"),
-            Self::CursorUpdate(_) => Cow::Borrowed("cursor.update"),
-            Self::CursorGet => Cow::Borrowed("cursor.get"),
             Self::SelectionSet(_) => Cow::Borrowed("selection.set"),
-            Self::SelectionGet => Cow::Borrowed("selection.get"),
             Self::ModeSet(_) => Cow::Borrowed("mode.set"),
             Self::SelectionModeSet(_) => Cow::Borrowed("selection_mode.set"),
             Self::KeyboardInput(_) => Cow::Borrowed("keyboard.input"),
+            Self::EditorAction(_) => Cow::Borrowed("editor.action"),
             Self::SearchFind(_) => Cow::Borrowed("search.find"),
+            Self::ViewportChange(_) => Cow::Borrowed("viewport.change"),
         }
     }
 
@@ -294,14 +428,13 @@ impl MessageMethod for InputMessage {
             Self::BufferSave(_) => "BufferSave",
             Self::BufferChange(_) => "BufferChange",
             Self::BufferActive(_) => "BufferActive",
-            Self::CursorUpdate(_) => "CursorUpdate",
-            Self::CursorGet => "CursorGet",
             Self::SelectionSet(_) => "SelectionSet",
-            Self::SelectionGet => "SelectionGet",
             Self::ModeSet(_) => "ModeSet",
             Self::SelectionModeSet(_) => "SelectionModeSet",
             Self::KeyboardInput(_) => "KeyboardInput",
+            Self::EditorAction(_) => "EditorAction",
             Self::SearchFind(_) => "SearchFind",
+            Self::ViewportChange(_) => "ViewportChange",
         }
     }
 }
@@ -311,44 +444,46 @@ impl MessageMethod for OutputMessage {
     fn method_name(&self) -> Cow<'static, str> {
         match self {
             Self::Ping(_) => Cow::Borrowed("ping"),
+            Self::Log(_) => Cow::Borrowed("ki.log"),
+            Self::Error(_) => Cow::Borrowed("error"),
+            Self::Success(_) => Cow::Borrowed("success"),
             Self::BufferOpen(_) => Cow::Borrowed("buffer.open"),
             Self::BufferClose(_) => Cow::Borrowed("buffer.close"),
             Self::BufferSave(_) => Cow::Borrowed("buffer.save"),
-            Self::BufferChange(_) => Cow::Borrowed("buffer.change"),
-            Self::BufferUpdate(_) => Cow::Borrowed("buffer.update"),
             Self::BufferDiff(_) => Cow::Borrowed("buffer.diff"),
-            Self::BufferAck(_) => Cow::Borrowed("buffer.ack"),
-            Self::CursorUpdate(_) => Cow::Borrowed("cursor.update"),
+            Self::BufferActivated(_) => Cow::Borrowed("buffer.activated"),
             Self::SelectionUpdate(_) => Cow::Borrowed("selection.update"),
             Self::ModeChange(_) => Cow::Borrowed("mode.change"),
             Self::SelectionModeChange(_) => Cow::Borrowed("selection_mode.change"),
-            Self::Command(_) => Cow::Borrowed("command"),
-            Self::Log(_) => Cow::Borrowed("ki.log"),
-            Self::Error(_) => Cow::Borrowed("error"),
+            Self::ViewportChange(_) => Cow::Borrowed("viewport.change"),
+            Self::ExternalBufferCreated(_) => Cow::Borrowed("external_buffer.created"),
+            Self::ExternalBufferUpdated(_) => Cow::Borrowed("external_buffer.updated"),
+            Self::CommandExecuted(_) => Cow::Borrowed("command.executed"),
             Self::SearchResults(_) => Cow::Borrowed("search.results"),
-            Self::Success(_) => Cow::Borrowed("success"),
+            Self::EditorAction(_) => Cow::Borrowed("editor.action"),
         }
     }
 
     fn variant_name(&self) -> &'static str {
         match self {
             Self::Ping(_) => "Ping",
+            Self::Log(_) => "Log",
+            Self::Error(_) => "Error",
+            Self::Success(_) => "Success",
             Self::BufferOpen(_) => "BufferOpen",
             Self::BufferClose(_) => "BufferClose",
             Self::BufferSave(_) => "BufferSave",
-            Self::BufferChange(_) => "BufferChange",
-            Self::BufferUpdate(_) => "BufferUpdate",
             Self::BufferDiff(_) => "BufferDiff",
-            Self::BufferAck(_) => "BufferAck",
-            Self::CursorUpdate(_) => "CursorUpdate",
+            Self::BufferActivated(_) => "BufferActivated",
             Self::SelectionUpdate(_) => "SelectionUpdate",
             Self::ModeChange(_) => "ModeChange",
             Self::SelectionModeChange(_) => "SelectionModeChange",
-            Self::Command(_) => "Command",
-            Self::Log(_) => "Log",
-            Self::Error(_) => "Error",
+            Self::ViewportChange(_) => "ViewportChange",
+            Self::ExternalBufferCreated(_) => "ExternalBufferCreated",
+            Self::ExternalBufferUpdated(_) => "ExternalBufferUpdated",
+            Self::CommandExecuted(_) => "CommandExecuted",
             Self::SearchResults(_) => "SearchResults",
-            Self::Success(_) => "Success",
+            Self::EditorAction(_) => "EditorAction",
         }
     }
 }

@@ -9,6 +9,7 @@ mod context;
 mod edit;
 pub(crate) mod frontend;
 mod grid;
+mod integration_event;
 #[cfg(test)]
 mod integration_test;
 
@@ -92,8 +93,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
             StatusLineComponent::LastDispatch,
         ]
         .to_vec(),
-        #[cfg(feature = "vscode")]
-        None,
+        None, // No integration event sender
     )?;
     app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 

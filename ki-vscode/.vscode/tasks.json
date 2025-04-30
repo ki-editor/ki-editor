@@ -21,6 +21,13 @@
             "problemMatcher": "$tsc"
         },
         {
+            "label": "tsc: build with source maps",
+            "type": "npm",
+            "script": "compile:sourcemaps",
+            "group": "build",
+            "problemMatcher": "$tsc"
+        },
+        {
             "type": "npm",
             "script": "test",
             "group": "test",

@@ -9,7 +9,7 @@ use crate::app::{App, AppMessage, StatusLineComponent};
 use crate::frontend::crossterm::Crossterm;
 use anyhow::Result;
 use ki_protocol_types::{InputMessage, OutputMessage, OutputMessageWrapper, ResponseError};
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, trace};
 use shared::canonicalized_path::CanonicalizedPath;
 
 // Import the new WebSocket IPC handler
@@ -25,12 +25,14 @@ pub struct VSCodeApp {
     // Core components
     pub(crate) app: Arc<Mutex<App<Crossterm>>>,
     pub(crate) app_sender: mpsc::Sender<AppMessage>, // Sender to communicate TO the App thread
-    // Add receiver for notifications *from* the core App
-    pub(crate) from_app_receiver: mpsc::Receiver<OutputMessageWrapper>,
+    // Receiver for integration events from the core App (replaces the old notification channel)
+    pub(crate) integration_event_receiver:
+        mpsc::Receiver<crate::integration_event::IntegrationEvent>,
     // Add receiver for messages *to* the core App (internal queue)
     pub(crate) app_message_receiver: mpsc::Receiver<AppMessage>,
     pub(crate) ipc_handler: WebSocketIpc, // Use the WebSocket IPC handler
     pub(crate) buffer_versions: HashMap<String, u64>,
+    #[allow(dead_code)]
     pub(crate) next_message_id: u64,
     pub(crate) last_vscode_selection: Option<ki_protocol_types::SelectionSet>,
 }
@@ -68,11 +70,14 @@ impl VSCodeApp {
 
         // Create channels for VSCodeApp communication
         let (real_app_sender, real_app_receiver) = mpsc::channel::<AppMessage>();
-        let (real_notification_sender, real_notification_receiver) =
-            mpsc::channel::<ki_protocol_types::OutputMessageWrapper>();
+        // Removed notification channel in favor of integration events
 
         // Resolve working directory once
         let resolved_wd = working_directory.unwrap_or(".".try_into()?);
+
+        // Create the integration event channel
+        let (integration_event_sender, integration_event_receiver) =
+            mpsc::channel::<crate::integration_event::IntegrationEvent>();
 
         // Create the core App instance correctly
         let core_app = App::from_channel(
@@ -81,7 +86,7 @@ impl VSCodeApp {
             real_app_sender.clone(),        // Core App gets sender to its *own* queue
             mpsc::channel().1, // Core App gets a dummy receiver it won't use in this mode
             status_line_components.clone(), // Clone the Vec
-            Some(real_notification_sender), // Core App gets sender for notifications
+            Some(integration_event_sender), // Core App gets sender for integration events
         )?;
 
         // Initialize the WebSocket IPC handler
@@ -93,7 +98,7 @@ impl VSCodeApp {
             app: Arc::new(Mutex::new(core_app)),
             app_sender: real_app_sender, // Handlers use this sender
             app_message_receiver: real_app_receiver, // VSCodeApp loop polls this receiver
-            from_app_receiver: real_notification_receiver, // Receiver for notifications FROM App
+            integration_event_receiver,  // Receiver for integration events FROM App
             ipc_handler,
             buffer_versions: HashMap::new(),
             next_message_id: 1,
@@ -104,13 +109,28 @@ impl VSCodeApp {
     /// Sends a message to VSCode via the WebSocket handler thread
     pub fn send_message_to_vscode(&self, message: OutputMessageWrapper) -> Result<()> {
         let id = message.id;
+        let message_type = format!("{:?}", message.message);
+
         info!(
-            "Queueing message for VSCode: type={:?} id={}",
-            message.message, id
+            "Queueing message for VSCode: type={} id={}",
+            message_type, id
         );
-        self.ipc_handler
-            .send_message_to_vscode(message)
-            .map_err(|e| anyhow::anyhow!("Failed to send message to IPC handler: {}", e))
+
+        let result = self.ipc_handler.send_message_to_vscode(message);
+
+        if let Err(ref e) = result {
+            error!(
+                "Failed to send message to IPC handler: type={}, id={}, error={}",
+                message_type, id, e
+            );
+        } else {
+            info!(
+                "Successfully queued message for VSCode: type={}, id={}",
+                message_type, id
+            );
+        }
+
+        result.map_err(|e| anyhow::anyhow!("Failed to send message to IPC handler: {}", e))
     }
 
     /// Send a notification (no response expected)
@@ -175,45 +195,33 @@ impl VSCodeApp {
                 ); // Log with info level
                 self.handle_keyboard_input_request(id, params, trace_id)
             }
-            InputMessage::CursorGet => {
-                debug!("[{}] Processing cursor get request", trace_id);
-                self.handle_cursor_get_request(id)
-            }
-            InputMessage::SelectionGet => {
-                debug!("[{}] Processing selection get request", trace_id);
-                self.handle_selection_get_request(id)
-            }
-            InputMessage::CursorUpdate(params) => {
-                debug!("[{}] Processing cursor update request", trace_id);
-                self.handle_cursor_update_request(id, params)
-            }
+            // CursorUpdate has been removed in favor of the unified SelectionSet
             InputMessage::SelectionSet(params) => {
                 debug!("[{}] Processing selection set request", trace_id);
                 self.handle_selection_set_request(id, params)
             }
-            InputMessage::ModeSet(_params) => {
-                // TODO: Implement handler call: handlers::mode::handle_mode_set_request(self, id, params)
-                warn!(
-                    "[{}] Unsupported message type (handler not implemented yet): ModeSet",
-                    trace_id
-                );
-                self.send_error_response(id, "Unsupported message type: ModeSet")
+            InputMessage::ModeSet(params) => {
+                debug!("[{}] Processing mode set request", trace_id);
+                self.handle_mode_set_request(id, params, trace_id)
             }
-            InputMessage::SelectionModeSet(_params) => {
-                // TODO: Implement handler call: handlers::selection_mode::handle_selection_mode_set_request(self, id, params)
-                warn!(
-                    "[{}] Unsupported message type (handler not implemented yet): SelectionModeSet",
-                    trace_id
-                );
-                self.send_error_response(id, "Unsupported message type: SelectionModeSet")
+            InputMessage::SelectionModeSet(params) => {
+                debug!("[{}] Processing selection mode set request", trace_id);
+                self.handle_selection_mode_set_request(id, params, trace_id)
             }
-            InputMessage::SearchFind(_params) => {
-                // TODO: Implement handler call: handlers::search::handle_search_find_request(self, id, params)
-                warn!(
-                    "[{}] Unsupported message type (handler not implemented yet): SearchFind",
-                    trace_id
+            InputMessage::SearchFind(params) => {
+                debug!("[{}] Processing search find request", trace_id);
+                self.handle_search_find_request(id, params, trace_id)
+            }
+            InputMessage::ViewportChange(params) => {
+                debug!("[{}] Processing viewport change request", trace_id);
+                self.handle_viewport_change_request(id, params, trace_id)
+            }
+            InputMessage::EditorAction(params) => {
+                debug!(
+                    "[{}] Processing editor action request: {}",
+                    trace_id, params.action
                 );
-                self.send_error_response(id, "Unsupported message type: SearchFind")
+                self.handle_editor_action_request(id, params, trace_id)
             }
         };
 
@@ -270,32 +278,49 @@ impl VSCodeApp {
             }
 
             // 2. Check for internal messages FOR the core App (sent via app_sender)
+            // We need to process these messages, but we'll do it in a way that avoids deadlocks
             match self.app_message_receiver.try_recv() {
                 Ok(app_message) => {
                     received_message = true;
                     trace!("Received message for core App: {:?}", app_message);
-                    // Lock the App and process the message
-                    match self.app.lock() {
-                        Ok(mut app_guard) => {
-                            match app_guard.process_message(app_message) {
+
+                    // Check for QuitAll message
+                    if let AppMessage::QuitAll = &app_message {
+                        info!("Core App requested quit. Exiting.");
+                        // TODO: Maybe send a shutdown message to VSCode?
+                        break; // Exit the VSCodeApp loop
+                    }
+
+                    // Try to acquire the App lock without blocking
+                    // This prevents deadlocks by giving up immediately if the lock is busy
+                    let app_lock_result = match std::sync::Arc::clone(&self.app).try_lock() {
+                        Ok(mut guard) => {
+                            trace!("Successfully acquired App lock to process message");
+                            // Process the message with the acquired lock
+                            match guard.process_message(app_message) {
                                 Ok(should_quit) => {
                                     if should_quit {
                                         info!("Core App requested quit. Exiting.");
-                                        // TODO: Maybe send a shutdown message to VSCode?
                                         break; // Exit the VSCodeApp loop
                                     }
+                                    Ok(())
                                 }
                                 Err(e) => {
                                     error!("Error processing message in core App: {}", e);
-                                    // Optionally send an error notification to VSCode?
+                                    Err(e)
                                 }
                             }
                         }
-                        Err(e) => {
-                            error!("Failed to lock app mutex for processing message: {}", e);
-                            // Decide how to handle mutex poisoning - potentially exit?
-                            break;
+                        Err(_) => {
+                            // Could not acquire the lock
+                            // This is not an error, it just means the App is busy
+                            trace!("Could not acquire App lock to process message, will try again later");
+                            Ok(())
                         }
+                    };
+
+                    if let Err(e) = app_lock_result {
+                        error!("Error processing message: {}", e);
                     }
                 }
                 Err(TryRecvError::Empty) => {
@@ -307,24 +332,22 @@ impl VSCodeApp {
                 }
             }
 
-            // 3. Check for internal notifications FROM the core App
-            match self.from_app_receiver.try_recv() {
-                Ok(app_notification) => {
+            // 3. Check for integration events FROM the core App (replaces the old notification channel)
+            match self.integration_event_receiver.try_recv() {
+                Ok(event) => {
                     received_message = true;
-                    trace!(
-                        "Received notification from core App: {:?}",
-                        app_notification
-                    );
+                    trace!("Received integration event from core App: {:?}", event);
 
-                    if let Err(e) = self.send_notification(app_notification) {
-                        error!("Error sending notification based on App update: {}", e);
+                    // Process the integration event and translate it to VSCode protocol messages
+                    if let Err(e) = self.handle_integration_event(event) {
+                        error!("Error handling integration event: {}", e);
                     }
                 }
                 Err(TryRecvError::Empty) => {
-                    // No notification from App
+                    // No integration event from App
                 }
                 Err(TryRecvError::Disconnected) => {
-                    error!("Core App notification channel disconnected! Exiting.");
+                    error!("Core App integration event channel disconnected! Exiting.");
                     break;
                 }
             }
@@ -340,6 +363,7 @@ impl VSCodeApp {
     }
 
     /// Helper method to get the next message ID (accessible within the crate)
+    #[allow(dead_code)]
     pub(crate) fn next_id(&mut self) -> u64 {
         let id = self.next_message_id;
         self.next_message_id += 1;
@@ -347,15 +371,21 @@ impl VSCodeApp {
     }
 
     /// Get the current file URI (accessible within the crate)
+    #[allow(dead_code)]
     pub(crate) fn get_current_file_uri(&self) -> Option<String> {
         self.get_current_file_path().map(|path| path_to_uri(&path))
     }
 
     /// Get the current file path (accessible within the crate)
     pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
-        let app_guard = match self.app.lock() {
+        // Use try_lock to avoid deadlocks
+        let app_guard = match self.app.try_lock() {
             Ok(guard) => guard,
-            Err(_) => return None, // Handle mutex poisoning
+            Err(_) => {
+                // If we can't acquire the lock, we can't get the current file path
+                trace!("Could not acquire app lock to get current file path");
+                return None;
+            }
         };
 
         let component = app_guard.current_component();
@@ -365,14 +395,52 @@ impl VSCodeApp {
         path_opt // Return the stored option
     }
 
+    /// Find an editor component by its file path
+    pub(crate) fn get_editor_component_by_path(
+        &self,
+        path: &CanonicalizedPath,
+    ) -> Option<std::rc::Rc<std::cell::RefCell<dyn crate::components::component::Component>>> {
+        // Use try_lock to avoid deadlocks
+        let app_guard = match self.app.try_lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                // If we can't acquire the lock, we can't check the components
+                trace!("Could not acquire app lock to check components");
+                return None;
+            }
+        };
+
+        // Iterate through all components to find one with matching path
+        for component in app_guard.components() {
+            let component_rc = component.component();
+            let component_ref = component_rc.borrow();
+
+            // Check if this component has the requested path
+            if let Some(comp_path) = component_ref.path() {
+                if &comp_path == path {
+                    return Some(component_rc.clone());
+                }
+            }
+        }
+
+        None // No matching component found
+    }
+
     /// Send a response back to VSCode for a specific request ID.
     pub(crate) fn send_response(&self, id: u64, message: OutputMessage) -> Result<()> {
+        info!("Sending response for request ID {}: {:?}", id, message);
         let wrapper = OutputMessageWrapper {
             id,
             message,
             error: None,
         };
-        self.send_message_to_vscode(wrapper)
+        let result = self.send_message_to_vscode(wrapper);
+        if let Err(ref e) = result {
+            error!("Failed to send response for request ID {}: {}", id, e);
+        } else {
+            info!("Successfully sent response for request ID {}", id);
+        }
+        result
     }
 
     /// Send an error response back to VSCode.
@@ -387,6 +455,528 @@ impl VSCodeApp {
             }),
         };
         self.send_message_to_vscode(error_response)
+    }
+
+    /// Handle integration events from the core App
+    fn handle_integration_event(
+        &self,
+        event: crate::integration_event::IntegrationEvent,
+    ) -> Result<()> {
+        use crate::integration_event::IntegrationEvent;
+
+        // Translate the integration event to VSCode protocol messages
+        match event {
+            IntegrationEvent::BufferChanged {
+                component_id: _,
+                path,
+                transaction,
+            } => {
+                // Extract edits from the transaction
+                let buffer_id = path.display_absolute();
+
+                // Convert the transaction to buffer diffs and send to VSCode
+                // This is similar to what we do in the BufferEditTransaction handler
+                if let Some(component) = self.get_editor_component_by_path(&path) {
+                    let component_ref = component.borrow();
+                    let editor = component_ref.editor();
+                    let buffer = editor.buffer();
+
+                    // Extract edits from the transaction
+                    let edits: Vec<ki_protocol_types::DiffEdit> = transaction
+                        .edits()
+                        .iter()
+                        .filter_map(|edit| {
+                            let range_start_pos = buffer.char_to_position(edit.range.start).ok()?;
+                            let range_end_pos = buffer.char_to_position(edit.range.end).ok()?;
+                            Some(ki_protocol_types::DiffEdit {
+                                range: ki_protocol_types::Range {
+                                    start: crate::vscode::utils::ki_position_to_vscode_position(
+                                        &range_start_pos,
+                                    ),
+                                    end: crate::vscode::utils::ki_position_to_vscode_position(
+                                        &range_end_pos,
+                                    ),
+                                },
+                                new_text: edit.new.to_string(),
+                            })
+                        })
+                        .collect();
+
+                    if !edits.is_empty() {
+                        let diff_params = ki_protocol_types::BufferDiffParams { buffer_id, edits };
+
+                        // Log the transaction details for debugging
+                        trace!(
+                            "Sending buffer diff from integration event: {:?}",
+                            diff_params
+                        );
+
+                        // Send buffer diff notification to VSCode
+                        self.send_notification(OutputMessageWrapper {
+                            id: 0,
+                            message: OutputMessage::BufferDiff(diff_params),
+                            error: None,
+                        })?;
+                    }
+                }
+            }
+            IntegrationEvent::BufferOpened {
+                component_id: _,
+                path,
+                language_id,
+            } => {
+                // Send buffer open notification to VSCode
+                let uri = path_to_uri(&path);
+                let params = ki_protocol_types::BufferParams {
+                    uri,
+                    content: None,
+                    language_id,
+                    version: None,
+                };
+                self.send_notification(OutputMessageWrapper {
+                    id: 0,
+                    message: OutputMessage::BufferOpen(params),
+                    error: None,
+                })?;
+            }
+            IntegrationEvent::BufferClosed {
+                component_id: _,
+                path,
+            } => {
+                // Send buffer close notification to VSCode
+                let uri = path_to_uri(&path);
+                let params = ki_protocol_types::BufferParams {
+                    uri,
+                    content: None,
+                    language_id: None,
+                    version: None,
+                };
+                self.send_notification(OutputMessageWrapper {
+                    id: 0,
+                    message: OutputMessage::BufferClose(params),
+                    error: None,
+                })?;
+            }
+            IntegrationEvent::BufferSaved {
+                component_id: _,
+                path,
+            } => {
+                // Send buffer save notification to VSCode
+                let uri = path_to_uri(&path);
+                let params = ki_protocol_types::BufferParams {
+                    uri,
+                    content: None,
+                    language_id: None,
+                    version: None,
+                };
+                self.send_notification(OutputMessageWrapper {
+                    id: 0,
+                    message: OutputMessage::BufferSave(params),
+                    error: None,
+                })?;
+            }
+            IntegrationEvent::ModeChanged {
+                component_id,
+                mode,
+                selection_mode,
+            } => {
+                // Get buffer ID if needed
+                let buffer_id = self.get_buffer_id_from_component_id(component_id);
+
+                // Convert string mode to EditorMode enum
+                let editor_mode = match mode.as_str() {
+                    "Normal" => ki_protocol_types::EditorMode::Normal,
+                    "Insert" => ki_protocol_types::EditorMode::Insert,
+                    "MultiCursor" => ki_protocol_types::EditorMode::MultiCursor,
+                    s if s.starts_with("FindOneChar") => ki_protocol_types::EditorMode::FindOneChar,
+                    "Swap" => ki_protocol_types::EditorMode::Swap,
+                    "Replace" => ki_protocol_types::EditorMode::Replace,
+                    "Extend" => ki_protocol_types::EditorMode::Extend,
+                    _ => ki_protocol_types::EditorMode::Normal, // Default to Normal for unknown modes
+                };
+
+                // Convert SelectionMode to protocol SelectionMode enum
+                let protocol_selection_mode = match selection_mode {
+                    crate::selection::SelectionMode::Character => {
+                        ki_protocol_types::SelectionMode::Character
+                    }
+                    crate::selection::SelectionMode::Line
+                    | crate::selection::SelectionMode::LineFull => {
+                        ki_protocol_types::SelectionMode::Line
+                    }
+                    _ => {
+                        // Default to Character for other modes
+                        ki_protocol_types::SelectionMode::Character
+                    }
+                };
+
+                // Send mode change notification to VSCode
+                let mode_params = ki_protocol_types::TypedModeParams {
+                    mode: editor_mode,
+                    buffer_id: buffer_id.clone(),
+                };
+                self.send_notification(OutputMessageWrapper {
+                    id: 0,
+                    message: OutputMessage::ModeChange(mode_params),
+                    error: None,
+                })?;
+
+                // Send selection mode change notification to VSCode
+                let selection_mode_params = ki_protocol_types::SelectionModeParams {
+                    mode: protocol_selection_mode,
+                    buffer_id,
+                };
+                self.send_notification(OutputMessageWrapper {
+                    id: 0,
+                    message: OutputMessage::SelectionModeChange(selection_mode_params),
+                    error: None,
+                })?;
+            }
+            IntegrationEvent::SelectionChanged {
+                component_id,
+                selections,
+            } => {
+                // Get the buffer ID from the component
+                if let Some(buffer_id) = self.get_buffer_id_from_component_id(component_id) {
+                    // Get the component to access the buffer
+                    if let Some(component) = self.get_component_by_id(component_id) {
+                        // Store the component reference to extend its lifetime
+                        let component_rc = component.component();
+                        let component_ref = component_rc.borrow();
+                        let editor = component_ref.editor();
+                        let buffer = editor.buffer();
+
+                        // Convert Ki selections to VSCode selections
+                        let vscode_selections = selections
+                            .iter()
+                            .map(|selection| {
+                                // Get the extended range from the selection to ensure correct cursor position
+                                // This is especially important for word selection mode
+                                let range = selection.extended_range();
+
+                                // Convert to positions
+                                let start_pos = buffer.char_to_position(range.start).ok();
+                                let end_pos = buffer.char_to_position(range.end).ok();
+
+                                // Determine anchor and active positions based on whether it's extended
+                                let (anchor, active) =
+                                    if let Some(initial_range) = &selection.initial_range {
+                                        // Extended selection
+                                        let anchor_pos =
+                                            buffer.char_to_position(initial_range.start).ok();
+                                        let active_pos = buffer.char_to_position(range.end).ok();
+                                        (anchor_pos, active_pos)
+                                    } else {
+                                        // Normal selection
+                                        (start_pos, end_pos)
+                                    };
+
+                                // Create VSCode selection
+                                ki_protocol_types::Selection {
+                                    anchor: anchor.map_or_else(
+                                        || ki_protocol_types::Position {
+                                            line: 0,
+                                            character: 0,
+                                        },
+                                        |pos| {
+                                            crate::vscode::utils::ki_position_to_vscode_position(
+                                                &pos,
+                                            )
+                                        },
+                                    ),
+                                    active: active.map_or_else(
+                                        || ki_protocol_types::Position {
+                                            line: 0,
+                                            character: 0,
+                                        },
+                                        |pos| {
+                                            crate::vscode::utils::ki_position_to_vscode_position(
+                                                &pos,
+                                            )
+                                        },
+                                    ),
+                                    is_extended: selection.initial_range.is_some(),
+                                }
+                            })
+                            .collect::<Vec<_>>();
+
+                        // Get the selection mode from the editor
+                        let selection_mode = match editor.selection_set.mode {
+                            crate::selection::SelectionMode::Character => {
+                                Some(ki_protocol_types::SelectionMode::Character)
+                            }
+                            crate::selection::SelectionMode::Line
+                            | crate::selection::SelectionMode::LineFull => {
+                                Some(ki_protocol_types::SelectionMode::Line)
+                            }
+                            crate::selection::SelectionMode::Word { .. } => {
+                                Some(ki_protocol_types::SelectionMode::CoarseWord)
+                            }
+                            _ => None, // Default to None for other modes
+                        };
+
+                        // Send selection update notification to VSCode
+                        let selection_set = ki_protocol_types::SelectionSet {
+                            buffer_id,
+                            primary: 0, // Assuming the first selection is primary
+                            selections: vscode_selections,
+                            mode: selection_mode,
+                        };
+                        self.send_notification(OutputMessageWrapper {
+                            id: 0,
+                            message: OutputMessage::SelectionUpdate(selection_set),
+                            error: None,
+                        })?;
+                    }
+                }
+            }
+            // IntegrationEvent::CursorUpdate has been removed in favor of the unified SelectionChanged event
+            IntegrationEvent::BufferActivated {
+                component_id: _,
+                path,
+            } => {
+                // Send buffer activated notification to VSCode
+                let uri = path_to_uri(&path);
+                let params = ki_protocol_types::BufferParams {
+                    uri,
+                    content: None,
+                    language_id: None,
+                    version: None,
+                };
+                self.send_notification(OutputMessageWrapper {
+                    id: 0,
+                    message: OutputMessage::BufferActivated(params),
+                    error: None,
+                })?;
+            }
+            IntegrationEvent::ViewportChanged {
+                component_id,
+                start_line,
+                end_line,
+            } => {
+                // Get the buffer ID from the component
+                if let Some(buffer_id) = self.get_buffer_id_from_component_id(component_id) {
+                    // Send viewport change notification to VSCode
+                    let viewport_params = ki_protocol_types::ViewportParams {
+                        buffer_id,
+                        start_line,
+                        end_line,
+                    };
+                    self.send_notification(OutputMessageWrapper {
+                        id: 0,
+                        message: OutputMessage::ViewportChange(viewport_params),
+                        error: None,
+                    })?;
+                }
+            }
+            IntegrationEvent::ExternalBufferCreated {
+                component_id: _,
+                buffer_id,
+                content,
+            } => {
+                // Send external buffer created notification to VSCode
+                let external_buffer_params =
+                    ki_protocol_types::ExternalBufferParams { buffer_id, content };
+                self.send_notification(OutputMessageWrapper {
+                    id: 0,
+                    message: OutputMessage::ExternalBufferCreated(external_buffer_params),
+                    error: None,
+                })?;
+            }
+            IntegrationEvent::ExternalBufferUpdated {
+                component_id: _,
+                buffer_id,
+                content,
+            } => {
+                // Send external buffer updated notification to VSCode
+                let external_buffer_params =
+                    ki_protocol_types::ExternalBufferParams { buffer_id, content };
+                self.send_notification(OutputMessageWrapper {
+                    id: 0,
+                    message: OutputMessage::ExternalBufferUpdated(external_buffer_params),
+                    error: None,
+                })?;
+            }
+            IntegrationEvent::CommandExecuted { command, success } => {
+                // Send command executed notification to VSCode
+                let command_params = ki_protocol_types::CommandParams {
+                    name: command,
+                    args: Vec::new(), // We don't have args in the event currently
+                    success: Some(success),
+                };
+                self.send_notification(OutputMessageWrapper {
+                    id: 0,
+                    message: OutputMessage::CommandExecuted(command_params),
+                    error: None,
+                })?;
+            } // All integration events are now handled
+        }
+
+        Ok(())
+    }
+
+    /// Helper method to get buffer ID from component ID
+    fn get_buffer_id_from_component_id(
+        &self,
+        component_id: crate::integration_event::ComponentId,
+    ) -> Option<String> {
+        // Use try_lock to avoid deadlocks
+        let app_guard = match self.app.try_lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                // If we can't acquire the lock, we can't get the component
+                trace!("Could not acquire app lock to get component by ID");
+                return None;
+            }
+        };
+
+        // Find the component by ID
+        let components = app_guard.components();
+        for component in components {
+            let component_ref = component.component();
+            let borrowed = component_ref.borrow();
+
+            if crate::integration_event::component_id_to_usize(&borrowed.id()) == component_id {
+                // Get the buffer path and use it as the buffer ID
+                if let Some(path) = borrowed.path() {
+                    return Some(path.display_absolute());
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Helper method to get component by ID
+    fn get_component_by_id(
+        &self,
+        component_id: crate::integration_event::ComponentId,
+    ) -> Option<crate::ui_tree::KindedComponent> {
+        // Use try_lock to avoid deadlocks
+        let app_guard = match self.app.try_lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                // If we can't acquire the lock, we can't get the component
+                trace!("Could not acquire app lock to get component by ID");
+                return None;
+            }
+        };
+
+        // Find the component by ID
+        let components = app_guard.components();
+        for component in components {
+            let component_ref = component.component();
+            let borrowed = component_ref.borrow();
+
+            if crate::integration_event::component_id_to_usize(&borrowed.id()) == component_id {
+                return Some(component.clone());
+            }
+        }
+
+        None
+    }
+
+    /// Send cursor position update for the current buffer
+    /// This ensures VSCode has the correct cursor position
+    pub fn send_cursor_position_for_current_buffer(&self) -> Result<()> {
+        // Use try_lock to avoid deadlocks
+        let app_guard = match self.app.try_lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                // If we can't acquire the lock, we can't get the current component
+                trace!("Could not acquire app lock to get current component");
+                return Ok(());
+            }
+        };
+
+        // Get the current component
+        let component = app_guard.current_component();
+        let component_ref = component.borrow();
+        let editor = component_ref.editor();
+
+        // Get the buffer ID
+        let buffer_id = if let Some(path) = component_ref.path() {
+            path.display_absolute()
+        } else {
+            // No path, can't send cursor update
+            return Ok(());
+        };
+
+        // Get the cursor positions
+        let selections = editor.selection_set.selections();
+        if selections.is_empty() {
+            // No selections, can't send cursor update
+            return Ok(());
+        }
+
+        // Extract anchor and active positions from selections
+        let mut anchors = Vec::new();
+        let mut actives = Vec::new();
+
+        for selection in selections {
+            // Use extended_range() instead of range() to get the actual selection range
+            // This ensures we get the correct cursor position when in word select mode
+            let range = selection.extended_range();
+            let buffer = editor.buffer();
+
+            // Convert char indices to positions
+            if let Ok(start_pos) = buffer.char_to_position(range.start) {
+                anchors.push(start_pos);
+            }
+
+            if let Ok(end_pos) = buffer.char_to_position(range.end) {
+                actives.push(end_pos);
+            }
+        }
+
+        // Only send update if we have valid positions
+        if !anchors.is_empty() && !actives.is_empty() {
+            // Create selections from anchors and actives
+            let mut vscode_selections = Vec::new();
+            for i in 0..anchors.len() {
+                let anchor = crate::vscode::utils::ki_position_to_vscode_position(&anchors[i]);
+                let active = crate::vscode::utils::ki_position_to_vscode_position(&actives[i]);
+
+                vscode_selections.push(ki_protocol_types::Selection {
+                    anchor,
+                    active,
+                    is_extended: false, // We don't have this information
+                });
+            }
+
+            // Get the selection mode from the editor
+            let selection_mode = match editor.selection_set.mode {
+                crate::selection::SelectionMode::Character => {
+                    Some(ki_protocol_types::SelectionMode::Character)
+                }
+                crate::selection::SelectionMode::Line
+                | crate::selection::SelectionMode::LineFull => {
+                    Some(ki_protocol_types::SelectionMode::Line)
+                }
+                crate::selection::SelectionMode::Word { .. } => {
+                    Some(ki_protocol_types::SelectionMode::CoarseWord)
+                }
+                _ => None, // Default to None for other modes
+            };
+
+            // Send selection update notification to VSCode
+            let selection_set = ki_protocol_types::SelectionSet {
+                buffer_id,
+                primary: 0, // Assuming the first selection is primary
+                selections: vscode_selections,
+                mode: selection_mode,
+            };
+
+            info!("Sending selection update for current buffer");
+
+            self.send_notification(OutputMessageWrapper {
+                id: 0,
+                message: OutputMessage::SelectionUpdate(selection_set),
+                error: None,
+            })?;
+        }
+
+        Ok(())
     }
 }
 

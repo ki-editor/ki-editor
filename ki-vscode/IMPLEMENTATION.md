@@ -1,237 +1,340 @@
-# Ki VSCode integration plan
+# Ki VSCode Integration Plan
 
 ## Overview
 
-Write a vscode plugin that allows ki-editor to drive the vscode editor. The vscode editor should behave as if it were
-ki-editor (modal, multi cursor, AST aware editing, advanced movement and selection modes, selection mode -> movement ->
-action workflow)
+Write a VSCode plugin that allows Ki-editor to drive the VSCode editor. The VSCode editor should behave as if it were
+Ki-editor (modal, multi-cursor, AST-aware editing, advanced movement and selection modes, selection mode -> movement ->
+action workflow).
 
-## Guidance
+### Major Components
 
-1.  We want to avoid making changes to the core ki-editor _where possible_. However, enabling bidirectional
-    communication might require minimal additions (like an outgoing notification channel). Changes like making items
-    `pub` are acceptable.
-2.  NO MATTER WHAT do not implement "fixes" that replicate ki-editor functionality in the vscode side of the plugin.
-    This is just masking problems instead of solving them and defeats the purpose of the project.
+1. Websocket IPC for communication between VSCode and Ki
+2. Protocol defined in `ki-protocol-types/src/lib.rs`
+3. VSCodeApp struct which wraps the Ki editor App, manages IPC, and hooks into Ki's event loop
 
-## Rust side IPC (`src/vscode/`)
+## Current Architecture
 
-The `VSCodeApp` wrapper on the Rust side should:
+Currently, the integration is tightly coupled with Ki's core:
 
-1.  Manage the IPC connection (WebSocket) with the VSCode extension.
-2.  Receive `InputMessage`s from VSCode.
-3.  Translate `InputMessage`s into appropriate calls to the wrapped `ki-editor::App` instance (e.g., calling
-    `handle_event` or `handle_dispatch`).
-4.  Receive notifications about state changes from the core `App` instance via a dedicated channel.
-5.  Translate these internal notifications into `OutputMessage`s and send them back to VSCode via the WebSocket.
-6.  Avoid running the core `App::run` method; instead, drive the `App` directly via method calls.
+-   The majority of the integration is handled by `handle_dispatch_editor_custom` in `app.rs`
+-   VSCode-specific code is scattered throughout Ki's codebase using `#[cfg(feature = "vscode")]`
+-   Ki directly sends notifications to VSCode via a notification channel (`vscode_notification_sender` and
+    `from_app_receiver`)
+-   VSCode-specific dispatch variants exist in Ki's core Dispatch enum (like `Dispatch::BufferEditTransaction`)
+-   The `VSCodeApp` has multiple communication channels with different responsibilities:
+    -   `app_sender`/`app_message_receiver` for sending messages to the App
+    -   `from_app_receiver` for receiving notifications from the App (to be replaced)
+    -   `ipc_handler` for communication with VSCode
+-   Communication with Ki is done through the `AppMessage::ExternalDispatch` variant, which allows sending any
+    `Dispatch` to Ki without directly locking the App mutex (avoiding deadlocks)
 
-## Rust -> VSCode State Synchronization
+This architecture has several drawbacks:
 
-A critical requirement is notifying the VSCode extension when the internal state of the core `ki-editor::App` changes
-(e.g., cursor moves, buffer is edited, mode changes). Since `VSCodeApp` drives the core `App` directly rather than
-running its event loop, this requires an explicit notification mechanism:
+-   Tight coupling between Ki and VSCode
+-   Scattered VSCode-specific code makes maintenance difficult
+-   Difficult to add support for other integrations
+-   Complex message flow is hard to trace and debug
+-   Multiple overlapping communication channels with unclear responsibilities
 
-1.  **Outgoing Channel:** Introduce a dedicated channel (e.g., `std::sync::mpsc`) for the core `App` to send state
-    change notifications _outwards_.
-2.  **Core `App` Modification:** Modify the core `App` (`src/app.rs`):
-    -   Store the `Sender` end of this new channel.
-    -   Instrument the relevant state-modifying methods (primarily within `handle_dispatch` and the functions it calls)
-        to send specific notification messages (e.g., `AppNotification::CursorUpdated`,
-        `AppNotification::BufferChanged`) via this sender whenever the state relevant to VSCode changes.
-3.  **`VSCodeApp` Reception:** The main loop of `VSCodeApp` (`src/vscode/app.rs`) will hold the `Receiver` end of this
-    channel.
-    -   It must periodically check this receiver (e.g., using `try_recv`).
-    -   When a notification is received, `VSCodeApp` translates it into the appropriate
-        `ki-protocol-types::OutputMessage` and sends it to VSCode via the WebSocket IPC handler.
+## Lessons from VSCode-Neovim
 
-This ensures that VSCode reflects state changes initiated within the Rust backend.
+After analyzing the VSCode-Neovim extension, we've identified several architectural patterns and approaches that could
+benefit our integration:
 
-## TS side (`ki-vscode/`)
+### 1. Manager-Based Architecture
 
-1.  Establish and manage the WebSocket connection to the Rust backend.
-2.  Listen to appropriate VSCode editor events (keyboard input via `type` command override, document changes, selection
-    changes, etc.).
-3.  Translate VSCode events into `InputMessage`s and send them to the Rust backend via the WebSocket.
-4.  Listen for `OutputMessage`s from the Rust backend via the WebSocket.
-5.  Dispatch incoming `OutputMessage`s to handlers (`ki-vscode/src/handlers/`) responsible for updating the VSCode
-    editor state (moving cursor, updating text, changing decorations, etc.).
-6.  Filter out non-editor documents (e.g., output panels) to prevent feedback loops.
-7.  Keep handlers simple, focused on translating specific messages to VSCode API calls. Avoid complex state management,
-    optimization, or retry logic within the TS side.
+VSCode-Neovim uses a manager pattern where each manager is responsible for a specific aspect of the integration:
 
-## Simplified Architecture Plan (Rust Side Principles)
+-   `BufferManager`: Manages buffer and window mapping
+-   `CursorManager`: Manages cursor and selection sync
+-   `ViewportManager`: Manages viewport sync
+-   `ModeManager`: Manages mode sync
+-   `DocumentChangeManager`: Manages document content sync
 
-The `VSCodeApp` implementation (`src/vscode/app.rs`) should adhere to these principles, regardless of the specific IPC
-mechanism:
+This clear separation of concerns makes the codebase more maintainable and easier to extend.
 
-1.  **Minimal State**: `VSCodeApp` should act primarily as an IPC and translation layer. It should avoid duplicating
-    editor state already managed by the core `ki-editor::App`. Necessary state includes IPC connection details and
-    potentially mappings needed for translation (like buffer URIs to internal IDs).
-2.  **Direct Ownership**: Core components needed for `VSCodeApp`'s function (like the IPC handler, the wrapped `App`
-    instance via `Arc<Mutex<>>`) should be directly owned, avoiding excessive use of `Option` for required elements.
-3.  **Channel-Based Communication**: Use standard Rust channels (`std::sync::mpsc`) for communication between the main
-    `VSCodeApp` thread and any helper threads (e.g., the WebSocket reader thread) and for receiving state update
-    notifications from the core `App`.
+### 2. Robust Synchronization Mechanisms
 
-## IPC Mechanism Update: Switching from Stdin/Stdout to WebSockets
+VSCode-Neovim uses several techniques to ensure robust synchronization:
 
-### Problem
+-   Mutex locks to prevent concurrent modifications
+-   Completion promises to coordinate operations
+-   Version tracking to avoid feedback loops
+-   Debouncing for high-frequency events
 
-The previous IPC mechanism relying on stdin/stdout conflicts with the core `ki-editor::App`'s potential need to use
-these streams for subprocesses like LSP servers (`rust-analyzer`).
+### 3. External Buffer Handling
 
-### Solution
+VSCode-Neovim handles "external buffers" (buffers created by Neovim that don't correspond to real files) through:
 
-The IPC mechanism will be switched to use **WebSockets** over TCP.
+-   A `TextDocumentContentProvider` implementation
+-   Special tracking of external documents
+-   Custom URI scheme for external buffers
+-   Buffer event listeners for content updates
 
-### Implementation Strategy (Synchronous Approach)
+This approach could be adapted for Ki's temporary buffers, such as help buffers, command output, and other non-file
+buffers.
 
-To maintain the existing synchronous structure of `VSCodeApp` and avoid introducing `tokio` at this stage, a synchronous
-WebSocket implementation will be used.
+### 4. Comprehensive Event Types
 
-**Technology:**
+VSCode-Neovim handles a wide range of events:
 
--   **Rust:** `tungstenite` crate with standard library networking (`std::net`).
--   **TypeScript:** Standard `WebSocket` client (e.g., using the `ws` library).
+-   Buffer events (content changes, open/close)
+-   Cursor and selection events
+-   Mode changes
+-   Viewport changes
+-   Command execution
 
-**Implementation Steps:**
+Our integration should include similar event types to ensure complete functionality.
 
-1.  **Rust Backend (`src/vscode/`)**:
+## Proposed Architecture: Integration Event Channel
 
-    -   Replace the current stdin/stdout `VscodeIpc` struct.
-    -   Create a new WebSocket IPC handler using `tungstenite` and `std::net::TcpListener`.
-    -   Bind the listener to `127.0.0.1:0` (requesting an OS-assigned port).
-    -   **Crucially:** Print the assigned port to the original stdout (`println!("KI_LISTENING_ON={}", port);`) and
-        flush stdout immediately after binding. This is stdout's sole purpose.
-    -   Spawn a dedicated `std::thread` for blocking WebSocket handling:
-        -   Accept one incoming TCP connection (`listener.accept()`).
-        -   Perform the WebSocket handshake using `tungstenite::accept`.
-        -   Loop:
-            -   Read incoming WebSocket messages (`websocket.read_message()`).
-            -   Deserialize valid text messages to `InputMessageWrapper`.
-            -   Send deserialized messages to the main `VSCodeApp` thread via an `mpsc` channel.
-            -   Receive outgoing `OutputMessageWrapper`s from the main thread via another `mpsc` channel and send them
-                over the WebSocket (`websocket.write_message()`).
-    -   Remove the old 4-byte length-prefixing logic.
+Based on our analysis and lessons from VSCode-Neovim, we propose a cleaner architecture that decouples Ki from VSCode:
 
-2.  **VSCode Extension (`ki-vscode/src/`)**:
+### 1. Integration Event Channel
 
-    -   Modify `IPC::start`:
-        -   Spawn the Rust process.
-        -   Listen to the process's `stdout` until the `KI_LISTENING_ON=PORT` line is received.
-        -   Parse the `PORT`.
-        -   Stop listening to `stdout`.
-        -   Connect a WebSocket client to `ws://localhost:PORT`.
-    -   Modify IPC message handling:
-        -   Send `InputMessageWrapper`s via `websocket.send()`.
-        -   Listen for WebSocket `message` events for incoming data.
-        -   Deserialize event data to `OutputMessageWrapper`.
-        -   Pass deserialized messages to the `Dispatcher`.
-    -   Remove the old 4-byte length-prefixing and stream buffering logic.
+Replace the current VSCode-specific notification channel (`vscode_notification_sender` and `from_app_receiver`) with a
+generic integration channel that emits events relevant to external integrations:
 
-3.  **Core App -> `VSCodeApp` Notifications**:
-    -   Implement the outgoing notification channel mechanism described in the "Rust -> VSCode State Synchronization"
-        section.
-    -   The main `VSCodeApp` loop must poll the receiver end of this channel and forward notifications over the
-        WebSocket via the handler thread.
+```rust
+// In App struct
+integration_event_sender: Option<Sender<IntegrationEvent>>,
 
----
+// New enum for integration events
+enum IntegrationEvent {
+    // Buffer events
+    BufferChanged {
+        component_id: ComponentId,
+        path: CanonicalizedPath,
+        transaction: EditTransaction
+    },
+    BufferOpened {
+        component_id: ComponentId,
+        path: CanonicalizedPath,
+        language_id: Option<String>
+    },
+    BufferClosed {
+        component_id: ComponentId,
+        path: CanonicalizedPath
+    },
+    BufferSaved {
+        component_id: ComponentId,
+        path: CanonicalizedPath
+    },
+    BufferActivated {
+        component_id: ComponentId,
+        path: CanonicalizedPath
+    },
 
-_(Note: The following sections outline important implementation details and cleanup tasks. While the IPC mechanism and
-state synchronization are the immediate priorities, these remain relevant for long-term correctness and
-maintainability.)_
+    // Editor state events
+    ModeChanged {
+        component_id: ComponentId,
+        mode: Mode,
+        selection_mode: SelectionMode
+    },
+    SelectionChanged {
+        component_id: ComponentId,
+        selections: Vec<Selection>
+    },
+    CursorUpdate {
+        component_id: ComponentId,
+        anchors: Vec<Position>,
+        actives: Vec<Position>
+    },
+    ViewportChanged {
+        component_id: ComponentId,
+        start_line: usize,
+        end_line: usize
+    },
 
-## Essential Protocol Events
+    // External buffer events
+    ExternalBufferCreated {
+        component_id: ComponentId,
+        buffer_id: String,
+        content: String
+    },
+    ExternalBufferUpdated {
+        component_id: ComponentId,
+        buffer_id: String,
+        changes: Vec<TextChange>
+    },
 
-### From VSCode to Ki (InputMessage)
+    // Other events
+    CommandExecuted {
+        command: String,
+        success: bool
+    }
+}
+```
 
--   `buffer.open` - Document opened
--   `buffer.close` - Document closed
--   `buffer.save` - Document saved
--   `buffer.change` - Document content changed
--   `buffer.active` - Active editor changed
--   `cursor.update` - Cursor position changed
--   `selection.set` - Selection changed
--   `mode.set` - Mode changed (including selection mode)
--   `keyboard.input` - Keyboard input received
--   `ping` - Connection test
+### 2. VSCodeApp as Event Translator
 
-### From Ki to VSCode (OutputMessage)
+VSCodeApp would:
 
--   `buffer.update` / `buffer.diff` - Update document content
--   `cursor.update` - Update cursor positions
--   `selection.update` - Update selections
--   `mode.change` - Update editor mode
--   `error` / `success` - Operation results
--   `ping` - Connection response
+-   Receive events from the integration channel (replacing `from_app_receiver`)
+-   Translate them to VSCode-specific messages
+-   Send them to VSCode via the IPC channel
+-   Continue to use `app_sender`/`app_message_receiver` for sending messages to the App
 
-## TypeScript Implementation Todo
+### 3. Manager-Based TypeScript Architecture
 
-1.  **Fix selection handler**
+Inspired by VSCode-Neovim, we'll refactor the TypeScript side to use a manager-based architecture:
 
-    -   Update `Selection` type usage to match protocol (start, end, is_extended)
-    -   Add `primary` field to `SelectionSet`
+-   `BufferManager`: Handles buffer synchronization and mapping
+-   `CursorManager`: Handles cursor and selection synchronization
+-   `ModeManager`: Handles mode changes and keyboard input
+-   `ViewportManager`: Handles viewport synchronization
+-   `CommandManager`: Handles command execution
 
-2.  **Add missing handlers**
+### 4. Minimal Ki Core Modifications
 
-    -   Implement selection mode handler
-    -   Implement search functionality
+-   Make `BufferEditTransaction` a generic dispatch type (not VSCode-specific)
+-   Add the integration event channel to send events out of Ki
+-   Remove VSCode-specific code from Ki's core (including `#[cfg(feature = "vscode")]` blocks)
+-   Remove the VSCode-specific notification channel
 
-3.  **Fix protocol inconsistencies**
+### Benefits
 
-    -   Remove duplicate document.\* events
-    -   Ensure protocol consistency between handlers
+-   **Clean Separation**: Ki doesn't need to know about VSCode or any other integration
+-   **Minimal Changes**: We don't need to modify Ki's API signatures
+-   **Extensibility**: The same channel could be used for other integrations in the future
+-   **Clarity**: The flow of information is clear and easy to follow
+-   **Robustness**: Better synchronization mechanisms based on proven patterns
 
-4.  **Add missing VSCode event listeners**
+## Implementation Plan
 
-    -   Scroll synchronization (onDidChangeTextEditorVisibleRanges)
-    -   Configuration changes
+Based on our analysis and the lessons from VSCode-Neovim, we've developed a phased implementation plan:
 
-5.  **Clean up IPC service**
+### Phase 1: Rust-Side Refactoring
 
-    -   Simplify connection management
-    -   Standardize error handling
+1. **Define IntegrationEvent Enum**: COMPLETE
 
-6.  **Testing and validation**
-    -   Verify all protocol messages are handled correctly
-    -   Ensure proper event propagation in both directions
+    - Create a comprehensive enum that covers all necessary event types
+    - Include fields for all required information
+    - Ensure the enum is well-documented
 
-## Implementation Clean-up Plan
+2. **Add Integration Channel to Ki**: COMPLETE
 
-After reviewing the current implementation, several issues need to be addressed to align with our original plan:
+    - Add an optional sender to App that sends IntegrationEvents
+    - Identify key points in Ki's code to emit events
+    - Implement event emission at these points
 
-1.  **Consolidate buffer handling**
+3. **Update Protocol Types**: COMPLETE
 
-    -   Merge `buffer_manager.ts` and `document_change_manager.ts` into a single `buffer_handler.ts`
-    -   Remove optimization logic, version conflict resolution, and complex debouncing
-    -   Maintain a simple 1:1 mapping between VSCode document events and Ki notifications
+    - Enhance protocol types to align with Ki's event types
+    - Ensure protocol types are comprehensive and well-documented
+    - Generate TypeScript types from protocol definitions
 
-2.  **Simplify architecture**
+4. **Modify VSCodeApp**: COMPLETE
 
-    -   Replace complex manager classes with simple event handlers
-    -   Remove performance optimization code (prioritization, debouncing, batching)
-    -   Eliminate complex error recovery and retry logic
-    -   Keep core functionality focused on event translation only
+    - Add a receiver for IntegrationEvents
+    - Implement translation from IntegrationEvents to protocol messages
+    - Update IPC handling to use the new protocol types
+    - Update handlers to handle new events to match functionality of current implementation. Leave stubs for any that we
+      do not yet implement.
 
-3.  **Reorganize modules**
+5. **Cleanup**: COMPLETE
+    - Remove vscode specific notification channel from app.rs
+    - Remove vscode specific code from Ki's core. We need to keep some of our modifications such as returning an
+      EditTransaction from Buffer::apply_edit_transaction and the BufferEditTransaction dispatch. Most or all of what
+      needs to be removed is in app.rs
+    - Final check for any remaining vscode specific code that is not strictly necessary
 
-    -   Move all handlers to the `handlers/` directory
+### Phase 2: TypeScript-Side Refactoring
 
-    *   Ensure each handler handles exactly one type of event/message
-    *   Remove `*_manager.ts` files in favor of single-purpose handlers
-    *   Create a central registry that maps events to handlers
+1. **Implement Manager-Based Architecture**:
 
-4.  **Standardize event handling**
+    - Create manager classes for different aspects of the integration
+    - Define clear responsibilities for each manager
+    - Implement communication between managers
 
-    -   Implement a single event dispatcher that routes all events
-    -   Avoid duplicate event listeners across multiple files
-    -   Ensure clean, consistent flow of events between VSCode and Ki
+2. **Enhance Buffer Synchronization**:
 
-5.  **Unify IPC communication**
-    -   Consolidate `ipc_client.ts` and `ipc_service.ts` into a single `ipc.ts` (as per the WebSocket plan)
-    -   Implement a clean protocol layer that matches the Rust side
-    -   Simplify message passing with no special cases for message types
+    - Implement robust buffer diff application
+    - Add version tracking to avoid feedback loops
+    - Handle external buffers using a TextDocumentContentProvider
 
-These changes will bring the implementation closer to the original design principles of simplicity, clean separation,
-and maintainability.
+3. **Improve Cursor and Selection Handling**:
+
+    - Implement better cursor position tracking
+    - Handle multiple selections
+    - Coordinate cursor updates with buffer changes
+
+4. **Implement Viewport Synchronization**:
+
+    - Track visible ranges
+    - Implement scrolling synchronization
+    - Debounce high-frequency events
+
+5. **Cleanup**:
+    - Remove files no longer in use
+    - Remove imports no longer in use
+    - Refactor as necessary to keep the code clean
+
+### Phase 3: Feature Completion
+
+1. **External Buffer Support**:
+
+    - Implement support for Ki's temporary buffers
+    - Create a custom URI scheme for external buffers
+    - Handle content updates for external buffers
+
+2. **Mode and Input Handling**:
+
+    - Improve mode synchronization
+    - Enhance keyboard input handling
+    - Support for all Ki modes
+
+3. **Command Execution**:
+
+    - Implement command execution flow
+    - Handle command results
+    - Support for all Ki commands
+
+4. **Performance Optimizations**:
+    - Batch operations where possible
+    - Optimize high-frequency events
+    - Reduce unnecessary communication
+
+## TODO
+
+### Current Event Flow
+
+Let's trace through the current flow of events when we press undo:
+
+1. Send editor action to backend
+2. Backend creates an `AppMessage::ExternalDispatch(Dispatch::ToEditor(DispatchEditor::Undo))` and sends it to Ki via
+   `app_sender`
+3. Ki processes the message in its event loop via `process_message`, which calls `handle_dispatch` internally
+4. This eventually flows to `handle_dispatch_editor_custom` where it calls `handle_dispatch_editor` on the Component
+5. This in turn calls `handle_dispatch_editor` on the Editor
+6. Matches to Undo eventually calling `undo_or_redo`
+7. `undo_or_redo` calls `undo` on Buffer, resulting in a `selection_set` and `applied_transaction`
+8. Here in VSCode we create a `BufferEditTransaction` and return it with the dispatches
+9. Now we're all the way back in `handle_dispatch_editor_custom` on App where we have new dispatches
+10. We call `self.handle_dispatches` which likely contains `DocumentDidChange`, `SelectionUpdate`,
+    `BufferEditTransaction`
+11. `Dispatch::BufferEditTransaction` matches, we call `send_vscode_notification` with a `BufferDiff`
+12. Rest of VSCode-specific logic in `handle_dispatch_editor_custom` runs, sending extra events for mode change,
+    selection mode change, cursor update, and selection change
+
+### Proposed Event Flow
+
+With the new architecture, the flow would be:
+
+1. Send editor action to backend
+2. Backend creates an `AppMessage::IntegrationDispatch(Dispatch::ToEditor(DispatchEditor::Undo))` and sends it to Ki via
+   `app_sender`
+3. Ki processes the message in its event loop via `process_message`, which calls `handle_dispatch` internally
+4. At key points, Ki emits IntegrationEvents (e.g., `BufferChanged`, `SelectionChanged`, `ModeChanged`, `CursorUpdate`)
+   through the integration channel
+5. VSCodeApp receives these events from the integration channel (instead of `from_app_receiver`)
+6. VSCodeApp translates these events to VSCode-specific protocol messages (e.g., `buffer.diff`, `selection.update`,
+   `mode.change`, `cursor.update`)
+7. VSCodeApp sends the messages to VSCode via the IPC channel
+
+This flow is cleaner, more decoupled, and easier to understand and maintain. Key improvements:
+
+1. **Removal of VSCode-specific code from Ki**: No more `#[cfg(feature = "vscode")]` blocks in Ki
+2. **Simplified communication**: One clear channel for integration events instead of scattered notification points
+3. **Better separation of concerns**: Ki focuses on editor functionality, VSCodeApp handles VSCode integration
+4. **Extensibility**: The same integration channel could be used for other integrations in the future

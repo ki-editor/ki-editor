@@ -19,6 +19,7 @@ use crate::{
     frontend::Frontend,
     git,
     grid::{Grid, LineUpdate},
+    integration_event::IntegrationEventEmitter,
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
@@ -38,8 +39,7 @@ use crate::{
 };
 use event::event::Event;
 use itertools::{Either, Itertools};
-#[cfg(feature = "vscode")]
-use log::{trace, warn};
+use log::trace;
 use name_variant::NamedVariant;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
@@ -65,9 +65,10 @@ pub(crate) struct App<T: Frontend> {
     /// - Notifications from language server
     receiver: Receiver<AppMessage>,
 
-    #[cfg(feature = "vscode")]
-    // Sender for notifications to VSCodeApp
-    vscode_notification_sender: Option<Sender<ki_protocol_types::OutputMessageWrapper>>,
+    // VSCode notification sender has been removed in favor of integration_event_sender
+
+    // Sender for integration events (used by external integrations like VSCode)
+    integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
 
     lsp_manager: LspManager,
     enable_lsp: bool,
@@ -116,8 +117,7 @@ impl<T: Frontend> App<T> {
             sender,
             receiver,
             status_line_components,
-            #[cfg(feature = "vscode")]
-            None,
+            None, // No integration event sender
         )
     }
 
@@ -132,9 +132,7 @@ impl<T: Frontend> App<T> {
         sender: Sender<AppMessage>,
         receiver: Receiver<AppMessage>,
         status_line_components: Vec<StatusLineComponent>,
-        #[cfg(feature = "vscode")] vscode_notification_sender: Option<
-            Sender<ki_protocol_types::OutputMessageWrapper>,
-        >,
+        integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let app = App {
@@ -154,8 +152,7 @@ impl<T: Frontend> App<T> {
             status_line_components,
             last_action_description: None,
             last_action_short_description: None,
-            #[cfg(feature = "vscode")]
-            vscode_notification_sender,
+            integration_event_sender,
         };
         Ok(app)
     }
@@ -224,6 +221,12 @@ impl<T: Frontend> App<T> {
             } => self
                 .update_highlighted_spans(component_id, batch_id, highlighted_spans)
                 .map(|_| false),
+            // Handle the new ExternalDispatch variant
+            AppMessage::ExternalDispatch(dispatch) => {
+                // Process the dispatch directly
+                self.handle_dispatch(dispatch)?;
+                Ok(false)
+            }
         }
     }
 
@@ -490,10 +493,49 @@ impl<T: Frontend> App<T> {
             } => self.open_search_prompt(scope, if_current_not_found)?,
             Dispatch::OpenPipeToShellPrompt => self.open_pipe_to_shell_prompt()?,
             Dispatch::OpenFile { path, owner, focus } => {
-                self.open_file(&path, owner, true, focus)?;
+                let component = self.open_file(&path, owner, true, focus)?;
+
+                // Emit an integration event for buffer opened
+                let component_ref = component.borrow();
+                let component_id =
+                    crate::integration_event::component_id_to_usize(&component_ref.id());
+                let language_id = component_ref
+                    .editor()
+                    .buffer()
+                    .language()
+                    .and_then(|lang| lang.id())
+                    .map(|id| id.to_string());
+
+                self.integration_event_sender.emit_event(
+                    crate::integration_event::IntegrationEvent::BufferOpened {
+                        component_id,
+                        path: path.clone(),
+                        language_id,
+                    },
+                );
             }
             Dispatch::OpenFileFromPathBuf { path, owner, focus } => {
-                self.open_file(&path.try_into()?, owner, true, focus)?;
+                let canonicalized_path = path.try_into()?;
+                let component = self.open_file(&canonicalized_path, owner, true, focus)?;
+
+                // Emit an integration event for buffer opened
+                let component_ref = component.borrow();
+                let component_id =
+                    crate::integration_event::component_id_to_usize(&component_ref.id());
+                let language_id = component_ref
+                    .editor()
+                    .buffer()
+                    .language()
+                    .and_then(|lang| lang.id())
+                    .map(|id| id.to_string());
+
+                self.integration_event_sender.emit_event(
+                    crate::integration_event::IntegrationEvent::BufferOpened {
+                        component_id,
+                        path: canonicalized_path.clone(),
+                        language_id,
+                    },
+                );
             }
 
             Dispatch::OpenFilePicker(kind) => {
@@ -646,7 +688,7 @@ impl<T: Frontend> App<T> {
                         content.clone(),
                     )?;
                 }
-                if let Some(path) = path {
+                if let Some(path) = path.clone() {
                     self.lsp_manager.send_message(
                         path.clone(),
                         FromEditor::TextDocumentDidChange {
@@ -658,6 +700,29 @@ impl<T: Frontend> App<T> {
                 }
             }
             Dispatch::DocumentDidSave { path } => {
+                // Emit an integration event for buffer save
+                // Find the component that has this path
+                for component in self.layout.components() {
+                    // Store the component reference to extend its lifetime
+                    let component_rc = component.component();
+                    let component_ref = component_rc.borrow();
+                    if let Some(component_path) = component_ref.path() {
+                        if component_path == path {
+                            let component_id = crate::integration_event::component_id_to_usize(
+                                &component_ref.id(),
+                            );
+
+                            self.integration_event_sender.emit_event(
+                                crate::integration_event::IntegrationEvent::BufferSaved {
+                                    component_id,
+                                    path: path.clone(),
+                                },
+                            );
+                            break;
+                        }
+                    }
+                }
+
                 self.lsp_manager.send_message(
                     path.clone(),
                     FromEditor::TextDocumentDidSave { file_path: path },
@@ -707,6 +772,73 @@ impl<T: Frontend> App<T> {
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
                 self.handle_event(Event::Key(key_event))?;
+            }
+            Dispatch::ModeChanged => {
+                // This dispatch is handled by the VSCode integration to send mode change notifications
+                // No action needed here as the mode has already been changed in the editor
+
+                // Get the current component and its mode
+                let component = self.current_component();
+                let component_ref = component.borrow();
+                let editor = component_ref.editor();
+                let mode = editor.mode.clone();
+                let selection_mode = editor.selection_set.mode.clone();
+                let component_id = crate::integration_event::component_id_to_usize(&editor.id());
+
+                // Emit an integration event for the mode change
+                self.integration_event_sender.emit_event(
+                    crate::integration_event::IntegrationEvent::ModeChanged {
+                        component_id,
+                        mode: format!("{:?}", mode),
+                        selection_mode,
+                    },
+                );
+            }
+            Dispatch::SelectionChanged {
+                component_id,
+                selections,
+            } => {
+                // Convert component_id to usize for integration event
+                let component_id_usize =
+                    crate::integration_event::component_id_to_usize(&component_id);
+
+                // Get the component to access the buffer
+                if let Some(component) = self.layout.get_component_by_id(component_id) {
+                    let component_ref = component.borrow();
+                    let editor = component_ref.editor();
+                    let buffer = editor.buffer();
+
+                    // Extract cursor positions from the selections
+                    let mut anchors = Vec::new();
+                    let mut actives = Vec::new();
+
+                    // Extract anchor and active positions
+                    for selection in &selections {
+                        let range = selection.extended_range();
+                        // For anchor, use the start of the range
+                        if let Ok(pos) = buffer.char_to_position(range.start) {
+                            anchors.push(pos);
+                        }
+
+                        // For active, use the end of the range
+                        if let Ok(pos) = buffer.char_to_position(range.end) {
+                            actives.push(pos);
+                        }
+                    }
+
+                    // Only emit event if we have valid positions
+                    if !anchors.is_empty() && !actives.is_empty() {
+                        // Emit a selection changed event (which now includes cursor information)
+                        self.integration_event_sender.emit_event(
+                            crate::integration_event::IntegrationEvent::SelectionChanged {
+                                component_id: component_id_usize,
+                                selections: selections.clone(),
+                            },
+                        );
+                    }
+                }
+
+                // Mode change notification is now handled via integration events
             }
             Dispatch::GetRepoGitHunks(diff_mode) => self.get_repo_git_hunks(diff_mode)?,
             Dispatch::SaveAll => self.save_all()?,
@@ -834,6 +966,63 @@ impl<T: Frontend> App<T> {
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
+            Dispatch::BufferEditTransaction {
+                component_id,
+                path,
+                transaction,
+            } => {
+                // Emit an integration event for the buffer change
+                self.integration_event_sender.emit_event(
+                    crate::integration_event::IntegrationEvent::BufferChanged {
+                        component_id: crate::integration_event::component_id_to_usize(
+                            &component_id,
+                        ),
+                        path: path.clone(),
+                        transaction: transaction.clone(),
+                    },
+                );
+
+                // Convert the transaction to buffer diffs and send to VSCode (for backward compatibility)
+                if let Some(component) = self.layout.get_component_by_id(component_id) {
+                    let component_ref = component.borrow();
+                    let editor = component_ref.editor();
+                    let buffer = editor.buffer();
+
+                    // Extract edits from the transaction
+                    let edits: Vec<ki_protocol_types::DiffEdit> = transaction
+                        .edits()
+                        .iter()
+                        .filter_map(|edit| {
+                            let range_start_pos = buffer.char_to_position(edit.range.start).ok()?;
+                            let range_end_pos = buffer.char_to_position(edit.range.end).ok()?;
+                            Some(ki_protocol_types::DiffEdit {
+                                range: ki_protocol_types::Range {
+                                    start: crate::vscode::utils::ki_position_to_vscode_position(
+                                        &range_start_pos,
+                                    ),
+                                    end: crate::vscode::utils::ki_position_to_vscode_position(
+                                        &range_end_pos,
+                                    ),
+                                },
+                                new_text: edit.new.to_string(),
+                            })
+                        })
+                        .collect();
+
+                    if !edits.is_empty() {
+                        let buffer_id = path.display_absolute();
+                        let diff_params = ki_protocol_types::BufferDiffParams { buffer_id, edits };
+
+                        // Log the transaction details for debugging
+                        trace!(
+                            "Sending buffer diff from EditTransaction: {:?}",
+                            diff_params
+                        );
+
+                        // Buffer diff notification is now handled via integration events
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -1132,7 +1321,18 @@ impl<T: Frontend> App<T> {
 
         if focus {
             self.layout
-                .replace_and_focus_current_suggestive_editor(component.clone())
+                .replace_and_focus_current_suggestive_editor(component.clone());
+
+            // Emit an integration event for buffer activation
+            let component_ref = component.borrow();
+            let component_id = crate::integration_event::component_id_to_usize(&component_ref.id());
+
+            self.integration_event_sender.emit_event(
+                crate::integration_event::IntegrationEvent::BufferActivated {
+                    component_id,
+                    path: path.clone(),
+                },
+            );
         }
         if let Some(language) = language {
             self.request_syntax_highlight(component_id, batch_id, language, content)?;
@@ -1315,6 +1515,27 @@ impl<T: Frontend> App<T> {
         store_history: bool,
     ) -> Result<(), anyhow::Error> {
         let component = self.open_file(&location.path, BufferOwner::System, store_history, true)?;
+
+        // Emit an integration event for selection change
+        let component_ref = component.borrow();
+        let component_id = crate::integration_event::component_id_to_usize(&component_ref.id());
+
+        // Create a selection at the location position
+        // We'll let the editor.set_position_range call below handle the actual selection
+        // Just emit a simple empty selection at the start position for now
+        let buffer = component_ref.editor().buffer();
+        if let Ok(char_index) = location.range.start.to_char_index(&buffer) {
+            let selection = crate::selection::Selection::new((char_index..char_index).into());
+
+            // Emit a selection changed event
+            self.integration_event_sender.emit_event(
+                crate::integration_event::IntegrationEvent::SelectionChanged {
+                    component_id,
+                    selections: vec![selection],
+                },
+            );
+        }
+
         let dispatches = component
             .borrow_mut()
             .editor_mut()
@@ -1616,145 +1837,21 @@ impl<T: Frontend> App<T> {
         dispatch_editor: DispatchEditor,
         component: Rc<RefCell<dyn Component>>,
     ) -> anyhow::Result<()> {
-        let dispatches = component
+        // Call the component's handle_dispatch_editor method
+        let dispatches = match component
             .borrow_mut()
-            .handle_dispatch_editor(&mut self.context, dispatch_editor)?;
-
-        self.handle_dispatches(dispatches)?;
-
-        #[cfg(feature = "vscode")]
+            .handle_dispatch_editor(&mut self.context, dispatch_editor.clone())
         {
-            if let Some(editor) = component
-                .borrow_mut()
-                .as_any_mut()
-                .downcast_ref::<SuggestiveEditor>()
-            {
-                if let Some(buffer_id_owned) = editor
-                    .editor()
-                    .buffer()
-                    .path()
-                    .map(|p| p.display_absolute())
-                {
-                    trace!("Buffer ID found: {}", buffer_id_owned);
-                    // 1. Send Mode Updates
-                    let current_mode = editor.editor().mode.clone();
-                    let current_selection_mode = editor.editor().display_selection_mode();
-                    trace!(
-                        "Current Mode: {:?}, Selection Mode: {}",
-                        current_mode,
-                        current_selection_mode
-                    );
+            Ok(dispatches) => dispatches,
+            Err(e) => return Err(e),
+        };
 
-                    let mode_params = ki_protocol_types::ModeParams {
-                        buffer_id: Some(buffer_id_owned.clone()),
-                        mode: crate::vscode::utils::mode_to_protocol(&current_mode),
-                    };
-                    trace!("Sending ModeChanged notification: {:?}", mode_params);
-                    self.send_vscode_notification(ki_protocol_types::OutputMessageWrapper {
-                        id: 0,
-
-                        message: ki_protocol_types::OutputMessage::ModeChange(mode_params),
-                        error: None,
-                    })?;
-
-                    let sel_mode_params = ki_protocol_types::ModeParams {
-                        buffer_id: Some(buffer_id_owned.clone()),
-                        mode: crate::vscode::utils::selection_mode_to_protocol(
-                            &current_selection_mode,
-                        ),
-                    };
-                    trace!(
-                        "Sending SelectionModeChanged notification: {:?}",
-                        sel_mode_params
-                    );
-                    self.send_vscode_notification(ki_protocol_types::OutputMessageWrapper {
-                        id: 0,
-                        message: ki_protocol_types::OutputMessage::SelectionModeChange(
-                            sel_mode_params,
-                        ),
-                        error: None,
-                    })?;
-
-                    // 2. & 3. Send Cursor and Selection Updates based on current SelectionSet
-                    let internal_selection_set = editor.editor().selection_set.clone();
-                    let ki_selections = &internal_selection_set.selections;
-                    let buffer = editor.editor().buffer();
-
-                    // --- Prepare Data for Both Notifications ---
-                    let mut anchors = Vec::with_capacity(ki_selections.len());
-                    let mut actives = Vec::with_capacity(ki_selections.len());
-                    let mut vscode_selections: Vec<ki_protocol_types::Selection> =
-                        Vec::with_capacity(ki_selections.len());
-
-                    for sel in ki_selections {
-                        let is_extended = sel.initial_range.is_some();
-
-                        let range = sel.extended_range();
-                        let anchor_char_index = range.start;
-                        let active_char_index = range.end;
-
-                        // Convert CharIndex to internal Position
-                        let anchor_internal_pos = anchor_char_index.to_position(&buffer);
-                        let active_internal_pos = active_char_index.to_position(&buffer);
-
-                        // Convert internal Position to protocol Position
-                        let anchor_vscode_pos =
-                            crate::vscode::utils::ki_position_to_vscode_position(
-                                &anchor_internal_pos,
-                            );
-                        let active_vscode_pos =
-                            crate::vscode::utils::ki_position_to_vscode_position(
-                                &active_internal_pos,
-                            );
-
-                        // For CursorUpdate
-                        anchors.push(anchor_vscode_pos.clone());
-                        actives.push(active_vscode_pos.clone());
-
-                        vscode_selections.push(ki_protocol_types::Selection {
-                            anchor: anchor_vscode_pos,
-                            active: active_vscode_pos,
-                            is_extended,
-                        });
-                    }
-
-                    // --- Send Cursor Update ---
-                    let cursor_params = ki_protocol_types::CursorParams {
-                        buffer_id: buffer_id_owned.clone(),
-                        anchors,
-                        actives,
-                    };
-                    trace!("Sending CursorUpdate notification: {:?}", cursor_params);
-                    self.send_vscode_notification(ki_protocol_types::OutputMessageWrapper {
-                        id: 0,
-                        message: ki_protocol_types::OutputMessage::CursorUpdate(cursor_params),
-                        error: None,
-                    })?;
-
-                    // --- Send Selection Update ---
-                    let selection_params = ki_protocol_types::SelectionSet {
-                        buffer_id: buffer_id_owned.clone(),
-                        selections: vscode_selections,
-                        primary: internal_selection_set.cursor_index,
-                    };
-                    trace!(
-                        "Sending SelectionChange notification: {:?}",
-                        selection_params
-                    );
-                    self.send_vscode_notification(ki_protocol_types::OutputMessageWrapper {
-                        id: 0,
-                        message: ki_protocol_types::OutputMessage::SelectionUpdate(
-                            selection_params,
-                        ),
-                        error: None,
-                    })?;
-                } else {
-                    trace!("Could not get buffer ID for component");
-                }
-            } else {
-                trace!("Component is not a SuggestiveEditor after dispatch OR borrow failed, cannot send state notifications.");
-            }
+        // Process the dispatches
+        if let Err(e) = self.handle_dispatches(dispatches) {
+            return Err(e);
         }
+
+        // VSCode-specific code has been removed in favor of integration events
         Ok(())
     }
 
@@ -1812,7 +1909,7 @@ impl<T: Frontend> App<T> {
         self.context.set_mode(mode);
     }
 
-    #[cfg(any(test, feature = "vscode"))]
+    #[cfg(test)]
     pub(crate) fn context(&self) -> &Context {
         &self.context
     }
@@ -2540,27 +2637,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    #[cfg(feature = "vscode")]
-    /// Sends a notification to the VSCode integration if the channel is set up.
-    fn send_vscode_notification(
-        &self,
-        notification: ki_protocol_types::OutputMessageWrapper,
-    ) -> Result<(), anyhow::Error> {
-        if let Some(sender) = &self.vscode_notification_sender {
-            match sender.send(notification.clone()) {
-                Ok(_) => {
-                    trace!("Sent notification to VSCode: {:?}", notification);
-                }
-                Err(e) => {
-                    warn!(
-                        "Failed to send notification to VSCode: {}. Channel might be disconnected.",
-                        e
-                    );
-                }
-            }
-        }
-        Ok(())
-    }
+    // VSCode notification methods have been removed in favor of integration events
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2643,6 +2720,13 @@ pub(crate) enum Dispatch {
     OpenSearchPrompt {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
+    },
+    /// Indicates that the editor mode has changed (used for VSCode integration)
+    ModeChanged,
+    /// Indicates that the selection has changed (used for VSCode integration)
+    SelectionChanged {
+        component_id: crate::components::component::ComponentId,
+        selections: Vec<crate::selection::Selection>,
     },
     OpenFile {
         path: CanonicalizedPath,
@@ -2804,6 +2888,12 @@ pub(crate) enum Dispatch {
     NavigateForward,
     NavigateBack,
     ToggleFileMark,
+    // Used to send buffer changes from EditTransaction to external integrations
+    BufferEditTransaction {
+        component_id: ComponentId,
+        path: CanonicalizedPath,
+        transaction: crate::edit::EditTransaction,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2890,6 +2980,8 @@ pub(crate) enum AppMessage {
         batch_id: SyntaxHighlightRequestBatchId,
         highlighted_spans: HighlightedSpans,
     },
+    // New variant for external dispatches
+    ExternalDispatch(Dispatch),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

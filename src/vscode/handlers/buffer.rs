@@ -1,16 +1,27 @@
 //! Buffer-related handlers for VSCode IPC messages
 
 use super::prelude::*;
-use crate::app::Dispatch;
-use crate::buffer::BufferOwner;
-use crate::components::editor::DispatchEditor;
-use crate::context::Context;
-use crate::vscode::app::VSCodeApp;
-use crate::vscode::utils::uri_to_path;
-use ki_protocol_types::{
-    BufferChange, BufferParams, OutputMessage, OutputMessageWrapper, ResponseError,
+use crate::{
+    app::Dispatch,
+    buffer::BufferOwner,
+    components::editor::DispatchEditor,
+    context::Context,
+    edit::{Action, ActionGroup, Edit, EditTransaction}, // Added Edit types
+    vscode::{
+        app::VSCodeApp,
+        utils::{uri_to_path, vscode_position_to_ki_position}, // Use position conversion util
+    },
 };
-use log::{error, info, warn};
+use ki_protocol_types::{
+    BufferDiffParams, // Use BufferDiffParams instead of InputBufferChangeParams
+    BufferParams,
+
+    OutputMessage,
+    OutputMessageWrapper,
+    ResponseError,
+};
+use log::{debug, error, info, warn}; // Added debug
+use ropey::Rope; // Added Rope
 
 impl VSCodeApp {
     /// Handle buffer open request from VSCode
@@ -23,7 +34,7 @@ impl VSCodeApp {
         } = params;
 
         // Convert URI to path
-        if let Some(path) = uri_to_path(&uri) {
+        if let Ok(path) = uri_to_path(&uri) {
             // Store the original buffer_id for versioning
             let buffer_id = uri.to_string();
 
@@ -101,6 +112,10 @@ impl VSCodeApp {
             };
             self.send_message_to_vscode(response)?;
 
+            // Send cursor position update after buffer is opened
+            // This ensures VSCode has the correct cursor position from the start
+            self.send_cursor_position_for_current_buffer()?;
+
             Ok(())
         } else {
             error!("Failed to convert URI to path: {}", uri);
@@ -127,9 +142,9 @@ impl VSCodeApp {
 
         // Convert to CanonicalizedPath
         let _path = match uri_to_path(&uri) {
-            Some(p) => p,
-            None => {
-                error!("Failed to convert URI to path: {}", uri);
+            Ok(p) => p,
+            Err(e) => {
+                error!("Failed to convert URI to path: {}: {}", uri, e);
                 return Ok(());
             }
         };
@@ -146,7 +161,7 @@ impl VSCodeApp {
 
         // Send success response
         let response = OutputMessageWrapper {
-            id: id,
+            id,
             message: OutputMessage::Success(true),
             error: None,
         };
@@ -169,7 +184,7 @@ impl VSCodeApp {
 
         // Send success response
         let response = OutputMessageWrapper {
-            id: id,
+            id,
             message: OutputMessage::Success(true),
             error: None,
         };
@@ -184,7 +199,7 @@ impl VSCodeApp {
         info!("Handling buffer.active: {}", buffer_id);
 
         // Convert URI to path
-        if let Some(path) = uri_to_path(&uri) {
+        if let Ok(path) = uri_to_path(&uri) {
             // Use the app's dispatch system to focus the file
             info!("Focusing file through dispatch: {:?}", path);
 
@@ -202,15 +217,9 @@ impl VSCodeApp {
                 Ok(_) => {
                     info!("Successfully focused file: {:?}", path);
 
-                    // Immediately check for changes in cursor and selection
-                    // This ensures VSCode is up to date with our state
-                    if let Err(err) = self.check_for_cursor_changes() {
-                        error!("Failed to check for cursor changes: {}", err);
-                    }
-
-                    if let Err(err) = self.check_for_selection_changes() {
-                        error!("Failed to check for selection changes: {}", err);
-                    }
+                    // Send cursor position update after buffer is activated
+                    // This ensures VSCode has the correct cursor position from the start
+                    self.send_cursor_position_for_current_buffer()?;
 
                     Ok(())
                 }
@@ -229,219 +238,118 @@ impl VSCodeApp {
     /// This is treated as a notification (_id might not be relevant for response)
     pub fn handle_buffer_change_request(
         &mut self,
-        _id: u64, // Typically unused for notifications/updates like this
-        buffer_change: BufferChange,
+        _id: u64,                 // Typically unused for notifications/updates like this
+        params: BufferDiffParams, // Use BufferDiffParams
     ) -> Result<()> {
-        // Destructure according to ki-protocol-types/src/lib.rs
-        let BufferChange {
-            buffer_id,
-            start_line,
-            end_line,
-            content,
-            version,
-            message_id,     // ID of the message from VSCode side, used for ACK
-            retry_count: _, // Currently unused
-        } = buffer_change;
+        let BufferDiffParams { buffer_id, edits } = params;
 
-        info!(
-            "Handling buffer change request: buffer_id={}, version={}, msg_id={}, range=L{}-L{}",
+        debug!(
+            "Handling buffer change request: buffer_id={}, edits_count={}",
             buffer_id,
-            version, // Use version directly
-            message_id,
-            start_line + 1,
-            end_line + 1 // end_line seems inclusive based on common text editor APIs
+            edits.len()
         );
 
         // Convert buffer_id (URI) to path
-        if let Some(path) = uri_to_path(&buffer_id) {
-            let current_path = self.get_current_file_path();
+        if let Ok(path) = uri_to_path(&buffer_id) {
+            // Find the corresponding editor/buffer in the app's layout
+            // Use the helper method to get the editor component
+            if let Some(editor_rc) = self.get_editor_component_by_path(&path) {
+                // Create a scope for the editor borrow to ensure it's dropped before we dispatch
+                let ki_edits_result: Result<Vec<Edit>, _> = {
+                    let editor_borrow = editor_rc.borrow();
+                    let buffer = editor_borrow.editor().buffer();
+                    // let context = app_lock.context(); // Context not needed here
 
-            // Only apply changes if the path matches the current buffer
-            // TODO: Decide if we should queue changes for non-active buffers or handle them differently
-            if current_path.as_ref() != Some(&path) {
-                warn!(
-                    "Received buffer change for non-active buffer: {}. Ignoring.",
-                    buffer_id
-                );
-                // Acknowledge receipt even if ignored to prevent retries?
-                // Let's send ACK for now.
-                let ack_response = OutputMessageWrapper {
-                    id: 0, // Use ID 0 for notifications/acknowledgments
-                    message: OutputMessage::BufferAck(message_id),
-                    error: None,
+                    // Convert protocol edits to Ki Edits
+                    edits
+                        .into_iter()
+                        .map(|diff_edit| {
+                            // Convert VSCode Position to Ki Position
+                            let start_ki_pos =
+                                vscode_position_to_ki_position(&diff_edit.range.start);
+                            let end_ki_pos = vscode_position_to_ki_position(&diff_edit.range.end);
+
+                            // Convert Ki Position to Ki CharIndex, handling potential errors
+                            let start_char_index = buffer.position_to_char(start_ki_pos)?;
+                            let end_char_index = buffer.position_to_char(end_ki_pos)?;
+
+                            let range = (start_char_index..end_char_index).into();
+
+                            Ok::<Edit, anyhow::Error>(Edit::new(
+                                buffer.rope(), // Pass rope reference
+                                range,
+                                Rope::from_str(&diff_edit.new_text),
+                            ))
+                        })
+                        .collect()
+                    // editor_borrow is dropped at the end of this scope
                 };
-                self.send_message_to_vscode(ack_response)?;
-                return Ok(());
-            }
 
-            // Check versioning (using the single 'version' field)
-            let current_version = self.buffer_versions.entry(buffer_id.clone()).or_insert(0);
-            if (version as u64) <= *current_version {
-                warn!(
-                    "Ignoring stale buffer update for {}. Current: {}, Received: {}",
-                    buffer_id, *current_version, version
-                );
-                // Send ACK even for stale updates
-                let ack_response = OutputMessageWrapper {
-                    id: 0, // Use ID 0 for notifications/acknowledgments
-                    message: OutputMessage::BufferAck(message_id),
-                    error: None,
-                };
-                self.send_message_to_vscode(ack_response)?;
-                return Ok(());
-            }
-            // Update version only after successful application? Or before? Let's update before.
-            *current_version = version as u64;
+                match ki_edits_result {
+                    Ok(ki_edits) => {
+                        if ki_edits.is_empty() {
+                            debug!("No actual edits to apply for buffer {}", buffer_id);
+                            return Ok(()); // Nothing to do
+                        }
 
-            // Apply the single change using the component's methods
-            debug!("[{}] Attempting to lock core App mutex...", message_id); // Use message_id as trace_id
-            let app_guard = self.app.lock().unwrap();
-            debug!("[{}] Core App mutex locked.", message_id);
+                        // Create an EditTransaction
+                        let transaction =
+                            EditTransaction::from_action_groups(vec![ActionGroup::new(
+                                ki_edits.into_iter().map(Action::Edit).collect(),
+                            )]);
 
-            let comp = app_guard.current_component();
-            let context = Context::new(path.clone());
+                        // Get the number of edits for logging
+                        let num_edits = transaction.edits().len();
 
-            // Lock the component
-            debug!("[{}] Attempting to borrow component mutably...", message_id);
-            let mut comp_ref = comp.borrow_mut();
-            debug!("[{}] Component borrowed mutably.", message_id);
+                        // Dispatch the transaction to the specific editor component
+                        let component_id = editor_rc.borrow().id();
+                        // Use ApplyEditTransaction variant
+                        let dispatch = Dispatch::ToEditor(DispatchEditor::ApplyEditTransaction {
+                            transaction,
+                            component_id,            // Target the specific editor
+                            reparse_tree: true,      // Assume reparse needed
+                            update_undo_stack: true, // Assume undo needed
+                        });
 
-            // Determine if it's a full content replace or a range replace
-            // This needs a clear convention. Let's assume start=0, end=max_lines (or similar) means full replace.
-            // For now, we'll rely on a method that can handle the range.
-            // We need start/end columns too for precise range replacement.
-            // The current BufferChange struct LACKS column info!
-            // This is a significant protocol limitation.
-            // WORKAROUND: Assume the change applies to the full lines for now.
-            warn!("BufferChange protocol lacks column information. Applying change to full lines {}-{}", start_line + 1, end_line + 1);
+                        info!(
+                            "Dispatching ApplyEditTransaction for buffer {} with {} edits",
+                            buffer_id, num_edits
+                        );
 
-            // TODO: Implement a proper replace_lines method in the component if it doesn't exist.
-            // Using set_content as a placeholder if the range covers the whole document,
-            // otherwise, we need a range-based replace.
-
-            // Placeholder logic: Assume set_content for now until range logic is clearer/protocol updated
-            if start_line == 0 && end_line == usize::MAX {
-                // A potential convention for full replace? Unlikely.
-                info!("Applying full content replace (heuristic)");
-                if let Err(e) = comp_ref.set_content(&content, &context) {
-                    debug!("[{}] Post-set_content (full replace).", message_id);
-                    error!("Failed to apply full content change: {}", e);
-                    // Don't send ACK on failure? Or send error? Protocol unclear.
-                    return Err(anyhow!("Failed to apply full content change: {}", e));
+                        // Re-lock app to dispatch
+                        if let Err(e) = self.app.lock().unwrap().handle_dispatch(dispatch) {
+                            error!(
+                                "Failed to dispatch ApplyTransaction for buffer {}: {}",
+                                buffer_id, e
+                            );
+                            // Consider sending an error back to VSCode if needed
+                        }
+                    }
+                    Err(e) => {
+                        error!(
+                            "Failed to convert VSCode edits to Ki edits for buffer {}: {}",
+                            buffer_id, e
+                        );
+                        // Consider sending an error back to VSCode
+                    }
                 }
             } else {
-                info!("Applying range replace (line-based workaround)");
-                debug!("[{}] Pre-set_content (range placeholder).", message_id);
-                // This requires a component method like `replace_text_lines` or similar.
-                // Let's simulate with `set_content` for now, which is incorrect for ranges.
-                // This highlights the need for component/protocol refinement.
-                warn!("Using set_content as a placeholder for replace_text_range/lines due to protocol/component limitations.");
-                if let Err(e) = comp_ref.set_content(&content, &context) {
-                    debug!("[{}] Post-set_content (range placeholder).", message_id);
-                    error!(
-                        "Failed to apply range content change using set_content placeholder: {}",
-                        e
-                    );
-                    return Err(anyhow!("Failed to apply range content change: {}", e));
-                }
-
-                /* // Ideal future implementation (requires component method and possibly protocol update for columns)
-                if let Err(e) = comp_ref.replace_text_range(
-                    start_line, 0, // Assuming start of start_line
-                    end_line, usize::MAX, // Assuming end of end_line (exclusive/inclusive?)
-                    &content,
-                    &context,
-                ) {
-                    error!("Failed to apply replace change: {}", e);
-                    return Err(anyhow!("Failed to apply replace change: {}", e));
-                }
-                */
+                warn!(
+                    "Buffer not found in Ki layout for change request: {}",
+                    buffer_id
+                );
+                // Buffer might be closed in Ki but open in VSCode, or not yet opened by Ki
             }
-
-            // Drop guards explicitly before sending ACK to release locks
-            drop(comp_ref);
-            drop(app_guard);
-            debug!("[{}] Locks released.", message_id);
-
-            // Send acknowledgment back to VSCode
-            debug!("[{}] Preparing BufferAck response...", message_id);
-            let ack_response = OutputMessageWrapper {
-                id: 0, // Use ID 0 for notifications/acknowledgments
-                message: OutputMessage::BufferAck(message_id),
-                error: None,
-            };
-            debug!("[{}] Sending BufferAck response to VSCode...", message_id);
-            self.send_message_to_vscode(ack_response)?;
-            debug!("[{}] BufferAck response sent.", message_id);
-
-            // Update last known VSCode selection if applicable
-            // This might need refinement based on how selections should behave after buffer changes
-            // TODO: Implement this
-
             Ok(())
         } else {
             error!(
                 "Failed to convert URI to path for change request: {}",
                 buffer_id
             );
-            // Don't ACK if URI is invalid? Or send error?
-            // Let's return Err here, VSCode might retry or handle it.
             Err(anyhow!(
                 "Invalid URI for buffer change request: {}",
                 buffer_id
             ))
         }
-    }
-
-    /// Send buffer changes *from* Ki *to* VSCode
-    /// This sends an OUTPUT message that acts as a notification.
-    pub fn _send_buffer_change(
-        &mut self,
-        buffer_id: String, // Should be the URI string
-        start_line: usize, // Line numbers for the change range
-        end_line: usize,   // Line numbers for the change range
-        content: String,   // The new content for the specified range/lines
-    ) -> Result<()> {
-        info!(
-            "Sending buffer change notification to VSCode: buffer_id={}, range=L{}-L{}, content_len={}",
-            buffer_id,
-            start_line + 1,
-            end_line + 1, // end_line convention needs clarity (inclusive/exclusive?)
-            content.len()
-        );
-
-        // Increment version, releasing the borrow immediately
-        let version_num = {
-            let version = self.buffer_versions.entry(buffer_id.clone()).or_insert(0);
-            *version += 1;
-            *version // Return the new version number
-        };
-
-        // Construct the BufferChange payload matching ki-protocol-types
-        // We need a message_id for the VSCode side to potentially ACK. Let's generate one.
-        let ki_message_id = self.next_id(); // Generate an ID for *this* Ki->VSCode message
-
-        let buffer_change_payload = BufferChange {
-            buffer_id: buffer_id.clone(),
-            start_line,
-            end_line,
-            content: content.clone(),
-            version: version_num as i32, // Send updated version
-            message_id: ki_message_id,   // ID for this specific change message
-            retry_count: 0,              // Initial send
-        };
-
-        // Send as a notification (using id=0 convention established in app.rs)
-        // The message *payload* (BufferChange) contains its own message_id (ki_message_id).
-        let notification_wrapper = OutputMessageWrapper {
-            id: 0, // id=0 signifies notification (no specific response expected for *this* wrapper ID)
-            message: OutputMessage::BufferChange(buffer_change_payload), // Use BufferChange variant
-            error: None,
-        };
-
-        // Use the standard send method, which handles id=0 as notification
-        self.send_message_to_vscode(notification_wrapper)?;
-
-        Ok(())
     }
 }
