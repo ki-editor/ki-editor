@@ -139,6 +139,10 @@ impl CellUpdate {
             ..self
         }
     }
+
+    fn set_source(self, source: Option<StyleKey>) -> CellUpdate {
+        CellUpdate { source, ..self }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default, Hash)]
@@ -339,6 +343,7 @@ impl Grid {
         cell_updates: Vec<CellUpdate>,
         line_updates: Vec<LineUpdate>,
         theme: &Theme,
+        cursor_position: Option<Position>,
     ) -> Grid {
         let Dimension { height, width } = self.dimension();
         let (line_index_start, max_line_number_len, line_number_separator_width) = match line_number
@@ -358,6 +363,10 @@ impl Grid {
             .saturating_sub(line_number_separator_width);
 
         let wrapped_lines = soft_wrap::soft_wrap(content, content_container_width);
+
+        let calibrated_cursor_position = cursor_position
+            .and_then(|cursor_position| wrapped_lines.calibrate(cursor_position).ok()?.first());
+
         let content_cell_updates = {
             content
                 .lines()
@@ -463,6 +472,9 @@ impl Grid {
                                 wrapped,
                             },
                         )| {
+                            let is_cursor_line_number = calibrated_cursor_position
+                                .map(|position| line_index == position.line)
+                                .unwrap_or(false);
                             let line_number_str = {
                                 let line_number = if wrapped {
                                     "↪".to_string()
@@ -475,14 +487,29 @@ impl Grid {
                                     width = { max_line_number_len }
                                 )
                             };
+                            let style = {
+                                let style = theme.ui.line_number;
+                                style.set_some_background_color(if is_cursor_line_number {
+                                    Some(theme.ui.primary_selection_background)
+                                } else {
+                                    style.background_color
+                                })
+                            };
                             grid.get_row_cell_updates(
                                 line_index,
                                 Some(0),
                                 Some(max_line_number_len),
                                 &line_number_str,
-                                &theme.ui.line_number,
+                                &style,
                             )
                             .into_iter()
+                            .map(move |cell_update| {
+                                cell_update.set_source(if is_cursor_line_number {
+                                    Some(StyleKey::UiCursorLineNumber)
+                                } else {
+                                    None
+                                })
+                            })
                             .chain(grid.get_row_cell_updates(
                                 line_index,
                                 Some(max_line_number_len),
@@ -502,7 +529,6 @@ impl Grid {
             }
         };
         let calibrated = content_cell_updates
-            .into_iter()
             .chain(line_updates)
             .chain(cell_updates)
             .chain(line_numbers)
@@ -655,6 +681,7 @@ pub(crate) enum StyleKey {
     UiSecondarySelectionSecondaryCursor,
     UiSectionDivider,
     UiFocusedTab,
+    UiCursorLineNumber,
 }
 
 impl StyleKey {
@@ -728,6 +755,7 @@ mod test_grid {
                 Vec::new(),
                 Vec::new(),
                 &Theme::default(),
+                None,
             )
             .to_string();
             assert_eq!(actual, "2│hello")
@@ -749,6 +777,7 @@ mod test_grid {
                 Vec::new(),
                 Vec::new(),
                 &Theme::default(),
+                None,
             )
             .to_string();
             assert_eq!(
@@ -777,6 +806,7 @@ mod test_grid {
                 Vec::new(),
                 Vec::new(),
                 &Theme::default(),
+                None,
             )
             .to_string();
             assert_eq!(
@@ -814,6 +844,7 @@ mod test_grid {
                 .to_vec(),
                 Vec::new(),
                 &Theme::default(),
+                None,
             )
             .to_string();
             // Expect a space is inserted between the crab emoji and 'c',
@@ -853,6 +884,7 @@ mod test_grid {
                 .to_vec(),
                 Vec::new(),
                 &Theme::default(),
+                None,
             )
             .to_string();
             assert_eq!(
@@ -883,6 +915,7 @@ mod test_grid {
                 [].to_vec(),
                 Vec::new(),
                 &Theme::default(),
+                None,
             )
             .to_string();
             // Expect there's two extra spaces before '2'
@@ -911,6 +944,7 @@ mod test_grid {
                 }]
                 .to_vec(),
                 &Theme::default(),
+                None,
             );
             assert_eq!(
                 actual
@@ -954,6 +988,7 @@ mod test_grid {
 
                         ..Default::default()
                     },
+                    None,
                 )
                 .to_positioned_cells();
             assert_eq!(
@@ -979,6 +1014,7 @@ mod test_grid {
                     Vec::new(),
                     Vec::new(),
                     &Default::default(),
+                    None,
                 )
                 .to_string();
             assert_eq!("hello", actual)
@@ -998,6 +1034,7 @@ mod test_grid {
                     Vec::new(),
                     Vec::new(),
                     &Default::default(),
+                    None,
                 )
                 .to_positioned_cells()
                 .into_iter()
@@ -1031,6 +1068,7 @@ x
                     .to_vec(),
                     Vec::new(),
                     &Default::default(),
+                    None,
                 )
                 .to_string();
             assert_eq!(
@@ -1062,6 +1100,7 @@ x
                     }]
                     .to_vec(),
                     &Default::default(),
+                    None,
                 )
                 .to_positioned_cells()
                 .into_iter()

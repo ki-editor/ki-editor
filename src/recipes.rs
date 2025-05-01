@@ -1306,6 +1306,21 @@ foo bar spam
             }].to_vec(),
         },
         RecipeGroup {
+            filename: "sticky-column",
+            recipes: [
+            Recipe {
+                description: "Sticky Column",
+                content: "foo spam\nbar\njav script",
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("s l k k i i"),
+                expectations: Box::new([CurrentSelectedTexts(&["spam"])]),
+                terminal_height: None,
+                similar_vim_combos: &[],
+                only: false,
+            }].to_vec(),
+        },
+        RecipeGroup {
             filename: "recipes",
             recipes: recipes(),
         },

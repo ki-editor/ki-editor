@@ -57,8 +57,9 @@ impl Editor {
                 Some(self.selection_set.primary_selection().range()),
                 false,
                 true,
+                focused,
             ),
-            Some(reveal) => self.get_splitted_grid(context, reveal, render_area),
+            Some(reveal) => self.get_splitted_grid(context, reveal, render_area, focused),
         };
         let theme = context.theme();
         let window_title_style = if focused {
@@ -97,7 +98,7 @@ impl Editor {
             });
             // TODO: no need to call get_grid_with_dimension
             // Just render the lines
-            editor.get_grid_with_dimension(&context, dimension, 0, None, false, false)
+            editor.get_grid_with_dimension(&context, dimension, 0, None, false, false, focused)
         };
         let grid = title_grid.merge_vertical(grid);
         let cursor_position = grid.get_cursor_position();
@@ -152,6 +153,7 @@ impl Editor {
         context: &Context,
         reveal: &Reveal,
         render_area: Dimension,
+        focused: bool,
     ) -> crate::grid::Grid {
         let buffer = self.buffer();
         let ranges = match reveal {
@@ -229,14 +231,16 @@ impl Editor {
                     Some(protected_range),
                     true,
                     true,
+                    focused,
                 ))
             },
         )
     }
 
-    /// Protected char index must not be trimmed and always be rendered
+    /// Protected char index must not be trimmed and always be rendered.
     ///
     /// `borderize_first_line` should only be true when splitting.
+    #[allow(clippy::too_many_arguments)]
     fn get_grid_with_dimension(
         &self,
         context: &Context,
@@ -245,8 +249,10 @@ impl Editor {
         protected_range: Option<CharIndexRange>,
         borderize_first_line: bool,
         render_line_number: bool,
+        focused: bool,
     ) -> Grid {
         let editor = self;
+        let cursor_position = self.get_cursor_position().unwrap_or_default();
         let Dimension { height, width } = dimension;
         let buffer = editor.buffer();
         let rope = buffer.rope();
@@ -343,6 +349,7 @@ impl Editor {
                         updates,
                         Default::default(),
                         theme,
+                        None,
                     ))
                 },
             );
@@ -396,6 +403,17 @@ impl Editor {
                     .collect_vec(),
                 Default::default(),
                 theme,
+                if focused
+                    && protected_range
+                        == Some(self.selection_set.primary_selection().extended_range())
+                {
+                    Some(
+                        cursor_position
+                            .set_line(cursor_position.line.saturating_sub(scroll_offset as usize)),
+                    )
+                } else {
+                    None
+                },
             );
             let protected_range = visible_lines_grid
                 .get_protected_range_start_position()
@@ -468,34 +486,35 @@ impl Editor {
         use StyleKey::*;
         let theme = context.theme();
         let buffer = self.buffer();
-        let possible_selections = if self.selection_set.mode.is_contiguous() {
-            Default::default()
-        } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
-            protected_range
-                .and_then(|protected_range| {
-                    buffer.char_index_range_to_byte_range(protected_range).ok()
-                })
-                .into_iter()
-                .map(ByteRange::new)
-                .collect()
-        } else {
-            self
-                //.possible_selections(self.selection_set.primary_selection(), context)
-                .possible_selections_in_line_number_range(
-                    self.selection_set.primary_selection(),
-                    context,
-                    visible_line_range,
-                )
-                .unwrap_or_default()
-        }
-        .into_iter()
-        .map(|range| HighlightSpan {
-            set_symbol: None,
-            is_cursor: false,
-            range: HighlightSpanRange::ByteRange(range.range().clone()),
-            source: Source::StyleKey(UiPossibleSelection),
-            is_protected_range_start: false,
-        });
+        let possible_selections =
+            if self.selection_set.mode.is_contiguous() && self.reveal.is_none() {
+                Default::default()
+            } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
+                protected_range
+                    .and_then(|protected_range| {
+                        buffer.char_index_range_to_byte_range(protected_range).ok()
+                    })
+                    .into_iter()
+                    .map(ByteRange::new)
+                    .collect()
+            } else {
+                self
+                    //.possible_selections(self.selection_set.primary_selection(), context)
+                    .possible_selections_in_line_number_range(
+                        self.selection_set.primary_selection(),
+                        context,
+                        visible_line_range,
+                    )
+                    .unwrap_or_default()
+            }
+            .into_iter()
+            .map(|range| HighlightSpan {
+                set_symbol: None,
+                is_cursor: false,
+                range: HighlightSpanRange::ByteRange(range.range().clone()),
+                source: Source::StyleKey(UiPossibleSelection),
+                is_protected_range_start: false,
+            });
 
         let marks = buffer
             .marks()

@@ -6,7 +6,7 @@ use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::{
-        editor::{Direction, Movement},
+        editor::{Direction, MovementApplicandum},
         suggestive_editor::Info,
     },
     context::{Context, LocalSearchConfigMode, Search},
@@ -22,6 +22,10 @@ pub(crate) struct SelectionSet {
     pub(crate) cursor_index: usize,
     pub(crate) selections: NonEmpty<Selection>,
     pub(crate) mode: SelectionMode,
+    /// This will be set when a vertical movement is executed.
+    /// Once set, its value will not changed.
+    /// A non-vertical movement will reset its value to None.
+    sticky_column_index: Option<usize>,
 }
 
 impl Default for SelectionSet {
@@ -30,6 +34,7 @@ impl Default for SelectionSet {
             cursor_index: 0,
             selections: NonEmpty::singleton(Selection::default()),
             mode: SelectionMode::Line,
+            sticky_column_index: None,
         }
     }
 }
@@ -72,6 +77,7 @@ impl SelectionSet {
                 .map(|selection| f(&selection))
                 .try_collect()?,
             mode,
+            sticky_column_index: self.sticky_column_index,
         })
     }
 
@@ -104,7 +110,7 @@ impl SelectionSet {
         &self,
         buffer: &Buffer,
         mode: &SelectionMode,
-        direction: &Movement,
+        movement: &MovementApplicandum,
         cursor_direction: &Direction,
         context: &Context,
     ) -> anyhow::Result<Option<SelectionSet>> {
@@ -114,7 +120,7 @@ impl SelectionSet {
                     buffer,
                     selection,
                     mode,
-                    direction,
+                    movement,
                     cursor_direction,
                     context,
                 )
@@ -127,8 +133,10 @@ impl SelectionSet {
 
         Ok(Some(SelectionSet {
             cursor_index: self.cursor_index,
-            mode: selections.head.mode.clone().unwrap_or_else(|| mode.clone()),
             selections: selections.clone().map(|selection| selection.selection),
+            // The following is how `mode` and `sticky_column_index` got stored
+            mode: selections.head.mode.clone().unwrap_or_else(|| mode.clone()),
+            sticky_column_index: selections.head.sticky_column_index,
         }))
     }
 
@@ -136,7 +144,7 @@ impl SelectionSet {
     pub(crate) fn add_selection(
         &mut self,
         buffer: &Buffer,
-        direction: &Movement,
+        movement: &MovementApplicandum,
         cursor_direction: &Direction,
         context: &Context,
     ) -> anyhow::Result<bool> {
@@ -150,7 +158,7 @@ impl SelectionSet {
             buffer,
             last_selection,
             &self.mode,
-            direction,
+            movement,
             cursor_direction,
             context,
         )? {
@@ -403,6 +411,10 @@ impl SelectionSet {
             Direction::End => index.min(self.selections.len() - 1),
         }
     }
+
+    pub(crate) fn sticky_column_index(&self) -> &Option<usize> {
+        &self.sticky_column_index
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -483,14 +495,7 @@ impl SelectionMode {
             SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::Line => Box::new(PositionBased(selection_mode::LineTrimmed)),
             SelectionMode::LineFull => Box::new(PositionBased(selection_mode::LineFull::new())),
-            SelectionMode::Character => {
-                let current_column = buffer
-                    .char_to_position(current_selection.to_char_index(cursor_direction))?
-                    .column;
-                Box::new(PositionBased(selection_mode::Character::new(
-                    current_column,
-                )))
-            }
+            SelectionMode::Character => Box::new(PositionBased(selection_mode::Character)),
             SelectionMode::Custom => Box::new(IterBased(selection_mode::Custom::new(
                 current_selection.clone(),
             ))),
@@ -614,7 +619,7 @@ impl Selection {
         buffer: &Buffer,
         current_selection: &Selection,
         mode: &SelectionMode,
-        direction: &Movement,
+        movement: &MovementApplicandum,
         cursor_direction: &Direction,
         context: &Context,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
@@ -631,7 +636,7 @@ impl Selection {
             cursor_direction,
         };
 
-        selection_mode.apply_movement(&params, *direction)
+        selection_mode.apply_movement(&params, *movement)
     }
     #[cfg(test)]
     pub(crate) fn disable_extension(&mut self) {

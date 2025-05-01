@@ -274,17 +274,31 @@ impl ExpectKind {
                     .color,
                 *underline_color,
             ),
-            GridCellStyleKey(position, style_key) => contextualize(
-                component
-                    .borrow()
-                    .editor()
-                    .get_grid(context, false)
-                    .grid
-                    .rows[position.line][position.column]
-                    .source
-                    .clone(),
-                style_key.clone(),
-            ),
+            GridCellStyleKey(position, style_key) => {
+                println!(
+                    "ExpectKind::get_result grid styles = {:?}",
+                    component
+                        .borrow()
+                        .editor()
+                        .get_grid(context, false)
+                        .grid
+                        .rows
+                        .iter()
+                        .map(|row|row.iter().map(|cell| cell.source.clone()).collect_vec())
+                        .collect_vec()
+                );
+                contextualize(
+                    component
+                        .borrow()
+                        .editor()
+                        .get_grid(context, true)
+                        .grid
+                        .rows[position.line][position.column]
+                        .source
+                        .clone(),
+                    style_key.clone(),
+                )
+            },
             GridCellsStyleKey(positions, style_key) => (
                 positions.iter().all(|position| {
                     let actual_style_key = &component
@@ -2752,6 +2766,132 @@ fn using_suggested_search_term() -> anyhow::Result<()> {
             Expect(CompletionDropdownContent("bar\nfoo\nspam")),
             App(HandleKeyEvents(keys!("f o alt+l").to_vec())),
             Expect(CurrentComponentContent("foo")),
+        ])
+    })
+}
+
+#[test]
+fn cursor_line_number_style_handle_text_wrapping() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(TerminalDimensionChanged(Dimension {
+                height: 4,
+                width: 20,
+            })),
+            Editor(SetContent("foo bar spongebob spam".to_string())),
+            Editor(MatchLiteral("spam".to_string())),
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+1│foo bar spongebob
+↪│ █pam"
+                    .to_string(),
+            )),
+            // Expect the highlighted cursor line number is not `1`, but `↪`
+            Expect(GridCellStyleKey(
+                Position::new(2, 0),
+                Some(StyleKey::UiCursorLineNumber),
+            )),
+            Expect(Not(Box::new(GridCellStyleKey(
+                Position::new(1, 0),
+                Some(StyleKey::UiCursorLineNumber),
+            )))),
+        ])
+    })
+}
+
+#[test]
+fn cursor_line_number_style_only_focused_split() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+bar
+XXX XXX
+spam
+"
+                .trim()
+                .to_string(),
+            )),
+            App(TerminalDimensionChanged(Dimension {
+                height: 6,
+                width: 20,
+            })),
+            Editor(MatchLiteral("XXX".to_string())),
+            Editor(CursorAddToAllSelections),
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+1│bar
+2│█XX XXX
+1│bar
+2│XXX XXX"
+                    .to_string(),
+            )),
+            Expect(GridCellStyleKey(
+                Position::new(2, 0),
+                Some(StyleKey::UiCursorLineNumber),
+            )),
+            // Expect the 5th line of the grid is not styled as UiCursorLineNumber
+            // Although the selection is as the same line of the cursor
+            Expect(Not(Box::new(GridCellStyleKey(
+                Position::new(4, 0),
+                Some(StyleKey::UiCursorLineNumber),
+            )))),
+        ])
+    })
+}
+
+#[test]
+fn cursor_line_number_style() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+bar
+XXX XXX
+spam
+"
+                .trim()
+                .to_string(),
+            )),
+            App(TerminalDimensionChanged(Dimension {
+                height: 6,
+                width: 20,
+            })),
+            Editor(MatchLiteral("XXX".to_string())),
+            Editor(CursorAddToAllSelections),
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+1│bar
+2│█XX XXX
+1│bar
+2│XXX XXX"
+                    .to_string(),
+            )),
+            Expect(GridCellStyleKey(
+                Position::new(2, 0),
+                Some(StyleKey::UiCursorLineNumber),
+            )),
+            // Expect the 5th line of the grid is not styled as UiCursorLineNumber
+            // Although the selection is as the same line of the cursor
+            Expect(Not(Box::new(GridCellStyleKey(
+                Position::new(4, 0),
+                Some(StyleKey::UiCursorLineNumber),
+            )))),
         ])
     })
 }

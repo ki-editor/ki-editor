@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use crate::{
     components::editor::{Direction, IfCurrentNotFound},
-    selection::CharIndex,
+    selection::{CharIndex, Selection},
 };
 
 use super::{
@@ -83,6 +83,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
             buffer,
             current_selection,
             cursor_direction,
+            ..
         } = params;
         let current_line = buffer.char_to_line(current_selection.extended_range().start)?;
         Ok(buffer
@@ -110,25 +111,26 @@ impl PositionBasedSelectionMode for LineTrimmed {
             .flatten())
     }
 
-    fn right(
-        &self,
-        params: &SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.down(params)
+    fn right(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        Ok(self.down(params, None)?.map(|result| result.selection))
     }
 
     fn delete_forward(
         &self,
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        PositionBased(self.clone()).down(params)
+        Ok(PositionBased(self.clone())
+            .down(params, None)?
+            .map(|result| result.selection))
     }
 
     fn delete_backward(
         &self,
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        PositionBased(self.clone()).up(params)
+        Ok(PositionBased(self.clone())
+            .up(params, None)?
+            .map(|result| result.selection))
     }
 
     fn process_paste_gap(

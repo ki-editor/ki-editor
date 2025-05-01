@@ -538,6 +538,7 @@ impl IfCurrentNotFound {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// This enum is to be used for binding keys
 pub(crate) enum Movement {
     Right,
     Left,
@@ -545,6 +546,56 @@ pub(crate) enum Movement {
     Current(IfCurrentNotFound),
     Up,
     Down,
+    Alpha,
+    /// 0-based
+    Index(usize),
+    Jump(CharIndexRange),
+    Expand,
+    DeleteBackward,
+    DeleteForward,
+}
+impl Movement {
+    pub(crate) fn into_movement_applicandum(
+        self,
+        sticky_column_index: &Option<usize>,
+    ) -> MovementApplicandum {
+        match self {
+            Movement::Right => MovementApplicandum::Right,
+            Movement::Left => MovementApplicandum::Left,
+            Movement::Beta => MovementApplicandum::Beta,
+            Movement::Current(if_current_not_found) => {
+                MovementApplicandum::Current(if_current_not_found)
+            }
+            Movement::Up => MovementApplicandum::Up {
+                sticky_column_index: *sticky_column_index,
+            },
+            Movement::Down => MovementApplicandum::Down {
+                sticky_column_index: *sticky_column_index,
+            },
+            Movement::Alpha => MovementApplicandum::Alpha,
+            Movement::Index(index) => MovementApplicandum::Index(index),
+            Movement::Jump(chars) => MovementApplicandum::Jump(chars),
+            Movement::Expand => MovementApplicandum::Expand,
+            Movement::DeleteBackward => MovementApplicandum::DeleteBackward,
+            Movement::DeleteForward => MovementApplicandum::DeleteForward,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// This enum is to be used internally, not exposed to keybindings
+/// Applicandum = To Be Applied
+pub(crate) enum MovementApplicandum {
+    Right,
+    Left,
+    Beta,
+    Current(IfCurrentNotFound),
+    Up {
+        sticky_column_index: Option<usize>,
+    },
+    Down {
+        sticky_column_index: Option<usize>,
+    },
     Alpha,
     /// 0-based
     Index(usize),
@@ -946,7 +997,9 @@ impl Editor {
                             &buffer,
                             start_selection,
                             &self.selection_set.mode,
-                            &movement,
+                            &movement.into_movement_applicandum(
+                                self.selection_set.sticky_column_index(),
+                            ),
                             &self.cursor_direction,
                             context,
                         )
@@ -1363,7 +1416,7 @@ impl Editor {
         self.selection_set.generate(
             &self.buffer.borrow(),
             mode,
-            &movement,
+            &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
             &self.cursor_direction,
             context,
         )
@@ -1679,7 +1732,10 @@ impl Editor {
             Mode::Swap => self.swap(movement, context),
             Mode::Replace => self.replace_with_movement(&movement, context),
             Mode::MultiCursor => self
-                .add_cursor(&movement, context)
+                .add_cursor(
+                    &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
+                    context,
+                )
                 .map(|_| Default::default()),
             _ => Ok(Default::default()),
         }
@@ -1855,7 +1911,7 @@ impl Editor {
             &buffer,
             &current_selection,
             selection_mode,
-            direction,
+            &direction.into_movement_applicandum(self.selection_set.sticky_column_index()),
             &self.cursor_direction,
             context,
         )?
@@ -1924,7 +1980,7 @@ impl Editor {
                 &buffer,
                 &next_selection,
                 selection_mode,
-                direction,
+                &direction.into_movement_applicandum(self.selection_set.sticky_column_index()),
                 &self.cursor_direction,
                 context,
             )?
@@ -2137,10 +2193,10 @@ impl Editor {
 
     pub(crate) fn add_cursor(
         &mut self,
-        movement: &Movement,
+        movement: &MovementApplicandum,
         context: &Context,
     ) -> anyhow::Result<()> {
-        let mut add_selection = |movement: &Movement| {
+        let mut add_selection = |movement: &MovementApplicandum| {
             self.selection_set.add_selection(
                 &self.buffer.borrow(),
                 movement,
@@ -2149,8 +2205,12 @@ impl Editor {
             )
         };
         match movement {
-            Movement::Alpha => while let Ok(true) = add_selection(&Movement::Left) {},
-            Movement::Beta => while let Ok(true) = add_selection(&Movement::Right) {},
+            MovementApplicandum::Alpha => {
+                while let Ok(true) = add_selection(&MovementApplicandum::Left) {}
+            }
+            MovementApplicandum::Beta => {
+                while let Ok(true) = add_selection(&MovementApplicandum::Right) {}
+            }
             other_movement => {
                 add_selection(other_movement)?;
             }
@@ -2249,7 +2309,9 @@ impl Editor {
                             } else {
                                 SelectionMode::Token
                             },
-                            &movement,
+                            &movement.into_movement_applicandum(
+                                self.selection_set.sticky_column_index(),
+                            ),
                             &self.cursor_direction,
                             context,
                         )
@@ -3624,7 +3686,9 @@ impl Editor {
                             &buffer,
                             &selection.clone().collapsed_to_anchor_range(&Direction::End),
                             &self.selection_set.mode,
-                            &movement,
+                            &movement.into_movement_applicandum(
+                                self.selection_set.sticky_column_index(),
+                            ),
                             &self.cursor_direction,
                             context,
                         )

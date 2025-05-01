@@ -4587,3 +4587,90 @@ fn enter_normal_mode_select_previous_selection() -> anyhow::Result<()> {
     )?;
     Ok(())
 }
+
+#[test]
+fn vertical_movement_sticky_column_position_based_selection_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+spam bar
+foo
+java script"
+                    .to_string(),
+            )),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                Word {
+                    skip_symbols: false,
+                },
+            )),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(MoveSelection(Down)),
+            // Should be script, because it is the same column as `bar`
+            Expect(CurrentSelectedTexts(&["script"])),
+            Editor(MoveSelection(Left)),
+            Expect(CurrentSelectedTexts(&["java"])),
+            Editor(MoveSelection(Up)),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(MoveSelection(Up)),
+            // The Left movement should have reset the sticky column
+            Expect(CurrentSelectedTexts(&["spam"])),
+        ])
+    })
+}
+
+#[test]
+fn vertical_movement_sticky_column_iter_based_selection_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+spam bar
+foo
+java script"
+                    .to_string(),
+            )),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Find {
+                    search: Search {
+                        mode: LocalSearchConfigMode::Regex(RegexConfig {
+                            escaped: false,
+                            case_sensitive: false,
+                            match_whole_word: false,
+                        }),
+                        search: "[a-zA-Z]+".to_string(),
+                    },
+                },
+            )),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(MoveSelection(Down)),
+            // Should be script, because it is the same column as `bar`
+            Expect(CurrentSelectedTexts(&["script"])),
+            Editor(MoveSelection(Left)),
+            Expect(CurrentSelectedTexts(&["java"])),
+            Editor(MoveSelection(Up)),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(MoveSelection(Up)),
+            // The Left movement should have reset the sticky column
+            Expect(CurrentSelectedTexts(&["spam"])),
+        ])
+    })
+}

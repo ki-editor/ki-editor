@@ -29,6 +29,7 @@ impl IterBasedSelectionMode for SyntaxToken {
             .map(|selection| crate::selection_mode::ApplyMovementResult {
                 selection,
                 mode: Some(crate::selection::SelectionMode::SyntaxNode),
+                sticky_column_index: None,
             }))
     }
 }

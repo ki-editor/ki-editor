@@ -2,7 +2,7 @@ use ropey::Rope;
 
 use crate::{components::editor::IfCurrentNotFound, selection::CharIndex};
 
-use super::{ByteRange, PositionBasedSelectionMode, SelectionModeTrait};
+use super::{ApplyMovementResult, ByteRange, PositionBasedSelectionMode, SelectionModeTrait};
 
 pub struct Token;
 
@@ -90,15 +90,17 @@ impl SelectionModeTrait for Token {
     fn up(
         &self,
         params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenNoSkipSymbol.up(params)
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        TokenNoSkipSymbol.up(params, sticky_column_index)
     }
 
     fn down(
         &self,
         params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenNoSkipSymbol.down(params)
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        TokenNoSkipSymbol.down(params, sticky_column_index)
     }
 
     fn selections_in_line_number_ranges(
