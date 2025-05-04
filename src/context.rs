@@ -420,7 +420,6 @@ pub(crate) struct LocalSearchConfig {
 }
 
 impl LocalSearchConfig {
-    #[cfg(test)]
     pub(crate) fn new(mode: LocalSearchConfigMode) -> Self {
         Self {
             mode,
@@ -472,5 +471,9 @@ impl LocalSearchConfig {
 
     pub(crate) fn display(&self) -> String {
         self.mode.display()
+    }
+
+    pub(crate) fn owned(mut self) -> LocalSearchConfig {
+        self
     }
 }

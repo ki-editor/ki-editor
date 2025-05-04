@@ -21,6 +21,30 @@ impl RegexConfig {
     pub(crate) fn to_regex(self, pattern: &str) -> Result<Regex, anyhow::Error> {
         get_regex(pattern, self)
     }
+
+    pub(crate) fn literal() -> RegexConfig {
+        Self {
+            case_sensitive: false,
+            escaped: true,
+            match_whole_word: false,
+        }
+    }
+
+    pub(crate) fn strict() -> RegexConfig {
+        RegexConfig {
+            escaped: true,
+            match_whole_word: true,
+            case_sensitive: true,
+        }
+    }
+
+    pub(crate) fn regex() -> RegexConfig {
+        RegexConfig {
+            escaped: false,
+            match_whole_word: false,
+            case_sensitive: false,
+        }
+    }
 }
 
 impl Default for RegexConfig {

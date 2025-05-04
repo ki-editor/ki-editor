@@ -11,6 +11,7 @@ pub(crate) mod frontend;
 mod grid;
 #[cfg(test)]
 mod integration_test;
+mod search;
 
 mod layout;
 pub(crate) mod list;
