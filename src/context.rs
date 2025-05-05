@@ -437,6 +437,7 @@ impl LocalSearchConfig {
             LocalSearchConfigUpdate::Search(search) => {
                 self.set_search(search);
             }
+            LocalSearchConfigUpdate::Whole(config) => *self = config,
         }
     }
 
@@ -471,9 +472,5 @@ impl LocalSearchConfig {
 
     pub(crate) fn display(&self) -> String {
         self.mode.display()
-    }
-
-    pub(crate) fn owned(mut self) -> LocalSearchConfig {
-        self
     }
 }

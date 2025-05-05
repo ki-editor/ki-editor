@@ -5,11 +5,11 @@ use crate::{
     list::grep::RegexConfig,
 };
 
-fn parse_search_config(input: &str) -> anyhow::Result<LocalSearchConfig> {
+pub(crate) fn parse_search_config(input: &str) -> anyhow::Result<LocalSearchConfig> {
     let chars = input.chars().collect_vec();
     let mode_chars = chars
         .iter()
-        .take_while(|c| c.is_ascii_alphanumeric())
+        .take_while(|c| c.is_ascii_alphanumeric() || c == &&'\\')
         .collect_vec();
     let mode_chars_count = mode_chars.len();
     let mode_str: String = mode_chars.into_iter().map(|c| c.to_string()).join("");
@@ -27,11 +27,7 @@ fn parse_search_config(input: &str) -> anyhow::Result<LocalSearchConfig> {
                 case_sensitive: false,
             }),
             "s" | "cw" | "wc" => LocalSearchConfigMode::Regex(RegexConfig::strict()),
-            "r" => LocalSearchConfigMode::Regex(RegexConfig {
-                escaped: false,
-                match_whole_word: false,
-                case_sensitive: false,
-            }),
+            "r" => LocalSearchConfigMode::Regex(RegexConfig::regex()),
             "rc" => LocalSearchConfigMode::Regex(RegexConfig {
                 escaped: false,
                 match_whole_word: false,
@@ -49,7 +45,11 @@ fn parse_search_config(input: &str) -> anyhow::Result<LocalSearchConfig> {
             }),
             "n" => LocalSearchConfigMode::NamingConventionAgnostic,
             "a" => LocalSearchConfigMode::AstGrep,
-            _ => return Err(anyhow::anyhow!("{mode_str:?} is not a valid search mode.")),
+            _ => {
+                return Ok(LocalSearchConfig::default()
+                    .set_search(input.to_string())
+                    .clone())
+            }
         }
     };
     let separator = chars.iter().skip(mode_chars_count).next().ok_or_else(|| {
@@ -212,5 +212,27 @@ mod test_parse_search_config {
         );
         assert_eq!(actual.search(), r#"hello wor\ld"#);
         assert_eq!(actual.replacement(), r#"bye by\e"#)
+    }
+
+    #[test]
+    fn use_default_if_cannot_parse_mode() {
+        let actual = parse_search_config("hello_world").unwrap();
+        assert_eq!(
+            actual.mode,
+            LocalSearchConfigMode::Regex(RegexConfig::literal())
+        );
+        assert_eq!(actual.search(), "hello_world");
+        assert_eq!(actual.replacement(), "")
+    }
+
+    #[test]
+    fn backslash_cannot_be_treated_as_separator() {
+        let actual = parse_search_config(r#"w\hello\world"#).unwrap();
+        assert_eq!(
+            actual.mode,
+            LocalSearchConfigMode::Regex(RegexConfig::literal())
+        );
+        assert_eq!(actual.search(), r#"w\hello\world"#);
+        assert_eq!(actual.replacement(), "")
     }
 }

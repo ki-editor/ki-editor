@@ -32,6 +32,7 @@ use crate::{
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     screen::{Screen, Window},
+    search::parse_search_config,
     selection::SelectionMode,
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
     ui_tree::{ComponentKind, KindedComponent},
@@ -2651,6 +2652,7 @@ pub(crate) enum LocalSearchConfigUpdate {
     Mode(LocalSearchConfigMode),
     Replacement(String),
     Search(String),
+    Whole(crate::context::LocalSearchConfig),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -2791,7 +2793,7 @@ impl DispatchPrompt {
                 run_search_after_config_updated,
             } => Ok(Dispatches::new(
                 [Dispatch::UpdateLocalSearchConfig {
-                    update: LocalSearchConfigUpdate::Search(text.to_string()),
+                    update: LocalSearchConfigUpdate::Whole(parse_search_config(text)?),
                     scope,
                     show_config_after_enter,
                     if_current_not_found,
