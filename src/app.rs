@@ -15,7 +15,9 @@ use crate::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
         },
     },
-    context::{Context, GlobalMode, LocalSearchConfigMode, QuickfixListSource, Search},
+    context::{
+        Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
+    },
     frontend::Frontend,
     git,
     grid::{Grid, LineUpdate},
@@ -2639,6 +2641,7 @@ pub(crate) enum Dispatch {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum GlobalSearchConfigUpdate {
     SetGlob(GlobalSearchFilterGlob, String),
+    Config(GlobalSearchConfig),
 }
 
 #[derive(Clone, Hash, Debug, PartialEq, Eq, Copy)]
@@ -2652,7 +2655,7 @@ pub(crate) enum LocalSearchConfigUpdate {
     Mode(LocalSearchConfigMode),
     Replacement(String),
     Search(String),
-    Whole(crate::context::LocalSearchConfig),
+    Config(crate::context::LocalSearchConfig),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -2791,16 +2794,23 @@ impl DispatchPrompt {
                 show_config_after_enter,
                 if_current_not_found,
                 run_search_after_config_updated,
-            } => Ok(Dispatches::new(
-                [Dispatch::UpdateLocalSearchConfig {
-                    update: LocalSearchConfigUpdate::Whole(parse_search_config(text)?),
-                    scope,
-                    show_config_after_enter,
-                    if_current_not_found,
-                    run_search_after_config_updated,
-                }]
-                .to_vec(),
-            )),
+            } => {
+                let search_config = parse_search_config(text)?;
+                let dispatch = match scope {
+                    Scope::Local => Dispatch::UpdateLocalSearchConfig {
+                        update: LocalSearchConfigUpdate::Config(search_config.local_config),
+                        scope,
+                        show_config_after_enter,
+                        if_current_not_found,
+                        run_search_after_config_updated,
+                    },
+                    Scope::Global => Dispatch::UpdateGlobalSearchConfig {
+                        update: GlobalSearchConfigUpdate::Config(search_config),
+                        if_current_not_found: IfCurrentNotFound::LookForward,
+                    },
+                };
+                Ok(Dispatches::one(dispatch))
+            }
             DispatchPrompt::AddPath => {
                 Ok(Dispatches::new([Dispatch::AddPath(text.into())].to_vec()))
             }

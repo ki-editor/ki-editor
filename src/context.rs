@@ -201,6 +201,7 @@ impl Context {
                     }
                 };
             }
+            GlobalSearchConfigUpdate::Config(config) => self.global_search_config = config,
         };
         Ok(())
     }
@@ -344,11 +345,11 @@ impl Context {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub(crate) struct GlobalSearchConfig {
-    include_glob: Option<Glob>,
-    exclude_glob: Option<Glob>,
-    local_config: LocalSearchConfig,
+    pub(crate) include_glob: Option<Glob>,
+    pub(crate) exclude_glob: Option<Glob>,
+    pub(crate) local_config: LocalSearchConfig,
 }
 impl GlobalSearchConfig {
     pub(crate) fn local_config(&self) -> &LocalSearchConfig {
@@ -437,7 +438,7 @@ impl LocalSearchConfig {
             LocalSearchConfigUpdate::Search(search) => {
                 self.set_search(search);
             }
-            LocalSearchConfigUpdate::Whole(config) => *self = config,
+            LocalSearchConfigUpdate::Config(config) => *self = config,
         }
     }
 

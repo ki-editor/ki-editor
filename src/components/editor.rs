@@ -10,7 +10,9 @@ use crate::{
     app::{Dimension, Dispatch},
     buffer::Buffer,
     components::component::Component,
+    context::LocalSearchConfig,
     edit::{Action, ActionGroup, Edit, EditTransaction},
+    list::grep::RegexConfig,
     lsp::completion::PositionalEdit,
     position::Position,
     rectangle::Rectangle,
@@ -3560,7 +3562,13 @@ impl Editor {
                 Dispatches::one(Dispatch::UpdateLocalSearchConfig {
                     scope,
                     if_current_not_found,
-                    update: crate::app::LocalSearchConfigUpdate::Search(search.to_string()),
+                    update: crate::app::LocalSearchConfigUpdate::Config(
+                        LocalSearchConfig::new(LocalSearchConfigMode::Regex(
+                            RegexConfig::match_whole_word(),
+                        ))
+                        .set_search(search.to_string())
+                        .clone(),
+                    ),
                     show_config_after_enter: false,
                     run_search_after_config_updated: true,
                 })

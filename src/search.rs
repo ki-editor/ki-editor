@@ -1,11 +1,21 @@
+use globset::Glob;
 use itertools::Itertools;
 
 use crate::{
-    context::{LocalSearchConfig, LocalSearchConfigMode},
+    context::{GlobalSearchConfig, LocalSearchConfig, LocalSearchConfigMode},
     list::grep::RegexConfig,
 };
 
-pub(crate) fn parse_search_config(input: &str) -> anyhow::Result<LocalSearchConfig> {
+pub(crate) fn parse_search_config(input: &str) -> anyhow::Result<GlobalSearchConfig> {
+    let default = || {
+        Ok(GlobalSearchConfig {
+            include_glob: None,
+            exclude_glob: None,
+            local_config: LocalSearchConfig::default()
+                .set_search(input.to_string())
+                .clone(),
+        })
+    };
     let chars = input.chars().collect_vec();
     let mode_chars = chars
         .iter()
@@ -16,16 +26,8 @@ pub(crate) fn parse_search_config(input: &str) -> anyhow::Result<LocalSearchConf
     let mode = {
         match mode_str.as_str() {
             "" => LocalSearchConfigMode::Regex(RegexConfig::literal()),
-            "c" => LocalSearchConfigMode::Regex(RegexConfig {
-                escaped: true,
-                match_whole_word: false,
-                case_sensitive: true,
-            }),
-            "w" => LocalSearchConfigMode::Regex(RegexConfig {
-                escaped: true,
-                match_whole_word: true,
-                case_sensitive: false,
-            }),
+            "c" => LocalSearchConfigMode::Regex(RegexConfig::case_sensitive()),
+            "w" => LocalSearchConfigMode::Regex(RegexConfig::match_whole_word()),
             "s" | "cw" | "wc" => LocalSearchConfigMode::Regex(RegexConfig::strict()),
             "r" => LocalSearchConfigMode::Regex(RegexConfig::regex()),
             "rc" => LocalSearchConfigMode::Regex(RegexConfig {
@@ -45,93 +47,87 @@ pub(crate) fn parse_search_config(input: &str) -> anyhow::Result<LocalSearchConf
             }),
             "n" => LocalSearchConfigMode::NamingConventionAgnostic,
             "a" => LocalSearchConfigMode::AstGrep,
-            _ => {
-                return Ok(LocalSearchConfig::default()
-                    .set_search(input.to_string())
-                    .clone())
-            }
+            _ => return default(),
         }
     };
-    let separator = chars.iter().skip(mode_chars_count).next().ok_or_else(|| {
-        anyhow::anyhow!("Expected a non-alphanumeric separator after {mode_str:?}")
-    })?;
+    let Some(separator) = chars.iter().skip(mode_chars_count).next() else {
+        return default();
+    };
 
     let chars = chars.iter().skip(mode_chars_count + 1).collect_vec();
-    let mut search = Vec::new();
-    let mut replacement = Vec::new();
-    let mut escaped = false;
-    let mut last_index = 0;
-    for i in 0..chars.len() {
-        let c = chars[i];
-
-        if c == &'\\' && chars.get(i + 1) == Some(&separator) {
-            escaped = true;
-        } else if c != separator || escaped {
-            escaped = false;
-            search.push(c.to_string())
-        } else {
-            last_index = i;
-            break;
-        }
-    }
-    if chars.get(last_index) == Some(&separator) {
-        for i in last_index + 1..chars.len() {
+    let parse_component = |start_index: usize| {
+        let mut escaped = false;
+        let mut last_index = 0;
+        let mut result = Vec::new();
+        for i in start_index..chars.len() {
             let c = chars[i];
 
             if c == &'\\' && chars.get(i + 1) == Some(&separator) {
                 escaped = true;
             } else if c != separator || escaped {
                 escaped = false;
-                replacement.push(c.to_string())
+                result.push(c.to_string())
             } else {
+                last_index = i;
                 break;
             }
         }
-    }
-    let search = search.join("");
-    let replacement = replacement.join("");
+        (last_index, result.join(""))
+    };
+    let (last_index, search) = parse_component(0);
+    let parse_next_component = |last_index: usize| {
+        if chars.get(last_index) == Some(&separator) {
+            let (last_index, result) = parse_component(last_index + 1);
+            (last_index, result)
+        } else {
+            (last_index, "".to_string())
+        }
+    };
+    let (last_index, replacement) = parse_next_component(last_index);
+    let (last_index, include_glob) = parse_next_component(last_index);
+    let (_, exclude_glob) = parse_next_component(last_index);
 
-    Ok(LocalSearchConfig::new(mode)
-        .set_search(search)
-        .set_replacment(replacement)
-        .clone())
+    let make_glob = |input: &str| {
+        if input.is_empty() {
+            Ok(None)
+        } else {
+            Some(Glob::new(&input)).transpose()
+        }
+    };
+    Ok(GlobalSearchConfig {
+        include_glob: make_glob(&include_glob)?,
+        exclude_glob: make_glob(&exclude_glob)?,
+        local_config: LocalSearchConfig::new(mode)
+            .set_search(search)
+            .set_replacment(replacement)
+            .clone(),
+    })
 }
 
 #[cfg(test)]
 mod test_parse_search_config {
     use super::*;
+    use LocalSearchConfigMode::*;
 
     #[test]
     fn test_mode() {
         fn run_test(mode_str: &str, expected_mode: LocalSearchConfigMode) {
-            let actual = parse_search_config(&format!("{mode_str} hello")).unwrap();
+            let actual = parse_search_config(&format!("{mode_str} hello"))
+                .unwrap()
+                .local_config;
             assert_eq!(actual.mode, expected_mode);
             assert_eq!(actual.search(), "hello")
         }
-        run_test("", LocalSearchConfigMode::Regex(RegexConfig::literal()));
-        run_test("", LocalSearchConfigMode::Regex(RegexConfig::literal()));
-        run_test(
-            "c",
-            LocalSearchConfigMode::Regex(RegexConfig {
-                escaped: true,
-                match_whole_word: false,
-                case_sensitive: true,
-            }),
-        );
-        run_test(
-            "w",
-            LocalSearchConfigMode::Regex(RegexConfig {
-                escaped: true,
-                match_whole_word: true,
-                case_sensitive: false,
-            }),
-        );
-        run_test("s", LocalSearchConfigMode::Regex(RegexConfig::strict()));
-        run_test("wc", LocalSearchConfigMode::Regex(RegexConfig::strict()));
-        run_test("cw", LocalSearchConfigMode::Regex(RegexConfig::strict()));
+        run_test("", Regex(RegexConfig::literal()));
+        run_test("", Regex(RegexConfig::literal()));
+        run_test("c", Regex(RegexConfig::case_sensitive()));
+        run_test("w", Regex(RegexConfig::match_whole_word()));
+        run_test("s", Regex(RegexConfig::strict()));
+        run_test("wc", Regex(RegexConfig::strict()));
+        run_test("cw", Regex(RegexConfig::strict()));
         run_test(
             "r",
-            LocalSearchConfigMode::Regex(RegexConfig {
+            Regex(RegexConfig {
                 escaped: false,
                 match_whole_word: false,
                 case_sensitive: false,
@@ -139,7 +135,7 @@ mod test_parse_search_config {
         );
         run_test(
             "rc",
-            LocalSearchConfigMode::Regex(RegexConfig {
+            Regex(RegexConfig {
                 escaped: false,
                 match_whole_word: false,
                 case_sensitive: true,
@@ -147,7 +143,7 @@ mod test_parse_search_config {
         );
         run_test(
             "rw",
-            LocalSearchConfigMode::Regex(RegexConfig {
+            Regex(RegexConfig {
                 escaped: false,
                 match_whole_word: true,
                 case_sensitive: false,
@@ -155,7 +151,7 @@ mod test_parse_search_config {
         );
         run_test(
             "rs",
-            LocalSearchConfigMode::Regex(RegexConfig {
+            Regex(RegexConfig {
                 escaped: false,
                 match_whole_word: true,
                 case_sensitive: true,
@@ -163,7 +159,7 @@ mod test_parse_search_config {
         );
         run_test(
             "rcw",
-            LocalSearchConfigMode::Regex(RegexConfig {
+            Regex(RegexConfig {
                 escaped: false,
                 match_whole_word: true,
                 case_sensitive: true,
@@ -171,68 +167,66 @@ mod test_parse_search_config {
         );
         run_test(
             "rwc",
-            LocalSearchConfigMode::Regex(RegexConfig {
+            Regex(RegexConfig {
                 escaped: false,
                 match_whole_word: true,
                 case_sensitive: true,
             }),
         );
-        run_test("n", LocalSearchConfigMode::NamingConventionAgnostic);
-        run_test("a", LocalSearchConfigMode::AstGrep);
+        run_test("n", NamingConventionAgnostic);
+        run_test("a", AstGrep);
     }
 
     #[test]
     fn space_separator() {
-        let actual = parse_search_config("r hello world").unwrap();
-        assert_eq!(
-            actual.mode,
-            LocalSearchConfigMode::Regex(RegexConfig::regex())
-        );
+        let actual = parse_search_config("r hello world").unwrap().local_config;
+        assert_eq!(actual.mode, Regex(RegexConfig::regex()));
         assert_eq!(actual.search(), "hello");
         assert_eq!(actual.replacement(), "world")
     }
 
     #[test]
     fn slash_separator() {
-        let actual = parse_search_config("r/hello world/bye bye").unwrap();
-        assert_eq!(
-            actual.mode,
-            LocalSearchConfigMode::Regex(RegexConfig::regex())
-        );
+        let actual = parse_search_config("r/hello world/bye bye")
+            .unwrap()
+            .local_config;
+        assert_eq!(actual.mode, Regex(RegexConfig::regex()));
         assert_eq!(actual.search(), "hello world");
         assert_eq!(actual.replacement(), "bye bye")
     }
 
     #[test]
     fn search_and_replacement_contains_escaped_separator() {
-        let actual = parse_search_config(r#"r hello\ wor\ld bye\ by\e"#).unwrap();
-        assert_eq!(
-            actual.mode,
-            LocalSearchConfigMode::Regex(RegexConfig::regex())
-        );
+        let actual = parse_search_config(r#"r hello\ wor\ld bye\ by\e"#)
+            .unwrap()
+            .local_config;
+        assert_eq!(actual.mode, Regex(RegexConfig::regex()));
         assert_eq!(actual.search(), r#"hello wor\ld"#);
         assert_eq!(actual.replacement(), r#"bye by\e"#)
     }
 
     #[test]
     fn use_default_if_cannot_parse_mode() {
-        let actual = parse_search_config("hello_world").unwrap();
-        assert_eq!(
-            actual.mode,
-            LocalSearchConfigMode::Regex(RegexConfig::literal())
-        );
+        let actual = parse_search_config("hello_world").unwrap().local_config;
+        assert_eq!(actual.mode, Regex(RegexConfig::literal()));
         assert_eq!(actual.search(), "hello_world");
         assert_eq!(actual.replacement(), "")
     }
 
     #[test]
     fn backslash_cannot_be_treated_as_separator() {
-        let actual = parse_search_config(r#"w\hello\world"#).unwrap();
-        assert_eq!(
-            actual.mode,
-            LocalSearchConfigMode::Regex(RegexConfig::literal())
-        );
+        let actual = parse_search_config(r#"w\hello\world"#)
+            .unwrap()
+            .local_config;
+        assert_eq!(actual.mode, Regex(RegexConfig::literal()));
         assert_eq!(actual.search(), r#"w\hello\world"#);
         assert_eq!(actual.replacement(), "")
+    }
+
+    #[test]
+    fn include_glob_exclude_glob() {
+        let actual = parse_search_config("a/search/replacement/*.include/*.exclude").unwrap();
+        assert_eq!(actual.include_glob, Some(Glob::new("*.include").unwrap()));
+        assert_eq!(actual.exclude_glob, Some(Glob::new("*.exclude").unwrap()));
     }
 }
