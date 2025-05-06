@@ -723,17 +723,11 @@ impl<T: Frontend> App<T> {
                 if_current_not_found,
                 run_search_after_config_updated,
             )?,
-            Dispatch::UpdateGlobalSearchConfig {
-                update,
-                if_current_not_found,
-            } => {
-                self.update_global_search_config(update, if_current_not_found)?;
+            Dispatch::UpdateGlobalSearchConfig { update } => {
+                self.update_global_search_config(update)?;
             }
-            Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
-                filter_glob,
-                if_current_not_found,
-            } => {
-                self.open_set_global_search_filter_glob_prompt(filter_glob, if_current_not_found)?
+            Dispatch::OpenSetGlobalSearchFilterGlobPrompt { filter_glob } => {
+                self.open_set_global_search_filter_glob_prompt(filter_glob)?
             }
             Dispatch::ShowSearchConfig {
                 scope,
@@ -1698,7 +1692,6 @@ impl<T: Frontend> App<T> {
     fn update_global_search_config(
         &mut self,
         update: GlobalSearchConfigUpdate,
-        if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<()> {
         self.context.update_global_search_config(update)?;
         self.global_search()?;
@@ -1708,15 +1701,11 @@ impl<T: Frontend> App<T> {
     fn open_set_global_search_filter_glob_prompt(
         &mut self,
         filter_glob: GlobalSearchFilterGlob,
-        if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
                 title: format!("Set global search {:?} files glob", filter_glob),
-                on_enter: DispatchPrompt::GlobalSearchConfigSetGlob {
-                    filter_glob,
-                    if_current_not_found,
-                },
+                on_enter: DispatchPrompt::GlobalSearchConfigSetGlob { filter_glob },
                 items: Vec::new(),
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
@@ -1901,7 +1890,6 @@ impl<T: Frontend> App<T> {
                                     ),
                                     Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
                                         filter_glob: GlobalSearchFilterGlob::Include,
-                                        if_current_not_found,
                                     },
                                 ),
                                 Keymap::new(
@@ -1916,7 +1904,6 @@ impl<T: Frontend> App<T> {
                                     ),
                                     Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
                                         filter_glob: GlobalSearchFilterGlob::Exclude,
-                                        if_current_not_found,
                                     },
                                 ),
                             ]
@@ -2571,11 +2558,9 @@ pub(crate) enum Dispatch {
     },
     UpdateGlobalSearchConfig {
         update: GlobalSearchConfigUpdate,
-        if_current_not_found: IfCurrentNotFound,
     },
     OpenSetGlobalSearchFilterGlobPrompt {
         filter_glob: GlobalSearchFilterGlob,
-        if_current_not_found: IfCurrentNotFound,
     },
     ShowSearchConfig {
         scope: Scope,
@@ -2729,7 +2714,6 @@ pub(crate) enum AppMessage {
 pub(crate) enum DispatchPrompt {
     GlobalSearchConfigSetGlob {
         filter_glob: GlobalSearchFilterGlob,
-        if_current_not_found: IfCurrentNotFound,
     },
     MoveSelectionByIndex,
     RenameSymbol,
@@ -2769,13 +2753,9 @@ pub(crate) enum DispatchPrompt {
 impl DispatchPrompt {
     pub(crate) fn to_dispatches(&self, text: &str) -> anyhow::Result<Dispatches> {
         match self.clone() {
-            DispatchPrompt::GlobalSearchConfigSetGlob {
-                filter_glob,
-                if_current_not_found,
-            } => Ok(Dispatches::new(
+            DispatchPrompt::GlobalSearchConfigSetGlob { filter_glob } => Ok(Dispatches::new(
                 [Dispatch::UpdateGlobalSearchConfig {
                     update: GlobalSearchConfigUpdate::SetGlob(filter_glob, text.to_string()),
-                    if_current_not_found,
                 }]
                 .to_vec(),
             )),
@@ -2805,7 +2785,6 @@ impl DispatchPrompt {
                     },
                     Scope::Global => Dispatch::UpdateGlobalSearchConfig {
                         update: GlobalSearchConfigUpdate::Config(search_config),
-                        if_current_not_found: IfCurrentNotFound::LookForward,
                     },
                 };
                 Ok(Dispatches::one(dispatch))

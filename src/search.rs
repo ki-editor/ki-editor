@@ -50,7 +50,7 @@ pub(crate) fn parse_search_config(input: &str) -> anyhow::Result<GlobalSearchCon
             _ => return default(),
         }
     };
-    let Some(separator) = chars.iter().skip(mode_chars_count).next() else {
+    let Some(separator) = chars.get(mode_chars_count) else {
         return default();
     };
 
@@ -95,7 +95,7 @@ pub(crate) fn parse_search_config(input: &str) -> anyhow::Result<GlobalSearchCon
         if input.is_empty() {
             Ok(None)
         } else {
-            Some(Glob::new(&input)).transpose()
+            Some(Glob::new(input)).transpose()
         }
     };
     Ok(GlobalSearchConfig {

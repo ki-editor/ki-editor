@@ -4006,6 +4006,29 @@ fn search_current_selection_should_match_whole_word() -> anyhow::Result<()> {
 }
 
 #[test]
+fn search_current_selection_should_match_whole_word_even_if_surrounding_char_is_non_alphanumeric_and_neighboring_char_is_space_or_eof(
+) -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("-foo- -Foo- foobar -fOO-".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Expect(CurrentSelectedTexts(&["-foo-"])),
+            Editor(SearchCurrentSelection(
+                IfCurrentNotFound::LookForward,
+                Scope::Local,
+            )),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentSelectedTexts(&["-foo-", "-Foo-", "-fOO-"])), // Expect no `foobar`,
+        ])
+    })
+}
+
+#[test]
 fn should_search_backward_if_primary_and_secondary_cursor_swapped() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

@@ -3564,9 +3564,20 @@ impl Editor {
                     scope,
                     if_current_not_found,
                     update: crate::app::LocalSearchConfigUpdate::Config(
-                        LocalSearchConfig::new(LocalSearchConfigMode::Regex(
-                            RegexConfig::match_whole_word(),
-                        ))
+                        LocalSearchConfig::new(LocalSearchConfigMode::Regex(RegexConfig {
+                            escaped: true,
+                            case_sensitive: false,
+                            match_whole_word: search
+                                .chars()
+                                .next()
+                                .map(|c| c.is_ascii_alphanumeric())
+                                .unwrap_or(false)
+                                && search
+                                    .chars()
+                                    .last()
+                                    .map(|c| c.is_ascii_alphanumeric())
+                                    .unwrap_or(false),
+                        }))
                         .set_search(search.to_string())
                         .clone(),
                     ),
