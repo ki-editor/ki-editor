@@ -4695,3 +4695,34 @@ java script"
         ])
     })
 }
+
+#[test]
+fn multicursor_maintain_selections_uses_search_config() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+foo
+for
+fuor
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentSelectedTexts(&["foo", "for", "fuor"])),
+            // Keep only selections matching `r/f.o`
+            App(HandleKeyEvents(keys!("r u r / f . o enter").to_vec())),
+            Expect(CurrentSelectedTexts(&["foo", "fuor"])),
+        ])
+    })
+}

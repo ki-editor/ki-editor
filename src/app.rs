@@ -1702,7 +1702,6 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         self.context.update_global_search_config(update)?;
         self.global_search()?;
-        self.show_search_config(Scope::Global, if_current_not_found, true);
         Ok(())
     }
 
@@ -1752,7 +1751,7 @@ impl<T: Frontend> App<T> {
                     Dispatch::UpdateLocalSearchConfig {
                         update,
                         scope,
-                        show_config_after_enter: scope == Scope::Global,
+                        show_config_after_enter: false,
                         if_current_not_found: IfCurrentNotFound::LookForward,
                         run_search_after_config_updated,
                     },
@@ -1962,7 +1961,7 @@ impl<T: Frontend> App<T> {
                 title: format!("Set Search ({:?})", scope),
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                     scope,
-                    show_config_after_enter: true,
+                    show_config_after_enter: false,
                     if_current_not_found,
                     run_search_after_config_updated: true,
                 },
@@ -2860,7 +2859,7 @@ impl DispatchPrompt {
                 [Dispatch::UpdateLocalSearchConfig {
                     scope,
                     update: LocalSearchConfigUpdate::Replacement(text.to_owned()),
-                    show_config_after_enter: true,
+                    show_config_after_enter: false,
                     if_current_not_found,
                     run_search_after_config_updated: true,
                 }]

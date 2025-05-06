@@ -16,6 +16,7 @@ use crate::{
     lsp::completion::PositionalEdit,
     position::Position,
     rectangle::Rectangle,
+    search::parse_search_config,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
 use crate::{
@@ -319,9 +320,9 @@ impl Component for Editor {
             CollapseSelection(direction) => return self.collapse_selection(context, direction),
             FilterSelectionMatchingSearch { maintain, search } => {
                 self.mode = Mode::Normal;
+                let search_config = parse_search_config(&search)?;
                 return Ok(self.filter_selection_matching_search(
-                    context.get_local_search_config(Scope::Local),
-                    search,
+                    search_config.local_config(),
                     maintain,
                     context,
                 ));
@@ -3326,10 +3327,10 @@ impl Editor {
     fn filter_selection_matching_search(
         &mut self,
         local_search_config: &crate::context::LocalSearchConfig,
-        search: String,
         keep: bool,
         context: &Context,
     ) -> Dispatches {
+        let search = local_search_config.search();
         let selections = self.selection_set.selections();
         let filtered = selections
             .iter()

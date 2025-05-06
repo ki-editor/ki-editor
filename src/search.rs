@@ -25,7 +25,7 @@ pub(crate) fn parse_search_config(input: &str) -> anyhow::Result<GlobalSearchCon
     let mode_str: String = mode_chars.into_iter().map(|c| c.to_string()).join("");
     let mode = {
         match mode_str.as_str() {
-            "" => LocalSearchConfigMode::Regex(RegexConfig::literal()),
+            "l" => LocalSearchConfigMode::Regex(RegexConfig::literal()),
             "c" => LocalSearchConfigMode::Regex(RegexConfig::case_sensitive()),
             "w" => LocalSearchConfigMode::Regex(RegexConfig::match_whole_word()),
             "s" | "cw" | "wc" => LocalSearchConfigMode::Regex(RegexConfig::strict()),
@@ -75,6 +75,10 @@ pub(crate) fn parse_search_config(input: &str) -> anyhow::Result<GlobalSearchCon
         (last_index, result.join(""))
     };
     let (last_index, search) = parse_component(0);
+    if search.is_empty() {
+        return default();
+    }
+
     let parse_next_component = |last_index: usize| {
         if chars.get(last_index) == Some(&separator) {
             let (last_index, result) = parse_component(last_index + 1);
@@ -118,8 +122,7 @@ mod test_parse_search_config {
             assert_eq!(actual.mode, expected_mode);
             assert_eq!(actual.search(), "hello")
         }
-        run_test("", Regex(RegexConfig::literal()));
-        run_test("", Regex(RegexConfig::literal()));
+        run_test("l", Regex(RegexConfig::literal()));
         run_test("c", Regex(RegexConfig::case_sensitive()));
         run_test("w", Regex(RegexConfig::match_whole_word()));
         run_test("s", Regex(RegexConfig::strict()));
@@ -228,5 +231,11 @@ mod test_parse_search_config {
         let actual = parse_search_config("a/search/replacement/*.include/*.exclude").unwrap();
         assert_eq!(actual.include_glob, Some(Glob::new("*.include").unwrap()));
         assert_eq!(actual.exclude_glob, Some(Glob::new("*.exclude").unwrap()));
+    }
+
+    #[test]
+    fn if_parsed_search_is_empty_then_input_becomes_search() {
+        let actual = parse_search_config("// hello").unwrap();
+        assert_eq!(actual.local_config.search(), "// hello");
     }
 }
