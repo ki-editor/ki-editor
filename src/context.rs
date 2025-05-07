@@ -248,14 +248,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_prompt_history(
-        &mut self,
-        key: PromptHistoryKey,
-        current_entry: Option<String>,
-    ) -> Vec<String> {
-        if let Some(line) = current_entry {
-            self.push_history_prompt(key, line)
-        }
+    pub(crate) fn get_prompt_history(&self, key: PromptHistoryKey) -> Vec<String> {
         self.prompt_histories
             .get(&key)
             .cloned()
@@ -469,9 +462,5 @@ impl LocalSearchConfig {
 
     pub(crate) fn require_tree_sitter(&self) -> bool {
         self.mode == LocalSearchConfigMode::AstGrep
-    }
-
-    pub(crate) fn display(&self) -> String {
-        self.mode.display()
     }
 }

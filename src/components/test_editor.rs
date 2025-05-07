@@ -28,6 +28,7 @@ use SelectionMode::*;
 
 use super::editor::IfCurrentNotFound;
 use super::editor::SurroundKind;
+use super::prompt::PromptHistoryKey;
 use super::render_editor::markup_focused_tab;
 
 #[test]
@@ -3980,50 +3981,10 @@ fn search_current_selection() -> anyhow::Result<()> {
             )),
             Expect(CurrentSelectedTexts(&["foo bar"])),
             Expect(SelectionExtensionEnabled(false)),
-        ])
-    })
-}
-
-#[test]
-fn search_current_selection_should_match_whole_word() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent("foo Foo foobar".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
-            Editor(SearchCurrentSelection(
-                IfCurrentNotFound::LookForward,
-                Scope::Local,
+            Expect(PromptHistory(
+                PromptHistoryKey::Search,
+                ["foo bar".to_string()].to_vec(),
             )),
-            Editor(CursorAddToAllSelections),
-            Expect(CurrentSelectedTexts(&["foo", "Foo"])), // Expect no `foobar`,
-        ])
-    })
-}
-
-#[test]
-fn search_current_selection_should_match_whole_word_even_if_surrounding_char_is_non_alphanumeric_and_neighboring_char_is_space_or_eof(
-) -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent("-foo- -Foo- foobar -fOO-".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
-            Expect(CurrentSelectedTexts(&["-foo-"])),
-            Editor(SearchCurrentSelection(
-                IfCurrentNotFound::LookForward,
-                Scope::Local,
-            )),
-            Editor(CursorAddToAllSelections),
-            Expect(CurrentSelectedTexts(&["-foo-", "-Foo-", "-fOO-"])), // Expect no `foobar`,
         ])
     })
 }
@@ -4749,3 +4710,7 @@ fuor
         ])
     })
 }
+
+// TODO: store also failed search input in history
+// TODO: naming convention agnostic search should be case-insensitive
+// For example, "foo bar", should match "Foo bar"

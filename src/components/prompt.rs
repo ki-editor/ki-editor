@@ -43,7 +43,7 @@ pub(crate) struct PromptConfig {
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
 pub(crate) enum PromptHistoryKey {
     MoveToIndex,
-    Search(Scope),
+    Search,
     Rename,
     AddPath,
     MovePath,
@@ -51,7 +51,7 @@ pub(crate) enum PromptHistoryKey {
     Symbol,
     OpenFile,
     FilterGlob(GlobalSearchFilterGlob),
-    Replacement(Scope),
+    Replacement,
     CodeAction,
     #[cfg(test)]
     Null,

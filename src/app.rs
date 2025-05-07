@@ -914,7 +914,7 @@ impl<T: Frontend> App<T> {
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
             },
-            PromptHistoryKey::Search(scope),
+            PromptHistoryKey::Search,
             None,
         )
     }
@@ -1933,7 +1933,7 @@ impl<T: Frontend> App<T> {
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
             },
-            PromptHistoryKey::Replacement(scope),
+            PromptHistoryKey::Replacement,
             None,
         )
     }
@@ -1957,7 +1957,7 @@ impl<T: Frontend> App<T> {
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
             },
-            PromptHistoryKey::Search(scope),
+            PromptHistoryKey::Search,
             None,
         )
     }
@@ -2069,7 +2069,10 @@ impl<T: Frontend> App<T> {
         key: PromptHistoryKey,
         current_line: Option<String>,
     ) -> anyhow::Result<()> {
-        let history = self.context.get_prompt_history(key, current_line);
+        if let Some(line) = current_line {
+            self.context.push_history_prompt(key, line)
+        }
+        let history = self.context.get_prompt_history(key);
         let (prompt, dispatches) = Prompt::new(prompt_config, key, history);
 
         self.layout.add_and_focus_prompt(

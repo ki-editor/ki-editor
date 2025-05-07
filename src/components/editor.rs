@@ -3564,25 +3564,18 @@ impl Editor {
                     scope,
                     if_current_not_found,
                     update: crate::app::LocalSearchConfigUpdate::Config(
-                        LocalSearchConfig::new(LocalSearchConfigMode::Regex(RegexConfig {
-                            escaped: true,
-                            case_sensitive: false,
-                            match_whole_word: search
-                                .chars()
-                                .next()
-                                .map(|c| c.is_ascii_alphanumeric())
-                                .unwrap_or(false)
-                                && search
-                                    .chars()
-                                    .last()
-                                    .map(|c| c.is_ascii_alphanumeric())
-                                    .unwrap_or(false),
-                        }))
+                        LocalSearchConfig::new(
+                            LocalSearchConfigMode::Regex(RegexConfig::literal()),
+                        )
                         .set_search(search.to_string())
                         .clone(),
                     ),
                     show_config_after_enter: false,
                     run_search_after_config_updated: true,
+                })
+                .append(Dispatch::PushPromptHistory {
+                    key: super::prompt::PromptHistoryKey::Search,
+                    line: search.to_string(),
                 })
             })
             .unwrap_or_default();
