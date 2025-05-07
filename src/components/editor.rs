@@ -2508,22 +2508,22 @@ impl Editor {
     }
 
     pub(crate) fn display_mode(&self) -> String {
-        let prefix = if self.selection_set.is_extended() {
-            "+"
-        } else {
-            ""
-        };
-        let core = match &self.mode {
-            Mode::Normal => "MOVE",
+        match &self.mode {
+            Mode::Normal => {
+                if self.selection_set.is_extended() {
+                    "NORMAL (EXTENDED)"
+                } else {
+                    "NORMAL"
+                }
+            }
             Mode::Insert => "INSERT",
-            Mode::MultiCursor => "MULTI CURSOR",
+            Mode::MultiCursor => "MULTI-CURSOR",
             Mode::FindOneChar(_) => "FIND ONE CHAR",
             Mode::Swap => "SWAP",
             Mode::Replace => "REPLACE",
             Mode::Extend => "EXTEND",
         }
-        .to_string();
-        format!("{prefix}{core}")
+        .to_string()
     }
 
     pub(crate) fn display_selection_mode(&self) -> String {

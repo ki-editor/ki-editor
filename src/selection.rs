@@ -472,7 +472,7 @@ impl SelectionMode {
             SelectionMode::Word { skip_symbols } => {
                 format!("{}WORD", if *skip_symbols { "" } else { "FINE " })
             }
-            SelectionMode::Token => "Token".to_string(),
+            SelectionMode::Token => "TOKEN".to_string(),
         }
     }
 

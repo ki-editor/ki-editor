@@ -132,6 +132,12 @@ impl CanonicalizedPath {
         }
     }
 
+    /// Try displaying the relative path to home, else display the absolute path.
+    pub fn try_display_relative_to_home(&self) -> String {
+        self.display_relative_to_home()
+            .unwrap_or_else(|_| self.display_absolute())
+    }
+
     pub fn display_absolute(&self) -> String {
         self.0.display().to_string()
     }

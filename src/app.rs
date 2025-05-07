@@ -31,6 +31,7 @@ use crate::{
     },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
+    render_flex_layout::{self, FlexLayoutComponent},
     screen::{Screen, Window},
     selection::SelectionMode,
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
@@ -75,25 +76,36 @@ pub(crate) struct App<T: Frontend> {
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
 
-    status_line_components: Vec<StatusLineComponent>,
+    status_lines: Vec<StatusLine>,
     last_action_description: Option<String>,
     last_action_short_description: Option<String>,
 }
 
-const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
+#[derive(Clone)]
+pub(crate) struct StatusLine {
+    components: Vec<StatusLineComponent>,
+}
+impl StatusLine {
+    pub(crate) fn new(components: Vec<StatusLineComponent>) -> Self {
+        Self { components }
+    }
+}
 
 #[derive(Clone)]
 pub(crate) enum StatusLineComponent {
+    ProcessId,
     CurrentWorkingDirectory,
     GitBranch,
     Mode,
     SelectionMode,
     LastDispatch,
+    LineColumn,
     LocalSearchConfig,
     Help,
     KeyboardLayout,
     ViewAlignment,
     Reveal,
+    Spacer,
 }
 
 impl<T: Frontend> App<T> {
@@ -101,16 +113,10 @@ impl<T: Frontend> App<T> {
     pub(crate) fn new(
         frontend: Rc<Mutex<T>>,
         working_directory: CanonicalizedPath,
-        status_line_components: Vec<StatusLineComponent>,
+        status_lines: Vec<StatusLine>,
     ) -> anyhow::Result<App<T>> {
         let (sender, receiver) = std::sync::mpsc::channel();
-        Self::from_channel(
-            frontend,
-            working_directory,
-            sender,
-            receiver,
-            status_line_components,
-        )
+        Self::from_channel(frontend, working_directory, sender, receiver, status_lines)
     }
 
     #[cfg(test)]
@@ -123,7 +129,7 @@ impl<T: Frontend> App<T> {
         working_directory: CanonicalizedPath,
         sender: Sender<AppMessage>,
         receiver: Receiver<AppMessage>,
-        status_line_components: Vec<StatusLineComponent>,
+        status_lines: Vec<StatusLine>,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let app = App {
@@ -133,19 +139,24 @@ impl<T: Frontend> App<T> {
             enable_lsp: true,
             sender,
             layout: Layout::new(
-                dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT),
+                dimension.decrement_height(status_lines.len() as u16),
                 &working_directory,
             )?,
             working_directory,
             frontend,
             syntax_highlight_request_sender: None,
             global_title: None,
-            status_line_components,
+            status_lines,
             last_action_description: None,
             last_action_short_description: None,
         };
         Ok(app)
     }
+
+    fn global_title_bar_height(&self) -> usize {
+        self.status_lines.len()
+    }
+
     fn update_highlighted_spans(
         &self,
         component_id: ComponentId,
@@ -267,7 +278,6 @@ impl<T: Frontend> App<T> {
         self.layout.recalculate_layout(&self.context);
 
         // Generate layout
-        let dimension = self.layout.terminal_dimension();
         // Render every window
         let (windows, cursors): (Vec<_>, Vec<_>) = self
             .components()
@@ -309,44 +319,77 @@ impl<T: Frontend> App<T> {
         let screen = Screen::new(windows, borders, cursor, self.context.theme().ui.border);
 
         // Set the global title
-        let global_title_window = {
-            let title = self.global_title.clone().unwrap_or_else(|| {
-                self.status_line_components
+        let global_title_windows = self
+            .status_lines
+            .iter()
+            .enumerate()
+            .map(|(index, status_line)| self.render_status_line(index, status_line))
+            .collect_vec();
+        let screen = global_title_windows
+            .into_iter()
+            .fold(screen, |screen, window| screen.add_window(window));
+
+        Ok(screen)
+    }
+    fn render_status_line(&self, index: usize, status_line: &StatusLine) -> Window {
+        let dimension = self.layout.terminal_dimension();
+        let leading_padding = 1;
+        let title = self.global_title.clone().unwrap_or_else(|| {
+            let separator = "   ";
+            let width = (dimension.width as usize)
+                .saturating_sub(leading_padding)
+                .saturating_sub(1); // This is the extra space for rendering cursor at the last column
+            render_flex_layout::render_flex_layout(
+                width,
+                separator,
+                &status_line
+                    .components
                     .iter()
                     .filter_map(|component| match component {
-                        StatusLineComponent::CurrentWorkingDirectory => Some(
-                            self.working_directory
-                                .display_relative_to_home()
-                                .ok()
-                                .unwrap_or_else(|| self.working_directory.display_absolute()),
-                        ),
-                        StatusLineComponent::GitBranch => self.current_branch(),
-                        StatusLineComponent::Mode => Some(
+                        StatusLineComponent::CurrentWorkingDirectory => {
+                            Some(FlexLayoutComponent::Text({
+                                let cwd = self
+                                    .working_directory
+                                    .display_relative_to_home()
+                                    .ok()
+                                    .unwrap_or_else(|| self.working_directory.display_absolute());
+                                self.current_branch()
+                                    .map(|branch| format!("{cwd} ({branch})"))
+                                    .unwrap_or(cwd)
+                            }))
+                        }
+                        StatusLineComponent::GitBranch => {
+                            self.current_branch().map(FlexLayoutComponent::Text)
+                        }
+                        StatusLineComponent::Mode => Some(FlexLayoutComponent::Text(
                             self.context
                                 .mode()
                                 .map(|mode| mode.display())
                                 .unwrap_or_else(|| {
                                     self.current_component().borrow().editor().display_mode()
                                 }),
-                        ),
-                        StatusLineComponent::SelectionMode => Some(
+                        )),
+                        StatusLineComponent::SelectionMode => Some(FlexLayoutComponent::Text(
                             self.current_component()
                                 .borrow()
                                 .editor()
                                 .display_selection_mode(),
-                        ),
-                        StatusLineComponent::LastDispatch => self.last_action_description.clone(),
-                        StatusLineComponent::LocalSearchConfig => {
-                            Some(self.context.local_search_config().display())
-                        }
-                        StatusLineComponent::Help => {
+                        )),
+                        StatusLineComponent::LastDispatch => self
+                            .last_action_description
+                            .clone()
+                            .map(FlexLayoutComponent::Text),
+                        StatusLineComponent::LocalSearchConfig => Some(FlexLayoutComponent::Text(
+                            self.context.local_search_config().display(),
+                        )),
+                        StatusLineComponent::Help => Some(FlexLayoutComponent::Text({
                             let key = self.keyboard_layout_kind().get_insert_key(&Meaning::SHelp);
-                            Some(format!("Help ({key})"))
-                        }
-                        StatusLineComponent::KeyboardLayout => {
-                            Some(self.keyboard_layout_kind().display().to_string())
-                        }
-                        StatusLineComponent::ViewAlignment => Some(
+                            format!("Help ({key})")
+                        })),
+                        StatusLineComponent::KeyboardLayout => Some(FlexLayoutComponent::Text(
+                            self.keyboard_layout_kind().display().to_string(),
+                        )),
+                        StatusLineComponent::ViewAlignment => Some(FlexLayoutComponent::Text(
                             match self
                                 .current_component()
                                 .borrow()
@@ -358,7 +401,7 @@ impl<T: Frontend> App<T> {
                                 Some(ViewAlignment::Bottom) => "↓️",
                             }
                             .to_string(),
-                        ),
+                        )),
                         StatusLineComponent::Reveal => self
                             .current_component()
                             .borrow()
@@ -371,42 +414,81 @@ impl<T: Frontend> App<T> {
                                     Reveal::Mark => "÷ Mark",
                                 }
                                 .to_string()
-                            }),
+                            })
+                            .map(FlexLayoutComponent::Text),
+                        StatusLineComponent::Spacer => Some(FlexLayoutComponent::Spacer),
+                        StatusLineComponent::ProcessId => Some(FlexLayoutComponent::Text(format!(
+                            "PID:{}",
+                            std::process::id()
+                        ))),
+                        StatusLineComponent::LineColumn => {
+                            let primary_selection_range = self
+                                .current_component()
+                                .borrow()
+                                .editor()
+                                .editor()
+                                .selection_set
+                                .primary_selection()
+                                .extended_range();
+                            fn format_position(position: Position) -> String {
+                                format!("{}:{}", position.line + 1, position.column + 1)
+                            }
+                            self.current_component()
+                                .borrow()
+                                .editor()
+                                .buffer()
+                                .char_index_range_to_position_range(primary_selection_range)
+                                .ok()
+                                .map(|range| {
+                                    FlexLayoutComponent::Text(if range.start == range.end {
+                                        format_position(range.start)
+                                    } else if range.start.line == range.end.line {
+                                        format!(
+                                            "{}-{}",
+                                            format_position(range.start),
+                                            range.end.column
+                                        )
+                                    } else {
+                                        format!(
+                                            "{}-{}",
+                                            format_position(range.start),
+                                            format_position(range.end)
+                                        )
+                                    })
+                                })
+                        }
                     })
-                    .join(" │ ")
-            });
-            let title = format!(" {}", title);
-            let grid = Grid::new(Dimension {
-                height: 1,
-                width: dimension.width,
-            })
-            .render_content(
-                &title,
-                crate::grid::RenderContentLineNumber::NoLineNumber,
-                Vec::new(),
-                [LineUpdate {
-                    line_index: 0,
-                    style: self.context.theme().ui.global_title,
-                }]
-                .to_vec(),
-                self.context.theme(),
-                None,
-            );
-            Window::new(
-                grid,
-                crate::rectangle::Rectangle {
-                    width: dimension.width,
-                    height: 1,
-                    origin: Position {
-                        line: dimension.height as usize,
-                        column: 0,
-                    },
-                },
+                    .collect_vec(),
             )
-        };
-        let screen = screen.add_window(global_title_window);
-
-        Ok(screen)
+        });
+        let title = format!("{}{}", " ".repeat(leading_padding), title);
+        let grid = Grid::new(Dimension {
+            height: 1,
+            width: dimension.width,
+        })
+        .render_content(
+            &title,
+            crate::grid::RenderContentLineNumber::NoLineNumber,
+            Vec::new(),
+            [LineUpdate {
+                line_index: 0,
+                style: self.context.theme().ui.global_title,
+            }]
+            .to_vec(),
+            self.context.theme(),
+            None,
+        );
+        Window::new(
+            grid,
+            crate::rectangle::Rectangle {
+                width: dimension.width,
+                height: 1,
+                origin: Position {
+                    line: (dimension.height as usize) + index,
+                    column: 0,
+                },
+            },
+        )
     }
 
     fn current_branch(&self) -> Option<String> {
@@ -859,7 +941,7 @@ impl<T: Frontend> App<T> {
 
     fn resize(&mut self, dimension: Dimension) {
         self.layout.set_terminal_dimension(
-            dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT),
+            dimension.decrement_height(self.global_title_bar_height() as u16),
             &self.context,
         );
     }
@@ -2259,9 +2341,18 @@ impl<T: Frontend> App<T> {
                 on_enter: DispatchPrompt::Null,
                 items: KeyboardLayoutKind::iter()
                     .map(|keyboard_layout| {
-                        DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
-                            Dispatches::one(Dispatch::SetKeyboardLayoutKind(keyboard_layout)),
-                        )
+                        DropdownItem::new(keyboard_layout.display().to_string())
+                            .set_info(Some(Info::new(
+                                "Layout".to_string(),
+                                keyboard_layout
+                                    .get_keyboard_layout()
+                                    .into_iter()
+                                    .map(|row| row.join(" "))
+                                    .join("\n"),
+                            )))
+                            .set_dispatches(Dispatches::one(Dispatch::SetKeyboardLayoutKind(
+                                keyboard_layout,
+                            )))
                     })
                     .collect_vec(),
                 title: "Keyboard Layout".to_string(),
