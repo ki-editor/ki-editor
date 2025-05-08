@@ -55,7 +55,7 @@ pub(crate) enum GlobalMode {
 impl GlobalMode {
     pub(crate) fn display(&self) -> String {
         match self {
-            GlobalMode::QuickfixListItem => "QUICKFIX LIST ITEM".to_string(),
+            GlobalMode::QuickfixListItem => "QFIX".to_string(),
         }
     }
 }
@@ -85,7 +85,7 @@ impl Default for Context {
                 crate::env::parse_env(
                     "KI_EDITOR_KEYBOARD",
                     &KeyboardLayoutKind::iter().collect_vec(),
-                    |layout| layout.as_str(),
+                    |layout| layout.display(),
                     Qwerty,
                 )
             },
@@ -201,6 +201,7 @@ impl Context {
                     }
                 };
             }
+            GlobalSearchConfigUpdate::Config(config) => self.global_search_config = config,
         };
         Ok(())
     }
@@ -247,14 +248,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_prompt_history(
-        &mut self,
-        key: PromptHistoryKey,
-        current_entry: Option<String>,
-    ) -> Vec<String> {
-        if let Some(line) = current_entry {
-            self.push_history_prompt(key, line)
-        }
+    pub(crate) fn get_prompt_history(&self, key: PromptHistoryKey) -> Vec<String> {
         self.prompt_histories
             .get(&key)
             .cloned()
@@ -344,11 +338,11 @@ impl Context {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub(crate) struct GlobalSearchConfig {
-    include_glob: Option<Glob>,
-    exclude_glob: Option<Glob>,
-    local_config: LocalSearchConfig,
+    pub(crate) include_glob: Option<Glob>,
+    pub(crate) exclude_glob: Option<Glob>,
+    pub(crate) local_config: LocalSearchConfig,
 }
 impl GlobalSearchConfig {
     pub(crate) fn local_config(&self) -> &LocalSearchConfig {
@@ -420,7 +414,6 @@ pub(crate) struct LocalSearchConfig {
 }
 
 impl LocalSearchConfig {
-    #[cfg(test)]
     pub(crate) fn new(mode: LocalSearchConfigMode) -> Self {
         Self {
             mode,
@@ -438,6 +431,7 @@ impl LocalSearchConfig {
             LocalSearchConfigUpdate::Search(search) => {
                 self.set_search(search);
             }
+            LocalSearchConfigUpdate::Config(config) => *self = config,
         }
     }
 
@@ -468,9 +462,5 @@ impl LocalSearchConfig {
 
     pub(crate) fn require_tree_sitter(&self) -> bool {
         self.mode == LocalSearchConfigMode::AstGrep
-    }
-
-    pub(crate) fn display(&self) -> String {
-        self.mode.display()
     }
 }

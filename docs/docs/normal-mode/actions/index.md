@@ -89,7 +89,7 @@ This deletes the current selected text, and enter [Insert mode](../../insert-mod
 Replace with pattern.
 
 This replaces the current selection using the search pattern and replacement
-pattern specified in the [Text Search Configuration](../search-config.md).
+pattern specified in the [Text Search Configuration](../search-config.md#replacement).
 
 For example:
 
@@ -99,8 +99,6 @@ For example:
 | Regex                      | `"yo"`        | `"(.*)"` | `[$1]`      | `[yo]`  |
 | AST Grep                   | `f(x)`        | `f($Z)`  | `$Z(f)`     | `x(f)`  |
 | Naming Convention Agnostic | `a_bu`        | `a bu`   | `to li`     | `to_li` |
-
-<TutorialFallback filename="replace-with-pattern"/>
 
 ### `Join`
 

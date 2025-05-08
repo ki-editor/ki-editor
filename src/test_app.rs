@@ -36,6 +36,7 @@ use crate::{
         editor_keymap::KeyboardLayoutKind,
         editor_keymap_printer::KeymapPrintSections,
         keymap_legend::Keymap,
+        prompt::PromptHistoryKey,
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
     context::{GlobalMode, LocalSearchConfigMode},
@@ -144,6 +145,7 @@ pub(crate) enum ExpectKind {
     CurrentReveal(Option<Reveal>),
     CountHighlightedCells(StyleKey, usize),
     SelectionExtensionEnabled(bool),
+    PromptHistory(PromptHistoryKey, Vec<String>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -468,6 +470,10 @@ impl ExpectKind {
             ),
             SelectionExtensionEnabled(expected) => contextualize(expected, &app.current_component().borrow().editor().selection_extension_enabled()),
             CurrentSearch(scope,expected) => contextualize(*expected, &app.context().get_local_search_config(*scope).search()),
+            PromptHistory(key, expected) => contextualize(
+                expected,
+                &app.context().get_prompt_history(*key)
+            ),
         })
     }
 }
@@ -2355,7 +2361,7 @@ fn export_keymaps_json() {
     let get_path = |name: &str| format!("docs/static/keymaps/{}.json", name);
     let keyboard_layouts = KeyboardLayoutKind::iter()
         .map(|keyboard_layout| KeyboardLayoutJson {
-            name: keyboard_layout.as_str().to_string(),
+            name: keyboard_layout.display().to_string(),
             keys: keyboard_layout.get_keyboard_layout().to_vec(),
         })
         .collect_vec();

@@ -4,9 +4,7 @@ use crate::{
     components::{
         component::{Component, ComponentId, GetGridResult},
         dropdown::{DropdownItem, DropdownRender},
-        editor::{
-            Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, Reveal, ViewAlignment,
-        },
+        editor::{Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, Reveal},
         editor_keymap::{KeyboardLayoutKind, Meaning},
         file_explorer::FileExplorer,
         keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
@@ -15,7 +13,9 @@ use crate::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
         },
     },
-    context::{Context, GlobalMode, LocalSearchConfigMode, QuickfixListSource, Search},
+    context::{
+        Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
+    },
     frontend::Frontend,
     git,
     grid::{Grid, LineUpdate},
@@ -33,6 +33,7 @@ use crate::{
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     screen::{Screen, Window},
+    search::parse_search_config,
     selection::SelectionMode,
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
     ui_tree::{ComponentKind, KindedComponent},
@@ -96,10 +97,9 @@ pub(crate) enum StatusLineComponent {
     Mode,
     SelectionMode,
     LastDispatch,
-    LocalSearchConfig,
+    LastSearchString,
     Help,
     KeyboardLayout,
-    ViewAlignment,
     Reveal,
 }
 
@@ -331,6 +331,11 @@ impl<T: Frontend> App<T> {
         // Set the global title
         let global_title_window = {
             let title = self.global_title.clone().unwrap_or_else(|| {
+                let last_search_string = self
+                    .context
+                    .get_prompt_history(PromptHistoryKey::Search)
+                    .last()
+                    .map(|search| format!("{search:?}"));
                 self.status_line_components
                     .iter()
                     .filter_map(|component| match component {
@@ -341,14 +346,16 @@ impl<T: Frontend> App<T> {
                                 .unwrap_or_else(|| self.working_directory.display_absolute()),
                         ),
                         StatusLineComponent::GitBranch => self.current_branch(),
-                        StatusLineComponent::Mode => Some(
-                            self.context
+                        StatusLineComponent::Mode => {
+                            let mode = self
+                                .context
                                 .mode()
                                 .map(|mode| mode.display())
                                 .unwrap_or_else(|| {
                                     self.current_component().borrow().editor().display_mode()
-                                }),
-                        ),
+                                });
+                            Some(format!("{: <5}", mode))
+                        }
                         StatusLineComponent::SelectionMode => Some(
                             self.current_component()
                                 .borrow()
@@ -356,29 +363,14 @@ impl<T: Frontend> App<T> {
                                 .display_selection_mode(),
                         ),
                         StatusLineComponent::LastDispatch => self.last_action_description.clone(),
-                        StatusLineComponent::LocalSearchConfig => {
-                            Some(self.context.local_search_config().display())
-                        }
+                        StatusLineComponent::LastSearchString => last_search_string.clone(),
                         StatusLineComponent::Help => {
                             let key = self.keyboard_layout_kind().get_insert_key(&Meaning::SHelp);
-                            Some(format!("Help ({key})"))
+                            Some(format!("Help({key})"))
                         }
                         StatusLineComponent::KeyboardLayout => {
                             Some(self.keyboard_layout_kind().display().to_string())
                         }
-                        StatusLineComponent::ViewAlignment => Some(
-                            match self
-                                .current_component()
-                                .borrow()
-                                .editor()
-                                .current_view_alignment
-                            {
-                                Some(ViewAlignment::Top) => "↑️",
-                                Some(ViewAlignment::Center) | None => "↕️",
-                                Some(ViewAlignment::Bottom) => "↓️",
-                            }
-                            .to_string(),
-                        ),
                         StatusLineComponent::Reveal => self
                             .current_component()
                             .borrow()
@@ -386,14 +378,14 @@ impl<T: Frontend> App<T> {
                             .reveal()
                             .map(|split| {
                                 match split {
-                                    Reveal::CurrentSelectionMode => "÷ Selection",
-                                    Reveal::Cursor => "÷ Cursor",
-                                    Reveal::Mark => "÷ Mark",
+                                    Reveal::CurrentSelectionMode => "÷SELS",
+                                    Reveal::Cursor => "÷CURS",
+                                    Reveal::Mark => "÷MARK",
                                 }
                                 .to_string()
                             }),
                     })
-                    .join(" │ ")
+                    .join(" ")
             });
             let title = format!(" {}", title);
             let grid = Grid::new(Dimension {
@@ -868,17 +860,11 @@ impl<T: Frontend> App<T> {
                 if_current_not_found,
                 run_search_after_config_updated,
             )?,
-            Dispatch::UpdateGlobalSearchConfig {
-                update,
-                if_current_not_found,
-            } => {
-                self.update_global_search_config(update, if_current_not_found)?;
+            Dispatch::UpdateGlobalSearchConfig { update } => {
+                self.update_global_search_config(update)?;
             }
-            Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
-                filter_glob,
-                if_current_not_found,
-            } => {
-                self.open_set_global_search_filter_glob_prompt(filter_glob, if_current_not_found)?
+            Dispatch::OpenSetGlobalSearchFilterGlobPrompt { filter_glob } => {
+                self.open_set_global_search_filter_glob_prompt(filter_glob)?
             }
             Dispatch::ShowSearchConfig {
                 scope,
@@ -1106,11 +1092,7 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
-                title: format!(
-                    "{:?} search (config search = {})",
-                    scope,
-                    self.keyboard_layout_kind().get_key(&Meaning::CSrch)
-                ),
+                title: format!("{:?} search", scope,),
                 items: self.words(),
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                     scope,
@@ -1122,7 +1104,7 @@ impl<T: Frontend> App<T> {
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
             },
-            PromptHistoryKey::Search(scope),
+            PromptHistoryKey::Search,
             None,
         )
     }
@@ -1942,26 +1924,20 @@ impl<T: Frontend> App<T> {
     fn update_global_search_config(
         &mut self,
         update: GlobalSearchConfigUpdate,
-        if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<()> {
         self.context.update_global_search_config(update)?;
         self.global_search()?;
-        self.show_search_config(Scope::Global, if_current_not_found, true);
         Ok(())
     }
 
     fn open_set_global_search_filter_glob_prompt(
         &mut self,
         filter_glob: GlobalSearchFilterGlob,
-        if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
                 title: format!("Set global search {:?} files glob", filter_glob),
-                on_enter: DispatchPrompt::GlobalSearchConfigSetGlob {
-                    filter_glob,
-                    if_current_not_found,
-                },
+                on_enter: DispatchPrompt::GlobalSearchConfigSetGlob { filter_glob },
                 items: Vec::new(),
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
@@ -1996,7 +1972,7 @@ impl<T: Frontend> App<T> {
                     Dispatch::UpdateLocalSearchConfig {
                         update,
                         scope,
-                        show_config_after_enter: scope == Scope::Global,
+                        show_config_after_enter: false,
                         if_current_not_found: IfCurrentNotFound::LookForward,
                         run_search_after_config_updated,
                     },
@@ -2146,7 +2122,6 @@ impl<T: Frontend> App<T> {
                                     ),
                                     Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
                                         filter_glob: GlobalSearchFilterGlob::Include,
-                                        if_current_not_found,
                                     },
                                 ),
                                 Keymap::new(
@@ -2161,7 +2136,6 @@ impl<T: Frontend> App<T> {
                                     ),
                                     Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
                                         filter_glob: GlobalSearchFilterGlob::Exclude,
-                                        if_current_not_found,
                                     },
                                 ),
                             ]
@@ -2191,7 +2165,7 @@ impl<T: Frontend> App<T> {
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
             },
-            PromptHistoryKey::Replacement(scope),
+            PromptHistoryKey::Replacement,
             None,
         )
     }
@@ -2206,7 +2180,7 @@ impl<T: Frontend> App<T> {
                 title: format!("Set Search ({:?})", scope),
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                     scope,
-                    show_config_after_enter: true,
+                    show_config_after_enter: false,
                     if_current_not_found,
                     run_search_after_config_updated: true,
                 },
@@ -2215,7 +2189,7 @@ impl<T: Frontend> App<T> {
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
             },
-            PromptHistoryKey::Search(scope),
+            PromptHistoryKey::Search,
             None,
         )
     }
@@ -2327,7 +2301,10 @@ impl<T: Frontend> App<T> {
         key: PromptHistoryKey,
         current_line: Option<String>,
     ) -> anyhow::Result<()> {
-        let history = self.context.get_prompt_history(key, current_line);
+        if let Some(line) = current_line {
+            self.context.push_history_prompt(key, line)
+        }
+        let history = self.context.get_prompt_history(key);
         let (prompt, dispatches) = Prompt::new(prompt_config, key, history);
 
         self.layout.add_and_focus_prompt(
@@ -2825,11 +2802,9 @@ pub(crate) enum Dispatch {
     },
     UpdateGlobalSearchConfig {
         update: GlobalSearchConfigUpdate,
-        if_current_not_found: IfCurrentNotFound,
     },
     OpenSetGlobalSearchFilterGlobPrompt {
         filter_glob: GlobalSearchFilterGlob,
-        if_current_not_found: IfCurrentNotFound,
     },
     ShowSearchConfig {
         scope: Scope,
@@ -2900,6 +2875,7 @@ pub(crate) enum Dispatch {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum GlobalSearchConfigUpdate {
     SetGlob(GlobalSearchFilterGlob, String),
+    Config(GlobalSearchConfig),
 }
 
 #[derive(Clone, Hash, Debug, PartialEq, Eq, Copy)]
@@ -2913,6 +2889,7 @@ pub(crate) enum LocalSearchConfigUpdate {
     Mode(LocalSearchConfigMode),
     Replacement(String),
     Search(String),
+    Config(crate::context::LocalSearchConfig),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -2989,7 +2966,6 @@ pub(crate) enum AppMessage {
 pub(crate) enum DispatchPrompt {
     GlobalSearchConfigSetGlob {
         filter_glob: GlobalSearchFilterGlob,
-        if_current_not_found: IfCurrentNotFound,
     },
     MoveSelectionByIndex,
     RenameSymbol,
@@ -3029,13 +3005,9 @@ pub(crate) enum DispatchPrompt {
 impl DispatchPrompt {
     pub(crate) fn to_dispatches(&self, text: &str) -> anyhow::Result<Dispatches> {
         match self.clone() {
-            DispatchPrompt::GlobalSearchConfigSetGlob {
-                filter_glob,
-                if_current_not_found,
-            } => Ok(Dispatches::new(
+            DispatchPrompt::GlobalSearchConfigSetGlob { filter_glob } => Ok(Dispatches::new(
                 [Dispatch::UpdateGlobalSearchConfig {
                     update: GlobalSearchConfigUpdate::SetGlob(filter_glob, text.to_string()),
-                    if_current_not_found,
                 }]
                 .to_vec(),
             )),
@@ -3053,16 +3025,27 @@ impl DispatchPrompt {
                 show_config_after_enter,
                 if_current_not_found,
                 run_search_after_config_updated,
-            } => Ok(Dispatches::new(
-                [Dispatch::UpdateLocalSearchConfig {
-                    update: LocalSearchConfigUpdate::Search(text.to_string()),
-                    scope,
-                    show_config_after_enter,
-                    if_current_not_found,
-                    run_search_after_config_updated,
-                }]
-                .to_vec(),
-            )),
+            } => {
+                let dispatch = match parse_search_config(text) {
+                    Ok(search_config) => match scope {
+                        Scope::Local => Dispatch::UpdateLocalSearchConfig {
+                            update: LocalSearchConfigUpdate::Config(search_config.local_config),
+                            scope,
+                            show_config_after_enter,
+                            if_current_not_found,
+                            run_search_after_config_updated,
+                        },
+                        Scope::Global => Dispatch::UpdateGlobalSearchConfig {
+                            update: GlobalSearchConfigUpdate::Config(search_config),
+                        },
+                    },
+                    Err(error) => Dispatch::ShowEditorInfo(Info::new(
+                        "Error".to_string(),
+                        format!("{error:?}"),
+                    )),
+                };
+                Ok(Dispatches::one(dispatch))
+            }
             DispatchPrompt::AddPath => {
                 Ok(Dispatches::new([Dispatch::AddPath(text.into())].to_vec()))
             }
@@ -3112,7 +3095,7 @@ impl DispatchPrompt {
                 [Dispatch::UpdateLocalSearchConfig {
                     scope,
                     update: LocalSearchConfigUpdate::Replacement(text.to_owned()),
-                    show_config_after_enter: true,
+                    show_config_after_enter: false,
                     if_current_not_found,
                     run_search_after_config_updated: true,
                 }]

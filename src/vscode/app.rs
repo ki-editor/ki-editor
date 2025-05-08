@@ -56,15 +56,14 @@ impl VSCodeApp {
         // Create app components
         let frontend = std::rc::Rc::new(std::sync::Mutex::new(Crossterm::new()?));
         let status_line_components = vec![
-            StatusLineComponent::Help,
-            StatusLineComponent::KeyboardLayout,
-            StatusLineComponent::CurrentWorkingDirectory,
-            StatusLineComponent::GitBranch,
-            StatusLineComponent::ViewAlignment,
-            StatusLineComponent::Reveal,
             StatusLineComponent::Mode,
             StatusLineComponent::SelectionMode,
-            StatusLineComponent::LocalSearchConfig,
+            StatusLineComponent::LastSearchString,
+            StatusLineComponent::Reveal,
+            StatusLineComponent::CurrentWorkingDirectory,
+            StatusLineComponent::GitBranch,
+            StatusLineComponent::KeyboardLayout,
+            StatusLineComponent::Help,
             StatusLineComponent::LastDispatch,
         ];
 

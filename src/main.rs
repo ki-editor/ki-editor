@@ -12,6 +12,7 @@ mod grid;
 mod integration_event;
 #[cfg(test)]
 mod integration_test;
+mod search;
 
 mod layout;
 pub(crate) mod list;
@@ -81,15 +82,14 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         sender,
         receiver,
         [
-            StatusLineComponent::Help,
-            StatusLineComponent::KeyboardLayout,
-            StatusLineComponent::CurrentWorkingDirectory,
-            StatusLineComponent::GitBranch,
-            StatusLineComponent::ViewAlignment,
-            StatusLineComponent::Reveal,
             StatusLineComponent::Mode,
             StatusLineComponent::SelectionMode,
-            StatusLineComponent::LocalSearchConfig,
+            StatusLineComponent::LastSearchString,
+            StatusLineComponent::Reveal,
+            StatusLineComponent::CurrentWorkingDirectory,
+            StatusLineComponent::GitBranch,
+            StatusLineComponent::KeyboardLayout,
+            StatusLineComponent::Help,
             StatusLineComponent::LastDispatch,
         ]
         .to_vec(),
