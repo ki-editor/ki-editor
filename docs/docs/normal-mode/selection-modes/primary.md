@@ -85,9 +85,9 @@ Suppose we have the following Javascript expression, and the current selection i
 hello.world().foo().bar().spam().wise();
 ```
 
-If we press `s`, the whole expression will be selected[^1], and we will need to press `b` several times to shrink the selection down to `hello.world()`.
+If we press `d`, the whole expression will be selected[^1], and we will need to press `i` several times to shrink the selection down to `hello.world()`.
 
-However, if we use `S` instead, the selection will remain as `hello`, and pressing `t` multiple times will get us to `hello.world()`.
+However, if we use `D` instead, the selection will remain as `hello`, and pressing `i` multiple times will get us to `hello.world()`.
 
 [^1]: See [Largest Node](#largest-node)
 
