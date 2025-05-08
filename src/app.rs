@@ -326,14 +326,16 @@ impl<T: Frontend> App<T> {
                                 .unwrap_or_else(|| self.working_directory.display_absolute()),
                         ),
                         StatusLineComponent::GitBranch => self.current_branch(),
-                        StatusLineComponent::Mode => Some(
-                            self.context
+                        StatusLineComponent::Mode => {
+                            let mode = self
+                                .context
                                 .mode()
                                 .map(|mode| mode.display())
                                 .unwrap_or_else(|| {
                                     self.current_component().borrow().editor().display_mode()
-                                }),
-                        ),
+                                });
+                            Some(format!("{: <5}", mode))
+                        }
                         StatusLineComponent::SelectionMode => Some(
                             self.current_component()
                                 .borrow()

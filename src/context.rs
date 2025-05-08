@@ -55,7 +55,7 @@ pub(crate) enum GlobalMode {
 impl GlobalMode {
     pub(crate) fn display(&self) -> String {
         match self {
-            GlobalMode::QuickfixListItem => "QUICKFIX LIST ITEM".to_string(),
+            GlobalMode::QuickfixListItem => "QFIX".to_string(),
         }
     }
 }

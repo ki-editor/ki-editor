@@ -2511,7 +2511,7 @@ impl Editor {
     }
 
     pub(crate) fn display_mode(&self) -> String {
-        let result = if self.jumps.is_some() {
+        if self.jumps.is_some() {
             "JUMP".to_string()
         } else {
             match &self.mode {
@@ -2530,8 +2530,7 @@ impl Editor {
                 Mode::Replace => "RPLCE".to_string(),
                 Mode::Extend => "XTEND".to_string(),
             }
-        };
-        format!("{: <5}", result)
+        }
     }
 
     pub(crate) fn display_selection_mode(&self) -> String {
