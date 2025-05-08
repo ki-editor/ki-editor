@@ -452,27 +452,27 @@ impl SelectionMode {
     pub(crate) fn display(&self) -> String {
         match self {
             SelectionMode::Line => "LINE".to_string(),
-            SelectionMode::LineFull => "FULL LINE".to_string(),
+            SelectionMode::LineFull => "LINE*".to_string(),
             SelectionMode::Character => "CHAR".to_string(),
-            SelectionMode::Custom => "CUSTOM".to_string(),
-            SelectionMode::SyntaxNode => "SYNTAX NODE".to_string(),
-            SelectionMode::SyntaxNodeFine => "FINE SYNTAX NODE".to_string(),
-            SelectionMode::Find { search } => {
-                format!("{} {:?}", search.mode.display(), search.search)
+            SelectionMode::Custom => "CSTOM".to_string(),
+            SelectionMode::SyntaxNode => "NODE".to_string(),
+            SelectionMode::SyntaxNodeFine => "NODE*".to_string(),
+            SelectionMode::Find { .. } => "FIND".to_string(),
+            SelectionMode::Diagnostic(severity) => match severity {
+                DiagnosticSeverityRange::All => "ALL",
+                DiagnosticSeverityRange::Error => "ERROR",
+                DiagnosticSeverityRange::Warning => "WARN",
+                DiagnosticSeverityRange::Information => "INFO",
+                DiagnosticSeverityRange::Hint => "HINT",
             }
-            SelectionMode::Diagnostic(severity) => {
-                let severity = format!("{:?}", severity).to_uppercase();
-                format!("DIAGNOSTIC:{}", severity)
-            }
-            SelectionMode::GitHunk(diff_mode) => {
-                format!("GIT HUNK {}", diff_mode.display()).to_string()
-            }
+            .to_string(),
+            SelectionMode::GitHunk(diff_mode) => format!("HUNK{}", diff_mode.display()).to_string(),
             SelectionMode::Mark => "MARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
             SelectionMode::Word { skip_symbols } => {
-                format!("{}WORD", if *skip_symbols { "" } else { "FINE " })
+                format!("WORD{}", if *skip_symbols { "" } else { "*" })
             }
-            SelectionMode::Token => "Token".to_string(),
+            SelectionMode::Token => "TOKEN".to_string(),
         }
     }
 

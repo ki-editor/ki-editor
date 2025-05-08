@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use my_proc_macros::key;
 
 use crate::{
-    app::{Dispatch, DispatchPrompt, Dispatches, GlobalSearchFilterGlob, Scope},
+    app::{Dispatch, DispatchPrompt, Dispatches, GlobalSearchFilterGlob},
     buffer::Buffer,
     components::editor::DispatchEditor,
     context::Context,
@@ -43,7 +43,7 @@ pub(crate) struct PromptConfig {
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
 pub(crate) enum PromptHistoryKey {
     MoveToIndex,
-    Search(Scope),
+    Search,
     Rename,
     AddPath,
     MovePath,
@@ -51,7 +51,7 @@ pub(crate) enum PromptHistoryKey {
     Symbol,
     OpenFile,
     FilterGlob(GlobalSearchFilterGlob),
-    Replacement(Scope),
+    Replacement,
     CodeAction,
     #[cfg(test)]
     Null,
@@ -233,7 +233,7 @@ impl Prompt {
 #[cfg(test)]
 mod test_prompt {
     use crate::{
-        app::LocalSearchConfigUpdate,
+        app::{LocalSearchConfigUpdate, Scope},
         buffer::BufferOwner,
         components::{
             editor::{Direction, IfCurrentNotFound},

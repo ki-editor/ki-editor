@@ -1017,6 +1017,15 @@ impl Editor {
                     Keymap::new(
                         context
                             .keyboard_layout_kind()
+                            .get_space_keymap(&Meaning::RplcA),
+                        "Replace all".to_string(),
+                        Dispatch::Replace {
+                            scope: Scope::Global,
+                        },
+                    ),
+                    Keymap::new(
+                        context
+                            .keyboard_layout_kind()
                             .get_space_keymap(&Meaning::Explr),
                         "Explorer".to_string(),
                         Dispatch::RevealInExplorer(

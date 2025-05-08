@@ -135,7 +135,7 @@ pub(crate) const KEYMAP_SPACE_SHIFTED: KeyboardMeaningLayout = [
         _____, _____, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        _____, RplcA, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -357,27 +357,15 @@ pub(crate) enum KeyboardLayoutKind {
 }
 
 impl KeyboardLayoutKind {
-    pub(crate) const fn as_str(&self) -> &'static str {
+    pub(crate) const fn display(&self) -> &'static str {
         match self {
             KeyboardLayoutKind::Qwerty => "QWERTY",
             KeyboardLayoutKind::Dvorak => "DVORAK",
             KeyboardLayoutKind::Colemak => "COLEMAK",
-            KeyboardLayoutKind::ColemakDH => "COLEMAK_DH",
-            KeyboardLayoutKind::ColemakDHSemiQuote => "COLEMAK_DH_SEMI_QUOTE",
-            KeyboardLayoutKind::DvorakIU => "DVORAK_IU",
+            KeyboardLayoutKind::ColemakDH => "COLEMAK-DH",
+            KeyboardLayoutKind::ColemakDHSemiQuote => "COLEMAK-DH;",
+            KeyboardLayoutKind::DvorakIU => "DVORAK-IU",
             KeyboardLayoutKind::Workman => "WORKMAN",
-        }
-    }
-
-    pub(crate) const fn display(&self) -> &'static str {
-        match self {
-            KeyboardLayoutKind::Qwerty => "Qwerty",
-            KeyboardLayoutKind::Dvorak => "Dvorak",
-            KeyboardLayoutKind::Colemak => "Colemak",
-            KeyboardLayoutKind::ColemakDH => "Colemak-DH",
-            KeyboardLayoutKind::ColemakDHSemiQuote => "Colemak-DH Semi Quote",
-            KeyboardLayoutKind::DvorakIU => "Dvorak IU",
-            KeyboardLayoutKind::Workman => "Workman",
         }
     }
 

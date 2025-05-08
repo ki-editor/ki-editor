@@ -10,10 +10,13 @@ use crate::{
     app::{Dimension, Dispatch},
     buffer::Buffer,
     components::component::Component,
+    context::LocalSearchConfig,
     edit::{Action, ActionGroup, Edit, EditTransaction},
+    list::grep::RegexConfig,
     lsp::completion::PositionalEdit,
     position::Position,
     rectangle::Rectangle,
+    search::parse_search_config,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
 use crate::{
@@ -317,9 +320,9 @@ impl Component for Editor {
             CollapseSelection(direction) => return self.collapse_selection(context, direction),
             FilterSelectionMatchingSearch { maintain, search } => {
                 self.mode = Mode::Normal;
+                let search_config = parse_search_config(&search)?;
                 return Ok(self.filter_selection_matching_search(
-                    context.get_local_search_config(Scope::Local),
-                    search,
+                    search_config.local_config(),
                     maintain,
                     context,
                 ));
@@ -2508,33 +2511,32 @@ impl Editor {
     }
 
     pub(crate) fn display_mode(&self) -> String {
-        let prefix = if self.selection_set.is_extended() {
-            "+"
+        if self.jumps.is_some() {
+            "JUMP".to_string()
         } else {
-            ""
-        };
-        let core = match &self.mode {
-            Mode::Normal => "MOVE",
-            Mode::Insert => "INSERT",
-            Mode::MultiCursor => "MULTI CURSOR",
-            Mode::FindOneChar(_) => "FIND ONE CHAR",
-            Mode::Swap => "SWAP",
-            Mode::Replace => "REPLACE",
-            Mode::Extend => "EXTEND",
+            match &self.mode {
+                Mode::Normal => {
+                    let prefix = if self.selection_set.is_extended() {
+                        "+"
+                    } else {
+                        ""
+                    };
+                    format!("{prefix}NORM")
+                }
+                Mode::Insert => "INST".to_string(),
+                Mode::MultiCursor => "MULTI".to_string(),
+                Mode::FindOneChar(_) => "ONE".to_string(),
+                Mode::Swap => "SWAP".to_string(),
+                Mode::Replace => "RPLCE".to_string(),
+                Mode::Extend => "XTEND".to_string(),
+            }
         }
-        .to_string();
-        format!("{prefix}{core}")
     }
 
     pub(crate) fn display_selection_mode(&self) -> String {
         let selection_mode = self.selection_set.mode.display();
         let cursor_count = self.selection_set.len();
-        let result = format!("{} x {}", selection_mode, cursor_count);
-        if self.jumps.is_some() {
-            format!("{} (JUMP)", result)
-        } else {
-            result
-        }
+        format!("{: <5}x{}", selection_mode, cursor_count)
     }
 
     pub(crate) fn visible_line_range(&self) -> Range<usize> {
@@ -3324,10 +3326,10 @@ impl Editor {
     fn filter_selection_matching_search(
         &mut self,
         local_search_config: &crate::context::LocalSearchConfig,
-        search: String,
         keep: bool,
         context: &Context,
     ) -> Dispatches {
+        let search = local_search_config.search();
         let selections = self.selection_set.selections();
         let filtered = selections
             .iter()
@@ -3560,9 +3562,19 @@ impl Editor {
                 Dispatches::one(Dispatch::UpdateLocalSearchConfig {
                     scope,
                     if_current_not_found,
-                    update: crate::app::LocalSearchConfigUpdate::Search(search.to_string()),
+                    update: crate::app::LocalSearchConfigUpdate::Config(
+                        LocalSearchConfig::new(
+                            LocalSearchConfigMode::Regex(RegexConfig::literal()),
+                        )
+                        .set_search(search.to_string())
+                        .clone(),
+                    ),
                     show_config_after_enter: false,
                     run_search_after_config_updated: true,
+                })
+                .append(Dispatch::PushPromptHistory {
+                    key: super::prompt::PromptHistoryKey::Search,
+                    line: search.to_string(),
                 })
             })
             .unwrap_or_default();
