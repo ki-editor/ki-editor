@@ -2511,33 +2511,33 @@ impl Editor {
     }
 
     pub(crate) fn display_mode(&self) -> String {
-        let prefix = if self.selection_set.is_extended() {
-            "+"
+        let result = if self.jumps.is_some() {
+            "JUMP".to_string()
         } else {
-            ""
+            match &self.mode {
+                Mode::Normal => {
+                    let prefix = if self.selection_set.is_extended() {
+                        "+"
+                    } else {
+                        ""
+                    };
+                    format!("{prefix}NORM")
+                }
+                Mode::Insert => "INST".to_string(),
+                Mode::MultiCursor => "MULTI".to_string(),
+                Mode::FindOneChar(_) => "ONE".to_string(),
+                Mode::Swap => "SWAP".to_string(),
+                Mode::Replace => "RPLCE".to_string(),
+                Mode::Extend => "XTEND".to_string(),
+            }
         };
-        let core = match &self.mode {
-            Mode::Normal => "MOVE",
-            Mode::Insert => "INSERT",
-            Mode::MultiCursor => "MULTI CURSOR",
-            Mode::FindOneChar(_) => "FIND ONE CHAR",
-            Mode::Swap => "SWAP",
-            Mode::Replace => "REPLACE",
-            Mode::Extend => "EXTEND",
-        }
-        .to_string();
-        format!("{prefix}{core}")
+        format!("{: <5}", result)
     }
 
     pub(crate) fn display_selection_mode(&self) -> String {
         let selection_mode = self.selection_set.mode.display();
         let cursor_count = self.selection_set.len();
-        let result = format!("{} x {}", selection_mode, cursor_count);
-        if self.jumps.is_some() {
-            format!("{} (JUMP)", result)
-        } else {
-            result
-        }
+        format!("{: <5}x{}", selection_mode, cursor_count)
     }
 
     pub(crate) fn visible_line_range(&self) -> Range<usize> {

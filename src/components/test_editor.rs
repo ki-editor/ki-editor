@@ -4712,5 +4712,3 @@ fuor
 }
 
 // TODO: store also failed search input in history
-// TODO: naming convention agnostic search should be case-insensitive
-// For example, "foo bar", should match "Foo bar"

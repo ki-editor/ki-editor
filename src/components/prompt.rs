@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use my_proc_macros::key;
 
 use crate::{
-    app::{Dispatch, DispatchPrompt, Dispatches, GlobalSearchFilterGlob, Scope},
+    app::{Dispatch, DispatchPrompt, Dispatches, GlobalSearchFilterGlob},
     buffer::Buffer,
     components::editor::DispatchEditor,
     context::Context,
@@ -233,7 +233,7 @@ impl Prompt {
 #[cfg(test)]
 mod test_prompt {
     use crate::{
-        app::LocalSearchConfigUpdate,
+        app::{LocalSearchConfigUpdate, Scope},
         buffer::BufferOwner,
         components::{
             editor::{Direction, IfCurrentNotFound},

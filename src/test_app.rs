@@ -2361,7 +2361,7 @@ fn export_keymaps_json() {
     let get_path = |name: &str| format!("docs/static/keymaps/{}.json", name);
     let keyboard_layouts = KeyboardLayoutKind::iter()
         .map(|keyboard_layout| KeyboardLayoutJson {
-            name: keyboard_layout.as_str().to_string(),
+            name: keyboard_layout.display().to_string(),
             keys: keyboard_layout.get_keyboard_layout().to_vec(),
         })
         .collect_vec();

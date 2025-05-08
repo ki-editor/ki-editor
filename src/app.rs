@@ -4,9 +4,7 @@ use crate::{
     components::{
         component::{Component, ComponentId, GetGridResult},
         dropdown::{DropdownItem, DropdownRender},
-        editor::{
-            Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, Reveal, ViewAlignment,
-        },
+        editor::{Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, Reveal},
         editor_keymap::{KeyboardLayoutKind, Meaning},
         file_explorer::FileExplorer,
         keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
@@ -92,10 +90,9 @@ pub(crate) enum StatusLineComponent {
     Mode,
     SelectionMode,
     LastDispatch,
-    LocalSearchConfig,
+    LastSearchString,
     Help,
     KeyboardLayout,
-    ViewAlignment,
     Reveal,
 }
 
@@ -314,6 +311,11 @@ impl<T: Frontend> App<T> {
         // Set the global title
         let global_title_window = {
             let title = self.global_title.clone().unwrap_or_else(|| {
+                let last_search_string = self
+                    .context
+                    .get_prompt_history(PromptHistoryKey::Search)
+                    .last()
+                    .map(|search| format!("{search:?}"));
                 self.status_line_components
                     .iter()
                     .filter_map(|component| match component {
@@ -339,29 +341,14 @@ impl<T: Frontend> App<T> {
                                 .display_selection_mode(),
                         ),
                         StatusLineComponent::LastDispatch => self.last_action_description.clone(),
-                        StatusLineComponent::LocalSearchConfig => {
-                            Some(self.context.local_search_config().display())
-                        }
+                        StatusLineComponent::LastSearchString => last_search_string.clone(),
                         StatusLineComponent::Help => {
                             let key = self.keyboard_layout_kind().get_insert_key(&Meaning::SHelp);
-                            Some(format!("Help ({key})"))
+                            Some(format!("Help({key})"))
                         }
                         StatusLineComponent::KeyboardLayout => {
                             Some(self.keyboard_layout_kind().display().to_string())
                         }
-                        StatusLineComponent::ViewAlignment => Some(
-                            match self
-                                .current_component()
-                                .borrow()
-                                .editor()
-                                .current_view_alignment
-                            {
-                                Some(ViewAlignment::Top) => "↑️",
-                                Some(ViewAlignment::Center) | None => "↕️",
-                                Some(ViewAlignment::Bottom) => "↓️",
-                            }
-                            .to_string(),
-                        ),
                         StatusLineComponent::Reveal => self
                             .current_component()
                             .borrow()
@@ -369,14 +356,14 @@ impl<T: Frontend> App<T> {
                             .reveal()
                             .map(|split| {
                                 match split {
-                                    Reveal::CurrentSelectionMode => "÷ Selection",
-                                    Reveal::Cursor => "÷ Cursor",
-                                    Reveal::Mark => "÷ Mark",
+                                    Reveal::CurrentSelectionMode => "÷SELS",
+                                    Reveal::Cursor => "÷CURS",
+                                    Reveal::Mark => "÷MARK",
                                 }
                                 .to_string()
                             }),
                     })
-                    .join(" │ ")
+                    .join(" ")
             });
             let title = format!(" {}", title);
             let grid = Grid::new(Dimension {
@@ -898,11 +885,7 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
-                title: format!(
-                    "{:?} search (config search = {})",
-                    scope,
-                    self.keyboard_layout_kind().get_key(&Meaning::CSrch)
-                ),
+                title: format!("{:?} search", scope,),
                 items: self.words(),
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                     scope,
@@ -2777,18 +2760,23 @@ impl DispatchPrompt {
                 if_current_not_found,
                 run_search_after_config_updated,
             } => {
-                let search_config = parse_search_config(text)?;
-                let dispatch = match scope {
-                    Scope::Local => Dispatch::UpdateLocalSearchConfig {
-                        update: LocalSearchConfigUpdate::Config(search_config.local_config),
-                        scope,
-                        show_config_after_enter,
-                        if_current_not_found,
-                        run_search_after_config_updated,
+                let dispatch = match parse_search_config(text) {
+                    Ok(search_config) => match scope {
+                        Scope::Local => Dispatch::UpdateLocalSearchConfig {
+                            update: LocalSearchConfigUpdate::Config(search_config.local_config),
+                            scope,
+                            show_config_after_enter,
+                            if_current_not_found,
+                            run_search_after_config_updated,
+                        },
+                        Scope::Global => Dispatch::UpdateGlobalSearchConfig {
+                            update: GlobalSearchConfigUpdate::Config(search_config),
+                        },
                     },
-                    Scope::Global => Dispatch::UpdateGlobalSearchConfig {
-                        update: GlobalSearchConfigUpdate::Config(search_config),
-                    },
+                    Err(error) => Dispatch::ShowEditorInfo(Info::new(
+                        "Error".to_string(),
+                        format!("{error:?}"),
+                    )),
                 };
                 Ok(Dispatches::one(dispatch))
             }

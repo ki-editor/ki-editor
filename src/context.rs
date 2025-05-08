@@ -85,7 +85,7 @@ impl Default for Context {
                 crate::env::parse_env(
                     "KI_EDITOR_KEYBOARD",
                     &KeyboardLayoutKind::iter().collect_vec(),
-                    |layout| layout.as_str(),
+                    |layout| layout.display(),
                     Qwerty,
                 )
             },
