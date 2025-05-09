@@ -529,6 +529,7 @@ pub(crate) fn execute_recipe(
         [
             StatusLineComponent::Mode,
             StatusLineComponent::SelectionMode,
+            StatusLineComponent::LastSearchString,
             StatusLineComponent::LastDispatch,
         ]
         .to_vec(),
