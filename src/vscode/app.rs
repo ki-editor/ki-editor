@@ -1,5 +1,6 @@
 //! VSCode integration app implementation
 
+use crate::components::editor::Direction;
 use std::collections::HashMap;
 use std::sync::mpsc::{self, TryRecvError};
 use std::sync::{Arc, Mutex};
@@ -658,17 +659,21 @@ impl VSCodeApp {
                                 let end_pos = buffer.char_to_position(range.end).ok();
 
                                 // Determine anchor and active positions based on whether it's extended
-                                let (anchor, active) =
-                                    if let Some(initial_range) = &selection.initial_range {
-                                        // Extended selection
-                                        let anchor_pos =
-                                            buffer.char_to_position(initial_range.start).ok();
-                                        let active_pos = buffer.char_to_position(range.end).ok();
-                                        (anchor_pos, active_pos)
-                                    } else {
-                                        // Normal selection
-                                        (start_pos, end_pos)
-                                    };
+                                let (anchor, active) = if let Some(initial_range) =
+                                    &selection.initial_range
+                                {
+                                    // Extended selection
+                                    let anchor_pos =
+                                        buffer.char_to_position(initial_range.start).ok();
+                                    let active_pos = buffer.char_to_position(range.end).ok();
+                                    (anchor_pos, active_pos)
+                                } else {
+                                    use crate::components::editor::Direction;
+                                    match component.component().borrow().editor().cursor_direction {
+                                        Direction::Start => (end_pos, start_pos),
+                                        Direction::End => (start_pos, end_pos),
+                                    }
+                                };
 
                                 // Create VSCode selection
                                 ki_protocol_types::Selection {

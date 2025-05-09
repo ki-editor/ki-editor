@@ -212,7 +212,7 @@ impl Component for Editor {
             MatchLiteral(literal) => return self.match_literal(&literal, context),
             ToggleMark => self.toggle_marks(),
             EnterNormalMode => return self.enter_normal_mode(context),
-            CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
+            CursorAddToAllSelections => return self.add_cursor_to_all_selections(context),
             CursorKeepPrimaryOnly => return self.cursor_keep_primary_only(),
             EnterSwapMode => return self.enter_swap_mode(),
             ReplacePattern { config } => {
@@ -273,7 +273,7 @@ impl Component for Editor {
                 direction,
                 use_system_clipboard,
             } => return self.paste(direction, context, use_system_clipboard),
-            SwapCursor => self.swap_cursor(context),
+            SwapCursor => return Ok(self.swap_cursor(context)),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
             MoveCharacterForward => {
@@ -768,44 +768,10 @@ impl Editor {
         self.set_selection_set(selection_set, context);
 
         // Create a CursorUpdate dispatch to notify external integrations about cursor position changes
-        let mut dispatches = Dispatches::default().append_some(show_info);
+        let dispatches = Dispatches::default().append_some(show_info);
 
-        // Extract cursor positions from the selection set
-        let mut anchors = Vec::new();
-        let mut actives = Vec::new();
-
-        // Get the selections
-        // Convert NonEmpty<Selection> to Vec<Selection>
-        let selections = {
-            let non_empty = self.selection_set.selections();
-            let mut vec = Vec::with_capacity(non_empty.len());
-            vec.push(non_empty.head.clone());
-            vec.extend(non_empty.tail.iter().cloned());
-            vec
-        };
-
-        // Extract anchor and active positions
-        for selection in &selections {
-            let range = selection.extended_range();
-            // For anchor, use the start of the range
-            if let Ok(pos) = self.buffer().char_to_position(range.start) {
-                anchors.push(pos);
-            }
-
-            // For active, use the end of the range
-            if let Ok(pos) = self.buffer().char_to_position(range.end) {
-                actives.push(pos);
-            }
-        }
-
-        // Only create a dispatch if we have valid positions
-        if !anchors.is_empty() && !actives.is_empty() {
-            // Create a SelectionChanged dispatch
-            dispatches = dispatches.append(crate::app::Dispatch::SelectionChanged {
-                component_id: self.id(),
-                selections,
-            });
-        }
+        #[cfg(feature = "vscode")]
+        let dispatches = dispatches.append(self.dispatch_selection_changed());
 
         dispatches
     }
@@ -1401,12 +1367,13 @@ impl Editor {
         self.undo_or_redo(false, context)
     }
 
-    pub(crate) fn swap_cursor(&mut self, context: &Context) {
+    pub(crate) fn swap_cursor(&mut self, context: &Context) -> Dispatches {
         self.cursor_direction = match self.cursor_direction {
             Direction::Start => Direction::End,
             Direction::End => Direction::Start,
         };
-        self.recalculate_scroll_offset(context)
+        self.recalculate_scroll_offset(context);
+        Dispatches::one(self.dispatch_selection_changed())
     }
 
     pub(crate) fn get_selection_set(
@@ -2732,13 +2699,31 @@ impl Editor {
     pub(crate) fn add_cursor_to_all_selections(
         &mut self,
         context: &Context,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<Dispatches, anyhow::Error> {
         self.mode = Mode::Normal;
         self.reveal = Some(Reveal::Cursor);
         self.selection_set
             .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
         self.recalculate_scroll_offset(context);
-        Ok(())
+
+        let dispatches = Dispatches::default();
+
+        #[cfg(feature = "vscode")]
+        let dispatches = Dispatches::one(self.dispatch_selection_changed());
+
+        Ok(dispatches)
+    }
+
+    fn dispatch_selection_changed(&self) -> Dispatch {
+        Dispatch::SelectionChanged {
+            component_id: self.id(),
+            selections: self
+                .selection_set
+                .selections()
+                .into_iter()
+                .cloned()
+                .collect(),
+        }
     }
 
     pub(crate) fn cursor_keep_primary_only(&mut self) -> Result<Dispatches, anyhow::Error> {
