@@ -9,4 +9,17 @@ import type { SelectionSet } from "./SelectionSet";
 import type { TypedModeParams } from "./TypedModeParams";
 import type { ViewportParams } from "./ViewportParams";
 
-export type InputMessage = { "tag": "ping", "params": string | null } | { "tag": "buffer.open", "params": BufferParams } | { "tag": "buffer.close", "params": BufferParams } | { "tag": "buffer.save", "params": BufferParams } | { "tag": "buffer.change", "params": BufferDiffParams } | { "tag": "buffer.active", "params": BufferParams } | { "tag": "selection.set", "params": SelectionSet } | { "tag": "mode.set", "params": TypedModeParams } | { "tag": "selection_mode.set", "params": SelectionModeParams } | { "tag": "keyboard.input", "params": KeyboardParams } | { "tag": "editor.action", "params": EditorActionParams } | { "tag": "search.find", "params": SearchParams } | { "tag": "viewport.change", "params": ViewportParams };
+export type InputMessage =
+    | { tag: "ping"; params: string | null }
+    | { tag: "buffer.open"; params: BufferParams }
+    | { tag: "buffer.close"; params: BufferParams }
+    | { tag: "buffer.save"; params: BufferParams }
+    | { tag: "buffer.change"; params: BufferDiffParams }
+    | { tag: "buffer.active"; params: BufferParams }
+    | { tag: "selection.set"; params: SelectionSet }
+    | { tag: "mode.set"; params: TypedModeParams }
+    | { tag: "selection_mode.set"; params: SelectionModeParams }
+    | { tag: "keyboard.input"; params: KeyboardParams }
+    | { tag: "editor.action"; params: EditorActionParams }
+    | { tag: "search.find"; params: SearchParams }
+    | { tag: "viewport.change"; params: ViewportParams };

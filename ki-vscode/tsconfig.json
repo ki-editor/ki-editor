@@ -7,9 +7,7 @@
         "outDir": "./dist",
         // rootDir is now the current directory (ki-vscode/src)
         "rootDir": "./src",
-        "lib": [
-            "ESNext"
-        ],
+        "lib": ["ESNext"],
         "sourceMap": true,
         "strict": true,
         "esModuleInterop": true,
@@ -18,23 +16,12 @@
         "moduleResolution": "node",
         "resolveJsonModule": true,
         "downlevelIteration": true,
-        "types": [
-            "node",
-            "vscode"
-        ],
+        "types": ["node", "vscode"],
         // Explicitly tell TS where to find the installed @types packages
-        "typeRoots": [
-            "./node_modules/@types"
-        ]
+        "typeRoots": ["./node_modules/@types"]
     },
     // Include all .ts files within the current directory (ki-vscode/src) and its subdirectories
-    "include": [
-        "src/**/*.ts"
-    ],
+    "include": ["src/**/*.ts"],
     // Exclude node_modules and test files
-    "exclude": [
-        "./node_modules",
-        "./dist",
-        "src/test/**/*.ts"
-    ] // Exclude node_modules, the output dir, and test files
+    "exclude": ["./node_modules", "./dist", "src/test/**/*.ts"] // Exclude node_modules, the output dir, and test files
 }

@@ -2,4 +2,4 @@
 import type { Selection } from "./Selection";
 import type { SelectionMode } from "./SelectionMode";
 
-export type SelectionSet = { buffer_id: string, primary: number, selections: Array<Selection>, mode?: SelectionMode, };
+export type SelectionSet = { buffer_id: string; primary: number; selections: Array<Selection>; mode?: SelectionMode };

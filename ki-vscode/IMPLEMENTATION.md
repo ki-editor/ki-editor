@@ -16,25 +16,25 @@ action workflow).
 
 Currently, the integration is tightly coupled with Ki's core:
 
--   The majority of the integration is handled by `handle_dispatch_editor_custom` in `app.rs`
--   VSCode-specific code is scattered throughout Ki's codebase using `#[cfg(feature = "vscode")]`
--   Ki directly sends notifications to VSCode via a notification channel (`vscode_notification_sender` and
-    `from_app_receiver`)
--   VSCode-specific dispatch variants exist in Ki's core Dispatch enum (like `Dispatch::BufferEditTransaction`)
--   The `VSCodeApp` has multiple communication channels with different responsibilities:
-    -   `app_sender`/`app_message_receiver` for sending messages to the App
-    -   `from_app_receiver` for receiving notifications from the App (to be replaced)
-    -   `ipc_handler` for communication with VSCode
--   Communication with Ki is done through the `AppMessage::ExternalDispatch` variant, which allows sending any
-    `Dispatch` to Ki without directly locking the App mutex (avoiding deadlocks)
+- The majority of the integration is handled by `handle_dispatch_editor_custom` in `app.rs`
+- VSCode-specific code is scattered throughout Ki's codebase using `#[cfg(feature = "vscode")]`
+- Ki directly sends notifications to VSCode via a notification channel (`vscode_notification_sender` and
+  `from_app_receiver`)
+- VSCode-specific dispatch variants exist in Ki's core Dispatch enum (like `Dispatch::BufferEditTransaction`)
+- The `VSCodeApp` has multiple communication channels with different responsibilities:
+    - `app_sender`/`app_message_receiver` for sending messages to the App
+    - `from_app_receiver` for receiving notifications from the App (to be replaced)
+    - `ipc_handler` for communication with VSCode
+- Communication with Ki is done through the `AppMessage::ExternalDispatch` variant, which allows sending any `Dispatch`
+  to Ki without directly locking the App mutex (avoiding deadlocks)
 
 This architecture has several drawbacks:
 
--   Tight coupling between Ki and VSCode
--   Scattered VSCode-specific code makes maintenance difficult
--   Difficult to add support for other integrations
--   Complex message flow is hard to trace and debug
--   Multiple overlapping communication channels with unclear responsibilities
+- Tight coupling between Ki and VSCode
+- Scattered VSCode-specific code makes maintenance difficult
+- Difficult to add support for other integrations
+- Complex message flow is hard to trace and debug
+- Multiple overlapping communication channels with unclear responsibilities
 
 ## Lessons from VSCode-Neovim
 
@@ -45,11 +45,11 @@ benefit our integration:
 
 VSCode-Neovim uses a manager pattern where each manager is responsible for a specific aspect of the integration:
 
--   `BufferManager`: Manages buffer and window mapping
--   `CursorManager`: Manages cursor and selection sync
--   `ViewportManager`: Manages viewport sync
--   `ModeManager`: Manages mode sync
--   `DocumentChangeManager`: Manages document content sync
+- `BufferManager`: Manages buffer and window mapping
+- `CursorManager`: Manages cursor and selection sync
+- `ViewportManager`: Manages viewport sync
+- `ModeManager`: Manages mode sync
+- `DocumentChangeManager`: Manages document content sync
 
 This clear separation of concerns makes the codebase more maintainable and easier to extend.
 
@@ -57,19 +57,19 @@ This clear separation of concerns makes the codebase more maintainable and easie
 
 VSCode-Neovim uses several techniques to ensure robust synchronization:
 
--   Mutex locks to prevent concurrent modifications
--   Completion promises to coordinate operations
--   Version tracking to avoid feedback loops
--   Debouncing for high-frequency events
+- Mutex locks to prevent concurrent modifications
+- Completion promises to coordinate operations
+- Version tracking to avoid feedback loops
+- Debouncing for high-frequency events
 
 ### 3. External Buffer Handling
 
 VSCode-Neovim handles "external buffers" (buffers created by Neovim that don't correspond to real files) through:
 
--   A `TextDocumentContentProvider` implementation
--   Special tracking of external documents
--   Custom URI scheme for external buffers
--   Buffer event listeners for content updates
+- A `TextDocumentContentProvider` implementation
+- Special tracking of external documents
+- Custom URI scheme for external buffers
+- Buffer event listeners for content updates
 
 This approach could be adapted for Ki's temporary buffers, such as help buffers, command output, and other non-file
 buffers.
@@ -78,11 +78,11 @@ buffers.
 
 VSCode-Neovim handles a wide range of events:
 
--   Buffer events (content changes, open/close)
--   Cursor and selection events
--   Mode changes
--   Viewport changes
--   Command execution
+- Buffer events (content changes, open/close)
+- Cursor and selection events
+- Mode changes
+- Viewport changes
+- Command execution
 
 Our integration should include similar event types to ensure complete functionality.
 
@@ -170,35 +170,35 @@ enum IntegrationEvent {
 
 VSCodeApp would:
 
--   Receive events from the integration channel (replacing `from_app_receiver`)
--   Translate them to VSCode-specific messages
--   Send them to VSCode via the IPC channel
--   Continue to use `app_sender`/`app_message_receiver` for sending messages to the App
+- Receive events from the integration channel (replacing `from_app_receiver`)
+- Translate them to VSCode-specific messages
+- Send them to VSCode via the IPC channel
+- Continue to use `app_sender`/`app_message_receiver` for sending messages to the App
 
 ### 3. Manager-Based TypeScript Architecture
 
 Inspired by VSCode-Neovim, we'll refactor the TypeScript side to use a manager-based architecture:
 
--   `BufferManager`: Handles buffer synchronization and mapping
--   `CursorManager`: Handles cursor and selection synchronization
--   `ModeManager`: Handles mode changes and keyboard input
--   `ViewportManager`: Handles viewport synchronization
--   `CommandManager`: Handles command execution
+- `BufferManager`: Handles buffer synchronization and mapping
+- `CursorManager`: Handles cursor and selection synchronization
+- `ModeManager`: Handles mode changes and keyboard input
+- `ViewportManager`: Handles viewport synchronization
+- `CommandManager`: Handles command execution
 
 ### 4. Minimal Ki Core Modifications
 
--   Make `BufferEditTransaction` a generic dispatch type (not VSCode-specific)
--   Add the integration event channel to send events out of Ki
--   Remove VSCode-specific code from Ki's core (including `#[cfg(feature = "vscode")]` blocks)
--   Remove the VSCode-specific notification channel
+- Make `BufferEditTransaction` a generic dispatch type (not VSCode-specific)
+- Add the integration event channel to send events out of Ki
+- Remove VSCode-specific code from Ki's core (including `#[cfg(feature = "vscode")]` blocks)
+- Remove the VSCode-specific notification channel
 
 ### Benefits
 
--   **Clean Separation**: Ki doesn't need to know about VSCode or any other integration
--   **Minimal Changes**: We don't need to modify Ki's API signatures
--   **Extensibility**: The same channel could be used for other integrations in the future
--   **Clarity**: The flow of information is clear and easy to follow
--   **Robustness**: Better synchronization mechanisms based on proven patterns
+- **Clean Separation**: Ki doesn't need to know about VSCode or any other integration
+- **Minimal Changes**: We don't need to modify Ki's API signatures
+- **Extensibility**: The same channel could be used for other integrations in the future
+- **Clarity**: The flow of information is clear and easy to follow
+- **Robustness**: Better synchronization mechanisms based on proven patterns
 
 ## Implementation Plan
 

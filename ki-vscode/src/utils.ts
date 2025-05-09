@@ -15,7 +15,10 @@ import * as vscode from "vscode";
  * @param wait The number of milliseconds to delay
  * @returns A debounced version of the function
  */
-export function debounce<T extends (...args: unknown[]) => unknown>(func: T, wait: number): (...args: Parameters<T>) => void {
+export function debounce<T extends (...args: unknown[]) => unknown>(
+    func: T,
+    wait: number,
+): (...args: Parameters<T>) => void {
     let timeout: NodeJS.Timeout | null = null;
 
     return function (this: ThisParameterType<T>, ...args: Parameters<T>): void {
@@ -39,7 +42,10 @@ export function debounce<T extends (...args: unknown[]) => unknown>(func: T, wai
  * @param limit The time limit in milliseconds
  * @returns A throttled version of the function
  */
-export function throttle<T extends (...args: unknown[]) => unknown>(func: T, limit: number): (...args: Parameters<T>) => void {
+export function throttle<T extends (...args: unknown[]) => unknown>(
+    func: T,
+    limit: number,
+): (...args: Parameters<T>) => void {
     let inThrottle = false;
 
     return function (this: ThisParameterType<T>, ...args: Parameters<T>): void {

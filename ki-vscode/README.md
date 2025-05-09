@@ -24,31 +24,31 @@ This extension integrates the Ki Editor with Visual Studio Code, providing a pow
 
 1. **Installation**
 
-   ```bash
-   # Install from VS Code Marketplace
-   code --install-extension ki-editor.ki-vscode
+    ```bash
+    # Install from VS Code Marketplace
+    code --install-extension ki-editor.ki-vscode
 
-   # Or build from source
-   git clone https://github.com/ki-editor/ki-vscode
-   cd ki-vscode
-   npm install
-   npm run build
-   ```
+    # Or build from source
+    git clone https://github.com/ki-editor/ki-vscode
+    cd ki-vscode
+    npm install
+    npm run build
+    ```
 
 2. **Configuration**
 
-   ```json
-   {
-     "ki.executablePath": "/path/to/ki",
-     "ki.logLevel": "info"
-   }
-   ```
+    ```json
+    {
+        "ki.executablePath": "/path/to/ki",
+        "ki.logLevel": "info"
+    }
+    ```
 
 3. **Basic Usage**
-   - Open a file in VSCode
-   - Press `Esc` to enter Normal mode
-   - Use Ki commands and keybindings
-   - Press `i` to return to Insert mode
+    - Open a file in VSCode
+    - Press `Esc` to enter Normal mode
+    - Use Ki commands and keybindings
+    - Press `i` to return to Insert mode
 
 ## Documentation
 
@@ -125,8 +125,8 @@ npm run compile
 ```
 
 4. Launch in development mode:
-   - Press F5 in VSCode to launch a new window with the extension loaded
-   - Or run the "Extension" launch configuration from the Run view
+    - Press F5 in VSCode to launch a new window with the extension loaded
+    - Or run the "Extension" launch configuration from the Run view
 
 ### Continuous Development
 

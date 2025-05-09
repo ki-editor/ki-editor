@@ -5,17 +5,10 @@
             "name": "Run Extension (Debug with Source Maps)",
             "type": "extensionHost",
             "request": "launch",
-            "args": [
-                "--extensionDevelopmentPath=${workspaceFolder}"
-            ],
-            "outFiles": [
-                "${workspaceFolder}/dist/**/*.js"
-            ],
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+            "outFiles": ["${workspaceFolder}/dist/**/*.js"],
             "sourceMaps": true,
-            "resolveSourceMapLocations": [
-                "${workspaceFolder}/**",
-                "!**/node_modules/**"
-            ],
+            "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
             "env": {
                 "RUST_BACKTRACE": "1",
                 "RUST_LOG": "debug",
@@ -31,14 +24,9 @@
                 "--extensionDevelopmentPath=${workspaceFolder}",
                 "--extensionTestsPath=${workspaceFolder}/dist/test/suite/index"
             ],
-            "outFiles": [
-                "${workspaceFolder}/dist/test/**/*.js"
-            ],
+            "outFiles": ["${workspaceFolder}/dist/test/**/*.js"],
             "sourceMaps": true,
-            "resolveSourceMapLocations": [
-                "${workspaceFolder}/**",
-                "!**/node_modules/**"
-            ],
+            "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
             "preLaunchTask": "${defaultBuildTask}"
         }
     ]

@@ -9,17 +9,17 @@ export enum ErrorSeverity {
      * Informational message, not an error
      */
     Info = "info",
-    
+
     /**
      * Warning message, non-critical error
      */
     Warning = "warning",
-    
+
     /**
      * Error message, critical error
      */
     Error = "error",
-    
+
     /**
      * Fatal error, application cannot continue
      */
@@ -34,12 +34,12 @@ export interface ErrorContext {
      * Component where the error occurred
      */
     component: string;
-    
+
     /**
      * Operation that was being performed
      */
     operation: string;
-    
+
     /**
      * Additional context information
      */
@@ -51,14 +51,14 @@ export interface ErrorContext {
  */
 export class ErrorHandler {
     private logger: Logger;
-    
+
     constructor(logger: Logger) {
         this.logger = logger;
     }
-    
+
     /**
      * Handle an error
-     * 
+     *
      * @param error Error object or message
      * @param context Error context information
      * @param severity Error severity level
@@ -68,14 +68,14 @@ export class ErrorHandler {
         error: unknown,
         context: ErrorContext,
         severity: ErrorSeverity = ErrorSeverity.Error,
-        showToUser: boolean = false
+        showToUser: boolean = false,
     ): void {
         // Extract error message
         const errorMessage = this.formatErrorMessage(error);
-        
+
         // Format context information
         const contextInfo = `[${context.component}] ${context.operation}`;
-        
+
         // Log the error with context
         switch (severity) {
             case ErrorSeverity.Info:
@@ -89,12 +89,12 @@ export class ErrorHandler {
                 this.logger.error(`${contextInfo}: ${errorMessage}`, context.details);
                 break;
         }
-        
+
         // Show error to user if requested
         if (showToUser) {
             this.showErrorToUser(errorMessage, severity);
         }
-        
+
         // Additional handling for fatal errors
         if (severity === ErrorSeverity.Fatal) {
             // Log additional information
@@ -104,10 +104,10 @@ export class ErrorHandler {
             });
         }
     }
-    
+
     /**
      * Format an error message
-     * 
+     *
      * @param error Error object or message
      * @returns Formatted error message
      */
@@ -120,10 +120,10 @@ export class ErrorHandler {
             return String(error);
         }
     }
-    
+
     /**
      * Show an error message to the user
-     * 
+     *
      * @param message Error message
      * @param severity Error severity level
      */

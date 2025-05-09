@@ -10,4 +10,22 @@ import type { SelectionSet } from "./SelectionSet";
 import type { TypedModeParams } from "./TypedModeParams";
 import type { ViewportParams } from "./ViewportParams";
 
-export type OutputMessage = { "tag": "ping", "params": string } | { "tag": "ki.log", "params": LogParams } | { "tag": "error", "params": string } | { "tag": "success", "params": boolean } | { "tag": "buffer.open", "params": BufferParams } | { "tag": "buffer.close", "params": BufferParams } | { "tag": "buffer.save", "params": BufferParams } | { "tag": "buffer.diff", "params": BufferDiffParams } | { "tag": "buffer.activated", "params": BufferParams } | { "tag": "selection.update", "params": SelectionSet } | { "tag": "mode.change", "params": TypedModeParams } | { "tag": "selection_mode.change", "params": SelectionModeParams } | { "tag": "viewport.change", "params": ViewportParams } | { "tag": "external_buffer.created", "params": ExternalBufferParams } | { "tag": "external_buffer.updated", "params": ExternalBufferParams } | { "tag": "command.executed", "params": CommandParams } | { "tag": "search.results", "params": string } | { "tag": "editor.action", "params": EditorActionParams };
+export type OutputMessage =
+    | { tag: "ping"; params: string }
+    | { tag: "ki.log"; params: LogParams }
+    | { tag: "error"; params: string }
+    | { tag: "success"; params: boolean }
+    | { tag: "buffer.open"; params: BufferParams }
+    | { tag: "buffer.close"; params: BufferParams }
+    | { tag: "buffer.save"; params: BufferParams }
+    | { tag: "buffer.diff"; params: BufferDiffParams }
+    | { tag: "buffer.activated"; params: BufferParams }
+    | { tag: "selection.update"; params: SelectionSet }
+    | { tag: "mode.change"; params: TypedModeParams }
+    | { tag: "selection_mode.change"; params: SelectionModeParams }
+    | { tag: "viewport.change"; params: ViewportParams }
+    | { tag: "external_buffer.created"; params: ExternalBufferParams }
+    | { tag: "external_buffer.updated"; params: ExternalBufferParams }
+    | { tag: "command.executed"; params: CommandParams }
+    | { tag: "search.results"; params: string }
+    | { tag: "editor.action"; params: EditorActionParams };
