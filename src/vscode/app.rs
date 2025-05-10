@@ -469,7 +469,7 @@ impl VSCodeApp {
             IntegrationEvent::BufferChanged {
                 component_id: _,
                 path,
-                transaction,
+                edits,
             } => {
                 // Extract edits from the transaction
                 let buffer_id = path.display_absolute();
@@ -480,27 +480,6 @@ impl VSCodeApp {
                     let component_ref = component.borrow();
                     let editor = component_ref.editor();
                     let buffer = editor.buffer();
-
-                    // Extract edits from the transaction
-                    let edits: Vec<ki_protocol_types::DiffEdit> = transaction
-                        .edits()
-                        .iter()
-                        .filter_map(|edit| {
-                            let range_start_pos = buffer.char_to_position(edit.range.start).ok()?;
-                            let range_end_pos = buffer.char_to_position(edit.range.end).ok()?;
-                            Some(ki_protocol_types::DiffEdit {
-                                range: ki_protocol_types::Range {
-                                    start: crate::vscode::utils::ki_position_to_vscode_position(
-                                        &range_start_pos,
-                                    ),
-                                    end: crate::vscode::utils::ki_position_to_vscode_position(
-                                        &range_end_pos,
-                                    ),
-                                },
-                                new_text: edit.new.to_string(),
-                            })
-                        })
-                        .collect();
 
                     if !edits.is_empty() {
                         let diff_params = ki_protocol_types::BufferDiffParams { buffer_id, edits };

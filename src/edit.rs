@@ -246,6 +246,23 @@ impl EditTransaction {
             ),
         }
     }
+
+    pub(crate) fn to_vscode_diff_edits(
+        &self,
+        buffer: &crate::buffer::Buffer,
+    ) -> Vec<ki_protocol_types::DiffEdit> {
+        self.edits()
+            .iter()
+            .filter_map(|edit| {
+                let start = buffer.char_to_vscode_position(edit.range.start).ok()?;
+                let end = buffer.char_to_vscode_position(edit.range.end).ok()?;
+                Some(ki_protocol_types::DiffEdit {
+                    range: ki_protocol_types::Range { start, end },
+                    new_text: edit.new.to_string(),
+                })
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

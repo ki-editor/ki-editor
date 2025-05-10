@@ -956,7 +956,7 @@ impl<T: Frontend> App<T> {
             Dispatch::BufferEditTransaction {
                 component_id,
                 path,
-                transaction,
+                edits,
             } => {
                 // Emit an integration event for the buffer change
                 self.integration_event_sender.emit_event(
@@ -965,7 +965,7 @@ impl<T: Frontend> App<T> {
                             &component_id,
                         ),
                         path: path.clone(),
-                        transaction: transaction.clone(),
+                        edits: edits.clone(),
                     },
                 );
 
@@ -976,26 +976,6 @@ impl<T: Frontend> App<T> {
                     let buffer = editor.buffer();
 
                     // Extract edits from the transaction
-                    let edits: Vec<ki_protocol_types::DiffEdit> = transaction
-                        .edits()
-                        .iter()
-                        .filter_map(|edit| {
-                            let range_start_pos = buffer.char_to_position(edit.range.start).ok()?;
-                            let range_end_pos = buffer.char_to_position(edit.range.end).ok()?;
-                            Some(ki_protocol_types::DiffEdit {
-                                range: ki_protocol_types::Range {
-                                    start: crate::vscode::utils::ki_position_to_vscode_position(
-                                        &range_start_pos,
-                                    ),
-                                    end: crate::vscode::utils::ki_position_to_vscode_position(
-                                        &range_end_pos,
-                                    ),
-                                },
-                                new_text: edit.new.to_string(),
-                            })
-                        })
-                        .collect();
-
                     if !edits.is_empty() {
                         let buffer_id = path.display_absolute();
                         let diff_params = ki_protocol_types::BufferDiffParams { buffer_id, edits };
@@ -2868,7 +2848,7 @@ pub(crate) enum Dispatch {
     BufferEditTransaction {
         component_id: ComponentId,
         path: CanonicalizedPath,
-        transaction: crate::edit::EditTransaction,
+        edits: Vec<ki_protocol_types::DiffEdit>,
     },
 }
 

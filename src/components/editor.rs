@@ -1036,6 +1036,10 @@ impl Editor {
                 .flatten()
                 .collect()
         });
+        log::info!(
+            "xxx Editor::delete, the edit_transaction = {:?}",
+            edit_transaction.edits()
+        );
         let dispatches = self.apply_edit_transaction(edit_transaction, context)?;
         Ok(copy_dispatches.chain(dispatches))
     }
@@ -1294,6 +1298,24 @@ impl Editor {
         edit_transaction: EditTransaction,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
+        // Create a BufferEditTransaction dispatch for external integrations
+        let buffer_edit_dispatch = if !edit_transaction.edits().is_empty() {
+            // Get the path for the buffer
+            if let Some(path) = self.buffer().path() {
+                let buffer = self.buffer();
+                // Create a dispatch to send buffer edit transaction to external integrations
+                Dispatches::one(crate::app::Dispatch::BufferEditTransaction {
+                    component_id: self.id(),
+                    path,
+                    edits: edit_transaction.to_vscode_diff_edits(&self.buffer()),
+                })
+            } else {
+                Default::default()
+            }
+        } else {
+            Default::default()
+        };
+
         log::trace!(
             "apply_edit_transaction: applying transaction with {} edits in mode {:?}",
             edit_transaction.edits().len(),
@@ -1313,31 +1335,14 @@ impl Editor {
 
         self.set_selection_set(new_selection_set, context);
 
-        // Create a BufferEditTransaction dispatch for external integrations
-        let mut buffer_edit_dispatch = Dispatches::default();
-
-        if !applied_transaction.edits().is_empty() {
-            // Get the path for the buffer
-            if let Some(path) = self.buffer().path() {
-                // Create a dispatch to send buffer edit transaction to external integrations
-                buffer_edit_dispatch =
-                    Dispatches::one(crate::app::Dispatch::BufferEditTransaction {
-                        component_id: self.id(),
-                        path,
-                        transaction: applied_transaction,
-                    });
-            }
-        }
-
         self.recalculate_scroll_offset(context);
 
         self.clamp(context)?;
 
-        // Create dispatches for document changes
-        let mut dispatches = self.get_document_did_change_dispatch();
-
         // Add the buffer edit transaction dispatch
-        dispatches = dispatches.chain(buffer_edit_dispatch);
+        let dispatches = self
+            .get_document_did_change_dispatch()
+            .chain(buffer_edit_dispatch);
         log::trace!(
             "apply_edit_transaction: created dispatches: {:?}",
             dispatches
@@ -2966,35 +2971,33 @@ impl Editor {
         };
 
         // Create dispatches for document changes and buffer edit transaction
-        let mut dispatches = match result {
-            Some((selection_set, applied_transaction)) => {
+        let dispatches = match result {
+            Some((selection_set, edits)) => {
                 // Update selection set
-                let mut dispatches = self.update_selection_set(selection_set, false, context);
+                let dispatches = self.update_selection_set(selection_set, false, context);
 
                 // Create a BufferEditTransaction dispatch for external integrations
-                if !applied_transaction.edits().is_empty() {
-                    // Get the path for the buffer
-                    if let Some(path) = self.buffer().path() {
-                        // Create a dispatch to send buffer edit transaction
-                        dispatches =
-                            dispatches.append(crate::app::Dispatch::BufferEditTransaction {
-                                component_id: self.id(),
-                                path,
-                                transaction: applied_transaction,
-                            });
-                    }
-                }
+                let dispatch = if let Some(path) = self.buffer().path() {
+                    // Create a dispatch to send buffer edit transaction
+                    Dispatches::one(crate::app::Dispatch::BufferEditTransaction {
+                        component_id: self.id(),
+                        path,
+                        edits,
+                    })
+                } else {
+                    Default::default()
+                };
 
-                dispatches
+                dispatches.chain(dispatch)
             }
             Option::None => Dispatches::default(),
         };
 
         // Add document did change dispatch
-        dispatches = dispatches.chain(self.get_document_did_change_dispatch());
+        let dispatches = dispatches.chain(self.get_document_did_change_dispatch());
 
         // Also send a mode change notification to ensure external integrations are in sync
-        dispatches = dispatches.append(crate::app::Dispatch::ModeChanged);
+        let dispatches = dispatches.append(crate::app::Dispatch::ModeChanged);
 
         log::trace!("undo_or_redo: Returning dispatches");
 
@@ -3709,6 +3712,11 @@ impl Editor {
                 .flatten()
                 .collect()
         });
+
+        log::info!(
+            "xxx Editor::delete_line_forward, the edit_transaction = {:?}",
+            edit_transaction.edits()
+        );
         Ok(copy_dispatches.chain(self.apply_edit_transaction(edit_transaction, context)?))
     }
 

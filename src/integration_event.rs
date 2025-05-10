@@ -28,7 +28,7 @@ pub enum IntegrationEvent {
         #[allow(dead_code)]
         component_id: ComponentId,
         path: CanonicalizedPath,
-        transaction: EditTransaction,
+        edits: Vec<ki_protocol_types::DiffEdit>,
     },
     BufferOpened {
         #[allow(dead_code)]

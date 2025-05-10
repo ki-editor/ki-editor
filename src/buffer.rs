@@ -385,6 +385,42 @@ impl Buffer {
         })
     }
 
+    /// VS Code positions the cursor at the start of the next line (line+1, character 0).
+    /// when at a newline, while Ki treats newlines as regular characters within the current line.
+    /// This function converts Ki's character-based position to VS Code's line/character position.
+    pub(crate) fn char_to_vscode_position(
+        &self,
+        char_index: CharIndex,
+    ) -> anyhow::Result<ki_protocol_types::Position> {
+        let line_index = self.char_to_line(char_index)?;
+        let line = self
+            .get_line_by_line_index(line_index)
+            .map(|slice| slice.to_string())
+            .unwrap_or_default();
+        let column_index = self
+            .rope
+            .try_line_to_char(line_index)
+            .map(|line_start_char_index| char_index.0.saturating_sub(line_start_char_index))
+            .unwrap_or(0);
+
+        log::info!(
+            "xxx The chars are {:?}, count = {}",
+            line.chars().collect_vec(),
+            line.chars().count()
+        );
+        if line.chars().last() == Some('\n') && column_index == line.chars().count() - 1 {
+            return Ok(ki_protocol_types::Position {
+                line: line_index + 1,
+                character: 0,
+            });
+        }
+
+        Ok(ki_protocol_types::Position {
+            line: line_index,
+            character: column_index,
+        })
+    }
+
     pub(crate) fn position_to_char(&self, position: Position) -> anyhow::Result<CharIndex> {
         let line = position.line.clamp(0, self.len_lines());
         let column = position.column.clamp(
@@ -1042,10 +1078,12 @@ impl Buffer {
     pub(crate) fn redo(
         &mut self,
         last_visible_line: u16,
-    ) -> Result<Option<(SelectionSet, EditTransaction)>, anyhow::Error> {
+    ) -> Result<Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>)>, anyhow::Error> {
         if let Some(history) = self.redo_stack.pop() {
             // Store the edit transaction for returning later
             let applied_transaction = history.edit_transaction.clone();
+
+            let edits = applied_transaction.to_vscode_diff_edits(self);
 
             // Apply the edits
             history
@@ -1059,7 +1097,7 @@ impl Buffer {
             self.undo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((selection_set, applied_transaction)))
+            Ok(Some((selection_set, edits)))
         } else {
             Ok(None)
         }
@@ -1068,71 +1106,27 @@ impl Buffer {
     pub(crate) fn undo(
         &mut self,
         last_visible_line: u16,
-    ) -> Result<Option<(SelectionSet, EditTransaction)>, anyhow::Error> {
-        #[cfg(feature = "vscode")]
-        log::info!(
-            "buffer.undo: Starting undo operation with undo_stack size={}, last_visible_line={}",
-            self.undo_stack.len(),
-            last_visible_line
-        );
-
+    ) -> Result<Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>)>, anyhow::Error> {
         if let Some(history) = self.undo_stack.pop() {
             // Store the edit transaction for returning later
             let applied_transaction = history.edit_transaction.clone();
 
-            #[cfg(feature = "vscode")]
-            log::info!(
-                "buffer.undo: Popped history item with {} edits",
-                history.edit_transaction.edits().len()
-            );
+            let edits = applied_transaction.to_vscode_diff_edits(self);
 
             // Apply the edits
-            #[cfg(feature = "vscode")]
-            log::info!("buffer.undo: Applying edits from transaction");
-
-            // Apply each edit with detailed logging
-            for (i, edit) in history.edit_transaction.edits().iter().enumerate() {
-                #[cfg(feature = "vscode")]
-                log::info!(
-                    "buffer.undo: Applying edit {}/{}: range={:?}, new_text_len={}",
-                    i + 1,
-                    history.edit_transaction.edits().len(),
-                    edit.range,
-                    edit.new.len_chars()
-                );
-
-                if let Err(e) = self.apply_edit(edit, last_visible_line) {
-                    #[cfg(feature = "vscode")]
-                    log::error!("buffer.undo: Error applying edit {}: {}", i + 1, e);
-                    return Err(e);
-                }
-            }
-
-            #[cfg(feature = "vscode")]
-            log::info!("buffer.undo: Reparsing tree");
-
-            if let Err(e) = self.reparse_tree() {
-                #[cfg(feature = "vscode")]
-                log::error!("buffer.undo: Error reparsing tree: {}", e);
-                return Err(e);
-            }
+            history
+                .edit_transaction
+                .edits()
+                .into_iter()
+                .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
+            self.reparse_tree()?;
 
             let selection_set = history.old_state.selection_set.clone();
             self.redo_stack.push(history.inverse());
 
-            #[cfg(feature = "vscode")]
-            log::info!(
-                "buffer.undo: Successfully completed undo operation, returning selection_set with {} selections and transaction with {} edits",
-                selection_set.len(),
-                applied_transaction.edits().len()
-            );
-
             // Return both the selection set and the applied transaction
-            Ok(Some((selection_set, applied_transaction)))
+            Ok(Some((selection_set, edits)))
         } else {
-            #[cfg(feature = "vscode")]
-            log::info!("buffer.undo: No history items in undo stack, returning None");
-
             Ok(None)
         }
     }

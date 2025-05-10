@@ -7,6 +7,7 @@ use ts_rs::TS;
 // Common data structures
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS)]
 #[ts(export)]
+/// VS Code Position
 pub struct Position {
     #[ts(type = "number")]
     pub line: usize,
