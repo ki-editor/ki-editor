@@ -1,4 +1,6 @@
 use crate::components::editor_keymap_printer;
+#[cfg(feature = "vscode")]
+use crate::vscode;
 use crate::RunConfig;
 use chrono::Local;
 use clap::{Args, Parser, Subcommand};
@@ -21,6 +23,11 @@ struct Cli {
 
     #[command(flatten)]
     edit: EditArgs,
+
+    /// Run in VS Code extension mode
+    #[arg(long)]
+    #[cfg(feature = "vscode")]
+    vs_code: bool,
 }
 
 #[derive(Subcommand)]
@@ -156,6 +163,13 @@ fn process_edit_args(args: EditArgs) -> anyhow::Result<RunConfig> {
 
 pub(crate) fn cli() -> anyhow::Result<()> {
     let cli = Cli::parse();
+
+    #[cfg(feature = "vscode")]
+    {
+        if cli.vs_code {
+            return vscode::run_vscode();
+        }
+    }
 
     match cli.command {
         Some(CommandPlaceholder::Edit(args)) => run_edit_command(args),

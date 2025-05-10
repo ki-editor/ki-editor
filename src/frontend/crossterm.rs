@@ -35,9 +35,39 @@ use crossterm::{
 
 impl Frontend for Crossterm {
     fn get_terminal_dimension(&self) -> anyhow::Result<crate::app::Dimension> {
-        let (width, height) = terminal::size()?;
-        Ok(crate::app::Dimension { width, height })
+        // First try to get dimensions from environment variables
+        // This is particularly useful for VSCode integration where terminal access is limited
+        if let (Ok(width_str), Ok(height_str)) = (
+            std::env::var("KI_TERMINAL_WIDTH"),
+            std::env::var("KI_TERMINAL_HEIGHT"),
+        ) {
+            if let (Ok(width), Ok(height)) = (width_str.parse::<u16>(), height_str.parse::<u16>()) {
+                log::debug!(
+                    "Using terminal dimensions from environment: {}x{}",
+                    width,
+                    height
+                );
+                return Ok(crate::app::Dimension { width, height });
+            }
+        }
+
+        // Fallback to crossterm terminal size detection
+        match terminal::size() {
+            Ok((width, height)) => {
+                log::debug!("Detected terminal dimensions: {}x{}", width, height);
+                Ok(crate::app::Dimension { width, height })
+            }
+            Err(e) => {
+                log::warn!("Failed to get terminal dimensions: {}", e);
+                // If terminal size detection fails, use reasonable defaults
+                let width = 100;
+                let height = 30;
+                log::debug!("Using default dimensions: {}x{}", width, height);
+                Ok(crate::app::Dimension { width, height })
+            }
+        }
     }
+
     fn enter_alternate_screen(&mut self) -> anyhow::Result<()> {
         self.stdout.execute(EnterAlternateScreen)?;
         self.stdout.execute(EnableBracketedPaste)?;
@@ -61,13 +91,63 @@ impl Frontend for Crossterm {
     }
 
     fn enable_raw_mode(&mut self) -> anyhow::Result<()> {
-        crossterm::terminal::enable_raw_mode()?; // This should be the issue
-        Ok(())
+        // Check if we're in VSCode mode
+        if let Ok(value) = std::env::var("KI_TERMINAL_WIDTH") {
+            if !value.is_empty() {
+                log::debug!("Skipping raw mode in VSCode integration mode");
+                return Ok(());
+            }
+        }
+
+        // Try to enable raw mode, but handle errors gracefully
+        match crossterm::terminal::enable_raw_mode() {
+            Ok(_) => {
+                log::debug!("Raw mode enabled successfully");
+                Ok(())
+            }
+            Err(e) => {
+                if let Some(raw_code) = e.raw_os_error() {
+                    if raw_code == 35 {
+                        // Resource temporarily unavailable
+                        log::warn!("Ignoring resource temporarily unavailable error when enabling raw mode");
+                        return Ok(());
+                    }
+                }
+                // For other errors, propagate them
+                log::error!("Failed to enable raw mode: {}", e);
+                Err(anyhow::anyhow!("Failed to enable raw mode: {}", e))
+            }
+        }
     }
 
     fn disable_raw_mode(&mut self) -> anyhow::Result<()> {
-        crossterm::terminal::disable_raw_mode()?;
-        Ok(())
+        // Check if we're in VSCode mode
+        if let Ok(value) = std::env::var("KI_TERMINAL_WIDTH") {
+            if !value.is_empty() {
+                log::debug!("Skipping disable raw mode in VSCode integration mode");
+                return Ok(());
+            }
+        }
+
+        // Try to disable raw mode, but handle errors gracefully
+        match crossterm::terminal::disable_raw_mode() {
+            Ok(_) => {
+                log::debug!("Raw mode disabled successfully");
+                Ok(())
+            }
+            Err(e) => {
+                if let Some(raw_code) = e.raw_os_error() {
+                    if raw_code == 35 {
+                        // Resource temporarily unavailable
+                        log::warn!("Ignoring resource temporarily unavailable error when disabling raw mode");
+                        return Ok(());
+                    }
+                }
+                // For other errors, log but don't fail
+                log::warn!("Failed to disable raw mode: {}", e);
+                Ok(()) // Return OK to avoid crashing on exit
+            }
+        }
     }
 
     fn show_cursor(&mut self, cursor: &Cursor) -> anyhow::Result<()> {
