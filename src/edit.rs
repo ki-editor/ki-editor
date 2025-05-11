@@ -103,6 +103,10 @@ impl Action {
 pub(crate) struct EditTransaction {
     /// This `action_group` should be always normalized.
     action_group: ActionGroup,
+
+    #[cfg(feature = "vscode")]
+    /// This is required by VS Code because VS Code will offset the edits on their end.
+    unnormalized_edits: Vec<Edit>,
 }
 
 impl EditTransaction {
@@ -135,7 +139,21 @@ impl EditTransaction {
     }
 
     pub(crate) fn from_action_groups(action_groups: Vec<ActionGroup>) -> Self {
+        let unnormalized_edits = action_groups
+            .iter()
+            .flat_map(|action_group| {
+                action_group
+                    .actions
+                    .iter()
+                    .filter_map(|action| match action {
+                        Action::Select(_) => None,
+                        Action::Edit(edit) => Some(edit.clone()),
+                    })
+                    .collect_vec()
+            })
+            .collect();
         Self {
+            unnormalized_edits,
             action_group: Self::normalize_action_groups(action_groups),
         }
     }
@@ -144,6 +162,7 @@ impl EditTransaction {
     pub(crate) fn from_tuples(action_groups: Vec<ActionGroup>) -> Self {
         Self {
             action_group: Self::normalize_action_groups(action_groups),
+            unnormalized_edits: Default::default(),
         }
     }
 
@@ -189,12 +208,22 @@ impl EditTransaction {
     }
 
     pub(crate) fn merge(edit_transactions: Vec<EditTransaction>) -> EditTransaction {
-        EditTransaction::from_action_groups(
-            edit_transactions
-                .into_iter()
-                .map(|transaction| transaction.action_group)
-                .collect(),
-        )
+        let unnormalized_edits: Vec<Edit> = Vec::default();
+
+        #[cfg(feature = "vscode")]
+        let unnormalized_edits = edit_transactions
+            .iter()
+            .flat_map(|edit_transaction| edit_transaction.unnormalized_edits.clone())
+            .collect_vec();
+        Self {
+            unnormalized_edits,
+            action_group: Self::normalize_action_groups(
+                edit_transactions
+                    .into_iter()
+                    .map(|edit_transaction| edit_transaction.action_group)
+                    .collect_vec(),
+            ),
+        }
     }
 
     pub(crate) fn selections(&self) -> Vec<&Selection> {
@@ -244,6 +273,19 @@ impl EditTransaction {
                     })
                     .collect(),
             ),
+            unnormalized_edits: self
+                .unnormalized_edits
+                .iter()
+                .rev()
+                .map(|edit| {
+                    let range = (edit.range.start..edit.range.start + edit.new.len_chars()).into();
+                    Edit {
+                        range,
+                        new: edit.old.clone(),
+                        old: edit.new.clone(),
+                    }
+                })
+                .collect(),
         }
     }
 
@@ -251,15 +293,17 @@ impl EditTransaction {
         &self,
         buffer: &crate::buffer::Buffer,
     ) -> Vec<ki_protocol_types::DiffEdit> {
-        self.edits()
+        // self.edits()
+        self.unnormalized_edits
             .iter()
             .filter_map(|edit| {
                 let start = buffer.char_to_vscode_position(edit.range.start).ok()?;
                 let end = buffer.char_to_vscode_position(edit.range.end).ok()?;
-                Some(ki_protocol_types::DiffEdit {
+                let edit = ki_protocol_types::DiffEdit {
                     range: ki_protocol_types::Range { start, end },
                     new_text: edit.new.to_string(),
-                })
+                };
+                Some(edit)
             })
             .collect()
     }

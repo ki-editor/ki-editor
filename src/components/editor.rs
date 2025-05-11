@@ -1295,7 +1295,6 @@ impl Editor {
         let buffer_edit_dispatch = if !edit_transaction.edits().is_empty() {
             // Get the path for the buffer
             if let Some(path) = self.buffer().path() {
-                let buffer = self.buffer();
                 // Create a dispatch to send buffer edit transaction to external integrations
                 Dispatches::one(crate::app::Dispatch::BufferEditTransaction {
                     component_id: self.id(),
@@ -1309,22 +1308,15 @@ impl Editor {
             Default::default()
         };
 
-        log::trace!(
-            "apply_edit_transaction: applying transaction with {} edits in mode {:?}",
-            edit_transaction.edits().len(),
-            self.mode
-        );
-
         // Apply the transaction to the buffer
         let last_visible_line = self.last_visible_line(context);
-        let (new_selection_set, applied_transaction) =
-            self.buffer.borrow_mut().apply_edit_transaction(
-                &edit_transaction,
-                self.selection_set.clone(),
-                self.mode != Mode::Insert,
-                true,
-                last_visible_line,
-            )?;
+        let new_selection_set = self.buffer.borrow_mut().apply_edit_transaction(
+            &edit_transaction,
+            self.selection_set.clone(),
+            self.mode != Mode::Insert,
+            true,
+            last_visible_line,
+        )?;
 
         self.set_selection_set(new_selection_set, context);
 

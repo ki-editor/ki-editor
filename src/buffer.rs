@@ -403,13 +403,6 @@ impl Buffer {
             .map(|line_start_char_index| char_index.0.saturating_sub(line_start_char_index))
             .unwrap_or(0);
 
-        if line.chars().last() == Some('\n') && column_index == line.chars().count() - 1 {
-            return Ok(ki_protocol_types::Position {
-                line: line_index + 1,
-                character: 0,
-            });
-        }
-
         Ok(ki_protocol_types::Position {
             line: line_index,
             character: column_index,
@@ -525,7 +518,7 @@ impl Buffer {
         reparse_tree: bool,
         update_undo_stack: bool,
         last_visible_line: u16,
-    ) -> Result<(SelectionSet, EditTransaction), anyhow::Error> {
+    ) -> Result<SelectionSet, anyhow::Error> {
         let new_selection_set = edit_transaction
             .non_empty_selections()
             .map(|selections| current_selection_set.clone().set_selections(selections))
@@ -565,7 +558,7 @@ impl Buffer {
         self.batch_id.increment();
 
         // Return both the new selection set and a clone of the edit transaction
-        Ok((new_selection_set, edit_transaction.clone()))
+        Ok(new_selection_set)
     }
 
     // Add these methods for undo/redo
@@ -754,7 +747,7 @@ impl Buffer {
         last_visible_line: u16,
     ) -> anyhow::Result<SelectionSet> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
-        let (selection_set, _) = self.apply_edit_transaction(
+        let selection_set = self.apply_edit_transaction(
             &edit_transaction,
             current_selection_set,
             true,
@@ -991,7 +984,7 @@ impl Buffer {
                 )
             }
         };
-        let (selection_set, _) = self.apply_edit_transaction(
+        let selection_set = self.apply_edit_transaction(
             &edit_transaction,
             current_selection_set,
             true,
@@ -1106,6 +1099,7 @@ impl Buffer {
             // Store the edit transaction for returning later
             let applied_transaction = history.edit_transaction.clone();
 
+            // TODO: computing the inverted positional edits now is too late, it needs to be computed before it's stored
             let edits = applied_transaction.to_vscode_diff_edits(self);
 
             // Apply the edits

@@ -406,7 +406,7 @@ export class BufferManager extends Manager {
         try {
             // Process all pending diffs in order
             while (this.pendingBufferDiffs.has(uri) && this.pendingBufferDiffs.get(uri)!.length > 0) {
-                const params = this.pendingBufferDiffs.get(uri)!.shift()!;
+                const params: BufferDiffParams = this.pendingBufferDiffs.get(uri)!.shift()!;
 
                 // Convert to our internal format for processing
                 const event: BufferChangedEvent = {
@@ -489,16 +489,11 @@ export class BufferManager extends Manager {
         this.ignoreBufferChangeCounter++;
         this.logger.log(`Incremented ignore counter to ${this.ignoreBufferChangeCounter} for ${event.path}`);
 
-        const edit = new vscode.WorkspaceEdit();
-
-        // Convert Ki protocol edits to VSCode edits
-        for (const kiEdit of event.transaction.edits) {
-            let vscodeRange: vscode.Range;
-
-            // Check if we have protocol_range information
-            if (kiEdit.protocol_range) {
-                try {
-                    // Use the range from the protocol
+        const editor = vscode.window.activeTextEditor;
+        await editor?.edit((editBuilder) => {
+            for (const kiEdit of event.transaction.edits) {
+                // Check if we have protocol_range information
+                if (kiEdit.protocol_range) {
                     const startPos = new vscode.Position(
                         kiEdit.protocol_range.start.line,
                         kiEdit.protocol_range.start.character,
@@ -507,63 +502,11 @@ export class BufferManager extends Manager {
                         kiEdit.protocol_range.end.line,
                         kiEdit.protocol_range.end.character,
                     );
-                    vscodeRange = new vscode.Range(startPos, endPos);
-
-                    this.logger.log(
-                        `Applying edit: Replace range ${startPos.line},${startPos.character} to ${endPos.line},${endPos.character} with text of length ${kiEdit.new_text.length}`,
-                    );
-
-                    // Validate the range
-                    if (
-                        startPos.line < 0 ||
-                        startPos.line >= document.lineCount ||
-                        endPos.line < 0 ||
-                        endPos.line > document.lineCount
-                    ) {
-                        throw new Error(
-                            `Invalid range: ${startPos.line},${startPos.character} to ${endPos.line},${endPos.character}`,
-                        );
-                    }
-                } catch (error) {
-                    // If there's an error with the range, fall back to replacing the entire document
-                    this.logger.warn(`Error with protocol range, falling back to full document replacement: ${error}`);
-                    vscodeRange = new vscode.Range(
-                        new vscode.Position(0, 0),
-                        new vscode.Position(document.lineCount, 0),
-                    );
+                    const vscodeRange = new vscode.Range(startPos, endPos);
+                    editBuilder.replace(vscodeRange, kiEdit.new_text);
                 }
-            } else {
-                // Fallback to replacing the entire document
-                vscodeRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(document.lineCount, 0));
-                this.logger.log(`Applying edit: Replace entire document with "${kiEdit.new_text.substring(0, 20)}..."`);
             }
-
-            // Check if the content has actually changed
-            const currentText = document.getText(vscodeRange);
-            if (currentText !== kiEdit.new_text) {
-                this.logger.log(`Content has changed, applying edit`);
-                edit.replace(document.uri, vscodeRange, kiEdit.new_text);
-            } else {
-                this.logger.log(`Content unchanged, skipping edit`);
-            }
-        }
-
-        try {
-            const success = await vscode.workspace.applyEdit(edit);
-            if (success) {
-                this.logger.log(
-                    `Successfully applied ${event.transaction.edits.length} edits for buffer diff: ${event.path}`,
-                );
-            } else {
-                this.logger.error(`Failed to apply buffer diff edits: ${event.path}`);
-                // Reset counter if applyEdit fails
-                this.ignoreBufferChangeCounter = 0;
-            }
-        } catch (error) {
-            this.logger.error(`Error applying buffer diff edits for ${event.path}:`, error);
-            // Reset counter on error
-            this.ignoreBufferChangeCounter = 0;
-        }
+        });
 
         // It's crucial to decrement the counter *after* the edit is potentially processed by VSCode's change event listener.
         // Using a small timeout ensures the decrement happens after the current event loop cycle.
