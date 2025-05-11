@@ -2,6 +2,7 @@ default:
     @just tree-sitter-quickfix 
     @just fmt-check 
     @just build 
+    @just build-vscode 
     @just clippy 
     @just test 
     @just doc
@@ -20,6 +21,9 @@ fmt:
 build:
     @echo "Running cargo build..."
     cargo build --workspace --tests
+
+build-vscode:
+    cargo build -F vscode
 
 clippy:
     @echo "Running cargo clippy..."
