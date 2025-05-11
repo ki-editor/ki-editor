@@ -1036,10 +1036,6 @@ impl Editor {
                 .flatten()
                 .collect()
         });
-        log::info!(
-            "xxx Editor::delete, the edit_transaction = {:?}",
-            edit_transaction.edits()
-        );
         let dispatches = self.apply_edit_transaction(edit_transaction, context)?;
         Ok(copy_dispatches.chain(dispatches))
     }
@@ -1343,10 +1339,9 @@ impl Editor {
         let dispatches = self
             .get_document_did_change_dispatch()
             .chain(buffer_edit_dispatch);
-        log::trace!(
-            "apply_edit_transaction: created dispatches: {:?}",
-            dispatches
-        );
+
+        #[cfg(feature = "vscode")]
+        let dispatches = dispatches.append(self.dispatch_selection_changed());
 
         Ok(dispatches)
     }
@@ -3001,6 +2996,9 @@ impl Editor {
 
         log::trace!("undo_or_redo: Returning dispatches");
 
+        #[cfg(feature = "vscode")]
+        let dispatches = dispatches.append(self.dispatch_selection_changed());
+
         Ok(dispatches)
     }
 
@@ -3713,10 +3711,6 @@ impl Editor {
                 .collect()
         });
 
-        log::info!(
-            "xxx Editor::delete_line_forward, the edit_transaction = {:?}",
-            edit_transaction.edits()
-        );
         Ok(copy_dispatches.chain(self.apply_edit_transaction(edit_transaction, context)?))
     }
 
