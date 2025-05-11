@@ -1809,6 +1809,17 @@ impl<T: Frontend> App<T> {
             Err(e) => return Err(e),
         };
 
+        // Note: we always send the latest selection set to VS Code
+        //   regardless of whether the selection set actually changes after handling
+        //   `dispatch_editor`. This is the simplest and most reliable way
+        //   to ensure the updated selection set is sent to VS Code,
+        //   rather than tracking all possible paths that lead to selection updates.
+        //   We are sacrificing a little performance (by sending the same selection set to VS Code occasionally)
+        //   in exchange for better code maintainability and behavioral correctness.
+        #[cfg(feature = "vscode")]
+        let dispatches =
+            dispatches.append(component.borrow().editor().dispatch_selection_changed());
+
         // Process the dispatches
         if let Err(e) = self.handle_dispatches(dispatches) {
             return Err(e);

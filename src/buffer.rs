@@ -403,11 +403,6 @@ impl Buffer {
             .map(|line_start_char_index| char_index.0.saturating_sub(line_start_char_index))
             .unwrap_or(0);
 
-        log::info!(
-            "xxx The chars are {:?}, count = {}",
-            line.chars().collect_vec(),
-            line.chars().count()
-        );
         if line.chars().last() == Some('\n') && column_index == line.chars().count() - 1 {
             return Ok(ki_protocol_types::Position {
                 line: line_index + 1,

@@ -212,7 +212,7 @@ impl Component for Editor {
             MatchLiteral(literal) => return self.match_literal(&literal, context),
             ToggleMark => self.toggle_marks(),
             EnterNormalMode => return self.enter_normal_mode(context),
-            CursorAddToAllSelections => return self.add_cursor_to_all_selections(context),
+            CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
             CursorKeepPrimaryOnly => return self.cursor_keep_primary_only(),
             EnterSwapMode => return self.enter_swap_mode(),
             ReplacePattern { config } => {
@@ -273,7 +273,7 @@ impl Component for Editor {
                 direction,
                 use_system_clipboard,
             } => return self.paste(direction, context, use_system_clipboard),
-            SwapCursor => return Ok(self.swap_cursor(context)),
+            SwapCursor => self.swap_cursor(context),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
             MoveCharacterForward => {
@@ -767,13 +767,7 @@ impl Editor {
         }
         self.set_selection_set(selection_set, context);
 
-        // Create a CursorUpdate dispatch to notify external integrations about cursor position changes
-        let dispatches = Dispatches::default().append_some(show_info);
-
-        #[cfg(feature = "vscode")]
-        let dispatches = dispatches.append(self.dispatch_selection_changed());
-
-        dispatches
+        Dispatches::default().append_some(show_info)
     }
 
     pub(crate) fn position_range_to_selection_set(
@@ -1294,6 +1288,9 @@ impl Editor {
         edit_transaction: EditTransaction,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
+        let buffer_edit_transaction = Dispatches::default();
+
+        #[cfg(feature = "vscode")]
         // Create a BufferEditTransaction dispatch for external integrations
         let buffer_edit_dispatch = if !edit_transaction.edits().is_empty() {
             // Get the path for the buffer
@@ -1340,9 +1337,6 @@ impl Editor {
             .get_document_did_change_dispatch()
             .chain(buffer_edit_dispatch);
 
-        #[cfg(feature = "vscode")]
-        let dispatches = dispatches.append(self.dispatch_selection_changed());
-
         Ok(dispatches)
     }
 
@@ -1367,13 +1361,12 @@ impl Editor {
         self.undo_or_redo(false, context)
     }
 
-    pub(crate) fn swap_cursor(&mut self, context: &Context) -> Dispatches {
+    pub(crate) fn swap_cursor(&mut self, context: &Context) {
         self.cursor_direction = match self.cursor_direction {
             Direction::Start => Direction::End,
             Direction::End => Direction::Start,
         };
         self.recalculate_scroll_offset(context);
-        Dispatches::one(self.dispatch_selection_changed())
     }
 
     pub(crate) fn get_selection_set(
@@ -2699,22 +2692,16 @@ impl Editor {
     pub(crate) fn add_cursor_to_all_selections(
         &mut self,
         context: &Context,
-    ) -> Result<Dispatches, anyhow::Error> {
+    ) -> Result<(), anyhow::Error> {
         self.mode = Mode::Normal;
         self.reveal = Some(Reveal::Cursor);
         self.selection_set
             .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
         self.recalculate_scroll_offset(context);
-
-        let dispatches = Dispatches::default();
-
-        #[cfg(feature = "vscode")]
-        let dispatches = Dispatches::one(self.dispatch_selection_changed());
-
-        Ok(dispatches)
+        Ok(())
     }
 
-    fn dispatch_selection_changed(&self) -> Dispatch {
+    pub(crate) fn dispatch_selection_changed(&self) -> Dispatch {
         Dispatch::SelectionChanged {
             component_id: self.id(),
             selections: self
@@ -2734,14 +2721,16 @@ impl Editor {
         }
         self.selection_set.only();
 
-        let mut dispatches = Dispatches::default();
+        let dispatches = Dispatches::default();
 
         // For VSCode integration, explicitly create a mode change notification
         #[cfg(feature = "vscode")]
-        if was_different_mode {
+        let dispatches = if was_different_mode {
             // Only send mode change notification if we actually changed modes
-            dispatches = dispatches.append(Dispatch::ModeChanged);
-        }
+            Dispatches::one(Dispatch::ModeChanged)
+        } else {
+            Default::default()
+        };
 
         Ok(dispatches)
     }
@@ -2995,9 +2984,6 @@ impl Editor {
         let dispatches = dispatches.append(crate::app::Dispatch::ModeChanged);
 
         log::trace!("undo_or_redo: Returning dispatches");
-
-        #[cfg(feature = "vscode")]
-        let dispatches = dispatches.append(self.dispatch_selection_changed());
 
         Ok(dispatches)
     }
