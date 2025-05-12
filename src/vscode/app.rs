@@ -479,7 +479,6 @@ impl VSCodeApp {
                 if let Some(component) = self.get_editor_component_by_path(&path) {
                     let component_ref = component.borrow();
                     let editor = component_ref.editor();
-                    let buffer = editor.buffer();
 
                     if !edits.is_empty() {
                         let diff_params = ki_protocol_types::BufferDiffParams { buffer_id, edits };

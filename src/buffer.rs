@@ -393,6 +393,11 @@ impl Buffer {
         char_index: CharIndex,
     ) -> anyhow::Result<ki_protocol_types::Position> {
         let line_index = self.char_to_line(char_index)?;
+        log::info!(
+            "xxx Buffer::char_to_vscode_position char_index={char_index:?} char={:?} line_index={}",
+            self.char(char_index),
+            line_index
+        );
         let line = self
             .get_line_by_line_index(line_index)
             .map(|slice| slice.to_string())
@@ -518,7 +523,7 @@ impl Buffer {
         reparse_tree: bool,
         update_undo_stack: bool,
         last_visible_line: u16,
-    ) -> Result<SelectionSet, anyhow::Error> {
+    ) -> Result<(SelectionSet, Vec<ki_protocol_types::DiffEdit>), anyhow::Error> {
         let new_selection_set = edit_transaction
             .non_empty_selections()
             .map(|selections| current_selection_set.clone().set_selections(selections))
@@ -530,10 +535,37 @@ impl Buffer {
 
         let inverted_edit_transaction = edit_transaction.inverse();
 
+        // NOTE: the VS Code edits should be computed BEFORE applying the edits
+        let applied_vscode_edits = edit_transaction
+            .unnormalized_edits()
+            .into_iter()
+            .map(|edit| edit.to_vscode_diff_edit(self))
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
         edit_transaction
             .edits()
             .into_iter()
             .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
+
+        // NOTE: the inverted VS Code edits should be computed AFTER applying the edits
+        let inverted_unnormalized_edits = inverted_edit_transaction.unnormalized_edits();
+        log::info!(
+            "xxx Buffer::apply_edit_transaction: inverted_edit={inverted_unnormalized_edits:?}"
+        );
+
+        log::info!(
+            "xxx Buffer::apply_edit_transaction: first two line={:?}",
+            self.content().lines().take(2).collect_vec()
+        );
+
+        let inverted_vscode_edits = inverted_unnormalized_edits
+            .into_iter()
+            .map(|edit| edit.to_vscode_diff_edit(self))
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        log::info!(
+            "xxx Buffer::apply_edit_transaction: inverted_vscode_edits={inverted_vscode_edits:?}"
+        );
 
         let new_buffer_state = BufferState {
             selection_set: new_selection_set.clone(),
@@ -543,6 +575,8 @@ impl Buffer {
         if update_undo_stack {
             self.undo_stack.push(EditHistory {
                 edit_transaction: inverted_edit_transaction,
+                unnormalized_edits: inverted_vscode_edits,
+                inverted_unnormalized_edits: applied_vscode_edits.clone(),
                 old_state: current_buffer_state,
                 new_state: new_buffer_state,
             });
@@ -558,7 +592,7 @@ impl Buffer {
         self.batch_id.increment();
 
         // Return both the new selection set and a clone of the edit transaction
-        Ok(new_selection_set)
+        Ok((new_selection_set, applied_vscode_edits))
     }
 
     // Add these methods for undo/redo
@@ -747,7 +781,7 @@ impl Buffer {
         last_visible_line: u16,
     ) -> anyhow::Result<SelectionSet> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
-        let selection_set = self.apply_edit_transaction(
+        let (selection_set, _) = self.apply_edit_transaction(
             &edit_transaction,
             current_selection_set,
             true,
@@ -940,7 +974,7 @@ impl Buffer {
         config: LocalSearchConfig,
         current_selection_set: SelectionSet,
         last_visible_line: u16,
-    ) -> anyhow::Result<(bool, SelectionSet)> {
+    ) -> anyhow::Result<(bool, SelectionSet, Vec<ki_protocol_types::DiffEdit>)> {
         let before = self.rope.to_string();
         let edit_transaction = match config.mode {
             LocalSearchConfigMode::NamingConventionAgnostic => {
@@ -984,7 +1018,7 @@ impl Buffer {
                 )
             }
         };
-        let selection_set = self.apply_edit_transaction(
+        let (selection_set, edits) = self.apply_edit_transaction(
             &edit_transaction,
             current_selection_set,
             true,
@@ -993,7 +1027,7 @@ impl Buffer {
         )?;
         let after = self.content();
         let modified = before != after;
-        Ok((modified, selection_set))
+        Ok((modified, selection_set, edits))
     }
 
     pub(crate) fn char_index_range_to_byte_range(
@@ -1068,10 +1102,7 @@ impl Buffer {
         last_visible_line: u16,
     ) -> Result<Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>)>, anyhow::Error> {
         if let Some(history) = self.redo_stack.pop() {
-            // Store the edit transaction for returning later
-            let applied_transaction = history.edit_transaction.clone();
-
-            let edits = applied_transaction.to_vscode_diff_edits(self);
+            let edits = history.unnormalized_edits.clone();
 
             // Apply the edits
             history
@@ -1096,11 +1127,7 @@ impl Buffer {
         last_visible_line: u16,
     ) -> Result<Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>)>, anyhow::Error> {
         if let Some(history) = self.undo_stack.pop() {
-            // Store the edit transaction for returning later
-            let applied_transaction = history.edit_transaction.clone();
-
-            // TODO: computing the inverted positional edits now is too late, it needs to be computed before it's stored
-            let edits = applied_transaction.to_vscode_diff_edits(self);
+            let edits = history.unnormalized_edits.clone();
 
             // Apply the edits
             history
@@ -1560,6 +1587,16 @@ pub(crate) struct EditHistory {
     pub(crate) edit_transaction: EditTransaction,
     pub(crate) old_state: BufferState,
     pub(crate) new_state: BufferState,
+
+    #[cfg(feature = "vscode")]
+    /// This is required by VS Code because VS Code will offset the edits on their end.
+    unnormalized_edits: Vec<ki_protocol_types::DiffEdit>,
+
+    #[cfg(feature = "vscode")]
+    /// Required for Undo/Redo properly on VS Code.
+    /// This has to be precomputed beforehand, because we cannot obtain the inverted edit Positions
+    /// without relying on the pre-edited buffer.
+    inverted_unnormalized_edits: Vec<ki_protocol_types::DiffEdit>,
 }
 impl EditHistory {
     fn inverse(self) -> EditHistory {
@@ -1567,6 +1604,8 @@ impl EditHistory {
             edit_transaction: self.edit_transaction.inverse(),
             old_state: self.new_state,
             new_state: self.old_state,
+            inverted_unnormalized_edits: self.unnormalized_edits,
+            unnormalized_edits: self.inverted_unnormalized_edits,
         }
     }
 }

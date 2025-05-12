@@ -44,14 +44,19 @@ impl VSCodeApp {
                                                                       // the `keyboard_input` struct would have explicit modifier fields.
 
             // Map crossterm modifiers to event::KeyModifiers enum
-            let event_modifiers = if crossterm_modifiers.contains(CrosstermKeyModifiers::SHIFT) {
-                event::KeyModifiers::Shift
-            } else if crossterm_modifiers.contains(CrosstermKeyModifiers::CONTROL) {
-                event::KeyModifiers::Ctrl
-            } else if crossterm_modifiers.contains(CrosstermKeyModifiers::ALT) {
-                event::KeyModifiers::Alt
-            } else {
-                event::KeyModifiers::None
+            let event_modifiers = match code {
+                KeyCode::Char(c) if c.is_ascii_uppercase() => event::KeyModifiers::Shift,
+                _ => {
+                    if crossterm_modifiers.contains(CrosstermKeyModifiers::SHIFT) {
+                        event::KeyModifiers::Shift
+                    } else if crossterm_modifiers.contains(CrosstermKeyModifiers::CONTROL) {
+                        event::KeyModifiers::Ctrl
+                    } else if crossterm_modifiers.contains(CrosstermKeyModifiers::ALT) {
+                        event::KeyModifiers::Alt
+                    } else {
+                        event::KeyModifiers::None
+                    }
+                }
             };
 
             event::KeyEvent::new(code, event_modifiers)

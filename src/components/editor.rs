@@ -217,7 +217,7 @@ impl Component for Editor {
             EnterSwapMode => return self.enter_swap_mode(),
             ReplacePattern { config } => {
                 let selection_set = self.selection_set.clone();
-                let (_, selection_set) =
+                let (_, selection_set, _) =
                     self.buffer_mut()
                         .replace(config, selection_set, last_visible_line)?;
                 return Ok(self
@@ -1127,6 +1127,7 @@ impl Editor {
                 EditTransaction::from_action_groups(vec![])
             }
         });
+
         let edit_transaction = EditTransaction::merge(edit_transactions.into());
         self.apply_edit_transaction(edit_transaction, context)
     }
@@ -1288,35 +1289,37 @@ impl Editor {
         edit_transaction: EditTransaction,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        let buffer_edit_transaction = Dispatches::default();
-
-        #[cfg(feature = "vscode")]
-        // Create a BufferEditTransaction dispatch for external integrations
-        let buffer_edit_dispatch = if !edit_transaction.edits().is_empty() {
-            // Get the path for the buffer
-            if let Some(path) = self.buffer().path() {
-                // Create a dispatch to send buffer edit transaction to external integrations
-                Dispatches::one(crate::app::Dispatch::BufferEditTransaction {
-                    component_id: self.id(),
-                    path,
-                    edits: edit_transaction.to_vscode_diff_edits(&self.buffer()),
-                })
-            } else {
-                Default::default()
-            }
-        } else {
-            Default::default()
-        };
-
         // Apply the transaction to the buffer
         let last_visible_line = self.last_visible_line(context);
-        let new_selection_set = self.buffer.borrow_mut().apply_edit_transaction(
+        let (new_selection_set, edits) = self.buffer.borrow_mut().apply_edit_transaction(
             &edit_transaction,
             self.selection_set.clone(),
             self.mode != Mode::Insert,
             true,
             last_visible_line,
         )?;
+
+        let buffer_edit_transaction = Dispatches::default();
+
+        #[cfg(feature = "vscode")]
+        // Create a BufferEditTransaction dispatch for external integrations
+        let buffer_edit_dispatch = edit_transaction
+            .edits()
+            .is_empty()
+            .not()
+            .then(|| {
+                // Get the path for the buffer
+                self.buffer().path().map(|path| {
+                    // Create a dispatch to send buffer edit transaction to external integrations
+                    Dispatches::one(crate::app::Dispatch::BufferEditTransaction {
+                        component_id: self.id(),
+                        path,
+                        edits,
+                    })
+                })
+            })
+            .flatten()
+            .unwrap_or_default();
 
         self.set_selection_set(new_selection_set, context);
 
@@ -2954,6 +2957,7 @@ impl Editor {
 
                 // Create a BufferEditTransaction dispatch for external integrations
                 let dispatch = if let Some(path) = self.buffer().path() {
+                    log::info!("xxx Editor::undo_or_redo edits = {edits:?}");
                     // Create a dispatch to send buffer edit transaction
                     Dispatches::one(crate::app::Dispatch::BufferEditTransaction {
                         component_id: self.id(),

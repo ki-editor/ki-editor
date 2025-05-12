@@ -1,3 +1,4 @@
+//  TODO: add fuzzy search which search by line, we can use nucleo for that
 use globset::Glob;
 use itertools::Itertools;
 

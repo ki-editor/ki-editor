@@ -973,7 +973,6 @@ impl<T: Frontend> App<T> {
                 if let Some(component) = self.layout.get_component_by_id(component_id) {
                     let component_ref = component.borrow();
                     let editor = component_ref.editor();
-                    let buffer = editor.buffer();
 
                     // Extract edits from the transaction
                     if !edits.is_empty() {

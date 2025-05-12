@@ -3,6 +3,7 @@ use nonempty::NonEmpty;
 use ropey::Rope;
 
 use crate::{
+    buffer::Buffer,
     char_index_range::CharIndexRange,
     selection::{CharIndex, Selection},
 };
@@ -43,6 +44,28 @@ impl Edit {
 
     fn intersects_with(&self, other: &Edit) -> bool {
         self.range().intersects_with(&other.range())
+    }
+
+    pub(crate) fn to_vscode_diff_edit(
+        &self,
+        buffer: &Buffer,
+    ) -> anyhow::Result<ki_protocol_types::DiffEdit> {
+        let start = buffer.char_to_vscode_position(self.range.start)?;
+        let end = buffer.char_to_vscode_position(self.range.end)?;
+        let edit = ki_protocol_types::DiffEdit {
+            range: ki_protocol_types::Range { start, end },
+            new_text: self.new.to_string(),
+        };
+        Ok(edit)
+    }
+
+    fn inverse(&self) -> Self {
+        let range = (self.range.start..self.range.start + self.new.len_chars()).into();
+        Edit {
+            range,
+            new: self.old.clone(),
+            old: self.new.clone(),
+        }
     }
 }
 
@@ -151,7 +174,7 @@ impl EditTransaction {
                     })
                     .collect_vec()
             })
-            .collect();
+            .collect_vec();
         Self {
             unnormalized_edits,
             action_group: Self::normalize_action_groups(action_groups),
@@ -215,6 +238,7 @@ impl EditTransaction {
             .iter()
             .flat_map(|edit_transaction| edit_transaction.unnormalized_edits.clone())
             .collect_vec();
+
         Self {
             unnormalized_edits,
             action_group: Self::normalize_action_groups(
@@ -253,59 +277,36 @@ impl EditTransaction {
     }
 
     pub(crate) fn inverse(&self) -> EditTransaction {
-        EditTransaction {
-            action_group: ActionGroup::new(
-                self.action_group
-                    .actions
-                    .iter()
-                    .rev()
-                    .map(|action| match action {
-                        Action::Select(selection) => Action::Select(selection.clone()),
-                        Action::Edit(edit) => {
-                            let range =
-                                (edit.range.start..edit.range.start + edit.new.len_chars()).into();
-                            Action::Edit(Edit {
-                                range,
-                                new: edit.old.clone(),
-                                old: edit.new.clone(),
-                            })
-                        }
-                    })
-                    .collect(),
-            ),
-            unnormalized_edits: self
-                .unnormalized_edits
+        let action_group = ActionGroup::new(
+            self.action_group
+                .actions
                 .iter()
                 .rev()
-                .map(|edit| {
-                    let range = (edit.range.start..edit.range.start + edit.new.len_chars()).into();
-                    Edit {
-                        range,
-                        new: edit.old.clone(),
-                        old: edit.new.clone(),
-                    }
+                .map(|action| match action {
+                    Action::Select(selection) => Action::Select(selection.clone()),
+                    Action::Edit(edit) => Action::Edit(edit.inverse()),
                 })
                 .collect(),
+        );
+        EditTransaction {
+            // NOTE: for reasons that I still don't understand,
+            //       it seems like we don't need to unnormalize
+            //       the inverted normalized edits, but it will
+            //       allow undo/redo to be mapped to VS Code correctly.
+            unnormalized_edits: action_group
+                .actions
+                .iter()
+                .filter_map(|action| match action {
+                    Action::Select(_) => None,
+                    Action::Edit(edit) => Some(edit.clone()),
+                })
+                .collect(),
+            action_group,
         }
     }
 
-    pub(crate) fn to_vscode_diff_edits(
-        &self,
-        buffer: &crate::buffer::Buffer,
-    ) -> Vec<ki_protocol_types::DiffEdit> {
-        // self.edits()
-        self.unnormalized_edits
-            .iter()
-            .filter_map(|edit| {
-                let start = buffer.char_to_vscode_position(edit.range.start).ok()?;
-                let end = buffer.char_to_vscode_position(edit.range.end).ok()?;
-                let edit = ki_protocol_types::DiffEdit {
-                    range: ki_protocol_types::Range { start, end },
-                    new_text: edit.new.to_string(),
-                };
-                Some(edit)
-            })
-            .collect()
+    pub(crate) fn unnormalized_edits(&self) -> Vec<Edit> {
+        self.unnormalized_edits.clone()
     }
 }
 
