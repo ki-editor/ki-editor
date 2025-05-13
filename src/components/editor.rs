@@ -1479,7 +1479,7 @@ impl Editor {
                                 })
                                 .collect_vec(),
                         );
-                        Ok(Default::default())
+                        Ok(Dispatches::one(self.dispatch_selection_changed()))
                     }
                 }
             }
@@ -2667,10 +2667,13 @@ impl Editor {
     }
 
     pub(crate) fn visible_line_range(&self) -> Range<usize> {
-        self.visible_line_range_given_scroll_offset_and_height(
-            self.scroll_offset,
-            self.rectangle.height,
-        )
+        let height = self.rectangle.height;
+        let height = if height == 0 {
+            100 // Use default height of 100 so that jumps always work
+        } else {
+            height
+        };
+        self.visible_line_range_given_scroll_offset_and_height(self.scroll_offset, height)
     }
 
     pub(crate) fn visible_line_range_given_scroll_offset_and_height(
@@ -2705,6 +2708,16 @@ impl Editor {
                 .into_iter()
                 .cloned()
                 .collect(),
+            jumps: self
+                .jumps
+                .as_ref()
+                .map(|jumps| {
+                    jumps
+                        .iter()
+                        .map(|jump| (jump.character, jump.selection.range.start))
+                        .collect_vec()
+                })
+                .unwrap_or_default(),
         }
     }
 
@@ -2957,7 +2970,6 @@ impl Editor {
 
                 // Create a BufferEditTransaction dispatch for external integrations
                 let dispatch = if let Some(path) = self.buffer().path() {
-                    log::info!("xxx Editor::undo_or_redo edits = {edits:?}");
                     // Create a dispatch to send buffer edit transaction
                     Dispatches::one(crate::app::Dispatch::BufferEditTransaction {
                         component_id: self.id(),

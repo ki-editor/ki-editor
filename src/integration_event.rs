@@ -1,6 +1,6 @@
 use crate::{
     edit::EditTransaction,
-    selection::{Selection, SelectionMode},
+    selection::{CharIndex, Selection, SelectionMode},
 };
 use shared::canonicalized_path::CanonicalizedPath;
 use std::sync::mpsc::Sender;
@@ -62,6 +62,7 @@ pub enum IntegrationEvent {
     SelectionChanged {
         component_id: ComponentId,
         selections: Vec<Selection>,
+        jumps: Vec<(char, CharIndex)>,
     },
     #[allow(dead_code)]
     ViewportChanged {

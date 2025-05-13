@@ -34,7 +34,7 @@ use crate::{
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     screen::{Screen, Window},
     search::parse_search_config,
-    selection::SelectionMode,
+    selection::{CharIndex, SelectionMode},
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
     ui_tree::{ComponentKind, KindedComponent},
 };
@@ -790,6 +790,7 @@ impl<T: Frontend> App<T> {
             Dispatch::SelectionChanged {
                 component_id,
                 selections,
+                jumps,
             } => {
                 // Convert component_id to usize for integration event
                 let component_id_usize =
@@ -826,6 +827,7 @@ impl<T: Frontend> App<T> {
                             crate::integration_event::IntegrationEvent::SelectionChanged {
                                 component_id: component_id_usize,
                                 selections: selections.clone(),
+                                jumps,
                             },
                         );
                     }
@@ -1494,6 +1496,7 @@ impl<T: Frontend> App<T> {
                 crate::integration_event::IntegrationEvent::SelectionChanged {
                     component_id,
                     selections: vec![selection],
+                    jumps: Vec::new(),
                 },
             );
         }
@@ -2695,6 +2698,7 @@ pub(crate) enum Dispatch {
     SelectionChanged {
         component_id: crate::components::component::ComponentId,
         selections: Vec<crate::selection::Selection>,
+        jumps: Vec<(char, CharIndex)>,
     },
     OpenFile {
         path: CanonicalizedPath,

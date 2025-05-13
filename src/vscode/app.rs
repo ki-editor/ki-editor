@@ -6,7 +6,7 @@ use std::sync::mpsc::{self, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::app::{App, AppMessage, StatusLineComponent};
+use crate::app::{App, AppMessage, Dimension, Dispatch, StatusLineComponent};
 use crate::frontend::crossterm::Crossterm;
 use anyhow::Result;
 use ki_protocol_types::{InputMessage, OutputMessage, OutputMessageWrapper, ResponseError};
@@ -461,7 +461,7 @@ impl VSCodeApp {
     fn handle_integration_event(
         &self,
         event: crate::integration_event::IntegrationEvent,
-    ) -> Result<()> {
+    ) -> anyhow::Result<()> {
         use crate::integration_event::IntegrationEvent;
 
         // Translate the integration event to VSCode protocol messages
@@ -613,6 +613,7 @@ impl VSCodeApp {
             IntegrationEvent::SelectionChanged {
                 component_id,
                 selections,
+                jumps,
             } => {
                 // Get the buffer ID from the component
                 if let Some(buffer_id) = self.get_buffer_id_from_component_id(component_id) {
@@ -633,8 +634,8 @@ impl VSCodeApp {
                                 let range = selection.extended_range();
 
                                 // Convert to positions
-                                let start_pos = buffer.char_to_position(range.start).ok();
-                                let end_pos = buffer.char_to_position(range.end).ok();
+                                let start_pos = buffer.char_to_position(range.start)?;
+                                let end_pos = buffer.char_to_position(range.end)?;
 
                                 // Determine anchor and active positions based on whether it's extended
                                 let (anchor, active) = if let Some(initial_range) =
@@ -642,11 +643,10 @@ impl VSCodeApp {
                                 {
                                     // Extended selection
                                     let anchor_pos =
-                                        buffer.char_to_position(initial_range.start).ok();
-                                    let active_pos = buffer.char_to_position(range.end).ok();
+                                        buffer.char_to_position(initial_range.start)?;
+                                    let active_pos = buffer.char_to_position(range.end)?;
                                     (anchor_pos, active_pos)
                                 } else {
-                                    use crate::components::editor::Direction;
                                     match component.component().borrow().editor().cursor_direction {
                                         Direction::Start => (end_pos, start_pos),
                                         Direction::End => (start_pos, end_pos),
@@ -654,36 +654,28 @@ impl VSCodeApp {
                                 };
 
                                 // Create VSCode selection
-                                ki_protocol_types::Selection {
-                                    anchor: anchor.map_or_else(
-                                        || ki_protocol_types::Position {
-                                            line: 0,
-                                            character: 0,
-                                        },
-                                        |pos| {
-                                            crate::vscode::utils::ki_position_to_vscode_position(
-                                                &pos,
-                                            )
-                                        },
-                                    ),
-                                    active: active.map_or_else(
-                                        || ki_protocol_types::Position {
-                                            line: 0,
-                                            character: 0,
-                                        },
-                                        |pos| {
-                                            crate::vscode::utils::ki_position_to_vscode_position(
-                                                &pos,
-                                            )
-                                        },
-                                    ),
+                                use crate::components::editor::Direction;
+                                Ok(ki_protocol_types::Selection {
+                                    anchor: anchor.to_vscode_position(),
+                                    active: active.to_vscode_position(),
                                     is_extended: selection.initial_range.is_some(),
-                                }
+                                })
                             })
-                            .collect::<Vec<_>>();
+                            .collect::<anyhow::Result<Vec<_>>>()?;
+
+                        // Convert Ki's jumps to VS Code jumps
+                        let jumps = jumps
+                            .into_iter()
+                            .map(|(char, char_index)| -> anyhow::Result<_> {
+                                Ok((
+                                    char,
+                                    buffer.char_to_position(char_index)?.to_vscode_position(),
+                                ))
+                            })
+                            .collect::<anyhow::Result<Vec<_>, _>>()?;
 
                         // Get the selection mode from the editor
-                        let selection_mode = match editor.selection_set.mode {
+                        let selection_mode = match &editor.selection_set.mode {
                             crate::selection::SelectionMode::Character => {
                                 Some(ki_protocol_types::SelectionMode::Character)
                             }
@@ -691,10 +683,39 @@ impl VSCodeApp {
                             | crate::selection::SelectionMode::LineFull => {
                                 Some(ki_protocol_types::SelectionMode::Line)
                             }
-                            crate::selection::SelectionMode::Word { .. } => {
+                            crate::selection::SelectionMode::Word { skip_symbols: true } => {
                                 Some(ki_protocol_types::SelectionMode::CoarseWord)
                             }
-                            _ => None, // Default to None for other modes
+                            crate::selection::SelectionMode::Word {
+                                skip_symbols: false,
+                            } => Some(ki_protocol_types::SelectionMode::FineWord),
+                            crate::selection::SelectionMode::Token { .. } => {
+                                Some(ki_protocol_types::SelectionMode::Token)
+                            }
+                            crate::selection::SelectionMode::Custom => {
+                                Some(ki_protocol_types::SelectionMode::Custom)
+                            }
+                            crate::selection::SelectionMode::Find { search } => {
+                                Some(ki_protocol_types::SelectionMode::Find)
+                            }
+                            crate::selection::SelectionMode::SyntaxNode => {
+                                Some(ki_protocol_types::SelectionMode::SyntaxNode)
+                            }
+                            crate::selection::SelectionMode::SyntaxNodeFine => {
+                                Some(ki_protocol_types::SelectionMode::SyntaxNodeFine)
+                            }
+                            crate::selection::SelectionMode::Diagnostic(_) => {
+                                Some(ki_protocol_types::SelectionMode::Diagnostic)
+                            }
+                            crate::selection::SelectionMode::GitHunk(_) => {
+                                Some(ki_protocol_types::SelectionMode::GitHunk)
+                            }
+                            crate::selection::SelectionMode::LocalQuickfix { title } => {
+                                Some(ki_protocol_types::SelectionMode::LocalQuickfix)
+                            }
+                            crate::selection::SelectionMode::Mark => {
+                                Some(ki_protocol_types::SelectionMode::Mark)
+                            }
                         };
 
                         // Send selection update notification to VSCode
@@ -703,6 +724,7 @@ impl VSCodeApp {
                             primary: 0, // Assuming the first selection is primary
                             selections: vscode_selections,
                             mode: selection_mode,
+                            jumps,
                         };
                         self.send_notification(OutputMessageWrapper {
                             id: 0,
@@ -922,7 +944,7 @@ impl VSCodeApp {
                 vscode_selections.push(ki_protocol_types::Selection {
                     anchor,
                     active,
-                    is_extended: false, // We don't have this information
+                    is_extended: false, // We don't have this information,
                 });
             }
 
@@ -947,6 +969,7 @@ impl VSCodeApp {
                 primary: 0, // Assuming the first selection is primary
                 selections: vscode_selections,
                 mode: selection_mode,
+                jumps: Vec::new(),
             };
 
             info!("Sending selection update for current buffer");

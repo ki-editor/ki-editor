@@ -52,6 +52,7 @@ pub struct SelectionSet {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub mode: Option<SelectionMode>,
+    pub jumps: Vec<(char, Position)>,
 }
 
 // Represents a single text edit operation.

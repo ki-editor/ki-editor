@@ -11,6 +11,15 @@ import { Manager } from "./manager";
 export class CursorManager extends Manager {
     private activeEditor: vscode.TextEditor | undefined;
     private ignoreSelectionChange: boolean = false;
+    private jumpCharDecoration = vscode.window.createTextEditorDecorationType({
+        backgroundColor: "red",
+        color: "transparent",
+        before: {
+            // Width zero is necessary for the character to render on-top instead of before the expected position
+            width: "0",
+            color: "white",
+        },
+    });
 
     constructor(dispatcher: Dispatcher, logger: Logger, eventHandler: EventHandler) {
         super(dispatcher, logger, eventHandler);
@@ -231,6 +240,21 @@ export class CursorManager extends Manager {
                     // This prevents the cursor from jumping when changing selection modes
                 }
             }
+
+            // Set jumps
+            const decorations: vscode.DecorationOptions[] = params.jumps.map((jump) => {
+                const start = new vscode.Position(jump[1].line, jump[1].character);
+                const end = new vscode.Position(start.line, start.character + 1);
+                const result: vscode.DecorationOptions = {
+                    range: new vscode.Range(start, end),
+                    renderOptions: {
+                        before: { contentText: jump[0] },
+                    },
+                };
+                return result;
+            });
+            editor.setDecorations(this.jumpCharDecoration, []);
+            editor.setDecorations(this.jumpCharDecoration, decorations);
         } catch (error) {
             this.logger.error(`Error applying selection update: ${error}`);
         } finally {
