@@ -1,9 +1,12 @@
 import * as vscode from "vscode";
 import { Dispatcher } from "../dispatcher";
 import { Logger } from "../logger";
+import { JumpsParams } from "../protocol/JumpsParams";
 import { SelectionSet } from "../protocol/SelectionSet";
 import { EventHandler } from "./event_handler";
 import { Manager } from "./manager";
+
+const JUMP_SAFETY_PADDING = 10;
 
 /**
  * Manages selection synchronization between VSCode and Ki
@@ -11,6 +14,15 @@ import { Manager } from "./manager";
 export class SelectionManager extends Manager {
     private activeEditor: vscode.TextEditor | undefined;
     private ignoreSelectionChange: boolean = false;
+    private jumpCharDecoration = vscode.window.createTextEditorDecorationType({
+        backgroundColor: "red",
+        color: "transparent",
+        before: {
+            // Width zero is necessary for the character to render on-top instead of before the expected position
+            width: "0",
+            color: "white",
+        },
+    });
 
     constructor(dispatcher: Dispatcher, logger: Logger, eventHandler: EventHandler) {
         super(dispatcher, logger, eventHandler);
@@ -29,11 +41,50 @@ export class SelectionManager extends Manager {
             (params: { event: vscode.TextEditorSelectionChangeEvent }) => this.handleSelectionChange(params.event),
         );
 
+        this.registerVSCodeEventHandler(
+            "editor.visibleRanges",
+            (params: { event: vscode.TextEditorVisibleRangesChangeEvent }) =>
+                this.handleVisibleRangesChanged(params.event),
+        );
+
         // Register integration event handlers
         this.eventHandler.onSelectionUpdate((params) => this.handleSelectionChanged(params));
+        this.eventHandler.onJumpsChange((params) => this.handleJumpsChanged(params));
 
         // Initialize with active editor
         this.activeEditor = vscode.window.activeTextEditor;
+    }
+
+    private handleJumpsChanged(jumps: JumpsParams): void {
+        const editor = this.activeEditor;
+        if (!editor) return;
+
+        const decorations: vscode.DecorationOptions[] = jumps.map((jump) => {
+            const start = new vscode.Position(jump[1].line, jump[1].character);
+            const end = new vscode.Position(start.line, start.character + 1);
+            const result: vscode.DecorationOptions = {
+                range: new vscode.Range(start, end),
+                renderOptions: {
+                    before: { contentText: jump[0] },
+                },
+            };
+            return result;
+        });
+        editor.setDecorations(this.jumpCharDecoration, []);
+        editor.setDecorations(this.jumpCharDecoration, decorations);
+    }
+
+    private handleVisibleRangesChanged(event: vscode.TextEditorVisibleRangesChangeEvent): void {
+        this.dispatcher.sendNotification("viewport.change", {
+            buffer_id: event.textEditor.document.uri.toString(),
+            visible_line_ranges: event.visibleRanges.map(
+                (range) =>
+                    [Math.max(0, range.start.line - JUMP_SAFETY_PADDING), range.end.line + JUMP_SAFETY_PADDING] as [
+                        number,
+                        number,
+                    ],
+            ),
+        });
     }
 
     /**
@@ -93,7 +144,7 @@ export class SelectionManager extends Manager {
                     buffer_id: uri,
                     selections: kiSelections,
                     primary: 0, // Always use the first selection as primary
-                    mode: undefined, // We don't know the selection mode from VSCode
+                    mode: undefined, // We don't know the selection mode from VSCode,
                 });
             } finally {
                 // Reset the flag after a short delay to allow Ki to process the selection
@@ -159,6 +210,18 @@ export class SelectionManager extends Manager {
                     );
                 }
             }
+
+            // Return the latest visible ranges after revealing the primary selection
+            this.dispatcher.sendNotification("viewport.change", {
+                buffer_id: this.activeEditor.document.uri.toString(),
+                visible_line_ranges: this.activeEditor.visibleRanges.map(
+                    (range) =>
+                        [Math.max(0, range.start.line - JUMP_SAFETY_PADDING), range.end.line + JUMP_SAFETY_PADDING] as [
+                            number,
+                            number,
+                        ],
+                ),
+            });
         } finally {
             // Reset flag immediately after applying the selection
             // This ensures that subsequent key presses are processed correctly

@@ -766,75 +766,6 @@ impl<T: Frontend> App<T> {
             Dispatch::HandleKeyEvent(key_event) => {
                 self.handle_event(Event::Key(key_event))?;
             }
-            Dispatch::ModeChanged => {
-                // This dispatch is handled by the VSCode integration to send mode change notifications
-                // No action needed here as the mode has already been changed in the editor
-
-                // Get the current component and its mode
-                let component = self.current_component();
-                let component_ref = component.borrow();
-                let editor = component_ref.editor();
-                let mode = editor.mode.clone();
-                let selection_mode = editor.selection_set.mode.clone();
-                let component_id = crate::integration_event::component_id_to_usize(&editor.id());
-
-                // Emit an integration event for the mode change
-                self.integration_event_sender.emit_event(
-                    crate::integration_event::IntegrationEvent::ModeChanged {
-                        component_id,
-                        mode: format!("{:?}", mode),
-                        selection_mode,
-                    },
-                );
-            }
-            Dispatch::SelectionChanged {
-                component_id,
-                selections,
-                jumps,
-            } => {
-                // Convert component_id to usize for integration event
-                let component_id_usize =
-                    crate::integration_event::component_id_to_usize(&component_id);
-
-                // Get the component to access the buffer
-                if let Some(component) = self.layout.get_component_by_id(component_id) {
-                    let component_ref = component.borrow();
-                    let editor = component_ref.editor();
-                    let buffer = editor.buffer();
-
-                    // Extract cursor positions from the selections
-                    let mut anchors = Vec::new();
-                    let mut actives = Vec::new();
-
-                    // Extract anchor and active positions
-                    for selection in &selections {
-                        let range = selection.extended_range();
-                        // For anchor, use the start of the range
-                        if let Ok(pos) = buffer.char_to_position(range.start) {
-                            anchors.push(pos);
-                        }
-
-                        // For active, use the end of the range
-                        if let Ok(pos) = buffer.char_to_position(range.end) {
-                            actives.push(pos);
-                        }
-                    }
-
-                    // Only emit event if we have valid positions
-                    if !anchors.is_empty() && !actives.is_empty() {
-                        // Emit a selection changed event (which now includes cursor information)
-                        self.integration_event_sender.emit_event(
-                            crate::integration_event::IntegrationEvent::SelectionChanged {
-                                component_id: component_id_usize,
-                                selections: selections.clone(),
-                                jumps,
-                            },
-                        );
-                    }
-                }
-
-                // Mode change notification is now handled via integration events
-            }
             Dispatch::GetRepoGitHunks(diff_mode) => self.get_repo_git_hunks(diff_mode)?,
             Dispatch::SaveAll => self.save_all()?,
             #[cfg(test)]
@@ -991,6 +922,15 @@ impl<T: Frontend> App<T> {
                     }
                 }
             }
+            Dispatch::ModeChanged => self.mode_changed(),
+            Dispatch::SelectionChanged {
+                component_id,
+                selections,
+            } => self.selection_changed(component_id, selections),
+            Dispatch::JumpsChanged {
+                component_id,
+                jumps,
+            } => self.jumps_changed(component_id, jumps),
         }
         Ok(())
     }
@@ -1496,7 +1436,6 @@ impl<T: Frontend> App<T> {
                 crate::integration_event::IntegrationEvent::SelectionChanged {
                     component_id,
                     selections: vec![selection],
-                    jumps: Vec::new(),
                 },
             );
         }
@@ -2608,6 +2547,51 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
+    fn mode_changed(&self) {
+        // This dispatch is handled by the VSCode integration to send mode change notifications
+        // No action needed here as the mode has already been changed in the editor
+
+        // Get the current component and its mode
+        let component = self.current_component();
+        let component_ref = component.borrow();
+        let editor = component_ref.editor();
+        let mode = editor.mode.clone();
+        let selection_mode = editor.selection_set.mode.clone();
+        let component_id = crate::integration_event::component_id_to_usize(&editor.id());
+
+        // Emit an integration event for the mode change
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::ModeChanged {
+                component_id,
+                mode: format!("{:?}", mode),
+                selection_mode,
+            },
+        );
+    }
+
+    fn selection_changed(
+        &self,
+        component_id: ComponentId,
+        selections: Vec<crate::selection::Selection>,
+    ) {
+        // Convert component_id to usize for integration event
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::SelectionChanged {
+                component_id: crate::integration_event::component_id_to_usize(&component_id),
+                selections: selections.clone(),
+            },
+        );
+    }
+
+    fn jumps_changed(&self, component_id: ComponentId, jumps: Vec<(char, CharIndex)>) {
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::JumpsChanged {
+                component_id: crate::integration_event::component_id_to_usize(&component_id),
+                jumps,
+            },
+        );
+    }
+
     // VSCode notification methods have been removed in favor of integration events
 }
 
@@ -2691,14 +2675,6 @@ pub(crate) enum Dispatch {
     OpenSearchPrompt {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
-    },
-    /// Indicates that the editor mode has changed (used for VSCode integration)
-    ModeChanged,
-    /// Indicates that the selection has changed (used for VSCode integration)
-    SelectionChanged {
-        component_id: crate::components::component::ComponentId,
-        selections: Vec<crate::selection::Selection>,
-        jumps: Vec<(char, CharIndex)>,
     },
     OpenFile {
         path: CanonicalizedPath,
@@ -2863,6 +2839,18 @@ pub(crate) enum Dispatch {
         component_id: ComponentId,
         path: CanonicalizedPath,
         edits: Vec<ki_protocol_types::DiffEdit>,
+    },
+    /// Indicates that the editor mode has changed (used for VSCode integration)
+    ModeChanged,
+    /// Indicates that the selection has changed (used for VSCode integration)
+    SelectionChanged {
+        component_id: crate::components::component::ComponentId,
+        selections: Vec<crate::selection::Selection>,
+    },
+    /// Indicates that the jumps has (used for VSCode integration)
+    JumpsChanged {
+        component_id: crate::components::component::ComponentId,
+        jumps: Vec<(char, CharIndex)>,
     },
 }
 

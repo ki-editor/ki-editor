@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Dispatcher } from "../dispatcher";
+import { Dispatcher, EventName } from "../dispatcher";
 import { Logger } from "../logger";
 import { EventHandler } from "./event_handler";
 
@@ -42,7 +42,7 @@ export abstract class Manager implements vscode.Disposable {
     /**
      * Register a VSCode event handler
      */
-    protected registerVSCodeEventHandler<T>(event: string, handler: (params: T) => void): void {
+    protected registerVSCodeEventHandler<T>(event: EventName, handler: (params: T) => void): void {
         this.dispatcher.registerEventHandler(event, handler as (params: unknown) => void);
     }
 }

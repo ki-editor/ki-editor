@@ -52,7 +52,6 @@ pub struct SelectionSet {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub mode: Option<SelectionMode>,
-    pub jumps: Vec<(char, Position)>,
 }
 
 // Represents a single text edit operation.
@@ -193,10 +192,7 @@ pub struct SelectionModeParams {
 #[ts(export)]
 pub struct ViewportParams {
     pub buffer_id: String,
-    #[ts(type = "number")]
-    pub start_line: usize,
-    #[ts(type = "number")]
-    pub end_line: usize,
+    pub visible_line_ranges: Vec<(/* start */ usize, /* end */ usize)>,
 }
 
 // Parameters for keyboard input events
@@ -363,7 +359,14 @@ pub enum OutputMessage {
     // Editor actions
     #[serde(rename = "editor.action")]
     EditorAction(EditorActionParams),
+
+    #[serde(rename = "editor.jump")]
+    JumpsChange(JumpsParams),
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct JumpsParams(pub Vec<(char, Position)>);
 
 // Main message wrapper
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -463,6 +466,7 @@ impl MessageMethod for OutputMessage {
             Self::CommandExecuted(_) => Cow::Borrowed("command.executed"),
             Self::SearchResults(_) => Cow::Borrowed("search.results"),
             Self::EditorAction(_) => Cow::Borrowed("editor.action"),
+            Self::JumpsChange(_) => Cow::Borrowed("editor.jump"),
         }
     }
 
@@ -486,6 +490,7 @@ impl MessageMethod for OutputMessage {
             Self::CommandExecuted(_) => "CommandExecuted",
             Self::SearchResults(_) => "SearchResults",
             Self::EditorAction(_) => "EditorAction",
+            Self::JumpsChange(_) => "ShowJumps",
         }
     }
 }

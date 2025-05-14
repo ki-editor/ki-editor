@@ -1,9 +1,14 @@
 //! Viewport change handlers for VSCode IPC messages
 
-use crate::vscode::app::VSCodeApp;
+use crate::{
+    app::{AppMessage, Dimension, Dispatch},
+    vscode::app::VSCodeApp,
+};
 use anyhow::Result;
+use itertools::Itertools;
 use ki_protocol_types::{OutputMessage, ViewportParams};
 use log::{debug, error, info};
+use shared::canonicalized_path::CanonicalizedPath;
 
 impl VSCodeApp {
     /// Handle viewport change request from VSCode
@@ -13,30 +18,19 @@ impl VSCodeApp {
         params: ViewportParams,
         trace_id: &str,
     ) -> Result<()> {
-        info!(
-            "[{}] Received viewport.change request: {:?}",
-            trace_id, params
-        );
+        let component = self.app.lock().unwrap().current_component();
+        let mut component_ref = component.borrow_mut();
+        let editor = component_ref.editor_mut();
 
-        // First, send the success response immediately to prevent VSCode from timing out
-        debug!(
-            "[{}] Sending success response before processing viewport change",
-            trace_id
-        );
-        let response_result = self.send_response(id, OutputMessage::Success(true));
-        if let Err(e) = response_result {
-            error!("[{}] Failed to send success response: {}", trace_id, e);
-            return Err(e);
-        }
-
-        // For now, we'll just log the viewport change since there's no direct SetViewport dispatch
-        // In a real implementation, we might want to add a SetViewport variant to DispatchEditor
-        info!(
-            "[{}] Viewport change: start_line={}, end_line={}",
-            trace_id, params.start_line, params.end_line
-        );
+        let visible_line_ranges = params
+            .visible_line_ranges
+            .iter()
+            .map(|(start, end)| (*start)..(*end))
+            .collect_vec();
+        editor.set_visible_line_ranges(visible_line_ranges);
 
         // Return success without creating a dispatch
+        let response_result = self.send_response(id, OutputMessage::Success(true));
         Ok(())
     }
 }

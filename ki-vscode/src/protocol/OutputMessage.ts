@@ -4,6 +4,7 @@ import type { BufferParams } from "./BufferParams";
 import type { CommandParams } from "./CommandParams";
 import type { EditorActionParams } from "./EditorActionParams";
 import type { ExternalBufferParams } from "./ExternalBufferParams";
+import type { JumpsParams } from "./JumpsParams";
 import type { LogParams } from "./LogParams";
 import type { SelectionModeParams } from "./SelectionModeParams";
 import type { SelectionSet } from "./SelectionSet";
@@ -28,4 +29,5 @@ export type OutputMessage =
     | { tag: "external_buffer.updated"; params: ExternalBufferParams }
     | { tag: "command.executed"; params: CommandParams }
     | { tag: "search.results"; params: string }
-    | { tag: "editor.action"; params: EditorActionParams };
+    | { tag: "editor.action"; params: EditorActionParams }
+    | { tag: "editor.jump"; params: JumpsParams };

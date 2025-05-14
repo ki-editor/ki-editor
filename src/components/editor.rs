@@ -247,7 +247,7 @@ impl Component for Editor {
             ScrollPageUp => return self.scroll_page_up(context),
             ShowJumps {
                 use_current_selection_mode,
-            } => self.show_jumps(use_current_selection_mode, context)?,
+            } => return self.show_jumps(use_current_selection_mode, context),
             SwitchViewAlignment => self.switch_view_alignment(context),
             #[cfg(test)]
             SetScrollOffset(n) => self.set_scroll_offset(n),
@@ -415,6 +415,7 @@ impl Clone for Editor {
             copied_text_history_offset: Default::default(),
             normal_mode_override: self.normal_mode_override.clone(),
             reveal: self.reveal.clone(),
+            visible_line_ranges: Default::default(),
         }
     }
 }
@@ -439,6 +440,9 @@ pub(crate) struct Editor {
     copied_text_history_offset: Counter,
     pub(crate) normal_mode_override: Option<NormalModeOverride>,
     pub(crate) reveal: Option<Reveal>,
+
+    #[cfg(feature = "vscode")]
+    visible_line_ranges: Option<Vec<Range<usize>>>,
 }
 
 #[derive(Default)]
@@ -666,6 +670,7 @@ impl Editor {
 
             normal_mode_override: None,
             reveal: None,
+            visible_line_ranges: Default::default(),
         }
     }
 
@@ -687,6 +692,7 @@ impl Editor {
             copied_text_history_offset: Default::default(),
             normal_mode_override: None,
             reveal: None,
+            visible_line_ranges: Default::default(),
         };
 
         // Select the first line of the file
@@ -891,10 +897,14 @@ impl Editor {
         let object =
             self.get_selection_mode_trait_object(selection, use_current_selection_mode, context)?;
 
-        let line_ranges = Some(self.visible_line_range())
-            .into_iter()
-            .chain(self.hidden_parent_line_ranges()?)
-            .collect_vec();
+        let line_ranges = if let Some(ranges) = &self.visible_line_ranges {
+            ranges.clone()
+        } else {
+            Some(self.visible_line_range())
+                .into_iter()
+                .chain(self.hidden_parent_line_ranges()?)
+                .collect_vec()
+        };
         let jumps = object.jumps(
             &selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
@@ -913,12 +923,13 @@ impl Editor {
         &mut self,
         use_current_selection_mode: bool,
         context: &Context,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Dispatches> {
         self.jump_from_selection(
             &self.selection_set.primary_selection().clone(),
             use_current_selection_mode,
             context,
-        )
+        )?;
+        Ok(Dispatches::one(self.dispatch_jumps_changed()))
     }
 
     pub(crate) fn delete(
@@ -1467,7 +1478,8 @@ impl Editor {
                     Option::None => Ok(Default::default()),
                     Some((jump, [])) => Ok(self
                         .handle_movement(context, Movement::Jump(jump.selection.extended_range()))?
-                        .append(Dispatch::ToEditor(EnterNormalMode))),
+                        .append(Dispatch::ToEditor(EnterNormalMode))
+                        .append(self.dispatch_jumps_changed())),
                     Some(_) => {
                         self.jumps = Some(
                             matching_jumps
@@ -1479,7 +1491,7 @@ impl Editor {
                                 })
                                 .collect_vec(),
                         );
-                        Ok(Dispatches::one(self.dispatch_selection_changed()))
+                        Ok(Dispatches::one(self.dispatch_jumps_changed()))
                     }
                 }
             }
@@ -2667,13 +2679,10 @@ impl Editor {
     }
 
     pub(crate) fn visible_line_range(&self) -> Range<usize> {
-        let height = self.rectangle.height;
-        let height = if height == 0 {
-            100 // Use default height of 100 so that jumps always work
-        } else {
-            height
-        };
-        self.visible_line_range_given_scroll_offset_and_height(self.scroll_offset, height)
+        self.visible_line_range_given_scroll_offset_and_height(
+            self.scroll_offset,
+            self.rectangle.height,
+        )
     }
 
     pub(crate) fn visible_line_range_given_scroll_offset_and_height(
@@ -2708,16 +2717,6 @@ impl Editor {
                 .into_iter()
                 .cloned()
                 .collect(),
-            jumps: self
-                .jumps
-                .as_ref()
-                .map(|jumps| {
-                    jumps
-                        .iter()
-                        .map(|jump| (jump.character, jump.selection.range.start))
-                        .collect_vec()
-                })
-                .unwrap_or_default(),
         }
     }
 
@@ -3929,6 +3928,27 @@ impl Editor {
             .to_vec()
         });
         self.apply_edit_transaction(edit_transaction, context)
+    }
+
+    #[cfg(feature = "vscode")]
+    pub(crate) fn set_visible_line_ranges(&mut self, visible_line_ranges: Vec<Range<usize>>) {
+        self.visible_line_ranges = Some(visible_line_ranges)
+    }
+
+    fn dispatch_jumps_changed(&self) -> Dispatch {
+        Dispatch::JumpsChanged {
+            component_id: self.id(),
+            jumps: self
+                .jumps
+                .as_ref()
+                .map(|jumps| {
+                    jumps
+                        .iter()
+                        .map(|jump| (jump.character, jump.selection.range.start))
+                        .collect_vec()
+                })
+                .unwrap_or_default(),
+        }
     }
 }
 

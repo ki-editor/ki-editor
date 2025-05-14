@@ -62,15 +62,7 @@ pub enum IntegrationEvent {
     SelectionChanged {
         component_id: ComponentId,
         selections: Vec<Selection>,
-        jumps: Vec<(char, CharIndex)>,
     },
-    #[allow(dead_code)]
-    ViewportChanged {
-        component_id: ComponentId,
-        start_line: usize,
-        end_line: usize,
-    },
-
     // External buffer events
     #[allow(dead_code)]
     ExternalBufferCreated {
@@ -88,6 +80,10 @@ pub enum IntegrationEvent {
     // Other events
     #[allow(dead_code)]
     CommandExecuted { command: String, success: bool },
+    JumpsChanged {
+        component_id: usize,
+        jumps: Vec<(char, CharIndex)>,
+    },
 }
 
 /// Trait for components that can emit integration events

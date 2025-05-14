@@ -20,6 +20,15 @@ type InputMessageParamsMap = {
         : never;
 };
 
+export type EventName =
+    | "document.open"
+    | "document.close"
+    | "document.change"
+    | "document.save"
+    | "editor.active"
+    | "editor.selection"
+    | "editor.visibleRanges";
+
 /**
  * Handles event dispatching between VSCode and Ki
  */
@@ -27,7 +36,7 @@ export class Dispatcher implements vscode.Disposable {
     private ipc: IPC;
     private logger: Logger;
     // Removed unused handlers map
-    private eventHandlers: Map<string, ((params: unknown) => void)[]> = new Map();
+    private eventHandlers: Map<EventName, ((params: unknown) => void)[]> = new Map();
     private successHandlers: Map<string, () => void> = new Map(); // Track which operations need notification on success
     private vscodeDisposables: vscode.Disposable[] = [];
     private lastRequestMethod: string | null = null;
@@ -60,7 +69,7 @@ export class Dispatcher implements vscode.Disposable {
     /**
      * Register an event handler
      */
-    public registerEventHandler(event: string, handler: (params: unknown) => void): void {
+    public registerEventHandler(event: EventName, handler: (params: unknown) => void): void {
         let handlers = this.eventHandlers.get(event);
         if (handlers) {
             handlers.push(handler);
@@ -129,9 +138,14 @@ export class Dispatcher implements vscode.Disposable {
             vscode.window.onDidChangeTextEditorSelection((event) =>
                 this.emitVSCodeEvent("editor.selection", { event }),
             ),
-            vscode.window.onDidChangeTextEditorVisibleRanges((event) =>
-                this.emitVSCodeEvent("editor.visible", { event }),
-            ),
+            vscode.window.onDidChangeTextEditorVisibleRanges((event) => {
+                // This condition is necessary, otherwise the visible ranges changes
+                // of non-file editor, say, Output, will also be sent to Ki
+                if (event.textEditor.document.uri.scheme !== "file") {
+                    return;
+                }
+                return this.emitVSCodeEvent("editor.visibleRanges", { event });
+            }),
         );
 
         // Keyboard input event registration is handled separately
@@ -141,7 +155,7 @@ export class Dispatcher implements vscode.Disposable {
     /**
      * Emit a VSCode event to registered handlers
      */
-    private emitVSCodeEvent(eventName: string, params: unknown): void {
+    private emitVSCodeEvent(eventName: EventName, params: unknown): void {
         // Handle important notifications
         if (eventName.startsWith("cursor.") || eventName.startsWith("selection.") || eventName.startsWith("mode.")) {
             this.logger.log(`Emitting VSCode event: ${eventName}`);
@@ -208,7 +222,7 @@ export class Dispatcher implements vscode.Disposable {
      * Emit an event from Ki to registered handlers
      * This is the public method that should be used as API for handlers
      */
-    public emit(event: string, params: unknown): void {
+    public emit(event: EventName, params: unknown): void {
         // Use the appropriate emitter method based on event source
         this.emitVSCodeEvent(event, params);
     }

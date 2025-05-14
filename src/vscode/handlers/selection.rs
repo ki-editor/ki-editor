@@ -2,6 +2,7 @@
 
 use super::prelude::*;
 use crate::vscode::VSCodeApp;
+use itertools::Itertools;
 use ki_protocol_types::{OutputMessage, SelectionSet};
 
 impl VSCodeApp {

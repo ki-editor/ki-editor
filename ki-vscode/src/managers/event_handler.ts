@@ -4,6 +4,7 @@ import { Logger } from "../logger";
 import { BufferDiffParams } from "../protocol/BufferDiffParams";
 import { BufferParams } from "../protocol/BufferParams";
 import { CommandParams } from "../protocol/CommandParams";
+import { JumpsParams } from "../protocol/JumpsParams";
 import { SelectionSet } from "../protocol/SelectionSet";
 import { TypedModeParams } from "../protocol/TypedModeParams";
 
@@ -24,6 +25,7 @@ export class EventHandler {
     private modeChangeHandlers: Array<(params: TypedModeParams) => void> = [];
     private selectionUpdateHandlers: Array<(params: SelectionSet) => void> = [];
     private selectionModeChangeHandlers: Array<(params: any) => void> = [];
+    private jumpsChangeHandlers: Array<(params: JumpsParams) => void> = [];
     private commandExecutedHandlers: Array<(params: CommandParams) => void> = [];
 
     constructor(dispatcher: Dispatcher, logger: Logger, errorHandler: ErrorHandler) {
@@ -86,6 +88,11 @@ export class EventHandler {
             this.handleSelectionModeChange(params);
         });
 
+        this.dispatcher.registerKiNotificationHandler("editor.jump", (params: JumpsParams) => {
+            this.logger.log(`Received editor.jump notification`);
+            this.handleJumpsChange(params);
+        });
+
         // Register handler for success notifications
         this.dispatcher.registerKiNotificationHandler("success", (params: boolean) => {
             this.logger.log(`Received success notification: ${params}`);
@@ -97,7 +104,6 @@ export class EventHandler {
         // Ki should be the source of truth, and we should only be reacting to events from Ki,
         // not proactively syncing or creating feedback loops.
     }
-
     /**
      * Handle buffer diff event
      */
@@ -270,6 +276,24 @@ export class EventHandler {
         });
     }
 
+    private handleJumpsChange(params: JumpsParams): void {
+        this.jumpsChangeHandlers.forEach((handler) => {
+            try {
+                handler(params);
+            } catch (error) {
+                this.errorHandler.handleError(
+                    error,
+                    {
+                        component: "EventHandler",
+                        operation: "JumpsChange",
+                        details: {},
+                    },
+                    ErrorSeverity.Error,
+                );
+            }
+        });
+    }
+
     /**
      * Register a handler for buffer diff events
      */
@@ -333,5 +357,9 @@ export class EventHandler {
      */
     public onCommandExecuted(handler: (params: CommandParams) => void): void {
         this.commandExecutedHandlers.push(handler);
+    }
+
+    public onJumpsChange(handler: (params: JumpsParams) => void): void {
+        this.jumpsChangeHandlers.push(handler);
     }
 }

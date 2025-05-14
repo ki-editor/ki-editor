@@ -213,7 +213,7 @@ impl VSCodeApp {
                 self.handle_search_find_request(id, params, trace_id)
             }
             InputMessage::ViewportChange(params) => {
-                debug!("[{}] Processing viewport change request", trace_id);
+                debug!("[{}] xxx Processing viewport change request", trace_id);
                 self.handle_viewport_change_request(id, params, trace_id)
             }
             InputMessage::EditorAction(params) => {
@@ -610,10 +610,44 @@ impl VSCodeApp {
                     error: None,
                 })?;
             }
+            IntegrationEvent::JumpsChanged {
+                component_id,
+                jumps,
+            } => {
+                if let Some(buffer_id) = self.get_buffer_id_from_component_id(component_id) {
+                    // Get the component to access the buffer
+                    if let Some(component) = self.get_component_by_id(component_id) {
+                        // Store the component reference to extend its lifetime
+                        let component_rc = component.component();
+                        let component_ref = component_rc.borrow();
+                        let editor = component_ref.editor();
+                        let buffer = editor.buffer();
+
+                        // Convert Ki's jumps to VS Code jumps
+                        let jumps = jumps
+                            .into_iter()
+                            .map(|(char, char_index)| -> anyhow::Result<_> {
+                                Ok((
+                                    char,
+                                    buffer.char_to_position(char_index)?.to_vscode_position(),
+                                ))
+                            })
+                            .collect::<anyhow::Result<Vec<_>, _>>()?;
+
+                        // Get the selection mode from the editor
+                        self.send_notification(OutputMessageWrapper {
+                            id: 0,
+                            message: OutputMessage::JumpsChange(ki_protocol_types::JumpsParams(
+                                jumps,
+                            )),
+                            error: None,
+                        })?;
+                    }
+                }
+            }
             IntegrationEvent::SelectionChanged {
                 component_id,
                 selections,
-                jumps,
             } => {
                 // Get the buffer ID from the component
                 if let Some(buffer_id) = self.get_buffer_id_from_component_id(component_id) {
@@ -662,17 +696,6 @@ impl VSCodeApp {
                                 })
                             })
                             .collect::<anyhow::Result<Vec<_>>>()?;
-
-                        // Convert Ki's jumps to VS Code jumps
-                        let jumps = jumps
-                            .into_iter()
-                            .map(|(char, char_index)| -> anyhow::Result<_> {
-                                Ok((
-                                    char,
-                                    buffer.char_to_position(char_index)?.to_vscode_position(),
-                                ))
-                            })
-                            .collect::<anyhow::Result<Vec<_>, _>>()?;
 
                         // Get the selection mode from the editor
                         let selection_mode = match &editor.selection_set.mode {
@@ -724,7 +747,6 @@ impl VSCodeApp {
                             primary: 0, // Assuming the first selection is primary
                             selections: vscode_selections,
                             mode: selection_mode,
-                            jumps,
                         };
                         self.send_notification(OutputMessageWrapper {
                             id: 0,
@@ -752,26 +774,6 @@ impl VSCodeApp {
                     message: OutputMessage::BufferActivated(params),
                     error: None,
                 })?;
-            }
-            IntegrationEvent::ViewportChanged {
-                component_id,
-                start_line,
-                end_line,
-            } => {
-                // Get the buffer ID from the component
-                if let Some(buffer_id) = self.get_buffer_id_from_component_id(component_id) {
-                    // Send viewport change notification to VSCode
-                    let viewport_params = ki_protocol_types::ViewportParams {
-                        buffer_id,
-                        start_line,
-                        end_line,
-                    };
-                    self.send_notification(OutputMessageWrapper {
-                        id: 0,
-                        message: OutputMessage::ViewportChange(viewport_params),
-                        error: None,
-                    })?;
-                }
             }
             IntegrationEvent::ExternalBufferCreated {
                 component_id: _,
@@ -969,7 +971,6 @@ impl VSCodeApp {
                 primary: 0, // Assuming the first selection is primary
                 selections: vscode_selections,
                 mode: selection_mode,
-                jumps: Vec::new(),
             };
 
             info!("Sending selection update for current buffer");

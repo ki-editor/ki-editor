@@ -33,6 +33,7 @@ const KNOWN_NOTIFICATION_TAGS: ReadonlySet<OutputMessage["tag"]> = new Set([
     "external_buffer.updated",
     "command.executed",
     "viewport.change",
+    "editor.jump",
     // Add any other tags that are definitely notifications
 ]);
 
