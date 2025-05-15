@@ -186,7 +186,7 @@ impl VSCodeApp {
             }
             InputMessage::BufferChange(params) => {
                 debug!("[{}] Processing buffer change request", trace_id);
-                self.handle_buffer_change_request(id, params)
+                self.handle_buffer_change_request(params)
             }
             InputMessage::KeyboardInput(params) => {
                 info!(

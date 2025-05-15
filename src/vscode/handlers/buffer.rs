@@ -12,6 +12,7 @@ use crate::{
         utils::{uri_to_path, vscode_position_to_ki_position}, // Use position conversion util
     },
 };
+use itertools::Itertools;
 use ki_protocol_types::{
     BufferDiffParams, // Use BufferDiffParams instead of InputBufferChangeParams
     BufferParams,
@@ -235,121 +236,59 @@ impl VSCodeApp {
     }
 
     /// Handle buffer change request from VSCode
-    /// This is treated as a notification (_id might not be relevant for response)
-    pub fn handle_buffer_change_request(
-        &mut self,
-        _id: u64,                 // Typically unused for notifications/updates like this
-        params: BufferDiffParams, // Use BufferDiffParams
-    ) -> Result<()> {
+    pub fn handle_buffer_change_request(&mut self, params: BufferDiffParams) -> anyhow::Result<()> {
         let BufferDiffParams { buffer_id, edits } = params;
 
-        debug!(
-            "Handling buffer change request: buffer_id={}, edits_count={}",
-            buffer_id,
-            edits.len()
+        let path = uri_to_path(&buffer_id)?;
+        let Some(editor_rc) = self.get_editor_component_by_path(&path) else {
+            return Err(anyhow::anyhow!(
+                "Buffer not found in Ki layout for change request: {}",
+                buffer_id
+            ));
+        };
+
+        let ki_edits = {
+            let editor_borrow = editor_rc.borrow();
+            let buffer = editor_borrow.editor().buffer();
+
+            // Convert VS Code edits to Ki Edits
+            edits
+                .into_iter()
+                .map(|diff_edit| -> anyhow::Result<_> {
+                    let start_ki_pos = vscode_position_to_ki_position(&diff_edit.range.start);
+                    let end_ki_pos = vscode_position_to_ki_position(&diff_edit.range.end);
+
+                    let start_char_index = buffer.position_to_char(start_ki_pos)?;
+                    let end_char_index = buffer.position_to_char(end_ki_pos)?;
+
+                    let range = (start_char_index..end_char_index).into();
+
+                    Ok(Edit::new(
+                        buffer.rope(),
+                        range,
+                        Rope::from_str(&diff_edit.new_text),
+                    ))
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        };
+
+        let transaction = EditTransaction::from_action_groups(
+            // Each edit should be in its own ActionGroup
+            // because the edits sent from VS Code are non-offseted.
+            ki_edits
+                .into_iter()
+                .map(|edit| ActionGroup::new([Action::Edit(edit)].to_vec()))
+                .collect_vec(),
         );
+        let component_id = editor_rc.borrow().id();
 
-        // Convert buffer_id (URI) to path
-        if let Ok(path) = uri_to_path(&buffer_id) {
-            // Find the corresponding editor/buffer in the app's layout
-            // Use the helper method to get the editor component
-            if let Some(editor_rc) = self.get_editor_component_by_path(&path) {
-                // Create a scope for the editor borrow to ensure it's dropped before we dispatch
-                let ki_edits_result: Result<Vec<Edit>, _> = {
-                    let editor_borrow = editor_rc.borrow();
-                    let buffer = editor_borrow.editor().buffer();
-                    // let context = app_lock.context(); // Context not needed here
+        let dispatch = Dispatch::ToEditor(DispatchEditor::ApplyEditTransaction {
+            transaction,
+            component_id,
+            reparse_tree: true,
+            update_undo_stack: true,
+        });
 
-                    // Convert protocol edits to Ki Edits
-                    edits
-                        .into_iter()
-                        .map(|diff_edit| {
-                            // Convert VSCode Position to Ki Position
-                            let start_ki_pos =
-                                vscode_position_to_ki_position(&diff_edit.range.start);
-                            let end_ki_pos = vscode_position_to_ki_position(&diff_edit.range.end);
-
-                            // Convert Ki Position to Ki CharIndex, handling potential errors
-                            let start_char_index = buffer.position_to_char(start_ki_pos)?;
-                            let end_char_index = buffer.position_to_char(end_ki_pos)?;
-
-                            let range = (start_char_index..end_char_index).into();
-
-                            Ok::<Edit, anyhow::Error>(Edit::new(
-                                buffer.rope(), // Pass rope reference
-                                range,
-                                Rope::from_str(&diff_edit.new_text),
-                            ))
-                        })
-                        .collect()
-                    // editor_borrow is dropped at the end of this scope
-                };
-
-                match ki_edits_result {
-                    Ok(ki_edits) => {
-                        if ki_edits.is_empty() {
-                            debug!("No actual edits to apply for buffer {}", buffer_id);
-                            return Ok(()); // Nothing to do
-                        }
-
-                        // Create an EditTransaction
-                        let transaction =
-                            EditTransaction::from_action_groups(vec![ActionGroup::new(
-                                ki_edits.into_iter().map(Action::Edit).collect(),
-                            )]);
-
-                        // Get the number of edits for logging
-                        let num_edits = transaction.edits().len();
-
-                        // Dispatch the transaction to the specific editor component
-                        let component_id = editor_rc.borrow().id();
-                        // Use ApplyEditTransaction variant
-                        let dispatch = Dispatch::ToEditor(DispatchEditor::ApplyEditTransaction {
-                            transaction,
-                            component_id,            // Target the specific editor
-                            reparse_tree: true,      // Assume reparse needed
-                            update_undo_stack: true, // Assume undo needed
-                        });
-
-                        info!(
-                            "Dispatching ApplyEditTransaction for buffer {} with {} edits",
-                            buffer_id, num_edits
-                        );
-
-                        // Re-lock app to dispatch
-                        if let Err(e) = self.app.lock().unwrap().handle_dispatch(dispatch) {
-                            error!(
-                                "Failed to dispatch ApplyTransaction for buffer {}: {}",
-                                buffer_id, e
-                            );
-                            // Consider sending an error back to VSCode if needed
-                        }
-                    }
-                    Err(e) => {
-                        error!(
-                            "Failed to convert VSCode edits to Ki edits for buffer {}: {}",
-                            buffer_id, e
-                        );
-                        // Consider sending an error back to VSCode
-                    }
-                }
-            } else {
-                warn!(
-                    "Buffer not found in Ki layout for change request: {}",
-                    buffer_id
-                );
-                // Buffer might be closed in Ki but open in VSCode, or not yet opened by Ki
-            }
-            Ok(())
-        } else {
-            error!(
-                "Failed to convert URI to path for change request: {}",
-                buffer_id
-            );
-            Err(anyhow!(
-                "Invalid URI for buffer change request: {}",
-                buffer_id
-            ))
-        }
+        self.app.lock().unwrap().handle_dispatch(dispatch)
     }
 }
