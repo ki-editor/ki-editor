@@ -146,62 +146,62 @@
             {
                 "command": "ki.specialKey.enter",
                 "key": "enter",
-                "when": "editorTextFocus"
+                "when": "editorTextFocus && !ki.isInsertMode"
             },
             {
                 "command": "ki.specialKey.backspace",
                 "key": "backspace",
-                "when": "editorTextFocus"
+                "when": "editorTextFocus && !ki.isInsertMode"
             },
             {
                 "command": "ki.specialKey.delete",
                 "key": "delete",
-                "when": "editorTextFocus"
+                "when": "editorTextFocus && !ki.isInsertMode"
             },
             {
                 "command": "ki.specialKey.tab",
                 "key": "tab",
-                "when": "editorTextFocus"
+                "when": "editorTextFocus && !ki.isInsertMode"
             },
             {
                 "command": "ki.specialKey.home",
                 "key": "home",
-                "when": "editorTextFocus"
+                "when": "editorTextFocus && !ki.isInsertMode"
             },
             {
                 "command": "ki.specialKey.end",
                 "key": "end",
-                "when": "editorTextFocus"
+                "when": "editorTextFocus && !ki.isInsertMode"
             },
             {
                 "command": "ki.specialKey.pageup",
                 "key": "pageup",
-                "when": "editorTextFocus"
+                "when": "editorTextFocus && !ki.isInsertMode"
             },
             {
                 "command": "ki.specialKey.pagedown",
                 "key": "pagedown",
-                "when": "editorTextFocus"
+                "when": "editorTextFocus && !ki.isInsertMode"
             },
             {
                 "command": "ki.specialKey.up",
                 "key": "up",
-                "when": "editorTextFocus"
+                "when": "editorTextFocus && !ki.isInsertMode"
             },
             {
                 "command": "ki.specialKey.down",
                 "key": "down",
-                "when": "editorTextFocus"
+                "when": "editorTextFocus && !ki.isInsertMode"
             },
             {
                 "command": "ki.specialKey.left",
                 "key": "left",
-                "when": "editorTextFocus"
+                "when": "editorTextFocus && !ki.isInsertMode"
             },
             {
                 "command": "ki.specialKey.right",
                 "key": "right",
-                "when": "editorTextFocus"
+                "when": "editorTextFocus && !ki.isInsertMode"
             }
         ]
     },

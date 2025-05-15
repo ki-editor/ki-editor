@@ -9,7 +9,6 @@ import { Logger } from "./logger";
 import {
     BufferManager,
     CommandManager,
-    CursorManager,
     EventHandler,
     KeyboardManager,
     ModeManager,
@@ -91,30 +90,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         // Create managers
         const modeManager = new ModeManager(dispatcher, logger, eventHandler, context);
-        const bufferManager = new BufferManager(dispatcher, logger, eventHandler);
-        const cursorManager = new CursorManager(dispatcher, logger, eventHandler);
+        const bufferManager = new BufferManager(dispatcher, logger, eventHandler, modeManager);
         const keyboardManager = new KeyboardManager(dispatcher, logger, eventHandler, modeManager);
-        const selectionManager = new SelectionManager(dispatcher, logger, eventHandler);
+        const selectionManager = new SelectionManager(dispatcher, logger, eventHandler, modeManager);
         const commandManager = new CommandManager(dispatcher, logger, eventHandler);
 
         // Initialize managers
         modeManager.initialize();
         bufferManager.initialize();
-        cursorManager.initialize();
         keyboardManager.initialize();
         selectionManager.initialize();
         commandManager.initialize();
 
         // Add managers and dispatcher to disposables
-        disposables = [
-            bufferManager,
-            cursorManager,
-            keyboardManager,
-            modeManager,
-            selectionManager,
-            commandManager,
-            dispatcher,
-        ];
+        disposables = [bufferManager, keyboardManager, modeManager, selectionManager, commandManager, dispatcher];
 
         // Register all disposables
         context.subscriptions.push(...disposables);

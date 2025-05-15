@@ -5,6 +5,7 @@ import { BufferDiffParams } from "../protocol/BufferDiffParams";
 import { DiffEdit } from "../protocol/DiffEdit";
 import { EventHandler } from "./event_handler";
 import { Manager } from "./manager";
+import { ModeManager } from "./mode_manager";
 
 /**
  * Type for buffer changed events
@@ -38,6 +39,7 @@ interface BufferChangedEvent {
  * Manages buffer synchronization between VSCode and Ki
  */
 export class BufferManager extends Manager {
+    private modeManager: ModeManager;
     private openBuffers: Map<string, { document: vscode.TextDocument; version: number }> = new Map();
     private ignoreBufferChangeCounter: number = 0;
     private pendingBufferDiffs: Map<string, BufferDiffParams[]> = new Map();
@@ -46,8 +48,9 @@ export class BufferManager extends Manager {
     private changeTimeout: NodeJS.Timeout | null = null;
     private commandDisposables: vscode.Disposable[] = [];
 
-    constructor(dispatcher: Dispatcher, logger: Logger, eventHandler: EventHandler) {
+    constructor(dispatcher: Dispatcher, logger: Logger, eventHandler: EventHandler, modeManager: ModeManager) {
         super(dispatcher, logger, eventHandler);
+        this.modeManager = modeManager;
     }
 
     /**
@@ -335,6 +338,14 @@ export class BufferManager extends Manager {
      * Handle buffer diff event from Ki
      */
     private async handleBufferDiff(params: BufferDiffParams): Promise<void> {
+        // Don't update VS Code if Ki is in insert mode
+        // Because in insert mode, the modifications is relayed to VS Code
+        // the buffer sync direction is reversed, where Ki is listening for changes
+        // from VS Code.
+        if (this.modeManager.getCurrentMode() === "insert") {
+            return;
+        }
+
         this.logger.log(`Handling buffer diff event for ${params.buffer_id}`);
 
         // Skip empty edits

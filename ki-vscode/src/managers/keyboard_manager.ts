@@ -80,8 +80,8 @@ export class KeyboardManager extends Manager {
             const commandId = `ki.specialKey.${specialKey}`;
 
             // Register the command
-            const subscription = vscode.commands.registerCommand(commandId, () => {
-                this.handleSpecialKey(specialKey);
+            const subscription = vscode.commands.registerCommand(commandId, async () => {
+                await this.handleSpecialKey(specialKey);
                 return true; // Let VSCode continue processing
             });
 
@@ -130,55 +130,43 @@ export class KeyboardManager extends Manager {
     }
 
     /**
+     * To let VS Code handle the typing, execute `default:type`.
+     * Surprisingly this cannot be found in their official docs, but
+     * it is found in an issue related to VSCode Vim at
+     * https://github.com/microsoft/vscode/issues/65876#issue-395051915
+     */
+    private async letVscodeHandleTyping(args: { text: string }) {
+        await vscode.commands.executeCommand("default:type", args);
+    }
+
+    /**
      * Handle type event
      */
-    private async handleType(args: { text: string }): Promise<boolean> {
+    private async handleType(args: { text: string }): Promise<void> {
         // If we should ignore this key, reset the flag and let VSCode handle it
         if (this.ignoreNextKey) {
             this.ignoreNextKey = false;
-            return true; // Let VSCode handle it
+            return await this.letVscodeHandleTyping(args);
         }
 
-        // Get the active editor
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
-            return true; // Let VSCode handle it
+            return await this.letVscodeHandleTyping(args);
         }
 
         // Skip non-file documents
         if (editor.document.uri.scheme !== "file") {
-            return true; // Let VSCode handle it
+            return await this.letVscodeHandleTyping(args);
+        }
+
+        if (this.modeManager.getCurrentMode() === "insert") {
+            return await this.letVscodeHandleTyping(args);
         }
 
         const uri = editor.document.uri.toString();
         const text = args.text;
 
         this.logger.log(`Key pressed: ${text} in mode ${this.modeManager.getCurrentMode()}`);
-
-        // In insert mode, let VSCode handle the key and send it to Ki
-        if (this.modeManager.getCurrentMode() === "insert") {
-            // Let VSCode handle the key first
-            const result = true;
-
-            // Then send the key to Ki
-            this.dispatcher
-                .sendRequest("keyboard.input", {
-                    key: text,
-                    timestamp: Date.now(),
-                    mode: this.modeManager.getCurrentMode(),
-                    is_composed: false,
-                })
-                .then((response) => {
-                    this.logger.log(`Keyboard input response in insert mode: ${JSON.stringify(response)}`);
-                    // No longer forcing a sync after each keystroke
-                })
-                .catch((error) => {
-                    this.logger.error(`Error sending keyboard input in insert mode: ${error}`);
-                });
-
-            // Return the result
-            return result;
-        }
 
         // In normal mode, send the key to Ki and prevent VSCode from handling it
         this.dispatcher
@@ -195,9 +183,6 @@ export class KeyboardManager extends Manager {
             .catch((error) => {
                 this.logger.error(`Error sending keyboard input in normal mode: ${error}`);
             });
-
-        // Don't let VSCode handle the key
-        return false;
     }
 
     /**

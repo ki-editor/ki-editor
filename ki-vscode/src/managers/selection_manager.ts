@@ -5,6 +5,7 @@ import { JumpsParams } from "../protocol/JumpsParams";
 import { SelectionSet } from "../protocol/SelectionSet";
 import { EventHandler } from "./event_handler";
 import { Manager } from "./manager";
+import { ModeManager } from "./mode_manager";
 
 const JUMP_SAFETY_PADDING = 10;
 
@@ -12,6 +13,7 @@ const JUMP_SAFETY_PADDING = 10;
  * Manages selection synchronization between VSCode and Ki
  */
 export class SelectionManager extends Manager {
+    private modeManager: ModeManager;
     private activeEditor: vscode.TextEditor | undefined;
     private ignoreSelectionChange: boolean = false;
     private jumpCharDecoration = vscode.window.createTextEditorDecorationType({
@@ -24,8 +26,9 @@ export class SelectionManager extends Manager {
         },
     });
 
-    constructor(dispatcher: Dispatcher, logger: Logger, eventHandler: EventHandler) {
+    constructor(dispatcher: Dispatcher, logger: Logger, eventHandler: EventHandler, modeManager: ModeManager) {
         super(dispatcher, logger, eventHandler);
+        this.modeManager = modeManager;
     }
 
     /**
@@ -160,6 +163,11 @@ export class SelectionManager extends Manager {
      * Handle selection changed event from Ki
      */
     private handleSelectionChanged(params: SelectionSet): void {
+        if (this.modeManager.getCurrentMode() === "insert") {
+            this.logger.error(`ignoring selection change becos inest mode`);
+            return;
+        }
+
         this.logger.log(`Received selection changed event with ${params.selections.length} selections`);
 
         // Find the active editor
