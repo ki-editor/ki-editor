@@ -574,7 +574,7 @@ impl VSCodeApp {
                 };
 
                 // Convert SelectionMode to protocol SelectionMode enum
-                let protocol_selection_mode = match selection_mode {
+                let selection_mode = match &selection_mode {
                     crate::selection::SelectionMode::Character => {
                         ki_protocol_types::SelectionMode::Character
                     }
@@ -582,31 +582,76 @@ impl VSCodeApp {
                     | crate::selection::SelectionMode::LineFull => {
                         ki_protocol_types::SelectionMode::Line
                     }
-                    _ => {
-                        // Default to Character for other modes
-                        ki_protocol_types::SelectionMode::Character
+                    crate::selection::SelectionMode::Word { skip_symbols: true } => {
+                        ki_protocol_types::SelectionMode::Word
+                    }
+                    crate::selection::SelectionMode::Word {
+                        skip_symbols: false,
+                    } => ki_protocol_types::SelectionMode::WordFine,
+                    crate::selection::SelectionMode::Token { .. } => {
+                        ki_protocol_types::SelectionMode::Token
+                    }
+                    crate::selection::SelectionMode::Custom => {
+                        ki_protocol_types::SelectionMode::Custom
+                    }
+                    crate::selection::SelectionMode::Find { search } => {
+                        ki_protocol_types::SelectionMode::Find {
+                            search: search.search.clone(),
+                        }
+                    }
+                    crate::selection::SelectionMode::GitHunk(_) => {
+                        ki_protocol_types::SelectionMode::GitHunk
+                    }
+                    crate::selection::SelectionMode::LocalQuickfix { title } => {
+                        ki_protocol_types::SelectionMode::LocalQuickfix
+                    }
+                    crate::selection::SelectionMode::Mark => ki_protocol_types::SelectionMode::Mark,
+                    crate::selection::SelectionMode::SyntaxNode => {
+                        ki_protocol_types::SelectionMode::SyntaxNode
+                    }
+                    crate::selection::SelectionMode::SyntaxNodeFine => {
+                        ki_protocol_types::SelectionMode::SyntaxNodeFine
+                    }
+                    crate::selection::SelectionMode::Diagnostic(kind) => {
+                        ki_protocol_types::SelectionMode::Diagnostic(match kind {
+                            crate::quickfix_list::DiagnosticSeverityRange::All => {
+                                ki_protocol_types::DiagnosticKind::All
+                            }
+                            crate::quickfix_list::DiagnosticSeverityRange::Error => {
+                                ki_protocol_types::DiagnosticKind::Error
+                            }
+                            crate::quickfix_list::DiagnosticSeverityRange::Warning => {
+                                ki_protocol_types::DiagnosticKind::Warning
+                            }
+                            crate::quickfix_list::DiagnosticSeverityRange::Information => {
+                                ki_protocol_types::DiagnosticKind::Information
+                            }
+                            crate::quickfix_list::DiagnosticSeverityRange::Hint => {
+                                ki_protocol_types::DiagnosticKind::Hint
+                            }
+                        })
                     }
                 };
 
                 // Send mode change notification to VSCode
-                let mode_params = ki_protocol_types::TypedModeParams {
-                    mode: editor_mode,
-                    buffer_id: buffer_id.clone(),
-                };
                 self.send_notification(OutputMessageWrapper {
                     id: 0,
-                    message: OutputMessage::ModeChange(mode_params),
+                    message: OutputMessage::ModeChange(ki_protocol_types::TypedModeParams {
+                        mode: editor_mode,
+                        buffer_id: buffer_id.clone(),
+                    }),
                     error: None,
                 })?;
 
                 // Send selection mode change notification to VSCode
-                let selection_mode_params = ki_protocol_types::SelectionModeParams {
-                    mode: protocol_selection_mode,
-                    buffer_id,
-                };
                 self.send_notification(OutputMessageWrapper {
                     id: 0,
-                    message: OutputMessage::SelectionModeChange(selection_mode_params),
+                    message: OutputMessage::SelectionModeChange(
+                        ki_protocol_types::SelectionModeParams {
+                            mode: selection_mode,
+                            buffer_id,
+                        },
+                    ),
                     error: None,
                 })?;
             }
@@ -697,56 +742,11 @@ impl VSCodeApp {
                             })
                             .collect::<anyhow::Result<Vec<_>>>()?;
 
-                        // Get the selection mode from the editor
-                        let selection_mode = match &editor.selection_set.mode {
-                            crate::selection::SelectionMode::Character => {
-                                Some(ki_protocol_types::SelectionMode::Character)
-                            }
-                            crate::selection::SelectionMode::Line
-                            | crate::selection::SelectionMode::LineFull => {
-                                Some(ki_protocol_types::SelectionMode::Line)
-                            }
-                            crate::selection::SelectionMode::Word { skip_symbols: true } => {
-                                Some(ki_protocol_types::SelectionMode::CoarseWord)
-                            }
-                            crate::selection::SelectionMode::Word {
-                                skip_symbols: false,
-                            } => Some(ki_protocol_types::SelectionMode::FineWord),
-                            crate::selection::SelectionMode::Token { .. } => {
-                                Some(ki_protocol_types::SelectionMode::Token)
-                            }
-                            crate::selection::SelectionMode::Custom => {
-                                Some(ki_protocol_types::SelectionMode::Custom)
-                            }
-                            crate::selection::SelectionMode::Find { search } => {
-                                Some(ki_protocol_types::SelectionMode::Find)
-                            }
-                            crate::selection::SelectionMode::SyntaxNode => {
-                                Some(ki_protocol_types::SelectionMode::SyntaxNode)
-                            }
-                            crate::selection::SelectionMode::SyntaxNodeFine => {
-                                Some(ki_protocol_types::SelectionMode::SyntaxNodeFine)
-                            }
-                            crate::selection::SelectionMode::Diagnostic(_) => {
-                                Some(ki_protocol_types::SelectionMode::Diagnostic)
-                            }
-                            crate::selection::SelectionMode::GitHunk(_) => {
-                                Some(ki_protocol_types::SelectionMode::GitHunk)
-                            }
-                            crate::selection::SelectionMode::LocalQuickfix { title } => {
-                                Some(ki_protocol_types::SelectionMode::LocalQuickfix)
-                            }
-                            crate::selection::SelectionMode::Mark => {
-                                Some(ki_protocol_types::SelectionMode::Mark)
-                            }
-                        };
-
                         // Send selection update notification to VSCode
                         let selection_set = ki_protocol_types::SelectionSet {
                             buffer_id,
                             primary: 0, // Assuming the first selection is primary
                             selections: vscode_selections,
-                            mode: selection_mode,
                         };
                         self.send_notification(OutputMessageWrapper {
                             id: 0,
@@ -950,27 +950,11 @@ impl VSCodeApp {
                 });
             }
 
-            // Get the selection mode from the editor
-            let selection_mode = match editor.selection_set.mode {
-                crate::selection::SelectionMode::Character => {
-                    Some(ki_protocol_types::SelectionMode::Character)
-                }
-                crate::selection::SelectionMode::Line
-                | crate::selection::SelectionMode::LineFull => {
-                    Some(ki_protocol_types::SelectionMode::Line)
-                }
-                crate::selection::SelectionMode::Word { .. } => {
-                    Some(ki_protocol_types::SelectionMode::CoarseWord)
-                }
-                _ => None, // Default to None for other modes
-            };
-
             // Send selection update notification to VSCode
             let selection_set = ki_protocol_types::SelectionSet {
                 buffer_id,
                 primary: 0, // Assuming the first selection is primary
                 selections: vscode_selections,
-                mode: selection_mode,
             };
 
             info!("Sending selection update for current buffer");

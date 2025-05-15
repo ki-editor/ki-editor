@@ -144,7 +144,6 @@ export class SelectionManager extends Manager {
                     buffer_id: uri,
                     selections: kiSelections,
                     primary: 0, // Always use the first selection as primary
-                    mode: undefined, // We don't know the selection mode from VSCode,
                 });
             } finally {
                 // Reset the flag after a short delay to allow Ki to process the selection

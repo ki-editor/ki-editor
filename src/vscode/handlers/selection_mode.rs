@@ -1,8 +1,9 @@
 //! Selection mode change handlers for VSCode IPC messages
 
 use super::prelude::*;
-use crate::selection::SelectionMode as KiSelectionMode;
+use crate::context::Search;
 use crate::vscode::app::VSCodeApp;
+use crate::{search::parse_search_config, selection::SelectionMode as KiSelectionMode};
 use anyhow::Result;
 use ki_protocol_types::OutputMessage;
 use log::debug;
@@ -69,10 +70,8 @@ impl VSCodeApp {
             ki_protocol_types::SelectionMode::Character => KiSelectionMode::Character,
             ki_protocol_types::SelectionMode::Line => KiSelectionMode::Line,
             ki_protocol_types::SelectionMode::LineFull => KiSelectionMode::LineFull,
-            ki_protocol_types::SelectionMode::CoarseWord => {
-                KiSelectionMode::Word { skip_symbols: true }
-            }
-            ki_protocol_types::SelectionMode::FineWord => KiSelectionMode::Word {
+            ki_protocol_types::SelectionMode::Word => KiSelectionMode::Word { skip_symbols: true },
+            ki_protocol_types::SelectionMode::WordFine => KiSelectionMode::Word {
                 skip_symbols: false,
             },
             ki_protocol_types::SelectionMode::Token => KiSelectionMode::Token,
@@ -81,19 +80,26 @@ impl VSCodeApp {
             ki_protocol_types::SelectionMode::SyntaxNodeFine => KiSelectionMode::SyntaxNodeFine,
             ki_protocol_types::SelectionMode::Mark => KiSelectionMode::Mark,
             // Simplified modes - use reasonable defaults
-            ki_protocol_types::SelectionMode::Find => {
+            ki_protocol_types::SelectionMode::Find { search } => {
                 // Default to a simple search for the word under cursor
-                let search = crate::context::Search {
-                    search: "".to_string(),
-                    mode: crate::context::LocalSearchConfigMode::Regex(
-                        crate::list::grep::RegexConfig::default(),
-                    ),
-                };
-                KiSelectionMode::Find { search }
+                let search = parse_search_config(&search)?;
+                KiSelectionMode::Find {
+                    search: Search {
+                        mode: search.local_config().mode.clone(),
+                        search: search.local_config().search(),
+                    },
+                }
             }
-            ki_protocol_types::SelectionMode::Diagnostic => {
+            ki_protocol_types::SelectionMode::Diagnostic(kind) => {
                 // Default to all diagnostics
-                KiSelectionMode::Diagnostic(crate::quickfix_list::DiagnosticSeverityRange::All)
+                use crate::quickfix_list::DiagnosticSeverityRange::*;
+                KiSelectionMode::Diagnostic(match kind {
+                    ki_protocol_types::DiagnosticKind::Error => Error,
+                    ki_protocol_types::DiagnosticKind::Information => Information,
+                    ki_protocol_types::DiagnosticKind::Warning => Warning,
+                    ki_protocol_types::DiagnosticKind::All => All,
+                    ki_protocol_types::DiagnosticKind::Hint => Hint,
+                })
             }
             ki_protocol_types::SelectionMode::GitHunk => {
                 // Default to unstaged changes against current branch

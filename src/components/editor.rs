@@ -189,7 +189,7 @@ impl Component for Editor {
             }
 
             FindOneChar(if_current_not_found) => {
-                return self.enter_single_character_mode(if_current_not_found);
+                self.enter_single_character_mode(if_current_not_found);
             }
 
             MoveSelection(direction) => return self.handle_movement(context, direction),
@@ -204,7 +204,7 @@ impl Component for Editor {
             SetContent(content) => self.set_content(&content, context)?,
             EnableSelectionExtension => self.enable_selection_extension(),
             DisableSelectionExtension => self.disable_selection_extension(),
-            EnterExtendMode => return self.enter_extend_mode(),
+            EnterExtendMode => self.enter_extend_mode(),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction, context),
             Delete(direction) => return self.delete(direction, None, context),
             Insert(string) => return self.insert(&string, context),
@@ -213,8 +213,8 @@ impl Component for Editor {
             ToggleMark => self.toggle_marks(),
             EnterNormalMode => return self.enter_normal_mode(context),
             CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
-            CursorKeepPrimaryOnly => return self.cursor_keep_primary_only(),
-            EnterSwapMode => return self.enter_swap_mode(),
+            CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
+            EnterSwapMode => self.enter_swap_mode(),
             ReplacePattern { config } => {
                 let selection_set = self.selection_set.clone();
                 let (_, selection_set, _) =
@@ -266,9 +266,9 @@ impl Component for Editor {
             SelectLineAt(index) => {
                 return Ok(self.select_line_at(index, context)?.into_vec().into())
             }
-            EnterMultiCursorMode => return self.enter_multicursor_mode(),
+            EnterMultiCursorMode => self.enter_multicursor_mode(),
             Surround(open, close) => return self.surround(open, close, context),
-            EnterReplaceMode => return self.enter_replace_mode(),
+            EnterReplaceMode => self.enter_replace_mode(),
             Paste {
                 direction,
                 use_system_clipboard,
@@ -319,44 +319,23 @@ impl Component for Editor {
             SwapExtensionAnchor => self.selection_set.swap_anchor(),
             CollapseSelection(direction) => return self.collapse_selection(context, direction),
             FilterSelectionMatchingSearch { maintain, search } => {
-                let was_different_mode = self.mode != Mode::Normal;
                 self.mode = Mode::Normal;
                 let search_config = parse_search_config(&search)?;
-                let mut dispatches = self.filter_selection_matching_search(
+                return Ok(self.filter_selection_matching_search(
                     search_config.local_config(),
                     maintain,
                     context,
-                );
-
-                // For VSCode integration, explicitly create a mode change notification
-                #[cfg(feature = "vscode")]
-                if was_different_mode {
-                    // Only send mode change notification if we actually changed modes
-                    dispatches = dispatches.append(Dispatch::ModeChanged);
-                }
-
-                return Ok(dispatches);
+                ));
             }
             EnterNewline => return self.enter_newline(context),
             DeleteCurrentCursor(direction) => self.delete_current_cursor(direction),
             BreakSelection => return self.break_selection(context),
             ShowHelp => return self.show_help(context),
             HandleEsc => {
-                let was_insert_mode = self.mode == Mode::Insert;
                 self.disable_selection_extension();
                 self.mode = Mode::Normal;
 
-                let mut dispatches = Dispatches::one(Dispatch::RemainOnlyCurrentComponent);
-
-                // For VSCode integration, explicitly create a mode change notification
-                // This ensures VSCode is notified when we exit insert mode via Escape
-                #[cfg(feature = "vscode")]
-                if was_insert_mode {
-                    // Only send mode change notification if we actually changed modes
-                    dispatches = dispatches.append(Dispatch::ModeChanged);
-                }
-
-                return Ok(dispatches);
+                return Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent));
             }
             ToggleReveal(reveal) => self.toggle_reveal(reveal),
             SearchCurrentSelection(if_current_not_found, scope) => {
@@ -1396,21 +1375,9 @@ impl Editor {
             .to_char_index(&self.cursor_direction)
     }
 
-    pub(crate) fn enter_extend_mode(&mut self) -> Result<Dispatches, anyhow::Error> {
-        let was_different_mode = self.mode != Mode::Extend;
+    pub(crate) fn enter_extend_mode(&mut self) {
         self.enable_selection_extension();
         self.mode = Mode::Extend;
-
-        let mut dispatches = Dispatches::default();
-
-        // For VSCode integration, explicitly create a mode change notification
-        #[cfg(feature = "vscode")]
-        if was_different_mode {
-            // Only send mode change notification if we actually changed modes
-            dispatches = dispatches.append(Dispatch::ModeChanged);
-        }
-
-        Ok(dispatches)
     }
 
     pub(crate) fn enable_selection_extension(&mut self) {
@@ -1749,12 +1716,6 @@ impl Editor {
 
         // For VSCode integration, explicitly create a mode change notification
         // This ensures VSCode is notified when we enter insert mode
-        #[cfg(feature = "vscode")]
-        if was_normal_mode {
-            // Only send mode change notification if we actually changed modes
-            dispatches = dispatches.append(Dispatch::ModeChanged);
-        }
-
         Ok(dispatches)
     }
 
@@ -2549,7 +2510,7 @@ impl Editor {
 
         self.clamp(context)?;
         // Just use the result of enter_normal_mode, which already sends ModeChanged
-        let _ = self.cursor_keep_primary_only()?;
+        self.cursor_keep_primary_only();
         let dispatches = self.enter_normal_mode(context)?;
         Ok(dispatches
             .append(Dispatch::RemainOnlyCurrentComponent)
@@ -2720,45 +2681,16 @@ impl Editor {
         }
     }
 
-    pub(crate) fn cursor_keep_primary_only(&mut self) -> Result<Dispatches, anyhow::Error> {
-        let was_different_mode = self.mode != Mode::Normal;
+    pub(crate) fn cursor_keep_primary_only(&mut self) {
         self.mode = Mode::Normal;
         if self.reveal == Some(Reveal::Cursor) {
             self.reveal = None;
         }
         self.selection_set.only();
-
-        let dispatches = Dispatches::default();
-
-        // For VSCode integration, explicitly create a mode change notification
-        #[cfg(feature = "vscode")]
-        let dispatches = if was_different_mode {
-            // Only send mode change notification if we actually changed modes
-            Dispatches::one(Dispatch::ModeChanged)
-        } else {
-            Default::default()
-        };
-
-        Ok(dispatches)
     }
 
-    fn enter_single_character_mode(
-        &mut self,
-        if_current_not_found: IfCurrentNotFound,
-    ) -> Result<Dispatches, anyhow::Error> {
-        let was_different_mode = !matches!(self.mode, Mode::FindOneChar(_));
+    fn enter_single_character_mode(&mut self, if_current_not_found: IfCurrentNotFound) {
         self.mode = Mode::FindOneChar(if_current_not_found);
-
-        let mut dispatches = Dispatches::default();
-
-        // For VSCode integration, explicitly create a mode change notification
-        #[cfg(feature = "vscode")]
-        if was_different_mode {
-            // Only send mode change notification if we actually changed modes
-            dispatches = dispatches.append(Dispatch::ModeChanged);
-        }
-
-        Ok(dispatches)
     }
 
     fn handle_find_one_char_mode(
@@ -2769,10 +2701,9 @@ impl Editor {
     ) -> Result<Dispatches, anyhow::Error> {
         match key_event.code {
             KeyCode::Char(c) => {
-                let was_different_mode = !matches!(self.mode, Mode::Normal);
                 self.mode = Mode::Normal;
 
-                let mut dispatches = self.set_selection_mode(
+                self.set_selection_mode(
                     if_current_not_found,
                     SelectionMode::Find {
                         search: Search {
@@ -2785,31 +2716,12 @@ impl Editor {
                         },
                     },
                     context,
-                )?;
-
-                // For VSCode integration, explicitly create a mode change notification
-                #[cfg(feature = "vscode")]
-                if was_different_mode {
-                    // Only send mode change notification if we actually changed modes
-                    dispatches = dispatches.append(Dispatch::ModeChanged);
-                }
-
-                Ok(dispatches)
+                )
             }
             KeyCode::Esc => {
-                let was_different_mode = !matches!(self.mode, Mode::Normal);
                 self.mode = Mode::Normal;
 
-                let mut dispatches = Dispatches::default();
-
-                // For VSCode integration, explicitly create a mode change notification
-                #[cfg(feature = "vscode")]
-                if was_different_mode {
-                    // Only send mode change notification if we actually changed modes
-                    dispatches = dispatches.append(Dispatch::ModeChanged);
-                }
-
-                Ok(dispatches)
+                Ok(Default::default())
             }
             _ => Ok(Default::default()),
         }
@@ -3042,20 +2954,8 @@ impl Editor {
         Ok(result.into())
     }
 
-    fn enter_swap_mode(&mut self) -> Result<Dispatches, anyhow::Error> {
-        let was_different_mode = self.mode != Mode::Swap;
+    fn enter_swap_mode(&mut self) {
         self.mode = Mode::Swap;
-
-        let mut dispatches = Dispatches::default();
-
-        // For VSCode integration, explicitly create a mode change notification
-        #[cfg(feature = "vscode")]
-        if was_different_mode {
-            // Only send mode change notification if we actually changed modes
-            dispatches = dispatches.append(Dispatch::ModeChanged);
-        }
-
-        Ok(dispatches)
     }
 
     fn kill_line(
@@ -3115,36 +3015,12 @@ impl Editor {
         Ok(dispatches)
     }
 
-    fn enter_multicursor_mode(&mut self) -> Result<Dispatches, anyhow::Error> {
-        let was_different_mode = self.mode != Mode::MultiCursor;
+    fn enter_multicursor_mode(&mut self) {
         self.mode = Mode::MultiCursor;
-
-        let mut dispatches = Dispatches::default();
-
-        // For VSCode integration, explicitly create a mode change notification
-        #[cfg(feature = "vscode")]
-        if was_different_mode {
-            // Only send mode change notification if we actually changed modes
-            dispatches = dispatches.append(Dispatch::ModeChanged);
-        }
-
-        Ok(dispatches)
     }
 
-    fn enter_replace_mode(&mut self) -> Result<Dispatches, anyhow::Error> {
-        let was_different_mode = self.mode != Mode::Replace;
+    fn enter_replace_mode(&mut self) {
         self.mode = Mode::Replace;
-
-        let mut dispatches = Dispatches::default();
-
-        // For VSCode integration, explicitly create a mode change notification
-        #[cfg(feature = "vscode")]
-        if was_different_mode {
-            // Only send mode change notification if we actually changed modes
-            dispatches = dispatches.append(Dispatch::ModeChanged);
-        }
-
-        Ok(dispatches)
     }
 
     pub(crate) fn scroll_offset(&self) -> u16 {

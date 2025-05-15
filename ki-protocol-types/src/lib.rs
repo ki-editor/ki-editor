@@ -48,10 +48,6 @@ pub struct SelectionSet {
     #[serde(default)]
     pub primary: usize,
     pub selections: Vec<Selection>,
-    // Added mode field to track the current selection mode
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
-    pub mode: Option<SelectionMode>,
 }
 
 // Represents a single text edit operation.
@@ -86,20 +82,28 @@ pub enum SelectionMode {
     Character,
     Line,
     LineFull,
-    #[serde(rename = "word")]
-    CoarseWord, // Word { skip_symbols: true }
-    #[serde(rename = "fine_word")]
-    FineWord, // Word { skip_symbols: false }
+    Word,
+    WordFine,
     Token,
     Custom,
     SyntaxNode,
     SyntaxNodeFine,
     Mark,
     // Simplified versions of complex modes
-    Find,          // Find { search: Search }
-    Diagnostic,    // Diagnostic(DiagnosticSeverityRange)
-    GitHunk,       // GitHunk(DiffMode)
-    LocalQuickfix, // LocalQuickfix { title: String }
+    Find { search: String },
+    Diagnostic(DiagnosticKind),
+    GitHunk,
+    LocalQuickfix,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[ts(export)]
+pub enum DiagnosticKind {
+    Error,
+    Information,
+    Warning,
+    All,
+    Hint,
 }
 
 // Editor actions enum for type-safe editor operations

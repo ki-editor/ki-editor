@@ -393,11 +393,6 @@ impl Buffer {
         char_index: CharIndex,
     ) -> anyhow::Result<ki_protocol_types::Position> {
         let line_index = self.char_to_line(char_index)?;
-        log::info!(
-            "xxx Buffer::char_to_vscode_position char_index={char_index:?} char={:?} line_index={}",
-            self.char(char_index),
-            line_index
-        );
         let line = self
             .get_line_by_line_index(line_index)
             .map(|slice| slice.to_string())
@@ -549,23 +544,10 @@ impl Buffer {
 
         // NOTE: the inverted VS Code edits should be computed AFTER applying the edits
         let inverted_unnormalized_edits = inverted_edit_transaction.unnormalized_edits();
-        log::info!(
-            "xxx Buffer::apply_edit_transaction: inverted_edit={inverted_unnormalized_edits:?}"
-        );
-
-        log::info!(
-            "xxx Buffer::apply_edit_transaction: first two line={:?}",
-            self.content().lines().take(2).collect_vec()
-        );
-
         let inverted_vscode_edits = inverted_unnormalized_edits
             .into_iter()
             .map(|edit| edit.to_vscode_diff_edit(self))
             .collect::<anyhow::Result<Vec<_>>>()?;
-
-        log::info!(
-            "xxx Buffer::apply_edit_transaction: inverted_vscode_edits={inverted_vscode_edits:?}"
-        );
 
         let new_buffer_state = BufferState {
             selection_set: new_selection_set.clone(),
