@@ -2,6 +2,7 @@ default:
     @just tree-sitter-quickfix 
     @just fmt-check 
     @just build 
+    @just build-vscode 
     @just clippy 
     @just test 
     @just doc
@@ -15,10 +16,14 @@ fmt-check:
     
 fmt:
 	cargo fmt --all
+	prettier -w ki-vscode
 
 build:
     @echo "Running cargo build..."
     cargo build --workspace --tests
+
+build-vscode:
+    cargo watch --ignore 'ki-vscode/src/protocol/**' -- cargo build -F vscode
 
 clippy:
     @echo "Running cargo clippy..."
