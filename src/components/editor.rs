@@ -3808,7 +3808,21 @@ impl Editor {
 
     #[cfg(feature = "vscode")]
     pub(crate) fn set_visible_line_ranges(&mut self, visible_line_ranges: Vec<Range<usize>>) {
-        self.visible_line_ranges = Some(visible_line_ranges)
+        let max_line_index = self.buffer().len_lines().saturating_sub(1);
+        self.visible_line_ranges = Some(
+            visible_line_ranges
+                .into_iter()
+                .map(|range| {
+                    // Clamp range.end to buffer bounds because the VS Code adapter may send out-of-bounds ranges.
+                    // VS Code tends to under-report visible line ranges, so our adapter adds safety padding
+                    // to ensure we don't miss any visible content. This padding can cause the reported ranges
+                    // to extend beyond the actual buffer size. For example, if the buffer has 100 lines
+                    // (indices 0-99), the adapter might report a visible range like 95..105.
+                    let end = range.end.min(max_line_index);
+                    range.start..end
+                })
+                .collect(),
+        )
     }
 
     fn dispatch_jumps_changed(&self) -> Dispatch {
