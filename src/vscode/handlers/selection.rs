@@ -72,65 +72,35 @@ impl VSCodeApp {
                 let component = self.app.lock().unwrap().current_component();
                 let mut component_ref = component.borrow_mut();
                 let editor = component_ref.editor_mut();
-                if let Some(first_sel) = params.selections.first() {
-                    let context = if let Some(ref path) = current_path {
-                        let canonical_path = path.clone();
-                        Context::new(canonical_path)
-                    } else {
-                        Context::default()
-                    };
-                    let active_vscode_pos = &first_sel.active;
-                    let ki_position =
-                        Position::new(active_vscode_pos.line, active_vscode_pos.character);
-
-                    info!(
-                        "Setting cursor from primary selection active: Line {}, Char {}",
-                        ki_position.line, ki_position.column
-                    );
-
-                    if let Err(e) = editor.set_cursor_position(
-                        ki_position.line as u16,
-                        ki_position.column as u16,
-                        &context,
-                    ) {
-                        error!("Failed to set cursor position from selection: {}", e);
-                        // Optionally send error response if id is present
-                        if let Some(response_id) = id {
-                            self.send_error_response(
-                                response_id,
-                                &format!("Failed to set cursor: {}", e),
+                let ki_selections = {
+                    let buffer = editor.buffer();
+                    params
+                        .selections
+                        .into_iter()
+                        .map(|selection| {
+                            let range = buffer.position_range_to_char_index_range(
+                                &(to_ki_position(&selection.active)
+                                    ..to_ki_position(&selection.anchor)),
                             )?;
-                        }
-                        // Don't return Ok, let the error propagate if needed, or handle differently
-                        // For a notification, maybe just log and continue?
-                    } else {
-                        // TODO: Handle extended selection range setting using anchor and active
-                        if first_sel.is_extended {
-                            let anchor_vscode_pos = &first_sel.anchor;
-                            warn!(
-                                "Extended selection handling not implemented yet. Anchor: {:?}, Active: {:?}",
-                                anchor_vscode_pos, active_vscode_pos
-                            );
-                            // Example (needs Ki Editor API):
-                            // let ki_anchor = Position::new(anchor_vscode_pos.line, anchor_vscode_pos.character);
-                            // editor.set_selection_range(ki_anchor, ki_position, &context)?;
-                        }
+                            Ok(crate::selection::Selection::new(range))
+                        })
+                        .collect::<anyhow::Result<Vec<_>>>()?
+                };
 
-                        // Send success response only if it was a request (id is Some)
-                        if let Some(response_id) = id {
-                            // Use send_response with OutputMessage::Success
-                            self.send_response(response_id, OutputMessage::Success(true))?;
-                        }
-                    }
+                let selection_set = match ki_selections.split_first() {
+                    Some((head, tail)) => crate::selection::SelectionSet::new(nonempty::NonEmpty {
+                        head: head.clone(),
+                        tail: tail.to_vec(),
+                    }),
+                    None => return Ok(()),
+                };
+                editor.set_selection_set(selection_set, &Context::default());
+                if let Some(response_id) = id {
+                    // Use send_response with OutputMessage::Success
+                    self.send_response(response_id, OutputMessage::Success(true))?;
                 }
             }
         }
-        // Track the last selection received from VSCode
-        self.last_vscode_selection = Some(params);
-
-        // IMPORTANT: We do NOT call check_for_changes() here to prevent feedback loops
-        // where Ki sends back a selection.update immediately after receiving a selection.set
-
         Ok(())
     }
 
@@ -141,5 +111,12 @@ impl VSCodeApp {
     pub fn handle_selection_set_request(&mut self, id: u64, params: SelectionSet) -> Result<()> {
         // Pass the ID to the notification handler so it knows to send a response
         self.handle_selection_set_notification(params, Some(id))
+    }
+}
+
+pub(crate) fn to_ki_position(position: &ki_protocol_types::Position) -> Position {
+    Position {
+        line: position.line,
+        column: position.character,
     }
 }

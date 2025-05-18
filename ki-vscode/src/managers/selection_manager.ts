@@ -119,43 +119,46 @@ export class SelectionManager extends Manager {
         // VSCode provides this information through the TextEditorSelectionChangeKind enum
         const isMouseSelection = event.kind === vscode.TextEditorSelectionChangeKind.Mouse;
 
+        if (!isMouseSelection && this.modeManager.getCurrentMode() !== "insert") {
+            this.logger.log(`Ignoring non-mouse and non-insert mode selection change in VSCode: ${uri}`);
+            return;
+        }
+
         // Only send selection updates to Ki for mouse interactions
-        if (isMouseSelection) {
-            this.logger.log(`Mouse selection changed in VSCode: ${uri} with ${selections.length} selections`);
+        // Set the flag to ignore the next selection change that will come from Ki
+        this.ignoreSelectionChange = true;
 
-            // Set the flag to ignore the next selection change that will come from Ki
-            this.ignoreSelectionChange = true;
+        try {
+            // Convert VSCode selections to Ki format
 
-            try {
-                // Convert VSCode selections to Ki format
-                const kiSelections = selections.map((sel) => {
-                    return {
-                        anchor: {
-                            line: sel.anchor.line,
-                            character: sel.anchor.character,
-                        },
-                        active: {
-                            line: sel.active.line,
-                            character: sel.active.character,
-                        },
-                        is_extended: false, // We don't have this information from VSCode
-                    };
-                });
+            const offset = this.modeManager.getCurrentMode() === "insert" ? 1 : 0;
+            // The column/character needs to minus 1 in insert mode
+            // because of how Ki and VS Code treats cursor differently in insert mode
+            const kiSelections = selections.map((sel) => {
+                return {
+                    anchor: {
+                        line: sel.anchor.line,
+                        character: sel.anchor.character - offset,
+                    },
+                    active: {
+                        line: sel.active.line,
+                        character: sel.active.character - offset,
+                    },
+                    is_extended: false, // We don't have this information from VSCode
+                };
+            });
 
-                // Send selection update to Ki
-                this.dispatcher.sendNotification("selection.set", {
-                    buffer_id: uri,
-                    selections: kiSelections,
-                    primary: 0, // Always use the first selection as primary
-                });
-            } finally {
-                // Reset the flag after a short delay to allow Ki to process the selection
-                setTimeout(() => {
-                    this.ignoreSelectionChange = false;
-                }, 50);
-            }
-        } else {
-            this.logger.log(`Ignoring non-mouse selection change in VSCode: ${uri}`);
+            // Send selection update to Ki
+            this.dispatcher.sendNotification("selection.set", {
+                buffer_id: uri,
+                selections: kiSelections,
+                primary: 0, // Always use the first selection as primary
+            });
+        } finally {
+            // Reset the flag after a short delay to allow Ki to process the selection
+            setTimeout(() => {
+                this.ignoreSelectionChange = false;
+            }, 50);
         }
     }
 

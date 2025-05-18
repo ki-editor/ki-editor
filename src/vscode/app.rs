@@ -35,7 +35,6 @@ pub struct VSCodeApp {
     pub(crate) buffer_versions: HashMap<String, u64>,
     #[allow(dead_code)]
     pub(crate) next_message_id: u64,
-    pub(crate) last_vscode_selection: Option<ki_protocol_types::SelectionSet>,
 }
 
 impl VSCodeApp {
@@ -102,7 +101,6 @@ impl VSCodeApp {
             ipc_handler,
             buffer_versions: HashMap::new(),
             next_message_id: 1,
-            last_vscode_selection: None,
         })
     }
 
