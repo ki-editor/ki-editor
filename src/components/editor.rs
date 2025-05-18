@@ -1431,7 +1431,7 @@ impl Editor {
         match key_event {
             key!("esc") => {
                 self.jumps = None;
-                Ok(Default::default())
+                Ok(Dispatches::one(self.dispatch_jumps_changed()))
             }
             key => {
                 let KeyCode::Char(c) = key.code else {
