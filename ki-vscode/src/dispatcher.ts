@@ -29,6 +29,18 @@ export type EventName =
     | "editor.selection"
     | "editor.visibleRanges";
 
+export type EventParams<T extends EventName> = T extends "document.open" | "document.save" | "document.close"
+    ? { document: vscode.TextDocument }
+    : T extends "document.change"
+      ? { event: vscode.TextDocumentChangeEvent }
+      : T extends "editor.active"
+        ? { editor: vscode.TextEditor | undefined }
+        : T extends "editor.selection"
+          ? { event: vscode.TextEditorSelectionChangeEvent }
+          : T extends "editor.visibleRanges"
+            ? { event: vscode.TextEditorVisibleRangesChangeEvent }
+            : never;
+
 /**
  * Handles event dispatching between VSCode and Ki
  */
@@ -36,7 +48,7 @@ export class Dispatcher implements vscode.Disposable {
     private ipc: IPC;
     private logger: Logger;
     // Removed unused handlers map
-    private eventHandlers: Map<EventName, ((params: unknown) => void)[]> = new Map();
+    private eventHandlers: Map<EventName, ((params: EventParams<EventName>) => void)[]> = new Map();
     private successHandlers: Map<string, () => void> = new Map(); // Track which operations need notification on success
     private vscodeDisposables: vscode.Disposable[] = [];
     private lastRequestMethod: string | null = null;
@@ -69,12 +81,12 @@ export class Dispatcher implements vscode.Disposable {
     /**
      * Register an event handler
      */
-    public registerEventHandler(event: EventName, handler: (params: unknown) => void): void {
+    public registerEventHandler<T extends EventName>(event: T, handler: (params: EventParams<T>) => void): void {
         let handlers = this.eventHandlers.get(event);
         if (handlers) {
-            handlers.push(handler);
+            handlers.push(handler as any);
         } else {
-            this.eventHandlers.set(event, [handler]);
+            this.eventHandlers.set(event, [handler as any]);
         }
     }
 
@@ -155,7 +167,7 @@ export class Dispatcher implements vscode.Disposable {
     /**
      * Emit a VSCode event to registered handlers
      */
-    private emitVSCodeEvent(eventName: EventName, params: unknown): void {
+    private emitVSCodeEvent<T extends EventName>(eventName: T, params: EventParams<T>): void {
         // Handle important notifications
         if (eventName.startsWith("cursor.") || eventName.startsWith("selection.") || eventName.startsWith("mode.")) {
             this.logger.log(`Emitting VSCode event: ${eventName}`);
@@ -222,7 +234,7 @@ export class Dispatcher implements vscode.Disposable {
      * Emit an event from Ki to registered handlers
      * This is the public method that should be used as API for handlers
      */
-    public emit(event: EventName, params: unknown): void {
+    public emit<T extends EventName>(event: T, params: EventParams<T>): void {
         // Use the appropriate emitter method based on event source
         this.emitVSCodeEvent(event, params);
     }

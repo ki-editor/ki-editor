@@ -36,18 +36,11 @@ export class SelectionManager extends Manager {
      */
     public initialize(): void {
         // Register VSCode event handlers
-        this.registerVSCodeEventHandler("editor.active", (params: { editor: vscode.TextEditor | undefined }) =>
-            this.handleEditorActive(params),
-        );
-        this.registerVSCodeEventHandler(
-            "editor.selection",
-            (params: { event: vscode.TextEditorSelectionChangeEvent }) => this.handleSelectionChange(params.event),
-        );
+        this.registerVSCodeEventHandler("editor.active", (params) => this.handleEditorActive(params));
+        this.registerVSCodeEventHandler("editor.selection", (params) => this.handleSelectionChange(params.event));
 
-        this.registerVSCodeEventHandler(
-            "editor.visibleRanges",
-            (params: { event: vscode.TextEditorVisibleRangesChangeEvent }) =>
-                this.handleVisibleRangesChanged(params.event),
+        this.registerVSCodeEventHandler("editor.visibleRanges", (params) =>
+            this.handleVisibleRangesChanged(params.event),
         );
 
         // Register integration event handlers
