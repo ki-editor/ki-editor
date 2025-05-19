@@ -44,7 +44,7 @@ export class BufferManager extends Manager {
     private ignoreBufferChangeCounter: number = 0;
     private pendingBufferDiffs: Map<string, BufferDiffParams[]> = new Map();
     private processingBufferDiffs: Map<string, boolean> = new Map();
-    private pendingChanges: Map<string, vscode.TextDocumentContentChangeEvent[]> = new Map();
+    private pendingChangesets: Map<string, vscode.TextDocumentContentChangeEvent[][]> = new Map();
     private changeTimeout: NodeJS.Timeout | null = null;
     private commandDisposables: vscode.Disposable[] = [];
 
@@ -197,9 +197,6 @@ export class BufferManager extends Manager {
         });
     }
 
-    /**
-     * Handle document change event
-     */
     private handleDocumentChange(event: vscode.TextDocumentChangeEvent): void {
         const document = event.document;
 
@@ -219,7 +216,10 @@ export class BufferManager extends Manager {
         }
 
         // Normal case: collect changes and debounce
-        this.addPendingChange(uri, event.contentChanges);
+        this.addPendingChange(
+            uri,
+            event.contentChanges.map((x) => x),
+        );
 
         // Debounce changes to avoid sending too many updates
         this.debouncePendingChanges();
@@ -228,13 +228,13 @@ export class BufferManager extends Manager {
     /**
      * Add a pending change to the queue
      */
-    private addPendingChange(uri: string, changes: readonly vscode.TextDocumentContentChangeEvent[]): void {
-        if (!this.pendingChanges.has(uri)) {
-            this.pendingChanges.set(uri, []);
+    private addPendingChange(uri: string, changes: vscode.TextDocumentContentChangeEvent[]): void {
+        if (!this.pendingChangesets.has(uri)) {
+            this.pendingChangesets.set(uri, []);
         }
 
-        const pendingChanges = this.pendingChanges.get(uri)!;
-        changes.forEach((change) => pendingChanges.push(change));
+        const pendingChangeset = this.pendingChangesets.get(uri)!;
+        pendingChangeset.push(changes);
     }
 
     /**
@@ -255,52 +255,54 @@ export class BufferManager extends Manager {
      * Process all pending changes and send them as diffs to Ki
      */
     private processPendingChanges(): void {
-        for (const [uri, changes] of this.pendingChanges.entries()) {
-            if (changes.length === 0) continue;
+        for (const [uri, changeset] of this.pendingChangesets.entries()) {
+            for (const changes of changeset) {
+                if (changes.length === 0) continue;
 
-            const document = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === uri);
-            if (!document) {
-                this.logger.warn(`Document not found for pending changes: ${uri}`);
-                continue;
-            }
+                const document = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === uri);
+                if (!document) {
+                    this.logger.warn(`Document not found for pending changes: ${uri}`);
+                    continue;
+                }
 
-            // Convert VSCode changes to Ki DiffEdit format
-            const edits: DiffEdit[] = changes.map((change) => {
-                return {
-                    range: {
-                        start: {
-                            line: change.range.start.line,
-                            character: change.range.start.character,
+                // Convert VSCode changes to Ki DiffEdit format
+                const edits: DiffEdit[] = changes.map((change) => {
+                    return {
+                        range: {
+                            start: {
+                                line: change.range.start.line,
+                                character: change.range.start.character,
+                            },
+                            end: {
+                                line: change.range.end.line,
+                                character: change.range.end.character,
+                            },
                         },
-                        end: {
-                            line: change.range.end.line,
-                            character: change.range.end.character,
-                        },
-                    },
-                    new_text: change.text,
-                };
-            });
+                        new_text: change.text,
+                    };
+                });
 
-            this.logger.log(`Sending buffer.change with ${edits.length} diffs for ${uri}`);
+                this.logger.log(`Sending buffer.change with ${edits.length} diffs for ${uri}`);
 
-            // Send the diff edits to Ki via buffer.change InputMessage
-            this.dispatcher.sendNotification("buffer.change", {
-                buffer_id: uri,
-                edits: edits,
-            });
+                // Send the diff edits to Ki via buffer.change InputMessage
+                this.dispatcher.sendNotification("buffer.change", {
+                    buffer_id: uri,
+                    edits: edits,
+                });
 
-            // Update internal version tracking if necessary (using VSCode's version is safer)
-            const currentBufferInfo = this.openBuffers.get(uri);
-            if (currentBufferInfo) {
-                this.openBuffers.set(uri, { document, version: document.version });
-            } else {
-                // If buffer wasn't tracked, add it now
-                this.openBuffers.set(uri, { document, version: document.version });
+                // Update internal version tracking if necessary (using VSCode's version is safer)
+                const currentBufferInfo = this.openBuffers.get(uri);
+                if (currentBufferInfo) {
+                    this.openBuffers.set(uri, { document, version: document.version });
+                } else {
+                    // If buffer wasn't tracked, add it now
+                    this.openBuffers.set(uri, { document, version: document.version });
+                }
             }
         }
 
         // Clear pending changes after processing all URIs
-        this.pendingChanges.clear();
+        this.pendingChangesets.clear();
     }
 
     /**
@@ -613,7 +615,7 @@ export class BufferManager extends Manager {
         }
 
         this.openBuffers.clear();
-        this.pendingChanges.clear();
+        this.pendingChangesets.clear();
         this.pendingBufferDiffs.clear();
         this.processingBufferDiffs.clear();
 
