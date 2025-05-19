@@ -691,70 +691,7 @@ impl VSCodeApp {
             IntegrationEvent::SelectionChanged {
                 component_id,
                 selections,
-            } => {
-                // Get the buffer ID from the component
-                if let Some(buffer_id) = self.get_buffer_id_from_component_id(component_id) {
-                    // Get the component to access the buffer
-                    if let Some(component) = self.get_component_by_id(component_id) {
-                        // Store the component reference to extend its lifetime
-                        let component_rc = component.component();
-                        let component_ref = component_rc.borrow();
-                        let editor = component_ref.editor();
-                        let buffer = editor.buffer();
-
-                        // Convert Ki selections to VSCode selections
-                        let vscode_selections = selections
-                            .iter()
-                            .map(|selection| {
-                                // Get the extended range from the selection to ensure correct cursor position
-                                // This is especially important for word selection mode
-                                let range = selection.extended_range();
-
-                                // Convert to positions
-                                let start_pos = buffer.char_to_position(range.start)?;
-                                let end_pos = buffer.char_to_position(range.end)?;
-
-                                // Determine anchor and active positions based on whether it's extended
-                                let (anchor, active) = if let Some(initial_range) =
-                                    &selection.initial_range
-                                {
-                                    // Extended selection
-                                    let anchor_pos =
-                                        buffer.char_to_position(initial_range.start)?;
-                                    let active_pos = buffer.char_to_position(range.end)?;
-                                    (anchor_pos, active_pos)
-                                } else {
-                                    match component.component().borrow().editor().cursor_direction {
-                                        Direction::Start => (end_pos, start_pos),
-                                        Direction::End => (start_pos, end_pos),
-                                    }
-                                };
-
-                                // Create VSCode selection
-                                use crate::components::editor::Direction;
-                                Ok(ki_protocol_types::Selection {
-                                    anchor: anchor.to_vscode_position(),
-                                    active: active.to_vscode_position(),
-                                    is_extended: selection.initial_range.is_some(),
-                                })
-                            })
-                            .collect::<anyhow::Result<Vec<_>>>()?;
-
-                        // Send selection update notification to VSCode
-                        let selection_set = ki_protocol_types::SelectionSet {
-                            buffer_id,
-                            primary: 0, // Assuming the first selection is primary
-                            selections: vscode_selections,
-                        };
-                        self.send_notification(OutputMessageWrapper {
-                            id: 0,
-                            message: OutputMessage::SelectionUpdate(selection_set),
-                            error: None,
-                        })?;
-                    }
-                }
-            }
-            // IntegrationEvent::CursorUpdate has been removed in favor of the unified SelectionChanged event
+            } => self.selection_changed(component_id, selections)?,
             IntegrationEvent::BufferActivated {
                 component_id: _,
                 path,
@@ -965,6 +902,66 @@ impl VSCodeApp {
         }
 
         Ok(())
+    }
+
+    fn selection_changed(
+        &self,
+        component_id: usize,
+        selections: Vec<crate::selection::Selection>,
+    ) -> anyhow::Result<()> {
+        let Some(buffer_id) = self.get_buffer_id_from_component_id(component_id) else {
+            return Ok(());
+        };
+        let Some(component) = self.get_component_by_id(component_id) else {
+            return Ok(());
+        };
+        let component_rc = component.component();
+        let component_ref = component_rc.borrow();
+        let editor = component_ref.editor();
+        let buffer = editor.buffer();
+
+        let vscode_selections = selections
+            .iter()
+            .map(|selection| {
+                let range = selection.extended_range();
+
+                let start_pos = buffer.char_to_position(range.start)?;
+                let end_pos = buffer.char_to_position(range.end)?;
+
+                let (anchor, cursor) = if let Some(initial_range) = &selection.initial_range {
+                    if initial_range.start < selection.range().start {
+                        (start_pos, end_pos)
+                    } else {
+                        (end_pos, start_pos)
+                    }
+                } else {
+                    match component.component().borrow().editor().cursor_direction {
+                        Direction::Start => (end_pos, start_pos),
+                        Direction::End => (start_pos, end_pos),
+                    }
+                };
+
+                // Create VSCode selection
+                use crate::components::editor::Direction;
+                Ok(ki_protocol_types::Selection {
+                    anchor: anchor.to_vscode_position(),
+                    active: cursor.to_vscode_position(),
+                    is_extended: selection.initial_range.is_some(),
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        // Send selection update notification to VSCode
+        let selection_set = ki_protocol_types::SelectionSet {
+            buffer_id,
+            primary: 0,
+            selections: vscode_selections,
+        };
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::SelectionUpdate(selection_set),
+            error: None,
+        })
     }
 }
 

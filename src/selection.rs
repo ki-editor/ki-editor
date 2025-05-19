@@ -675,6 +675,7 @@ impl Selection {
     }
 
     /// WARNING: You should always use `extended_range` unless you know what you are doing
+    /// This always represent the non-extended range
     pub(crate) fn range(&self) -> CharIndexRange {
         self.range
     }
