@@ -3840,6 +3840,10 @@ impl Editor {
                 .unwrap_or_default(),
         }
     }
+
+    pub(crate) fn dispatch_selection_mode_changed(&self) -> Dispatch {
+        Dispatch::SelectionModeChanged(self.selection_set.mode.clone())
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]

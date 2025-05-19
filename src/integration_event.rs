@@ -1,4 +1,5 @@
 use crate::{
+    components::editor::Mode,
     edit::EditTransaction,
     selection::{CharIndex, Selection, SelectionMode},
 };
@@ -56,8 +57,7 @@ pub enum IntegrationEvent {
     // Editor state events
     ModeChanged {
         component_id: ComponentId,
-        mode: String,
-        selection_mode: SelectionMode,
+        mode: Mode,
     },
     SelectionChanged {
         component_id: ComponentId,
@@ -83,6 +83,10 @@ pub enum IntegrationEvent {
     JumpsChanged {
         component_id: usize,
         jumps: Vec<(char, CharIndex)>,
+    },
+    SelectionModeChanged {
+        component_id: usize,
+        selection_mode: SelectionMode,
     },
 }
 

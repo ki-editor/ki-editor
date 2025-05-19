@@ -1,6 +1,6 @@
 //! VSCode integration app implementation
 
-use crate::components::editor::Direction;
+use crate::components::editor::{Direction, Mode};
 use std::collections::HashMap;
 use std::sync::mpsc::{self, TryRecvError};
 use std::sync::{Arc, Mutex};
@@ -468,226 +468,31 @@ impl VSCodeApp {
                 component_id: _,
                 path,
                 edits,
-            } => {
-                // Extract edits from the transaction
-                let buffer_id = path.display_absolute();
-
-                // Convert the transaction to buffer diffs and send to VSCode
-                // This is similar to what we do in the BufferEditTransaction handler
-                if let Some(component) = self.get_editor_component_by_path(&path) {
-                    let component_ref = component.borrow();
-                    let editor = component_ref.editor();
-
-                    if !edits.is_empty() {
-                        let diff_params = ki_protocol_types::BufferDiffParams { buffer_id, edits };
-
-                        // Log the transaction details for debugging
-                        trace!(
-                            "Sending buffer diff from integration event: {:?}",
-                            diff_params
-                        );
-
-                        // Send buffer diff notification to VSCode
-                        self.send_notification(OutputMessageWrapper {
-                            id: 0,
-                            message: OutputMessage::BufferDiff(diff_params),
-                            error: None,
-                        })?;
-                    }
-                }
-            }
+            } => self.buffer_changed(path, edits)?,
             IntegrationEvent::BufferOpened {
                 component_id: _,
                 path,
                 language_id,
-            } => {
-                // Send buffer open notification to VSCode
-                let uri = path_to_uri(&path);
-                let params = ki_protocol_types::BufferParams {
-                    uri,
-                    content: None,
-                    language_id,
-                    version: None,
-                };
-                self.send_notification(OutputMessageWrapper {
-                    id: 0,
-                    message: OutputMessage::BufferOpen(params),
-                    error: None,
-                })?;
-            }
+            } => self.buffer_opened(path, language_id)?,
             IntegrationEvent::BufferClosed {
                 component_id: _,
                 path,
-            } => {
-                // Send buffer close notification to VSCode
-                let uri = path_to_uri(&path);
-                let params = ki_protocol_types::BufferParams {
-                    uri,
-                    content: None,
-                    language_id: None,
-                    version: None,
-                };
-                self.send_notification(OutputMessageWrapper {
-                    id: 0,
-                    message: OutputMessage::BufferClose(params),
-                    error: None,
-                })?;
-            }
+            } => self.buffer_closed(path)?,
             IntegrationEvent::BufferSaved {
                 component_id: _,
                 path,
-            } => {
-                // Send buffer save notification to VSCode
-                let uri = path_to_uri(&path);
-                let params = ki_protocol_types::BufferParams {
-                    uri,
-                    content: None,
-                    language_id: None,
-                    version: None,
-                };
-                self.send_notification(OutputMessageWrapper {
-                    id: 0,
-                    message: OutputMessage::BufferSave(params),
-                    error: None,
-                })?;
+            } => self.buffer_saved(path)?,
+            IntegrationEvent::ModeChanged { component_id, mode } => {
+                self.mode_changed(component_id, mode)?
             }
-            IntegrationEvent::ModeChanged {
+            IntegrationEvent::SelectionModeChanged {
                 component_id,
-                mode,
                 selection_mode,
-            } => {
-                // Get buffer ID if needed
-                let buffer_id = self.get_buffer_id_from_component_id(component_id);
-
-                // Convert string mode to EditorMode enum
-                let editor_mode = match mode.as_str() {
-                    "Normal" => ki_protocol_types::EditorMode::Normal,
-                    "Insert" => ki_protocol_types::EditorMode::Insert,
-                    "MultiCursor" => ki_protocol_types::EditorMode::MultiCursor,
-                    s if s.starts_with("FindOneChar") => ki_protocol_types::EditorMode::FindOneChar,
-                    "Swap" => ki_protocol_types::EditorMode::Swap,
-                    "Replace" => ki_protocol_types::EditorMode::Replace,
-                    "Extend" => ki_protocol_types::EditorMode::Extend,
-                    _ => ki_protocol_types::EditorMode::Normal, // Default to Normal for unknown modes
-                };
-
-                // Convert SelectionMode to protocol SelectionMode enum
-                let selection_mode = match &selection_mode {
-                    crate::selection::SelectionMode::Character => {
-                        ki_protocol_types::SelectionMode::Character
-                    }
-                    crate::selection::SelectionMode::Line
-                    | crate::selection::SelectionMode::LineFull => {
-                        ki_protocol_types::SelectionMode::Line
-                    }
-                    crate::selection::SelectionMode::Word { skip_symbols: true } => {
-                        ki_protocol_types::SelectionMode::Word
-                    }
-                    crate::selection::SelectionMode::Word {
-                        skip_symbols: false,
-                    } => ki_protocol_types::SelectionMode::WordFine,
-                    crate::selection::SelectionMode::Token { .. } => {
-                        ki_protocol_types::SelectionMode::Token
-                    }
-                    crate::selection::SelectionMode::Custom => {
-                        ki_protocol_types::SelectionMode::Custom
-                    }
-                    crate::selection::SelectionMode::Find { search } => {
-                        ki_protocol_types::SelectionMode::Find {
-                            search: search.search.clone(),
-                        }
-                    }
-                    crate::selection::SelectionMode::GitHunk(_) => {
-                        ki_protocol_types::SelectionMode::GitHunk
-                    }
-                    crate::selection::SelectionMode::LocalQuickfix { title } => {
-                        ki_protocol_types::SelectionMode::LocalQuickfix
-                    }
-                    crate::selection::SelectionMode::Mark => ki_protocol_types::SelectionMode::Mark,
-                    crate::selection::SelectionMode::SyntaxNode => {
-                        ki_protocol_types::SelectionMode::SyntaxNode
-                    }
-                    crate::selection::SelectionMode::SyntaxNodeFine => {
-                        ki_protocol_types::SelectionMode::SyntaxNodeFine
-                    }
-                    crate::selection::SelectionMode::Diagnostic(kind) => {
-                        ki_protocol_types::SelectionMode::Diagnostic(match kind {
-                            crate::quickfix_list::DiagnosticSeverityRange::All => {
-                                ki_protocol_types::DiagnosticKind::All
-                            }
-                            crate::quickfix_list::DiagnosticSeverityRange::Error => {
-                                ki_protocol_types::DiagnosticKind::Error
-                            }
-                            crate::quickfix_list::DiagnosticSeverityRange::Warning => {
-                                ki_protocol_types::DiagnosticKind::Warning
-                            }
-                            crate::quickfix_list::DiagnosticSeverityRange::Information => {
-                                ki_protocol_types::DiagnosticKind::Information
-                            }
-                            crate::quickfix_list::DiagnosticSeverityRange::Hint => {
-                                ki_protocol_types::DiagnosticKind::Hint
-                            }
-                        })
-                    }
-                };
-
-                // Send mode change notification to VSCode
-                self.send_notification(OutputMessageWrapper {
-                    id: 0,
-                    message: OutputMessage::ModeChange(ki_protocol_types::TypedModeParams {
-                        mode: editor_mode,
-                        buffer_id: buffer_id.clone(),
-                    }),
-                    error: None,
-                })?;
-
-                // Send selection mode change notification to VSCode
-                self.send_notification(OutputMessageWrapper {
-                    id: 0,
-                    message: OutputMessage::SelectionModeChange(
-                        ki_protocol_types::SelectionModeParams {
-                            mode: selection_mode,
-                            buffer_id,
-                        },
-                    ),
-                    error: None,
-                })?;
-            }
+            } => self.selection_mode_changed(component_id, selection_mode)?,
             IntegrationEvent::JumpsChanged {
                 component_id,
                 jumps,
-            } => {
-                if let Some(buffer_id) = self.get_buffer_id_from_component_id(component_id) {
-                    // Get the component to access the buffer
-                    if let Some(component) = self.get_component_by_id(component_id) {
-                        // Store the component reference to extend its lifetime
-                        let component_rc = component.component();
-                        let component_ref = component_rc.borrow();
-                        let editor = component_ref.editor();
-                        let buffer = editor.buffer();
-
-                        // Convert Ki's jumps to VS Code jumps
-                        let jumps = jumps
-                            .into_iter()
-                            .map(|(char, char_index)| -> anyhow::Result<_> {
-                                Ok((
-                                    char,
-                                    buffer.char_to_position(char_index)?.to_vscode_position(),
-                                ))
-                            })
-                            .collect::<anyhow::Result<Vec<_>, _>>()?;
-
-                        // Get the selection mode from the editor
-                        self.send_notification(OutputMessageWrapper {
-                            id: 0,
-                            message: OutputMessage::JumpsChange(ki_protocol_types::JumpsParams(
-                                jumps,
-                            )),
-                            error: None,
-                        })?;
-                    }
-                }
-            }
+            } => self.jumps_changed(component_id, jumps)?,
             IntegrationEvent::SelectionChanged {
                 component_id,
                 selections,
@@ -695,62 +500,20 @@ impl VSCodeApp {
             IntegrationEvent::BufferActivated {
                 component_id: _,
                 path,
-            } => {
-                // Send buffer activated notification to VSCode
-                let uri = path_to_uri(&path);
-                let params = ki_protocol_types::BufferParams {
-                    uri,
-                    content: None,
-                    language_id: None,
-                    version: None,
-                };
-                self.send_notification(OutputMessageWrapper {
-                    id: 0,
-                    message: OutputMessage::BufferActivated(params),
-                    error: None,
-                })?;
-            }
+            } => self.buffer_activated(path)?,
             IntegrationEvent::ExternalBufferCreated {
                 component_id: _,
                 buffer_id,
                 content,
-            } => {
-                // Send external buffer created notification to VSCode
-                let external_buffer_params =
-                    ki_protocol_types::ExternalBufferParams { buffer_id, content };
-                self.send_notification(OutputMessageWrapper {
-                    id: 0,
-                    message: OutputMessage::ExternalBufferCreated(external_buffer_params),
-                    error: None,
-                })?;
-            }
+            } => self.external_buffer_created(buffer_id, content)?,
             IntegrationEvent::ExternalBufferUpdated {
                 component_id: _,
                 buffer_id,
                 content,
-            } => {
-                // Send external buffer updated notification to VSCode
-                let external_buffer_params =
-                    ki_protocol_types::ExternalBufferParams { buffer_id, content };
-                self.send_notification(OutputMessageWrapper {
-                    id: 0,
-                    message: OutputMessage::ExternalBufferUpdated(external_buffer_params),
-                    error: None,
-                })?;
-            }
+            } => self.external_buffer_updated(buffer_id, content)?,
             IntegrationEvent::CommandExecuted { command, success } => {
-                // Send command executed notification to VSCode
-                let command_params = ki_protocol_types::CommandParams {
-                    name: command,
-                    args: Vec::new(), // We don't have args in the event currently
-                    success: Some(success),
-                };
-                self.send_notification(OutputMessageWrapper {
-                    id: 0,
-                    message: OutputMessage::CommandExecuted(command_params),
-                    error: None,
-                })?;
-            } // All integration events are now handled
+                self.command_executed(command, success)?
+            }
         }
 
         Ok(())
@@ -960,6 +723,268 @@ impl VSCodeApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::SelectionUpdate(selection_set),
+            error: None,
+        })
+    }
+
+    fn buffer_changed(
+        &self,
+        path: CanonicalizedPath,
+        edits: Vec<ki_protocol_types::DiffEdit>,
+    ) -> anyhow::Result<()> {
+        let buffer_id = path.display_absolute();
+
+        // Convert the transaction to buffer diffs and send to VSCode
+        // This is similar to what we do in the BufferEditTransaction handler
+        let Some(component) = self.get_editor_component_by_path(&path) else {
+            return Ok(());
+        };
+        let component_ref = component.borrow();
+        let editor = component_ref.editor();
+
+        let diff_params = ki_protocol_types::BufferDiffParams { buffer_id, edits };
+
+        // Send buffer diff notification to VSCode
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::BufferDiff(diff_params),
+            error: None,
+        })
+    }
+
+    fn buffer_opened(
+        &self,
+        path: CanonicalizedPath,
+        language_id: Option<String>,
+    ) -> anyhow::Result<()> {
+        // Send buffer open notification to VSCode
+        let uri = path_to_uri(&path);
+        let params = ki_protocol_types::BufferParams {
+            uri,
+            content: None,
+            language_id,
+            version: None,
+        };
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::BufferOpen(params),
+            error: None,
+        })
+    }
+
+    fn buffer_closed(&self, path: CanonicalizedPath) -> anyhow::Result<()> {
+        // Send buffer close notification to VSCode
+        let uri = path_to_uri(&path);
+        let params = ki_protocol_types::BufferParams {
+            uri,
+            content: None,
+            language_id: None,
+            version: None,
+        };
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::BufferClose(params),
+            error: None,
+        })
+    }
+
+    fn buffer_saved(&self, path: CanonicalizedPath) -> anyhow::Result<()> {
+        // Send buffer save notification to VSCode
+        let uri = path_to_uri(&path);
+        let params = ki_protocol_types::BufferParams {
+            uri,
+            content: None,
+            language_id: None,
+            version: None,
+        };
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::BufferSave(params),
+            error: None,
+        })
+    }
+
+    fn mode_changed(&self, component_id: usize, mode: Mode) -> anyhow::Result<()> {
+        let buffer_id = self.get_buffer_id_from_component_id(component_id);
+
+        // Convert Ki Mode to VS Code Mode
+        let editor_mode = match mode {
+            Mode::Normal => ki_protocol_types::EditorMode::Normal,
+            Mode::Insert => ki_protocol_types::EditorMode::Insert,
+            Mode::MultiCursor => ki_protocol_types::EditorMode::MultiCursor,
+            Mode::FindOneChar(_) => ki_protocol_types::EditorMode::FindOneChar,
+            Mode::Swap => ki_protocol_types::EditorMode::Swap,
+            Mode::Replace => ki_protocol_types::EditorMode::Replace,
+            Mode::Extend => ki_protocol_types::EditorMode::Extend,
+        };
+
+        // Send mode change notification to VSCode
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::ModeChange(ki_protocol_types::TypedModeParams {
+                mode: editor_mode,
+                buffer_id: buffer_id.clone(),
+            }),
+            error: None,
+        })
+    }
+
+    fn selection_mode_changed(
+        &self,
+        component_id: usize,
+        selection_mode: crate::selection::SelectionMode,
+    ) -> anyhow::Result<()> {
+        let buffer_id = self.get_buffer_id_from_component_id(component_id);
+        let selection_mode = match &selection_mode {
+            crate::selection::SelectionMode::Character => {
+                ki_protocol_types::SelectionMode::Character
+            }
+            crate::selection::SelectionMode::Line | crate::selection::SelectionMode::LineFull => {
+                ki_protocol_types::SelectionMode::Line
+            }
+            crate::selection::SelectionMode::Word { skip_symbols: true } => {
+                ki_protocol_types::SelectionMode::Word
+            }
+            crate::selection::SelectionMode::Word {
+                skip_symbols: false,
+            } => ki_protocol_types::SelectionMode::WordFine,
+            crate::selection::SelectionMode::Token { .. } => {
+                ki_protocol_types::SelectionMode::Token
+            }
+            crate::selection::SelectionMode::Custom => ki_protocol_types::SelectionMode::Custom,
+            crate::selection::SelectionMode::Find { search } => {
+                ki_protocol_types::SelectionMode::Find {
+                    search: search.search.clone(),
+                }
+            }
+            crate::selection::SelectionMode::GitHunk(_) => {
+                ki_protocol_types::SelectionMode::GitHunk
+            }
+            crate::selection::SelectionMode::LocalQuickfix { title } => {
+                ki_protocol_types::SelectionMode::LocalQuickfix
+            }
+            crate::selection::SelectionMode::Mark => ki_protocol_types::SelectionMode::Mark,
+            crate::selection::SelectionMode::SyntaxNode => {
+                ki_protocol_types::SelectionMode::SyntaxNode
+            }
+            crate::selection::SelectionMode::SyntaxNodeFine => {
+                ki_protocol_types::SelectionMode::SyntaxNodeFine
+            }
+            crate::selection::SelectionMode::Diagnostic(kind) => {
+                ki_protocol_types::SelectionMode::Diagnostic(match kind {
+                    crate::quickfix_list::DiagnosticSeverityRange::All => {
+                        ki_protocol_types::DiagnosticKind::All
+                    }
+                    crate::quickfix_list::DiagnosticSeverityRange::Error => {
+                        ki_protocol_types::DiagnosticKind::Error
+                    }
+                    crate::quickfix_list::DiagnosticSeverityRange::Warning => {
+                        ki_protocol_types::DiagnosticKind::Warning
+                    }
+                    crate::quickfix_list::DiagnosticSeverityRange::Information => {
+                        ki_protocol_types::DiagnosticKind::Information
+                    }
+                    crate::quickfix_list::DiagnosticSeverityRange::Hint => {
+                        ki_protocol_types::DiagnosticKind::Hint
+                    }
+                })
+            }
+        };
+
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::SelectionModeChange(ki_protocol_types::SelectionModeParams {
+                mode: selection_mode,
+                buffer_id,
+            }),
+            error: None,
+        })
+    }
+
+    fn jumps_changed(
+        &self,
+        component_id: usize,
+        jumps: Vec<(char, crate::selection::CharIndex)>,
+    ) -> anyhow::Result<()> {
+        let Some(buffer_id) = self.get_buffer_id_from_component_id(component_id) else {
+            return Ok(());
+        };
+
+        // Get the component to access the buffer
+        let Some(component) = self.get_component_by_id(component_id) else {
+            return Ok(());
+        };
+        // Store the component reference to extend its lifetime
+        let component_rc = component.component();
+        let component_ref = component_rc.borrow();
+        let editor = component_ref.editor();
+        let buffer = editor.buffer();
+
+        // Convert Ki's jumps to VS Code jumps
+        let jumps = jumps
+            .into_iter()
+            .map(|(char, char_index)| -> anyhow::Result<_> {
+                Ok((
+                    char,
+                    buffer.char_to_position(char_index)?.to_vscode_position(),
+                ))
+            })
+            .collect::<anyhow::Result<Vec<_>, _>>()?;
+
+        // Get the selection mode from the editor
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::JumpsChange(ki_protocol_types::JumpsParams(jumps)),
+            error: None,
+        })
+    }
+
+    fn buffer_activated(&self, path: CanonicalizedPath) -> anyhow::Result<()> {
+        // Send buffer activated notification to VSCode
+        let uri = path_to_uri(&path);
+        let params = ki_protocol_types::BufferParams {
+            uri,
+            content: None,
+            language_id: None,
+            version: None,
+        };
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::BufferActivated(params),
+            error: None,
+        })
+    }
+
+    fn external_buffer_created(&self, buffer_id: String, content: String) -> anyhow::Result<()> {
+        // Send external buffer created notification to VSCode
+        let external_buffer_params = ki_protocol_types::ExternalBufferParams { buffer_id, content };
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::ExternalBufferCreated(external_buffer_params),
+            error: None,
+        })
+    }
+
+    fn external_buffer_updated(&self, buffer_id: String, content: String) -> anyhow::Result<()> {
+        // Send external buffer updated notification to VSCode
+        let external_buffer_params = ki_protocol_types::ExternalBufferParams { buffer_id, content };
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::ExternalBufferUpdated(external_buffer_params),
+            error: None,
+        })
+    }
+
+    fn command_executed(&self, command: String, success: bool) -> anyhow::Result<()> {
+        // Send command executed notification to VSCode
+        let command_params = ki_protocol_types::CommandParams {
+            name: command,
+            args: Vec::new(), // We don't have args in the event currently
+            success: Some(success),
+        };
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::CommandExecuted(command_params),
             error: None,
         })
     }

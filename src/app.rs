@@ -901,28 +901,11 @@ impl<T: Frontend> App<T> {
                         edits: edits.clone(),
                     },
                 );
-
-                // Convert the transaction to buffer diffs and send to VSCode (for backward compatibility)
-                if let Some(component) = self.layout.get_component_by_id(component_id) {
-                    let component_ref = component.borrow();
-                    let editor = component_ref.editor();
-
-                    // Extract edits from the transaction
-                    if !edits.is_empty() {
-                        let buffer_id = path.display_absolute();
-                        let diff_params = ki_protocol_types::BufferDiffParams { buffer_id, edits };
-
-                        // Log the transaction details for debugging
-                        trace!(
-                            "Sending buffer diff from EditTransaction: {:?}",
-                            diff_params
-                        );
-
-                        // Buffer diff notification is now handled via integration events
-                    }
-                }
             }
             Dispatch::ModeChanged => self.mode_changed(),
+            Dispatch::SelectionModeChanged(selection_mode) => {
+                self.selection_mode_changed(selection_mode)
+            }
             Dispatch::SelectionChanged {
                 component_id,
                 selections,
@@ -1760,6 +1743,12 @@ impl<T: Frontend> App<T> {
         #[cfg(feature = "vscode")]
         let dispatches = dispatches
             .append(component.borrow().editor().dispatch_selection_changed())
+            .append(
+                component
+                    .borrow()
+                    .editor()
+                    .dispatch_selection_mode_changed(),
+            )
             .append(Dispatch::ModeChanged);
 
         // Process the dispatches
@@ -2557,16 +2546,11 @@ impl<T: Frontend> App<T> {
         let component_ref = component.borrow();
         let editor = component_ref.editor();
         let mode = editor.mode.clone();
-        let selection_mode = editor.selection_set.mode.clone();
         let component_id = crate::integration_event::component_id_to_usize(&editor.id());
 
         // Emit an integration event for the mode change
         self.integration_event_sender.emit_event(
-            crate::integration_event::IntegrationEvent::ModeChanged {
-                component_id,
-                mode: format!("{:?}", mode),
-                selection_mode,
-            },
+            crate::integration_event::IntegrationEvent::ModeChanged { component_id, mode },
         );
     }
 
@@ -2593,7 +2577,24 @@ impl<T: Frontend> App<T> {
         );
     }
 
-    // VSCode notification methods have been removed in favor of integration events
+    fn selection_mode_changed(&self, selection_mode: SelectionMode) {
+        // This dispatch is handled by the VSCode integration to send mode change notifications
+        // No action needed here as the mode has already been changed in the editor
+
+        // Get the current component and its mode
+        let component = self.current_component();
+        let component_ref = component.borrow();
+        let editor = component_ref.editor();
+        let component_id = crate::integration_event::component_id_to_usize(&editor.id());
+
+        // Emit an integration event for the mode change
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::SelectionModeChanged {
+                component_id,
+                selection_mode,
+            },
+        );
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2853,6 +2854,7 @@ pub(crate) enum Dispatch {
         component_id: crate::components::component::ComponentId,
         jumps: Vec<(char, CharIndex)>,
     },
+    SelectionModeChanged(SelectionMode),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
