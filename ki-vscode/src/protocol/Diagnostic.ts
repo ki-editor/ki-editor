@@ -2,4 +2,4 @@
 import type { DiagnosticSeverity } from "./DiagnosticSeverity";
 import type { Range } from "./Range";
 
-export type Diagnostic = { range: Range; message: string; severity: DiagnosticSeverity | null };
+export type Diagnostic = { range: Range, message: string, severity: DiagnosticSeverity | null, };

@@ -50,9 +50,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 kiPath = debugPath;
                 logger.log(`Found Ki at debug path: ${kiPath}`);
             } else {
-                // Fall back to the bundled executable
-                kiPath = context.asAbsolutePath("dist/ki-vscode");
-                logger.log(`Debug path not found, using default path: ${kiPath}`);
+                // Use the bundled platform-specific executable
+                const platform = process.platform;
+                const arch = process.arch;
+
+                logger.log(`Detected platform: ${platform}, architecture: ${arch}`);
+
+                let binaryName = "";
+                if (platform === "darwin") {
+                    // macOS
+                    if (arch === "arm64") {
+                        binaryName = "ki-darwin-arm64";
+                    } else {
+                        binaryName = "ki-darwin-x64";
+                    }
+                } else if (platform === "linux") {
+                    // Linux
+                    binaryName = "ki-linux-x64";
+                } else if (platform === "win32") {
+                    // Windows
+                    binaryName = "ki-win32-x64.exe";
+                } else {
+                    logger.error(`Unsupported platform: ${platform}`);
+                    throw new Error(`Unsupported platform: ${platform}`);
+                }
+
+                kiPath = context.asAbsolutePath(path.join("dist", "bin", binaryName));
+                logger.log(`Using platform-specific binary: ${kiPath}`);
             }
         } else {
             logger.log(`Using configured Ki path: ${kiPath}`);

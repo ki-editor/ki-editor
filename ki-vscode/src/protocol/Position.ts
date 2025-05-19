@@ -3,4 +3,4 @@
 /**
  * VS Code Position
  */
-export type Position = { line: number; character: number };
+export type Position = { line: number, character: number, };

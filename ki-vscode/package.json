@@ -1,22 +1,45 @@
 {
-    "name": "ki-vscode",
-    "version": "1.0.0",
-    "description": "VSCode extension for Ki Editor",
+    "name": "ki-editor-vscode",
+    "version": "0.0.2",
+    "description": "VSCode extension for Ki Editor (Preview)",
     "main": "dist/extension.js",
+    "publisher": "ki-editor",
+    "author": {
+        "name": "Ki Editor Contributors",
+        "url": "https://github.com/ki-editor/ki-editor"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ki-editor/ki-editor.git"
+    },
+    "homepage": "https://github.com/ki-editor/ki-editor",
+    "bugs": {
+        "url": "https://github.com/ki-editor/ki-editor/issues"
+    },
+    "license": "MPL-2.0",
+    "keywords": [
+        "ki",
+        "editor",
+        "modal",
+        "vim",
+        "text-editor"
+    ],
+    "categories": [
+        "Programming Languages",
+        "Keymaps",
+        "Other"
+    ],
+    "icon": "images/ki-logo.png",
+    "preview": true,
     "scripts": {
-        "test": "jest",
-        "test:unit": "jest 'test/unit/.*\\.test\\.ts$'",
-        "test:integration": "jest 'test/integration/.*\\.test\\.ts$'",
-        "test:e2e": "jest 'test/e2e/.*\\.test\\.ts$'",
-        "test:watch": "jest --watch",
-        "test:coverage": "jest --coverage",
-        "test:ci": "jest --ci --coverage --reporters='default' --reporters='jest-junit'",
         "compile": "tsc -p .",
         "compile:sourcemaps": "tsc -p . --sourceMap true",
         "watch": "tsc -watch -p . --sourceMap true",
         "package": "vsce package",
-        "vscode:prepublish": "npm run compile",
-        "lint": "eslint src --ext ts"
+        "package:full": "npm run build:binaries && npm run package",
+        "vscode:prepublish": "npm run compile && node scripts/ensure-binary-permissions.js",
+        "lint": "eslint src --ext ts",
+        "build:binaries": "cd .. && ./build-all-platforms.sh"
     },
     "activationEvents": [
         "onStartupFinished"
@@ -28,7 +51,7 @@
                 "ki.backendPath": {
                     "type": "string",
                     "default": "",
-                    "description": "Path to the Ki editor backend executable"
+                    "description": "Optional path to the Ki editor backend executable. If not specified, the bundled platform-specific binary will be used."
                 },
                 "ki.enableDebugLogging": {
                     "type": "boolean",
@@ -222,6 +245,13 @@
     "engines": {
         "vscode": "^1.99.0"
     },
+    "files": [
+        "dist/**",
+        "images/**",
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE"
+    ],
     "jest-junit": {
         "outputDirectory": "reports",
         "outputName": "jest-junit.xml",
