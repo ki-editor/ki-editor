@@ -9,7 +9,11 @@ import type { OutputMessageWrapper } from "./protocol/OutputMessageWrapper";
 
 // Helper type to map InputMessage tags to their parameter types
 type InputMessageParamsMap = {
-    [K in InputMessage["tag"]]: Extract<InputMessage, { tag: K }> extends { params: infer P } ? P : undefined;
+    [K in InputMessage["tag"]]: Extract<InputMessage, { tag: K }> extends {
+        params: infer P;
+    }
+        ? P
+        : undefined;
 };
 
 // Define the set of message tags that are expected as unsolicited notifications
@@ -256,9 +260,10 @@ export class IPC extends EventEmitter {
         }
 
         this.logger.log(
-            `WebSocket received (len=${messageStr.length}): ${messageStr.substring(0, 200)}${
-                messageStr.length > 200 ? "..." : ""
-            }`,
+            `WebSocket received (len=${messageStr.length}): ${messageStr.substring(
+                0,
+                200,
+            )}${messageStr.length > 200 ? "..." : ""}`,
         );
 
         try {
@@ -412,10 +417,9 @@ export class IPC extends EventEmitter {
             }; // Now strongly typed and includes the wrapper ID
             const messageString = JSON.stringify(wrappedMessage);
             this.logger.log(
-                `WebSocket sending (WrapperID=${wrapperId}, len=${messageString.length}): ${messageString.substring(
-                    0,
-                    200,
-                )}${messageString.length > 200 ? "..." : ""}`,
+                `WebSocket sending (WrapperID=${wrapperId}, len=${
+                    messageString.length
+                }): ${messageString.substring(0, 200)}${messageString.length > 200 ? "..." : ""}`,
             );
             this.webSocket.send(messageString);
             return true;

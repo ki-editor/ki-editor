@@ -14,10 +14,10 @@ to install anything separately.
 
 ## Features
 
--   🚀 Full Ki Editor functionality in VSCode.
--   See the [Ki Editor documentation](https://ki-editor.github.io/ki-editor/) to learn about Ki's innovative editing
-    model.
--   Static binaries for all platforms included, no need to install anything
+- 🚀 Full Ki Editor functionality in VSCode.
+- See the [Ki Editor documentation](https://ki-editor.github.io/ki-editor/) to learn about Ki's innovative editing
+  model.
+- Static binaries for all platforms included, no need to install anything
 
 ## Quick Start
 
@@ -42,10 +42,10 @@ to install anything separately.
 
 ## Extension Settings
 
--   `ki.backendPath`: Optional path to the Ki editor backend executable. If not specified, the bundled platform-specific
-    binary will be used.
--   `ki.enableDebugLogging`: Enable debug logging (default: false)
--   `ki.maxFileSize`: Maximum file size to process in bytes (default: 2MB)
+- `ki.backendPath`: Optional path to the Ki editor backend executable. If not specified, the bundled platform-specific
+  binary will be used.
+- `ki.enableDebugLogging`: Enable debug logging (default: false)
+- `ki.maxFileSize`: Maximum file size to process in bytes (default: 2MB)
 
 ## Known Issues
 
@@ -55,11 +55,11 @@ See our [issue tracker](https://github.com/ki-editor/ki-editor/issues) for curre
 
 ### Prerequisites
 
--   Node.js (v16 or later)
--   npm (v8 or later)
--   Bun (v1.0.30 or later) - for bundling the extension
--   Visual Studio Code
--   Nix package manager (for building the Ki binaries)
+- Node.js (v16 or later)
+- npm (v8 or later)
+- Bun (v1.0.30 or later) - for bundling the extension
+- Visual Studio Code
+- Nix package manager (for building the Ki binaries)
 
 ### Build Instructions
 

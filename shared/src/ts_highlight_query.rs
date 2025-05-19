@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct GetHighlightQueryResult {
     pub(crate) query: String,

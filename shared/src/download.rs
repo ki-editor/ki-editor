@@ -1,5 +1,3 @@
-
-
 /// Download the file from `url` and cache it under `folder_name` as `file_name`,
 /// so that it will not be downloaded again.
 pub fn cache_download(url: &str, folder_name: &str, file_name: &str) -> anyhow::Result<String> {

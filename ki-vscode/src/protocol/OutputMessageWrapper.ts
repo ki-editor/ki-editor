@@ -2,4 +2,4 @@
 import type { OutputMessage } from "./OutputMessage";
 import type { ResponseError } from "./ResponseError";
 
-export type OutputMessageWrapper = { message: OutputMessage, id: number, error?: ResponseError, };
+export type OutputMessageWrapper = { message: OutputMessage; id: number; error?: ResponseError };
