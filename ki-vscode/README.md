@@ -57,6 +57,7 @@ See our [issue tracker](https://github.com/ki-editor/ki-editor/issues) for curre
 
 -   Node.js (v16 or later)
 -   npm (v8 or later)
+-   Bun (v1.0.30 or later) - for bundling the extension
 -   Visual Studio Code
 -   Nix package manager (for building the Ki binaries)
 
@@ -130,6 +131,21 @@ npm run package:full
 ```
 
 This will build the binaries for all platforms and package them with the extension.
+
+#### Bundling
+
+The extension uses Bun to bundle all dependencies, ensuring they're available when the extension is installed from the
+marketplace:
+
+```bash
+npm run bundle
+```
+
+This creates a single bundle file that includes all dependencies, including the 'ws' module used for WebSocket
+communication. The bundling script also ensures that binary files have the correct executable permissions on Unix-like
+systems.
+
+The bundling process is automatically run as part of the `vscode:prepublish` script when packaging the extension.
 
 ## License
 

@@ -1,6 +1,6 @@
 {
     "name": "ki-editor-vscode",
-    "version": "0.0.3",
+    "version": "0.0.5",
     "description": "VSCode extension for Ki Editor (Preview)",
     "main": "dist/extension.js",
     "publisher": "ki-editor",
@@ -35,9 +35,10 @@
         "compile": "tsc -p .",
         "compile:sourcemaps": "tsc -p . --sourceMap true",
         "watch": "tsc -watch -p . --sourceMap true",
+        "bundle": "bun scripts/bundle.ts",
         "package": "vsce package",
         "package:full": "npm run build:binaries && npm run package",
-        "vscode:prepublish": "npm run compile && node scripts/ensure-binary-permissions.js",
+        "vscode:prepublish": "bun scripts/bundle.ts",
         "lint": "eslint src --ext ts",
         "build:binaries": "cd .. && ./build-all-platforms.sh"
     },
@@ -229,12 +230,15 @@
         ]
     },
     "devDependencies": {
+        "@types/bun": "latest",
         "@types/jest": "29.5.14",
         "@types/node": "^20.11.0",
         "@types/vscode": "1.99.1",
         "@types/ws": "8.18.1",
         "@typescript-eslint/eslint-plugin": "^6.21.0",
         "@typescript-eslint/parser": "^6.21.0",
+        "bun": "^1.0.30",
+        "bun-types": "^1.0.30",
         "eslint": "^8.56.0",
         "jest": "^29.7.0",
         "jest-junit": "^16.0.0",
