@@ -27,7 +27,8 @@ export type EventName =
     | "document.save"
     | "editor.active"
     | "editor.selection"
-    | "editor.visibleRanges";
+    | "editor.visibleRanges"
+    | "diagnostics.change";
 
 export type EventParams<T extends EventName> = T extends "document.open" | "document.save" | "document.close"
     ? { document: vscode.TextDocument }
@@ -39,7 +40,9 @@ export type EventParams<T extends EventName> = T extends "document.open" | "docu
           ? { event: vscode.TextEditorSelectionChangeEvent }
           : T extends "editor.visibleRanges"
             ? { event: vscode.TextEditorVisibleRangesChangeEvent }
-            : never;
+            : T extends "diagnostics.change"
+              ? { uri: vscode.Uri; diagnostics: vscode.Diagnostic[] }[]
+              : never;
 
 /**
  * Handles event dispatching between VSCode and Ki
@@ -142,6 +145,12 @@ export class Dispatcher implements vscode.Disposable {
             vscode.workspace.onDidCloseTextDocument((document) => this.emitVSCodeEvent("document.close", { document })),
             vscode.workspace.onDidChangeTextDocument((event) => this.emitVSCodeEvent("document.change", { event })),
             vscode.workspace.onDidSaveTextDocument((document) => this.emitVSCodeEvent("document.save", { document })),
+            vscode.languages.onDidChangeDiagnostics((event) =>
+                this.emitVSCodeEvent(
+                    "diagnostics.change",
+                    event.uris.map((uri) => ({ uri, diagnostics: vscode.languages.getDiagnostics(uri) })),
+                ),
+            ),
         );
 
         // Editor events

@@ -14,7 +14,6 @@ pub struct Position {
     #[ts(type = "number")]
     pub character: usize,
 }
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS)]
 #[ts(export)]
 pub struct Range {
@@ -303,6 +302,29 @@ pub enum InputMessage {
     // Viewport operations
     #[serde(rename = "viewport.change")]
     ViewportChange(ViewportParams),
+    #[serde(rename = "diagnostics.change")]
+    DiagnosticsChange(Vec<BufferDiagnostics>),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct BufferDiagnostics {
+    pub path: String,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct Diagnostic {
+    pub range: Range,
+    pub message: String,
+    pub severity: Option<DiagnosticSeverity>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub enum DiagnosticSeverity {
+    Warning,
+    Hint,
+    Information,
+    Error,
 }
 
 // Output Messages (Ki -> VSCode)
@@ -426,6 +448,7 @@ impl MessageMethod for InputMessage {
             Self::EditorAction(_) => Cow::Borrowed("editor.action"),
             Self::SearchFind(_) => Cow::Borrowed("search.find"),
             Self::ViewportChange(_) => Cow::Borrowed("viewport.change"),
+            Self::DiagnosticsChange(_) => Cow::Borrowed("diagnostics.change"),
         }
     }
 
@@ -444,6 +467,7 @@ impl MessageMethod for InputMessage {
             Self::EditorAction(_) => "EditorAction",
             Self::SearchFind(_) => "SearchFind",
             Self::ViewportChange(_) => "ViewportChange",
+            Self::DiagnosticsChange(_) => "DiagnosticsChange",
         }
     }
 }

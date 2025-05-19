@@ -94,6 +94,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         ]
         .to_vec(),
         None, // No integration event sender
+        true,
     )?;
     app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 

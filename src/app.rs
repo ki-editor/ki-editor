@@ -118,6 +118,7 @@ impl<T: Frontend> App<T> {
             receiver,
             status_line_components,
             None, // No integration event sender
+            false,
         )
     }
 
@@ -133,13 +134,14 @@ impl<T: Frontend> App<T> {
         receiver: Receiver<AppMessage>,
         status_line_components: Vec<StatusLineComponent>,
         integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
+        enable_lsp: bool,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let app = App {
             context: Context::new(working_directory.clone()),
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
-            enable_lsp: true,
+            enable_lsp,
             sender,
             layout: Layout::new(
                 dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT),
@@ -1347,7 +1349,7 @@ impl<T: Frontend> App<T> {
         }
     }
 
-    fn update_diagnostics(
+    pub(crate) fn update_diagnostics(
         &mut self,
         path: CanonicalizedPath,
         diagnostics: Vec<lsp_types::Diagnostic>,

@@ -9,6 +9,7 @@ import { Logger } from "./logger";
 import {
     BufferManager,
     CommandManager,
+    DiagnosticManager,
     EventHandler,
     KeyboardManager,
     ModeManager,
@@ -94,6 +95,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const keyboardManager = new KeyboardManager(dispatcher, logger, eventHandler, modeManager);
         const selectionManager = new SelectionManager(dispatcher, logger, eventHandler, modeManager);
         const commandManager = new CommandManager(dispatcher, logger, eventHandler);
+        const diagnosticManager = new DiagnosticManager(dispatcher, logger, eventHandler);
 
         // Initialize managers
         modeManager.initialize();
@@ -101,9 +103,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         keyboardManager.initialize();
         selectionManager.initialize();
         commandManager.initialize();
+        diagnosticManager.initialize();
 
         // Add managers and dispatcher to disposables
-        disposables = [bufferManager, keyboardManager, modeManager, selectionManager, commandManager, dispatcher];
+        disposables = [
+            bufferManager,
+            keyboardManager,
+            modeManager,
+            selectionManager,
+            commandManager,
+            dispatcher,
+            diagnosticManager,
+        ];
 
         // Register all disposables
         context.subscriptions.push(...disposables);

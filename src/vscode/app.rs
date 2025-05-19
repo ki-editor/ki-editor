@@ -9,7 +9,9 @@ use std::thread;
 use crate::app::{App, AppMessage, Dimension, Dispatch, StatusLineComponent};
 use crate::frontend::crossterm::Crossterm;
 use anyhow::Result;
-use ki_protocol_types::{InputMessage, OutputMessage, OutputMessageWrapper, ResponseError};
+use ki_protocol_types::{
+    BufferDiagnostics, InputMessage, OutputMessage, OutputMessageWrapper, ResponseError,
+};
 use log::{debug, error, info, trace};
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -86,6 +88,7 @@ impl VSCodeApp {
             mpsc::channel().1, // Core App gets a dummy receiver it won't use in this mode
             status_line_components.clone(), // Clone the Vec
             Some(integration_event_sender), // Core App gets sender for integration events
+            false,             // Disable LSP
         )?;
 
         // Initialize the WebSocket IPC handler
@@ -221,6 +224,7 @@ impl VSCodeApp {
                 );
                 self.handle_editor_action_request(id, params, trace_id)
             }
+            InputMessage::DiagnosticsChange(params) => self.handle_diagnostics_change(params),
         };
 
         let duration = start_time.elapsed();
@@ -987,6 +991,57 @@ impl VSCodeApp {
             message: OutputMessage::CommandExecuted(command_params),
             error: None,
         })
+    }
+
+    fn handle_diagnostics_change(
+        &self,
+        buffer_diagnosticss: Vec<BufferDiagnostics>,
+    ) -> anyhow::Result<()> {
+        let mut app_guard = match self.app.try_lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                // If we can't acquire the lock, we can't get the current component
+                trace!("Could not acquire app lock to get current component");
+                return Ok(());
+            }
+        };
+        for buffer_diagnostics in buffer_diagnosticss {
+            let path = CanonicalizedPath::try_from(buffer_diagnostics.path)?;
+            let diagnostics = buffer_diagnostics
+                .diagnostics
+                .into_iter()
+                .map(|diagnostic| lsp_types::Diagnostic {
+                    range: lsp_types::Range {
+                        start: lsp_types::Position::new(
+                            diagnostic.range.start.line as u32,
+                            diagnostic.range.start.character as u32,
+                        ),
+                        end: lsp_types::Position::new(
+                            diagnostic.range.end.line as u32,
+                            diagnostic.range.end.character as u32,
+                        ),
+                    },
+                    severity: diagnostic.severity.map(|severity| match severity {
+                        ki_protocol_types::DiagnosticSeverity::Warning => {
+                            lsp_types::DiagnosticSeverity::WARNING
+                        }
+                        ki_protocol_types::DiagnosticSeverity::Hint => {
+                            lsp_types::DiagnosticSeverity::HINT
+                        }
+                        ki_protocol_types::DiagnosticSeverity::Information => {
+                            lsp_types::DiagnosticSeverity::INFORMATION
+                        }
+                        ki_protocol_types::DiagnosticSeverity::Error => {
+                            lsp_types::DiagnosticSeverity::ERROR
+                        }
+                    }),
+                    message: diagnostic.message,
+                    ..Default::default()
+                })
+                .collect();
+            app_guard.update_diagnostics(path, diagnostics)?;
+        }
+        Ok(())
     }
 }
 
