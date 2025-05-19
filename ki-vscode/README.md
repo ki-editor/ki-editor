@@ -3,7 +3,7 @@
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/ki-editor.ki-editor-vscode)](https://marketplace.visualstudio.com/items?itemName=ki-editor.ki-editor-vscode)
 [![GitHub](https://img.shields.io/github/license/ki-editor/ki-editor)](https://github.com/ki-editor/ki-editor)
 
-# Ki Editor for Visual Studio Code (Beta)
+# Ki Editor for Visual Studio Code
 
 > ⚠️ **BETA VERSION**: This extension is currently in beta and definitely contains bugs and incomplete features. Use
 > with caution.
@@ -14,8 +14,9 @@ to install anything separately.
 
 ## Features
 
--   🚀 Full Ki Editor functionality in VSCode. See the [Ki Editor documentation][https://ki-editor.github.io/ki-editor/]
-    to learn about Ki's innovative editing model.
+-   🚀 Full Ki Editor functionality in VSCode.
+-   See the [Ki Editor documentation](https://ki-editor.github.io/ki-editor/) to learn about Ki's innovative editing
+    model.
 -   Static binaries for all platforms included, no need to install anything
 
 ## Quick Start
@@ -27,7 +28,7 @@ to install anything separately.
     code --install-extension ki-editor.ki-editor-vscode
 
     # Or install from a local VSIX file
-    code --install-extension ki-vscode-0.0.1.vsix
+    code --install-extension ki-editor-vscode-0.0.3.vsix
     ```
 
     The extension includes statically linked binaries for all major platforms (Windows, macOS, and Linux), so you don't
