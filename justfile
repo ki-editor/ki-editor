@@ -23,7 +23,7 @@ build:
     cargo build --workspace --tests
 
 build-vscode:
-    cargo watch --ignore 'ki-vscode/src/protocol/**' -- cargo build -F vscode
+    cargo watch --ignore ki-vscode -- cargo build --features vscode
 
 clippy:
     @echo "Running cargo clippy..."

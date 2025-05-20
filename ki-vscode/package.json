@@ -32,8 +32,8 @@
     "icon": "images/ki-logo.png",
     "preview": true,
     "scripts": {
-        "compile": "tsc -p .",
-        "compile:sourcemaps": "tsc -p . --sourceMap true",
+        "compile": "tsc -p . && prettier -w .",
+        "compile:sourcemaps": "tsc -p . --sourceMap true && prettier -w .",
         "watch": "tsc -watch -p . --sourceMap true",
         "bundle": "bun scripts/bundle.ts",
         "package": "vsce package",
