@@ -1,8 +1,7 @@
 import * as vscode from "vscode";
 import { IPC } from "./ipc";
 import { Logger } from "./logger";
-import type { InputMessage } from "./protocol/InputMessage";
-import type { OutputMessage } from "./protocol/OutputMessage";
+import type { InputMessage, OutputMessage } from "./protocol/types";
 
 // Helpertesttest type test to Oukik map OutputMessage tags to their parameter types
 type OutputMessageParamsMap = {

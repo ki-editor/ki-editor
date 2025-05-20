@@ -2,10 +2,7 @@ import * as cp from "child_process";
 import { EventEmitter } from "events";
 import WebSocket from "ws"; // Import WebSocket library
 import { Logger } from "./logger";
-import type { InputMessage } from "./protocol/InputMessage"; // Import InputMessage
-import type { InputMessageWrapper } from "./protocol/InputMessageWrapper"; // Import InputMessageWrapper
-import type { OutputMessage } from "./protocol/OutputMessage";
-import type { OutputMessageWrapper } from "./protocol/OutputMessageWrapper";
+import type { InputMessage, InputMessageWrapper, OutputMessage, OutputMessageWrapper } from "./protocol/types";
 
 // Helper type to map InputMessage tags to their parameter types
 type InputMessageParamsMap = {

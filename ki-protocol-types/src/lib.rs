@@ -2,27 +2,27 @@
 
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use ts_rs::TS;
+use typeshare::typeshare;
 
 // Common data structures
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[typeshare]
 /// VS Code Position
 pub struct Position {
-    #[ts(type = "number")]
+    #[typeshare(typescript(type = "number"))]
     pub line: usize,
-    #[ts(type = "number")]
+    #[typeshare(typescript(type = "number"))]
     pub character: usize,
 }
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[typeshare]
 pub struct Range {
     pub start: Position,
     pub end: Position,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[typeshare]
 pub struct Selection {
     pub anchor: Position, // The anchor (where selection started)
     pub active: Position, // The active/cursor position
@@ -40,26 +40,27 @@ impl Selection {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[typeshare]
 pub struct SelectionSet {
     pub buffer_id: String,
     #[serde(default)]
+    #[typeshare(typescript(type = "number"))]
     pub primary: usize,
     pub selections: Vec<Selection>,
 }
 
 // Represents a single text edit operation.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[typeshare]
 pub struct DiffEdit {
     pub range: Range,     // The range of the text to be replaced.
     pub new_text: String, // The new text to insert.
 }
 
 // Editor Mode enum for type-safe mode representation
-#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[typeshare]
 #[serde(rename_all = "camelCase")]
 pub enum EditorMode {
     Normal,
@@ -74,8 +75,8 @@ pub enum EditorMode {
 
 // Selection Mode enum for type-safe selection mode representation
 // This should match Ki's internal SelectionMode enum as closely as possible
-#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[typeshare]
 #[serde(tag = "type", content = "params")]
 pub enum SelectionMode {
     Character,
@@ -95,8 +96,8 @@ pub enum SelectionMode {
     LocalQuickfix,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[typeshare]
 pub enum DiagnosticKind {
     Error,
     Information,
@@ -106,8 +107,8 @@ pub enum DiagnosticKind {
 }
 
 // Editor actions enum for type-safe editor operations
-#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[typeshare]
 #[serde(rename_all = "camelCase")]
 pub enum EditorAction {
     Undo,
@@ -140,8 +141,8 @@ impl std::fmt::Display for EditorAction {
 // Message parameter structures
 
 // Parameters for buffer events
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct BufferParams {
     pub uri: String,
     pub content: Option<String>,
@@ -150,16 +151,16 @@ pub struct BufferParams {
 }
 
 // Parameters for buffer diff events
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[typeshare]
 pub struct BufferDiffParams {
     pub buffer_id: String,
     pub edits: Vec<DiffEdit>, // A list of edits to apply sequentially.
 }
 
 // Parameters for cursor update events
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct CursorParams {
     pub buffer_id: String,
     pub anchors: Vec<Position>, // Anchor positions for multi-cursor
@@ -167,67 +168,76 @@ pub struct CursorParams {
 }
 
 // Parameters for mode change events
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct ModeParams {
     pub mode: String, // Using string for backward compatibility
     pub buffer_id: Option<String>,
 }
 
 // Parameters for typed mode change events
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct TypedModeParams {
     pub mode: EditorMode,
     pub buffer_id: Option<String>,
 }
 
 // Parameters for selection mode change events
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct SelectionModeParams {
     pub mode: SelectionMode,
     pub buffer_id: Option<String>,
 }
 
 // Parameters for viewport change events
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
+pub struct LineRange {
+    #[typeshare(typescript(type = "number"))]
+    pub start: usize,
+    #[typeshare(typescript(type = "number"))]
+    pub end: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct ViewportParams {
     pub buffer_id: String,
-    pub visible_line_ranges: Vec<(/* start */ usize, /* end */ usize)>,
+    pub visible_line_ranges: Vec<LineRange>,
 }
 
 // Parameters for keyboard input events
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[typeshare]
 pub struct KeyboardParams {
     pub key: String,
-    #[ts(type = "number")]
+     #[typeshare(typescript(type = "number"))]
     pub timestamp: u64,
     pub mode: Option<String>,
     pub is_composed: bool,
 }
 
 // Parameters for editor actions
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct EditorActionParams {
     pub action: EditorAction,
     pub buffer_id: Option<String>,
 }
 
 // Parameters for external buffer events
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct ExternalBufferParams {
     pub buffer_id: String,
     pub content: String,
 }
 
 // Parameters for command execution
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct CommandParams {
     pub name: String,
     pub args: Vec<String>,
@@ -235,8 +245,8 @@ pub struct CommandParams {
 }
 
 // Parameters for search operations
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct SearchParams {
     pub buffer_id: String,
     pub query: String,
@@ -249,16 +259,16 @@ pub struct SearchParams {
 }
 
 // Parameters for logging
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct LogParams {
     pub level: String,
     pub message: String,
 }
 
 // Input Messages (VSCode -> Ki)
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 #[serde(tag = "tag", content = "params")]
 pub enum InputMessage {
     // System operations
@@ -306,20 +316,23 @@ pub enum InputMessage {
     DiagnosticsChange(Vec<BufferDiagnostics>),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct BufferDiagnostics {
     pub path: String,
     pub diagnostics: Vec<Diagnostic>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct Diagnostic {
     pub range: Range,
     pub message: String,
     pub severity: Option<DiagnosticSeverity>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub enum DiagnosticSeverity {
     Warning,
     Hint,
@@ -328,8 +341,8 @@ pub enum DiagnosticSeverity {
 }
 
 // Output Messages (Ki -> VSCode)
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 #[serde(tag = "tag", content = "params")]
 pub enum OutputMessage {
     // System operations
@@ -390,35 +403,45 @@ pub enum OutputMessage {
     JumpsChange(JumpsParams),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct JumpsParams(pub Vec<(char, Position)>);
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
+pub struct JumpTarget {
+    pub key: char,
+    pub position: Position,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
+pub struct JumpsParams {
+    pub targets: Vec<JumpTarget>,
+}
 
 // Main message wrapper
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct InputMessageWrapper {
     pub message: InputMessage,
-    #[ts(type = "number")]
+     #[typeshare(typescript(type = "number"))]
     pub id: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct OutputMessageWrapper {
     pub message: OutputMessage,
-    #[ts(type = "number")]
+     #[typeshare(typescript(type = "number"))]
     pub id: u64,
-    #[ts(optional)]
     pub error: Option<ResponseError>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, TS)]
-#[ts(export)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[typeshare]
 pub struct ResponseError {
     pub code: i32,
     pub message: String,
-    #[ts(type = "any | null")]
+    #[typeshare(typescript(type = "any | undefined"))]
     pub data: Option<serde_json::Value>,
 }
 

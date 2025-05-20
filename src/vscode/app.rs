@@ -938,7 +938,11 @@ impl VSCodeApp {
         // Get the selection mode from the editor
         self.send_notification(OutputMessageWrapper {
             id: 0,
-            message: OutputMessage::JumpsChange(ki_protocol_types::JumpsParams(jumps)),
+            message: OutputMessage::JumpsChange(ki_protocol_types::JumpsParams {
+                targets: jumps.into_iter()
+                    .map(|(key, position)| ki_protocol_types::JumpTarget { key, position })
+                    .collect(),
+            }),
             error: None,
         })
     }

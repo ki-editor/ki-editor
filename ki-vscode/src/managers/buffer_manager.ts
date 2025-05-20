@@ -1,8 +1,7 @@
 import * as vscode from "vscode";
 import { Dispatcher } from "../dispatcher";
 import { Logger } from "../logger";
-import { BufferDiffParams } from "../protocol/BufferDiffParams";
-import { DiffEdit } from "../protocol/DiffEdit";
+import { BufferDiffParams, DiffEdit, EditorAction } from "../protocol/types";
 import { EventHandler } from "./event_handler";
 import { Manager } from "./manager";
 import { ModeManager } from "./mode_manager";
@@ -167,7 +166,7 @@ export class BufferManager extends Manager {
         // Send close notification to Ki
         this.dispatcher.sendRequest("buffer.close", {
             uri: uri,
-            content: null,
+            content: undefined,
             language_id: document.languageId,
             version: document.version,
         });
@@ -191,7 +190,7 @@ export class BufferManager extends Manager {
         // Send save notification to Ki
         this.dispatcher.sendRequest("buffer.save", {
             uri: uri,
-            content: null,
+            content: undefined,
             language_id: document.languageId,
             version: document.version,
         });
@@ -325,7 +324,7 @@ export class BufferManager extends Manager {
         // Send active notification to Ki
         this.dispatcher.sendNotification("buffer.active", {
             uri: uri,
-            content: null,
+            content: undefined,
             language_id: document.languageId,
             version: document.version,
         });
@@ -563,7 +562,7 @@ export class BufferManager extends Manager {
         // Send the undo/redo command to Ki
         this.dispatcher
             .sendRequest("editor.action", {
-                action: isUndo ? "undo" : "redo",
+                action: isUndo ? EditorAction.Undo : EditorAction.Redo,
                 buffer_id: document.uri.toString(),
             })
             .then((response) => {

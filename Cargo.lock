@@ -1748,8 +1748,8 @@ dependencies = [
  "tree-sitter-quickfix",
  "tree-sitter-rust",
  "tree-sitter-traversal2",
- "ts-rs",
  "tungstenite",
+ "typeshare",
  "undo",
  "unicode-width 0.2.0",
  "url",
@@ -1764,7 +1764,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
- "ts-rs",
+ "typeshare",
 ]
 
 [[package]]
@@ -2631,7 +2631,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3922,29 +3922,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
-name = "ts-rs"
-version = "10.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e640d9b0964e9d39df633548591090ab92f7a4567bc31d3891af23471a3365c6"
-dependencies = [
- "lazy_static",
- "thiserror 2.0.9",
- "ts-rs-macros",
-]
-
-[[package]]
-name = "ts-rs-macros"
-version = "10.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e9d8656589772eeec2cf7a8264d9cda40fb28b9bc53118ceb9e8c07f8f38730"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.92",
- "termcolor",
-]
-
-[[package]]
 name = "tungstenite"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3971,6 +3948,26 @@ name = "typenum"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
+
+[[package]]
+name = "typeshare"
+version = "1.0.3"
+source = "git+https://github.com/tomjw64/typeshare?branch=allow-override-for-disallowed-types#357540884d47a840aab6705e1508f3573056b29a"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "typeshare-annotation",
+]
+
+[[package]]
+name = "typeshare-annotation"
+version = "1.0.4"
+source = "git+https://github.com/tomjw64/typeshare?branch=allow-override-for-disallowed-types#357540884d47a840aab6705e1508f3573056b29a"
+dependencies = [
+ "quote",
+ "syn 2.0.92",
+]
 
 [[package]]
 name = "typify"

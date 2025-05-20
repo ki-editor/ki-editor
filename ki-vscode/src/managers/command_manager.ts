@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { Dispatcher } from "../dispatcher";
 import { Logger } from "../logger";
-import { CommandParams } from "../protocol/CommandParams";
+import { CommandParams } from "../protocol/types";
 import { EventHandler } from "./event_handler";
 import { Manager } from "./manager";
 

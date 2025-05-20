@@ -25,7 +25,7 @@ impl VSCodeApp {
         let visible_line_ranges = params
             .visible_line_ranges
             .iter()
-            .map(|(start, end)| (*start)..(*end))
+            .map(|line_range| line_range.start..line_range.end)
             .collect_vec();
         editor.set_visible_line_ranges(visible_line_ranges);
 

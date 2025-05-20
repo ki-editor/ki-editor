@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { Dispatcher } from "../dispatcher";
 import { Logger } from "../logger";
-import { DiagnosticSeverity } from "../protocol/DiagnosticSeverity";
+import { DiagnosticSeverity } from "../protocol/types";
 import { EventHandler } from "./event_handler";
 import { Manager } from "./manager";
 
@@ -24,13 +24,13 @@ export class DiagnosticManager extends Manager {
                     severity: ((): DiagnosticSeverity => {
                         switch (diagnostic.severity) {
                             case vscode.DiagnosticSeverity.Hint:
-                                return "Hint";
+                                return DiagnosticSeverity.Hint;
                             case vscode.DiagnosticSeverity.Warning:
-                                return "Warning";
+                                return DiagnosticSeverity.Warning;
                             case vscode.DiagnosticSeverity.Error:
-                                return "Error";
+                                return DiagnosticSeverity.Error;
                             case vscode.DiagnosticSeverity.Information:
-                                return "Information";
+                                return DiagnosticSeverity.Information;
                         }
                     })(),
                 })),

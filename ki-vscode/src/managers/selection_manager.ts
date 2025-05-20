@@ -1,8 +1,7 @@
 import * as vscode from "vscode";
 import { Dispatcher } from "../dispatcher";
 import { Logger } from "../logger";
-import { JumpsParams } from "../protocol/JumpsParams";
-import { SelectionSet } from "../protocol/SelectionSet";
+import { JumpsParams, SelectionSet } from "../protocol/types";
 import { EventHandler } from "./event_handler";
 import { Manager } from "./manager";
 import { ModeManager } from "./mode_manager";
@@ -55,13 +54,13 @@ export class SelectionManager extends Manager {
         const editor = this.activeEditor;
         if (!editor) return;
 
-        const decorations: vscode.DecorationOptions[] = jumps.map((jump) => {
-            const start = new vscode.Position(jump[1].line, jump[1].character);
+        const decorations: vscode.DecorationOptions[] = jumps.targets.map((jump) => {
+            const start = new vscode.Position(jump.position.line, jump.position.character);
             const end = new vscode.Position(start.line, start.character + 1);
             const result: vscode.DecorationOptions = {
                 range: new vscode.Range(start, end),
                 renderOptions: {
-                    before: { contentText: jump[0] },
+                    before: { contentText: jump.key },
                 },
             };
             return result;
@@ -73,13 +72,10 @@ export class SelectionManager extends Manager {
     private handleVisibleRangesChanged(event: vscode.TextEditorVisibleRangesChangeEvent): void {
         this.dispatcher.sendNotification("viewport.change", {
             buffer_id: event.textEditor.document.uri.toString(),
-            visible_line_ranges: event.visibleRanges.map(
-                (range) =>
-                    [Math.max(0, range.start.line - JUMP_SAFETY_PADDING), range.end.line + JUMP_SAFETY_PADDING] as [
-                        number,
-                        number,
-                    ],
-            ),
+            visible_line_ranges: event.visibleRanges.map((range) => ({
+                start: Math.max(0, range.start.line - JUMP_SAFETY_PADDING),
+                end: range.end.line + JUMP_SAFETY_PADDING,
+            })),
         });
     }
 
@@ -217,13 +213,10 @@ export class SelectionManager extends Manager {
             // Return the latest visible ranges after revealing the primary selection
             this.dispatcher.sendNotification("viewport.change", {
                 buffer_id: this.activeEditor.document.uri.toString(),
-                visible_line_ranges: this.activeEditor.visibleRanges.map(
-                    (range) =>
-                        [Math.max(0, range.start.line - JUMP_SAFETY_PADDING), range.end.line + JUMP_SAFETY_PADDING] as [
-                            number,
-                            number,
-                        ],
-                ),
+                visible_line_ranges: this.activeEditor.visibleRanges.map((range) => ({
+                    start: Math.max(0, range.start.line - JUMP_SAFETY_PADDING),
+                    end: range.end.line + JUMP_SAFETY_PADDING,
+                })),
             });
         } finally {
             // Reset flag immediately after applying the selection

@@ -1,10 +1,7 @@
 import * as vscode from "vscode";
 import { Dispatcher } from "../dispatcher";
 import { Logger } from "../logger";
-import { EditorMode } from "../protocol/EditorMode";
-import { SelectionModeParams } from "../protocol/SelectionModeParams";
-import { SelectionSet } from "../protocol/SelectionSet";
-import { TypedModeParams } from "../protocol/TypedModeParams";
+import { EditorMode, SelectionModeParams, SelectionSet, TypedModeParams } from "../protocol/types";
 import { EventHandler } from "./event_handler";
 import { Manager } from "./manager";
 
@@ -12,7 +9,7 @@ import { Manager } from "./manager";
  * Manages mode synchronization between VSCode and Ki
  */
 export class ModeManager extends Manager {
-    private currentMode: EditorMode = "normal";
+    private currentMode: EditorMode = EditorMode.Normal;
     private currentSelectionMode: SelectionModeParams["mode"] = { type: "Line" };
     private statusBarItem: vscode.StatusBarItem;
     private context: vscode.ExtensionContext;
@@ -60,7 +57,7 @@ export class ModeManager extends Manager {
      * Toggle between normal and insert mode
      */
     private toggleMode(): void {
-        const newMode = this.currentMode === "normal" ? "insert" : "normal";
+        const newMode = this.currentMode === EditorMode.Normal ? EditorMode.Insert : EditorMode.Normal;
         this.logger.log(`Toggling mode from ${this.currentMode} to ${newMode}`);
 
         // Send mode change to Ki
@@ -74,9 +71,9 @@ export class ModeManager extends Manager {
         // Setting `ki.isInsertMode` is necessary so that
         // special keys like tab will not trigger the `ki.specialKey.tab`
         // command.
-        vscode.commands.executeCommand("setContext", "ki.isInsertMode", params.mode === "insert");
+        vscode.commands.executeCommand("setContext", "ki.isInsertMode", params.mode === EditorMode.Insert);
 
-        if (this.currentMode === "insert" && params.mode === "insert") {
+        if (this.currentMode === EditorMode.Insert && params.mode === EditorMode.Insert) {
             // Don't update cursor position if the current mode is in Insert mode
             // and the incoming mode is Insert mode as well.
             // This is because we should let VS Code handle everything in Insert mode.
@@ -97,44 +94,48 @@ export class ModeManager extends Manager {
     private parseMode(mode: string): EditorMode {
         switch (mode.toLowerCase()) {
             case "normal":
-                return "normal";
+                return EditorMode.Normal;
             case "insert":
-                return "insert";
+                return EditorMode.Insert;
             case "multicursor":
-                return "multiCursor";
+                return EditorMode.MultiCursor;
             case "findonechar":
-                return "findOneChar";
+                return EditorMode.FindOneChar;
             case "swap":
-                return "swap";
+                return EditorMode.Swap;
             case "replace":
-                return "replace";
+                return EditorMode.Replace;
             case "extend":
-                return "extend";
+                return EditorMode.Extend;
             default:
                 this.logger.warn(`Unknown mode: ${mode}, defaulting to Normal`);
-                return "normal";
+                return EditorMode.Normal;
         }
     }
 
     private updateStatusBar(): void {
-        const { modeText, icon } = (() => {
+        const modeInfo = (() => {
             switch (this.currentMode) {
-                case "normal":
+                case EditorMode.Normal:
                     return { modeText: "Ki: NORMAL", icon: "$(keyboard)" };
-                case "insert":
+                case EditorMode.Insert:
                     return { modeText: "Ki: INSERT", icon: "$(edit)" };
-                case "multiCursor":
+                case EditorMode.MultiCursor:
                     return { modeText: "Ki: MULTI", icon: "$(multiple-windows)" };
-                case "findOneChar":
+                case EditorMode.FindOneChar:
                     return { modeText: "Ki: FIND", icon: "$(search)" };
-                case "swap":
+                case EditorMode.Swap:
                     return { modeText: "Ki: SWAP", icon: "$(arrow-swap)" };
-                case "replace":
+                case EditorMode.Replace:
                     return { modeText: "Ki: REPLACE", icon: "$(replace)" };
-                case "extend":
+                case EditorMode.Extend:
                     return { modeText: "Ki: EXTEND", icon: "$(selection)" };
+                default:
+                    return { modeText: "Ki: UNKNOWN", icon: "$(question)" };
             }
         })();
+
+        const { modeText, icon } = modeInfo;
 
         const selectionModeText = (() => {
             switch (this.currentSelectionMode.type) {
@@ -152,9 +153,9 @@ export class ModeManager extends Manager {
 
         // Update color based on mode
         this.statusBarItem.backgroundColor = new vscode.ThemeColor(
-            this.currentMode === "normal"
+            this.currentMode === EditorMode.Normal
                 ? "statusBarItem.warningBackground"
-                : this.currentMode === "insert"
+                : this.currentMode === EditorMode.Insert
                   ? "statusBarItem.errorBackground"
                   : "statusBarItem.prominentBackground",
         );
@@ -177,12 +178,12 @@ export class ModeManager extends Manager {
         // Set cursor style based on mode
         const cursorStyle = (() => {
             switch (this.currentMode) {
-                case "insert":
+                case EditorMode.Insert:
                     return vscode.TextEditorCursorStyle.Line;
-                case "normal":
+                case EditorMode.Normal:
                     return vscode.TextEditorCursorStyle.Block;
-                case "extend":
-                case "replace":
+                case EditorMode.Extend:
+                case EditorMode.Replace:
                     return vscode.TextEditorCursorStyle.Underline;
                 default:
                     return vscode.TextEditorCursorStyle.Block;

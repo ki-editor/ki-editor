@@ -43,7 +43,7 @@ itertools = "~0.13.0"
 [features]
 wayland = ["arboard/wayland-data-control"]
 vscode = [
-  "dep:ts-rs",
+  "dep:typeshare",
   "dep:thiserror",
   "dep:uuid",
   "dep:url",
@@ -55,8 +55,13 @@ default = ["vscode"]
 [build-dependencies]
 grammar = { path = "grammar" }
 shared = { path = "shared" }
-ts-rs = { version = "10.1", optional = true }
+typeshare = { git = "https://github.com/tomjw64/typeshare", branch = "allow-override-for-disallowed-types", optional = true }
 ki-protocol-types = { path = "ki-protocol-types", optional = true }
+
+[dependencies.typeshare]
+git = "https://github.com/tomjw64/typeshare"
+branch = "allow-override-for-disallowed-types"
+optional = true
 
 [dependencies]
 anyhow.workspace = true
@@ -126,7 +131,7 @@ url = { version = "2.5.2", optional = true }
 # Add tungstenite for WebSocket support
 tungstenite = { version = "0.21", features = [
   "rustls-tls-webpki-roots",
-], optional = true } 
+], optional = true }
 cross = "0.2.5"
 
 [dev-dependencies]

@@ -1,12 +1,15 @@
 import { Dispatcher } from "../dispatcher";
 import { ErrorHandler, ErrorSeverity } from "../error_handler";
 import { Logger } from "../logger";
-import { BufferDiffParams } from "../protocol/BufferDiffParams";
-import { BufferParams } from "../protocol/BufferParams";
-import { CommandParams } from "../protocol/CommandParams";
-import { JumpsParams } from "../protocol/JumpsParams";
-import { SelectionSet } from "../protocol/SelectionSet";
-import { TypedModeParams } from "../protocol/TypedModeParams";
+import {
+    BufferDiffParams,
+    BufferParams,
+    CommandParams,
+    JumpsParams,
+    SelectionSet,
+    TypedModeParams,
+    SelectionModeParams,
+} from "../protocol/types";
 
 /**
  * Handles events from Ki and VSCode
