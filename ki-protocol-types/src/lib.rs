@@ -213,7 +213,7 @@ pub struct ViewportParams {
 #[typeshare]
 pub struct KeyboardParams {
     pub key: String,
-     #[typeshare(typescript(type = "number"))]
+    #[typeshare(typescript(type = "number"))]
     pub timestamp: u64,
     pub mode: Option<String>,
     pub is_composed: bool,
@@ -403,8 +403,6 @@ pub enum OutputMessage {
     JumpsChange(JumpsParams),
 }
 
-
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[typeshare]
 pub struct JumpTarget {
@@ -423,7 +421,7 @@ pub struct JumpsParams {
 #[typeshare]
 pub struct InputMessageWrapper {
     pub message: InputMessage,
-     #[typeshare(typescript(type = "number"))]
+    #[typeshare(typescript(type = "number"))]
     pub id: u64,
 }
 
@@ -431,7 +429,7 @@ pub struct InputMessageWrapper {
 #[typeshare]
 pub struct OutputMessageWrapper {
     pub message: OutputMessage,
-     #[typeshare(typescript(type = "number"))]
+    #[typeshare(typescript(type = "number"))]
     pub id: u64,
     pub error: Option<ResponseError>,
 }

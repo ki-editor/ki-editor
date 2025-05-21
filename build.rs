@@ -8,14 +8,17 @@ fn main() {
 
         let out_dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
         let ts_output_path = out_dir.join("ki-vscode").join("src").join("protocol");
-        let kotlin_output_path = out_dir.join("ki-jetbrains").join("src").join("kotlin").join("protocol");
+        let kotlin_output_path = out_dir
+            .join("ki-jetbrains")
+            .join("src")
+            .join("kotlin")
+            .join("protocol");
 
         // Ensure the parent directories exist
         for path in [&ts_output_path, &kotlin_output_path] {
             if let Some(parent_dir) = path.parent() {
                 if !parent_dir.exists() {
-                    std::fs::create_dir_all(parent_dir)
-                        .expect("Failed to create parent directory");
+                    std::fs::create_dir_all(parent_dir).expect("Failed to create parent directory");
                 }
             }
         }
@@ -37,7 +40,10 @@ fn main() {
         let typeshare_ts_status = std::process::Command::new("typeshare")
             .arg("ki-protocol-types/src")
             .arg("--lang=typescript")
-            .arg(format!("--output-file={}/types.ts", ts_output_path.display()))
+            .arg(format!(
+                "--output-file={}/types.ts",
+                ts_output_path.display()
+            ))
             .status()
             .expect("Failed to execute typeshare for TypeScript");
 
@@ -49,7 +55,10 @@ fn main() {
         let typeshare_kotlin_status = std::process::Command::new("typeshare")
             .arg("ki-protocol-types/src")
             .arg("--lang=kotlin")
-            .arg(format!("--output-file={}/Types.kt", kotlin_output_path.display()))
+            .arg(format!(
+                "--output-file={}/Types.kt",
+                kotlin_output_path.display()
+            ))
             .status()
             .expect("Failed to execute typeshare for Kotlin");
 
