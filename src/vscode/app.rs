@@ -692,27 +692,28 @@ impl VSCodeApp {
             .map(|selection| {
                 let range = selection.extended_range();
 
-                let start_pos = buffer.char_to_position(range.start)?;
-                let end_pos = buffer.char_to_position(range.end)?;
-
-                let (anchor, cursor) = if let Some(initial_range) = &selection.initial_range {
-                    if initial_range.start < selection.range().start {
-                        (start_pos, end_pos)
-                    } else {
-                        (end_pos, start_pos)
-                    }
+                let flipped = match &selection.initial_range {
+                    Some(initial_range) => initial_range.start > selection.range().start,
+                    _ => matches!(
+                        component.component().borrow().editor().cursor_direction,
+                        Direction::End
+                    ),
+                };
+                let (primary_cursor, secondary_cursor) = if flipped {
+                    (range.end, range.start)
                 } else {
-                    match component.component().borrow().editor().cursor_direction {
-                        Direction::Start => (end_pos, start_pos),
-                        Direction::End => (start_pos, end_pos),
-                    }
+                    (range.start, range.end)
                 };
 
                 // Create VSCode selection
                 use crate::components::editor::Direction;
                 Ok(ki_protocol_types::Selection {
-                    anchor: anchor.to_vscode_position(),
-                    active: cursor.to_vscode_position(),
+                    active: buffer
+                        .char_to_position(primary_cursor)?
+                        .to_vscode_position(),
+                    anchor: buffer
+                        .char_to_position(secondary_cursor)?
+                        .to_vscode_position(),
                     is_extended: selection.initial_range.is_some(),
                 })
             })
@@ -939,7 +940,8 @@ impl VSCodeApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::JumpsChange(ki_protocol_types::JumpsParams {
-                targets: jumps.into_iter()
+                targets: jumps
+                    .into_iter()
                     .map(|(key, position)| ki_protocol_types::JumpTarget { key, position })
                     .collect(),
             }),
