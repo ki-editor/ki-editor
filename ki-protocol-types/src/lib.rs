@@ -312,8 +312,12 @@ pub enum InputMessage {
     // Viewport operations
     #[serde(rename = "viewport.change")]
     ViewportChange(ViewportParams),
+
     #[serde(rename = "diagnostics.change")]
     DiagnosticsChange(Vec<BufferDiagnostics>),
+
+    #[serde(rename = "prompt.enter")]
+    PromptEnter(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -391,7 +395,8 @@ pub enum OutputMessage {
     #[serde(rename = "command.executed")]
     CommandExecuted(CommandParams),
 
-    // Search operations
+    #[serde(rename = "prompt.opened")]
+    PromptOpened(PromptOpenedParams), // Search operations
     #[serde(rename = "search.results")]
     SearchResults(String),
 
@@ -401,6 +406,20 @@ pub enum OutputMessage {
 
     #[serde(rename = "editor.jump")]
     JumpsChange(JumpsParams),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
+pub struct PromptOpenedParams {
+    pub title: String,
+    pub items: Vec<PromptItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
+pub struct PromptItem {
+    pub label: String,
+    pub details: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -470,6 +489,7 @@ impl MessageMethod for InputMessage {
             Self::SearchFind(_) => Cow::Borrowed("search.find"),
             Self::ViewportChange(_) => Cow::Borrowed("viewport.change"),
             Self::DiagnosticsChange(_) => Cow::Borrowed("diagnostics.change"),
+            Self::PromptEnter(_) => Cow::Borrowed("prompt.enter"),
         }
     }
 
@@ -489,6 +509,7 @@ impl MessageMethod for InputMessage {
             Self::SearchFind(_) => "SearchFind",
             Self::ViewportChange(_) => "ViewportChange",
             Self::DiagnosticsChange(_) => "DiagnosticsChange",
+            Self::PromptEnter(_) => "PromptEnter",
         }
     }
 }
@@ -497,49 +518,51 @@ impl MessageMethod for InputMessage {
 impl MessageMethod for OutputMessage {
     fn method_name(&self) -> Cow<'static, str> {
         match self {
-            Self::Ping(_) => Cow::Borrowed("ping"),
-            Self::Log(_) => Cow::Borrowed("ki.log"),
-            Self::Error(_) => Cow::Borrowed("error"),
-            Self::Success(_) => Cow::Borrowed("success"),
-            Self::BufferOpen(_) => Cow::Borrowed("buffer.open"),
-            Self::BufferClose(_) => Cow::Borrowed("buffer.close"),
-            Self::BufferSave(_) => Cow::Borrowed("buffer.save"),
-            Self::BufferDiff(_) => Cow::Borrowed("buffer.diff"),
-            Self::BufferActivated(_) => Cow::Borrowed("buffer.activated"),
-            Self::SelectionUpdate(_) => Cow::Borrowed("selection.update"),
-            Self::ModeChange(_) => Cow::Borrowed("mode.change"),
-            Self::SelectionModeChange(_) => Cow::Borrowed("selection_mode.change"),
-            Self::ViewportChange(_) => Cow::Borrowed("viewport.change"),
-            Self::ExternalBufferCreated(_) => Cow::Borrowed("external_buffer.created"),
-            Self::ExternalBufferUpdated(_) => Cow::Borrowed("external_buffer.updated"),
-            Self::CommandExecuted(_) => Cow::Borrowed("command.executed"),
-            Self::SearchResults(_) => Cow::Borrowed("search.results"),
-            Self::EditorAction(_) => Cow::Borrowed("editor.action"),
-            Self::JumpsChange(_) => Cow::Borrowed("editor.jump"),
+            OutputMessage::Ping(_) => Cow::Borrowed("ping"),
+            OutputMessage::Log(_) => Cow::Borrowed("ki.log"),
+            OutputMessage::Error(_) => Cow::Borrowed("error"),
+            OutputMessage::Success(_) => Cow::Borrowed("success"),
+            OutputMessage::BufferOpen(_) => Cow::Borrowed("buffer.open"),
+            OutputMessage::BufferClose(_) => Cow::Borrowed("buffer.close"),
+            OutputMessage::BufferSave(_) => Cow::Borrowed("buffer.save"),
+            OutputMessage::BufferDiff(_) => Cow::Borrowed("buffer.diff"),
+            OutputMessage::BufferActivated(_) => Cow::Borrowed("buffer.activated"),
+            OutputMessage::SelectionUpdate(_) => Cow::Borrowed("selection.update"),
+            OutputMessage::ModeChange(_) => Cow::Borrowed("mode.change"),
+            OutputMessage::SelectionModeChange(_) => Cow::Borrowed("selection_mode.change"),
+            OutputMessage::ViewportChange(_) => Cow::Borrowed("viewport.change"),
+            OutputMessage::ExternalBufferCreated(_) => Cow::Borrowed("external_buffer.created"),
+            OutputMessage::ExternalBufferUpdated(_) => Cow::Borrowed("external_buffer.updated"),
+            OutputMessage::CommandExecuted(_) => Cow::Borrowed("command.executed"),
+            OutputMessage::SearchResults(_) => Cow::Borrowed("search.results"),
+            OutputMessage::EditorAction(_) => Cow::Borrowed("editor.action"),
+            OutputMessage::JumpsChange(_) => Cow::Borrowed("editor.jump"),
+            OutputMessage::PromptOpened(_) => Cow::Borrowed("prompt.opened"),
         }
     }
 
     fn variant_name(&self) -> &'static str {
         match self {
-            Self::Ping(_) => "Ping",
-            Self::Log(_) => "Log",
-            Self::Error(_) => "Error",
-            Self::Success(_) => "Success",
-            Self::BufferOpen(_) => "BufferOpen",
-            Self::BufferClose(_) => "BufferClose",
-            Self::BufferSave(_) => "BufferSave",
-            Self::BufferDiff(_) => "BufferDiff",
-            Self::BufferActivated(_) => "BufferActivated",
-            Self::SelectionUpdate(_) => "SelectionUpdate",
-            Self::ModeChange(_) => "ModeChange",
-            Self::SelectionModeChange(_) => "SelectionModeChange",
-            Self::ViewportChange(_) => "ViewportChange",
-            Self::ExternalBufferCreated(_) => "ExternalBufferCreated",
-            Self::ExternalBufferUpdated(_) => "ExternalBufferUpdated",
-            Self::CommandExecuted(_) => "CommandExecuted",
-            Self::SearchResults(_) => "SearchResults",
-            Self::EditorAction(_) => "EditorAction",
-            Self::JumpsChange(_) => "ShowJumps",
+            OutputMessage::Ping(_) => "Ping",
+            OutputMessage::Log(_) => "Log",
+            OutputMessage::Error(_) => "Error",
+            OutputMessage::Success(_) => "Success",
+            OutputMessage::BufferOpen(_) => "BufferOpen",
+            OutputMessage::BufferClose(_) => "BufferClose",
+            OutputMessage::BufferSave(_) => "BufferSave",
+            OutputMessage::BufferDiff(_) => "BufferDiff",
+            OutputMessage::BufferActivated(_) => "BufferActivated",
+            OutputMessage::SelectionUpdate(_) => "SelectionUpdate",
+            OutputMessage::ModeChange(_) => "ModeChange",
+            OutputMessage::SelectionModeChange(_) => "SelectionModeChange",
+            OutputMessage::ViewportChange(_) => "ViewportChange",
+            OutputMessage::ExternalBufferCreated(_) => "ExternalBufferCreated",
+            OutputMessage::ExternalBufferUpdated(_) => "ExternalBufferUpdated",
+            OutputMessage::CommandExecuted(_) => "CommandExecuted",
+            OutputMessage::SearchResults(_) => "SearchResults",
+            OutputMessage::EditorAction(_) => "EditorAction",
+            OutputMessage::JumpsChange(_) => "ShowJumps",
+            OutputMessage::PromptOpened(_) => "PromptOpened",
         }
     }
 }

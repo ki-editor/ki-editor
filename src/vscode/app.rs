@@ -10,7 +10,8 @@ use crate::app::{App, AppMessage, Dimension, Dispatch, StatusLineComponent};
 use crate::frontend::crossterm::Crossterm;
 use anyhow::Result;
 use ki_protocol_types::{
-    BufferDiagnostics, InputMessage, OutputMessage, OutputMessageWrapper, ResponseError,
+    BufferDiagnostics, InputMessage, OutputMessage, OutputMessageWrapper, PromptItem,
+    PromptOpenedParams, ResponseError,
 };
 use log::{debug, error, info, trace};
 use shared::canonicalized_path::CanonicalizedPath;
@@ -214,7 +215,7 @@ impl VSCodeApp {
                 self.handle_search_find_request(id, params, trace_id)
             }
             InputMessage::ViewportChange(params) => {
-                debug!("[{}] xxx Processing viewport change request", trace_id);
+                debug!("[{}] Processing viewport change request", trace_id);
                 self.handle_viewport_change_request(id, params, trace_id)
             }
             InputMessage::EditorAction(params) => {
@@ -225,6 +226,7 @@ impl VSCodeApp {
                 self.handle_editor_action_request(id, params, trace_id)
             }
             InputMessage::DiagnosticsChange(params) => self.handle_diagnostics_change(params),
+            InputMessage::PromptEnter(entry) => self.handle_prompt_enter(entry),
         };
 
         let duration = start_time.elapsed();
@@ -518,6 +520,7 @@ impl VSCodeApp {
             IntegrationEvent::CommandExecuted { command, success } => {
                 self.command_executed(command, success)?
             }
+            IntegrationEvent::PromptOpened { title, items } => self.prompt_opened(title, items)?,
         }
 
         Ok(())
@@ -999,6 +1002,19 @@ impl VSCodeApp {
         })
     }
 
+    fn handle_prompt_enter(&self, entry: String) -> std::result::Result<(), anyhow::Error> {
+        let mut app_guard = match self.app.try_lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                // If we can't acquire the lock, we can't get the current component
+                trace!("Could not acquire app lock to get current component");
+                return Ok(());
+            }
+        };
+        app_guard.handle_dispatch(Dispatch::PromptEntered(entry))?;
+        Ok(())
+    }
+
     fn handle_diagnostics_change(
         &self,
         buffer_diagnosticss: Vec<BufferDiagnostics>,
@@ -1048,6 +1064,18 @@ impl VSCodeApp {
             app_guard.update_diagnostics(path, diagnostics)?;
         }
         Ok(())
+    }
+
+    fn prompt_opened(
+        &self,
+        title: String,
+        items: Vec<ki_protocol_types::PromptItem>,
+    ) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::PromptOpened(PromptOpenedParams { title, items }),
+            error: None,
+        })
     }
 }
 

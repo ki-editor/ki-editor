@@ -95,7 +95,8 @@ export type InputMessage =
     | { tag: "editor.action"; params: EditorActionParams }
     | { tag: "search.find"; params: SearchParams }
     | { tag: "viewport.change"; params: ViewportParams }
-    | { tag: "diagnostics.change"; params: BufferDiagnostics[] };
+    | { tag: "diagnostics.change"; params: BufferDiagnostics[] }
+    | { tag: "prompt.enter"; params: string };
 
 export interface InputMessageWrapper {
     message: InputMessage;
@@ -150,6 +151,7 @@ export type OutputMessage =
     | { tag: "external_buffer.created"; params: ExternalBufferParams }
     | { tag: "external_buffer.updated"; params: ExternalBufferParams }
     | { tag: "command.executed"; params: CommandParams }
+    | { tag: "prompt.opened"; params: PromptOpenedParams }
     | { tag: "search.results"; params: string }
     | { tag: "editor.action"; params: EditorActionParams }
     | { tag: "editor.jump"; params: JumpsParams };
@@ -164,6 +166,16 @@ export interface OutputMessageWrapper {
     message: OutputMessage;
     id: number;
     error?: ResponseError;
+}
+
+export interface PromptItem {
+    label: string;
+    details?: string;
+}
+
+export interface PromptOpenedParams {
+    title: string;
+    items: PromptItem[];
 }
 
 export interface SearchParams {

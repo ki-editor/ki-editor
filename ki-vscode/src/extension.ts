@@ -15,6 +15,7 @@ import {
     ModeManager,
     SelectionManager,
 } from "./managers";
+import { PromptManager } from "./managers/prompt_manager";
 
 // Track main extension state
 let ipc: IPC | undefined;
@@ -120,6 +121,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const selectionManager = new SelectionManager(dispatcher, logger, eventHandler, modeManager);
         const commandManager = new CommandManager(dispatcher, logger, eventHandler);
         const diagnosticManager = new DiagnosticManager(dispatcher, logger, eventHandler);
+        const promptManager = new PromptManager(dispatcher, logger, eventHandler);
 
         // Initialize managers
         modeManager.initialize();
@@ -128,6 +130,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         selectionManager.initialize();
         commandManager.initialize();
         diagnosticManager.initialize();
+        promptManager.initialize();
 
         // Add managers and dispatcher to disposables
         disposables = [

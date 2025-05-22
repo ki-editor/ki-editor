@@ -9,6 +9,7 @@ import {
     SelectionSet,
     TypedModeParams,
     SelectionModeParams,
+    PromptOpenedParams,
 } from "../protocol/types";
 
 /**
@@ -27,6 +28,7 @@ export class EventHandler {
     private bufferActivatedHandlers: Array<(params: BufferParams) => void> = [];
     private modeChangeHandlers: Array<(params: TypedModeParams) => void> = [];
     private selectionUpdateHandlers: Array<(params: SelectionSet) => void> = [];
+    private promptOpenedHandlers: Array<(params: PromptOpenedParams) => void> = [];
     private selectionModeChangeHandlers: Array<(params: any) => void> = [];
     private jumpsChangeHandlers: Array<(params: JumpsParams) => void> = [];
     private commandExecutedHandlers: Array<(params: CommandParams) => void> = [];
@@ -94,6 +96,10 @@ export class EventHandler {
         this.dispatcher.registerKiNotificationHandler("editor.jump", (params: JumpsParams) => {
             this.logger.log(`Received editor.jump notification`);
             this.handleJumpsChange(params);
+        });
+
+        this.dispatcher.registerKiNotificationHandler("prompt.opened", (params) => {
+            this.handlePromptOpened(params);
         });
 
         // Register handler for success notifications
@@ -238,6 +244,27 @@ export class EventHandler {
     }
 
     /**
+     * Handle prompt opened
+     */
+    private handlePromptOpened(params: PromptOpenedParams): void {
+        this.promptOpenedHandlers.forEach((handler) => {
+            try {
+                handler(params);
+            } catch (error) {
+                this.errorHandler.handleError(
+                    error,
+                    {
+                        component: "EventHandler",
+                        operation: "PromptOpened",
+                        details: {},
+                    },
+                    ErrorSeverity.Error,
+                );
+            }
+        });
+    }
+
+    /**
      * Handle selection mode change event
      */
     private handleSelectionModeChange(params: any): void {
@@ -344,6 +371,13 @@ export class EventHandler {
      */
     public onSelectionUpdate(handler: (params: SelectionSet) => void): void {
         this.selectionUpdateHandlers.push(handler);
+    }
+
+    /**
+     * Register a handler for prompt opened
+     */
+    public onPromptOpened(handler: (params: PromptOpenedParams) => void): void {
+        this.promptOpenedHandlers.push(handler);
     }
 
     /**

@@ -35,6 +35,7 @@ const KNOWN_NOTIFICATION_TAGS: ReadonlySet<OutputMessage["tag"]> = new Set([
     "command.executed",
     "viewport.change",
     "editor.jump",
+    "prompt.opened",
     // Add any other tags that are definitely notifications
 ]);
 

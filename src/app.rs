@@ -86,6 +86,9 @@ pub(crate) struct App<T: Frontend> {
     status_line_components: Vec<StatusLineComponent>,
     last_action_description: Option<String>,
     last_action_short_description: Option<String>,
+
+    #[cfg(feature = "vscode")]
+    last_prompt_config: Option<PromptConfig>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
@@ -155,6 +158,8 @@ impl<T: Frontend> App<T> {
             last_action_description: None,
             last_action_short_description: None,
             integration_event_sender,
+            #[cfg(feature = "vscode")]
+            last_prompt_config: None,
         };
         Ok(app)
     }
@@ -916,6 +921,7 @@ impl<T: Frontend> App<T> {
                 component_id,
                 jumps,
             } => self.jumps_changed(component_id, jumps),
+            Dispatch::PromptEntered(entry) => self.prompt_entered(entry)?,
         }
         Ok(())
     }
@@ -970,8 +976,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::MoveToIndex,
             },
-            PromptHistoryKey::MoveToIndex,
             None,
         )
     }
@@ -985,8 +991,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Rename,
             },
-            PromptHistoryKey::Rename,
             current_name,
         )
     }
@@ -1009,8 +1015,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Search,
             },
-            PromptHistoryKey::Search,
             None,
         )
     }
@@ -1045,8 +1051,8 @@ impl<T: Frontend> App<T> {
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
+                    prompt_history_key: PromptHistoryKey::AddPath,
                 },
-                PromptHistoryKey::AddPath,
                 Some(path.display_absolute()),
             )
         } else {
@@ -1065,8 +1071,8 @@ impl<T: Frontend> App<T> {
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
+                    prompt_history_key: PromptHistoryKey::MovePath,
                 },
-                PromptHistoryKey::MovePath,
                 Some(path.display_absolute()),
             )
         } else {
@@ -1085,8 +1091,8 @@ impl<T: Frontend> App<T> {
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
+                    prompt_history_key: PromptHistoryKey::CopyFile,
                 },
-                PromptHistoryKey::CopyFile,
                 Some(path.display_absolute()),
             )
         } else {
@@ -1108,8 +1114,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Symbol,
             },
-            PromptHistoryKey::Symbol,
             None,
         )
     }
@@ -1173,8 +1179,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::OpenFile,
             },
-            PromptHistoryKey::OpenFile,
             None,
         )
     }
@@ -1866,8 +1872,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::FilterGlob(filter_glob),
             },
-            PromptHistoryKey::FilterGlob(filter_glob),
             None,
         )
     }
@@ -2088,8 +2094,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Replacement,
             },
-            PromptHistoryKey::Replacement,
             None,
         )
     }
@@ -2112,8 +2118,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Search,
             },
-            PromptHistoryKey::Search,
             None,
         )
     }
@@ -2219,15 +2225,16 @@ impl<T: Frontend> App<T> {
         self.layout.current_completion_dropdown()
     }
 
+    #[cfg(not(feature = "vscode"))]
     fn open_prompt(
         &mut self,
         prompt_config: PromptConfig,
-        key: PromptHistoryKey,
         current_line: Option<String>,
     ) -> anyhow::Result<()> {
         if let Some(line) = current_line {
             self.context.push_history_prompt(key, line)
         }
+        let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
         let (prompt, dispatches) = Prompt::new(prompt_config, key, history);
 
@@ -2239,6 +2246,57 @@ impl<T: Frontend> App<T> {
         self.handle_dispatches(dispatches)
     }
 
+    #[cfg(feature = "vscode")]
+    fn open_prompt(
+        &mut self,
+        prompt_config: PromptConfig,
+        current_line: Option<String>,
+    ) -> anyhow::Result<()> {
+        let key = prompt_config.prompt_history_key;
+
+        let history = self.context.get_prompt_history(key);
+
+        let items = if prompt_config.enter_selects_first_matching_item {
+            prompt_config
+                .items
+                .iter()
+                .map(|item| ki_protocol_types::PromptItem {
+                    label: item.display(),
+                    details: item.info().map(|info| info.content()).cloned(),
+                })
+                .collect()
+        } else {
+            history
+                .into_iter()
+                .map(|label| ki_protocol_types::PromptItem {
+                    label,
+                    details: None,
+                })
+                .collect()
+        };
+
+        if let Some(line) = current_line {
+            self.context.push_history_prompt(key, line)
+        }
+        let title = prompt_config.title.clone();
+
+        self.last_prompt_config = Some(prompt_config);
+
+        self.integration_event_sender
+            .emit_event(crate::integration_event::IntegrationEvent::PromptOpened { title, items });
+        Ok(())
+    }
+
+    fn prompt_entered(&mut self, entry: String) -> anyhow::Result<()> {
+        let Some(prompt_config) = self.last_prompt_config.take() else {
+            return Ok(());
+        };
+        let dispatches = prompt_config.on_enter.to_dispatches(&entry)?;
+        self.handle_dispatches(dispatches.append(Dispatch::PushPromptHistory {
+            key: prompt_config.prompt_history_key,
+            line: entry,
+        }))
+    }
     fn render_dropdown(
         &mut self,
         editor: Rc<RefCell<Editor>>,
@@ -2312,8 +2370,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::CodeAction,
             },
-            PromptHistoryKey::CodeAction,
             None,
         )?;
         Ok(())
@@ -2395,8 +2453,8 @@ impl<T: Frontend> App<T> {
                 fire_dispatches_on_change: Some(Dispatches::one(Dispatch::SetTheme(
                     self.context.theme().clone(),
                 ))),
+                prompt_history_key: PromptHistoryKey::Theme,
             },
-            PromptHistoryKey::Theme,
             None,
         )
     }
@@ -2416,8 +2474,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Theme,
             },
-            PromptHistoryKey::Theme,
             None,
         )
     }
@@ -2445,8 +2503,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::PipeToShell,
             },
-            PromptHistoryKey::PipeToShell,
             None,
         )
     }
@@ -2490,8 +2548,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::FilterSelectionsMatchingSearch { maintain },
             },
-            PromptHistoryKey::FilterSelectionsMatchingSearch { maintain },
             None,
         )
     }
@@ -2857,6 +2915,7 @@ pub(crate) enum Dispatch {
         jumps: Vec<(char, CharIndex)>,
     },
     SelectionModeChanged(SelectionMode),
+    PromptEntered(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

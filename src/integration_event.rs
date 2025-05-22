@@ -88,6 +88,10 @@ pub enum IntegrationEvent {
         component_id: usize,
         selection_mode: SelectionMode,
     },
+    PromptOpened {
+        title: String,
+        items: Vec<ki_protocol_types::PromptItem>,
+    },
 }
 
 /// Trait for components that can emit integration events

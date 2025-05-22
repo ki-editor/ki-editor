@@ -155,6 +155,9 @@ sealed class InputMessage {
 	@Serializable
 	@SerialName("diagnostics.change")
 	data class DiagnosticsChange(val params: List<BufferDiagnostics>): InputMessage()
+	@Serializable
+	@SerialName("prompt.enter")
+	data class PromptEnter(val params: String): InputMessage()
 }
 
 @Serializable
@@ -251,6 +254,9 @@ sealed class OutputMessage {
 	@SerialName("command.executed")
 	data class CommandExecuted(val params: CommandParams): OutputMessage()
 	@Serializable
+	@SerialName("prompt.opened")
+	data class PromptOpened(val params: PromptOpenedParams): OutputMessage()
+	@Serializable
 	@SerialName("search.results")
 	data class SearchResults(val params: String): OutputMessage()
 	@Serializable
@@ -273,6 +279,18 @@ data class OutputMessageWrapper (
 	val message: OutputMessage,
 	val id: ULong,
 	val error: ResponseError? = null
+)
+
+@Serializable
+data class PromptItem (
+	val label: String,
+	val details: String? = null
+)
+
+@Serializable
+data class PromptOpenedParams (
+	val title: String,
+	val items: List<PromptItem>
 )
 
 @Serializable
