@@ -108,8 +108,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             );
         }
 
-        // Start the Ki process with vscode flag instead of debug
-        ipc.start(kiPath, ["--vs-code"]);
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const cwd = workspaceFolder || process.cwd();
+
+        ipc.start(kiPath, ["@", "vs-code", cwd]);
 
         // Create event handler
         const eventHandler = new EventHandler(dispatcher, logger, errorHandler);

@@ -1080,11 +1080,12 @@ impl VSCodeApp {
 }
 
 /// Run the VSCode integration
-pub fn run_vscode() -> anyhow::Result<()> {
+pub fn run_vscode(working_directory: CanonicalizedPath) -> anyhow::Result<()> {
+    // TODO: handle cwd from VS Code
     eprintln!("== VSCode integration initializing ==");
 
     // Initialize and run the VSCode integration
-    let mut vscode_app = VSCodeApp::new(None)?;
+    let mut vscode_app = VSCodeApp::new(Some(working_directory))?;
 
     // Note: Port number is printed within WebSocketIpc::new()
     eprintln!("VSCode integration backend started. Waiting for VSCode extension to connect...");

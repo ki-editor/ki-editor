@@ -23,11 +23,12 @@ struct Cli {
 
     #[command(flatten)]
     edit: EditArgs,
+}
 
-    /// Run in VS Code extension mode
-    #[arg(long)]
-    #[cfg(feature = "vscode")]
-    vs_code: bool,
+#[derive(Args, Default, Clone)]
+struct VsCodeArgs {
+    /// This is crucial for Git-related features such as Git Hunks to work properly.
+    working_directory: String,
 }
 
 #[derive(Subcommand)]
@@ -65,6 +66,10 @@ enum Commands {
     },
     /// Run Ki in the given path, treating the path as the working directory
     In(InArgs),
+
+    #[cfg(feature = "vscode")]
+    /// Run in VS Code extension mode
+    VsCode(VsCodeArgs),
 }
 
 #[derive(Args, Default, Clone)]
@@ -164,16 +169,13 @@ fn process_edit_args(args: EditArgs) -> anyhow::Result<RunConfig> {
 pub(crate) fn cli() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    #[cfg(feature = "vscode")]
-    {
-        if cli.vs_code {
-            return vscode::run_vscode();
-        }
-    }
-
     match cli.command {
         Some(CommandPlaceholder::Edit(args)) => run_edit_command(args),
         Some(CommandPlaceholder::At { command }) => match command {
+            #[cfg(feature = "vscode")]
+            Commands::VsCode(args) => {
+                return vscode::run_vscode(args.working_directory.try_into()?);
+            }
             Commands::Grammar { command } => {
                 match command {
                     Grammar::Build => shared::grammar::build_grammars(),

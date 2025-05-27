@@ -13,9 +13,10 @@ pub mod utils;
 use anyhow::Result;
 
 /// Run Ki in VSCode integration mode
-pub fn run_vscode() -> Result<()> {
-    app::run_vscode()
+pub fn run_vscode(working_directory: CanonicalizedPath) -> Result<()> {
+    app::run_vscode(working_directory)
 }
 
 // Expose the main VSCodeApp struct
 pub use app::VSCodeApp;
+use shared::canonicalized_path::CanonicalizedPath;
