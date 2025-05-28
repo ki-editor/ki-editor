@@ -6,6 +6,7 @@ import {
     BufferParams,
     CommandParams,
     JumpsParams,
+    MarksParams,
     SelectionSet,
     TypedModeParams,
     SelectionModeParams,
@@ -31,6 +32,7 @@ export class EventHandler {
     private promptOpenedHandlers: Array<(params: PromptOpenedParams) => void> = [];
     private selectionModeChangeHandlers: Array<(params: any) => void> = [];
     private jumpsChangeHandlers: Array<(params: JumpsParams) => void> = [];
+    private marksChangeHandlers: Array<(params: MarksParams) => void> = [];
     private commandExecutedHandlers: Array<(params: CommandParams) => void> = [];
 
     constructor(dispatcher: Dispatcher, logger: Logger, errorHandler: ErrorHandler) {
@@ -96,6 +98,11 @@ export class EventHandler {
         this.dispatcher.registerKiNotificationHandler("editor.jump", (params: JumpsParams) => {
             this.logger.log(`Received editor.jump notification`);
             this.handleJumpsChange(params);
+        });
+
+        this.dispatcher.registerKiNotificationHandler("editor.mark", (params: MarksParams) => {
+            this.logger.log(`Received editor.mark notification`);
+            this.handleMarksChange(params);
         });
 
         this.dispatcher.registerKiNotificationHandler("prompt.opened", (params) => {
@@ -324,6 +331,24 @@ export class EventHandler {
         });
     }
 
+    private handleMarksChange(params: MarksParams): void {
+        this.marksChangeHandlers.forEach((handler) => {
+            try {
+                handler(params);
+            } catch (error) {
+                this.errorHandler.handleError(
+                    error,
+                    {
+                        component: "EventHandler",
+                        operation: "MarksChange",
+                        details: {},
+                    },
+                    ErrorSeverity.Error,
+                );
+            }
+        });
+    }
+
     /**
      * Register a handler for buffer diff events
      */
@@ -398,5 +423,9 @@ export class EventHandler {
 
     public onJumpsChange(handler: (params: JumpsParams) => void): void {
         this.jumpsChangeHandlers.push(handler);
+    }
+
+    public onMarksChange(handler: (params: MarksParams) => void): void {
+        this.marksChangeHandlers.push(handler);
     }
 }

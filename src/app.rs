@@ -922,6 +922,7 @@ impl<T: Frontend> App<T> {
                 jumps,
             } => self.jumps_changed(component_id, jumps),
             Dispatch::PromptEntered(entry) => self.prompt_entered(entry)?,
+            Dispatch::MarksChanged(component_id, marks) => self.marks_updated(component_id, marks),
         }
         Ok(())
     }
@@ -1751,6 +1752,7 @@ impl<T: Frontend> App<T> {
         #[cfg(feature = "vscode")]
         let dispatches = dispatches
             .append(component.borrow().editor().dispatch_selection_changed())
+            .append(component.borrow().editor().dispatch_marks_changed())
             .append(
                 component
                     .borrow()
@@ -2637,6 +2639,19 @@ impl<T: Frontend> App<T> {
         );
     }
 
+    fn marks_updated(
+        &self,
+        component_id: ComponentId,
+        marks: Vec<crate::char_index_range::CharIndexRange>,
+    ) {
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::MarksChanged {
+                component_id: crate::integration_event::component_id_to_usize(&component_id),
+                marks,
+            },
+        );
+    }
+
     fn selection_mode_changed(&self, selection_mode: SelectionMode) {
         // This dispatch is handled by the VSCode integration to send mode change notifications
         // No action needed here as the mode has already been changed in the editor
@@ -2916,6 +2931,7 @@ pub(crate) enum Dispatch {
     },
     SelectionModeChanged(SelectionMode),
     PromptEntered(String),
+    MarksChanged(ComponentId, Vec<crate::char_index_range::CharIndexRange>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

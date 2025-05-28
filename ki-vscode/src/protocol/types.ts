@@ -129,6 +129,10 @@ export interface LogParams {
     message: string;
 }
 
+export interface MarksParams {
+    marks: Range[];
+}
+
 export interface ModeParams {
     mode: string;
     buffer_id?: string;
@@ -154,7 +158,8 @@ export type OutputMessage =
     | { tag: "prompt.opened"; params: PromptOpenedParams }
     | { tag: "search.results"; params: string }
     | { tag: "editor.action"; params: EditorActionParams }
-    | { tag: "editor.jump"; params: JumpsParams };
+    | { tag: "editor.jump"; params: JumpsParams }
+    | { tag: "editor.mark"; params: MarksParams };
 
 export interface ResponseError {
     code: number;

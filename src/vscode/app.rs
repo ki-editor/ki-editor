@@ -10,7 +10,7 @@ use crate::app::{App, AppMessage, Dimension, Dispatch, StatusLineComponent};
 use crate::frontend::crossterm::Crossterm;
 use anyhow::Result;
 use ki_protocol_types::{
-    BufferDiagnostics, InputMessage, OutputMessage, OutputMessageWrapper, PromptItem,
+    BufferDiagnostics, InputMessage, MarksParams, OutputMessage, OutputMessageWrapper, PromptItem,
     PromptOpenedParams, ResponseError,
 };
 use log::{debug, error, info, trace};
@@ -55,7 +55,6 @@ impl VSCodeApp {
         } else {
             log::set_max_level(log_level);
         }
-
         // Create app components
         let frontend = std::rc::Rc::new(std::sync::Mutex::new(Crossterm::new()?));
         let status_line_components = vec![
@@ -75,7 +74,7 @@ impl VSCodeApp {
         // Removed notification channel in favor of integration events
 
         // Resolve working directory once
-        let resolved_wd = working_directory.unwrap_or(".".try_into()?);
+        let resolved_wd = working_directory.unwrap_or("./".try_into()?);
 
         // Create the integration event channel
         let (integration_event_sender, integration_event_receiver) =
@@ -521,6 +520,10 @@ impl VSCodeApp {
                 self.command_executed(command, success)?
             }
             IntegrationEvent::PromptOpened { title, items } => self.prompt_opened(title, items)?,
+            IntegrationEvent::MarksChanged {
+                component_id,
+                marks,
+            } => self.marks_changed(component_id, marks)?,
         }
 
         Ok(())
@@ -641,36 +644,6 @@ impl VSCodeApp {
         }
 
         // Only send update if we have valid positions
-        if !anchors.is_empty() && !actives.is_empty() {
-            // Create selections from anchors and actives
-            let mut vscode_selections = Vec::new();
-            for i in 0..anchors.len() {
-                let anchor = crate::vscode::utils::ki_position_to_vscode_position(&anchors[i]);
-                let active = crate::vscode::utils::ki_position_to_vscode_position(&actives[i]);
-
-                vscode_selections.push(ki_protocol_types::Selection {
-                    anchor,
-                    active,
-                    is_extended: false, // We don't have this information,
-                });
-            }
-
-            // Send selection update notification to VSCode
-            let selection_set = ki_protocol_types::SelectionSet {
-                buffer_id,
-                primary: 0, // Assuming the first selection is primary
-                selections: vscode_selections,
-            };
-
-            info!("Sending selection update for current buffer");
-
-            self.send_notification(OutputMessageWrapper {
-                id: 0,
-                message: OutputMessage::SelectionUpdate(selection_set),
-                error: None,
-            })?;
-        }
-
         Ok(())
     }
 
@@ -942,7 +915,7 @@ impl VSCodeApp {
         // Get the selection mode from the editor
         self.send_notification(OutputMessageWrapper {
             id: 0,
-            message: OutputMessage::JumpsChange(ki_protocol_types::JumpsParams {
+            message: OutputMessage::JumpsChanged(ki_protocol_types::JumpsParams {
                 targets: jumps
                     .into_iter()
                     .map(|(key, position)| ki_protocol_types::JumpTarget { key, position })
@@ -1074,6 +1047,42 @@ impl VSCodeApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::PromptOpened(PromptOpenedParams { title, items }),
+            error: None,
+        })
+    }
+
+    fn marks_changed(
+        &self,
+        component_id: usize,
+        marks: Vec<crate::char_index_range::CharIndexRange>,
+    ) -> anyhow::Result<()> {
+        let Some(buffer_id) = self.get_buffer_id_from_component_id(component_id) else {
+            return Ok(());
+        };
+
+        // Get the component to access the buffer
+        let Some(component) = self.get_component_by_id(component_id) else {
+            return Ok(());
+        };
+        // Store the component reference to extend its lifetime
+        let component_rc = component.component();
+        let component_ref = component_rc.borrow();
+        let editor = component_ref.editor();
+        let buffer = editor.buffer();
+        let marks = marks
+            .into_iter()
+            .map(|range| -> anyhow::Result<_> {
+                let std::ops::Range { start, end } =
+                    buffer.char_index_range_to_position_range(range)?;
+                Ok(ki_protocol_types::Range {
+                    start: start.to_vscode_position(),
+                    end: end.to_vscode_position(),
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>, _>>()?;
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::MarksChanged(MarksParams { marks }),
             error: None,
         })
     }

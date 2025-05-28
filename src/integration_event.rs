@@ -92,6 +92,10 @@ pub enum IntegrationEvent {
         title: String,
         items: Vec<ki_protocol_types::PromptItem>,
     },
+    MarksChanged {
+        component_id: usize,
+        marks: Vec<crate::char_index_range::CharIndexRange>,
+    },
 }
 
 /// Trait for components that can emit integration events

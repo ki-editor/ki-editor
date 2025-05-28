@@ -1662,7 +1662,7 @@ impl Editor {
         let selections = self
             .selection_set
             .map(|selection| selection.extended_range());
-        self.buffer_mut().save_marks(selections.into())
+        self.buffer_mut().save_marks(selections.into());
     }
 
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {
@@ -2640,6 +2640,10 @@ impl Editor {
                 .cloned()
                 .collect(),
         }
+    }
+
+    pub(crate) fn dispatch_marks_changed(&self) -> Dispatch {
+        Dispatch::MarksChanged(self.id(), self.buffer().marks())
     }
 
     pub(crate) fn cursor_keep_primary_only(&mut self) {

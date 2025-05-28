@@ -1,12 +1,11 @@
 import * as vscode from "vscode";
+import { EventHandler } from ".";
 import { Dispatcher } from "../dispatcher";
 import { Logger } from "../logger";
-import { JumpsParams, SelectionSet } from "../protocol/types";
-import { EventHandler } from "./event_handler";
+import { SelectionSet } from "../protocol/types";
+import { JUMP_SAFETY_PADDING } from "./decoration_manager";
 import { Manager } from "./manager";
 import { ModeManager } from "./mode_manager";
-
-const JUMP_SAFETY_PADDING = 10;
 
 /**
  * Manages selection synchronization between VSCode and Ki
@@ -15,21 +14,11 @@ export class SelectionManager extends Manager {
     private modeManager: ModeManager;
     private activeEditor: vscode.TextEditor | undefined;
     private ignoreSelectionChange: boolean = false;
-    private jumpCharDecoration = vscode.window.createTextEditorDecorationType({
-        backgroundColor: "red",
-        color: "transparent",
-        before: {
-            // Width zero is necessary for the character to render on-top instead of before the expected position
-            width: "0",
-            color: "white",
-        },
-    });
 
     constructor(dispatcher: Dispatcher, logger: Logger, eventHandler: EventHandler, modeManager: ModeManager) {
         super(dispatcher, logger, eventHandler);
         this.modeManager = modeManager;
     }
-
     /**
      * Initialize the selection manager
      */
@@ -38,45 +27,11 @@ export class SelectionManager extends Manager {
         this.registerVSCodeEventHandler("editor.active", (params) => this.handleEditorActive(params));
         this.registerVSCodeEventHandler("editor.selection", (params) => this.handleSelectionChange(params.event));
 
-        this.registerVSCodeEventHandler("editor.visibleRanges", (params) =>
-            this.handleVisibleRangesChanged(params.event),
-        );
-
         // Register integration event handlers
         this.eventHandler.onSelectionUpdate((params) => this.handleSelectionChanged(params));
-        this.eventHandler.onJumpsChange((params) => this.handleJumpsChanged(params));
 
         // Initialize with active editor
         this.activeEditor = vscode.window.activeTextEditor;
-    }
-
-    private handleJumpsChanged(jumps: JumpsParams): void {
-        const editor = this.activeEditor;
-        if (!editor) return;
-
-        const decorations: vscode.DecorationOptions[] = jumps.targets.map((jump) => {
-            const start = new vscode.Position(jump.position.line, jump.position.character);
-            const end = new vscode.Position(start.line, start.character + 1);
-            const result: vscode.DecorationOptions = {
-                range: new vscode.Range(start, end),
-                renderOptions: {
-                    before: { contentText: jump.key },
-                },
-            };
-            return result;
-        });
-        editor.setDecorations(this.jumpCharDecoration, []);
-        editor.setDecorations(this.jumpCharDecoration, decorations);
-    }
-
-    private handleVisibleRangesChanged(event: vscode.TextEditorVisibleRangesChangeEvent): void {
-        this.dispatcher.sendNotification("viewport.change", {
-            buffer_id: event.textEditor.document.uri.toString(),
-            visible_line_ranges: event.visibleRanges.map((range) => ({
-                start: Math.max(0, range.start.line - JUMP_SAFETY_PADDING),
-                end: range.end.line + JUMP_SAFETY_PADDING,
-            })),
-        });
     }
 
     /**

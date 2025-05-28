@@ -8,6 +8,7 @@ import { IPC } from "./ipc";
 import { Logger } from "./logger";
 import {
     BufferManager,
+    DecorationManager,
     CommandManager,
     DiagnosticManager,
     EventHandler,
@@ -119,6 +120,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // Create managers
         const modeManager = new ModeManager(dispatcher, logger, eventHandler, context);
         const bufferManager = new BufferManager(dispatcher, logger, eventHandler, modeManager);
+        const decorationManager = new DecorationManager(dispatcher, logger, eventHandler);
         const keyboardManager = new KeyboardManager(dispatcher, logger, eventHandler, modeManager);
         const selectionManager = new SelectionManager(dispatcher, logger, eventHandler, modeManager);
         const commandManager = new CommandManager(dispatcher, logger, eventHandler);
@@ -133,6 +135,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         commandManager.initialize();
         diagnosticManager.initialize();
         promptManager.initialize();
+        decorationManager.initialize();
 
         // Add managers and dispatcher to disposables
         disposables = [

@@ -198,6 +198,11 @@ data class LogParams (
 )
 
 @Serializable
+data class MarksParams (
+	val marks: List<Range>
+)
+
+@Serializable
 data class ModeParams (
 	val mode: String,
 	val buffer_id: String? = null
@@ -264,7 +269,10 @@ sealed class OutputMessage {
 	data class EditorAction(val params: EditorActionParams): OutputMessage()
 	@Serializable
 	@SerialName("editor.jump")
-	data class JumpsChange(val params: JumpsParams): OutputMessage()
+	data class JumpsChanged(val params: JumpsParams): OutputMessage()
+	@Serializable
+	@SerialName("editor.mark")
+	data class MarksChanged(val params: MarksParams): OutputMessage()
 }
 
 @Serializable

@@ -405,7 +405,9 @@ pub enum OutputMessage {
     EditorAction(EditorActionParams),
 
     #[serde(rename = "editor.jump")]
-    JumpsChange(JumpsParams),
+    JumpsChanged(JumpsParams),
+    #[serde(rename = "editor.mark")]
+    MarksChanged(MarksParams),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -433,6 +435,12 @@ pub struct JumpTarget {
 #[typeshare]
 pub struct JumpsParams {
     pub targets: Vec<JumpTarget>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
+pub struct MarksParams {
+    pub marks: Vec<Range>,
 }
 
 // Main message wrapper
@@ -536,8 +544,9 @@ impl MessageMethod for OutputMessage {
             OutputMessage::CommandExecuted(_) => Cow::Borrowed("command.executed"),
             OutputMessage::SearchResults(_) => Cow::Borrowed("search.results"),
             OutputMessage::EditorAction(_) => Cow::Borrowed("editor.action"),
-            OutputMessage::JumpsChange(_) => Cow::Borrowed("editor.jump"),
+            OutputMessage::JumpsChanged(_) => Cow::Borrowed("editor.jump"),
             OutputMessage::PromptOpened(_) => Cow::Borrowed("prompt.opened"),
+            OutputMessage::MarksChanged(_) => Cow::Borrowed("editor.mark"),
         }
     }
 
@@ -561,8 +570,9 @@ impl MessageMethod for OutputMessage {
             OutputMessage::CommandExecuted(_) => "CommandExecuted",
             OutputMessage::SearchResults(_) => "SearchResults",
             OutputMessage::EditorAction(_) => "EditorAction",
-            OutputMessage::JumpsChange(_) => "ShowJumps",
+            OutputMessage::JumpsChanged(_) => "JumpsChanged",
             OutputMessage::PromptOpened(_) => "PromptOpened",
+            OutputMessage::MarksChanged(_) => "MarksChanged",
         }
     }
 }

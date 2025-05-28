@@ -73,7 +73,7 @@ export class BufferManager extends Manager {
             this.handleEditorActive(params),
         );
 
-        // Register event handlers
+        // Register events from Ki
         this.eventHandler.onBufferDiff((params) => this.handleBufferDiff(params));
         this.eventHandler.onBufferOpen((params) => this.logger.log(`Buffer opened: ${params.uri}`));
         this.eventHandler.onBufferClose((params) => this.logger.log(`Buffer closed: ${params.uri}`));

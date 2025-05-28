@@ -1,5 +1,6 @@
 import * as cp from "child_process";
 import { EventEmitter } from "events";
+import { cwd } from "process";
 import WebSocket from "ws"; // Import WebSocket library
 import { Logger } from "./logger";
 import type { InputMessage, InputMessageWrapper, OutputMessage, OutputMessageWrapper } from "./protocol/types";
@@ -35,6 +36,7 @@ const KNOWN_NOTIFICATION_TAGS: ReadonlySet<OutputMessage["tag"]> = new Set([
     "command.executed",
     "viewport.change",
     "editor.jump",
+    "editor.mark",
     "prompt.opened",
     // Add any other tags that are definitely notifications
 ]);
@@ -258,10 +260,9 @@ export class IPC extends EventEmitter {
         }
 
         this.logger.log(
-            `WebSocket received (len=${messageStr.length}): ${messageStr.substring(
-                0,
-                200,
-            )}${messageStr.length > 200 ? "..." : ""}`,
+            `WebSocket received (len=${messageStr.length}): ${messageStr.substring(0, 200)}${
+                messageStr.length > 200 ? "..." : ""
+            }`,
         );
 
         try {
@@ -415,9 +416,10 @@ export class IPC extends EventEmitter {
             }; // Now strongly typed and includes the wrapper ID
             const messageString = JSON.stringify(wrappedMessage);
             this.logger.log(
-                `WebSocket sending (WrapperID=${wrapperId}, len=${
-                    messageString.length
-                }): ${messageString.substring(0, 200)}${messageString.length > 200 ? "..." : ""}`,
+                `WebSocket sending (WrapperID=${wrapperId}, len=${messageString.length}): ${messageString.substring(
+                    0,
+                    200,
+                )}${messageString.length > 200 ? "..." : ""}`,
             );
             this.webSocket.send(messageString);
             return true;
