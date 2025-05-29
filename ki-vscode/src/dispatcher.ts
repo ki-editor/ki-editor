@@ -147,7 +147,10 @@ export class Dispatcher implements vscode.Disposable {
             vscode.languages.onDidChangeDiagnostics((event) =>
                 this.emitVSCodeEvent(
                     "diagnostics.change",
-                    event.uris.map((uri) => ({ uri, diagnostics: vscode.languages.getDiagnostics(uri) })),
+                    event.uris.map((uri) => ({
+                        uri,
+                        diagnostics: vscode.languages.getDiagnostics(uri),
+                    })),
                 ),
             ),
         );

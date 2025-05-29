@@ -1271,7 +1271,7 @@ impl Editor {
             .chain(dispatches))
     }
 
-    fn apply_edit_transaction(
+    pub(crate) fn apply_edit_transaction(
         &mut self,
         edit_transaction: EditTransaction,
         context: &Context,
@@ -2462,11 +2462,18 @@ impl Editor {
 
     fn do_save(&mut self, force: bool, context: &Context) -> anyhow::Result<Dispatches> {
         let last_visible_line = self.last_visible_line(context);
+
+        #[cfg(not(feature = "vscode"))]
         let Some(path) =
             self.buffer
                 .borrow_mut()
                 .save(self.selection_set.clone(), force, last_visible_line)?
         else {
+            return Ok(Default::default());
+        };
+
+        #[cfg(feature = "vscode")]
+        let Some(path) = self.path() else {
             return Ok(Default::default());
         };
 

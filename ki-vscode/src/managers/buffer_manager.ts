@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { Dispatcher } from "../dispatcher";
 import { Logger } from "../logger";
+import { BufferParams } from "../protocol/types";
 import { BufferDiffParams, DiffEdit, EditorAction } from "../protocol/types";
 import { EventHandler } from "./event_handler";
 import { Manager } from "./manager";
@@ -77,7 +78,7 @@ export class BufferManager extends Manager {
         this.eventHandler.onBufferDiff((params) => this.handleBufferDiff(params));
         this.eventHandler.onBufferOpen((params) => this.logger.log(`Buffer opened: ${params.uri}`));
         this.eventHandler.onBufferClose((params) => this.logger.log(`Buffer closed: ${params.uri}`));
-        this.eventHandler.onBufferSave((params) => this.logger.log(`Buffer saved: ${params.uri}`));
+        this.eventHandler.onBufferSave((params) => this.handle_buffer_save(params));
         this.eventHandler.onBufferActivated((params) => this.logger.log(`Buffer activated: ${params.uri}`));
 
         // Register undo/redo command listeners
@@ -85,6 +86,19 @@ export class BufferManager extends Manager {
 
         // Initialize open editors
         this.initializeOpenEditors();
+    }
+
+    private handle_buffer_save(params: BufferParams): void {
+        this.saveOpenDocument(vscode.Uri.parse(params.uri));
+    }
+
+    private async saveOpenDocument(uri: vscode.Uri): Promise<void> {
+        // Find the document if it's already open
+        const document = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === uri.toString());
+
+        if (document?.isDirty) {
+            await document.save();
+        }
     }
 
     /**

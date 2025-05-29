@@ -282,13 +282,13 @@ impl VSCodeApp {
         );
         let component_id = editor_rc.borrow().id();
 
-        let dispatch = Dispatch::ToEditor(DispatchEditor::ApplyEditTransaction {
-            transaction,
-            component_id,
-            reparse_tree: true,
-            update_undo_stack: true,
-        });
+        // Ignore the dispatches, as we should not send a buffer updated modification
+        // back to VS Code again, otherwise it will be an infinite loop
+        let _ = editor_rc
+            .borrow_mut()
+            .editor_mut()
+            .apply_edit_transaction(transaction, &Context::default())?;
 
-        self.app.lock().unwrap().handle_dispatch(dispatch)
+        Ok(())
     }
 }
