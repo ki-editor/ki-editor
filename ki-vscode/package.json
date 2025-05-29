@@ -1,8 +1,8 @@
 {
     "name": "ki-editor-vscode",
-    "version": "0.0.5",
+    "version": "0.0.6",
     "description": "VSCode extension for Ki Editor (Preview)",
-    "main": "build/extension.js",
+    "main": "./dist/extension.js",
     "publisher": "ki-editor",
     "author": {
         "name": "Ki Editor Contributors",

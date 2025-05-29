@@ -6,7 +6,7 @@
             "type": "extensionHost",
             "request": "launch",
             "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
-            "outFiles": ["${workspaceFolder}/build/**/*.js"],
+            "outFiles": ["${workspaceFolder}/dist/**/*.js"],
             "sourceMaps": true,
             "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
             "env": {
