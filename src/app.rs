@@ -596,6 +596,11 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentDefinition(params),
                     )?;
+
+                    #[cfg(feature = "vscode")]
+                    self.integration_event_sender.emit_event(
+                        crate::integration_event::IntegrationEvent::RequestLspDefinition,
+                    );
                 }
             }
             Dispatch::RequestDeclarations(scope) => {
@@ -925,6 +930,13 @@ impl<T: Frontend> App<T> {
             Dispatch::MarksChanged(component_id, marks) => self.marks_updated(component_id, marks),
         }
         Ok(())
+    }
+
+    pub(crate) fn get_editor_by_file_path(
+        &self,
+        path: &CanonicalizedPath,
+    ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
+        self.layout.get_existing_editor(&path)
     }
 
     pub(crate) fn current_component(&self) -> Rc<RefCell<dyn Component>> {

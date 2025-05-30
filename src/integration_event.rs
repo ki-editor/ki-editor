@@ -79,7 +79,10 @@ pub enum IntegrationEvent {
 
     // Other events
     #[allow(dead_code)]
-    CommandExecuted { command: String, success: bool },
+    CommandExecuted {
+        command: String,
+        success: bool,
+    },
     JumpsChanged {
         component_id: usize,
         jumps: Vec<(char, CharIndex)>,
@@ -96,6 +99,7 @@ pub enum IntegrationEvent {
         component_id: usize,
         marks: Vec<crate::char_index_range::CharIndexRange>,
     },
+    RequestLspDefinition,
 }
 
 /// Trait for components that can emit integration events

@@ -24,8 +24,6 @@ use crate::vscode::handlers; // Import the handlers module
 
 /// VSCodeApp serves as a thin IPC layer between VSCode and Ki editor
 pub struct VSCodeApp {
-    /// Suppression flag to prevent feedback loop when applying backend-driven cursor updates
-    pub suppress_next_cursor_update: bool,
     // Core components
     pub(crate) app: Arc<Mutex<App<Crossterm>>>,
     pub(crate) app_sender: mpsc::Sender<AppMessage>, // Sender to communicate TO the App thread
@@ -96,7 +94,6 @@ impl VSCodeApp {
         info!("WebSocketIpc initialized. Waiting for VSCode connection...");
 
         Ok(Self {
-            suppress_next_cursor_update: false,
             app: Arc::new(Mutex::new(core_app)),
             app_sender: real_app_sender, // Handlers use this sender
             app_message_receiver: real_app_receiver, // VSCodeApp loop polls this receiver
@@ -524,6 +521,7 @@ impl VSCodeApp {
                 component_id,
                 marks,
             } => self.marks_changed(component_id, marks)?,
+            IntegrationEvent::RequestLspDefinition => self.request_lsp_definition()?,
         }
 
         Ok(())
@@ -1083,6 +1081,14 @@ impl VSCodeApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::MarksChanged(MarksParams { marks }),
+            error: None,
+        })
+    }
+
+    fn request_lsp_definition(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspDefinition,
             error: None,
         })
     }

@@ -19,9 +19,6 @@ export class SelectionManager extends Manager {
         super(dispatcher, logger, eventHandler);
         this.modeManager = modeManager;
     }
-    /**
-     * Initialize the selection manager
-     */
     public initialize(): void {
         // Register VSCode event handlers
         this.registerVSCodeEventHandler("editor.active", (params) => this.handleEditorActive(params));
@@ -34,9 +31,6 @@ export class SelectionManager extends Manager {
         this.activeEditor = vscode.window.activeTextEditor;
     }
 
-    /**
-     * Handle editor active event
-     */
     private handleEditorActive(params: { editor: vscode.TextEditor | undefined }): void {
         this.activeEditor = params.editor;
     }
@@ -45,25 +39,29 @@ export class SelectionManager extends Manager {
      * Handle selection change event from VSCode
      */
     private handleSelectionChange(event: vscode.TextEditorSelectionChangeEvent): void {
+        const editor = event.textEditor;
+        if (!editor || editor.document.uri.scheme !== "file") {
+            return;
+        }
+
         // Skip if we're ignoring selection changes (due to Ki-initiated updates)
         if (this.ignoreSelectionChange) {
             this.logger.log("Ignoring selection change from VSCode (initiated by Ki)");
             return;
         }
 
-        const editor = event.textEditor;
-        if (!editor || editor.document.uri.scheme !== "file") {
-            return;
-        }
-
         const uri = editor.document.uri.toString();
         const selections = event.selections;
 
-        // Check if this selection change was caused by a mouse interaction
-        // VSCode provides this information through the TextEditorSelectionChangeKind enum
-        const isMouseSelection = event.kind === vscode.TextEditorSelectionChangeKind.Mouse;
+        // Check if this selection change was caused by a mouse interaction or a command
+        // Example of command is LSP Go to Definition, Go to References, etc.
+        // We only want to handle selection changes that are not caused by keyboard input
+        // unless we are in insert mode
+        const nonKeyboardChanges =
+            event.kind === vscode.TextEditorSelectionChangeKind.Mouse ||
+            event.kind === vscode.TextEditorSelectionChangeKind.Command;
 
-        if (!isMouseSelection && this.modeManager.getCurrentMode() !== "insert") {
+        if (!nonKeyboardChanges && this.modeManager.getCurrentMode() !== "insert") {
             this.logger.log(`Ignoring non-mouse and non-insert mode selection change in VSCode: ${uri}`);
             return;
         }

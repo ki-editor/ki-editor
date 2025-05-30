@@ -159,7 +159,8 @@ export type OutputMessage =
     | { tag: "search.results"; params: string }
     | { tag: "editor.action"; params: EditorActionParams }
     | { tag: "editor.jump"; params: JumpsParams }
-    | { tag: "editor.mark"; params: MarksParams };
+    | { tag: "editor.mark"; params: MarksParams }
+    | { tag: "lsp.definition"; params?: undefined };
 
 export interface ResponseError {
     code: number;

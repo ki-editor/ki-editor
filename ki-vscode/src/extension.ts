@@ -16,6 +16,7 @@ import {
     ModeManager,
     SelectionManager,
 } from "./managers";
+import { LspManager } from "./managers/lsp_manager";
 import { PromptManager } from "./managers/prompt_manager";
 
 // Track main extension state
@@ -126,6 +127,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const commandManager = new CommandManager(dispatcher, logger, eventHandler);
         const diagnosticManager = new DiagnosticManager(dispatcher, logger, eventHandler);
         const promptManager = new PromptManager(dispatcher, logger, eventHandler);
+        const lspManager = new LspManager(dispatcher, logger, eventHandler);
 
         // Initialize managers
         modeManager.initialize();
@@ -136,6 +138,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         diagnosticManager.initialize();
         promptManager.initialize();
         decorationManager.initialize();
+        lspManager.initialize();
 
         // Add managers and dispatcher to disposables
         disposables = [
@@ -146,6 +149,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             commandManager,
             dispatcher,
             diagnosticManager,
+            promptManager,
+            decorationManager,
+            lspManager,
         ];
 
         // Register all disposables

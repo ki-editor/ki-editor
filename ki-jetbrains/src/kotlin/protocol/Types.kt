@@ -273,6 +273,9 @@ sealed class OutputMessage {
 	@Serializable
 	@SerialName("editor.mark")
 	data class MarksChanged(val params: MarksParams): OutputMessage()
+	@Serializable
+	@SerialName("lsp.definition")
+	object RequestLspDefinition: OutputMessage()
 }
 
 @Serializable

@@ -6,7 +6,8 @@ use crate::{
     buffer::BufferOwner,
     components::editor::DispatchEditor,
     context::Context,
-    edit::{Action, ActionGroup, Edit, EditTransaction}, // Added Edit types
+    edit::{Action, ActionGroup, Edit, EditTransaction},
+    selection::SelectionSet,
     vscode::{
         app::VSCodeApp,
         utils::{uri_to_path, vscode_position_to_ki_position}, // Use position conversion util
@@ -34,106 +35,52 @@ impl VSCodeApp {
             version,
         } = params;
 
-        // Convert URI to path
-        if let Ok(path) = uri_to_path(&uri) {
-            // Store the original buffer_id for versioning
-            let buffer_id = uri.to_string();
+        let path = uri_to_path(&uri)?;
 
-            // Update buffer version
-            self.buffer_versions
-                .insert(buffer_id.clone(), version.unwrap_or(0) as u64);
+        // Store the original buffer_id for versioning
+        let buffer_id = uri.to_string();
 
-            // First check if the file is already open
-            let current_path = self.get_current_file_path();
-            if current_path.as_ref() == Some(&path) {
-                info!("Requested file is already open");
-            } else {
-                // Open the file
-                let dispatch = Dispatch::OpenFile {
-                    path: path.clone(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                };
-                let open_result = self.app.lock().unwrap().handle_dispatch(dispatch);
+        // Update buffer version
+        self.buffer_versions
+            .insert(buffer_id.clone(), version.unwrap_or(0) as u64);
 
-                if let Err(e) = open_result {
-                    error!("Failed to open file {}: {}", uri, e);
-                    // Create the error response
-                    let error_message = format!("Failed to open file: {}", e);
-                    let response = OutputMessageWrapper {
-                        id,
-                        message: OutputMessage::Error(error_message.clone()),
-                        error: Some(ResponseError {
-                            code: 1,
-                            message: error_message,
-                            data: None,
-                        }),
-                    };
-                    self.send_message_to_vscode(response)?;
-                    return Ok(());
-                }
-            }
-
-            // Set the content if provided
-            if let Some(content_val) = content {
-                let app_guard = self.app.lock().unwrap();
-                let comp = app_guard.current_component();
-                let context = Context::new(path.clone());
-
-                // Scope the mutable borrow to avoid borrow checker issues
-                {
-                    let mut comp_ref = comp.borrow_mut();
-                    if let Err(e) = comp_ref.set_content(&content_val, &context) {
-                        error!("Failed to set buffer content: {}", e);
-                        // Release the app lock before sending the error response
-                        drop(app_guard);
-
-                        // Create error message outside any borrows
-                        let error_message = format!("Failed to set buffer content: {}", e);
-                        let response = OutputMessageWrapper {
-                            id,
-                            message: OutputMessage::Error(error_message.clone()),
-                            error: Some(ResponseError {
-                                code: 2,
-                                message: error_message,
-                                data: None,
-                            }),
-                        };
-                        self.send_message_to_vscode(response)?;
-                        return Ok(());
-                    }
-                }
-            }
-
-            // Send success response
-            let response = OutputMessageWrapper {
-                id,
-                message: OutputMessage::Success(true),
-                error: None,
-            };
-            self.send_message_to_vscode(response)?;
-
-            // Send cursor position update after buffer is opened
-            // This ensures VSCode has the correct cursor position from the start
-            self.send_cursor_position_for_current_buffer()?;
-
-            Ok(())
-        } else {
-            error!("Failed to convert URI to path: {}", uri);
-            // Send error response for bad URI
-            let error_message = format!("Failed to convert URI to path: {}", uri);
-            let response = OutputMessageWrapper {
-                id,
-                message: OutputMessage::Error(error_message.clone()),
-                error: Some(ResponseError {
-                    code: 3,
-                    message: error_message,
-                    data: None,
-                }),
-            };
-            self.send_message_to_vscode(response)?;
-            Ok(())
+        // First check if the file is already open
+        let current_path = self.get_current_file_path();
+        if current_path.as_ref() == Some(&path) {
+            info!("Requested file is already open");
+            return Ok(());
         }
+
+        // Open the file
+        let dispatch = Dispatch::OpenFile {
+            path: path.clone(),
+            owner: BufferOwner::User,
+            focus: true,
+        };
+        self.app.lock().unwrap().handle_dispatch(dispatch)?;
+
+        // Set the content if provided
+        if let Some(content_val) = content {
+            let app_guard = self.app.lock().unwrap();
+            let comp = app_guard.current_component();
+            let context = Context::new(path.clone());
+
+            // Scope the mutable borrow to avoid borrow checker issues
+            {
+                let mut comp_ref = comp.borrow_mut();
+                comp_ref.set_content(&content_val, &context)?;
+            }
+        }
+
+        // Send success response
+        let response = OutputMessageWrapper {
+            id,
+            message: OutputMessage::Success(true),
+            error: None,
+        };
+        self.send_message_to_vscode(response)?;
+
+        Ok(())
     }
 
     /// Handle buffer close request from VSCode
@@ -177,6 +124,7 @@ impl VSCodeApp {
             content: _,
             language_id: _,
             version: _,
+            ..
         } = params;
         self.app
             .lock()

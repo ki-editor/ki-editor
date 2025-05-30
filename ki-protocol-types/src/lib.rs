@@ -14,6 +14,7 @@ pub struct Position {
     #[typeshare(typescript(type = "number"))]
     pub character: usize,
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[typeshare]
 pub struct Range {
@@ -408,6 +409,8 @@ pub enum OutputMessage {
     JumpsChanged(JumpsParams),
     #[serde(rename = "editor.mark")]
     MarksChanged(MarksParams),
+    #[serde(rename = "lsp.definition")]
+    RequestLspDefinition,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -547,6 +550,7 @@ impl MessageMethod for OutputMessage {
             OutputMessage::JumpsChanged(_) => Cow::Borrowed("editor.jump"),
             OutputMessage::PromptOpened(_) => Cow::Borrowed("prompt.opened"),
             OutputMessage::MarksChanged(_) => Cow::Borrowed("editor.mark"),
+            OutputMessage::RequestLspDefinition => Cow::Borrowed("lsp.definition"),
         }
     }
 
@@ -573,6 +577,7 @@ impl MessageMethod for OutputMessage {
             OutputMessage::JumpsChanged(_) => "JumpsChanged",
             OutputMessage::PromptOpened(_) => "PromptOpened",
             OutputMessage::MarksChanged(_) => "MarksChanged",
+            OutputMessage::RequestLspDefinition => "RequestLspDefinition",
         }
     }
 }

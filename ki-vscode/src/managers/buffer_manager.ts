@@ -157,7 +157,6 @@ export class BufferManager extends Manager {
 
         // Skip large files (over 5MB)
         if (document.getText().length > 5 * 1024 * 1024) {
-            this.logger.warn(`Skipping large file: ${document.uri.toString()}`);
             return;
         }
 
@@ -601,8 +600,6 @@ export class BufferManager extends Manager {
     private sendBufferOpenNotification(document: vscode.TextDocument): void {
         const uri = document.uri.toString();
 
-        this.logger.log(`Sending buffer.open for ${uri}`);
-
         // Add to openBuffers map
         this.openBuffers.set(uri, { document, version: document.version });
 
@@ -614,10 +611,6 @@ export class BufferManager extends Manager {
             version: document.version,
         });
     }
-
-    // The syncBuffers method has been removed.
-    // Ki should be the source of truth, and we should only be reacting to events from Ki,
-    // not proactively syncing. Buffer state is managed through the proper event handlers.
 
     /**
      * Dispose of resources
