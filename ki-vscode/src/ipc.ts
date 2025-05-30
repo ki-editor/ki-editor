@@ -1,6 +1,5 @@
 import * as cp from "child_process";
 import { EventEmitter } from "events";
-import { cwd } from "process";
 import WebSocket from "ws"; // Import WebSocket library
 import { Logger } from "./logger";
 import type { InputMessage, InputMessageWrapper, OutputMessage, OutputMessageWrapper } from "./protocol/types";
@@ -41,6 +40,9 @@ const KNOWN_NOTIFICATION_TAGS: ReadonlySet<OutputMessage["tag"]> = new Set([
     "lsp.definition",
     "lsp.hover",
     "lsp.references",
+    "lsp.declaration",
+    "lsp.typeDefinition",
+    "lsp.implementation",
     // Add any other tags that are definitely notifications
 ]);
 

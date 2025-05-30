@@ -524,6 +524,9 @@ impl VSCodeApp {
             IntegrationEvent::RequestLspDefinition => self.request_lsp_definition()?,
             IntegrationEvent::RequestLspHover => self.request_lsp_hover()?,
             IntegrationEvent::RequestLspReferences => self.request_lsp_references()?,
+            IntegrationEvent::RequestLspDeclaration => self.request_lsp_declaration()?,
+            IntegrationEvent::RequestLspImplementation => self.request_lsp_implementation()?,
+            IntegrationEvent::RequestLspTypeDefinition => self.request_lsp_type_definition()?,
         }
 
         Ok(())
@@ -1111,6 +1114,30 @@ impl VSCodeApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::RequestLspReferences,
+            error: None,
+        })
+    }
+
+    fn request_lsp_declaration(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspDeclaration,
+            error: None,
+        })
+    }
+
+    fn request_lsp_type_definition(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspTypeDefinition,
+            error: None,
+        })
+    }
+
+    fn request_lsp_implementation(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspImplementation,
             error: None,
         })
     }

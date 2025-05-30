@@ -415,6 +415,12 @@ pub enum OutputMessage {
     RequestLspHover,
     #[serde(rename = "lsp.references")]
     RequestLspReferences,
+    #[serde(rename = "lsp.declaration")]
+    RequestLspDeclaration,
+    #[serde(rename = "lsp.typeDefinition")]
+    RequestLspTypeDefinition,
+    #[serde(rename = "lsp.implementation")]
+    RequestLspImplementation,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -559,6 +565,9 @@ impl MessageMethod for OutputMessage {
             OutputMessage::RequestLspDefinition => Cow::Borrowed("lsp.definition"),
             OutputMessage::RequestLspHover => Cow::Borrowed("lsp.hover"),
             OutputMessage::RequestLspReferences => Cow::Borrowed("lsp.references"),
+            OutputMessage::RequestLspDeclaration => Cow::Borrowed("lsp.declaration"),
+            OutputMessage::RequestLspTypeDefinition => Cow::Borrowed("lsp.typeDefinition"),
+            OutputMessage::RequestLspImplementation => Cow::Borrowed("lsp.implementation"),
         }
     }
 
@@ -588,6 +597,9 @@ impl MessageMethod for OutputMessage {
             OutputMessage::RequestLspDefinition => "RequestLspDefinition",
             OutputMessage::RequestLspHover => "RequestLspHover",
             OutputMessage::RequestLspReferences => "RequestLspReferences",
+            OutputMessage::RequestLspDeclaration => "RequestLspDeclaration",
+            OutputMessage::RequestLspTypeDefinition => "RequestLspTypeDefinition",
+            OutputMessage::RequestLspImplementation => "RequestLspImplementation",
         }
     }
 }

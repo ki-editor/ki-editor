@@ -15,5 +15,16 @@ export class LspManager extends Manager {
         this.dispatcher.registerKiNotificationHandler("lsp.references", async () => {
             await vscode.commands.executeCommand("editor.action.goToReferences");
         });
+
+        this.dispatcher.registerKiNotificationHandler("lsp.declaration", async () => {
+            await vscode.commands.executeCommand("editor.action.goToDeclaration");
+        });
+
+        this.dispatcher.registerKiNotificationHandler("lsp.typeDefinition", async () => {
+            await vscode.commands.executeCommand("editor.action.goToTypeDefinition");
+        });
+        this.dispatcher.registerKiNotificationHandler("lsp.implementation", async () => {
+            await vscode.commands.executeCommand("editor.action.goToImplementation");
+        });
     }
 }

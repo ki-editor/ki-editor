@@ -618,6 +618,10 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentDeclaration(params),
                     )?;
+                    #[cfg(feature = "vscode")]
+                    self.integration_event_sender.emit_event(
+                        crate::integration_event::IntegrationEvent::RequestLspDeclaration,
+                    );
                 }
             }
             Dispatch::RequestImplementations(scope) => {
@@ -629,6 +633,10 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentImplementation(params),
                     )?;
+                    #[cfg(feature = "vscode")]
+                    self.integration_event_sender.emit_event(
+                        crate::integration_event::IntegrationEvent::RequestLspImplementation,
+                    );
                 }
             }
             Dispatch::RequestTypeDefinitions(scope) => {
@@ -640,6 +648,10 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentTypeDefinition(params),
                     )?;
+                    #[cfg(feature = "vscode")]
+                    self.integration_event_sender.emit_event(
+                        crate::integration_event::IntegrationEvent::RequestLspTypeDefinition,
+                    );
                 }
             }
             Dispatch::RequestDocumentSymbols => {

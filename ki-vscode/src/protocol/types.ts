@@ -164,7 +164,10 @@ export type OutputMessage =
     | { tag: "editor.mark"; params: MarksParams }
     | { tag: "lsp.definition"; params?: undefined }
     | { tag: "lsp.hover"; params?: undefined }
-    | { tag: "lsp.references"; params?: undefined };
+    | { tag: "lsp.references"; params?: undefined }
+    | { tag: "lsp.declaration"; params?: undefined }
+    | { tag: "lsp.typeDefinition"; params?: undefined }
+    | { tag: "lsp.implementation"; params?: undefined };
 
 export interface ResponseError {
     code: number;

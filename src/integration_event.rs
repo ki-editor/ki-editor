@@ -1,6 +1,5 @@
 use crate::{
     components::editor::Mode,
-    edit::EditTransaction,
     selection::{CharIndex, Selection, SelectionMode},
 };
 use shared::canonicalized_path::CanonicalizedPath;
@@ -102,6 +101,9 @@ pub enum IntegrationEvent {
     RequestLspDefinition,
     RequestLspHover,
     RequestLspReferences,
+    RequestLspDeclaration,
+    RequestLspImplementation,
+    RequestLspTypeDefinition,
 }
 
 /// Trait for components that can emit integration events

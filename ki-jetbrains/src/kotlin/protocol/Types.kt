@@ -284,6 +284,15 @@ sealed class OutputMessage {
 	@Serializable
 	@SerialName("lsp.references")
 	object RequestLspReferences: OutputMessage()
+	@Serializable
+	@SerialName("lsp.declaration")
+	object RequestLspDeclaration: OutputMessage()
+	@Serializable
+	@SerialName("lsp.typeDefinition")
+	object RequestLspTypeDefinition: OutputMessage()
+	@Serializable
+	@SerialName("lsp.implementation")
+	object RequestLspImplementation: OutputMessage()
 }
 
 @Serializable
