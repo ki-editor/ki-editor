@@ -1,16 +1,16 @@
 //! VSCode integration app implementation
 
-use crate::components::editor::{Direction, Mode};
+use crate::components::editor::Mode;
 use std::collections::HashMap;
 use std::sync::mpsc::{self, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::app::{App, AppMessage, Dimension, Dispatch, StatusLineComponent};
+use crate::app::{App, AppMessage, Dispatch, StatusLineComponent};
 use crate::frontend::crossterm::Crossterm;
 use anyhow::Result;
 use ki_protocol_types::{
-    BufferDiagnostics, InputMessage, MarksParams, OutputMessage, OutputMessageWrapper, PromptItem,
+    BufferDiagnostics, InputMessage, MarksParams, OutputMessage, OutputMessageWrapper,
     PromptOpenedParams, ResponseError,
 };
 use log::{debug, error, info, trace};
@@ -522,6 +522,7 @@ impl VSCodeApp {
                 marks,
             } => self.marks_changed(component_id, marks)?,
             IntegrationEvent::RequestLspDefinition => self.request_lsp_definition()?,
+            IntegrationEvent::RequestLspHover => self.request_lsp_hover()?,
         }
 
         Ok(())
@@ -1093,6 +1094,14 @@ impl VSCodeApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::RequestLspDefinition,
+            error: None,
+        })
+    }
+
+    fn request_lsp_hover(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspHover,
             error: None,
         })
     }

@@ -100,6 +100,7 @@ pub enum IntegrationEvent {
         marks: Vec<crate::char_index_range::CharIndexRange>,
     },
     RequestLspDefinition,
+    RequestLspHover,
 }
 
 /// Trait for components that can emit integration events

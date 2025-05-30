@@ -411,6 +411,8 @@ pub enum OutputMessage {
     MarksChanged(MarksParams),
     #[serde(rename = "lsp.definition")]
     RequestLspDefinition,
+    #[serde(rename = "lsp.hover")]
+    RequestLspHover,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -553,6 +555,7 @@ impl MessageMethod for OutputMessage {
             OutputMessage::PromptOpened(_) => Cow::Borrowed("prompt.opened"),
             OutputMessage::MarksChanged(_) => Cow::Borrowed("editor.mark"),
             OutputMessage::RequestLspDefinition => Cow::Borrowed("lsp.definition"),
+            OutputMessage::RequestLspHover => Cow::Borrowed("lsp.hover"),
         }
     }
 
@@ -580,6 +583,7 @@ impl MessageMethod for OutputMessage {
             OutputMessage::PromptOpened(_) => "PromptOpened",
             OutputMessage::MarksChanged(_) => "MarksChanged",
             OutputMessage::RequestLspDefinition => "RequestLspDefinition",
+            OutputMessage::RequestLspHover => "RequestLspHover",
         }
     }
 }

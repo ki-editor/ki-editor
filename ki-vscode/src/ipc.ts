@@ -39,6 +39,7 @@ const KNOWN_NOTIFICATION_TAGS: ReadonlySet<OutputMessage["tag"]> = new Set([
     "editor.mark",
     "prompt.opened",
     "lsp.definition",
+    "lsp.hover",
     // Add any other tags that are definitely notifications
 ]);
 

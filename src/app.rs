@@ -588,6 +588,10 @@ impl<T: Frontend> App<T> {
                     self.lsp_manager
                         .send_message(params.path.clone(), FromEditor::TextDocumentHover(params))?;
                 }
+
+                #[cfg(feature = "vscode")]
+                self.integration_event_sender
+                    .emit_event(crate::integration_event::IntegrationEvent::RequestLspHover);
             }
             Dispatch::RequestDefinitions(scope) => {
                 if let Some(params) = self.get_request_params() {
