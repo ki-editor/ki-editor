@@ -1,10 +1,9 @@
 import * as vscode from "vscode";
 import { Dispatcher } from "../dispatcher";
 import { Logger } from "../logger";
-import { JumpsParams, SelectionSet, MarksParams } from "../protocol/types";
+import { JumpsParams, MarksParams } from "../protocol/types";
 import { EventHandler } from "./event_handler";
 import { Manager } from "./manager";
-import { ModeManager } from "./mode_manager";
 
 export const JUMP_SAFETY_PADDING = 10;
 
@@ -12,7 +11,6 @@ export const JUMP_SAFETY_PADDING = 10;
  * Manages selection synchronization between VSCode and Ki
  */
 export class DecorationManager extends Manager {
-    private activeEditor: vscode.TextEditor | undefined;
     private jumpCharDecoration = vscode.window.createTextEditorDecorationType({
         backgroundColor: "red",
         color: "transparent",
@@ -31,9 +29,6 @@ export class DecorationManager extends Manager {
         super(dispatcher, logger, eventHandler);
     }
 
-    /**
-     * Initialize the selection manager
-     */
     public initialize(): void {
         // Register VSCode event handlers
         this.registerVSCodeEventHandler("editor.visibleRanges", (params) =>
@@ -42,13 +37,11 @@ export class DecorationManager extends Manager {
 
         this.eventHandler.onJumpsChange((params) => this.handleJumpsChanged(params));
         this.eventHandler.onMarksChange((params) => this.handleMarksChanged(params));
-
-        // Initialize with active editor
-        this.activeEditor = vscode.window.activeTextEditor;
     }
 
     private handleJumpsChanged(jumps: JumpsParams): void {
-        const editor = this.activeEditor;
+        const uri = jumps.uri;
+        const editor = vscode.window.visibleTextEditors.find((editor) => editor.document.uri.path === uri);
         if (!editor) return;
 
         const decorations: vscode.DecorationOptions[] = jumps.targets.map((jump) => {
@@ -67,7 +60,7 @@ export class DecorationManager extends Manager {
     }
 
     private handleMarksChanged(params: MarksParams): void {
-        const editor = this.activeEditor;
+        const editor = vscode.window.visibleTextEditors.find((editor) => editor.document.uri.path === params.uri);
         if (!editor) return;
 
         const decorations: vscode.DecorationOptions[] = params.marks.map((mark) => {

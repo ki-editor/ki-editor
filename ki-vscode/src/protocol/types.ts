@@ -109,6 +109,7 @@ export interface JumpTarget {
 }
 
 export interface JumpsParams {
+    uri: string;
     targets: JumpTarget[];
 }
 
@@ -130,6 +131,7 @@ export interface LogParams {
 }
 
 export interface MarksParams {
+    uri: string;
     marks: Range[];
 }
 

@@ -212,7 +212,7 @@ impl VSCodeApp {
             }
             InputMessage::ViewportChange(params) => {
                 debug!("[{}] Processing viewport change request", trace_id);
-                self.handle_viewport_change_request(id, params, trace_id)
+                self.handle_viewport_change_request(id, params)
             }
             InputMessage::EditorAction(params) => {
                 debug!(
@@ -914,6 +914,7 @@ impl VSCodeApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::JumpsChanged(ki_protocol_types::JumpsParams {
+                uri: buffer_id,
                 targets: jumps
                     .into_iter()
                     .map(|(key, position)| ki_protocol_types::JumpTarget { key, position })
@@ -1080,7 +1081,10 @@ impl VSCodeApp {
             .collect::<anyhow::Result<Vec<_>, _>>()?;
         self.send_notification(OutputMessageWrapper {
             id: 0,
-            message: OutputMessage::MarksChanged(MarksParams { marks }),
+            message: OutputMessage::MarksChanged(MarksParams {
+                marks,
+                uri: buffer_id,
+            }),
             error: None,
         })
     }

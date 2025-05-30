@@ -437,12 +437,14 @@ pub struct JumpTarget {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[typeshare]
 pub struct JumpsParams {
+    pub uri: String,
     pub targets: Vec<JumpTarget>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[typeshare]
 pub struct MarksParams {
+    pub uri: String,
     pub marks: Vec<Range>,
 }
 

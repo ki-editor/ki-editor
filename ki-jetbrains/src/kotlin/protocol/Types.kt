@@ -174,6 +174,7 @@ data class JumpTarget (
 
 @Serializable
 data class JumpsParams (
+	val uri: String,
 	val targets: List<JumpTarget>
 )
 
@@ -199,6 +200,7 @@ data class LogParams (
 
 @Serializable
 data class MarksParams (
+	val uri: String,
 	val marks: List<Range>
 )
 
