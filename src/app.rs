@@ -580,6 +580,10 @@ impl<T: Frontend> App<T> {
                             include_declaration,
                         },
                     )?;
+                    #[cfg(feature = "vscode")]
+                    self.integration_event_sender.emit_event(
+                        crate::integration_event::IntegrationEvent::RequestLspReferences,
+                    );
                 }
             }
             Dispatch::RequestHover => {

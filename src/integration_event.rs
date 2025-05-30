@@ -101,6 +101,7 @@ pub enum IntegrationEvent {
     },
     RequestLspDefinition,
     RequestLspHover,
+    RequestLspReferences,
 }
 
 /// Trait for components that can emit integration events

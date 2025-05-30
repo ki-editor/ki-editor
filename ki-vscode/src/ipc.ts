@@ -40,6 +40,7 @@ const KNOWN_NOTIFICATION_TAGS: ReadonlySet<OutputMessage["tag"]> = new Set([
     "prompt.opened",
     "lsp.definition",
     "lsp.hover",
+    "lsp.references",
     // Add any other tags that are definitely notifications
 ]);
 

@@ -523,6 +523,7 @@ impl VSCodeApp {
             } => self.marks_changed(component_id, marks)?,
             IntegrationEvent::RequestLspDefinition => self.request_lsp_definition()?,
             IntegrationEvent::RequestLspHover => self.request_lsp_hover()?,
+            IntegrationEvent::RequestLspReferences => self.request_lsp_references()?,
         }
 
         Ok(())
@@ -1102,6 +1103,14 @@ impl VSCodeApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::RequestLspHover,
+            error: None,
+        })
+    }
+
+    fn request_lsp_references(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspReferences,
             error: None,
         })
     }

@@ -413,6 +413,8 @@ pub enum OutputMessage {
     RequestLspDefinition,
     #[serde(rename = "lsp.hover")]
     RequestLspHover,
+    #[serde(rename = "lsp.references")]
+    RequestLspReferences,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -556,6 +558,7 @@ impl MessageMethod for OutputMessage {
             OutputMessage::MarksChanged(_) => Cow::Borrowed("editor.mark"),
             OutputMessage::RequestLspDefinition => Cow::Borrowed("lsp.definition"),
             OutputMessage::RequestLspHover => Cow::Borrowed("lsp.hover"),
+            OutputMessage::RequestLspReferences => Cow::Borrowed("lsp.references"),
         }
     }
 
@@ -584,6 +587,7 @@ impl MessageMethod for OutputMessage {
             OutputMessage::MarksChanged(_) => "MarksChanged",
             OutputMessage::RequestLspDefinition => "RequestLspDefinition",
             OutputMessage::RequestLspHover => "RequestLspHover",
+            OutputMessage::RequestLspReferences => "RequestLspReferences",
         }
     }
 }

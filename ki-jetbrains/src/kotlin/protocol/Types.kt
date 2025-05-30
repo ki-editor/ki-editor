@@ -278,6 +278,12 @@ sealed class OutputMessage {
 	@Serializable
 	@SerialName("lsp.definition")
 	object RequestLspDefinition: OutputMessage()
+	@Serializable
+	@SerialName("lsp.hover")
+	object RequestLspHover: OutputMessage()
+	@Serializable
+	@SerialName("lsp.references")
+	object RequestLspReferences: OutputMessage()
 }
 
 @Serializable

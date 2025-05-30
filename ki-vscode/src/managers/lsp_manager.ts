@@ -11,5 +11,9 @@ export class LspManager extends Manager {
         this.dispatcher.registerKiNotificationHandler("lsp.hover", async () => {
             await vscode.commands.executeCommand("editor.action.showHover");
         });
+
+        this.dispatcher.registerKiNotificationHandler("lsp.references", async () => {
+            await vscode.commands.executeCommand("editor.action.goToReferences");
+        });
     }
 }

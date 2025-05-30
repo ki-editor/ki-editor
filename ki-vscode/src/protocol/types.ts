@@ -163,7 +163,8 @@ export type OutputMessage =
     | { tag: "editor.jump"; params: JumpsParams }
     | { tag: "editor.mark"; params: MarksParams }
     | { tag: "lsp.definition"; params?: undefined }
-    | { tag: "lsp.hover"; params?: undefined };
+    | { tag: "lsp.hover"; params?: undefined }
+    | { tag: "lsp.references"; params?: undefined };
 
 export interface ResponseError {
     code: number;
