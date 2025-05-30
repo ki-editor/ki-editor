@@ -19,6 +19,7 @@ use crate::{
     frontend::Frontend,
     git,
     grid::{Grid, LineUpdate},
+    integration_event::IntegrationEventEmitter,
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
@@ -33,12 +34,13 @@ use crate::{
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     screen::{Screen, Window},
     search::parse_search_config,
-    selection::SelectionMode,
+    selection::{CharIndex, SelectionMode},
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
 use itertools::{Either, Itertools};
+use log::trace;
 use name_variant::NamedVariant;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
@@ -64,6 +66,11 @@ pub(crate) struct App<T: Frontend> {
     /// - Notifications from language server
     receiver: Receiver<AppMessage>,
 
+    // VSCode notification sender has been removed in favor of integration_event_sender
+
+    // Sender for integration events (used by external integrations like VSCode)
+    integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
+
     lsp_manager: LspManager,
     enable_lsp: bool,
 
@@ -79,6 +86,9 @@ pub(crate) struct App<T: Frontend> {
     status_line_components: Vec<StatusLineComponent>,
     last_action_description: Option<String>,
     last_action_short_description: Option<String>,
+
+    #[cfg(feature = "vscode")]
+    last_prompt_config: Option<PromptConfig>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
@@ -110,6 +120,8 @@ impl<T: Frontend> App<T> {
             sender,
             receiver,
             status_line_components,
+            None, // No integration event sender
+            false,
         )
     }
 
@@ -124,13 +136,15 @@ impl<T: Frontend> App<T> {
         sender: Sender<AppMessage>,
         receiver: Receiver<AppMessage>,
         status_line_components: Vec<StatusLineComponent>,
+        integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
+        enable_lsp: bool,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let app = App {
             context: Context::new(working_directory.clone()),
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
-            enable_lsp: true,
+            enable_lsp,
             sender,
             layout: Layout::new(
                 dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT),
@@ -143,9 +157,13 @@ impl<T: Frontend> App<T> {
             status_line_components,
             last_action_description: None,
             last_action_short_description: None,
+            integration_event_sender,
+            #[cfg(feature = "vscode")]
+            last_prompt_config: None,
         };
         Ok(app)
     }
+
     fn update_highlighted_spans(
         &self,
         component_id: ComponentId,
@@ -178,24 +196,7 @@ impl<T: Frontend> App<T> {
         self.render()?;
 
         while let Ok(message) = self.receiver.recv() {
-            match message {
-                AppMessage::Event(event) => self.handle_event(event),
-                AppMessage::LspNotification(notification) => {
-                    self.handle_lsp_notification(notification).map(|_| false)
-                }
-                AppMessage::QuitAll => {
-                    self.quit()?;
-                    Ok(true)
-                }
-                AppMessage::SyntaxHighlightResponse {
-                    component_id,
-                    batch_id,
-                    highlighted_spans,
-                } => self
-                    .update_highlighted_spans(component_id, batch_id, highlighted_spans)
-                    .map(|_| false),
-            }
-            .unwrap_or_else(|e| {
+            self.process_message(message).unwrap_or_else(|e| {
                 self.show_global_info(Info::new("ERROR".to_string(), e.to_string()));
                 false
             });
@@ -208,6 +209,32 @@ impl<T: Frontend> App<T> {
         }
 
         self.quit()
+    }
+
+    pub(crate) fn process_message(&mut self, message: AppMessage) -> anyhow::Result<bool> {
+        match message {
+            AppMessage::Event(event) => self.handle_event(event),
+            AppMessage::LspNotification(notification) => {
+                self.handle_lsp_notification(notification).map(|_| false)
+            }
+            AppMessage::QuitAll => {
+                self.quit()?;
+                Ok(true)
+            }
+            AppMessage::SyntaxHighlightResponse {
+                component_id,
+                batch_id,
+                highlighted_spans,
+            } => self
+                .update_highlighted_spans(component_id, batch_id, highlighted_spans)
+                .map(|_| false),
+            // Handle the new ExternalDispatch variant
+            AppMessage::ExternalDispatch(dispatch) => {
+                // Process the dispatch directly
+                self.handle_dispatch(dispatch)?;
+                Ok(false)
+            }
+        }
     }
 
     pub(crate) fn quit(&mut self) -> anyhow::Result<()> {
@@ -225,7 +252,7 @@ impl<T: Frontend> App<T> {
     }
 
     /// Returns true if the app should quit.
-    fn handle_event(&mut self, event: Event) -> anyhow::Result<bool> {
+    pub(crate) fn handle_event(&mut self, event: Event) -> anyhow::Result<bool> {
         // Pass event to focused window
         let component = self.current_component();
         match event {
@@ -466,10 +493,49 @@ impl<T: Frontend> App<T> {
             } => self.open_search_prompt(scope, if_current_not_found)?,
             Dispatch::OpenPipeToShellPrompt => self.open_pipe_to_shell_prompt()?,
             Dispatch::OpenFile { path, owner, focus } => {
-                self.open_file(&path, owner, true, focus)?;
+                let component = self.open_file(&path, owner, true, focus)?;
+
+                // Emit an integration event for buffer opened
+                let component_ref = component.borrow();
+                let component_id =
+                    crate::integration_event::component_id_to_usize(&component_ref.id());
+                let language_id = component_ref
+                    .editor()
+                    .buffer()
+                    .language()
+                    .and_then(|lang| lang.id())
+                    .map(|id| id.to_string());
+
+                self.integration_event_sender.emit_event(
+                    crate::integration_event::IntegrationEvent::BufferOpened {
+                        component_id,
+                        path: path.clone(),
+                        language_id,
+                    },
+                );
             }
             Dispatch::OpenFileFromPathBuf { path, owner, focus } => {
-                self.open_file(&path.try_into()?, owner, true, focus)?;
+                let canonicalized_path = path.try_into()?;
+                let component = self.open_file(&canonicalized_path, owner, true, focus)?;
+
+                // Emit an integration event for buffer opened
+                let component_ref = component.borrow();
+                let component_id =
+                    crate::integration_event::component_id_to_usize(&component_ref.id());
+                let language_id = component_ref
+                    .editor()
+                    .buffer()
+                    .language()
+                    .and_then(|lang| lang.id())
+                    .map(|id| id.to_string());
+
+                self.integration_event_sender.emit_event(
+                    crate::integration_event::IntegrationEvent::BufferOpened {
+                        component_id,
+                        path: canonicalized_path.clone(),
+                        language_id,
+                    },
+                );
             }
 
             Dispatch::OpenFilePicker(kind) => {
@@ -514,6 +580,10 @@ impl<T: Frontend> App<T> {
                             include_declaration,
                         },
                     )?;
+                    #[cfg(feature = "vscode")]
+                    self.integration_event_sender.emit_event(
+                        crate::integration_event::IntegrationEvent::RequestLspReferences,
+                    );
                 }
             }
             Dispatch::RequestHover => {
@@ -522,6 +592,10 @@ impl<T: Frontend> App<T> {
                     self.lsp_manager
                         .send_message(params.path.clone(), FromEditor::TextDocumentHover(params))?;
                 }
+
+                #[cfg(feature = "vscode")]
+                self.integration_event_sender
+                    .emit_event(crate::integration_event::IntegrationEvent::RequestLspHover);
             }
             Dispatch::RequestDefinitions(scope) => {
                 if let Some(params) = self.get_request_params() {
@@ -530,6 +604,11 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentDefinition(params),
                     )?;
+
+                    #[cfg(feature = "vscode")]
+                    self.integration_event_sender.emit_event(
+                        crate::integration_event::IntegrationEvent::RequestLspDefinition,
+                    );
                 }
             }
             Dispatch::RequestDeclarations(scope) => {
@@ -539,6 +618,10 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentDeclaration(params),
                     )?;
+                    #[cfg(feature = "vscode")]
+                    self.integration_event_sender.emit_event(
+                        crate::integration_event::IntegrationEvent::RequestLspDeclaration,
+                    );
                 }
             }
             Dispatch::RequestImplementations(scope) => {
@@ -550,6 +633,10 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentImplementation(params),
                     )?;
+                    #[cfg(feature = "vscode")]
+                    self.integration_event_sender.emit_event(
+                        crate::integration_event::IntegrationEvent::RequestLspImplementation,
+                    );
                 }
             }
             Dispatch::RequestTypeDefinitions(scope) => {
@@ -561,6 +648,10 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentTypeDefinition(params),
                     )?;
+                    #[cfg(feature = "vscode")]
+                    self.integration_event_sender.emit_event(
+                        crate::integration_event::IntegrationEvent::RequestLspTypeDefinition,
+                    );
                 }
             }
             Dispatch::RequestDocumentSymbols => {
@@ -622,7 +713,7 @@ impl<T: Frontend> App<T> {
                         content.clone(),
                     )?;
                 }
-                if let Some(path) = path {
+                if let Some(path) = path.clone() {
                     self.lsp_manager.send_message(
                         path.clone(),
                         FromEditor::TextDocumentDidChange {
@@ -634,6 +725,29 @@ impl<T: Frontend> App<T> {
                 }
             }
             Dispatch::DocumentDidSave { path } => {
+                // Emit an integration event for buffer save
+                // Find the component that has this path
+                for component in self.layout.components() {
+                    // Store the component reference to extend its lifetime
+                    let component_rc = component.component();
+                    let component_ref = component_rc.borrow();
+                    if let Some(component_path) = component_ref.path() {
+                        if component_path == path {
+                            let component_id = crate::integration_event::component_id_to_usize(
+                                &component_ref.id(),
+                            );
+
+                            self.integration_event_sender.emit_event(
+                                crate::integration_event::IntegrationEvent::BufferSaved {
+                                    component_id,
+                                    path: path.clone(),
+                                },
+                            );
+                            break;
+                        }
+                    }
+                }
+
                 self.lsp_manager.send_message(
                     path.clone(),
                     FromEditor::TextDocumentDidSave { file_path: path },
@@ -680,7 +794,6 @@ impl<T: Frontend> App<T> {
                 .context
                 .set_clipboard_content(contents, use_system_clipboard)?,
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
-
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
                 self.handle_event(Event::Key(key_event))?;
@@ -805,8 +918,45 @@ impl<T: Frontend> App<T> {
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
+            Dispatch::BufferEditTransaction {
+                component_id,
+                path,
+                edits,
+            } => {
+                // Emit an integration event for the buffer change
+                self.integration_event_sender.emit_event(
+                    crate::integration_event::IntegrationEvent::BufferChanged {
+                        component_id: crate::integration_event::component_id_to_usize(
+                            &component_id,
+                        ),
+                        path: path.clone(),
+                        edits: edits.clone(),
+                    },
+                );
+            }
+            Dispatch::ModeChanged => self.mode_changed(),
+            Dispatch::SelectionModeChanged(selection_mode) => {
+                self.selection_mode_changed(selection_mode)
+            }
+            Dispatch::SelectionChanged {
+                component_id,
+                selections,
+            } => self.selection_changed(component_id, selections),
+            Dispatch::JumpsChanged {
+                component_id,
+                jumps,
+            } => self.jumps_changed(component_id, jumps),
+            Dispatch::PromptEntered(entry) => self.prompt_entered(entry)?,
+            Dispatch::MarksChanged(component_id, marks) => self.marks_updated(component_id, marks),
         }
         Ok(())
+    }
+
+    pub(crate) fn get_editor_by_file_path(
+        &self,
+        path: &CanonicalizedPath,
+    ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
+        self.layout.get_existing_editor(&path)
     }
 
     pub(crate) fn current_component(&self) -> Rc<RefCell<dyn Component>> {
@@ -859,8 +1009,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::MoveToIndex,
             },
-            PromptHistoryKey::MoveToIndex,
             None,
         )
     }
@@ -874,8 +1024,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Rename,
             },
-            PromptHistoryKey::Rename,
             current_name,
         )
     }
@@ -898,8 +1048,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Search,
             },
-            PromptHistoryKey::Search,
             None,
         )
     }
@@ -934,8 +1084,8 @@ impl<T: Frontend> App<T> {
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
+                    prompt_history_key: PromptHistoryKey::AddPath,
                 },
-                PromptHistoryKey::AddPath,
                 Some(path.display_absolute()),
             )
         } else {
@@ -954,8 +1104,8 @@ impl<T: Frontend> App<T> {
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
+                    prompt_history_key: PromptHistoryKey::MovePath,
                 },
-                PromptHistoryKey::MovePath,
                 Some(path.display_absolute()),
             )
         } else {
@@ -974,8 +1124,8 @@ impl<T: Frontend> App<T> {
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
+                    prompt_history_key: PromptHistoryKey::CopyFile,
                 },
-                PromptHistoryKey::CopyFile,
                 Some(path.display_absolute()),
             )
         } else {
@@ -997,8 +1147,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Symbol,
             },
-            PromptHistoryKey::Symbol,
             None,
         )
     }
@@ -1062,8 +1212,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::OpenFile,
             },
-            PromptHistoryKey::OpenFile,
             None,
         )
     }
@@ -1099,7 +1249,18 @@ impl<T: Frontend> App<T> {
 
         if focus {
             self.layout
-                .replace_and_focus_current_suggestive_editor(component.clone())
+                .replace_and_focus_current_suggestive_editor(component.clone());
+
+            // Emit an integration event for buffer activation
+            let component_ref = component.borrow();
+            let component_id = crate::integration_event::component_id_to_usize(&component_ref.id());
+
+            self.integration_event_sender.emit_event(
+                crate::integration_event::IntegrationEvent::BufferActivated {
+                    component_id,
+                    path: path.clone(),
+                },
+            );
         }
         if let Some(language) = language {
             self.request_syntax_highlight(component_id, batch_id, language, content)?;
@@ -1227,7 +1388,7 @@ impl<T: Frontend> App<T> {
         }
     }
 
-    fn update_diagnostics(
+    pub(crate) fn update_diagnostics(
         &mut self,
         path: CanonicalizedPath,
         diagnostics: Vec<lsp_types::Diagnostic>,
@@ -1282,6 +1443,27 @@ impl<T: Frontend> App<T> {
         store_history: bool,
     ) -> Result<(), anyhow::Error> {
         let component = self.open_file(&location.path, BufferOwner::System, store_history, true)?;
+
+        // Emit an integration event for selection change
+        let component_ref = component.borrow();
+        let component_id = crate::integration_event::component_id_to_usize(&component_ref.id());
+
+        // Create a selection at the location position
+        // We'll let the editor.set_position_range call below handle the actual selection
+        // Just emit a simple empty selection at the start position for now
+        let buffer = component_ref.editor().buffer();
+        if let Ok(char_index) = location.range.start.to_char_index(&buffer) {
+            let selection = crate::selection::Selection::new((char_index..char_index).into());
+
+            // Emit a selection changed event
+            self.integration_event_sender.emit_event(
+                crate::integration_event::IntegrationEvent::SelectionChanged {
+                    component_id,
+                    selections: vec![selection],
+                },
+            );
+        }
+
         let dispatches = component
             .borrow_mut()
             .editor_mut()
@@ -1583,11 +1765,40 @@ impl<T: Frontend> App<T> {
         dispatch_editor: DispatchEditor,
         component: Rc<RefCell<dyn Component>>,
     ) -> anyhow::Result<()> {
-        let dispatches = component
+        // Call the component's handle_dispatch_editor method
+        let dispatches = match component
             .borrow_mut()
-            .handle_dispatch_editor(&mut self.context, dispatch_editor)?;
+            .handle_dispatch_editor(&mut self.context, dispatch_editor.clone())
+        {
+            Ok(dispatches) => dispatches,
+            Err(e) => return Err(e),
+        };
 
-        self.handle_dispatches(dispatches)?;
+        // Note: we always send the latest selection set & selection mode to VS Code
+        //   regardless of whether they actually changes after handling
+        //   `dispatch_editor`. This is the simplest and most reliable way
+        //   to ensure the updated selection set is sent to VS Code,
+        //   rather than tracking all possible paths that lead to selection updates.
+        //   We are sacrificing a little performance (by sending the same selection set to VS Code occasionally)
+        //   in exchange for better code maintainability and behavioral correctness.
+        #[cfg(feature = "vscode")]
+        let dispatches = dispatches
+            .append(component.borrow().editor().dispatch_selection_changed())
+            .append(component.borrow().editor().dispatch_marks_changed())
+            .append(
+                component
+                    .borrow()
+                    .editor()
+                    .dispatch_selection_mode_changed(),
+            )
+            .append(Dispatch::ModeChanged);
+
+        // Process the dispatches
+        if let Err(e) = self.handle_dispatches(dispatches) {
+            return Err(e);
+        }
+
+        // VSCode-specific code has been removed in favor of integration events
         Ok(())
     }
 
@@ -1695,8 +1906,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::FilterGlob(filter_glob),
             },
-            PromptHistoryKey::FilterGlob(filter_glob),
             None,
         )
     }
@@ -1917,8 +2128,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Replacement,
             },
-            PromptHistoryKey::Replacement,
             None,
         )
     }
@@ -1941,8 +2152,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Search,
             },
-            PromptHistoryKey::Search,
             None,
         )
     }
@@ -2048,15 +2259,16 @@ impl<T: Frontend> App<T> {
         self.layout.current_completion_dropdown()
     }
 
+    #[cfg(not(feature = "vscode"))]
     fn open_prompt(
         &mut self,
         prompt_config: PromptConfig,
-        key: PromptHistoryKey,
         current_line: Option<String>,
     ) -> anyhow::Result<()> {
         if let Some(line) = current_line {
             self.context.push_history_prompt(key, line)
         }
+        let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
         let (prompt, dispatches) = Prompt::new(prompt_config, key, history);
 
@@ -2068,6 +2280,57 @@ impl<T: Frontend> App<T> {
         self.handle_dispatches(dispatches)
     }
 
+    #[cfg(feature = "vscode")]
+    fn open_prompt(
+        &mut self,
+        prompt_config: PromptConfig,
+        current_line: Option<String>,
+    ) -> anyhow::Result<()> {
+        let key = prompt_config.prompt_history_key;
+
+        let history = self.context.get_prompt_history(key);
+
+        let items = if prompt_config.enter_selects_first_matching_item {
+            prompt_config
+                .items
+                .iter()
+                .map(|item| ki_protocol_types::PromptItem {
+                    label: item.display(),
+                    details: item.info().map(|info| info.content()).cloned(),
+                })
+                .collect()
+        } else {
+            history
+                .into_iter()
+                .map(|label| ki_protocol_types::PromptItem {
+                    label,
+                    details: None,
+                })
+                .collect()
+        };
+
+        if let Some(line) = current_line {
+            self.context.push_history_prompt(key, line)
+        }
+        let title = prompt_config.title.clone();
+
+        self.last_prompt_config = Some(prompt_config);
+
+        self.integration_event_sender
+            .emit_event(crate::integration_event::IntegrationEvent::PromptOpened { title, items });
+        Ok(())
+    }
+
+    fn prompt_entered(&mut self, entry: String) -> anyhow::Result<()> {
+        let Some(prompt_config) = self.last_prompt_config.take() else {
+            return Ok(());
+        };
+        let dispatches = prompt_config.on_enter.to_dispatches(&entry)?;
+        self.handle_dispatches(dispatches.append(Dispatch::PushPromptHistory {
+            key: prompt_config.prompt_history_key,
+            line: entry,
+        }))
+    }
     fn render_dropdown(
         &mut self,
         editor: Rc<RefCell<Editor>>,
@@ -2141,8 +2404,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::CodeAction,
             },
-            PromptHistoryKey::CodeAction,
             None,
         )?;
         Ok(())
@@ -2224,8 +2487,8 @@ impl<T: Frontend> App<T> {
                 fire_dispatches_on_change: Some(Dispatches::one(Dispatch::SetTheme(
                     self.context.theme().clone(),
                 ))),
+                prompt_history_key: PromptHistoryKey::Theme,
             },
-            PromptHistoryKey::Theme,
             None,
         )
     }
@@ -2245,8 +2508,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Theme,
             },
-            PromptHistoryKey::Theme,
             None,
         )
     }
@@ -2274,8 +2537,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::PipeToShell,
             },
-            PromptHistoryKey::PipeToShell,
             None,
         )
     }
@@ -2319,8 +2582,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::FilterSelectionsMatchingSearch { maintain },
             },
-            PromptHistoryKey::FilterSelectionsMatchingSearch { maintain },
             None,
         )
     }
@@ -2366,6 +2629,78 @@ impl<T: Frontend> App<T> {
             }
         }
         Ok(())
+    }
+
+    fn mode_changed(&self) {
+        // This dispatch is handled by the VSCode integration to send mode change notifications
+        // No action needed here as the mode has already been changed in the editor
+
+        // Get the current component and its mode
+        let component = self.current_component();
+        let component_ref = component.borrow();
+        let editor = component_ref.editor();
+        let mode = editor.mode.clone();
+        let component_id = crate::integration_event::component_id_to_usize(&editor.id());
+
+        // Emit an integration event for the mode change
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::ModeChanged { component_id, mode },
+        );
+    }
+
+    fn selection_changed(
+        &self,
+        component_id: ComponentId,
+        selections: Vec<crate::selection::Selection>,
+    ) {
+        // Convert component_id to usize for integration event
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::SelectionChanged {
+                component_id: crate::integration_event::component_id_to_usize(&component_id),
+                selections: selections.clone(),
+            },
+        );
+    }
+
+    fn jumps_changed(&self, component_id: ComponentId, jumps: Vec<(char, CharIndex)>) {
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::JumpsChanged {
+                component_id: crate::integration_event::component_id_to_usize(&component_id),
+                jumps,
+            },
+        );
+    }
+
+    fn marks_updated(
+        &self,
+        component_id: ComponentId,
+        marks: Vec<crate::char_index_range::CharIndexRange>,
+    ) {
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::MarksChanged {
+                component_id: crate::integration_event::component_id_to_usize(&component_id),
+                marks,
+            },
+        );
+    }
+
+    fn selection_mode_changed(&self, selection_mode: SelectionMode) {
+        // This dispatch is handled by the VSCode integration to send mode change notifications
+        // No action needed here as the mode has already been changed in the editor
+
+        // Get the current component and its mode
+        let component = self.current_component();
+        let component_ref = component.borrow();
+        let editor = component_ref.editor();
+        let component_id = crate::integration_event::component_id_to_usize(&editor.id());
+
+        // Emit an integration event for the mode change
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::SelectionModeChanged {
+                component_id,
+                selection_mode,
+            },
+        );
     }
 }
 
@@ -2608,6 +2943,27 @@ pub(crate) enum Dispatch {
     NavigateForward,
     NavigateBack,
     ToggleFileMark,
+    // Used to send buffer changes from EditTransaction to external integrations
+    BufferEditTransaction {
+        component_id: ComponentId,
+        path: CanonicalizedPath,
+        edits: Vec<ki_protocol_types::DiffEdit>,
+    },
+    /// Indicates that the editor mode has changed (used for VSCode integration)
+    ModeChanged,
+    /// Indicates that the selection has changed (used for VSCode integration)
+    SelectionChanged {
+        component_id: crate::components::component::ComponentId,
+        selections: Vec<crate::selection::Selection>,
+    },
+    /// Indicates that the jumps has (used for VSCode integration)
+    JumpsChanged {
+        component_id: crate::components::component::ComponentId,
+        jumps: Vec<(char, CharIndex)>,
+    },
+    SelectionModeChanged(SelectionMode),
+    PromptEntered(String),
+    MarksChanged(ComponentId, Vec<crate::char_index_range::CharIndexRange>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2696,6 +3052,8 @@ pub(crate) enum AppMessage {
         batch_id: SyntaxHighlightRequestBatchId,
         highlighted_spans: HighlightedSpans,
     },
+    // New variant for external dispatches
+    ExternalDispatch(Dispatch),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

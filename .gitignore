@@ -1,5 +1,13 @@
+.augment-guidelines
+.idea
+.DS_Store
 /result
+.docs-cache
 /target
 tree_sitter_quickfix/build/
 tree_sitter_quickfix/node_modules/
 docs/assets/recipes.json
+.roo
+.direnv
+.roomodes
+.ruru
