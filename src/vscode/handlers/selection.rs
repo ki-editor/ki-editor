@@ -1,11 +1,7 @@
 //! Selection-related handlers for VSCode IPC messages
 
 use super::prelude::*;
-use crate::{
-    components::component::{self, Component},
-    vscode::VSCodeApp,
-};
-use itertools::Itertools;
+use crate::{components::component::Component, vscode::VSCodeApp};
 use ki_protocol_types::{OutputMessage, SelectionSet};
 
 impl VSCodeApp {
@@ -51,12 +47,35 @@ impl VSCodeApp {
         }
         .set_mode(editor.selection_set.mode.clone());
 
-        log::info!("xxx selection_set = {selection_set:?}");
+        // Skip setting selection if the extended ranges of both selection sets are the same.
+        // This is necessary so that selection extension can work.
+        // Because from the VS Code side,
+        // selection changes due to mouse or custom commands will be sent to Ki.
+        //
+        // However, the selection changes sent from Ki to VS Code are from custom commands,
+        // so when VS Code receives the selection changes from Ki, it will send back the
+        // received selections to Ki.
+        //
+        // We need to send selection changes caused by custom commands so that
+        // actions like LSP Go to Definition can work properly, otherwise
+        // once we reach the definition, pressing any movement will send the cursor
+        // to the first line of the file, as if the cursor was not on the definition before,
+        // since Ki was not notified.
+        //
+        // This hack cannot be removed until we figure out how to distinguish
+        // Ki-iniated selection changes from LSP-initiated selection changes via VS Code Extension API.
+        {
+            let current_extended_ranges = editor.selection_set.map(|s| s.extended_range());
+            let new_extended_ranges = selection_set.map(|s| s.extended_range());
+            if current_extended_ranges == new_extended_ranges {
+                log::info!("Skipping setting selection as the extended ranges are the same");
+                return Ok(());
+            }
+        }
 
         editor.set_selection_set(selection_set, &Context::default());
 
         if let Some(response_id) = id {
-            // Use send_response with OutputMessage::Success
             self.send_response(response_id, OutputMessage::Success(true))?;
         };
 
