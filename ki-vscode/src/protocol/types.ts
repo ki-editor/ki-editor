@@ -167,7 +167,8 @@ export type OutputMessage =
     | { tag: "lsp.references"; params?: undefined }
     | { tag: "lsp.declaration"; params?: undefined }
     | { tag: "lsp.typeDefinition"; params?: undefined }
-    | { tag: "lsp.implementation"; params?: undefined };
+    | { tag: "lsp.implementation"; params?: undefined }
+    | { tag: "editor.keyboardLayout"; params: string };
 
 export interface ResponseError {
     code: number;

@@ -43,6 +43,7 @@ const KNOWN_NOTIFICATION_TAGS: ReadonlySet<OutputMessage["tag"]> = new Set([
     "lsp.declaration",
     "lsp.typeDefinition",
     "lsp.implementation",
+    "editor.keyboardLayout",
     // Add any other tags that are definitely notifications
 ]);
 

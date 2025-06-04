@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { Dispatcher } from "../dispatcher";
 import { Logger } from "../logger";
-import { EditorMode, SelectionModeParams, SelectionSet, TypedModeParams } from "../protocol/types";
+import { EditorMode, SelectionModeParams, TypedModeParams } from "../protocol/types";
 import { EventHandler } from "./event_handler";
 import { Manager } from "./manager";
 
@@ -13,6 +13,7 @@ export class ModeManager extends Manager {
     private currentSelectionMode: SelectionModeParams["mode"] = { type: "Line" };
     private statusBarItem: vscode.StatusBarItem;
     private context: vscode.ExtensionContext;
+    private keyboardLayout: string = "";
 
     constructor(dispatcher: Dispatcher, logger: Logger, eventHandler: EventHandler, context: vscode.ExtensionContext) {
         super(dispatcher, logger, eventHandler);
@@ -30,6 +31,10 @@ export class ModeManager extends Manager {
     public initialize(): void {
         this.eventHandler.onModeChange((params) => this.handleModeChanged(params));
         this.eventHandler.onSelectionModeChange((params) => this.handleSelectionModeChange(params));
+        this.dispatcher.registerKiNotificationHandler("editor.keyboardLayout", async (keyboardLayout) => {
+            this.keyboardLayout = keyboardLayout;
+            this.updateStatusBar();
+        });
 
         this.registerCommands();
 
@@ -148,7 +153,7 @@ export class ModeManager extends Manager {
             }
         })();
 
-        this.statusBarItem.text = `${icon} ${modeText} ${selectionModeText}`;
+        this.statusBarItem.text = `${icon} ${modeText} ${selectionModeText} [${this.keyboardLayout}]`;
         this.statusBarItem.tooltip = `Current Ki mode: ${this.currentMode}`;
 
         // Update color based on mode

@@ -61,6 +61,7 @@ pub(crate) enum PromptHistoryKey {
     FilterSelectionsMatchingSearch {
         maintain: bool,
     },
+    KeyboardLayout,
 }
 
 impl Prompt {

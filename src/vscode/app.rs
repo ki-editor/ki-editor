@@ -4,7 +4,7 @@ use crate::components::editor::Mode;
 use std::collections::HashMap;
 use std::sync::mpsc::{self, TryRecvError};
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::{any, thread};
 
 use crate::app::{App, AppMessage, Dispatch, StatusLineComponent};
 use crate::frontend::crossterm::Crossterm;
@@ -527,6 +527,9 @@ impl VSCodeApp {
             IntegrationEvent::RequestLspDeclaration => self.request_lsp_declaration()?,
             IntegrationEvent::RequestLspImplementation => self.request_lsp_implementation()?,
             IntegrationEvent::RequestLspTypeDefinition => self.request_lsp_type_definition()?,
+            IntegrationEvent::KeyboardLayoutChanged(keyboard_layout) => {
+                self.keyboard_layout_changed(keyboard_layout)?
+            }
         }
 
         Ok(())
@@ -1138,6 +1141,14 @@ impl VSCodeApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::RequestLspImplementation,
+            error: None,
+        })
+    }
+
+    fn keyboard_layout_changed(&self, keyboard_layout: &str) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::KeyboardLayoutChanged(keyboard_layout.to_string()),
             error: None,
         })
     }

@@ -293,6 +293,9 @@ sealed class OutputMessage {
 	@Serializable
 	@SerialName("lsp.implementation")
 	object RequestLspImplementation: OutputMessage()
+	@Serializable
+	@SerialName("editor.keyboardLayout")
+	data class KeyboardLayoutChanged(val params: String): OutputMessage()
 }
 
 @Serializable

@@ -421,6 +421,8 @@ pub enum OutputMessage {
     RequestLspTypeDefinition,
     #[serde(rename = "lsp.implementation")]
     RequestLspImplementation,
+    #[serde(rename = "editor.keyboardLayout")]
+    KeyboardLayoutChanged(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -568,6 +570,7 @@ impl MessageMethod for OutputMessage {
             OutputMessage::RequestLspDeclaration => Cow::Borrowed("lsp.declaration"),
             OutputMessage::RequestLspTypeDefinition => Cow::Borrowed("lsp.typeDefinition"),
             OutputMessage::RequestLspImplementation => Cow::Borrowed("lsp.implementation"),
+            OutputMessage::KeyboardLayoutChanged(_) => Cow::Borrowed("editor.keyboardLayout"),
         }
     }
 
@@ -600,6 +603,7 @@ impl MessageMethod for OutputMessage {
             OutputMessage::RequestLspDeclaration => "RequestLspDeclaration",
             OutputMessage::RequestLspTypeDefinition => "RequestLspTypeDefinition",
             OutputMessage::RequestLspImplementation => "RequestLspImplementation",
+            OutputMessage::KeyboardLayoutChanged(_) => "KeyboardLayoutChanged",
         }
     }
 }

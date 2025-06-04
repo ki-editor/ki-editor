@@ -40,7 +40,6 @@ use crate::{
 };
 use event::event::Event;
 use itertools::{Either, Itertools};
-use log::trace;
 use name_variant::NamedVariant;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
@@ -537,7 +536,6 @@ impl<T: Frontend> App<T> {
                     },
                 );
             }
-
             Dispatch::OpenFilePicker(kind) => {
                 self.open_file_picker(kind)?;
             }
@@ -763,7 +761,6 @@ impl<T: Frontend> App<T> {
             Dispatch::ShowKeymapLegend(keymap_legend_config) => {
                 self.show_keymap_legend(keymap_legend_config)
             }
-
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
             Dispatch::RemainOnlyCurrentComponent => self.layout.remain_only_current_component(),
@@ -912,7 +909,8 @@ impl<T: Frontend> App<T> {
                 DispatchSuggestiveEditor::SelectCompletionItem,
             )?,
             Dispatch::SetKeyboardLayoutKind(keyboard_layout_kind) => {
-                self.context.set_keyboard_layout_kind(keyboard_layout_kind)
+                self.context.set_keyboard_layout_kind(keyboard_layout_kind);
+                self.keyboard_layout_changed();
             }
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_prompt()?,
             Dispatch::NavigateForward => self.navigate_forward()?,
@@ -2290,24 +2288,22 @@ impl<T: Frontend> App<T> {
 
         let history = self.context.get_prompt_history(key);
 
-        let items = if prompt_config.enter_selects_first_matching_item {
-            prompt_config
-                .items
-                .iter()
-                .map(|item| ki_protocol_types::PromptItem {
-                    label: item.display(),
-                    details: item.info().map(|info| info.content()).cloned(),
-                })
-                .collect()
-        } else {
-            history
-                .into_iter()
-                .map(|label| ki_protocol_types::PromptItem {
-                    label,
-                    details: None,
-                })
-                .collect()
-        };
+        let items = prompt_config
+            .items
+            .iter()
+            .map(|item| ki_protocol_types::PromptItem {
+                label: item.display(),
+                details: item.info().map(|info| info.content()).cloned(),
+            })
+            .chain(
+                history
+                    .into_iter()
+                    .map(|label| ki_protocol_types::PromptItem {
+                        label,
+                        details: None,
+                    }),
+            )
+            .collect();
 
         if let Some(line) = current_line {
             self.context.push_history_prompt(key, line)
@@ -2496,19 +2492,15 @@ impl<T: Frontend> App<T> {
     fn open_keyboard_layout_prompt(&mut self) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
-                on_enter: DispatchPrompt::Null,
+                on_enter: DispatchPrompt::SetKeyboardLayoutKind,
                 items: KeyboardLayoutKind::iter()
-                    .map(|keyboard_layout| {
-                        DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
-                            Dispatches::one(Dispatch::SetKeyboardLayoutKind(keyboard_layout)),
-                        )
-                    })
+                    .map(|keyboard_layout| DropdownItem::new(keyboard_layout.display().to_string()))
                     .collect_vec(),
                 title: "Keyboard Layout".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
-                prompt_history_key: PromptHistoryKey::Theme,
+                prompt_history_key: PromptHistoryKey::KeyboardLayout,
             },
             None,
         )
@@ -2700,6 +2692,14 @@ impl<T: Frontend> App<T> {
                 component_id,
                 selection_mode,
             },
+        );
+    }
+
+    fn keyboard_layout_changed(&self) {
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::KeyboardLayoutChanged(
+                self.context.keyboard_layout_kind().display(),
+            ),
         );
     }
 }
@@ -3095,6 +3095,7 @@ pub(crate) enum DispatchPrompt {
     FilterSelectionMatchingSearch {
         maintain: bool,
     },
+    SetKeyboardLayoutKind,
 }
 impl DispatchPrompt {
     pub(crate) fn to_dispatches(&self, text: &str) -> anyhow::Result<Dispatches> {
@@ -3211,6 +3212,14 @@ impl DispatchPrompt {
                     search: text.to_string(),
                 }),
             )),
+            DispatchPrompt::SetKeyboardLayoutKind => {
+                let keyboard_layout_kind = KeyboardLayoutKind::iter()
+                    .find(|keyboard_layout| keyboard_layout.display() == text)
+                    .ok_or_else(|| anyhow::anyhow!("No keyboard layout is named {text:?}"))?;
+                Ok(Dispatches::one(Dispatch::SetKeyboardLayoutKind(
+                    keyboard_layout_kind,
+                )))
+            }
         }
     }
 }
