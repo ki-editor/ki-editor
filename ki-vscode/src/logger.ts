@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as z from "zod";
 
 /**
  * Simple logger for the Ki extension
@@ -44,13 +45,18 @@ export class Logger {
     public error(message: string, ...args: unknown[]): void {
         // Always log errors
         this.logMessage("ERROR", message, args);
-        this.outputChannel.show(true);
     }
 
     /**
      * Format and log a message with timestamp
      */
     private logMessage(level: string, message: string, args: unknown[]): void {
+        const debug = z.enum(["true", "false"]).nullish().parse(process.env.DISABLE_DEBUG) === "false";
+
+        if (!debug) {
+            // Skip logging if not debugging the extension
+            return;
+        }
         const timestamp = new Date().toISOString();
         let logMessage = `[${timestamp}] [${level}] ${message}`;
 
