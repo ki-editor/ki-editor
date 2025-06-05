@@ -67,11 +67,44 @@ impl Layout {
         self.get_component(self.tree.focused_component_id())
     }
 
-    fn get_component(&self, id: NodeId) -> Rc<RefCell<dyn Component>> {
+    pub(crate) fn get_component(&self, id: NodeId) -> Rc<RefCell<dyn Component>> {
         self.tree
             .get(id)
             .map(|node| node.data().component())
             .unwrap_or_else(|| self.tree.root().data().component().clone())
+    }
+
+    pub(crate) fn get_component_by_id(
+        &self,
+        component_id: ComponentId,
+    ) -> Option<Rc<RefCell<dyn Component>>> {
+        // First check in the UI tree
+        for component in self.components() {
+            if component.component().borrow().id() == component_id {
+                return Some(component.component());
+            }
+        }
+
+        // Then check in background suggestive editors
+        for (_, editor) in self.background_suggestive_editors.iter() {
+            if editor.borrow().id() == component_id {
+                return Some(editor.clone());
+            }
+        }
+
+        // Check in background file explorer
+        if self.background_file_explorer.borrow().id() == component_id {
+            return Some(self.background_file_explorer.clone());
+        }
+
+        // Check in background quickfix list
+        if let Some(quickfix_list) = &self.background_quickfix_list {
+            if quickfix_list.borrow().id() == component_id {
+                return Some(quickfix_list.clone());
+            }
+        }
+
+        None
     }
 
     pub(crate) fn remove_current_component(

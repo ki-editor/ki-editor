@@ -2,9 +2,11 @@ default:
     @just tree-sitter-quickfix 
     @just fmt-check 
     @just build 
+    @just build-vscode 
     @just clippy 
     @just test 
-    @just doc
+    @just doc 
+    @just vscode-build
     
 install:
     cargo install --locked --path .
@@ -15,6 +17,7 @@ fmt-check:
     
 fmt:
 	cargo fmt --all
+	prettier -w ki-vscode
 
 build:
     @echo "Running cargo build..."
@@ -59,3 +62,18 @@ generate-recipes:
 	
 watch-generate-recipes:
 	just watch-test "generate_recipes"
+
+watch-vscode-build:
+    cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo build --features vscode
+
+vscode-build:
+    cargo build --release --features vscode
+
+vscode-package: vscode-build
+    ./build-all-platforms.sh
+    cd ki-vscode && npm run package
+    
+# Install the locally build extension to VS Code
+vscode-install: vscode-package
+    code --install-extension ki-vscode/ki-editor-vscode-*.vsix
+    

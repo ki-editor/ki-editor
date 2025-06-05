@@ -17,7 +17,7 @@ fancy-regex.workspace = true
 tempfile.workspace = true
 log.workspace = true
 grammar = {path = "../grammar"}
-isahc = "1.7.2"
+reqwest = { version = "0.12", features = ["json", "rustls-tls-webpki-roots", "blocking"] }
 url = "2.5.0"
 which = "~7.0.0"
 etcetera = "0.8"
