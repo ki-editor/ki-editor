@@ -45,7 +45,6 @@ pub(crate) mod transformation;
 pub(crate) mod ui_tree;
 mod utils;
 
-#[cfg(feature = "vscode")]
 mod vscode;
 
 mod divide_viewport;
@@ -95,6 +94,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         .to_vec(),
         None, // No integration event sender
         true,
+        false,
     )?;
     app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 

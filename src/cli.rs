@@ -1,5 +1,4 @@
 use crate::components::editor_keymap_printer;
-#[cfg(feature = "vscode")]
 use crate::vscode;
 use crate::RunConfig;
 use chrono::Local;
@@ -67,7 +66,6 @@ enum Commands {
     /// Run Ki in the given path, treating the path as the working directory
     In(InArgs),
 
-    #[cfg(feature = "vscode")]
     /// Run in VS Code extension mode
     VsCode(VsCodeArgs),
 }
@@ -172,7 +170,6 @@ pub(crate) fn cli() -> anyhow::Result<()> {
     match cli.command {
         Some(CommandPlaceholder::Edit(args)) => run_edit_command(args),
         Some(CommandPlaceholder::At { command }) => match command {
-            #[cfg(feature = "vscode")]
             Commands::VsCode(args) => {
                 return vscode::run_vscode(args.working_directory.try_into()?);
             }

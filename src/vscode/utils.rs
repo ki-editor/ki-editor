@@ -3,14 +3,6 @@ use ki_protocol_types::Position as VSCodePosition;
 use shared::canonicalized_path::CanonicalizedPath;
 use url::Url;
 
-// Convert Ki editor position to VSCode protocol position
-pub(crate) fn ki_position_to_vscode_position(pos: &KiPosition) -> VSCodePosition {
-    VSCodePosition {
-        line: pos.line,
-        character: pos.column, // Ki uses 'column', VSCode uses 'character'
-    }
-}
-
 // Convert VSCode protocol position to Ki editor position
 pub(crate) fn vscode_position_to_ki_position(pos: &VSCodePosition) -> KiPosition {
     KiPosition {

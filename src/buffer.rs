@@ -399,10 +399,6 @@ impl Buffer {
         char_index: CharIndex,
     ) -> anyhow::Result<ki_protocol_types::Position> {
         let line_index = self.char_to_line(char_index)?;
-        let line = self
-            .get_line_by_line_index(line_index)
-            .map(|slice| slice.to_string())
-            .unwrap_or_default();
         let column_index = self
             .rope
             .try_line_to_char(line_index)
@@ -1576,11 +1572,9 @@ pub(crate) struct EditHistory {
     pub(crate) old_state: BufferState,
     pub(crate) new_state: BufferState,
 
-    #[cfg(feature = "vscode")]
     /// This is required by VS Code because VS Code will offset the edits on their end.
     unnormalized_edits: Vec<ki_protocol_types::DiffEdit>,
 
-    #[cfg(feature = "vscode")]
     /// Required for Undo/Redo properly on VS Code.
     /// This has to be precomputed beforehand, because we cannot obtain the inverted edit Positions
     /// without relying on the pre-edited buffer.

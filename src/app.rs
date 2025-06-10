@@ -19,7 +19,7 @@ use crate::{
     frontend::Frontend,
     git,
     grid::{Grid, LineUpdate},
-    integration_event::IntegrationEventEmitter,
+    integration_event::{IntegrationEvent, IntegrationEventEmitter},
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
@@ -86,7 +86,7 @@ pub(crate) struct App<T: Frontend> {
     last_action_description: Option<String>,
     last_action_short_description: Option<String>,
 
-    #[cfg(feature = "vscode")]
+    /// This is necessary when Ki is running as an embedded application
     last_prompt_config: Option<PromptConfig>,
 }
 
@@ -121,6 +121,7 @@ impl<T: Frontend> App<T> {
             status_line_components,
             None, // No integration event sender
             false,
+            false,
         )
     }
 
@@ -137,10 +138,11 @@ impl<T: Frontend> App<T> {
         status_line_components: Vec<StatusLineComponent>,
         integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
         enable_lsp: bool,
+        is_running_as_embedded: bool,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let app = App {
-            context: Context::new(working_directory.clone()),
+            context: Context::new(working_directory.clone(), is_running_as_embedded),
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             enable_lsp,
@@ -157,7 +159,6 @@ impl<T: Frontend> App<T> {
             last_action_description: None,
             last_action_short_description: None,
             integration_event_sender,
-            #[cfg(feature = "vscode")]
             last_prompt_config: None,
         };
         Ok(app)
@@ -477,6 +478,10 @@ impl<T: Frontend> App<T> {
         }
     }
 
+    fn send_integration_event(&self, event: crate::integration_event::IntegrationEvent) {
+        self.integration_event_sender.emit_event(event)
+    }
+
     pub(crate) fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
         log::info!("App::handle_dispatch = {}", dispatch.variant_name());
         match dispatch {
@@ -578,10 +583,7 @@ impl<T: Frontend> App<T> {
                             include_declaration,
                         },
                     )?;
-                    #[cfg(feature = "vscode")]
-                    self.integration_event_sender.emit_event(
-                        crate::integration_event::IntegrationEvent::RequestLspReferences,
-                    );
+                    self.send_integration_event(IntegrationEvent::RequestLspReferences);
                 }
             }
             Dispatch::RequestHover => {
@@ -591,9 +593,7 @@ impl<T: Frontend> App<T> {
                         .send_message(params.path.clone(), FromEditor::TextDocumentHover(params))?;
                 }
 
-                #[cfg(feature = "vscode")]
-                self.integration_event_sender
-                    .emit_event(crate::integration_event::IntegrationEvent::RequestLspHover);
+                self.send_integration_event(IntegrationEvent::RequestLspHover);
             }
             Dispatch::RequestDefinitions(scope) => {
                 if let Some(params) = self.get_request_params() {
@@ -603,10 +603,7 @@ impl<T: Frontend> App<T> {
                         FromEditor::TextDocumentDefinition(params),
                     )?;
 
-                    #[cfg(feature = "vscode")]
-                    self.integration_event_sender.emit_event(
-                        crate::integration_event::IntegrationEvent::RequestLspDefinition,
-                    );
+                    self.send_integration_event(IntegrationEvent::RequestLspDefinition);
                 }
             }
             Dispatch::RequestDeclarations(scope) => {
@@ -616,10 +613,8 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentDeclaration(params),
                     )?;
-                    #[cfg(feature = "vscode")]
-                    self.integration_event_sender.emit_event(
-                        crate::integration_event::IntegrationEvent::RequestLspDeclaration,
-                    );
+
+                    self.send_integration_event(IntegrationEvent::RequestLspDeclaration);
                 }
             }
             Dispatch::RequestImplementations(scope) => {
@@ -631,10 +626,7 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentImplementation(params),
                     )?;
-                    #[cfg(feature = "vscode")]
-                    self.integration_event_sender.emit_event(
-                        crate::integration_event::IntegrationEvent::RequestLspImplementation,
-                    );
+                    self.send_integration_event(IntegrationEvent::RequestLspImplementation);
                 }
             }
             Dispatch::RequestTypeDefinitions(scope) => {
@@ -646,10 +638,7 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentTypeDefinition(params),
                     )?;
-                    #[cfg(feature = "vscode")]
-                    self.integration_event_sender.emit_event(
-                        crate::integration_event::IntegrationEvent::RequestLspTypeDefinition,
-                    );
+                    self.send_integration_event(IntegrationEvent::RequestLspTypeDefinition);
                 }
             }
             Dispatch::RequestDocumentSymbols => {
@@ -875,9 +864,8 @@ impl<T: Frontend> App<T> {
             #[cfg(test)]
             Dispatch::OpenPrompt {
                 config,
-                key,
                 current_line,
-            } => self.open_prompt(config, key, current_line)?,
+            } => self.open_prompt(config, current_line)?,
             Dispatch::ShowEditorInfo(info) => self.show_editor_info(info)?,
             Dispatch::ReceiveCodeActions(code_actions) => {
                 self.open_code_actions_prompt(code_actions)?;
@@ -1442,24 +1430,26 @@ impl<T: Frontend> App<T> {
     ) -> Result<(), anyhow::Error> {
         let component = self.open_file(&location.path, BufferOwner::System, store_history, true)?;
 
-        // Emit an integration event for selection change
-        let component_ref = component.borrow();
-        let component_id = crate::integration_event::component_id_to_usize(&component_ref.id());
+        if self.is_running_as_embedded() {
+            // Emit an integration event for selection change
+            let component_ref = component.borrow();
+            let component_id = crate::integration_event::component_id_to_usize(&component_ref.id());
 
-        // Create a selection at the location position
-        // We'll let the editor.set_position_range call below handle the actual selection
-        // Just emit a simple empty selection at the start position for now
-        let buffer = component_ref.editor().buffer();
-        if let Ok(char_index) = location.range.start.to_char_index(&buffer) {
-            let selection = crate::selection::Selection::new((char_index..char_index).into());
+            // Create a selection at the location position
+            // We'll let the editor.set_position_range call below handle the actual selection
+            // Just emit a simple empty selection at the start position for now
+            let buffer = component_ref.editor().buffer();
+            if let Ok(char_index) = location.range.start.to_char_index(&buffer) {
+                let selection = crate::selection::Selection::new((char_index..char_index).into());
 
-            // Emit a selection changed event
-            self.integration_event_sender.emit_event(
-                crate::integration_event::IntegrationEvent::SelectionChanged {
-                    component_id,
-                    selections: vec![selection],
-                },
-            );
+                // Emit a selection changed event
+                self.integration_event_sender.emit_event(
+                    crate::integration_event::IntegrationEvent::SelectionChanged {
+                        component_id,
+                        selections: vec![selection],
+                    },
+                );
+            }
         }
 
         let dispatches = component
@@ -1772,24 +1762,29 @@ impl<T: Frontend> App<T> {
             Err(e) => return Err(e),
         };
 
-        // Note: we always send the latest selection set & selection mode to VS Code
-        //   regardless of whether they actually changes after handling
-        //   `dispatch_editor`. This is the simplest and most reliable way
-        //   to ensure the updated selection set is sent to VS Code,
-        //   rather than tracking all possible paths that lead to selection updates.
-        //   We are sacrificing a little performance (by sending the same selection set to VS Code occasionally)
-        //   in exchange for better code maintainability and behavioral correctness.
-        #[cfg(feature = "vscode")]
-        let dispatches = dispatches
-            .append(component.borrow().editor().dispatch_selection_changed())
-            .append(component.borrow().editor().dispatch_marks_changed())
-            .append(
-                component
-                    .borrow()
-                    .editor()
-                    .dispatch_selection_mode_changed(),
-            )
-            .append(Dispatch::ModeChanged);
+        let dispatches = if self.is_running_as_embedded() {
+            /*
+            Note: we always send the latest selection set & selection mode to VS Code
+              regardless of whether they actually changes after handling
+              `dispatch_editor`. This is the simplest and most reliable way
+              to ensure the updated selection set is sent to VS Code,
+              rather than tracking all possible paths that lead to selection updates.
+              We are sacrificing a little performance (by sending the same selection set to VS Code occasionally)
+              in exchange for better code maintainability and behavioral correctness.
+            */
+            dispatches
+                .append(component.borrow().editor().dispatch_selection_changed())
+                .append(component.borrow().editor().dispatch_marks_changed())
+                .append(
+                    component
+                        .borrow()
+                        .editor()
+                        .dispatch_selection_mode_changed(),
+                )
+                .append(Dispatch::ModeChanged)
+        } else {
+            dispatches
+        };
 
         // Process the dispatches
         if let Err(e) = self.handle_dispatches(dispatches) {
@@ -2257,18 +2252,30 @@ impl<T: Frontend> App<T> {
         self.layout.current_completion_dropdown()
     }
 
-    #[cfg(not(feature = "vscode"))]
     fn open_prompt(
         &mut self,
         prompt_config: PromptConfig,
         current_line: Option<String>,
     ) -> anyhow::Result<()> {
+        if self.is_running_as_embedded() {
+            self.open_prompt_embedded(prompt_config, current_line)
+        } else {
+            self.open_prompt_non_embedded(prompt_config, current_line)
+        }
+    }
+
+    fn open_prompt_non_embedded(
+        &mut self,
+        prompt_config: PromptConfig,
+        current_line: Option<String>,
+    ) -> anyhow::Result<()> {
         if let Some(line) = current_line {
-            self.context.push_history_prompt(key, line)
+            self.context
+                .push_history_prompt(prompt_config.prompt_history_key, line)
         }
         let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
-        let (prompt, dispatches) = Prompt::new(prompt_config, key, history);
+        let (prompt, dispatches) = Prompt::new(prompt_config, history);
 
         self.layout.add_and_focus_prompt(
             ComponentKind::Prompt,
@@ -2278,8 +2285,7 @@ impl<T: Frontend> App<T> {
         self.handle_dispatches(dispatches)
     }
 
-    #[cfg(feature = "vscode")]
-    fn open_prompt(
+    fn open_prompt_embedded(
         &mut self,
         prompt_config: PromptConfig,
         current_line: Option<String>,
@@ -2702,6 +2708,10 @@ impl<T: Frontend> App<T> {
             ),
         );
     }
+
+    fn is_running_as_embedded(&self) -> bool {
+        self.context.is_running_as_embedded()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2910,7 +2920,6 @@ pub(crate) enum Dispatch {
     #[cfg(test)]
     OpenPrompt {
         config: PromptConfig,
-        key: PromptHistoryKey,
         current_line: Option<String>,
     },
     ShowEditorInfo(Info),

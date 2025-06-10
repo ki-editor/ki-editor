@@ -7,7 +7,6 @@ use crate::{
     components::editor::DispatchEditor,
     context::Context,
     edit::{Action, ActionGroup, Edit, EditTransaction},
-    selection::SelectionSet,
     vscode::{
         app::VSCodeApp,
         utils::{uri_to_path, vscode_position_to_ki_position}, // Use position conversion util
@@ -20,9 +19,8 @@ use ki_protocol_types::{
 
     OutputMessage,
     OutputMessageWrapper,
-    ResponseError,
 };
-use log::{debug, error, info, warn}; // Added debug
+use log::{error, info, warn}; // Added debug
 use ropey::Rope; // Added Rope
 
 impl VSCodeApp {
@@ -63,7 +61,7 @@ impl VSCodeApp {
         if let Some(content_val) = content {
             let app_guard = self.app.lock().unwrap();
             let comp = app_guard.current_component();
-            let context = Context::new(path.clone());
+            let context = Context::new(path.clone(), true);
 
             // Scope the mutable borrow to avoid borrow checker issues
             {
@@ -228,7 +226,6 @@ impl VSCodeApp {
                 .map(|edit| ActionGroup::new([Action::Edit(edit)].to_vec()))
                 .collect_vec(),
         );
-        let component_id = editor_rc.borrow().id();
 
         // Ignore the dispatches, as we should not send a buffer updated modification
         // back to VS Code again, otherwise it will be an infinite loop

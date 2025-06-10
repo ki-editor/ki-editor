@@ -343,27 +343,6 @@ impl Component for Editor {
             ExecuteCompletion { replacement, edit } => {
                 return self.execute_completion(replacement, edit, context)
             }
-            ApplyEditTransaction {
-                transaction,
-                component_id: _,
-                reparse_tree: _,
-                update_undo_stack: _,
-            } => {
-                // Use the editor's apply_edit_transaction method which will:
-                // 1. Apply the transaction to the buffer
-                // 2. Update the selection set
-                // 3. Recalculate scroll offset
-                // 4. Create the BufferEditTransaction dispatch for external integrations
-
-                log::trace!(
-                    "ApplyEditTransaction: applying transaction with {} edits in mode {:?}",
-                    transaction.edits().len(),
-                    self.mode
-                );
-
-                // Apply the transaction using the editor's method
-                return self.apply_edit_transaction(transaction.clone(), context);
-            }
         }
         Ok(Default::default())
     }
@@ -419,7 +398,8 @@ pub(crate) struct Editor {
     pub(crate) normal_mode_override: Option<NormalModeOverride>,
     pub(crate) reveal: Option<Reveal>,
 
-    #[cfg(feature = "vscode")]
+    /// This is only used when Ki is running as an embedded component,
+    /// for example, inside VS Code.
     visible_line_ranges: Option<Vec<Range<usize>>>,
 }
 
@@ -1286,27 +1266,28 @@ impl Editor {
             last_visible_line,
         )?;
 
-        let buffer_edit_transaction = Dispatches::default();
-
-        #[cfg(feature = "vscode")]
         // Create a BufferEditTransaction dispatch for external integrations
-        let buffer_edit_dispatch = edit_transaction
-            .edits()
-            .is_empty()
-            .not()
-            .then(|| {
-                // Get the path for the buffer
-                self.buffer().path().map(|path| {
-                    // Create a dispatch to send buffer edit transaction to external integrations
-                    Dispatches::one(crate::app::Dispatch::BufferEditTransaction {
-                        component_id: self.id(),
-                        path,
-                        edits,
+        let buffer_edit_dispatch = if context.is_running_as_embedded() {
+            edit_transaction
+                .edits()
+                .is_empty()
+                .not()
+                .then(|| {
+                    // Get the path for the buffer
+                    self.buffer().path().map(|path| {
+                        // Create a dispatch to send buffer edit transaction to external integrations
+                        Dispatches::one(crate::app::Dispatch::BufferEditTransaction {
+                            component_id: self.id(),
+                            path,
+                            edits,
+                        })
                     })
                 })
-            })
-            .flatten()
-            .unwrap_or_default();
+                .flatten()
+                .unwrap_or_default()
+        } else {
+            Dispatches::default()
+        };
 
         self.set_selection_set(new_selection_set, context);
 
@@ -2463,17 +2444,15 @@ impl Editor {
     fn do_save(&mut self, force: bool, context: &Context) -> anyhow::Result<Dispatches> {
         let last_visible_line = self.last_visible_line(context);
 
-        #[cfg(not(feature = "vscode"))]
-        let Some(path) =
+        let path = if context.is_running_as_embedded() {
+            self.path()
+        } else {
             self.buffer
                 .borrow_mut()
                 .save(self.selection_set.clone(), force, last_visible_line)?
-        else {
-            return Ok(Default::default());
         };
 
-        #[cfg(feature = "vscode")]
-        let Some(path) = self.path() else {
+        let Some(path) = path else {
             return Ok(Default::default());
         };
 
@@ -2702,7 +2681,7 @@ impl Editor {
     }
 
     fn half_page_height(&self) -> usize {
-        let height = if let visible_line_ranges = self.visible_line_ranges.as_ref() {
+        let height = if let Some(visible_line_ranges) = self.visible_line_ranges.as_ref() {
             visible_line_ranges
                 .iter()
                 .map(|range| range.len())
@@ -3778,7 +3757,6 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    #[cfg(feature = "vscode")]
     pub(crate) fn set_visible_line_ranges(&mut self, visible_line_ranges: Vec<Range<usize>>) {
         let max_line_index = self.buffer().len_lines().saturating_sub(1);
         self.visible_line_ranges = Some(
@@ -3951,12 +3929,6 @@ pub(crate) enum DispatchEditor {
     ExecuteCompletion {
         replacement: String,
         edit: Option<CompletionItemEdit>,
-    },
-    ApplyEditTransaction {
-        transaction: EditTransaction,
-        component_id: ComponentId,
-        reparse_tree: bool,
-        update_undo_stack: bool,
     },
 }
 

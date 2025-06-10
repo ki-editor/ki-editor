@@ -127,7 +127,6 @@ pub(crate) struct EditTransaction {
     /// This `action_group` should be always normalized.
     action_group: ActionGroup,
 
-    #[cfg(feature = "vscode")]
     /// This is required by VS Code because VS Code will offset the edits on their end.
     unnormalized_edits: Vec<Edit>,
 }
@@ -231,9 +230,6 @@ impl EditTransaction {
     }
 
     pub(crate) fn merge(edit_transactions: Vec<EditTransaction>) -> EditTransaction {
-        let unnormalized_edits: Vec<Edit> = Vec::default();
-
-        #[cfg(feature = "vscode")]
         let unnormalized_edits = edit_transactions
             .iter()
             .flat_map(|edit_transaction| edit_transaction.unnormalized_edits.clone())

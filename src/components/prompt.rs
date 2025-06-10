@@ -263,7 +263,6 @@ mod test_prompt {
                     }),
                     App(OpenPrompt {
                         current_line: Some("hello\nworld".to_string()),
-                        key: PromptHistoryKey::Null,
                         config: PromptConfig {
                             on_enter: DispatchPrompt::Null,
                             items: Default::default(),
@@ -288,7 +287,6 @@ mod test_prompt {
     fn prompt_history() {
         execute_test(|s| {
             let open_prompt = OpenPrompt {
-                key: PromptHistoryKey::Null,
                 current_line: None,
                 config: PromptConfig {
                     on_enter: DispatchPrompt::Null,
@@ -340,7 +338,6 @@ mod test_prompt {
                     focus: true,
                 }),
                 App((OpenPrompt {
-                    key: PromptHistoryKey::Null,
                     current_line: Some("spongebob squarepants".to_string()),
                     config: PromptConfig {
                         on_enter: DispatchPrompt::Null,
@@ -371,7 +368,6 @@ mod test_prompt {
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 App(Dispatch::OpenPrompt {
-                    key: PromptHistoryKey::Null,
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::SetContent,
@@ -403,7 +399,6 @@ mod test_prompt {
                         focus: true,
                     }),
                     App(OpenPrompt {
-                        key: PromptHistoryKey::Null,
                         current_line: None,
                         config: super::PromptConfig {
                             on_enter: DispatchPrompt::SetContent,
@@ -443,7 +438,6 @@ mod test_prompt {
         execute_test(|_| {
             Box::new([
                 App(Dispatch::OpenPrompt {
-                    key: PromptHistoryKey::Null,
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::SetContent,
@@ -471,7 +465,6 @@ mod test_prompt {
         execute_test(|_| {
             Box::new([
                 App(Dispatch::OpenPrompt {
-                    key: PromptHistoryKey::Null,
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::Null,
@@ -516,7 +509,6 @@ mod test_prompt {
         execute_test(|_| {
             Box::new([
                 App(Dispatch::OpenPrompt {
-                    key: PromptHistoryKey::Null,
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::SetContent,
@@ -557,7 +549,6 @@ mod test_prompt {
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 App(Dispatch::OpenPrompt {
-                    key: PromptHistoryKey::Null,
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::SetContent,

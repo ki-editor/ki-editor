@@ -16,7 +16,7 @@ pub mod viewport;
 
 /// Common imports and types for handlers
 pub mod prelude {
-    pub use anyhow::{anyhow, Result};
+    pub use anyhow::Result;
     pub use log::{debug, error, info, trace, warn};
 
     // Use these types internally within the handlers module
