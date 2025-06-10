@@ -51,9 +51,9 @@ export class Logger {
      * Format and log a message with timestamp
      */
     private logMessage(level: string, message: string, args: unknown[]): void {
-        const debug = z.enum(["true", "false"]).nullish().parse(process.env.DISABLE_DEBUG) === "false";
+        const disableDebug = z.enum(["true", "false"]).nullish().parse(process.env.DISABLE_DEBUG) === "true";
 
-        if (!debug) {
+        if (disableDebug) {
             // Skip logging if not debugging the extension
             return;
         }

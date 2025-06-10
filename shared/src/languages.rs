@@ -1,3 +1,5 @@
+use crate::language::CargoLinkedTreesitterLanguage;
+
 use super::language::{Command, GrammarConfig, Language, LanguageId, LspCommand};
 
 pub const LANGUAGES: &[&Language] = &[
@@ -46,7 +48,6 @@ pub const LANGUAGES: &[&Language] = &[
     &yaml(),
     &zig(),
 ];
-
 const fn bash() -> Language {
     Language {
         extensions: &["sh", "bash"],
@@ -63,6 +64,7 @@ const fn bash() -> Language {
             commit: "master",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -82,6 +84,7 @@ const fn fish() -> Language {
             commit: "master",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -101,6 +104,7 @@ const fn c() -> Language {
             commit: "master",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -118,6 +122,7 @@ const fn unison() -> Language {
             commit: "master",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -153,6 +158,7 @@ const fn cpp() -> Language {
             commit: "master",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -225,6 +231,7 @@ const fn elixir() -> Language {
             commit: "main",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -309,6 +316,7 @@ const fn gleam() -> Language {
             commit: "main",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -328,6 +336,7 @@ const fn golang() -> Language {
             subpath: None,
             commit: "master",
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -347,6 +356,7 @@ const fn graphql() -> Language {
             commit: "master",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -382,6 +392,7 @@ const fn heex() -> Language {
             commit: "main",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -401,6 +412,7 @@ const fn html() -> Language {
             commit: "master",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -419,6 +431,7 @@ const fn idris() -> Language {
             commit: "main",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -438,6 +451,7 @@ const fn javascript() -> Language {
             commit: "master",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -457,6 +471,7 @@ const fn javascript_react() -> Language {
             commit: "master",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -503,6 +518,7 @@ const fn lua() -> Language {
             commit: "main",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -522,6 +538,7 @@ const fn markdown() -> Language {
             commit: "split_parser",
             subpath: Some("tree-sitter-markdown"),
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -541,6 +558,7 @@ const fn nix() -> Language {
             commit: "master",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -560,6 +578,7 @@ const fn python() -> Language {
             commit: "master",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -582,6 +601,7 @@ const fn rescript() -> Language {
             commit: "main",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -604,6 +624,7 @@ const fn ruby() -> Language {
             commit: "master",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -620,6 +641,7 @@ const fn roc() -> Language {
             commit: "master",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -639,6 +661,7 @@ const fn rust() -> Language {
             commit: "e86119bdb4968b9799f6a014ca2401c178d54b5f",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -672,6 +695,7 @@ const fn swift() -> Language {
             commit: "with-generated-files",
             subpath: None,
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -717,6 +741,7 @@ const fn typescript() -> Language {
             commit: "master",
             subpath: Some("typescript"),
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }
@@ -736,6 +761,7 @@ const fn typescript_react() -> Language {
             commit: "master",
             subpath: Some("tsx"),
         }),
+        language_fallback: Some(CargoLinkedTreesitterLanguage::TypescriptReact),
         ..Language::new()
     }
 }
@@ -781,6 +807,7 @@ const fn zig() -> Language {
             subpath: None,
             commit: "master",
         }),
+        language_fallback: None,
         ..Language::new()
     }
 }

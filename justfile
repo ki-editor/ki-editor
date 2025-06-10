@@ -69,7 +69,7 @@ watch-vscode-build:
 vscode-build:
     cargo build --release --features vscode
 
-vscode-package: vscode-build
+vscode-package:
     ./build-all-platforms.sh
     cd ki-vscode && npm run package
     

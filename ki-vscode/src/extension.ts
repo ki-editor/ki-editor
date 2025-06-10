@@ -42,48 +42,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         dispatcher = new Dispatcher(ipc, logger);
 
         // Get Ki path from config or use fallback paths
-        let kiPath = configManager.getBackendPath();
-
-        if (!kiPath) {
-            // First try to use ../target/debug/ki relative to extension
-            const debugPath = path.join(context.extensionPath, "..", "target", "debug", "ki");
-            logger.log(`Checking for Ki at debug path: ${debugPath}`);
-
-            if (fs.existsSync(debugPath)) {
-                kiPath = debugPath;
-                logger.log(`Found Ki at debug path: ${kiPath}`);
-            } else {
-                // Use the bundled platform-specific executable
-                const platform = process.platform;
-                const arch = process.arch;
-
-                logger.log(`Detected platform: ${platform}, architecture: ${arch}`);
-
-                let binaryName = "";
-                if (platform === "darwin") {
-                    // macOS
-                    if (arch === "arm64") {
-                        binaryName = "ki-darwin-arm64";
-                    } else {
-                        binaryName = "ki-darwin-x64";
-                    }
-                } else if (platform === "linux") {
-                    // Linux
-                    binaryName = "ki-linux-x64";
-                } else if (platform === "win32") {
-                    // Windows
-                    binaryName = "ki-win32-x64.exe";
-                } else {
-                    logger.error(`Unsupported platform: ${platform}`);
-                    throw new Error(`Unsupported platform: ${platform}`);
-                }
-
-                kiPath = context.asAbsolutePath(path.join("dist", "bin", binaryName));
-                logger.log(`Using platform-specific binary: ${kiPath}`);
-            }
-        } else {
-            logger.log(`Using configured Ki path: ${kiPath}`);
-        }
+        let kiPath = getKiPath(context, configManager, logger);
 
         logger.log(`Attempting to start Ki process at: ${kiPath}`);
 
@@ -193,6 +152,38 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 deactivate();
                 activate(context);
             }),
+            vscode.commands.registerCommand("ki.installTreeSitterGrammars", async () => {
+                const kiPath = getKiPath(context, configManager, logger);
+
+                function executeCommand(command: string): Promise<void> {
+                    return new Promise((resolve, reject) => {
+                        const exec = require("child_process").exec;
+                        exec(command, (error: Error | null, stdout: string, stderr: string) => {
+                            logger.show();
+                            logger.log(stdout);
+
+                            if (error) {
+                                logger.error(`Error installing grammars: ${error.message}`);
+                                vscode.window.showErrorMessage(`Ki: Failed to install grammars: ${error.message}`);
+                                reject(error);
+                            } else {
+                                logger.log(`Grammars installed successfully: ${stdout}`);
+                                vscode.window.showInformationMessage(
+                                    "Ki: Tree-sitter grammars installed successfully yes",
+                                );
+                                resolve();
+                            }
+                            if (stderr) {
+                                logger.error(`stderr: ${stderr}`);
+                                vscode.window.showErrorMessage(`Ki stderr: ${stderr}`);
+                            }
+                        });
+                    });
+                }
+
+                await executeCommand(`${kiPath} @ grammar fetch`);
+                await executeCommand(`${kiPath} @ grammar build`);
+            }),
         );
 
         // The periodic sync timer has been removed.
@@ -217,6 +208,57 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // Clean up if activation failed
         deactivate();
     }
+}
+
+function getKiPath(context: vscode.ExtensionContext, configManager: ConfigManager | undefined, logger: Logger): string {
+    function getKiPathInner(context: vscode.ExtensionContext, configManager: ConfigManager | undefined): string {
+        const configuredKiPath = configManager?.getBackendPath();
+        if (configuredKiPath) {
+            return configuredKiPath;
+        }
+
+        // First try to use ../target/debug/ki relative to extension
+        const debugPath = path.join(context.extensionPath, "..", "target", "debug", "ki");
+        if (fs.existsSync(debugPath)) {
+            return debugPath;
+        }
+
+        // Use the bundled platform-specific executable
+        const platform = process.platform;
+        const arch = process.arch;
+
+        if (platform === "darwin") {
+            // macOS
+            if (arch === "arm64") {
+                return context.asAbsolutePath(path.join("dist", "bin", "ki-darwin-arm64"));
+            }
+            return context.asAbsolutePath(path.join("dist", "bin", "ki-darwin-x64"));
+        }
+
+        if (platform === "linux") {
+            // Linux
+            if (arch === "arm64") {
+                return context.asAbsolutePath(path.join("dist", "bin", "ki-linux-arm64"));
+            }
+            return context.asAbsolutePath(path.join("dist", "bin", "ki-linux-x64"));
+        }
+
+        if (platform === "win32") {
+            // Windows
+            return context.asAbsolutePath(path.join("dist", "bin", "ki-win32-x64.exe"));
+        }
+
+        throw new Error(`Unsupported platform: ${platform}`);
+    }
+
+    // Use the bundled platform-specific executable
+    const platform = process.platform;
+    const arch = process.arch;
+    logger.log(`Detected platform: ${platform}, architecture: ${arch}`);
+
+    const kiPath = getKiPathInner(context, configManager);
+    logger.log(`Using platform-specific binary: ${kiPath}`);
+    return kiPath;
 }
 
 /**

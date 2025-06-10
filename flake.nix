@@ -91,6 +91,8 @@
               pkgs.pkgsCross.mingwW64
             else if rustTarget == "x86_64-unknown-linux-musl" then
               pkgs.pkgsCross.musl64
+            else if rustTarget == "aarch64-unknown-linux-musl" then
+              pkgs.pkgsCross.aarch64-multiplatform-musl
             else
               pkgs;
 
@@ -199,6 +201,9 @@
             muslArgs = if rustTarget == "x86_64-unknown-linux-musl" then {
               "CC_x86_64_unknown_linux_musl" = "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}cc";
               "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER" = "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}cc";
+            } else if rustTarget == "aarch64-unknown-linux-musl" then {
+              "CC_aarch64_unknown_linux_musl" = "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}cc";
+              "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER" = "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}cc";
             } else {};
 
             # Combine all arguments
@@ -234,6 +239,12 @@
           rustTarget = "x86_64-unknown-linux-musl";
         };
 
+        # Build for aarch64-linux
+        aarch64-linux-ki = mkCrossPackage {
+          targetSystem = "aarch64-linux";
+          rustTarget = "aarch64-unknown-linux-musl";
+        };
+
         # Build for x86_64-windows-gnu
         x86_64-windows-gnu-ki = mkCrossPackage {
           targetSystem = "x86_64-windows";
@@ -251,6 +262,7 @@
             ki-editor;
           "aarch64-darwin" = fixDarwinBinary "ki-fixed" aarch64-darwin-ki;
           "x86_64-linux-musl" = x86_64-linux-musl-ki;
+          "aarch64-linux" = aarch64-linux-ki;
           "x86_64-windows-gnu" = x86_64-windows-gnu-ki;
         };
 

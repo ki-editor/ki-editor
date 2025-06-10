@@ -2,7 +2,7 @@
     "name": "ki-editor-vscode",
     "version": "0.0.7",
     "description": "VSCode extension for Ki Editor (Preview)",
-    "main": "./dist/extension.js",
+    "main": "./build/extension.js",
     "publisher": "ki-editor",
     "author": {
         "name": "Ki Editor Contributors",
@@ -153,6 +153,10 @@
             {
                 "command": "ki.specialKey.right",
                 "title": "Ki: Handle Right Arrow Key"
+            },
+            {
+                "command": "ki.installTreeSitterGrammars",
+                "title": "Ki: Install Tree-sitter Grammars"
             }
         ],
         "keybindings": [

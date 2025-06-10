@@ -41,8 +41,29 @@ pub struct Language {
     pub(crate) lsp_language_id: Option<LanguageId>,
     pub(crate) lsp_command: Option<LspCommand>,
     pub(crate) tree_sitter_grammar_config: Option<GrammarConfig>,
+    /// This will be used when we can't load the language file using `tree_sitter_grammar_config`.
+    pub(crate) language_fallback: Option<CargoLinkedTreesitterLanguage>,
     pub(crate) highlight_query: Option<&'static str>,
     pub(crate) formatter_command: Option<Command>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CargoLinkedTreesitterLanguage {
+    Typescript,
+    TypescriptReact,
+}
+
+impl CargoLinkedTreesitterLanguage {
+    pub(crate) fn to_tree_sitter_language(&self) -> tree_sitter::Language {
+        match self {
+            CargoLinkedTreesitterLanguage::Typescript => {
+                tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()
+            }
+            CargoLinkedTreesitterLanguage::TypescriptReact => {
+                tree_sitter_typescript::LANGUAGE_TSX.into()
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,6 +90,7 @@ impl Language {
             lsp_command: None,
             tree_sitter_grammar_config: None,
             formatter_command: None,
+            language_fallback: None,
         }
     }
 
@@ -101,7 +123,15 @@ impl Language {
     }
 
     pub fn tree_sitter_language(&self) -> Option<tree_sitter::Language> {
-        grammar::grammar::get_language(&self.tree_sitter_grammar_config()?.grammar_id).ok()
+        grammar::grammar::get_language(&self.tree_sitter_grammar_config()?.grammar_id)
+            .map_err(|err| {
+                log::error!(
+                    "Language::tree_sitter_language: unable to obtain language due to {err:?}"
+                );
+                err
+            })
+            .ok()
+            .or_else(|| Some(self.language_fallback.clone()?.to_tree_sitter_language()))
     }
 
     pub(crate) fn tree_sitter_grammar_config(&self) -> Option<GrammarConfiguration> {

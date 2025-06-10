@@ -75,6 +75,12 @@ impl Buffer {
                 language.and_then(|language| {
                     parser
                         .set_language(&language)
+                        .map_err(|error| {
+                            log::error!(
+                                "Failed to parse using language {:?} due to error {error:?}",
+                                language
+                            );
+                        })
                         .ok()
                         .and_then(|_| parser.parse(text, None))
                 })
