@@ -59,7 +59,7 @@ For example, "," are usually unnamed (
 anonymous) in most language grammars, thus it will be skipped when using the
 Previous/Next movement in Syntax Node.
 
-See more at [https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-anonymous-nodes](https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-anonymous-nodes).
+See more at [https://tree-sitter.github.io/tree-sitter/using-parsers/2-basic-parsing.html#named-vs-anonymous-nodes](https://tree-sitter.github.io/tree-sitter/using-parsers/2-basic-parsing.html#named-vs-anonymous-nodes).
 
 ### Examples
 
