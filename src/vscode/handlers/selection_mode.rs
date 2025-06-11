@@ -85,7 +85,7 @@ impl VSCodeApp {
                 let search = parse_search_config(&search)?;
                 KiSelectionMode::Find {
                     search: Search {
-                        mode: search.local_config().mode.clone(),
+                        mode: search.local_config().mode,
                         search: search.local_config().search(),
                     },
                 }

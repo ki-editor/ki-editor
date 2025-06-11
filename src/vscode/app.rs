@@ -2,8 +2,9 @@
 
 use crate::components::editor::Mode;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::mpsc::{self, TryRecvError};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::thread;
 
 use crate::app::{App, AppMessage, Dispatch, StatusLineComponent};
@@ -22,7 +23,7 @@ use super::utils::*;
 use crate::vscode::handlers;
 
 pub struct VSCodeApp {
-    pub(crate) app: Arc<Mutex<App<Crossterm>>>,
+    pub(crate) app: Rc<Mutex<App<Crossterm>>>,
     pub(crate) app_sender: mpsc::Sender<AppMessage>,
     pub(crate) integration_event_receiver:
         mpsc::Receiver<crate::integration_event::IntegrationEvent>,
@@ -81,7 +82,7 @@ impl VSCodeApp {
         info!("WebSocketIpc initialized. Waiting for VSCode connection...");
 
         Ok(Self {
-            app: Arc::new(Mutex::new(core_app)),
+            app: Rc::new(Mutex::new(core_app)),
             app_sender: real_app_sender,
             app_message_receiver: real_app_receiver,
             integration_event_receiver,
@@ -259,7 +260,7 @@ impl VSCodeApp {
                         break;
                     }
 
-                    let app_lock_result = match std::sync::Arc::clone(&self.app).try_lock() {
+                    let app_lock_result = match Rc::clone(&self.app).try_lock() {
                         Ok(mut guard) => {
                             trace!("Successfully acquired App lock to process message");
                             match guard.process_message(app_message) {
@@ -341,7 +342,7 @@ impl VSCodeApp {
 
         let component = app_guard.current_component();
         let component_ref = component.borrow();
-        let path_opt = component_ref.editor().buffer().path().map(|p| p.clone());
+        let path_opt = component_ref.editor().buffer().path();
         path_opt
     }
 

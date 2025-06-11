@@ -130,6 +130,7 @@ impl<T: Frontend> App<T> {
         self.enable_lsp = false
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_channel(
         frontend: Rc<Mutex<T>>,
         working_directory: CanonicalizedPath,
@@ -942,7 +943,7 @@ impl<T: Frontend> App<T> {
         &self,
         path: &CanonicalizedPath,
     ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
-        self.layout.get_existing_editor(&path)
+        self.layout.get_existing_editor(path)
     }
 
     pub(crate) fn current_component(&self) -> Rc<RefCell<dyn Component>> {
@@ -1754,13 +1755,9 @@ impl<T: Frontend> App<T> {
         component: Rc<RefCell<dyn Component>>,
     ) -> anyhow::Result<()> {
         // Call the component's handle_dispatch_editor method
-        let dispatches = match component
+        let dispatches = component
             .borrow_mut()
-            .handle_dispatch_editor(&mut self.context, dispatch_editor.clone())
-        {
-            Ok(dispatches) => dispatches,
-            Err(e) => return Err(e),
-        };
+            .handle_dispatch_editor(&mut self.context, dispatch_editor.clone())?;
 
         let dispatches = if self.is_running_as_embedded() {
             /*
@@ -1787,9 +1784,7 @@ impl<T: Frontend> App<T> {
         };
 
         // Process the dispatches
-        if let Err(e) = self.handle_dispatches(dispatches) {
-            return Err(e);
-        }
+        self.handle_dispatches(dispatches)?;
 
         // VSCode-specific code has been removed in favor of integration events
         Ok(())

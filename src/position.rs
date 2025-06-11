@@ -73,7 +73,7 @@ impl Position {
         }
     }
 
-    pub(crate) fn to_vscode_position(&self) -> ki_protocol_types::Position {
+    pub(crate) fn to_vscode_position(self) -> ki_protocol_types::Position {
         ki_protocol_types::Position {
             character: self.column,
             line: self.line,

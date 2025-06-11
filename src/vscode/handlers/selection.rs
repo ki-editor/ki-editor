@@ -79,7 +79,7 @@ impl VSCodeApp {
             self.send_response(response_id, OutputMessage::Success(true))?;
         };
 
-        return Ok(());
+        Ok(())
     }
 
     /// Handle selection.set request

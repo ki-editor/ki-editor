@@ -170,9 +170,7 @@ pub(crate) fn cli() -> anyhow::Result<()> {
     match cli.command {
         Some(CommandPlaceholder::Edit(args)) => run_edit_command(args),
         Some(CommandPlaceholder::At { command }) => match command {
-            Commands::VsCode(args) => {
-                return vscode::run_vscode(args.working_directory.try_into()?);
-            }
+            Commands::VsCode(args) => vscode::run_vscode(args.working_directory.try_into()?),
             Commands::Grammar { command } => {
                 match command {
                     Grammar::Build => shared::grammar::build_grammars(),

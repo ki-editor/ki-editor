@@ -41,11 +41,7 @@ pub(crate) fn uri_to_path(uri: &str) -> anyhow::Result<CanonicalizedPath> {
 
     // If URL parsing fails, try direct conversion
     // Remove the file:// prefix if present
-    let path_str = if uri.starts_with("file://") {
-        &uri[7..]
-    } else {
-        uri
-    };
+    let path_str = uri.strip_prefix("file://").unwrap_or(uri);
 
     // Convert to CanonicalizedPath
     path_str

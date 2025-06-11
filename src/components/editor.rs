@@ -2816,14 +2816,11 @@ impl Editor {
         let last_visible_line = self.last_visible_line(context);
 
         // Call the appropriate buffer method to perform undo/redo
-        let result = match if undo {
+        let result = if undo {
             self.buffer_mut().undo(last_visible_line)
         } else {
             self.buffer_mut().redo(last_visible_line)
-        } {
-            Ok(result) => result,
-            Err(e) => return Err(e),
-        };
+        }?;
 
         // Create dispatches for document changes and buffer edit transaction
         let dispatches = match result {

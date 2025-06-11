@@ -1,0 +1,19 @@
+- [x] Extended selection not working
+- [x] Git hunk not working
+- [x] Auto-complete in VS Code can cause buffer to out-of-sync with Ki sometimes
+- [x] Git hunk not working
+- [x] Marks not showing decorations
+- [x] Save not working properly
+- [x] Don't run auto-format in VS Code mode
+- [x] Save not working properly (require multiple presses of Enter)
+- [x] Map LSP action to VS Code
+- [x] Tree sitter grammar installation
+- [x] Cannot change keyboard layout
+- [] Scroll up/down not working
+- [] Make Ki works in Global Search opened in VS Code editor as buffer
+- [] Add ES Lint
+- [] Remove additional layers in event_handler.ts, e.g. this.dispatcher.registerKiNotificationHandler
+- [] Cylce cursor not working
+- [] Handle both develop extension flow and package, one uses `build`, one uses `dist`.
+- [] Update docs regarding developing the VS Code extension
+- [] VS Code buffer and Ki buffer desync sometimes (need to reopen unfocus and refocus the file in VS Code)
