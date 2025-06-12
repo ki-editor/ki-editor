@@ -1,20 +1,22 @@
 import * as vscode from "vscode";
-import { Dispatcher } from "../dispatcher";
-import { Logger } from "../logger";
 import { DiagnosticSeverity } from "../protocol/types";
-import { EventHandler } from "./event_handler";
 import { Manager } from "./manager";
 
 export class DiagnosticManager extends Manager {
-    constructor(dispatcher: Dispatcher, logger: Logger, eventHandler: EventHandler) {
-        super(dispatcher, logger, eventHandler);
-    }
-
     public initialize(): void {
-        this.registerVSCodeEventHandler("diagnostics.change", (params) => this.handleDiagnosticChange(params));
+        vscode.languages.onDidChangeDiagnostics((event) =>
+            this.handleDiagnosticChange(
+                event.uris.map((uri) => ({
+                    uri,
+                    diagnostics: vscode.languages.getDiagnostics(uri),
+                })),
+            ),
+        );
     }
 
-    private handleDiagnosticChange(params: { uri: vscode.Uri; diagnostics: vscode.Diagnostic[] }[]) {
+    private handleDiagnosticChange(
+        params: { uri: vscode.Uri; diagnostics: vscode.Diagnostic[] }[],
+    ) {
         this.dispatcher.sendRequest(
             "diagnostics.change",
             params.map(({ uri, diagnostics }) => ({

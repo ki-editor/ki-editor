@@ -1,7 +1,6 @@
-import * as vscode from "vscode";
-import { Dispatcher, EventName, EventParams } from "../dispatcher";
-import { Logger } from "../logger";
-import { EventHandler } from "./event_handler";
+import type * as vscode from "vscode";
+import type { Dispatcher } from "../dispatcher";
+import type { Logger } from "../logger";
 
 /**
  * Base class for all managers in the Ki VSCode extension
@@ -9,13 +8,11 @@ import { EventHandler } from "./event_handler";
 export abstract class Manager implements vscode.Disposable {
     protected dispatcher: Dispatcher;
     protected logger: Logger;
-    protected eventHandler: EventHandler;
     protected disposables: vscode.Disposable[] = [];
 
-    constructor(dispatcher: Dispatcher, logger: Logger, eventHandler: EventHandler) {
+    constructor(dispatcher: Dispatcher, logger: Logger) {
         this.dispatcher = dispatcher;
         this.logger = logger;
-        this.eventHandler = eventHandler;
     }
 
     /**
@@ -37,15 +34,5 @@ export abstract class Manager implements vscode.Disposable {
      */
     protected registerDisposable(disposable: vscode.Disposable): void {
         this.disposables.push(disposable);
-    }
-
-    /**
-     * Register a VSCode event handler
-     */
-    protected registerVSCodeEventHandler<T extends EventName>(
-        event: T,
-        handler: (params: EventParams<T>) => void,
-    ): void {
-        this.dispatcher.registerEventHandler(event, handler as (params: unknown) => void);
     }
 }

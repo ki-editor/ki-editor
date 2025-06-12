@@ -2,9 +2,9 @@
  * Utility functions for the Ki-VSCode extension
  */
 
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import * as vscode from "vscode";
 
 /**
@@ -105,10 +105,10 @@ export function formatPath(path: string, maxLength = 50): string {
     const remainingLength = maxLength - fileName.length - 4; // 4 for ".../"
 
     if (remainingLength <= 0) {
-        return "..." + fileName.slice(-maxLength + 3);
+        return `...${fileName.slice(-maxLength + 3)}`;
     }
 
-    return ".../" + fileName;
+    return `.../${fileName}`;
 }
 
 /**
@@ -200,13 +200,13 @@ export function normalizeKiPathToVSCodeUri(buffer_id: string): string {
 
     // Extract path from CanonicalizedPath wrapper
     const match = pathPart.match(/^CanonicalizedPath\("(.+)"\)$/);
-    if (match && match[1]) {
+    if (match?.[1]) {
         pathPart = match[1];
     }
 
     // Ensure it starts with a leading slash if it's a Unix-like path
     if (!pathPart.startsWith("/") && pathPart.includes("/")) {
-        pathPart = "/" + pathPart;
+        pathPart = `/${pathPart}`;
     }
 
     // Construct the final file:/// URI
@@ -319,11 +319,20 @@ export function isDocumentBufferType(uri: vscode.Uri | string): boolean {
 
     // Check document size to prevent buffer overflow issues
     try {
-        const doc = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === uriString);
+        const doc = vscode.workspace.textDocuments.find(
+            (doc) => doc.uri.toString() === uriString,
+        );
 
         if (doc) {
             // Check for output-related language IDs
-            const outputLanguageIds = ["Log", "Output", "log", "output", "debug", "console"];
+            const outputLanguageIds = [
+                "Log",
+                "Output",
+                "log",
+                "output",
+                "debug",
+                "console",
+            ];
             if (outputLanguageIds.includes(doc.languageId)) {
                 // console.log(`[Ki] Skipping document with output language ID "${doc.languageId}": ${uriString}`);
                 return false;
@@ -333,7 +342,9 @@ export function isDocumentBufferType(uri: vscode.Uri | string): boolean {
             const size = doc.getText().length;
             if (size > 2000000) {
                 // 2MB limit
-                console.log(`[Ki] Skipping large file: ${uriString} (size: ${size})`);
+                console.log(
+                    `[Ki] Skipping large file: ${uriString} (size: ${size})`,
+                );
                 return false;
             }
         }
@@ -376,7 +387,10 @@ export function formatError(error: unknown): string {
 /**
  * Safely extract text within a range
  */
-export function getTextInRange(document: vscode.TextDocument, range: vscode.Range): string {
+export function getTextInRange(
+    document: vscode.TextDocument,
+    range: vscode.Range,
+): string {
     // Make sure the range is valid
     const start = range.start;
     const end = range.end;

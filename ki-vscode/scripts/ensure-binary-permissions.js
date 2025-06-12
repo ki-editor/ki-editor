@@ -5,9 +5,9 @@
  * It's run as part of the vscode:prepublish script.
  */
 
-const fs = require("fs");
-const path = require("path");
-const { execSync } = require("child_process");
+const fs = require("node:fs");
+const path = require("node:path");
+const { execSync } = require("node:child_process");
 
 // Get the platform
 const platform = process.platform;
@@ -29,7 +29,9 @@ if (platform !== "win32") {
                 if (!file.endsWith(".exe")) {
                     // Skip .exe files as they don't need +x on Windows
                     const filePath = path.join(binDir, file);
-                    console.log(`Setting executable permissions for ${filePath}`);
+                    console.log(
+                        `Setting executable permissions for ${filePath}`,
+                    );
 
                     // Set executable permissions (chmod +x)
                     fs.chmodSync(filePath, 0o755);

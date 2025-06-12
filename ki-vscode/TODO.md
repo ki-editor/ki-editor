@@ -17,3 +17,4 @@
 - [] Handle both develop extension flow and package, one uses `build`, one uses `dist`.
 - [] Update docs regarding developing the VS Code extension
 - [] VS Code buffer and Ki buffer desync sometimes (need to reopen unfocus and refocus the file in VS Code)
+- [] Extend selection backward not working

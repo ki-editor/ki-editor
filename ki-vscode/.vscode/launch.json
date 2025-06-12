@@ -8,12 +8,15 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
             "outFiles": ["${workspaceFolder}/dist/**/*.js"],
             "sourceMaps": true,
-            "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ],
             "env": {
                 "RUST_BACKTRACE": "1",
                 "RUST_LOG": "debug",
                 "NODE_OPTIONS": "--inspect",
-                "DISABLE_DEBUG": false
+                "DISABLE_DEBUG": "false"
             },
             "preLaunchTask": "tsc: build with source maps"
         },
@@ -27,7 +30,10 @@
             ],
             "outFiles": ["${workspaceFolder}/dist/test/**/*.js"],
             "sourceMaps": true,
-            "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ],
             "preLaunchTask": "${defaultBuildTask}"
         }
     ]

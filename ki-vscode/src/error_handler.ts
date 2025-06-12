@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { Logger } from "./logger";
+import type { Logger } from "./logger";
 
 /**
  * Error severity levels
@@ -68,7 +68,7 @@ export class ErrorHandler {
         error: unknown,
         context: ErrorContext,
         severity: ErrorSeverity = ErrorSeverity.Error,
-        showToUser: boolean = false,
+        showToUser = false,
     ): void {
         // Extract error message
         const errorMessage = this.formatErrorMessage(error);
@@ -86,7 +86,10 @@ export class ErrorHandler {
                 break;
             case ErrorSeverity.Error:
             case ErrorSeverity.Fatal:
-                this.logger.error(`${contextInfo}: ${errorMessage}`, context.details);
+                this.logger.error(
+                    `${contextInfo}: ${errorMessage}`,
+                    context.details,
+                );
                 break;
         }
 
@@ -98,10 +101,13 @@ export class ErrorHandler {
         // Additional handling for fatal errors
         if (severity === ErrorSeverity.Fatal) {
             // Log additional information
-            this.logger.error("Fatal error occurred, application may be unstable", {
-                error: errorMessage,
-                context,
-            });
+            this.logger.error(
+                "Fatal error occurred, application may be unstable",
+                {
+                    error: errorMessage,
+                    context,
+                },
+            );
         }
     }
 
@@ -114,11 +120,11 @@ export class ErrorHandler {
     private formatErrorMessage(error: unknown): string {
         if (error instanceof Error) {
             return `${error.message}\n${error.stack || ""}`;
-        } else if (typeof error === "string") {
-            return error;
-        } else {
-            return String(error);
         }
+        if (typeof error === "string") {
+            return error;
+        }
+        return String(error);
     }
 
     /**

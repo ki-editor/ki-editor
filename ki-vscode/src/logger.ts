@@ -8,7 +8,7 @@ export class Logger {
     private outputChannel: vscode.OutputChannel;
     private verbose: boolean;
 
-    constructor(name: string, verbose: boolean = true) {
+    constructor(name: string, verbose = true) {
         this.outputChannel = vscode.window.createOutputChannel(`Ki: ${name}`);
         this.verbose = verbose;
     }
@@ -51,7 +51,11 @@ export class Logger {
      * Format and log a message with timestamp
      */
     private logMessage(level: string, message: string, args: unknown[]): void {
-        const disableDebug = z.enum(["true", "false"]).nullish().parse(process.env.DISABLE_DEBUG) === "true";
+        const disableDebug =
+            z
+                .enum(["true", "false"])
+                .nullish()
+                .parse(process.env.DISABLE_DEBUG) === "true";
 
         if (disableDebug) {
             // Skip logging if not debugging the extension
@@ -72,7 +76,7 @@ export class Logger {
                     try {
                         logMessage += `\n    ${JSON.stringify(arg)}`;
                     } catch (e) {
-                        logMessage += `\n    [Object]`;
+                        logMessage += "\n    [Object]";
                     }
                 } else {
                     logMessage += `\n    ${arg}`;

@@ -218,6 +218,7 @@ pub struct KeyboardParams {
     pub timestamp: u64,
     pub mode: Option<String>,
     pub is_composed: bool,
+    pub uri: String,
 }
 
 // Parameters for editor actions

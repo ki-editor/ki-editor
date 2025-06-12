@@ -65,6 +65,9 @@ watch-vscode-build:
 
 vscode-build:
     cargo build --release --features vscode
+    npm install
+    cd ki-vscode && npm run format
+    cd ki-vscode && npm run lint
 
 vscode-package:
     ./build-all-platforms.sh

@@ -1,24 +1,22 @@
 import * as vscode from "vscode";
-import { Dispatcher } from "../dispatcher";
-import { Logger } from "../logger";
-import { CommandParams } from "../protocol/types";
-import { EventHandler } from "./event_handler";
+import type { CommandParams, EditorAction } from "../protocol/types";
 import { Manager } from "./manager";
 
 /**
  * Manages command execution between VSCode and Ki
  */
 export class CommandManager extends Manager {
-    constructor(dispatcher: Dispatcher, logger: Logger, eventHandler: EventHandler) {
-        super(dispatcher, logger, eventHandler);
-    }
-
     /**
      * Initialize the command manager
      */
     public initialize(): void {
         // Register integration event handlers
-        this.eventHandler.onCommandExecuted((params) => this.handleCommandExecuted(params));
+        this.dispatcher.registerKiNotificationHandler(
+            "command.executed",
+            (params: CommandParams) => {
+                this.handleCommandExecuted(params);
+            },
+        );
 
         // Register commands
         this.registerCommands();
@@ -29,9 +27,12 @@ export class CommandManager extends Manager {
      */
     private registerCommands(): void {
         // Register execute command
-        const executeCommand = vscode.commands.registerCommand("ki.executeCommand", (command: string) => {
-            this.executeCommand(command);
-        });
+        const executeCommand = vscode.commands.registerCommand(
+            "ki.executeCommand",
+            (command: string) => {
+                this.executeCommand(command);
+            },
+        );
         this.registerDisposable(executeCommand);
     }
 
@@ -58,15 +59,20 @@ export class CommandManager extends Manager {
         // Send command to Ki
         this.dispatcher
             .sendRequest("editor.action", {
-                action: command as any, // Cast to any to avoid type error
+                action: command as EditorAction, // Cast to any to avoid type error
                 buffer_id: uri,
             })
             .then((response) => {
-                this.logger.log(`Command executed successfully: ${command}`, response);
+                this.logger.log(
+                    `Command executed successfully: ${command}`,
+                    response,
+                );
             })
             .catch((error) => {
                 this.logger.error(`Error executing command: ${command}`, error);
-                vscode.window.showErrorMessage(`Error executing Ki command: ${command}`);
+                vscode.window.showErrorMessage(
+                    `Error executing Ki command: ${command}`,
+                );
             });
     }
 
@@ -78,7 +84,9 @@ export class CommandManager extends Manager {
 
         // Show notification for important commands
         if (params.name.startsWith("save") || params.name.startsWith("quit")) {
-            vscode.window.showInformationMessage(`Ki command executed: ${params.name}`);
+            vscode.window.showInformationMessage(
+                `Ki command executed: ${params.name}`,
+            );
         }
     }
 

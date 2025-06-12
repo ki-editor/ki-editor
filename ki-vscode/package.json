@@ -1,8 +1,8 @@
 {
     "name": "ki-editor-vscode",
-    "version": "0.0.7",
+    "version": "0.0.8",
     "description": "VSCode extension for Ki Editor (Preview)",
-    "main": "./build/extension.js",
+    "main": "./dist/extension.js",
     "publisher": "ki-editor",
     "author": {
         "name": "Ki Editor Contributors",
@@ -17,34 +17,24 @@
         "url": "https://github.com/ki-editor/ki-editor/issues"
     },
     "license": "MPL-2.0",
-    "keywords": [
-        "ki",
-        "editor",
-        "modal",
-        "vim",
-        "text-editor"
-    ],
-    "categories": [
-        "Programming Languages",
-        "Keymaps",
-        "Other"
-    ],
+    "keywords": ["ki", "editor", "modal", "vim", "text-editor"],
+    "categories": ["Programming Languages", "Keymaps", "Other"],
     "icon": "images/ki-logo.png",
     "preview": true,
     "scripts": {
-        "compile": "tsc -p . && prettier -w .",
-        "compile:sourcemaps": "tsc -p . --sourceMap true && prettier -w .",
+        "compile": "tsc -p .",
+        "compile:sourcemaps": "tsc -p . --sourceMap true",
         "watch": "tsc -watch -p . --sourceMap true",
         "bundle": "bun scripts/bundle.ts",
         "package": "vsce package",
         "package:full": "npm run build:binaries && npm run package",
         "vscode:prepublish": "bun scripts/bundle.ts",
-        "lint": "eslint src --ext ts",
+        "format": "biome format --write",
+        "lint": "biome lint",
+        "lint:fix": "biome lint --write",
         "build:binaries": "cd .. && ./build-all-platforms.sh"
     },
-    "activationEvents": [
-        "onStartupFinished"
-    ],
+    "activationEvents": ["onStartupFinished"],
     "contributes": {
         "configuration": {
             "title": "Ki Editor",
@@ -234,6 +224,7 @@
         ]
     },
     "devDependencies": {
+        "@biomejs/biome": "1.9.4",
         "@types/bun": "latest",
         "@types/jest": "29.5.14",
         "@types/node": "^20.11.0",
@@ -254,13 +245,7 @@
     "engines": {
         "vscode": "^1.99.0"
     },
-    "files": [
-        "dist/**",
-        "images/**",
-        "README.md",
-        "CHANGELOG.md",
-        "LICENSE"
-    ],
+    "files": ["dist/**", "images/**", "README.md", "CHANGELOG.md", "LICENSE"],
     "jest-junit": {
         "outputDirectory": "reports",
         "outputName": "jest-junit.xml",

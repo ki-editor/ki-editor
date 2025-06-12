@@ -183,7 +183,8 @@ data class KeyboardParams (
 	val key: String,
 	val timestamp: ULong,
 	val mode: String? = null,
-	val is_composed: Boolean
+	val is_composed: Boolean,
+	val uri: String
 )
 
 @Serializable
