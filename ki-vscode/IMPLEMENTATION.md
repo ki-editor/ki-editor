@@ -17,7 +17,7 @@ action workflow).
 Currently, the integration is tightly coupled with Ki's core:
 
 - The majority of the integration is handled by `handle_dispatch_editor_custom` in `app.rs`
-- VSCode-specific code is scattered throughout Ki's codebase using `#[cfg(feature = "vscode")]`
+- VSCode-specific code is scattered throughout Ki's codebase using ``
 - Ki directly sends notifications to VSCode via a notification channel (`vscode_notification_sender` and
   `from_app_receiver`)
 - VSCode-specific dispatch variants exist in Ki's core Dispatch enum (like `Dispatch::BufferEditTransaction`)
@@ -189,7 +189,7 @@ Inspired by VSCode-Neovim, we'll refactor the TypeScript side to use a manager-b
 
 - Make `BufferEditTransaction` a generic dispatch type (not VSCode-specific)
 - Add the integration event channel to send events out of Ki
-- Remove VSCode-specific code from Ki's core (including `#[cfg(feature = "vscode")]` blocks)
+- Remove VSCode-specific code from Ki's core (including `` blocks)
 - Remove the VSCode-specific notification channel
 
 ### Benefits
@@ -334,7 +334,7 @@ With the new architecture, the flow would be:
 
 This flow is cleaner, more decoupled, and easier to understand and maintain. Key improvements:
 
-1. **Removal of VSCode-specific code from Ki**: No more `#[cfg(feature = "vscode")]` blocks in Ki
+1. **Removal of VSCode-specific code from Ki**: No more `` blocks in Ki
 2. **Simplified communication**: One clear channel for integration events instead of scattered notification points
 3. **Better separation of concerns**: Ki focuses on editor functionality, VSCodeApp handles VSCode integration
 4. **Extensibility**: The same integration channel could be used for other integrations in the future

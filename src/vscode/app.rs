@@ -93,29 +93,9 @@ impl VSCodeApp {
     }
 
     pub fn send_message_to_vscode(&self, message: OutputMessageWrapper) -> Result<()> {
-        let id = message.id;
-        let message_type = format!("{:?}", message.message);
-
-        info!(
-            "Queueing message for VSCode: type={} id={}",
-            message_type, id
-        );
-
-        let result = self.ipc_handler.send_message_to_vscode(message);
-
-        if let Err(ref e) = result {
-            error!(
-                "Failed to send message to IPC handler: type={}, id={}, error={}",
-                message_type, id, e
-            );
-        } else {
-            info!(
-                "Successfully queued message for VSCode: type={}, id={}",
-                message_type, id
-            );
-        }
-
-        result.map_err(|e| anyhow::anyhow!("Failed to send message to IPC handler: {}", e))
+        self.ipc_handler
+            .send_message_to_vscode(message)
+            .map_err(|e| anyhow::anyhow!("Failed to send message to IPC handler: {}", e))
     }
 
     pub fn send_notification(&self, wrapper: OutputMessageWrapper) -> Result<()> {
@@ -150,19 +130,19 @@ impl VSCodeApp {
             }
             InputMessage::BufferOpen(params) => {
                 debug!("[{}] Processing buffer open request", trace_id);
-                self.handle_buffer_open_request(id, params)
+                self.handle_buffer_open_request(params)
             }
             InputMessage::BufferClose(params) => {
                 debug!("[{}] Processing buffer close request", trace_id);
-                self.handle_buffer_close_request(id, params)
+                self.handle_buffer_close_request(params)
             }
             InputMessage::BufferSave(params) => {
                 debug!("[{}] Processing buffer save request", trace_id);
-                self.handle_buffer_save_request(id, params)
+                self.handle_buffer_save_request(params)
             }
             InputMessage::BufferActive(params) => {
                 debug!("[{}] Processing buffer active request", trace_id);
-                self.handle_buffer_active_request(id, params)
+                self.handle_buffer_active_request(params)
             }
             InputMessage::BufferChange(params) => {
                 debug!("[{}] Processing buffer change request", trace_id);
@@ -177,23 +157,23 @@ impl VSCodeApp {
             }
             InputMessage::SelectionSet(params) => {
                 debug!("[{}] Processing selection set request", trace_id);
-                self.handle_selection_set_request(id, params)
+                self.handle_selection_set_request(params)
             }
             InputMessage::ModeSet(params) => {
                 debug!("[{}] Processing mode set request", trace_id);
-                self.handle_mode_set_request(id, params, trace_id)
+                self.handle_mode_set_request(params, trace_id)
             }
             InputMessage::SelectionModeSet(params) => {
                 debug!("[{}] Processing selection mode set request", trace_id);
-                self.handle_selection_mode_set_request(id, params, trace_id)
+                self.handle_selection_mode_set_request(params, trace_id)
             }
             InputMessage::SearchFind(params) => {
                 debug!("[{}] Processing search find request", trace_id);
-                self.handle_search_find_request(id, params, trace_id)
+                self.handle_search_find_request(params, trace_id)
             }
             InputMessage::ViewportChange(params) => {
                 debug!("[{}] Processing viewport change request", trace_id);
-                self.handle_viewport_change_request(id, params)
+                self.handle_viewport_change_request(params)
             }
             InputMessage::EditorAction(params) => {
                 debug!(
@@ -379,13 +359,7 @@ impl VSCodeApp {
             message,
             error: None,
         };
-        let result = self.send_message_to_vscode(wrapper);
-        if let Err(ref e) = result {
-            error!("Failed to send response for request ID {}: {}", id, e);
-        } else {
-            info!("Successfully sent response for request ID {}", id);
-        }
-        result
+        self.send_message_to_vscode(wrapper)
     }
 
     pub(crate) fn send_error_response(&self, id: u64, error_message: &str) -> Result<()> {
@@ -413,15 +387,6 @@ impl VSCodeApp {
                 path,
                 edits,
             } => self.buffer_changed(path, edits)?,
-            IntegrationEvent::BufferOpened {
-                component_id: _,
-                path,
-                language_id,
-            } => self.buffer_opened(path, language_id)?,
-            IntegrationEvent::BufferClosed {
-                component_id: _,
-                path,
-            } => self.buffer_closed(path)?,
             IntegrationEvent::BufferSaved {
                 component_id: _,
                 path,
@@ -441,10 +406,6 @@ impl VSCodeApp {
                 component_id,
                 selections,
             } => self.selection_changed(component_id, selections)?,
-            IntegrationEvent::BufferActivated {
-                component_id: _,
-                path,
-            } => self.buffer_activated(path)?,
             IntegrationEvent::ExternalBufferCreated {
                 component_id: _,
                 buffer_id,
@@ -529,43 +490,6 @@ impl VSCodeApp {
         None
     }
 
-    pub fn send_cursor_position_for_current_buffer(&self) -> Result<()> {
-        let app_guard = match self.app.try_lock() {
-            Ok(guard) => guard,
-            Err(_) => {
-                trace!("Could not acquire app lock to get current component");
-                return Ok(());
-            }
-        };
-
-        let component = app_guard.current_component();
-        let component_ref = component.borrow();
-        let editor = component_ref.editor();
-
-        let selections = editor.selection_set.selections();
-        if selections.is_empty() {
-            return Ok(());
-        }
-
-        let mut anchors = Vec::new();
-        let mut actives = Vec::new();
-
-        for selection in selections {
-            let range = selection.extended_range();
-            let buffer = editor.buffer();
-
-            if let Ok(start_pos) = buffer.char_to_position(range.start) {
-                anchors.push(start_pos);
-            }
-
-            if let Ok(end_pos) = buffer.char_to_position(range.end) {
-                actives.push(end_pos);
-            }
-        }
-
-        Ok(())
-    }
-
     fn selection_changed(
         &self,
         component_id: usize,
@@ -637,40 +561,6 @@ impl VSCodeApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::BufferDiff(diff_params),
-            error: None,
-        })
-    }
-
-    fn buffer_opened(
-        &self,
-        path: CanonicalizedPath,
-        language_id: Option<String>,
-    ) -> anyhow::Result<()> {
-        let uri = path_to_uri(&path);
-        let params = ki_protocol_types::BufferParams {
-            uri,
-            content: None,
-            language_id,
-            version: None,
-        };
-        self.send_notification(OutputMessageWrapper {
-            id: 0,
-            message: OutputMessage::BufferOpen(params),
-            error: None,
-        })
-    }
-
-    fn buffer_closed(&self, path: CanonicalizedPath) -> anyhow::Result<()> {
-        let uri = path_to_uri(&path);
-        let params = ki_protocol_types::BufferParams {
-            uri,
-            content: None,
-            language_id: None,
-            version: None,
-        };
-        self.send_notification(OutputMessageWrapper {
-            id: 0,
-            message: OutputMessage::BufferClose(params),
             error: None,
         })
     }
@@ -821,21 +711,6 @@ impl VSCodeApp {
                     .map(|(key, position)| ki_protocol_types::JumpTarget { key, position })
                     .collect(),
             }),
-            error: None,
-        })
-    }
-
-    fn buffer_activated(&self, path: CanonicalizedPath) -> anyhow::Result<()> {
-        let uri = path_to_uri(&path);
-        let params = ki_protocol_types::BufferParams {
-            uri,
-            content: None,
-            language_id: None,
-            version: None,
-        };
-        self.send_notification(OutputMessageWrapper {
-            id: 0,
-            message: OutputMessage::BufferActivated(params),
             error: None,
         })
     }

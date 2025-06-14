@@ -3,15 +3,11 @@
 use crate::vscode::app::VSCodeApp;
 use anyhow::Result;
 use itertools::Itertools;
-use ki_protocol_types::{OutputMessage, ViewportParams};
+use ki_protocol_types::ViewportParams;
 
 impl VSCodeApp {
     /// Handle viewport change request from VSCode
-    pub fn handle_viewport_change_request(
-        &mut self,
-        id: u64,
-        params: ViewportParams,
-    ) -> Result<()> {
+    pub fn handle_viewport_change_request(&mut self, params: ViewportParams) -> Result<()> {
         let component = self.app.lock().unwrap().current_component();
         let mut component_ref = component.borrow_mut();
         let editor = component_ref.editor_mut();
@@ -23,7 +19,6 @@ impl VSCodeApp {
             .collect_vec();
         editor.set_visible_line_ranges(visible_line_ranges);
 
-        // Return success without creating a dispatch
-        self.send_response(id, OutputMessage::Success(true))
+        Ok(())
     }
 }

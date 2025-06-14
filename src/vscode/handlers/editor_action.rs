@@ -2,7 +2,7 @@
 
 use super::prelude::*;
 use crate::vscode::app::VSCodeApp;
-use ki_protocol_types::{EditorAction, EditorActionParams, OutputMessage};
+use ki_protocol_types::{EditorAction, EditorActionParams};
 
 impl VSCodeApp {
     /// Handle editor.action request
@@ -23,12 +23,6 @@ impl VSCodeApp {
             "[{}] Sending success response before processing editor action",
             trace_id
         );
-        let response_result = self.send_response(id, OutputMessage::Success(true));
-        if let Err(e) = response_result {
-            error!("[{}] Failed to send success response: {}", trace_id, e);
-            return Err(e);
-        }
-
         // Create a dispatch directly for the action
         // This is much more robust than using key events, which depend on keyboard layout
         let dispatch = match params.action {
@@ -85,28 +79,8 @@ impl VSCodeApp {
             trace_id, params.action
         );
 
-        match self.app_sender.send(app_message) {
-            Ok(_) => {
-                info!(
-                    "[{}] Successfully sent dispatch for action '{:?}' to app_sender",
-                    trace_id, params.action
-                );
-            }
-            Err(e) => {
-                error!(
-                    "[{}] Failed to send dispatch for action '{:?}' to app_sender: {}",
-                    trace_id, params.action, e
-                );
-                return self
-                    .send_error_response(id, &format!("Failed to send dispatch to app: {}", e));
-            }
-        }
+        self.app_sender.send(app_message)?;
 
-        // Return success immediately
-        info!(
-            "[{}] Successfully queued dispatch for action '{:?}', returning success",
-            trace_id, params.action
-        );
         Ok(())
     }
 }

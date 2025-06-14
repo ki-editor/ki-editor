@@ -13,24 +13,19 @@ use crate::{
     },
 };
 use itertools::Itertools;
-use ki_protocol_types::{
-    BufferDiffParams, // Use BufferDiffParams instead of InputBufferChangeParams
-    BufferParams,
-
-    OutputMessage,
-    OutputMessageWrapper,
-};
-use log::{error, info, warn}; // Added debug
+use ki_protocol_types::{BufferDiffParams, BufferOpenParams, BufferParams};
+use log::{error, info}; // Added debug
 use ropey::Rope; // Added Rope
 
 impl VSCodeApp {
     /// Handle buffer open request from VSCode
-    pub fn handle_buffer_open_request(&mut self, id: u64, params: BufferParams) -> Result<()> {
-        let BufferParams {
+    pub fn handle_buffer_open_request(&mut self, params: BufferOpenParams) -> Result<()> {
+        let BufferOpenParams {
             uri,
             content,
             language_id: _,
             version,
+            selections,
         } = params;
 
         let path = uri_to_path(&uri)?;
@@ -41,13 +36,6 @@ impl VSCodeApp {
         // Update buffer version
         self.buffer_versions
             .insert(buffer_id.clone(), version.unwrap_or(0) as u64);
-
-        // First check if the file is already open
-        let current_path = self.get_current_file_path();
-        if current_path.as_ref() == Some(&path) {
-            info!("Requested file is already open");
-            return Ok(());
-        }
 
         // Open the file
         let dispatch = Dispatch::OpenFile {
@@ -70,19 +58,17 @@ impl VSCodeApp {
             }
         }
 
-        // Send success response
-        let response = OutputMessageWrapper {
-            id,
-            message: OutputMessage::Success(true),
-            error: None,
-        };
-        self.send_message_to_vscode(response)?;
+        self.handle_selection_set_notification(ki_protocol_types::SelectionSet {
+            buffer_id: buffer_id.clone(),
+            selections,
+            primary: 0,
+        })?;
 
         Ok(())
     }
 
     /// Handle buffer close request from VSCode
-    pub fn handle_buffer_close_request(&mut self, id: u64, params: BufferParams) -> Result<()> {
+    pub fn handle_buffer_close_request(&mut self, params: BufferParams) -> Result<()> {
         let BufferParams { uri, .. } = params;
         info!("Buffer closed: uri={}", uri);
 
@@ -105,18 +91,11 @@ impl VSCodeApp {
         // Remove from version tracking
         self.buffer_versions.remove(&uri);
 
-        // Send success response
-        let response = OutputMessageWrapper {
-            id,
-            message: OutputMessage::Success(true),
-            error: None,
-        };
-        self.send_message_to_vscode(response)?;
         Ok(())
     }
 
     /// Handle buffer save request from VSCode
-    pub fn handle_buffer_save_request(&mut self, id: u64, params: BufferParams) -> Result<()> {
+    pub fn handle_buffer_save_request(&mut self, params: BufferParams) -> Result<()> {
         let BufferParams {
             uri: _,
             content: _,
@@ -129,56 +108,23 @@ impl VSCodeApp {
             .unwrap()
             .handle_dispatch(Dispatch::ToEditor(DispatchEditor::ForceSave))?;
 
-        // Send success response
-        let response = OutputMessageWrapper {
-            id,
-            message: OutputMessage::Success(true),
-            error: None,
-        };
-        self.send_message_to_vscode(response)?;
         Ok(())
     }
 
     /// Handle buffer active request from VSCode
-    pub fn handle_buffer_active_request(&mut self, _id: u64, params: BufferParams) -> Result<()> {
+    pub fn handle_buffer_active_request(&mut self, params: BufferParams) -> Result<()> {
         let BufferParams { uri, .. } = params;
-        let buffer_id = uri.to_string();
-        info!("Handling buffer.active: {}", buffer_id);
+        let path = uri_to_path(&uri)?;
+        self.app
+            .lock()
+            .unwrap()
+            .handle_dispatch(Dispatch::OpenFile {
+                path: path.clone(),
+                owner: BufferOwner::User,
+                focus: true,
+            })?;
 
-        // Convert URI to path
-        if let Ok(path) = uri_to_path(&uri) {
-            // Use the app's dispatch system to focus the file
-            info!("Focusing file through dispatch: {:?}", path);
-
-            let focus_result = self
-                .app
-                .lock()
-                .unwrap()
-                .handle_dispatch(Dispatch::OpenFile {
-                    path: path.clone(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                });
-
-            match focus_result {
-                Ok(_) => {
-                    info!("Successfully focused file: {:?}", path);
-
-                    // Send cursor position update after buffer is activated
-                    // This ensures VSCode has the correct cursor position from the start
-                    self.send_cursor_position_for_current_buffer()?;
-
-                    Ok(())
-                }
-                Err(err) => {
-                    error!("Failed to focus file {:?}: {}", path, err);
-                    Ok(())
-                }
-            }
-        } else {
-            warn!("Failed to convert URI to path: {}", uri);
-            Ok(())
-        }
+        Ok(())
     }
 
     /// Handle buffer change request from VSCode

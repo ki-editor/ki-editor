@@ -4,12 +4,9 @@ import type { PromptOpenedParams, PromptItem } from "../protocol/types";
 
 export class PromptManager extends Manager {
     public initialize(): void {
-        this.dispatcher.registerKiNotificationHandler(
-            "prompt.opened",
-            (params) => {
-                this.handlePromptOpened(params);
-            },
-        );
+        this.dispatcher.registerKiNotificationHandler("prompt.opened", (params) => {
+            this.handlePromptOpened(params);
+        });
     }
 
     private async handlePromptOpened(params: PromptOpenedParams) {
@@ -21,10 +18,7 @@ export class PromptManager extends Manager {
     }
 }
 
-async function showComboInput(params: {
-    title: string;
-    items: PromptItem[];
-}): Promise<string | undefined> {
+async function showComboInput(params: { title: string; items: PromptItem[] }): Promise<string | undefined> {
     const quickPick = vscode.window.createQuickPick();
     quickPick.items = params.items;
     quickPick.placeholder = params.title;
@@ -34,15 +28,9 @@ async function showComboInput(params: {
     quickPick.onDidChangeValue(() => {
         const currentValue = quickPick.value;
 
-        if (
-            currentValue &&
-            !params.items.some((item) => item.label === currentValue)
-        ) {
+        if (currentValue && !params.items.some((item) => item.label === currentValue)) {
             // If user types something not in the list, add it as an option
-            quickPick.items = [
-                { label: currentValue, description: "(custom)" },
-                ...params.items,
-            ];
+            quickPick.items = [{ label: currentValue, description: "(custom)" }, ...params.items];
         } else {
             quickPick.items = params.items;
         }
@@ -53,8 +41,7 @@ async function showComboInput(params: {
     return new Promise((resolve) => {
         quickPick.onDidHide(() => resolve(undefined));
         quickPick.onDidAccept(() => {
-            const selectedValue =
-                quickPick.selectedItems[0]?.label || quickPick.value;
+            const selectedValue = quickPick.selectedItems[0]?.label || quickPick.value;
             quickPick.hide();
             resolve(selectedValue);
         });

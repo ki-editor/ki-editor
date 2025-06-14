@@ -46,11 +46,7 @@ export class KeyboardManager extends Manager {
         right: "ArrowRight",
     };
 
-    constructor(
-        dispatcher: Dispatcher,
-        logger: Logger,
-        modeManager: ModeManager,
-    ) {
+    constructor(dispatcher: Dispatcher, logger: Logger, modeManager: ModeManager) {
         super(dispatcher, logger);
         this.modeManager = modeManager;
     }
@@ -76,9 +72,7 @@ export class KeyboardManager extends Manager {
      */
     private registerSpecialKeyHandlers(): void {
         // Dispose of existing subscriptions if any
-        this.specialKeySubscriptions.forEach((subscription) =>
-            subscription.dispose(),
-        );
+        this.specialKeySubscriptions.forEach((subscription) => subscription.dispose());
         this.specialKeySubscriptions = [];
 
         // Register each special key
@@ -87,13 +81,10 @@ export class KeyboardManager extends Manager {
             const commandId = `ki.specialKey.${specialKey}`;
 
             // Register the command
-            const subscription = vscode.commands.registerCommand(
-                commandId,
-                async () => {
-                    await this.handleSpecialKey(specialKey);
-                    return true; // Let VSCode continue processing
-                },
-            );
+            const subscription = vscode.commands.registerCommand(commandId, async () => {
+                await this.handleSpecialKey(specialKey);
+                return true; // Let VSCode continue processing
+            });
 
             this.specialKeySubscriptions.push(subscription);
             this.registerDisposable(subscription);
@@ -106,16 +97,11 @@ export class KeyboardManager extends Manager {
     /**
      * Register a keybinding programmatically
      */
-    private registerKeybinding(
-        specialKey: SpecialKey,
-        commandId: string,
-    ): void {
+    private registerKeybinding(specialKey: SpecialKey, commandId: string): void {
         // This doesn't actually register keybindings at runtime
         // Keybindings must be defined in package.json
         // This is just a placeholder for documentation
-        this.logger.log(
-            `Registered command ${commandId} for special key ${specialKey}`,
-        );
+        this.logger.log(`Registered command ${commandId} for special key ${specialKey}`);
     }
 
     /**
@@ -128,12 +114,9 @@ export class KeyboardManager extends Manager {
         }
 
         // Create new subscription
-        this.typeSubscription = vscode.commands.registerCommand(
-            "type",
-            (args) => {
-                return this.handleType(args);
-            },
-        );
+        this.typeSubscription = vscode.commands.registerCommand("type", (args) => {
+            return this.handleType(args);
+        });
 
         // Add to disposables
         this.registerDisposable(this.typeSubscription);
@@ -184,9 +167,7 @@ export class KeyboardManager extends Manager {
         const uri = editor.document.uri.toString();
         const text = args.text;
 
-        this.logger.log(
-            `Key pressed: ${text} in mode ${this.modeManager.getCurrentMode()}`,
-        );
+        this.logger.log(`Key pressed: ${text} in mode ${this.modeManager.getCurrentMode()}`);
 
         // In normal mode, send the key to Ki and prevent VSCode from handling it
         this.dispatcher
@@ -198,15 +179,11 @@ export class KeyboardManager extends Manager {
                 uri,
             })
             .then((response) => {
-                this.logger.log(
-                    `Keyboard input response in normal mode: ${JSON.stringify(response)}`,
-                );
+                this.logger.log(`Keyboard input response in normal mode: ${JSON.stringify(response)}`);
                 // No longer forcing a sync after each keystroke
             })
             .catch((error) => {
-                this.logger.error(
-                    `Error sending keyboard input in normal mode: ${error}`,
-                );
+                this.logger.error(`Error sending keyboard input in normal mode: ${error}`);
             });
     }
 
@@ -228,9 +205,7 @@ export class KeyboardManager extends Manager {
         const uri = editor.document.uri.toString();
         const keyCode = this.specialKeyMap[specialKey];
 
-        this.logger.log(
-            `Special key pressed: ${specialKey} (${keyCode}) in mode ${this.modeManager.getCurrentMode()}`,
-        );
+        this.logger.log(`Special key pressed: ${specialKey} (${keyCode}) in mode ${this.modeManager.getCurrentMode()}`);
 
         // Send the key to Ki
         this.dispatcher
@@ -242,9 +217,7 @@ export class KeyboardManager extends Manager {
                 uri,
             })
             .then((response) => {
-                this.logger.log(
-                    `Special key response: ${JSON.stringify(response)}`,
-                );
+                this.logger.log(`Special key response: ${JSON.stringify(response)}`);
             })
             .catch((error) => {
                 this.logger.error(`Error sending special key: ${error}`);
@@ -268,9 +241,7 @@ export class KeyboardManager extends Manager {
         }
 
         // Dispose of special key subscriptions
-        this.specialKeySubscriptions.forEach((subscription) =>
-            subscription.dispose(),
-        );
+        this.specialKeySubscriptions.forEach((subscription) => subscription.dispose());
         this.specialKeySubscriptions = [];
 
         super.dispose();

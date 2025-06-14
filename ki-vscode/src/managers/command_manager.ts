@@ -11,12 +11,9 @@ export class CommandManager extends Manager {
      */
     public initialize(): void {
         // Register integration event handlers
-        this.dispatcher.registerKiNotificationHandler(
-            "command.executed",
-            (params: CommandParams) => {
-                this.handleCommandExecuted(params);
-            },
-        );
+        this.dispatcher.registerKiNotificationHandler("command.executed", (params: CommandParams) => {
+            this.handleCommandExecuted(params);
+        });
 
         // Register commands
         this.registerCommands();
@@ -27,12 +24,9 @@ export class CommandManager extends Manager {
      */
     private registerCommands(): void {
         // Register execute command
-        const executeCommand = vscode.commands.registerCommand(
-            "ki.executeCommand",
-            (command: string) => {
-                this.executeCommand(command);
-            },
-        );
+        const executeCommand = vscode.commands.registerCommand("ki.executeCommand", (command: string) => {
+            this.executeCommand(command);
+        });
         this.registerDisposable(executeCommand);
     }
 
@@ -63,16 +57,11 @@ export class CommandManager extends Manager {
                 buffer_id: uri,
             })
             .then((response) => {
-                this.logger.log(
-                    `Command executed successfully: ${command}`,
-                    response,
-                );
+                this.logger.log(`Command executed successfully: ${command}`, response);
             })
             .catch((error) => {
                 this.logger.error(`Error executing command: ${command}`, error);
-                vscode.window.showErrorMessage(
-                    `Error executing Ki command: ${command}`,
-                );
+                vscode.window.showErrorMessage(`Error executing Ki command: ${command}`);
             });
     }
 
@@ -84,9 +73,7 @@ export class CommandManager extends Manager {
 
         // Show notification for important commands
         if (params.name.startsWith("save") || params.name.startsWith("quit")) {
-            vscode.window.showInformationMessage(
-                `Ki command executed: ${params.name}`,
-            );
+            vscode.window.showInformationMessage(`Ki command executed: ${params.name}`);
         }
     }
 

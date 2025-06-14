@@ -196,12 +196,7 @@ impl WebSocketIpc {
                             );
 
                             match websocket.send(WsMessage::Text(serialized)) {
-                                Ok(_) => {
-                                    info!(
-                                        "WebSocket handler: Successfully sent message to VSCode: id={}, type={}",
-                                        id, message_type
-                                    );
-                                }
+                                Ok(_) => {}
                                 Err(e) => {
                                     error!("WebSocket handler: Failed to write message to WebSocket: id={}, type={}, error={}",
                                         id, message_type, e);

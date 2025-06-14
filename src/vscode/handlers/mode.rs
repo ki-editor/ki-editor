@@ -3,14 +3,13 @@
 use crate::components::editor::Mode as KiMode;
 use crate::vscode::app::VSCodeApp;
 use anyhow::Result;
-use ki_protocol_types::{EditorMode, OutputMessage, TypedModeParams};
-use log::{debug, error, info};
+use ki_protocol_types::{EditorMode, TypedModeParams};
+use log::{debug, info};
 
 impl VSCodeApp {
     /// Handle mode set request from VSCode
     pub fn handle_mode_set_request(
         &mut self,
-        id: u64,
         params: TypedModeParams,
         trace_id: &str,
     ) -> Result<()> {
@@ -39,11 +38,6 @@ impl VSCodeApp {
             "[{}] Sending success response before processing mode set",
             trace_id
         );
-        let response_result = self.send_response(id, OutputMessage::Success(true));
-        if let Err(e) = response_result {
-            error!("[{}] Failed to send success response: {}", trace_id, e);
-            return Err(e);
-        }
 
         // Create a dispatch to set the mode
         let dispatch = match ki_mode {
@@ -76,22 +70,7 @@ impl VSCodeApp {
         let app_message = crate::app::AppMessage::ExternalDispatch(dispatch);
 
         // Send the message to the App thread via the app_sender
-        match self.app_sender.send(app_message) {
-            Ok(_) => {
-                info!(
-                    "[{}] Successfully sent mode change dispatch to app_sender",
-                    trace_id
-                );
-            }
-            Err(e) => {
-                error!(
-                    "[{}] Failed to send mode change dispatch to app_sender: {}",
-                    trace_id, e
-                );
-                return self
-                    .send_error_response(id, &format!("Failed to send dispatch to app: {}", e));
-            }
-        }
+        self.app_sender.send(app_message)?;
 
         Ok(())
     }

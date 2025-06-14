@@ -5,8 +5,6 @@ use crate::context::Search;
 use crate::vscode::app::VSCodeApp;
 use crate::{search::parse_search_config, selection::SelectionMode as KiSelectionMode};
 use anyhow::Result;
-use ki_protocol_types::OutputMessage;
-use log::debug;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -56,7 +54,6 @@ impl VSCodeApp {
     /// Handle selection mode set request from VSCode
     pub fn handle_selection_mode_set_request(
         &mut self,
-        id: u64,
         params: ki_protocol_types::SelectionModeParams,
         trace_id: &str,
     ) -> Result<()> {
@@ -113,19 +110,6 @@ impl VSCodeApp {
             }
         };
 
-        debug!("[{}] Setting selection mode to: {:?}", trace_id, ki_mode);
-
-        // First, send the success response immediately to prevent VSCode from timing out
-        debug!(
-            "[{}] Sending success response before processing selection mode set",
-            trace_id
-        );
-        let response_result = self.send_response(id, OutputMessage::Success(true));
-        if let Err(e) = response_result {
-            error!("[{}] Failed to send success response: {}", trace_id, e);
-            return Err(e);
-        }
-
         // Create a dispatch to set the selection mode
         let dispatch = crate::app::Dispatch::ToEditor(
             crate::components::editor::DispatchEditor::SetSelectionMode(
@@ -138,22 +122,7 @@ impl VSCodeApp {
         let app_message = crate::app::AppMessage::ExternalDispatch(dispatch);
 
         // Send the message to the App thread via the app_sender
-        match self.app_sender.send(app_message) {
-            Ok(_) => {
-                info!(
-                    "[{}] Successfully sent selection mode change dispatch to app_sender",
-                    trace_id
-                );
-            }
-            Err(e) => {
-                error!(
-                    "[{}] Failed to send selection mode change dispatch to app_sender: {}",
-                    trace_id, e
-                );
-                return self
-                    .send_error_response(id, &format!("Failed to send dispatch to app: {}", e));
-            }
-        }
+        self.app_sender.send(app_message)?;
 
         Ok(())
     }

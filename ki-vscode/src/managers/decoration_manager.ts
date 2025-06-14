@@ -19,9 +19,7 @@ export class DecorationManager extends Manager {
     });
 
     private marksDecoration = vscode.window.createTextEditorDecorationType({
-        backgroundColor: new vscode.ThemeColor(
-            "editor.findMatchHighlightBackground",
-        ),
+        backgroundColor: new vscode.ThemeColor("editor.findMatchHighlightBackground"),
     });
 
     public initialize(): void {
@@ -34,79 +32,51 @@ export class DecorationManager extends Manager {
             this.handleVisibleRangesChanged(event);
         });
 
-        this.dispatcher.registerKiNotificationHandler(
-            "editor.jump",
-            (params: JumpsParams) => {
-                this.handleJumpsChanged(params);
-            },
-        );
-        this.dispatcher.registerKiNotificationHandler(
-            "editor.mark",
-            (params: MarksParams) => {
-                this.handleMarksChanged(params);
-            },
-        );
+        this.dispatcher.registerKiNotificationHandler("editor.jump", (params: JumpsParams) => {
+            this.handleJumpsChanged(params);
+        });
+        this.dispatcher.registerKiNotificationHandler("editor.mark", (params: MarksParams) => {
+            this.handleMarksChanged(params);
+        });
     }
 
     private handleJumpsChanged(jumps: JumpsParams): void {
         const uri = jumps.uri;
-        const editor = vscode.window.visibleTextEditors.find(
-            (editor) => editor.document.uri.path === uri,
-        );
+        const editor = vscode.window.visibleTextEditors.find((editor) => editor.document.uri.path === uri);
         if (!editor) return;
 
-        const decorations: vscode.DecorationOptions[] = jumps.targets.map(
-            (jump) => {
-                const start = new vscode.Position(
-                    jump.position.line,
-                    jump.position.character,
-                );
-                const end = new vscode.Position(
-                    start.line,
-                    start.character + 1,
-                );
-                const result: vscode.DecorationOptions = {
-                    range: new vscode.Range(start, end),
-                    renderOptions: {
-                        before: { contentText: jump.key },
-                    },
-                };
-                return result;
-            },
-        );
+        const decorations: vscode.DecorationOptions[] = jumps.targets.map((jump) => {
+            const start = new vscode.Position(jump.position.line, jump.position.character);
+            const end = new vscode.Position(start.line, start.character + 1);
+            const result: vscode.DecorationOptions = {
+                range: new vscode.Range(start, end),
+                renderOptions: {
+                    before: { contentText: jump.key },
+                },
+            };
+            return result;
+        });
         editor.setDecorations(this.jumpCharDecoration, []);
         editor.setDecorations(this.jumpCharDecoration, decorations);
     }
 
     private handleMarksChanged(params: MarksParams): void {
-        const editor = vscode.window.visibleTextEditors.find(
-            (editor) => editor.document.uri.path === params.uri,
-        );
+        const editor = vscode.window.visibleTextEditors.find((editor) => editor.document.uri.path === params.uri);
         if (!editor) return;
 
-        const decorations: vscode.DecorationOptions[] = params.marks.map(
-            (mark) => {
-                const start = new vscode.Position(
-                    mark.start.line,
-                    mark.start.character,
-                );
-                const end = new vscode.Position(
-                    mark.end.line,
-                    mark.end.character,
-                );
-                const result: vscode.DecorationOptions = {
-                    range: new vscode.Range(start, end),
-                };
-                return result;
-            },
-        );
+        const decorations: vscode.DecorationOptions[] = params.marks.map((mark) => {
+            const start = new vscode.Position(mark.start.line, mark.start.character);
+            const end = new vscode.Position(mark.end.line, mark.end.character);
+            const result: vscode.DecorationOptions = {
+                range: new vscode.Range(start, end),
+            };
+            return result;
+        });
         editor.setDecorations(this.marksDecoration, []);
         editor.setDecorations(this.marksDecoration, decorations);
     }
 
-    private handleVisibleRangesChanged(
-        event: vscode.TextEditorVisibleRangesChangeEvent,
-    ): void {
+    private handleVisibleRangesChanged(event: vscode.TextEditorVisibleRangesChangeEvent): void {
         this.dispatcher.sendNotification("viewport.change", {
             buffer_id: event.textEditor.document.uri.toString(),
             visible_line_ranges: event.visibleRanges.map((range) => ({

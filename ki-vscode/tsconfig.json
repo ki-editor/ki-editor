@@ -4,7 +4,7 @@
         "target": "ES2020",
         // Adjust outDir relative to the new location (ki-vscode/src)
         // Assuming compiled output should go to ki-vscode/dist
-        "outDir": "./build",
+        "outDir": "./dist",
         // rootDir is now the current directory (ki-vscode/src)
         "rootDir": "./src",
         "lib": ["ESNext"],

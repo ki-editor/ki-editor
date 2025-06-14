@@ -29,9 +29,7 @@ if (platform !== "win32") {
                 if (!file.endsWith(".exe")) {
                     // Skip .exe files as they don't need +x on Windows
                     const filePath = path.join(binDir, file);
-                    console.log(
-                        `Setting executable permissions for ${filePath}`,
-                    );
+                    console.log(`Setting executable permissions for ${filePath}`);
 
                     // Set executable permissions (chmod +x)
                     fs.chmodSync(filePath, 0o755);

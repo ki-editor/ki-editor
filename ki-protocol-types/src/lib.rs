@@ -151,6 +151,16 @@ pub struct BufferParams {
     pub version: Option<i32>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
+pub struct BufferOpenParams {
+    pub uri: String,
+    pub selections: Vec<Selection>,
+    pub content: Option<String>,
+    pub language_id: Option<String>,
+    pub version: Option<i32>,
+}
+
 // Parameters for buffer diff events
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[typeshare]
@@ -279,7 +289,7 @@ pub enum InputMessage {
 
     // Buffer operations
     #[serde(rename = "buffer.open")]
-    BufferOpen(BufferParams),
+    BufferOpen(BufferOpenParams),
     #[serde(rename = "buffer.close")]
     BufferClose(BufferParams),
     #[serde(rename = "buffer.save")]
@@ -358,8 +368,6 @@ pub enum OutputMessage {
     Log(LogParams),
     #[serde(rename = "error")]
     Error(String),
-    #[serde(rename = "success")]
-    Success(bool),
 
     // Buffer operations
     #[serde(rename = "buffer.open")]
@@ -370,8 +378,6 @@ pub enum OutputMessage {
     BufferSave(BufferParams),
     #[serde(rename = "buffer.diff")]
     BufferDiff(BufferDiffParams),
-    #[serde(rename = "buffer.activated")]
-    BufferActivated(BufferParams),
 
     // Selection operations (includes cursor information)
     #[serde(rename = "selection.update")]
@@ -547,12 +553,10 @@ impl MessageMethod for OutputMessage {
             OutputMessage::Ping(_) => Cow::Borrowed("ping"),
             OutputMessage::Log(_) => Cow::Borrowed("ki.log"),
             OutputMessage::Error(_) => Cow::Borrowed("error"),
-            OutputMessage::Success(_) => Cow::Borrowed("success"),
             OutputMessage::BufferOpen(_) => Cow::Borrowed("buffer.open"),
             OutputMessage::BufferClose(_) => Cow::Borrowed("buffer.close"),
             OutputMessage::BufferSave(_) => Cow::Borrowed("buffer.save"),
             OutputMessage::BufferDiff(_) => Cow::Borrowed("buffer.diff"),
-            OutputMessage::BufferActivated(_) => Cow::Borrowed("buffer.activated"),
             OutputMessage::SelectionUpdate(_) => Cow::Borrowed("selection.update"),
             OutputMessage::ModeChange(_) => Cow::Borrowed("mode.change"),
             OutputMessage::SelectionModeChange(_) => Cow::Borrowed("selection_mode.change"),
@@ -580,12 +584,10 @@ impl MessageMethod for OutputMessage {
             OutputMessage::Ping(_) => "Ping",
             OutputMessage::Log(_) => "Log",
             OutputMessage::Error(_) => "Error",
-            OutputMessage::Success(_) => "Success",
             OutputMessage::BufferOpen(_) => "BufferOpen",
             OutputMessage::BufferClose(_) => "BufferClose",
             OutputMessage::BufferSave(_) => "BufferSave",
             OutputMessage::BufferDiff(_) => "BufferDiff",
-            OutputMessage::BufferActivated(_) => "BufferActivated",
             OutputMessage::SelectionUpdate(_) => "SelectionUpdate",
             OutputMessage::ModeChange(_) => "ModeChange",
             OutputMessage::SelectionModeChange(_) => "SelectionModeChange",

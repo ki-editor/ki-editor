@@ -1,8 +1,7 @@
 fn main() {
-    shared::grammar::fetch_grammars();
-    shared::grammar::build_grammars();
+    // shared::grammar::fetch_grammars();
+    // shared::grammar::build_grammars();
 
-    #[cfg(feature = "vscode")]
     if std::env::var("CARGO_FEATURE_VSCODE").is_ok() {
         println!("Building with vscode feature enabled, generating types...");
 
@@ -73,7 +72,7 @@ fn main() {
     }
 
     println!("cargo:rerun-if-changed=build.rs");
-    #[cfg(feature = "vscode")]
+
     {
         println!("cargo:rerun-if-changed=src/vscode_ipc.rs"); // Rerun if message handling logic changes
         println!("cargo:rerun-if-changed=src/vscode.rs"); // Rerun if dependent types change

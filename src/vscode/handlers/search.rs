@@ -2,14 +2,13 @@
 
 use crate::vscode::app::VSCodeApp;
 use anyhow::Result;
-use ki_protocol_types::{OutputMessage, SearchParams};
-use log::{debug, error, info};
+use ki_protocol_types::SearchParams;
+use log::{debug, info};
 
 impl VSCodeApp {
     /// Handle search find request from VSCode
     pub fn handle_search_find_request(
         &mut self,
-        id: u64,
         params: SearchParams,
         trace_id: &str,
     ) -> Result<()> {
@@ -20,11 +19,6 @@ impl VSCodeApp {
             "[{}] Sending success response before processing search find",
             trace_id
         );
-        let response_result = self.send_response(id, OutputMessage::Success(true));
-        if let Err(e) = response_result {
-            error!("[{}] Failed to send success response: {}", trace_id, e);
-            return Err(e);
-        }
 
         // Create a dispatch to perform the search
         // We'll use the UpdateLocalSearchConfig dispatch to set the search pattern
@@ -43,22 +37,7 @@ impl VSCodeApp {
         let app_message = crate::app::AppMessage::ExternalDispatch(dispatch);
 
         // Send the message to the App thread via the app_sender
-        match self.app_sender.send(app_message) {
-            Ok(_) => {
-                info!(
-                    "[{}] Successfully sent search find dispatch to app_sender",
-                    trace_id
-                );
-            }
-            Err(e) => {
-                error!(
-                    "[{}] Failed to send search find dispatch to app_sender: {}",
-                    trace_id, e
-                );
-                return self
-                    .send_error_response(id, &format!("Failed to send dispatch to app: {}", e));
-            }
-        }
+        self.app_sender.send(app_message)?;
 
         Ok(())
     }

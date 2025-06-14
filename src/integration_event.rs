@@ -30,29 +30,11 @@ pub enum IntegrationEvent {
         path: CanonicalizedPath,
         edits: Vec<ki_protocol_types::DiffEdit>,
     },
-    BufferOpened {
-        #[allow(dead_code)]
-        component_id: ComponentId,
-        path: CanonicalizedPath,
-        language_id: Option<String>,
-    },
-    #[allow(dead_code)]
-    BufferClosed {
-        #[allow(dead_code)]
-        component_id: ComponentId,
-        path: CanonicalizedPath,
-    },
     BufferSaved {
         #[allow(dead_code)]
         component_id: ComponentId,
         path: CanonicalizedPath,
     },
-    BufferActivated {
-        #[allow(dead_code)]
-        component_id: ComponentId,
-        path: CanonicalizedPath,
-    },
-
     // Editor state events
     ModeChanged {
         component_id: ComponentId,

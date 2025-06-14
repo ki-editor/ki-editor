@@ -1,11 +1,7 @@
 import * as vscode from "vscode";
 import type { Dispatcher } from "../dispatcher";
 import type { Logger } from "../logger";
-import {
-    EditorMode,
-    type SelectionModeParams,
-    type TypedModeParams,
-} from "../protocol/types";
+import { EditorMode, type SelectionModeParams, type TypedModeParams } from "../protocol/types";
 import { Manager } from "./manager";
 
 /**
@@ -20,19 +16,12 @@ export class ModeManager extends Manager {
     private context: vscode.ExtensionContext;
     private keyboardLayout = "";
 
-    constructor(
-        dispatcher: Dispatcher,
-        logger: Logger,
-        context: vscode.ExtensionContext,
-    ) {
+    constructor(dispatcher: Dispatcher, logger: Logger, context: vscode.ExtensionContext) {
         super(dispatcher, logger);
         this.context = context;
 
         // Create status bar item
-        this.statusBarItem = vscode.window.createStatusBarItem(
-            vscode.StatusBarAlignment.Left,
-            100,
-        );
+        this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
         this.statusBarItem.command = "ki.toggleMode";
         this.registerDisposable(this.statusBarItem);
 
@@ -41,25 +30,16 @@ export class ModeManager extends Manager {
     }
 
     public initialize(): void {
-        this.dispatcher.registerKiNotificationHandler(
-            "mode.change",
-            (params: TypedModeParams) => {
-                this.handleModeChanged(params);
-            },
-        );
-        this.dispatcher.registerKiNotificationHandler(
-            "selection_mode.change",
-            (params) => {
-                this.handleSelectionModeChange(params);
-            },
-        );
-        this.dispatcher.registerKiNotificationHandler(
-            "editor.keyboardLayout",
-            async (keyboardLayout) => {
-                this.keyboardLayout = keyboardLayout;
-                this.updateStatusBar();
-            },
-        );
+        this.dispatcher.registerKiNotificationHandler("mode.change", (params: TypedModeParams) => {
+            this.handleModeChanged(params);
+        });
+        this.dispatcher.registerKiNotificationHandler("selection_mode.change", (params) => {
+            this.handleSelectionModeChange(params);
+        });
+        this.dispatcher.registerKiNotificationHandler("editor.keyboardLayout", async (keyboardLayout) => {
+            this.keyboardLayout = keyboardLayout;
+            this.updateStatusBar();
+        });
 
         this.registerCommands();
 
@@ -77,12 +57,9 @@ export class ModeManager extends Manager {
 
     private registerCommands(): void {
         // Register toggle mode command
-        const toggleModeCommand = vscode.commands.registerCommand(
-            "ki.toggleMode",
-            () => {
-                this.toggleMode();
-            },
-        );
+        const toggleModeCommand = vscode.commands.registerCommand("ki.toggleMode", () => {
+            this.toggleMode();
+        });
         this.registerDisposable(toggleModeCommand);
     }
 
@@ -90,16 +67,12 @@ export class ModeManager extends Manager {
      * Toggle between normal and insert mode
      */
     private toggleMode(): void {
-        const newMode =
-            this.currentMode === EditorMode.Normal
-                ? EditorMode.Insert
-                : EditorMode.Normal;
+        const newMode = this.currentMode === EditorMode.Normal ? EditorMode.Insert : EditorMode.Normal;
         this.logger.log(`Toggling mode from ${this.currentMode} to ${newMode}`);
 
         // Send mode change to Ki
         this.dispatcher.sendNotification("mode.set", {
-            buffer_id:
-                vscode.window.activeTextEditor?.document.uri.toString() || "",
+            buffer_id: vscode.window.activeTextEditor?.document.uri.toString() || "",
             mode: newMode,
         });
     }
@@ -108,33 +81,20 @@ export class ModeManager extends Manager {
         // Setting `ki.isInsertMode` is necessary so that
         // special keys like tab will not trigger the `ki.specialKey.tab`
         // command.
-        vscode.commands.executeCommand(
-            "setContext",
-            "ki.isInsertMode",
-            params.mode === EditorMode.Insert,
-        );
+        vscode.commands.executeCommand("setContext", "ki.isInsertMode", params.mode === EditorMode.Insert);
 
-        if (
-            this.currentMode === EditorMode.Insert &&
-            params.mode === EditorMode.Insert
-        ) {
+        if (this.currentMode === EditorMode.Insert && params.mode === EditorMode.Insert) {
             // Don't update cursor position if the current mode is in Insert mode
             // and the incoming mode is Insert mode as well.
             // This is because we should let VS Code handle everything in Insert mode.
             return;
         }
 
-        this.logger.log(`Received mode changed event: ${params.mode}`);
-
         this.currentMode = this.parseMode(params.mode);
 
         this.updateStatusBar();
 
         this.updateCursorStyle();
-
-        this.logger.log(
-            `Mode updated to ${this.currentMode} with cursor style updated`,
-        );
     }
 
     private parseMode(mode: string): EditorMode {
@@ -211,11 +171,6 @@ export class ModeManager extends Manager {
 
         // Update VSCode context for keybindings
         this.context.workspaceState.update("kiMode", this.currentMode);
-
-        // Log the mode change
-        this.logger.log(
-            `Mode updated to ${this.currentMode} (${this.currentSelectionMode})`,
-        );
     }
 
     public getCurrentMode(): EditorMode {
@@ -255,9 +210,6 @@ export class ModeManager extends Manager {
                 cursorStyle,
             };
         }
-        this.logger.log(
-            `Cursor style updated to ${cursorStyle} for mode ${this.currentMode}`,
-        );
     }
 
     /**

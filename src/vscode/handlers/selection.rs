@@ -2,7 +2,7 @@
 
 use super::prelude::*;
 use crate::{components::component::Component, vscode::VSCodeApp};
-use ki_protocol_types::{OutputMessage, SelectionSet};
+use ki_protocol_types::SelectionSet;
 
 impl VSCodeApp {
     // The check_for_selection_changes method has been removed as it's no longer used.
@@ -10,11 +10,7 @@ impl VSCodeApp {
 
     /// Handle selection.set notification from VSCode
     /// Note: This handler does NOT call check_for_changes() afterwards to prevent feedback loops
-    pub fn handle_selection_set_notification(
-        &mut self,
-        params: SelectionSet,
-        id: Option<u64>,
-    ) -> Result<()> {
+    pub fn handle_selection_set_notification(&mut self, params: SelectionSet) -> Result<()> {
         let path = uri_to_path(&params.buffer_id)?;
         let Some(editor) = self.app.lock().unwrap().get_editor_by_file_path(&path) else {
             return Err(anyhow::anyhow!(
@@ -75,17 +71,13 @@ impl VSCodeApp {
 
         editor.set_selection_set(selection_set, &Context::default());
 
-        if let Some(response_id) = id {
-            self.send_response(response_id, OutputMessage::Success(true))?;
-        };
-
         Ok(())
     }
 
     /// Handle selection.set request
-    pub fn handle_selection_set_request(&mut self, id: u64, params: SelectionSet) -> Result<()> {
+    pub fn handle_selection_set_request(&mut self, params: SelectionSet) -> Result<()> {
         // Pass the ID to the notification handler so it knows to send a response
-        self.handle_selection_set_notification(params, Some(id))
+        self.handle_selection_set_notification(params)
     }
 }
 

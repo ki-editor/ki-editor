@@ -1,14 +1,13 @@
 //! Keyboard-related handlers for VSCode IPC messages
 
 use super::prelude::*;
-use crate::app::AppMessage;
+use crate::app::{AppMessage, Dispatch};
 use crate::vscode::app::VSCodeApp;
 use crossterm::event::{KeyCode, KeyModifiers as CrosstermKeyModifiers};
 use event::event::Event;
-use ki_protocol_types::OutputMessage;
 
 impl VSCodeApp {
-    fn handle_keyboard_input(
+    fn parse_keyboard_input(
         keyboard_input: ki_protocol_types::KeyboardParams,
     ) -> event::event::KeyEvent {
         // Map string keys to crossterm::event::KeyCode
@@ -66,8 +65,9 @@ impl VSCodeApp {
         params: ki_protocol_types::KeyboardParams,
         trace_id: &str,
     ) -> Result<()> {
-        let event = Event::Key(Self::handle_keyboard_input(params));
-        let app_message = AppMessage::Event(event);
+        let path = uri_to_path(&params.uri).ok();
+        let event = Event::Key(Self::parse_keyboard_input(params));
+        let app_message = AppMessage::ExternalDispatch(Dispatch::TargetedEvent { event, path });
 
         // Send the parameters directly to the App thread via the new AppMessage variant
         if let Err(e) = self.app_sender.send(app_message) {
@@ -78,11 +78,6 @@ impl VSCodeApp {
             self.send_error_response(id, "Failed to process keyboard input")?;
             return Ok(());
         }
-        // Acknowledge receipt immediately
-        self.send_response(
-            id,
-            OutputMessage::Success(true), // Indicate the input was received
-        )?;
         Ok(())
     }
 }

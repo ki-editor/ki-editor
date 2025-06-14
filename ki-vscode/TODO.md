@@ -1,4 +1,5 @@
 - [x] Extended selection not working
+
 - [x] Git hunk not working
 - [x] Auto-complete in VS Code can cause buffer to out-of-sync with Ki sometimes
 - [x] Git hunk not working
@@ -18,3 +19,4 @@
 - [] Update docs regarding developing the VS Code extension
 - [] VS Code buffer and Ki buffer desync sometimes (need to reopen unfocus and refocus the file in VS Code)
 - [] Extend selection backward not working
+- [] Should we let VS Code handle Undo/Redo for max safety?

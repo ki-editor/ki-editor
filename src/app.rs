@@ -498,49 +498,11 @@ impl<T: Frontend> App<T> {
             } => self.open_search_prompt(scope, if_current_not_found)?,
             Dispatch::OpenPipeToShellPrompt => self.open_pipe_to_shell_prompt()?,
             Dispatch::OpenFile { path, owner, focus } => {
-                let component = self.open_file(&path, owner, true, focus)?;
-
-                // Emit an integration event for buffer opened
-                let component_ref = component.borrow();
-                let component_id =
-                    crate::integration_event::component_id_to_usize(&component_ref.id());
-                let language_id = component_ref
-                    .editor()
-                    .buffer()
-                    .language()
-                    .and_then(|lang| lang.id())
-                    .map(|id| id.to_string());
-
-                self.integration_event_sender.emit_event(
-                    crate::integration_event::IntegrationEvent::BufferOpened {
-                        component_id,
-                        path: path.clone(),
-                        language_id,
-                    },
-                );
+                self.open_file(&path, owner, true, focus)?;
             }
             Dispatch::OpenFileFromPathBuf { path, owner, focus } => {
                 let canonicalized_path = path.try_into()?;
-                let component = self.open_file(&canonicalized_path, owner, true, focus)?;
-
-                // Emit an integration event for buffer opened
-                let component_ref = component.borrow();
-                let component_id =
-                    crate::integration_event::component_id_to_usize(&component_ref.id());
-                let language_id = component_ref
-                    .editor()
-                    .buffer()
-                    .language()
-                    .and_then(|lang| lang.id())
-                    .map(|id| id.to_string());
-
-                self.integration_event_sender.emit_event(
-                    crate::integration_event::IntegrationEvent::BufferOpened {
-                        component_id,
-                        path: canonicalized_path.clone(),
-                        language_id,
-                    },
-                );
+                self.open_file(&canonicalized_path, owner, true, focus)?;
             }
             Dispatch::OpenFilePicker(kind) => {
                 self.open_file_picker(kind)?;
@@ -935,6 +897,7 @@ impl<T: Frontend> App<T> {
             } => self.jumps_changed(component_id, jumps),
             Dispatch::PromptEntered(entry) => self.prompt_entered(entry)?,
             Dispatch::MarksChanged(component_id, marks) => self.marks_updated(component_id, marks),
+            Dispatch::TargetedEvent { event, path } => self.handle_targeted_event(event, path)?,
         }
         Ok(())
     }
@@ -1237,17 +1200,6 @@ impl<T: Frontend> App<T> {
         if focus {
             self.layout
                 .replace_and_focus_current_suggestive_editor(component.clone());
-
-            // Emit an integration event for buffer activation
-            let component_ref = component.borrow();
-            let component_id = crate::integration_event::component_id_to_usize(&component_ref.id());
-
-            self.integration_event_sender.emit_event(
-                crate::integration_event::IntegrationEvent::BufferActivated {
-                    component_id,
-                    path: path.clone(),
-                },
-            );
         }
         if let Some(language) = language {
             self.request_syntax_highlight(component_id, batch_id, language, content)?;
@@ -2707,6 +2659,30 @@ impl<T: Frontend> App<T> {
     fn is_running_as_embedded(&self) -> bool {
         self.context.is_running_as_embedded()
     }
+
+    fn handle_targeted_event(
+        &mut self,
+        event: Event,
+        path: Option<CanonicalizedPath>,
+    ) -> anyhow::Result<()> {
+        // If the current component kind is a not a SuggestiveEditor, we handle the event directly
+        if self.layout.get_current_component_kind() != Some(ComponentKind::SuggestiveEditor) {
+            self.handle_event(event)?;
+            Ok(())
+        } else {
+            if let Some(path) = path {
+                let component = self.open_file(&path, BufferOwner::User, false, false)?;
+                let dispatches = component
+                    .borrow_mut()
+                    .handle_event(&self.context, event.clone())?;
+                self.handle_dispatches(dispatches)
+            } else {
+                // If no path is provided, handle the event for the current component
+                self.handle_event(event)?;
+                Ok(())
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2968,6 +2944,10 @@ pub(crate) enum Dispatch {
     SelectionModeChanged(SelectionMode),
     PromptEntered(String),
     MarksChanged(ComponentId, Vec<crate::char_index_range::CharIndexRange>),
+    TargetedEvent {
+        event: Event,
+        path: Option<CanonicalizedPath>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

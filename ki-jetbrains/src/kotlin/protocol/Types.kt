@@ -58,6 +58,22 @@ data class BufferDiffParams (
 )
 
 @Serializable
+data class Selection (
+	val anchor: Position,
+	val active: Position,
+	val is_extended: Boolean? = null
+)
+
+@Serializable
+data class BufferOpenParams (
+	val uri: String,
+	val selections: List<Selection>,
+	val content: String? = null,
+	val language_id: String? = null,
+	val version: Int? = null
+)
+
+@Serializable
 data class BufferParams (
 	val uri: String,
 	val content: String? = null,
@@ -118,7 +134,7 @@ sealed class InputMessage {
 	data class Ping(val params: String?): InputMessage()
 	@Serializable
 	@SerialName("buffer.open")
-	data class BufferOpen(val params: BufferParams): InputMessage()
+	data class BufferOpen(val params: BufferOpenParams): InputMessage()
 	@Serializable
 	@SerialName("buffer.close")
 	data class BufferClose(val params: BufferParams): InputMessage()
@@ -223,9 +239,6 @@ sealed class OutputMessage {
 	@SerialName("error")
 	data class Error(val params: String): OutputMessage()
 	@Serializable
-	@SerialName("success")
-	data class Success(val params: Boolean): OutputMessage()
-	@Serializable
 	@SerialName("buffer.open")
 	data class BufferOpen(val params: BufferParams): OutputMessage()
 	@Serializable
@@ -237,9 +250,6 @@ sealed class OutputMessage {
 	@Serializable
 	@SerialName("buffer.diff")
 	data class BufferDiff(val params: BufferDiffParams): OutputMessage()
-	@Serializable
-	@SerialName("buffer.activated")
-	data class BufferActivated(val params: BufferParams): OutputMessage()
 	@Serializable
 	@SerialName("selection.update")
 	data class SelectionUpdate(val params: SelectionSet): OutputMessage()
@@ -332,13 +342,6 @@ data class SearchParams (
 	val case_sensitive: Boolean? = null,
 	val whole_word: Boolean? = null,
 	val regex: Boolean? = null
-)
-
-@Serializable
-data class Selection (
-	val anchor: Position,
-	val active: Position,
-	val is_extended: Boolean? = null
 )
 
 /// Generated type representing the anonymous struct variant `Find` of the `SelectionMode` Rust enum

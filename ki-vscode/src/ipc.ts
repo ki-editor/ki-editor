@@ -2,12 +2,7 @@ import * as cp from "node:child_process";
 import { EventEmitter } from "node:events";
 import WebSocket from "ws"; // Import WebSocket library
 import type { Logger } from "./logger";
-import type {
-    InputMessage,
-    InputMessageWrapper,
-    OutputMessage,
-    OutputMessageWrapper,
-} from "./protocol/types";
+import type { InputMessage, InputMessageWrapper, OutputMessage, OutputMessageWrapper } from "./protocol/types";
 
 // Helper type to map InputMessage tags to their parameter types
 type InputMessageParamsMap = {
@@ -17,40 +12,6 @@ type InputMessageParamsMap = {
         ? P
         : undefined;
 };
-
-// Define the set of message tags that are expected as unsolicited notifications
-// These are message types that the backend might send without a prior request from the frontend.
-const KNOWN_NOTIFICATION_TAGS: ReadonlySet<OutputMessage["tag"]> = new Set([
-    "buffer.diff", // Added buffer.diff to handle buffer synchronization from Ki
-    "selection.update", // Now includes cursor information
-    "mode.change", // Example: backend informs frontend of mode change
-    "selection_mode.change", // Example: backend informs frontend of selection mode change
-    "search.results", // Added search.results for completeness
-    "editor.action", // Added editor.action for undo/redo operations
-    "buffer.activated",
-    "buffer.open",
-    "buffer.close",
-    "buffer.save",
-    "error",
-    "ping",
-    "ki.log",
-    "success",
-    "external_buffer.created",
-    "external_buffer.updated",
-    "command.executed",
-    "viewport.change",
-    "editor.jump",
-    "editor.mark",
-    "prompt.opened",
-    "lsp.definition",
-    "lsp.hover",
-    "lsp.references",
-    "lsp.declaration",
-    "lsp.typeDefinition",
-    "lsp.implementation",
-    "editor.keyboardLayout",
-    // Add any other tags that are definitely notifications
-]);
 
 /**
  * Unified IPC module for communication with Ki editor using WebSockets
@@ -78,9 +39,7 @@ export class IPC extends EventEmitter {
      * Start the Ki process, find its WebSocket port, and establish communication
      */
     public start(command: string, args: string[]): void {
-        this.logger.log(
-            `Starting Ki process for WebSocket: ${command} ${args.join(" ")}`,
-        );
+        this.logger.log(`Starting Ki process for WebSocket: ${command} ${args.join(" ")}`);
 
         // Reset connection state
         this.port = null;
@@ -108,9 +67,7 @@ export class IPC extends EventEmitter {
             });
 
             if (!this.process || !this.process.pid) {
-                throw new Error(
-                    "Failed to start Ki process: spawn returned invalid process",
-                );
+                throw new Error("Failed to start Ki process: spawn returned invalid process");
             }
 
             this.logger.log(`Ki process started with PID: ${this.process.pid}`);
@@ -122,15 +79,11 @@ export class IPC extends EventEmitter {
                     if (this.port) return; // Already found port
 
                     stdoutBuffer += data.toString();
-                    this.logger.log(
-                        `Ki stdout chunk: ${data.toString().trim()}`,
-                    ); // Log chunk
+                    this.logger.log(`Ki stdout chunk: ${data.toString().trim()}`); // Log chunk
                     const match = stdoutBuffer.match(/KI_LISTENING_ON=(\d+)/);
                     if (match?.[1]) {
                         this.port = Number.parseInt(match[1], 10);
-                        this.logger.log(
-                            `Found Ki WebSocket port: ${this.port}`,
-                        );
+                        this.logger.log(`Found Ki WebSocket port: ${this.port}`);
                         // Stop listening to stdout once port is found
                         this.process?.stdout?.removeAllListeners("data");
                         this.connectWebSocket(); // Attempt connection
@@ -142,12 +95,8 @@ export class IPC extends EventEmitter {
                 });
                 this.process.stdout.on("close", () => {
                     if (!this.port) {
-                        this.logger.error(
-                            "Ki process stdout closed before port was reported.",
-                        );
-                        this.rejectConnectionPromise?.(
-                            new Error("stdout closed before port reported"),
-                        );
+                        this.logger.error("Ki process stdout closed before port was reported.");
+                        this.rejectConnectionPromise?.(new Error("stdout closed before port reported"));
                     }
                 });
             } else {
@@ -182,15 +131,8 @@ export class IPC extends EventEmitter {
                     this.logger.log(exitMsg);
                     // Resolve if exit was clean and we didn't connect?
                     // Or maybe reject? Let's reject if not connected.
-                    if (
-                        !this.webSocket?.readyState ||
-                        this.webSocket.readyState !== WebSocket.OPEN
-                    ) {
-                        this.rejectConnectionPromise?.(
-                            new Error(
-                                "Process exited before WebSocket connection",
-                            ),
-                        );
+                    if (!this.webSocket?.readyState || this.webSocket.readyState !== WebSocket.OPEN) {
+                        this.rejectConnectionPromise?.(new Error("Process exited before WebSocket connection"));
                     }
                 }
                 this.emit("exit", code);
@@ -240,14 +182,10 @@ export class IPC extends EventEmitter {
             });
 
             this.webSocket.on("close", (code: number, reason: Buffer) => {
-                this.logger.log(
-                    `WebSocket connection closed: code=${code}, reason=${reason.toString()}`,
-                );
+                this.logger.log(`WebSocket connection closed: code=${code}, reason=${reason.toString()}`);
                 this.emit("close");
                 // If connection promise was still pending, reject it
-                this.rejectConnectionPromise?.(
-                    new Error(`WebSocket closed: ${code}`),
-                );
+                this.rejectConnectionPromise?.(new Error(`WebSocket closed: ${code}`));
                 this.cleanupWebSocket();
             });
         } catch (err) {
@@ -289,9 +227,7 @@ export class IPC extends EventEmitter {
             // Should not happen with standard ws library, but handle just in case
             messageStr = Buffer.concat(data).toString("utf8");
         } else {
-            this.logger.error(
-                `Received unexpected WebSocket data type: ${typeof data}`,
-            );
+            this.logger.error(`Received unexpected WebSocket data type: ${typeof data}`);
             return;
         }
 
@@ -317,30 +253,20 @@ export class IPC extends EventEmitter {
         const { id, message: outputMsg, error } = message;
         const tag = outputMsg?.tag;
 
-        this.logger.log(
-            `processMessage: Received ID=${id}, Tag=${tag ?? "N/A"}, Error=${!!error}`,
-        );
-
         // 1. Check if it's a response to a pending request (non-zero ID and matches)
         if (id > 0 && this.pendingRequests.has(id)) {
             const pendingRequest = this.pendingRequests.get(id);
             if (!pendingRequest) {
-                this.logger.error(
-                    `processMessage: No pending request found for ID ${id}`,
-                );
+                this.logger.error(`processMessage: No pending request found for ID ${id}`);
                 return; // Should not happen, but defensive check
             }
             this.pendingRequests.delete(id);
 
             if (error) {
-                this.logger.error(
-                    `processMessage: Rejecting pending request ID ${id} due to error: ${error.message}`,
-                );
+                this.logger.error(`processMessage: Rejecting pending request ID ${id} due to error: ${error.message}`);
                 pendingRequest.reject(error);
             } else {
-                this.logger.log(
-                    `processMessage: Resolving pending request ID ${id} with message tag: ${tag}`,
-                );
+                this.logger.log(`processMessage: Resolving pending request ID ${id} with message tag: ${tag}`);
                 pendingRequest.resolve(outputMsg); // Resolve with the message part
             }
             return; // Handled as a response
@@ -355,20 +281,7 @@ export class IPC extends EventEmitter {
                 );
             }
 
-            if (outputMsg && KNOWN_NOTIFICATION_TAGS.has(outputMsg.tag)) {
-                // It's a known notification type
-                this.logger.log(
-                    `processMessage: Treating message ID ${id} (Tag=${outputMsg.tag}) as notification. Emitting 'notification' event.`,
-                );
-                this.emit("notification", outputMsg); // Emit the message part
-            } else {
-                // Unknown tag for a notification OR an error/success message sent incorrectly
-                this.logger.warn(
-                    `processMessage: Discarding message with ID ${id} and Tag=${
-                        tag ?? "N/A"
-                    }. Not a pending response and not a known notification type.`,
-                );
-            }
+            this.emit("notification", outputMsg); // Emit the message part
             return; // Handled (or discarded) as potential notification
         }
 
@@ -404,43 +317,23 @@ export class IPC extends EventEmitter {
     ): Promise<unknown> {
         return new Promise((resolve, reject) => {
             const id = this.nextMessageId++;
-            if (
-                !this.webSocket ||
-                this.webSocket.readyState !== WebSocket.OPEN
-            ) {
-                this.logger.log(
-                    `sendRequest ID=${id}: WebSocket not ready. Waiting for connection...`,
-                ); // Use log instead of info
+            if (!this.webSocket || this.webSocket.readyState !== WebSocket.OPEN) {
+                this.logger.log(`sendRequest ID=${id}: WebSocket not ready. Waiting for connection...`); // Use log instead of info
                 // Queue the request to be sent once connected - Reinstated logic
                 if (this.connectionPromise) {
                     this.connectionPromise
                         .then(() => {
-                            this.logger.log(
-                                `sendRequest: Queueing request ID=${id}, Tag=${tag}`,
-                            ); // Use log instead of info
-                            this._sendRequestInternal(
-                                tag,
-                                params,
-                                id,
-                                resolve,
-                                reject,
-                            );
+                            this._sendRequestInternal(tag, params, id, resolve, reject);
                         })
                         .catch((err: unknown) => {
                             // Add type unknown
-                            this.logger.error(
-                                `Connection failed before request ID=${id} could be sent: ${err}`,
-                            );
+                            this.logger.error(`Connection failed before request ID=${id} could be sent: ${err}`);
                             reject(new Error(`Connection failed: ${err}`));
                         });
                 } else {
                     // Should not happen if connect() was called, but handle defensively
-                    this.logger.error(
-                        `Cannot send request ID=${id}: Connection promise is null.`,
-                    );
-                    reject(
-                        new Error("IPC not initialized or connection failed."),
-                    );
+                    this.logger.error(`Cannot send request ID=${id}: Connection promise is null.`);
+                    reject(new Error("IPC not initialized or connection failed."));
                 }
             } else {
                 // Send immediately if already connected
@@ -471,10 +364,7 @@ export class IPC extends EventEmitter {
     /**
      * Send a message to the Ki process via WebSocket
      */
-    private sendMessageToProcess(
-        message: InputMessage,
-        requestId: number | null,
-    ): boolean {
+    private sendMessageToProcess(message: InputMessage, requestId: number | null): boolean {
         if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
             // Determine the ID for the wrapper. Use requestId if provided (for requests), otherwise use 0 (for notifications).
             const wrapperId = requestId ?? 0;
@@ -486,10 +376,7 @@ export class IPC extends EventEmitter {
             }; // Now strongly typed and includes the wrapper ID
             const messageString = JSON.stringify(wrappedMessage);
             this.logger.log(
-                `WebSocket sending (WrapperID=${wrapperId}, len=${messageString.length}): ${messageString.substring(
-                    0,
-                    200,
-                )}${messageString.length > 200 ? "..." : ""}`,
+                `Sending to from VS Code to Ki: ${messageString.substring(0, 200)}${messageString.length > 200 ? "..." : ""}`,
             );
             this.webSocket.send(messageString);
             return true;
@@ -523,9 +410,6 @@ export class IPC extends EventEmitter {
      * Check if the IPC connection is active (WebSocket is open)
      */
     public isRunning(): boolean {
-        return (
-            this.webSocket !== null &&
-            this.webSocket.readyState === WebSocket.OPEN
-        );
+        return this.webSocket !== null && this.webSocket.readyState === WebSocket.OPEN;
     }
 }
