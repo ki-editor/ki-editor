@@ -1,7 +1,5 @@
 use std::path::PathBuf;
 
-use isahc::prelude::*;
-
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct GetHighlightQueryResult {
     pub(crate) query: String,
@@ -35,7 +33,7 @@ pub(crate) fn get_highlight_query(language_id: &str) -> anyhow::Result<GetHighli
 
     let nvim_tree_sitter_highlight_query_url = format!("https://raw.githubusercontent.com/nvim-treesitter/nvim-treesitter/master/queries/{}/highlights.scm", language_id);
 
-    let current = isahc::get(nvim_tree_sitter_highlight_query_url)?.text()?;
+    let current = reqwest::blocking::get(nvim_tree_sitter_highlight_query_url)?.text()?;
     let parent = get_highlight_query_parents(&current)
         .into_iter()
         .map(|parent| -> anyhow::Result<_> { Ok(get_highlight_query(&parent)?.query) })

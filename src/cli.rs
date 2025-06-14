@@ -1,4 +1,5 @@
 use crate::components::editor_keymap_printer;
+use crate::vscode;
 use crate::RunConfig;
 use chrono::Local;
 use clap::{Args, Parser, Subcommand};
@@ -21,6 +22,12 @@ struct Cli {
 
     #[command(flatten)]
     edit: EditArgs,
+}
+
+#[derive(Args, Default, Clone)]
+struct VsCodeArgs {
+    /// This is crucial for Git-related features such as Git Hunks to work properly.
+    working_directory: String,
 }
 
 #[derive(Subcommand)]
@@ -58,6 +65,9 @@ enum Commands {
     },
     /// Run Ki in the given path, treating the path as the working directory
     In(InArgs),
+
+    /// Run in VS Code extension mode
+    VsCode(VsCodeArgs),
 }
 
 #[derive(Args, Default, Clone)]
@@ -160,6 +170,7 @@ pub(crate) fn cli() -> anyhow::Result<()> {
     match cli.command {
         Some(CommandPlaceholder::Edit(args)) => run_edit_command(args),
         Some(CommandPlaceholder::At { command }) => match command {
+            Commands::VsCode(args) => vscode::run_vscode(args.working_directory.try_into()?),
             Commands::Grammar { command } => {
                 match command {
                     Grammar::Build => shared::grammar::build_grammars(),

@@ -1,0 +1,6 @@
+[kotlin]
+module_name = "KiProtocol"
+package = "com.kieditor.protocol"
+
+[typescript]
+# No specific configuration needed for TypeScript

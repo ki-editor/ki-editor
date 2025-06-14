@@ -3,6 +3,7 @@ use nonempty::NonEmpty;
 use ropey::Rope;
 
 use crate::{
+    buffer::Buffer,
     char_index_range::CharIndexRange,
     selection::{CharIndex, Selection},
 };
@@ -43,6 +44,28 @@ impl Edit {
 
     fn intersects_with(&self, other: &Edit) -> bool {
         self.range().intersects_with(&other.range())
+    }
+
+    pub(crate) fn to_vscode_diff_edit(
+        &self,
+        buffer: &Buffer,
+    ) -> anyhow::Result<ki_protocol_types::DiffEdit> {
+        let start = buffer.char_to_vscode_position(self.range.start)?;
+        let end = buffer.char_to_vscode_position(self.range.end)?;
+        let edit = ki_protocol_types::DiffEdit {
+            range: ki_protocol_types::Range { start, end },
+            new_text: self.new.to_string(),
+        };
+        Ok(edit)
+    }
+
+    fn inverse(&self) -> Self {
+        let range = (self.range.start..self.range.start + self.new.len_chars()).into();
+        Edit {
+            range,
+            new: self.old.clone(),
+            old: self.new.clone(),
+        }
     }
 }
 
@@ -99,10 +122,13 @@ impl Action {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct EditTransaction {
     /// This `action_group` should be always normalized.
     action_group: ActionGroup,
+
+    /// This is required by VS Code because VS Code will offset the edits on their end.
+    unnormalized_edits: Vec<Edit>,
 }
 
 impl EditTransaction {
@@ -135,7 +161,21 @@ impl EditTransaction {
     }
 
     pub(crate) fn from_action_groups(action_groups: Vec<ActionGroup>) -> Self {
+        let unnormalized_edits = action_groups
+            .iter()
+            .flat_map(|action_group| {
+                action_group
+                    .actions
+                    .iter()
+                    .filter_map(|action| match action {
+                        Action::Select(_) => None,
+                        Action::Edit(edit) => Some(edit.clone()),
+                    })
+                    .collect_vec()
+            })
+            .collect_vec();
         Self {
+            unnormalized_edits,
             action_group: Self::normalize_action_groups(action_groups),
         }
     }
@@ -144,6 +184,7 @@ impl EditTransaction {
     pub(crate) fn from_tuples(action_groups: Vec<ActionGroup>) -> Self {
         Self {
             action_group: Self::normalize_action_groups(action_groups),
+            unnormalized_edits: Default::default(),
         }
     }
 
@@ -189,12 +230,20 @@ impl EditTransaction {
     }
 
     pub(crate) fn merge(edit_transactions: Vec<EditTransaction>) -> EditTransaction {
-        EditTransaction::from_action_groups(
-            edit_transactions
-                .into_iter()
-                .map(|transaction| transaction.action_group)
-                .collect(),
-        )
+        let unnormalized_edits = edit_transactions
+            .iter()
+            .flat_map(|edit_transaction| edit_transaction.unnormalized_edits.clone())
+            .collect_vec();
+
+        Self {
+            unnormalized_edits,
+            action_group: Self::normalize_action_groups(
+                edit_transactions
+                    .into_iter()
+                    .map(|edit_transaction| edit_transaction.action_group)
+                    .collect_vec(),
+            ),
+        }
     }
 
     pub(crate) fn selections(&self) -> Vec<&Selection> {
@@ -224,27 +273,36 @@ impl EditTransaction {
     }
 
     pub(crate) fn inverse(&self) -> EditTransaction {
+        let action_group = ActionGroup::new(
+            self.action_group
+                .actions
+                .iter()
+                .rev()
+                .map(|action| match action {
+                    Action::Select(selection) => Action::Select(selection.clone()),
+                    Action::Edit(edit) => Action::Edit(edit.inverse()),
+                })
+                .collect(),
+        );
         EditTransaction {
-            action_group: ActionGroup::new(
-                self.action_group
-                    .actions
-                    .iter()
-                    .rev()
-                    .map(|action| match action {
-                        Action::Select(selection) => Action::Select(selection.clone()),
-                        Action::Edit(edit) => {
-                            let range =
-                                (edit.range.start..edit.range.start + edit.new.len_chars()).into();
-                            Action::Edit(Edit {
-                                range,
-                                new: edit.old.clone(),
-                                old: edit.new.clone(),
-                            })
-                        }
-                    })
-                    .collect(),
-            ),
+            // NOTE: for reasons that I still don't understand,
+            //       it seems like we don't need to unnormalize
+            //       the inverted normalized edits, but it will
+            //       allow undo/redo to be mapped to VS Code correctly.
+            unnormalized_edits: action_group
+                .actions
+                .iter()
+                .filter_map(|action| match action {
+                    Action::Select(_) => None,
+                    Action::Edit(edit) => Some(edit.clone()),
+                })
+                .collect(),
+            action_group,
         }
+    }
+
+    pub(crate) fn unnormalized_edits(&self) -> Vec<Edit> {
+        self.unnormalized_edits.clone()
     }
 }
 
