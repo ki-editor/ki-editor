@@ -66,7 +66,9 @@ async function bundle() {
                     if (!file.endsWith(".exe")) {
                         // Skip .exe files as they don't need +x on Windows
                         const filePath = join(binDir, file);
-                        console.log(`Setting executable permissions for ${filePath}`);
+                        console.log(
+                            `Setting executable permissions for ${filePath}`,
+                        );
 
                         // Set executable permissions (chmod +x)
                         await chmod(filePath, 0o755);
@@ -75,7 +77,9 @@ async function bundle() {
 
                 console.log("All binaries now have executable permissions.");
             } else {
-                console.log("Running on Windows, no need to set executable permissions.");
+                console.log(
+                    "Running on Windows, no need to set executable permissions.",
+                );
             }
         } else {
             console.log(`Binary directory not found: ${binDir}`);

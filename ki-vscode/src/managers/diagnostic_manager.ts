@@ -14,7 +14,9 @@ export class DiagnosticManager extends Manager {
         );
     }
 
-    private handleDiagnosticChange(params: { uri: vscode.Uri; diagnostics: vscode.Diagnostic[] }[]) {
+    private handleDiagnosticChange(
+        params: { uri: vscode.Uri; diagnostics: vscode.Diagnostic[] }[],
+    ) {
         this.dispatcher.sendRequest(
             "diagnostics.change",
             params.map(({ uri, diagnostics }) => ({

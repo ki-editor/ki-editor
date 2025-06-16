@@ -17,7 +17,7 @@ fmt-check:
     
 fmt:
 	cargo fmt --all
-	prettier -w ki-vscode
+	cd ki-vscode && npm run format
 
 build:
     @echo "Running cargo build..."

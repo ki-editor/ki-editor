@@ -4,271 +4,269 @@
 
 /** VS Code Position */
 export interface Position {
-    line: number;
-    character: number;
+	line: number;
+	character: number;
 }
 
 export interface Range {
-    start: Position;
-    end: Position;
+	start: Position;
+	end: Position;
 }
 
 export enum DiagnosticSeverity {
-    Warning = "Warning",
-    Hint = "Hint",
-    Information = "Information",
-    Error = "Error",
+	Warning = "Warning",
+	Hint = "Hint",
+	Information = "Information",
+	Error = "Error",
 }
 
 export interface Diagnostic {
-    range: Range;
-    message: string;
-    severity?: DiagnosticSeverity;
+	range: Range;
+	message: string;
+	severity?: DiagnosticSeverity;
 }
 
 export interface BufferDiagnostics {
-    path: string;
-    diagnostics: Diagnostic[];
+	path: string;
+	diagnostics: Diagnostic[];
 }
 
 export interface DiffEdit {
-    range: Range;
-    new_text: string;
+	range: Range;
+	new_text: string;
 }
 
 export interface BufferDiffParams {
-    buffer_id: string;
-    edits: DiffEdit[];
+	buffer_id: string;
+	edits: DiffEdit[];
 }
 
 export interface Selection {
-    anchor: Position;
-    active: Position;
-    is_extended?: boolean;
+	anchor: Position;
+	active: Position;
+	is_extended?: boolean;
 }
 
 export interface BufferOpenParams {
-    uri: string;
-    selections: Selection[];
-    content?: string;
-    language_id?: string;
-    version?: number;
+	uri: string;
+	selections: Selection[];
+	content?: string;
+	language_id?: string;
+	version?: number;
 }
 
 export interface BufferParams {
-    uri: string;
-    content?: string;
-    language_id?: string;
-    version?: number;
+	uri: string;
+	content?: string;
+	language_id?: string;
+	version?: number;
 }
 
 export interface CommandParams {
-    name: string;
-    args: string[];
-    success?: boolean;
+	name: string;
+	args: string[];
+	success?: boolean;
 }
 
 export interface CursorParams {
-    buffer_id: string;
-    anchors: Position[];
-    actives: Position[];
+	buffer_id: string;
+	anchors: Position[];
+	actives: Position[];
 }
 
 export enum EditorAction {
-    Undo = "undo",
-    Redo = "redo",
-    Save = "save",
-    ForceSave = "forceSave",
-    Copy = "copy",
-    Cut = "cut",
-    Paste = "paste",
-    SelectAll = "selectAll",
+	Undo = "undo",
+	Redo = "redo",
+	Save = "save",
+	ForceSave = "forceSave",
+	Copy = "copy",
+	Cut = "cut",
+	Paste = "paste",
+	SelectAll = "selectAll",
 }
 
 export interface EditorActionParams {
-    action: EditorAction;
-    buffer_id?: string;
+	action: EditorAction;
+	buffer_id?: string;
 }
 
 export interface ExternalBufferParams {
-    buffer_id: string;
-    content: string;
+	buffer_id: string;
+	content: string;
 }
 
-export type InputMessage =
-    | { tag: "ping"; params?: string }
-    | { tag: "buffer.open"; params: BufferOpenParams }
-    | { tag: "buffer.close"; params: BufferParams }
-    | { tag: "buffer.save"; params: BufferParams }
-    | { tag: "buffer.change"; params: BufferDiffParams }
-    | { tag: "buffer.active"; params: BufferParams }
-    | { tag: "selection.set"; params: SelectionSet }
-    | { tag: "mode.set"; params: TypedModeParams }
-    | { tag: "selection_mode.set"; params: SelectionModeParams }
-    | { tag: "keyboard.input"; params: KeyboardParams }
-    | { tag: "editor.action"; params: EditorActionParams }
-    | { tag: "search.find"; params: SearchParams }
-    | { tag: "viewport.change"; params: ViewportParams }
-    | { tag: "diagnostics.change"; params: BufferDiagnostics[] }
-    | { tag: "prompt.enter"; params: string };
+export type InputMessage = 
+	| { tag: "ping", params?: string }
+	| { tag: "buffer.open", params: BufferOpenParams }
+	| { tag: "buffer.close", params: BufferParams }
+	| { tag: "buffer.save", params: BufferParams }
+	| { tag: "buffer.change", params: BufferDiffParams }
+	| { tag: "buffer.active", params: BufferParams }
+	| { tag: "selection.set", params: SelectionSet }
+	| { tag: "mode.set", params: TypedModeParams }
+	| { tag: "selection_mode.set", params: SelectionModeParams }
+	| { tag: "keyboard.input", params: KeyboardParams }
+	| { tag: "editor.action", params: EditorActionParams }
+	| { tag: "search.find", params: SearchParams }
+	| { tag: "viewport.change", params: ViewportParams }
+	| { tag: "diagnostics.change", params: BufferDiagnostics[] }
+	| { tag: "prompt.enter", params: string };
 
 export interface InputMessageWrapper {
-    message: InputMessage;
-    id: number;
+	message: InputMessage;
+	id: number;
 }
 
 export interface JumpTarget {
-    key: string;
-    position: Position;
+	key: string;
+	position: Position;
 }
 
 export interface JumpsParams {
-    uri: string;
-    targets: JumpTarget[];
+	uri: string;
+	targets: JumpTarget[];
 }
 
 export interface KeyboardParams {
-    key: string;
-    timestamp: number;
-    mode?: string;
-    is_composed: boolean;
-    uri: string;
+	key: string;
+	timestamp: number;
+	mode?: string;
+	is_composed: boolean;
+	uri: string;
 }
 
 export interface LineRange {
-    start: number;
-    end: number;
+	start: number;
+	end: number;
 }
 
 export interface LogParams {
-    level: string;
-    message: string;
+	level: string;
+	message: string;
 }
 
 export interface MarksParams {
-    uri: string;
-    marks: Range[];
+	uri: string;
+	marks: Range[];
 }
 
 export interface ModeParams {
-    mode: string;
-    buffer_id?: string;
+	mode: string;
+	buffer_id?: string;
 }
 
-export type OutputMessage =
-    | { tag: "ping"; params: string }
-    | { tag: "ki.log"; params: LogParams }
-    | { tag: "error"; params: string }
-    | { tag: "buffer.open"; params: BufferParams }
-    | { tag: "buffer.close"; params: BufferParams }
-    | { tag: "buffer.save"; params: BufferParams }
-    | { tag: "buffer.diff"; params: BufferDiffParams }
-    | { tag: "selection.update"; params: SelectionSet }
-    | { tag: "mode.change"; params: TypedModeParams }
-    | { tag: "selection_mode.change"; params: SelectionModeParams }
-    | { tag: "viewport.change"; params: ViewportParams }
-    | { tag: "external_buffer.created"; params: ExternalBufferParams }
-    | { tag: "external_buffer.updated"; params: ExternalBufferParams }
-    | { tag: "command.executed"; params: CommandParams }
-    | { tag: "prompt.opened"; params: PromptOpenedParams }
-    | { tag: "search.results"; params: string }
-    | { tag: "editor.action"; params: EditorActionParams }
-    | { tag: "editor.jump"; params: JumpsParams }
-    | { tag: "editor.mark"; params: MarksParams }
-    | { tag: "lsp.definition"; params?: undefined }
-    | { tag: "lsp.hover"; params?: undefined }
-    | { tag: "lsp.references"; params?: undefined }
-    | { tag: "lsp.declaration"; params?: undefined }
-    | { tag: "lsp.typeDefinition"; params?: undefined }
-    | { tag: "lsp.implementation"; params?: undefined }
-    | { tag: "editor.keyboardLayout"; params: string };
+export type OutputMessage = 
+	| { tag: "ping", params: string }
+	| { tag: "ki.log", params: LogParams }
+	| { tag: "error", params: string }
+	| { tag: "buffer.open", params: BufferParams }
+	| { tag: "buffer.close", params: BufferParams }
+	| { tag: "buffer.save", params: BufferParams }
+	| { tag: "buffer.diff", params: BufferDiffParams }
+	| { tag: "selection.update", params: SelectionSet }
+	| { tag: "mode.change", params: TypedModeParams }
+	| { tag: "selection_mode.change", params: SelectionModeParams }
+	| { tag: "viewport.change", params: ViewportParams }
+	| { tag: "external_buffer.created", params: ExternalBufferParams }
+	| { tag: "external_buffer.updated", params: ExternalBufferParams }
+	| { tag: "command.executed", params: CommandParams }
+	| { tag: "prompt.opened", params: PromptOpenedParams }
+	| { tag: "search.results", params: string }
+	| { tag: "editor.action", params: EditorActionParams }
+	| { tag: "editor.jump", params: JumpsParams }
+	| { tag: "editor.mark", params: MarksParams }
+	| { tag: "lsp.definition", params?: undefined }
+	| { tag: "lsp.hover", params?: undefined }
+	| { tag: "lsp.references", params?: undefined }
+	| { tag: "lsp.declaration", params?: undefined }
+	| { tag: "lsp.typeDefinition", params?: undefined }
+	| { tag: "lsp.implementation", params?: undefined }
+	| { tag: "editor.keyboardLayout", params: string };
 
 export interface ResponseError {
-    code: number;
-    message: string;
-    data?: any | undefined;
+	code: number;
+	message: string;
+	data?: any | undefined;
 }
 
 export interface OutputMessageWrapper {
-    message: OutputMessage;
-    id: number;
-    error?: ResponseError;
+	message: OutputMessage;
+	id: number;
+	error?: ResponseError;
 }
 
 export interface PromptItem {
-    label: string;
-    details?: string;
+	label: string;
+	details?: string;
 }
 
 export interface PromptOpenedParams {
-    title: string;
-    items: PromptItem[];
+	title: string;
+	items: PromptItem[];
 }
 
 export interface SearchParams {
-    buffer_id: string;
-    query: string;
-    case_sensitive?: boolean;
-    whole_word?: boolean;
-    regex?: boolean;
+	buffer_id: string;
+	query: string;
+	case_sensitive?: boolean;
+	whole_word?: boolean;
+	regex?: boolean;
 }
 
-export type SelectionMode =
-    | { type: "Character"; params?: undefined }
-    | { type: "Line"; params?: undefined }
-    | { type: "LineFull"; params?: undefined }
-    | { type: "Word"; params?: undefined }
-    | { type: "WordFine"; params?: undefined }
-    | { type: "Token"; params?: undefined }
-    | { type: "Custom"; params?: undefined }
-    | { type: "SyntaxNode"; params?: undefined }
-    | { type: "SyntaxNodeFine"; params?: undefined }
-    | { type: "Mark"; params?: undefined }
-    | {
-          type: "Find";
-          params: {
-              search: string;
-          };
-      }
-    | { type: "Diagnostic"; params: DiagnosticKind }
-    | { type: "GitHunk"; params?: undefined }
-    | { type: "LocalQuickfix"; params?: undefined };
+export type SelectionMode = 
+	| { type: "Character", params?: undefined }
+	| { type: "Line", params?: undefined }
+	| { type: "LineFull", params?: undefined }
+	| { type: "Word", params?: undefined }
+	| { type: "WordFine", params?: undefined }
+	| { type: "Token", params?: undefined }
+	| { type: "Custom", params?: undefined }
+	| { type: "SyntaxNode", params?: undefined }
+	| { type: "SyntaxNodeFine", params?: undefined }
+	| { type: "Mark", params?: undefined }
+	| { type: "Find", params: {
+	search: string;
+}}
+	| { type: "Diagnostic", params: DiagnosticKind }
+	| { type: "GitHunk", params?: undefined }
+	| { type: "LocalQuickfix", params?: undefined };
 
 export interface SelectionModeParams {
-    mode: SelectionMode;
-    buffer_id?: string;
+	mode: SelectionMode;
+	buffer_id?: string;
 }
 
 export interface SelectionSet {
-    buffer_id: string;
-    primary?: number;
-    selections: Selection[];
+	buffer_id: string;
+	primary?: number;
+	selections: Selection[];
 }
 
 export enum EditorMode {
-    Normal = "normal",
-    Insert = "insert",
-    MultiCursor = "multiCursor",
-    FindOneChar = "findOneChar",
-    Swap = "swap",
-    Replace = "replace",
-    Extend = "extend",
+	Normal = "normal",
+	Insert = "insert",
+	MultiCursor = "multiCursor",
+	FindOneChar = "findOneChar",
+	Swap = "swap",
+	Replace = "replace",
+	Extend = "extend",
 }
 
 export interface TypedModeParams {
-    mode: EditorMode;
-    buffer_id?: string;
+	mode: EditorMode;
+	buffer_id?: string;
 }
 
 export interface ViewportParams {
-    buffer_id: string;
-    visible_line_ranges: LineRange[];
+	buffer_id: string;
+	visible_line_ranges: LineRange[];
 }
 
 export enum DiagnosticKind {
-    Error = "Error",
-    Information = "Information",
-    Warning = "Warning",
-    All = "All",
-    Hint = "Hint",
+	Error = "Error",
+	Information = "Information",
+	Warning = "Warning",
+	All = "All",
+	Hint = "Hint",
 }
+

@@ -42,7 +42,8 @@ export class ConfigManager {
     private config: vscode.WorkspaceConfiguration;
 
     /** Map of configuration change listeners */
-    private changeListeners: Map<ConfigKey, ((value: unknown) => void)[]> = new Map();
+    private changeListeners: Map<ConfigKey, ((value: unknown) => void)[]> =
+        new Map();
 
     /** Disposables for event listeners */
     private disposables: vscode.Disposable[] = [];
@@ -57,7 +58,11 @@ export class ConfigManager {
         this.config = vscode.workspace.getConfiguration("ki");
 
         // Listen for configuration changes
-        this.disposables.push(vscode.workspace.onDidChangeConfiguration(this.handleConfigChange.bind(this)));
+        this.disposables.push(
+            vscode.workspace.onDidChangeConfiguration(
+                this.handleConfigChange.bind(this),
+            ),
+        );
     }
 
     /**
@@ -68,7 +73,10 @@ export class ConfigManager {
      * @returns Configuration value
      */
     public get<T>(key: ConfigKey, defaultValue?: T): T {
-        const value = this.config.get<T>(key.replace("ki.", ""), defaultValue as T);
+        const value = this.config.get<T>(
+            key.replace("ki.", ""),
+            defaultValue as T,
+        );
         return value as T;
     }
 
@@ -95,7 +103,10 @@ export class ConfigManager {
      * @param listener Listener function
      * @returns Disposable to unregister the listener
      */
-    public onDidChangeConfiguration(key: ConfigKey, listener: (value: unknown) => void): vscode.Disposable {
+    public onDidChangeConfiguration(
+        key: ConfigKey,
+        listener: (value: unknown) => void,
+    ): vscode.Disposable {
         let listeners = this.changeListeners.get(key);
         if (!listeners) {
             listeners = [];
@@ -138,7 +149,10 @@ export class ConfigManager {
                     try {
                         listener(value);
                     } catch (error) {
-                        this.logger.error(`Error in configuration change listener for ${key}:`, error);
+                        this.logger.error(
+                            `Error in configuration change listener for ${key}:`,
+                            error,
+                        );
                     }
                 }
             }

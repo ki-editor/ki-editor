@@ -28,7 +28,9 @@ let disposables: vscode.Disposable[] = [];
 /**
  * This method is called when the extension is activated
  */
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+export async function activate(
+    context: vscode.ExtensionContext,
+): Promise<void> {
     // Create logger with minimized verbosity to avoid feedback loops
     const logger = new Logger("Ki", true); // Enable full logging for debugging
     logger.log("Activating Ki extension");
@@ -59,7 +61,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // Log more info about the file
         try {
             const stats = fs.statSync(kiPath);
-            logger.log(`Ki executable stats: size=${stats.size}, permissions=${stats.mode.toString(8)}`);
+            logger.log(
+                `Ki executable stats: size=${stats.size}, permissions=${stats.mode.toString(8)}`,
+            );
         } catch (err) {
             errorHandler.handleError(
                 err,
@@ -72,17 +76,30 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             );
         }
 
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const workspaceFolder =
+            vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         const cwd = workspaceFolder || process.cwd();
 
         ipc.start(kiPath, ["@", "vs-code", cwd]);
 
         // Create managers
         const modeManager = new ModeManager(dispatcher, logger, context);
-        const bufferManager = new BufferManager(dispatcher, logger, modeManager);
+        const bufferManager = new BufferManager(
+            dispatcher,
+            logger,
+            modeManager,
+        );
         const decorationManager = new DecorationManager(dispatcher, logger);
-        const keyboardManager = new KeyboardManager(dispatcher, logger, modeManager);
-        const selectionManager = new SelectionManager(dispatcher, logger, modeManager);
+        const keyboardManager = new KeyboardManager(
+            dispatcher,
+            logger,
+            modeManager,
+        );
+        const selectionManager = new SelectionManager(
+            dispatcher,
+            logger,
+            modeManager,
+        );
         const commandManager = new CommandManager(dispatcher, logger);
         const diagnosticManager = new DiagnosticManager(dispatcher, logger);
         const promptManager = new PromptManager(dispatcher, logger);
@@ -134,7 +151,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 if (dispatcher) {
                     try {
                         const response = await dispatcher.sendRequest("ping");
-                        vscode.window.showInformationMessage(`Ki ping response: ${JSON.stringify(response)}`);
+                        vscode.window.showInformationMessage(
+                            `Ki ping response: ${JSON.stringify(response)}`,
+                        );
                     } catch (err) {
                         errorHandler?.handleError(
                             err,
@@ -152,38 +171,56 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 deactivate();
                 activate(context);
             }),
-            vscode.commands.registerCommand("ki.installTreeSitterGrammars", async () => {
-                const kiPath = getKiPath(context, configManager, logger);
+            vscode.commands.registerCommand(
+                "ki.installTreeSitterGrammars",
+                async () => {
+                    const kiPath = getKiPath(context, configManager, logger);
 
-                function executeCommand(command: string): Promise<void> {
-                    return new Promise((resolve, reject) => {
-                        const exec = require("node:child_process").exec;
-                        exec(command, (error: Error | null, stdout: string, stderr: string) => {
-                            logger.show();
-                            logger.log(stdout);
+                    function executeCommand(command: string): Promise<void> {
+                        return new Promise((resolve, reject) => {
+                            const exec = require("node:child_process").exec;
+                            exec(
+                                command,
+                                (
+                                    error: Error | null,
+                                    stdout: string,
+                                    stderr: string,
+                                ) => {
+                                    logger.show();
+                                    logger.log(stdout);
 
-                            if (error) {
-                                logger.error(`Error installing grammars: ${error.message}`);
-                                vscode.window.showErrorMessage(`Ki: Failed to install grammars: ${error.message}`);
-                                reject(error);
-                            } else {
-                                logger.log(`Grammars installed successfully: ${stdout}`);
-                                vscode.window.showInformationMessage(
-                                    "Ki: Tree-sitter grammars installed successfully yes",
-                                );
-                                resolve();
-                            }
-                            if (stderr) {
-                                logger.error(`stderr: ${stderr}`);
-                                vscode.window.showErrorMessage(`Ki stderr: ${stderr}`);
-                            }
+                                    if (error) {
+                                        logger.error(
+                                            `Error installing grammars: ${error.message}`,
+                                        );
+                                        vscode.window.showErrorMessage(
+                                            `Ki: Failed to install grammars: ${error.message}`,
+                                        );
+                                        reject(error);
+                                    } else {
+                                        logger.log(
+                                            `Grammars installed successfully: ${stdout}`,
+                                        );
+                                        vscode.window.showInformationMessage(
+                                            "Ki: Tree-sitter grammars installed successfully yes",
+                                        );
+                                        resolve();
+                                    }
+                                    if (stderr) {
+                                        logger.error(`stderr: ${stderr}`);
+                                        vscode.window.showErrorMessage(
+                                            `Ki stderr: ${stderr}`,
+                                        );
+                                    }
+                                },
+                            );
                         });
-                    });
-                }
+                    }
 
-                await executeCommand(`${kiPath} @ grammar fetch`);
-                await executeCommand(`${kiPath} @ grammar build`);
-            }),
+                    await executeCommand(`${kiPath} @ grammar fetch`);
+                    await executeCommand(`${kiPath} @ grammar build`);
+                },
+            ),
         );
 
         // The periodic sync timer has been removed.
@@ -210,15 +247,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
 }
 
-function getKiPath(context: vscode.ExtensionContext, configManager: ConfigManager | undefined, logger: Logger): string {
-    function getKiPathInner(context: vscode.ExtensionContext, configManager: ConfigManager | undefined): string {
+function getKiPath(
+    context: vscode.ExtensionContext,
+    configManager: ConfigManager | undefined,
+    logger: Logger,
+): string {
+    function getKiPathInner(
+        context: vscode.ExtensionContext,
+        configManager: ConfigManager | undefined,
+    ): string {
         const configuredKiPath = configManager?.getBackendPath();
         if (configuredKiPath) {
             return configuredKiPath;
         }
 
         // First try to use ../target/debug/ki relative to extension
-        const debugPath = path.join(context.extensionPath, "..", "target", "debug", "ki");
+        const debugPath = path.join(
+            context.extensionPath,
+            "..",
+            "target",
+            "debug",
+            "ki",
+        );
         if (fs.existsSync(debugPath)) {
             return debugPath;
         }
@@ -230,22 +280,32 @@ function getKiPath(context: vscode.ExtensionContext, configManager: ConfigManage
         if (platform === "darwin") {
             // macOS
             if (arch === "arm64") {
-                return context.asAbsolutePath(path.join("dist", "bin", "ki-darwin-arm64"));
+                return context.asAbsolutePath(
+                    path.join("dist", "bin", "ki-darwin-arm64"),
+                );
             }
-            return context.asAbsolutePath(path.join("dist", "bin", "ki-darwin-x64"));
+            return context.asAbsolutePath(
+                path.join("dist", "bin", "ki-darwin-x64"),
+            );
         }
 
         if (platform === "linux") {
             // Linux
             if (arch === "arm64") {
-                return context.asAbsolutePath(path.join("dist", "bin", "ki-linux-arm64"));
+                return context.asAbsolutePath(
+                    path.join("dist", "bin", "ki-linux-arm64"),
+                );
             }
-            return context.asAbsolutePath(path.join("dist", "bin", "ki-linux-x64"));
+            return context.asAbsolutePath(
+                path.join("dist", "bin", "ki-linux-x64"),
+            );
         }
 
         if (platform === "win32") {
             // Windows
-            return context.asAbsolutePath(path.join("dist", "bin", "ki-win32-x64.exe"));
+            return context.asAbsolutePath(
+                path.join("dist", "bin", "ki-win32-x64.exe"),
+            );
         }
 
         throw new Error(`Unsupported platform: ${platform}`);

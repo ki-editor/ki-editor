@@ -17,18 +17,8 @@
         "url": "https://github.com/ki-editor/ki-editor/issues"
     },
     "license": "MPL-2.0",
-    "keywords": [
-        "ki",
-        "editor",
-        "modal",
-        "vim",
-        "text-editor"
-    ],
-    "categories": [
-        "Programming Languages",
-        "Keymaps",
-        "Other"
-    ],
+    "keywords": ["ki", "editor", "modal", "vim", "text-editor"],
+    "categories": ["Programming Languages", "Keymaps", "Other"],
     "icon": "images/ki-logo.png",
     "preview": true,
     "scripts": {
@@ -44,9 +34,7 @@
         "lint:fix": "biome lint --write",
         "build:binaries": "cd .. && ./build-all-platforms.sh"
     },
-    "activationEvents": [
-        "onStartupFinished"
-    ],
+    "activationEvents": ["onStartupFinished"],
     "contributes": {
         "configuration": {
             "title": "Ki Editor",
@@ -249,7 +237,6 @@
         "eslint": "^8.56.0",
         "jest": "^29.7.0",
         "jest-junit": "^16.0.0",
-        "prettier": "^3.5.3",
         "ts-jest": "^29.1.0",
         "typescript": "^5.3.0",
         "vsce": "^2.15.0"
@@ -257,13 +244,7 @@
     "engines": {
         "vscode": "^1.99.0"
     },
-    "files": [
-        "dist/**",
-        "images/**",
-        "README.md",
-        "CHANGELOG.md",
-        "LICENSE"
-    ],
+    "files": ["dist/**", "images/**", "README.md", "CHANGELOG.md", "LICENSE"],
     "jest-junit": {
         "outputDirectory": "reports",
         "outputName": "jest-junit.xml",

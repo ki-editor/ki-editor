@@ -8,7 +8,10 @@
             "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
             "outFiles": ["${workspaceFolder}/dist/**/*.js"],
             "sourceMaps": true,
-            "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ],
             "env": {
                 "RUST_BACKTRACE": "1",
                 "RUST_LOG": "debug",
@@ -27,7 +30,10 @@
             ],
             "outFiles": ["${workspaceFolder}/dist/test/**/*.js"],
             "sourceMaps": true,
-            "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ],
             "preLaunchTask": "${defaultBuildTask}"
         }
     ]
