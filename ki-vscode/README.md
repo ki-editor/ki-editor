@@ -12,12 +12,38 @@ This extension integrates the Ki Editor with Visual Studio Code, providing a pow
 The extension includes statically linked binaries for all major platforms (Windows, macOS, and Linux), so you don't need
 to install anything separately.
 
+## Why?
+
+Ki as a standalone editor is quite barebones. Although it has basic LSP support and syntax highlighting, it lacks
+important IDE features such as AI coding assistance, Git integrations, debuggers, extensive plugin ecosystems, and all
+the other goodies that make modern development productive.
+
+On the other hand, VS Code's default editing experience can feel sluggish.
+
+Using Ki within VS Code gives you the best of both worlds: you get access to the vast ecosystem of VS Code extensions
+and features, while enjoying Ki's fluid and efficient text editing motions.
+
 ## Features
 
-- 🚀 Full Ki Editor functionality in VSCode.
-- See the [Ki Editor documentation](https://ki-editor.github.io/ki-editor/) to learn about Ki's innovative editing
-  model.
-- Static binaries for all platforms included, no need to install anything
+-   🚀 Most Ki Editor functionality in VSCode.
+-   See the [Ki Editor documentation](https://ki-editor.github.io/ki-editor/) to learn about Ki's innovative editing
+    model.
+-   Static binaries for most platforms included, no need to install anything
+
+## Mapped functionalities
+
+1. Diagnostics
+1. Marks
+1. Git Hunks
+1. Text movements
+1. Text operations (e.g. Delete, Swap etc)
+1. LSP operations (e.g. Go to Definition)
+1. Change keyboard layout (via `space t`)
+
+## Unmapped functionalities
+
+1. Global search and replace
+2. Window operations (e.g. change tab, pin tab, swap pane, etc.)
 
 ## Quick Start
 
@@ -38,14 +64,14 @@ to install anything separately.
     - Open a file in VSCode
     - Press `Esc` to enter Normal mode
     - Use Ki commands and keybindings
-    - Press `i` to return to Insert mode
+    - Press `u` to return to Insert mode
 
 ## Extension Settings
 
-- `ki.backendPath`: Optional path to the Ki editor backend executable. If not specified, the bundled platform-specific
-  binary will be used.
-- `ki.enableDebugLogging`: Enable debug logging (default: false)
-- `ki.maxFileSize`: Maximum file size to process in bytes (default: 2MB)
+-   `ki.backendPath`: Optional path to the Ki editor backend executable. If not specified, the bundled platform-specific
+    binary will be used.
+-   `ki.enableDebugLogging`: Enable debug logging (default: false)
+-   `ki.maxFileSize`: Maximum file size to process in bytes (default: 2MB)
 
 ## Known Issues
 
@@ -55,13 +81,14 @@ See our [issue tracker](https://github.com/ki-editor/ki-editor/issues) for curre
 
 ### Prerequisites
 
-- Node.js (v16 or later)
-- npm (v8 or later)
-- Bun (v1.0.30 or later) - for bundling the extension
-- Visual Studio Code
-- Nix package manager (for building the Ki binaries)
+-   Node.js (v16 or later)
+-   npm (v8 or later)
+-   Bun (v1.0.30 or later) - for bundling the extension
+-   Visual Studio Code
+-   Nix package manager (for building the Ki binaries)
+-   [Just](https://github.com/casey/just)
 
-### Build Instructions
+### Development instructions
 
 1. Clone the repository:
 
@@ -77,15 +104,16 @@ cd ki-vscode
 npm install
 ```
 
-3. Compile the extension:
+3. Build Ki's bridge:
 
 ```bash
-npm run compile
+just watch-vscode-build
 ```
 
-4. Launch in development mode:
-    - Press F5 in VSCode to launch a new window with the extension loaded
-    - Or run the "Extension" launch configuration from the Run view
+4. Running the extension
+    - This step is a little troublesome, because first you have to open VS Code in the `ki-vscode` folder of the
+      `ki-editor` repository
+    - Then, press F5 in VSCode to launch a new window with the extension loaded
 
 ### Building Ki Binaries
 
@@ -100,26 +128,24 @@ The extension includes statically linked binaries for all major platforms. To bu
     # On Windows, follow the instructions at https://nixos.org/download.html
     ```
 
-2. Build the binaries for all platforms:
+2. Run this command at the repository root (not `ki-vscode`):
 
     ```bash
-    # From the root of the repository
-    ./build-all-platforms.sh
-
-    # Or from the ki-vscode directory
-    npm run build:binaries
+    just vscode-package
     ```
 
-    This will:
+    This command will:
 
     - Build the Ki editor for all supported platforms using Nix
     - Copy the binaries to `ki-vscode/dist/bin` with platform-specific names
     - Make the binaries executable
+    - Package the extension into a `.vsix` package under the `ki-vscode` directory
 
 3. The following binaries will be generated:
     - `ki-darwin-arm64`: macOS ARM64 (Apple Silicon)
     - `ki-darwin-x64`: macOS x86_64 (Intel)
     - `ki-linux-x64`: Linux x86_64
+    - `ki-linux-arm64`: Linux ARM64
     - `ki-win32-x64.exe`: Windows x86_64
 
 ### Packaging
