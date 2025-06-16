@@ -2668,7 +2668,7 @@ impl<T: Frontend> App<T> {
             Ok(())
         } else {
             if let Some(path) = path {
-                let component = self.open_file(&path, BufferOwner::User, false, false)?;
+                let component = self.open_file(&path, BufferOwner::User, false, true)?;
                 let dispatches = component
                     .borrow_mut()
                     .handle_event(&self.context, event.clone())?;
