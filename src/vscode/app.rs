@@ -512,7 +512,7 @@ impl VSCodeApp {
                 let range = selection.extended_range();
 
                 let flipped = match &selection.initial_range {
-                    Some(initial_range) => initial_range.start > selection.range().start,
+                    Some(initial_range) => initial_range.start < selection.range().start,
                     _ => matches!(
                         component.component().borrow().editor().cursor_direction,
                         Direction::End

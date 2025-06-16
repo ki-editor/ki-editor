@@ -11,14 +11,14 @@
 - [x] Cannot change keyboard layout
 - [x] Add ES Lint
 - [x] Swap primary cursor and secondary cursor need to press two times, why?
+- [x] Extend selection backward not working
 - [] Save not working properly (require multiple presses of Enter)
 - [] Scroll up/down not working
 - [] Make Ki works in Global Search opened in VS Code editor as buffer
 - [] Remove additional layers in event_handler.ts, e.g. this.dispatcher.registerKiNotificationHandler
 - [] Cylce cursor not working
-- [] Handle both develop extension flow and package, one uses `build`, one uses `dist`.
+- [x] Handle both develop extension flow and package, one uses `build`, one uses `dist`.
 - [] Update docs regarding developing the VS Code extension
 - [] VS Code buffer and Ki buffer desync sometimes (need to reopen unfocus and refocus the file in VS Code)
-- [] Extend selection backward not working
 - [] Should we let VS Code handle Undo/Redo for max safety?
 - [] After closing VS Code peeking, Ki editor still focuses on the other files
