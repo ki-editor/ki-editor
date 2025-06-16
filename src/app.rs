@@ -1711,7 +1711,9 @@ impl<T: Frontend> App<T> {
             .borrow_mut()
             .handle_dispatch_editor(&mut self.context, dispatch_editor.clone())?;
 
-        let dispatches = if self.is_running_as_embedded() {
+        self.handle_dispatches(dispatches)?;
+
+        if self.is_running_as_embedded() {
             /*
             Note: we always send the latest selection set & selection mode to VS Code
               regardless of whether they actually changes after handling
@@ -1721,7 +1723,7 @@ impl<T: Frontend> App<T> {
               We are sacrificing a little performance (by sending the same selection set to VS Code occasionally)
               in exchange for better code maintainability and behavioral correctness.
             */
-            dispatches
+            let other_dispatches = Dispatches::default()
                 .append(component.borrow().editor().dispatch_selection_changed())
                 .append(component.borrow().editor().dispatch_marks_changed())
                 .append(
@@ -1730,15 +1732,10 @@ impl<T: Frontend> App<T> {
                         .editor()
                         .dispatch_selection_mode_changed(),
                 )
-                .append(Dispatch::ModeChanged)
-        } else {
-            dispatches
+                .append(Dispatch::ModeChanged);
+            self.handle_dispatches(other_dispatches)?;
         };
 
-        // Process the dispatches
-        self.handle_dispatches(dispatches)?;
-
-        // VSCode-specific code has been removed in favor of integration events
         Ok(())
     }
 

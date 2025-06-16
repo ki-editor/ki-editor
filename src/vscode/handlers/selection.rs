@@ -26,9 +26,15 @@ impl VSCodeApp {
                 .selections
                 .into_iter()
                 .map(|selection| {
-                    let range = buffer.position_range_to_char_index_range(
-                        &(to_ki_position(&selection.active)..to_ki_position(&selection.anchor)),
-                    )?;
+                    let active = to_ki_position(&selection.active);
+                    let anchor = to_ki_position(&selection.anchor);
+
+                    // The sorting is necessary, because `active` might not always be the smaller position
+                    // If start is not always smaller, than Swap Primary Cursor with Secondary Cursor will not work properly
+                    let start = active.min(anchor);
+                    let end = active.max(anchor);
+
+                    let range = buffer.position_range_to_char_index_range(&(start..end))?;
                     Ok(crate::selection::Selection::new(range))
                 })
                 .collect::<anyhow::Result<Vec<_>>>()?
@@ -74,9 +80,7 @@ impl VSCodeApp {
         Ok(())
     }
 
-    /// Handle selection.set request
     pub fn handle_selection_set_request(&mut self, params: SelectionSet) -> Result<()> {
-        // Pass the ID to the notification handler so it knows to send a response
         self.handle_selection_set_notification(params)
     }
 }

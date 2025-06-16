@@ -6,13 +6,14 @@
 - [x] Marks not showing decorations
 - [x] Save not working properly
 - [x] Don't run auto-format in VS Code mode
-- [x] Save not working properly (require multiple presses of Enter)
 - [x] Map LSP action to VS Code
 - [x] Tree sitter grammar installation
 - [x] Cannot change keyboard layout
+- [x] Add ES Lint
+- [x] Swap primary cursor and secondary cursor need to press two times, why?
+- [] Save not working properly (require multiple presses of Enter)
 - [] Scroll up/down not working
 - [] Make Ki works in Global Search opened in VS Code editor as buffer
-- [] Add ES Lint
 - [] Remove additional layers in event_handler.ts, e.g. this.dispatcher.registerKiNotificationHandler
 - [] Cylce cursor not working
 - [] Handle both develop extension flow and package, one uses `build`, one uses `dist`.
@@ -20,3 +21,4 @@
 - [] VS Code buffer and Ki buffer desync sometimes (need to reopen unfocus and refocus the file in VS Code)
 - [] Extend selection backward not working
 - [] Should we let VS Code handle Undo/Redo for max safety?
+- [] After closing VS Code peeking, Ki editor still focuses on the other files
