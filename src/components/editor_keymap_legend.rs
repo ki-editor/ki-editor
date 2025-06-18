@@ -628,6 +628,8 @@ impl Editor {
                 "Help".to_string(),
                 Dispatch::ToEditor(DispatchEditor::ShowHelp),
             ),
+            #[cfg(unix)]
+            Keymap::new("ctrl+z", "Suspend".to_string(), Dispatch::Suspend),
         ]
         .to_vec()
     }
