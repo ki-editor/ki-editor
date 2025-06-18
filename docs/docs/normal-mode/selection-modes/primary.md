@@ -59,7 +59,7 @@ For example, "," are usually unnamed (
 anonymous) in most language grammars, thus it will be skipped when using the
 Previous/Next movement in Syntax Node.
 
-See more at [https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-anonymous-nodes](https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-anonymous-nodes).
+See more at [https://tree-sitter.github.io/tree-sitter/using-parsers/2-basic-parsing.html#named-vs-anonymous-nodes](https://tree-sitter.github.io/tree-sitter/using-parsers/2-basic-parsing.html#named-vs-anonymous-nodes).
 
 ### Examples
 
@@ -85,9 +85,9 @@ Suppose we have the following Javascript expression, and the current selection i
 hello.world().foo().bar().spam().wise();
 ```
 
-If we press `d`, the whole expression will be selected[^1], and we will need to press `i` several times to shrink the selection down to `hello.world()`.
+If we press `d`, the whole expression will be selected[^1], and we will need to press `k` several times to shrink the selection down to `hello.world()`.
 
-However, if we use `D` instead, the selection will remain as `hello`, and pressing `i` multiple times will get us to `hello.world()`.
+However, if we use `D` instead, the selection will remain as `hello`, and pressing `k` multiple times will get us to `hello.world()`.
 
 [^1]: See [Largest Node](#largest-node)
 
