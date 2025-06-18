@@ -433,6 +433,9 @@ impl VSCodeApp {
             IntegrationEvent::KeyboardLayoutChanged(keyboard_layout) => {
                 self.keyboard_layout_changed(keyboard_layout)?
             }
+            IntegrationEvent::RequestLspRename => self.request_lsp_rename()?,
+            IntegrationEvent::RequestLspCodeAction => self.request_lsp_code_action()?,
+            IntegrationEvent::RequestLspDocumentSymbols => self.request_lsp_document_symbols()?,
         }
 
         Ok(())
@@ -909,6 +912,30 @@ impl VSCodeApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::KeyboardLayoutChanged(keyboard_layout.to_string()),
+            error: None,
+        })
+    }
+
+    fn request_lsp_rename(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspRename,
+            error: None,
+        })
+    }
+
+    fn request_lsp_code_action(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspCodeAction,
+            error: None,
+        })
+    }
+
+    fn request_lsp_document_symbols(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspDocumentSymbols,
             error: None,
         })
     }

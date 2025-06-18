@@ -307,6 +307,15 @@ sealed class OutputMessage {
 	@Serializable
 	@SerialName("editor.keyboardLayout")
 	data class KeyboardLayoutChanged(val params: String): OutputMessage()
+	@Serializable
+	@SerialName("lsp.rename")
+	object RequestLspRename: OutputMessage()
+	@Serializable
+	@SerialName("lsp.codeAction")
+	object RequestLspCodeAction: OutputMessage()
+	@Serializable
+	@SerialName("lsp.documentSymbols")
+	object RequestLspDocumentSymbols: OutputMessage()
 }
 
 @Serializable

@@ -87,6 +87,9 @@ pub enum IntegrationEvent {
     RequestLspImplementation,
     RequestLspTypeDefinition,
     KeyboardLayoutChanged(&'static str),
+    RequestLspRename,
+    RequestLspCodeAction,
+    RequestLspDocumentSymbols,
 }
 
 /// Trait for components that can emit integration events

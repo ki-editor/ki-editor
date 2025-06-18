@@ -51,5 +51,28 @@ export class LspManager extends Manager {
                 );
             },
         );
+
+        this.dispatcher.registerKiNotificationHandler(
+            "lsp.rename",
+            async () => {
+                await vscode.commands.executeCommand("editor.action.rename");
+            },
+        );
+
+        this.dispatcher.registerKiNotificationHandler(
+            "lsp.codeAction",
+            async () => {
+                await vscode.commands.executeCommand("editor.action.quickFix");
+            },
+        );
+
+        this.dispatcher.registerKiNotificationHandler(
+            "lsp.documentSymbols",
+            async () => {
+                await vscode.commands.executeCommand(
+                    "workbench.action.gotoSymbol",
+                );
+            },
+        );
     }
 }

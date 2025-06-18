@@ -378,7 +378,6 @@ export class BufferManager extends Manager {
     private handleEditorActive(params: {
         editor: vscode.TextEditor | undefined;
     }): void {
-        this.logger.log("xxx Handling editor active event");
         const { editor } = params;
         if (!editor) return;
 

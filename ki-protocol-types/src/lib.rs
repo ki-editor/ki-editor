@@ -430,6 +430,12 @@ pub enum OutputMessage {
     RequestLspImplementation,
     #[serde(rename = "editor.keyboardLayout")]
     KeyboardLayoutChanged(String),
+    #[serde(rename = "lsp.rename")]
+    RequestLspRename,
+    #[serde(rename = "lsp.codeAction")]
+    RequestLspCodeAction,
+    #[serde(rename = "lsp.documentSymbols")]
+    RequestLspDocumentSymbols,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -576,6 +582,9 @@ impl MessageMethod for OutputMessage {
             OutputMessage::RequestLspTypeDefinition => Cow::Borrowed("lsp.typeDefinition"),
             OutputMessage::RequestLspImplementation => Cow::Borrowed("lsp.implementation"),
             OutputMessage::KeyboardLayoutChanged(_) => Cow::Borrowed("editor.keyboardLayout"),
+            OutputMessage::RequestLspRename => Cow::Borrowed("lsp.rename"),
+            OutputMessage::RequestLspCodeAction => Cow::Borrowed("lsp.codeAction"),
+            OutputMessage::RequestLspDocumentSymbols => Cow::Borrowed("lsp.documentSymbols"),
         }
     }
 
@@ -607,6 +616,9 @@ impl MessageMethod for OutputMessage {
             OutputMessage::RequestLspTypeDefinition => "RequestLspTypeDefinition",
             OutputMessage::RequestLspImplementation => "RequestLspImplementation",
             OutputMessage::KeyboardLayoutChanged(_) => "KeyboardLayoutChanged",
+            OutputMessage::RequestLspRename => "RequestLspRename",
+            OutputMessage::RequestLspCodeAction => "RequestLspCodeAction",
+            OutputMessage::RequestLspDocumentSymbols => "RequestLspDocumentSymbols",
         }
     }
 }

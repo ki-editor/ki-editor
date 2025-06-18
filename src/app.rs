@@ -611,6 +611,7 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentDocumentSymbol(params),
                     )?;
+                    self.send_integration_event(IntegrationEvent::RequestLspDocumentSymbols);
                 }
             }
             Dispatch::PrepareRename => {
@@ -619,6 +620,7 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentPrepareRename(params),
                     )?;
+                    self.send_integration_event(IntegrationEvent::RequestLspRename);
                 }
             }
             Dispatch::RenameSymbol { new_name } => {
@@ -638,6 +640,7 @@ impl<T: Frontend> App<T> {
                             diagnostics,
                         },
                     )?;
+                    self.send_integration_event(IntegrationEvent::RequestLspCodeAction);
                 }
             }
             Dispatch::RequestSignatureHelp => {

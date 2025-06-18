@@ -181,7 +181,10 @@ export type OutputMessage =
 	| { tag: "lsp.declaration", params?: undefined }
 	| { tag: "lsp.typeDefinition", params?: undefined }
 	| { tag: "lsp.implementation", params?: undefined }
-	| { tag: "editor.keyboardLayout", params: string };
+	| { tag: "editor.keyboardLayout", params: string }
+	| { tag: "lsp.rename", params?: undefined }
+	| { tag: "lsp.codeAction", params?: undefined }
+	| { tag: "lsp.documentSymbols", params?: undefined };
 
 export interface ResponseError {
 	code: number;
