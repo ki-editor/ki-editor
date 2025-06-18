@@ -23,7 +23,7 @@ For example, when searching for text:
 ### Initialization
 
 Most secondary selection modes are nested below the 3 keybindings below,
-with the exception of Search and Seacrh Current, which are placed on the
+with the exception of Search and Search Current, which are placed on the
 first layer due to their ubiquity.
 
 <KeymapFallback filename="Secondary Selection Modes Init"/>
