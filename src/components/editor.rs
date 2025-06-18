@@ -3766,7 +3766,7 @@ impl Editor {
                     // to extend beyond the actual buffer size. For example, if the buffer has 100 lines
                     // (indices 0-99), the adapter might report a visible range like 95..105.
                     let end = range.end.min(max_line_index);
-                    range.start..end
+                    range.start..(end + 1)
                 })
                 .collect(),
         )
