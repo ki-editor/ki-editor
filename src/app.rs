@@ -156,16 +156,19 @@ impl<T: Frontend> App<T> {
             .update_highlighted_spans(component_id, batch_id, highlighted_spans)
     }
 
+    fn set_terminal_options(&mut self) -> anyhow::Result<()> {
+        let mut frontend = self.frontend.lock().unwrap();
+        frontend.enter_alternate_screen()?;
+        frontend.enable_raw_mode()?;
+        frontend.enable_mouse_capture()?;
+        Ok(())
+    }
+
     pub(crate) fn run(
         mut self,
         entry_path: Option<CanonicalizedPath>,
     ) -> Result<(), anyhow::Error> {
-        {
-            let mut frontend = self.frontend.lock().unwrap();
-            frontend.enter_alternate_screen()?;
-            frontend.enable_raw_mode()?;
-            frontend.enable_mouse_capture()?;
-        }
+        self.set_terminal_options()?;
 
         if let Some(entry_path) = entry_path {
             if entry_path.as_ref().is_dir() {
@@ -210,14 +213,49 @@ impl<T: Frontend> App<T> {
         self.quit()
     }
 
-    pub(crate) fn quit(&mut self) -> anyhow::Result<()> {
+    fn prepare_to_suspend_or_quit(&mut self) -> anyhow::Result<()> {
         let mut frontend = self.frontend.lock().unwrap();
         frontend.leave_alternate_screen()?;
         frontend.disable_raw_mode()?;
         frontend.disable_mouse_capture()?;
+        Ok(())
+    }
+
+    pub(crate) fn quit(&mut self) -> anyhow::Result<()> {
+        self.prepare_to_suspend_or_quit()?;
+
         // self.lsp_manager.shutdown();
 
         std::process::exit(0);
+    }
+
+    #[cfg(windows)]
+    fn suspend(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    /// Send SIGSTOP to the current process group to stop the editor.
+    /// After receiving SIGCONT, continue.
+    #[cfg(unix)]
+    fn suspend(&mut self) -> anyhow::Result<()> {
+        self.prepare_to_suspend_or_quit()?;
+
+        // Copy Helix's behaviour here.
+        let code = unsafe {
+            // Rationale: https://github.com/helix-editor/helix/blob/036729211a94d058b835f5ee212ab15de83bc037/helix-term/src/application.rs#L481
+            libc::kill(0, libc::SIGSTOP)
+        };
+
+        if code != 0 {
+            return Err(std::io::Error::last_os_error().into());
+        }
+
+        // Continue.
+
+        self.set_terminal_options()?;
+        // Drop the previous screen so the screen gets fully redrawn after going to the foreground.
+        self.frontend.lock().unwrap().previous_screen();
+        Ok(())
     }
 
     pub(crate) fn components(&self) -> Vec<KindedComponent> {
@@ -454,6 +492,9 @@ impl<T: Frontend> App<T> {
     pub(crate) fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
         log::info!("App::handle_dispatch = {}", dispatch.variant_name());
         match dispatch {
+            Dispatch::Suspend => {
+                self.suspend()?;
+            }
             Dispatch::CloseCurrentWindow => {
                 self.close_current_window()?;
             }
@@ -2608,6 +2649,7 @@ pub(crate) enum Dispatch {
     NavigateForward,
     NavigateBack,
     ToggleFileMark,
+    Suspend,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
