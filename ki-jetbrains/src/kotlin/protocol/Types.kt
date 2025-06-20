@@ -7,6 +7,14 @@ package com.kieditor.protocol
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 
+@Serializable
+data class BufferActiveParams (
+	val uri: String,
+	val content: String,
+	val language_id: String? = null,
+	val version: Int? = null
+)
+
 /// VS Code Position
 @Serializable
 data class Position (
@@ -68,7 +76,7 @@ data class Selection (
 data class BufferOpenParams (
 	val uri: String,
 	val selections: List<Selection>,
-	val content: String? = null,
+	val content: String,
 	val language_id: String? = null,
 	val version: Int? = null
 )
@@ -146,7 +154,7 @@ sealed class InputMessage {
 	data class BufferChange(val params: BufferDiffParams): InputMessage()
 	@Serializable
 	@SerialName("buffer.active")
-	data class BufferActive(val params: BufferParams): InputMessage()
+	data class BufferActive(val params: BufferActiveParams): InputMessage()
 	@Serializable
 	@SerialName("selection.set")
 	data class SelectionSet(val params: SelectionSet): InputMessage()

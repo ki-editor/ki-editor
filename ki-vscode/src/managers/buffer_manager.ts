@@ -393,7 +393,7 @@ export class BufferManager extends Manager {
         // Send active notification to Ki
         this.dispatcher.sendNotification("buffer.active", {
             uri: uri,
-            content: undefined,
+            content: document.getText(),
             language_id: document.languageId,
             version: document.version,
         });
@@ -713,7 +713,7 @@ export class BufferManager extends Manager {
 
             this.dispatcher.sendRequest("buffer.open", {
                 uri: uri,
-                content: undefined,
+                content: document.getText(),
                 language_id: document.languageId,
                 version: document.version,
                 selections:

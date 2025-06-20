@@ -153,10 +153,19 @@ pub struct BufferParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[typeshare]
+pub struct BufferActiveParams {
+    pub uri: String,
+    pub content: String,
+    pub language_id: Option<String>,
+    pub version: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[typeshare]
 pub struct BufferOpenParams {
     pub uri: String,
     pub selections: Vec<Selection>,
-    pub content: Option<String>,
+    pub content: String,
     pub language_id: Option<String>,
     pub version: Option<i32>,
 }
@@ -297,7 +306,7 @@ pub enum InputMessage {
     #[serde(rename = "buffer.change")]
     BufferChange(BufferDiffParams),
     #[serde(rename = "buffer.active")]
-    BufferActive(BufferParams),
+    BufferActive(BufferActiveParams),
 
     // Selection operations (includes cursor information)
     #[serde(rename = "selection.set")]

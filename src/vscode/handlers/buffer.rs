@@ -13,7 +13,7 @@ use crate::{
     },
 };
 use itertools::Itertools;
-use ki_protocol_types::{BufferDiffParams, BufferOpenParams, BufferParams};
+use ki_protocol_types::{BufferActiveParams, BufferDiffParams, BufferOpenParams, BufferParams};
 use log::{error, info}; // Added debug
 use ropey::Rope; // Added Rope
 
@@ -45,24 +45,21 @@ impl VSCodeApp {
         };
         self.app.lock().unwrap().handle_dispatch(dispatch)?;
 
-        // Set the content if provided
-        if let Some(content_val) = content {
-            let app_guard = self.app.lock().unwrap();
-            let comp = app_guard.current_component();
-            let context = Context::new(path.clone(), true);
-
-            // Scope the mutable borrow to avoid borrow checker issues
-            {
-                let mut comp_ref = comp.borrow_mut();
-                comp_ref.set_content(&content_val, &context)?;
-            }
-        }
-
         self.handle_selection_set_notification(ki_protocol_types::SelectionSet {
             buffer_id: buffer_id.clone(),
             selections,
             primary: 0,
         })?;
+
+        let app_guard = self.app.lock().unwrap();
+        let comp = app_guard.current_component();
+        let context = Context::new(path.clone(), true);
+
+        // Scope the mutable borrow to avoid borrow checker issues
+        {
+            let mut comp_ref = comp.borrow_mut();
+            comp_ref.set_content(&content, &context)?;
+        }
 
         Ok(())
     }
@@ -112,8 +109,8 @@ impl VSCodeApp {
     }
 
     /// Handle buffer active request from VSCode
-    pub fn handle_buffer_active_request(&mut self, params: BufferParams) -> Result<()> {
-        let BufferParams { uri, .. } = params;
+    pub fn handle_buffer_active_request(&mut self, params: BufferActiveParams) -> Result<()> {
+        let BufferActiveParams { uri, content, .. } = params;
         let path = uri_to_path(&uri)?;
         self.app
             .lock()
@@ -123,6 +120,17 @@ impl VSCodeApp {
                 owner: BufferOwner::User,
                 focus: true,
             })?;
+
+        // Update the content, this is to prevent buffer desync issues that happens randomly
+        let app_guard = self.app.lock().unwrap();
+        let comp = app_guard.current_component();
+        let context = Context::new(path.clone(), true);
+
+        // Scope the mutable borrow to avoid borrow checker issues
+        {
+            let mut comp_ref = comp.borrow_mut();
+            comp_ref.set_content(&content, &context)?;
+        };
 
         Ok(())
     }
