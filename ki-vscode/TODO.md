@@ -24,3 +24,7 @@
 -   [] After closing VS Code peeking, Ki editor still focuses on the other files
 -   [] Ki and VS Code buffer content desync sometimes after, say, auto formatting
 -   [] Add command to sync documents when out of sync
+-   [] Cannot jump to last line if last line is in view
+-   [] Published to VS Code marketplace is not the latest version
+-   [] Rename Rust code of vscode to "embed"
+-   [] When buffer is active, VS Code should send the latest content to Ki to minimize desync issue

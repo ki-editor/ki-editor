@@ -53,6 +53,7 @@ vscode = [
 default = ["vscode"]
 
 [build-dependencies]
+chrono = "0.4.39"
 grammar = { path = "grammar" }
 shared = { path = "shared" }
 typeshare = { git = "https://github.com/tomjw64/typeshare", branch = "allow-override-for-disallowed-types", optional = true }

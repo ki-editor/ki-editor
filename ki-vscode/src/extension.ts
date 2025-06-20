@@ -80,7 +80,7 @@ export async function activate(
             vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         const cwd = workspaceFolder || process.cwd();
 
-        ipc.start(kiPath, ["@", "vs-code", cwd]);
+        ipc.start(kiPath, ["@", "embed", cwd]);
 
         // Create managers
         const modeManager = new ModeManager(dispatcher, logger, context);

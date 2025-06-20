@@ -1,5 +1,6 @@
 //! VSCode integration app implementation
 
+use crate::cli::get_version;
 use crate::components::editor::Mode;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -948,6 +949,7 @@ pub fn run_vscode(working_directory: CanonicalizedPath) -> anyhow::Result<()> {
 
     eprintln!("VSCode integration backend started. Waiting for VSCode extension to connect...");
     info!("VSCode integration backend started. Waiting for VSCode extension to connect...");
+    info!("Running on version {}", get_version());
 
     vscode_app.run()
 }

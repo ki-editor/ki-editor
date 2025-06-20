@@ -1,6 +1,6 @@
 {
     "name": "ki-editor-vscode",
-    "version": "0.0.8",
+    "version": "0.0.9",
     "description": "VSCode extension for Ki Editor (Preview)",
     "main": "./dist/extension.js",
     "publisher": "ki-editor",
@@ -27,6 +27,7 @@
         "watch": "tsc -watch -p . --sourceMap true",
         "bundle": "bun scripts/bundle.ts",
         "package": "vsce package",
+        "publish": "vsce publish",
         "package:full": "npm run build:binaries && npm run package",
         "vscode:prepublish": "bun scripts/bundle.ts",
         "format": "biome format --write",
