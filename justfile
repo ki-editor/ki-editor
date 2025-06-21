@@ -72,6 +72,9 @@ vscode-build:
 vscode-package:
     ./build-all-platforms.sh
     cd ki-vscode && npm run package
+
+vscode-publish: vscode-package
+    cd ki-vscode && npm run publish
     
 # Install the locally build extension to VS Code
 vscode-install: vscode-package

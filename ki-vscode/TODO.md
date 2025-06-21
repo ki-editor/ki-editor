@@ -30,3 +30,6 @@
 
 -   [] Ki and VS Code buffer content desync sometimes after, say, auto formatting
 -   [] Add command to sync documents when out of sync
+-   [] VS Code extension README not updated
+
+-   [] Selections not updated after code actions are applied
