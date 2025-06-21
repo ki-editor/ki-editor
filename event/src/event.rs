@@ -1,6 +1,6 @@
 use std::{collections::HashSet, fmt};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Event {
     Key(KeyEvent),
     FocusGained,

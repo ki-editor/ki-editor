@@ -38,6 +38,7 @@ pub(crate) struct PromptConfig {
 
     /// If defined, the `Dispatches` here is used for undoing the dispatches fired on change.
     pub(crate) fire_dispatches_on_change: Option<Dispatches>,
+    pub(crate) prompt_history_key: PromptHistoryKey,
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
@@ -60,14 +61,11 @@ pub(crate) enum PromptHistoryKey {
     FilterSelectionsMatchingSearch {
         maintain: bool,
     },
+    KeyboardLayout,
 }
 
 impl Prompt {
-    pub(crate) fn new(
-        config: PromptConfig,
-        prompt_history_key: PromptHistoryKey,
-        history: Vec<String>,
-    ) -> (Self, Dispatches) {
+    pub(crate) fn new(config: PromptConfig, history: Vec<String>) -> (Self, Dispatches) {
         let text = {
             if history.is_empty() {
                 "".to_string()
@@ -116,7 +114,7 @@ impl Prompt {
                 editor,
                 on_enter: config.on_enter,
                 enter_selects_first_matching_item: config.enter_selects_first_matching_item,
-                prompt_history_key,
+                prompt_history_key: config.prompt_history_key,
                 fire_dispatches_on_change: config.fire_dispatches_on_change,
             },
             dispatches,
@@ -265,7 +263,6 @@ mod test_prompt {
                     }),
                     App(OpenPrompt {
                         current_line: Some("hello\nworld".to_string()),
-                        key: PromptHistoryKey::Null,
                         config: PromptConfig {
                             on_enter: DispatchPrompt::Null,
                             items: Default::default(),
@@ -273,6 +270,7 @@ mod test_prompt {
                             enter_selects_first_matching_item: true,
                             leaves_current_line_empty,
                             fire_dispatches_on_change: None,
+                            prompt_history_key: PromptHistoryKey::Null,
                         },
                     }),
                     Expect(CurrentComponentContent(expected_text)),
@@ -289,7 +287,6 @@ mod test_prompt {
     fn prompt_history() {
         execute_test(|s| {
             let open_prompt = OpenPrompt {
-                key: PromptHistoryKey::Null,
                 current_line: None,
                 config: PromptConfig {
                     on_enter: DispatchPrompt::Null,
@@ -298,6 +295,7 @@ mod test_prompt {
                     enter_selects_first_matching_item: true,
                     leaves_current_line_empty: true,
                     fire_dispatches_on_change: None,
+                    prompt_history_key: PromptHistoryKey::Null,
                 },
             };
             Box::new([
@@ -340,7 +338,6 @@ mod test_prompt {
                     focus: true,
                 }),
                 App((OpenPrompt {
-                    key: PromptHistoryKey::Null,
                     current_line: Some("spongebob squarepants".to_string()),
                     config: PromptConfig {
                         on_enter: DispatchPrompt::Null,
@@ -349,6 +346,7 @@ mod test_prompt {
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
                         fire_dispatches_on_change: None,
+                        prompt_history_key: PromptHistoryKey::Null,
                     },
                 })
                 .clone()),
@@ -370,7 +368,6 @@ mod test_prompt {
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 App(Dispatch::OpenPrompt {
-                    key: PromptHistoryKey::Null,
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::SetContent,
@@ -379,6 +376,7 @@ mod test_prompt {
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
                         fire_dispatches_on_change: None,
+                        prompt_history_key: PromptHistoryKey::Null,
                     },
                 }),
                 Expect(CurrentComponentContent("")),
@@ -401,7 +399,6 @@ mod test_prompt {
                         focus: true,
                     }),
                     App(OpenPrompt {
-                        key: PromptHistoryKey::Null,
                         current_line: None,
                         config: super::PromptConfig {
                             on_enter: DispatchPrompt::SetContent,
@@ -417,6 +414,7 @@ mod test_prompt {
                             enter_selects_first_matching_item,
                             leaves_current_line_empty: true,
                             fire_dispatches_on_change: None,
+                            prompt_history_key: PromptHistoryKey::Null,
                         },
                     }),
                     Expect(CompletionDropdownIsOpen(true)),
@@ -440,7 +438,6 @@ mod test_prompt {
         execute_test(|_| {
             Box::new([
                 App(Dispatch::OpenPrompt {
-                    key: PromptHistoryKey::Null,
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::SetContent,
@@ -453,6 +450,7 @@ mod test_prompt {
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
                         fire_dispatches_on_change: None,
+                        prompt_history_key: PromptHistoryKey::Null,
                     },
                 }),
                 App(HandleKeyEvents(keys!("f o o _ b tab").to_vec())),
@@ -467,7 +465,6 @@ mod test_prompt {
         execute_test(|_| {
             Box::new([
                 App(Dispatch::OpenPrompt {
-                    key: PromptHistoryKey::Null,
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::Null,
@@ -492,6 +489,7 @@ mod test_prompt {
                         fire_dispatches_on_change: Some(Dispatches::one(Dispatch::ShowEditorInfo(
                             Info::new("".to_string(), "back to square one".to_string()),
                         ))),
+                        prompt_history_key: PromptHistoryKey::Null,
                     },
                 }),
                 App(HandleKeyEvents(keys!("f o o _").to_vec())),
@@ -511,7 +509,6 @@ mod test_prompt {
         execute_test(|_| {
             Box::new([
                 App(Dispatch::OpenPrompt {
-                    key: PromptHistoryKey::Null,
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::SetContent,
@@ -526,6 +523,7 @@ mod test_prompt {
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
                         fire_dispatches_on_change: None,
+                        prompt_history_key: PromptHistoryKey::Null,
                     },
                 }),
                 App(TerminalDimensionChanged(crate::app::Dimension {
@@ -551,7 +549,6 @@ mod test_prompt {
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 App(Dispatch::OpenPrompt {
-                    key: PromptHistoryKey::Null,
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::SetContent,
@@ -564,6 +561,7 @@ mod test_prompt {
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
                         fire_dispatches_on_change: None,
+                        prompt_history_key: PromptHistoryKey::Null,
                     },
                 }),
                 // Expect the completion dropdown to be open,

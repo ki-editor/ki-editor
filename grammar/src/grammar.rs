@@ -85,8 +85,12 @@ pub fn get_language(name: &str) -> Result<Language> {
     rel_library_path.set_extension(DYLIB_EXTENSION);
     let library_path = crate::runtime_file(&rel_library_path);
 
-    let library = unsafe { Library::new(&library_path) }
-        .with_context(|| format!("Error opening dynamic library {:?}", library_path))?;
+    let library = unsafe { Library::new(&library_path) }.map_err(|err| {
+        anyhow::anyhow!(
+            "Error opening dynamic library {:?} due to {err:?}",
+            library_path
+        )
+    })?;
     let language_fn_name = format!("tree_sitter_{}", name.replace('-', "_"));
     let language = unsafe {
         let language_fn: Symbol<unsafe extern "C" fn() -> Language> = library
@@ -538,12 +542,15 @@ fn build_tree_sitter_library(
         }
     }
 
-    let output = command
-        .output()
-        .context("Failed to execute C/C++ compiler")?;
+    let output = command.output().with_context(|| {
+        format!(
+            "Failed to execute C/C++ compiler, the command was {:?}",
+            command
+        )
+    })?;
     if !output.status.success() {
         return Err(anyhow!(
-            "Parser compilation failed.\nStdout: {}\nStderr: {}",
+            "Parser compilation ({command:?}) failed.\nStdout: {}\nStderr: {}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         ));

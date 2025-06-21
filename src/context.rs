@@ -34,6 +34,9 @@ pub(crate) struct Context {
     location_history_backward: Vec<Location>,
     location_history_forward: Vec<Location>,
     marked_paths: IndexSet<CanonicalizedPath>,
+
+    /// This is true, for example, when Ki is running as a VS Code's extension
+    is_running_as_embedded: bool,
 }
 
 pub(crate) struct QuickfixListState {
@@ -92,14 +95,19 @@ impl Default for Context {
             location_history_backward: Vec::new(),
             location_history_forward: Vec::new(),
             marked_paths: Default::default(),
+            is_running_as_embedded: false,
         }
     }
 }
 
 impl Context {
-    pub(crate) fn new(current_working_directory: CanonicalizedPath) -> Self {
+    pub(crate) fn new(
+        current_working_directory: CanonicalizedPath,
+        is_running_as_embedded: bool,
+    ) -> Self {
         Self {
             current_working_directory,
+            is_running_as_embedded,
             ..Self::default()
         }
     }
@@ -335,6 +343,10 @@ impl Context {
             } else {
                 index
             })
+    }
+
+    pub(crate) fn is_running_as_embedded(&self) -> bool {
+        self.is_running_as_embedded
     }
 }
 
