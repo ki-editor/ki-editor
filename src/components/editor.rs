@@ -1276,11 +1276,7 @@ impl Editor {
                     // Get the path for the buffer
                     self.buffer().path().map(|path| {
                         // Create a dispatch to send buffer edit transaction to external integrations
-                        Dispatches::one(crate::app::Dispatch::BufferEditTransaction {
-                            component_id: self.id(),
-                            path,
-                            edits,
-                        })
+                        Dispatches::one(crate::app::Dispatch::BufferEditTransaction { path, edits })
                     })
                 })
                 .flatten()
@@ -2831,11 +2827,7 @@ impl Editor {
                 // Create a BufferEditTransaction dispatch for external integrations
                 let dispatch = if let Some(path) = self.buffer().path() {
                     // Create a dispatch to send buffer edit transaction
-                    Dispatches::one(crate::app::Dispatch::BufferEditTransaction {
-                        component_id: self.id(),
-                        path,
-                        edits,
-                    })
+                    Dispatches::one(crate::app::Dispatch::BufferEditTransaction { path, edits })
                 } else {
                     Default::default()
                 };

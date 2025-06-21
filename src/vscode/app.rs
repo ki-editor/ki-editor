@@ -31,8 +31,6 @@ pub struct VSCodeApp {
     pub(crate) app_message_receiver: mpsc::Receiver<AppMessage>,
     pub(crate) ipc_handler: WebSocketIpc,
     pub(crate) buffer_versions: HashMap<String, u64>,
-    #[allow(dead_code)]
-    pub(crate) next_message_id: u64,
 }
 
 impl VSCodeApp {
@@ -89,7 +87,6 @@ impl VSCodeApp {
             integration_event_receiver,
             ipc_handler,
             buffer_versions: HashMap::new(),
-            next_message_id: 1,
         })
     }
 
@@ -300,33 +297,6 @@ impl VSCodeApp {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn next_id(&mut self) -> u64 {
-        let id = self.next_message_id;
-        self.next_message_id += 1;
-        id
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn get_current_file_uri(&self) -> Option<String> {
-        self.get_current_file_path().map(|path| path_to_uri(&path))
-    }
-
-    pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
-        let app_guard = match self.app.try_lock() {
-            Ok(guard) => guard,
-            Err(_) => {
-                trace!("Could not acquire app lock to get current file path");
-                return None;
-            }
-        };
-
-        let component = app_guard.current_component();
-        let component_ref = component.borrow();
-        let path_opt = component_ref.editor().buffer().path();
-        path_opt
-    }
-
     pub(crate) fn get_editor_component_by_path(
         &self,
         path: &CanonicalizedPath,
@@ -383,15 +353,8 @@ impl VSCodeApp {
         use crate::integration_event::IntegrationEvent;
 
         match event {
-            IntegrationEvent::BufferChanged {
-                component_id: _,
-                path,
-                edits,
-            } => self.buffer_changed(path, edits)?,
-            IntegrationEvent::BufferSaved {
-                component_id: _,
-                path,
-            } => self.buffer_saved(path)?,
+            IntegrationEvent::BufferChanged { path, edits } => self.buffer_changed(path, edits)?,
+            IntegrationEvent::BufferSaved { path } => self.buffer_saved(path)?,
             IntegrationEvent::ModeChanged { component_id, mode } => {
                 self.mode_changed(component_id, mode)?
             }
@@ -407,19 +370,6 @@ impl VSCodeApp {
                 component_id,
                 selections,
             } => self.selection_changed(component_id, selections)?,
-            IntegrationEvent::ExternalBufferCreated {
-                component_id: _,
-                buffer_id,
-                content,
-            } => self.external_buffer_created(buffer_id, content)?,
-            IntegrationEvent::ExternalBufferUpdated {
-                component_id: _,
-                buffer_id,
-                content,
-            } => self.external_buffer_updated(buffer_id, content)?,
-            IntegrationEvent::CommandExecuted { command, success } => {
-                self.command_executed(command, success)?
-            }
             IntegrationEvent::PromptOpened { title, items } => self.prompt_opened(title, items)?,
             IntegrationEvent::MarksChanged {
                 component_id,
@@ -715,37 +665,6 @@ impl VSCodeApp {
                     .map(|(key, position)| ki_protocol_types::JumpTarget { key, position })
                     .collect(),
             }),
-            error: None,
-        })
-    }
-
-    fn external_buffer_created(&self, buffer_id: String, content: String) -> anyhow::Result<()> {
-        let external_buffer_params = ki_protocol_types::ExternalBufferParams { buffer_id, content };
-        self.send_notification(OutputMessageWrapper {
-            id: 0,
-            message: OutputMessage::ExternalBufferCreated(external_buffer_params),
-            error: None,
-        })
-    }
-
-    fn external_buffer_updated(&self, buffer_id: String, content: String) -> anyhow::Result<()> {
-        let external_buffer_params = ki_protocol_types::ExternalBufferParams { buffer_id, content };
-        self.send_notification(OutputMessageWrapper {
-            id: 0,
-            message: OutputMessage::ExternalBufferUpdated(external_buffer_params),
-            error: None,
-        })
-    }
-
-    fn command_executed(&self, command: String, success: bool) -> anyhow::Result<()> {
-        let command_params = ki_protocol_types::CommandParams {
-            name: command,
-            args: Vec::new(),
-            success: Some(success),
-        };
-        self.send_notification(OutputMessageWrapper {
-            id: 0,
-            message: OutputMessage::CommandExecuted(command_params),
             error: None,
         })
     }

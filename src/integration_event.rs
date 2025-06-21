@@ -25,14 +25,10 @@ pub fn component_id_to_usize(id: &crate::components::component::ComponentId) -> 
 pub enum IntegrationEvent {
     // Buffer events
     BufferChanged {
-        #[allow(dead_code)]
-        component_id: ComponentId,
         path: CanonicalizedPath,
         edits: Vec<ki_protocol_types::DiffEdit>,
     },
     BufferSaved {
-        #[allow(dead_code)]
-        component_id: ComponentId,
         path: CanonicalizedPath,
     },
     // Editor state events
@@ -43,26 +39,6 @@ pub enum IntegrationEvent {
     SelectionChanged {
         component_id: ComponentId,
         selections: Vec<Selection>,
-    },
-    // External buffer events
-    #[allow(dead_code)]
-    ExternalBufferCreated {
-        component_id: ComponentId,
-        buffer_id: String,
-        content: String,
-    },
-    #[allow(dead_code)]
-    ExternalBufferUpdated {
-        component_id: ComponentId,
-        buffer_id: String,
-        content: String,
-    },
-
-    // Other events
-    #[allow(dead_code)]
-    CommandExecuted {
-        command: String,
-        success: bool,
     },
     JumpsChanged {
         component_id: usize,

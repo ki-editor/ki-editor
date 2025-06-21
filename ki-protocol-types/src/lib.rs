@@ -425,6 +425,8 @@ pub enum OutputMessage {
     JumpsChanged(JumpsParams),
     #[serde(rename = "editor.mark")]
     MarksChanged(MarksParams),
+
+    // LSP actions
     #[serde(rename = "lsp.definition")]
     RequestLspDefinition,
     #[serde(rename = "lsp.hover")]

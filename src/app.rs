@@ -727,13 +727,8 @@ impl<T: Frontend> App<T> {
                     let component_ref = component_rc.borrow();
                     if let Some(component_path) = component_ref.path() {
                         if component_path == path {
-                            let component_id = crate::integration_event::component_id_to_usize(
-                                &component_ref.id(),
-                            );
-
                             self.integration_event_sender.emit_event(
                                 crate::integration_event::IntegrationEvent::BufferSaved {
-                                    component_id,
                                     path: path.clone(),
                                 },
                             );
@@ -911,17 +906,10 @@ impl<T: Frontend> App<T> {
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
-            Dispatch::BufferEditTransaction {
-                component_id,
-                path,
-                edits,
-            } => {
+            Dispatch::BufferEditTransaction { path, edits } => {
                 // Emit an integration event for the buffer change
                 self.integration_event_sender.emit_event(
                     crate::integration_event::IntegrationEvent::BufferChanged {
-                        component_id: crate::integration_event::component_id_to_usize(
-                            &component_id,
-                        ),
                         path: path.clone(),
                         edits: edits.clone(),
                     },
@@ -2966,7 +2954,6 @@ pub(crate) enum Dispatch {
     ToggleFileMark,
     // Used to send buffer changes from EditTransaction to external integrations
     BufferEditTransaction {
-        component_id: ComponentId,
         path: CanonicalizedPath,
         edits: Vec<ki_protocol_types::DiffEdit>,
     },
