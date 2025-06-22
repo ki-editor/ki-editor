@@ -132,13 +132,13 @@ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
 name = "ast-grep-core"
-version = "0.32.2"
+version = "0.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "728b597c1b9798539e654b0c1e23e6e247e37000ede1ebc5007ac859d785a9fa"
+checksum = "29695a2fd4b16f501b1b6dbc18aa42cbe5f6cdc491b66f64c192bfcccfd6e3e0"
 dependencies = [
  "bit-set",
  "regex",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tree-sitter-facade-sg",
 ]
 
@@ -164,6 +164,15 @@ name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+
+[[package]]
+name = "baz-tree-sitter-traversal"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2ae77a4ce9f364f49c87fdaf55d1ed79fb301003788acd26b64a46bda8f2a62"
+dependencies = [
+ "tree-sitter",
+]
 
 [[package]]
 name = "bit-set"
@@ -259,9 +268,9 @@ checksum = "a2698f953def977c68f935bb0dfa959375ad4638570e969e2f1e9f433cbf1af6"
 
 [[package]]
 name = "cc"
-version = "1.2.0"
+version = "1.2.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1aeb932158bd710538c73702db6945cb68a8fb08c519e6e12706b94263b36db8"
+checksum = "d487aa071b5f64da6f19a3e848e3578944b726ee5a4854b82172f02aa876bfdc"
 dependencies = [
  "jobserver",
  "libc",
@@ -1428,6 +1437,7 @@ dependencies = [
  "arboard",
  "ast-grep-core",
  "base64",
+ "baz-tree-sitter-traversal",
  "chrono",
  "clap",
  "comfy-table",
@@ -1486,7 +1496,6 @@ dependencies = [
  "tree-sitter-md",
  "tree-sitter-quickfix",
  "tree-sitter-rust",
- "tree-sitter-traversal2",
  "undo",
  "unicode-width 0.2.0",
  "vt100",
@@ -2052,7 +2061,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b7cafe60d6cf8e62e1b9b2ea516a089c008945bb5a275416789e7db0bc199dc"
 dependencies = [
  "memchr",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "ucd-trie",
 ]
 
@@ -2511,10 +2520,11 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.134"
+version = "1.0.140"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d00f4175c42ee48b15416f6193a959ba3a0d67fc699a0db9ad12df9f83991c7d"
+checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
 dependencies = [
+ "indexmap",
  "itoa",
  "memchr",
  "ryu",
@@ -2905,11 +2915,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.9"
+version = "2.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f072643fd0190df67a8bab670c20ef5d8737177d6ac6b2e9a236cb096206b2cc"
+checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
 dependencies = [
- "thiserror-impl 2.0.9",
+ "thiserror-impl 2.0.12",
 ]
 
 [[package]]
@@ -2925,9 +2935,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.9"
+version = "2.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b50fa271071aae2e6ee85f842e2e28ba8cd2c5fb67f11fcb1fd70b276f9e7d4"
+checksum = "7f7cf42b4507d8ea322120659672cf1b9dbb93f8f2d4ecfd6e51350ff5b17a1d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3053,22 +3063,23 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.24.6"
+version = "0.25.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f2434c86ba59ed15af56039cc5bf1acf8ba76ce301e32ef08827388ef285ec5"
+checksum = "a7cf18d43cbf0bfca51f657132cc616a5097edc4424d538bae6fa60142eaf9f0"
 dependencies = [
  "cc",
  "regex",
  "regex-syntax",
+ "serde_json",
  "streaming-iterator",
  "tree-sitter-language",
 ]
 
 [[package]]
 name = "tree-sitter-facade-sg"
-version = "0.24.5"
+version = "0.25.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9195ab85ddd7df7ddac5b2e397ec6264816ae640346013002ceccf0f9b3578f1"
+checksum = "b456912926c4079fb0e6d26e4282a588f93857fbb4d79e29c5eb1244b7100d55"
 dependencies = [
  "js-sys",
  "tree-sitter",
@@ -3080,14 +3091,13 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-highlight"
-version = "0.24.6"
+version = "0.25.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1df627d3607f08557788a3c85b85042d8ccd5155eb119afff5f0c7b67a40924"
+checksum = "6eea684ab5dd71e19f6c0add355be96f2b4eb58327cb305337415208681761aa"
 dependencies = [
- "lazy_static",
  "regex",
  "streaming-iterator",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tree-sitter",
 ]
 
@@ -3117,20 +3127,12 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-rust"
-version = "0.23.2"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4d64d449ca63e683c562c7743946a646671ca23947b9c925c0cfbe65051a4af"
+checksum = "4b9b18034c684a2420722be8b2a91c9c44f2546b631c039edf575ccba8c61be1"
 dependencies = [
  "cc",
  "tree-sitter-language",
-]
-
-[[package]]
-name = "tree-sitter-traversal2"
-version = "0.2.0"
-source = "git+https://github.com/airbus-cert/tree-sitter-traversal#d42989eba630d614b4658d8eba4400dc09890982"
-dependencies = [
- "tree-sitter",
 ]
 
 [[package]]
@@ -3178,7 +3180,7 @@ dependencies = [
  "serde",
  "serde_json",
  "syn 2.0.92",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "unicode-ident",
 ]
 
@@ -3484,9 +3486,9 @@ dependencies = [
 
 [[package]]
 name = "web-tree-sitter-sg"
-version = "0.24.5"
+version = "0.25.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69cf7d34b16550f076d75b4a5d4673f1a9692f79787d040e3ac7ddb04e5c48a0"
+checksum = "0c769bd29dd6612783fffb7090d29ed8b390672fb9e968b9e76bbc07bf78600c"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
