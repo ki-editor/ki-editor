@@ -8,11 +8,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 
 @Serializable
-data class BufferActiveParams (
+data class BufferContentParams (
 	val uri: String,
-	val content: String,
-	val language_id: String? = null,
-	val version: Int? = null
+	val content: String
 )
 
 /// VS Code Position
@@ -84,9 +82,7 @@ data class BufferOpenParams (
 @Serializable
 data class BufferParams (
 	val uri: String,
-	val content: String? = null,
-	val language_id: String? = null,
-	val version: Int? = null
+	val language_id: String? = null
 )
 
 @Serializable
@@ -154,7 +150,10 @@ sealed class InputMessage {
 	data class BufferChange(val params: BufferDiffParams): InputMessage()
 	@Serializable
 	@SerialName("buffer.active")
-	data class BufferActive(val params: BufferActiveParams): InputMessage()
+	data class BufferActive(val params: BufferParams): InputMessage()
+	@Serializable
+	@SerialName("editor.syncBufferResponse")
+	data class SyncBufferResponse(val params: BufferContentParams): InputMessage()
 	@Serializable
 	@SerialName("selection.set")
 	data class SelectionSet(val params: SelectionSet): InputMessage()
@@ -208,7 +207,10 @@ data class KeyboardParams (
 	val timestamp: ULong,
 	val mode: String? = null,
 	val is_composed: Boolean,
-	val uri: String
+	val uri: String,
+	/// This is necessary for resolving content desync
+	/// between Ki and the host application
+	val content_hash: UInt
 )
 
 @Serializable
@@ -233,6 +235,12 @@ data class MarksParams (
 data class ModeParams (
 	val mode: String,
 	val buffer_id: String? = null
+)
+
+/// Generated type representing the anonymous struct variant `SyncBufferRequest` of the `OutputMessage` Rust enum
+@Serializable
+data class OutputMessageSyncBufferRequestInner (
+	val uri: String
 )
 
 @Serializable
@@ -324,6 +332,9 @@ sealed class OutputMessage {
 	@Serializable
 	@SerialName("lsp.documentSymbols")
 	object RequestLspDocumentSymbols: OutputMessage()
+	@Serializable
+	@SerialName("editor.syncBufferRequest")
+	data class SyncBufferRequest(val params: OutputMessageSyncBufferRequestInner): OutputMessage()
 }
 
 @Serializable

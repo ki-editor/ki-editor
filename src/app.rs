@@ -88,6 +88,10 @@ pub(crate) struct App<T: Frontend> {
 
     /// This is necessary when Ki is running as an embedded application
     last_prompt_config: Option<PromptConfig>,
+
+    /// This is used for suspending events until the buffer content
+    /// is synced between Ki and the host application.
+    queued_events: Vec<Event>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
@@ -161,6 +165,7 @@ impl<T: Frontend> App<T> {
             last_action_short_description: None,
             integration_event_sender,
             last_prompt_config: None,
+            queued_events: Vec::new(),
         };
         Ok(app)
     }
@@ -929,7 +934,11 @@ impl<T: Frontend> App<T> {
             } => self.jumps_changed(component_id, jumps),
             Dispatch::PromptEntered(entry) => self.prompt_entered(entry)?,
             Dispatch::MarksChanged(component_id, marks) => self.marks_updated(component_id, marks),
-            Dispatch::TargetedEvent { event, path } => self.handle_targeted_event(event, path)?,
+            Dispatch::TargetedEvent {
+                event,
+                path,
+                content_hash,
+            } => self.handle_targeted_event(event, path, content_hash)?,
         }
         Ok(())
     }
@@ -2689,10 +2698,15 @@ impl<T: Frontend> App<T> {
         self.context.is_running_as_embedded()
     }
 
+    pub(crate) fn take_queued_events(&mut self) -> Vec<Event> {
+        std::mem::take(&mut self.queued_events)
+    }
+
     fn handle_targeted_event(
         &mut self,
         event: Event,
         path: Option<CanonicalizedPath>,
+        content_hash: u32,
     ) -> anyhow::Result<()> {
         // If the current component kind is a not a SuggestiveEditor, we handle the event directly
         if self.layout.get_current_component_kind() != Some(ComponentKind::SuggestiveEditor) {
@@ -2701,6 +2715,21 @@ impl<T: Frontend> App<T> {
         } else {
             if let Some(path) = path {
                 let component = self.open_file(&path, BufferOwner::User, false, true)?;
+
+                // Compare the checksum of of the content of the buffer in Ki with that of the host application (e.g. VS Code)
+                // This step is necessary to detect unsynchronized buffer
+                if content_hash != crc32fast::hash(&component.borrow().content().as_bytes()) {
+                    // If the buffer is desync, request the latest content
+                    // before handling this event
+                    self.integration_event_sender
+                        .emit_event(IntegrationEvent::SyncBufferRequest { path });
+
+                    // Suspend this event until the buffer content is synced
+                    self.queued_events.push(event);
+
+                    return Ok(());
+                }
+
                 let dispatches = component
                     .borrow_mut()
                     .handle_event(&self.context, event.clone())?;
@@ -2975,6 +3004,7 @@ pub(crate) enum Dispatch {
     TargetedEvent {
         event: Event,
         path: Option<CanonicalizedPath>,
+        content_hash: u32,
     },
     Suspend,
 }

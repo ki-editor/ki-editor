@@ -146,18 +146,14 @@ impl std::fmt::Display for EditorAction {
 #[typeshare]
 pub struct BufferParams {
     pub uri: String,
-    pub content: Option<String>,
     pub language_id: Option<String>,
-    pub version: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[typeshare]
-pub struct BufferActiveParams {
+pub struct BufferContentParams {
     pub uri: String,
     pub content: String,
-    pub language_id: Option<String>,
-    pub version: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -228,7 +224,6 @@ pub struct ViewportParams {
     pub visible_line_ranges: Vec<LineRange>,
 }
 
-// Parameters for keyboard input events
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[typeshare]
 pub struct KeyboardParams {
@@ -238,6 +233,9 @@ pub struct KeyboardParams {
     pub mode: Option<String>,
     pub is_composed: bool,
     pub uri: String,
+    /// This is necessary for resolving content desync
+    /// between Ki and the host application
+    pub content_hash: u32,
 }
 
 // Parameters for editor actions
@@ -306,7 +304,9 @@ pub enum InputMessage {
     #[serde(rename = "buffer.change")]
     BufferChange(BufferDiffParams),
     #[serde(rename = "buffer.active")]
-    BufferActive(BufferActiveParams),
+    BufferActive(BufferParams),
+    #[serde(rename = "editor.syncBufferResponse")]
+    SyncBufferResponse(BufferContentParams),
 
     // Selection operations (includes cursor information)
     #[serde(rename = "selection.set")]
@@ -447,6 +447,8 @@ pub enum OutputMessage {
     RequestLspCodeAction,
     #[serde(rename = "lsp.documentSymbols")]
     RequestLspDocumentSymbols,
+    #[serde(rename = "editor.syncBufferRequest")]
+    SyncBufferRequest { uri: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -539,6 +541,7 @@ impl MessageMethod for InputMessage {
             Self::ViewportChange(_) => Cow::Borrowed("viewport.change"),
             Self::DiagnosticsChange(_) => Cow::Borrowed("diagnostics.change"),
             Self::PromptEnter(_) => Cow::Borrowed("prompt.enter"),
+            Self::SyncBufferResponse(_) => Cow::Borrowed("editor.syncBufferResponse"),
         }
     }
 
@@ -559,6 +562,7 @@ impl MessageMethod for InputMessage {
             Self::ViewportChange(_) => "ViewportChange",
             Self::DiagnosticsChange(_) => "DiagnosticsChange",
             Self::PromptEnter(_) => "PromptEnter",
+            Self::SyncBufferResponse(_) => "BufferContent",
         }
     }
 }
@@ -596,6 +600,7 @@ impl MessageMethod for OutputMessage {
             OutputMessage::RequestLspRename => Cow::Borrowed("lsp.rename"),
             OutputMessage::RequestLspCodeAction => Cow::Borrowed("lsp.codeAction"),
             OutputMessage::RequestLspDocumentSymbols => Cow::Borrowed("lsp.documentSymbols"),
+            OutputMessage::SyncBufferRequest { .. } => Cow::Borrowed("editor.requestBufferContent"),
         }
     }
 
@@ -630,6 +635,7 @@ impl MessageMethod for OutputMessage {
             OutputMessage::RequestLspRename => "RequestLspRename",
             OutputMessage::RequestLspCodeAction => "RequestLspCodeAction",
             OutputMessage::RequestLspDocumentSymbols => "RequestLspDocumentSymbols",
+            OutputMessage::SyncBufferRequest { .. } => "RequestBufferContent",
         }
     }
 }

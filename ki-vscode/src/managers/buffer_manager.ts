@@ -112,10 +112,33 @@ export class BufferManager extends Manager {
             },
         );
 
+        this.dispatcher.registerKiNotificationHandler(
+            "editor.syncBufferRequest",
+            (params) => {
+                this.handleSyncBuffer(params);
+            },
+        );
+
         // Register undo/redo command listeners
         this.registerUndoRedoCommands();
 
         this.initializeActiveEditor();
+    }
+
+    private handleSyncBuffer(params: { uri: string }) {
+        const document = vscode.workspace.textDocuments.find(
+            (doc) => doc.uri.toString() === params.uri.toString(),
+        );
+        if (document) {
+            this.dispatcher.sendNotification("editor.syncBufferResponse", {
+                uri: params.uri,
+                content: document.getText(),
+            });
+        } else {
+            this.logger.error(
+                `Unable to find document with URI "${params.uri}"`,
+            );
+        }
     }
 
     private handleBufferSave(params: BufferParams): void {
@@ -216,9 +239,7 @@ export class BufferManager extends Manager {
         // Send close notification to Ki
         this.dispatcher.sendRequest("buffer.close", {
             uri: uri,
-            content: undefined,
             language_id: document.languageId,
-            version: document.version,
         });
 
         // Remove from openBuffers
@@ -240,9 +261,7 @@ export class BufferManager extends Manager {
         // Send save notification to Ki
         this.dispatcher.sendRequest("buffer.save", {
             uri: uri,
-            content: undefined,
             language_id: document.languageId,
-            version: document.version,
         });
     }
 
@@ -393,9 +412,7 @@ export class BufferManager extends Manager {
         // Send active notification to Ki
         this.dispatcher.sendNotification("buffer.active", {
             uri: uri,
-            content: document.getText(),
             language_id: document.languageId,
-            version: document.version,
         });
     }
 

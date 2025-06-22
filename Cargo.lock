@@ -1691,6 +1691,7 @@ dependencies = [
  "clap 4.5.23",
  "comfy-table",
  "convert_case",
+ "crc32fast",
  "cross",
  "crossbeam",
  "crossterm",

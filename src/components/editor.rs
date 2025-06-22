@@ -3783,6 +3783,17 @@ impl Editor {
     pub(crate) fn dispatch_selection_mode_changed(&self) -> Dispatch {
         Dispatch::SelectionModeChanged(self.selection_set.mode.clone())
     }
+
+    pub(crate) fn update_content(
+        &mut self,
+        new_content: &str,
+        context: &Context,
+    ) -> anyhow::Result<()> {
+        let current_selection_set = self.selection_set.clone();
+        let last_visible_line = self.last_visible_line(context);
+        self.buffer_mut()
+            .update_content(new_content, current_selection_set, last_visible_line)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]

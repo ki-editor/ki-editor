@@ -758,21 +758,21 @@ impl Buffer {
         self.save_without_formatting(force)
     }
 
-    fn update_content(
+    pub(crate) fn update_content(
         &mut self,
         new_content: &str,
         current_selection_set: SelectionSet,
         last_visible_line: u16,
-    ) -> anyhow::Result<SelectionSet> {
+    ) -> anyhow::Result<()> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
-        let (selection_set, _) = self.apply_edit_transaction(
+        self.apply_edit_transaction(
             &edit_transaction,
             current_selection_set,
             true,
             true,
             last_visible_line,
         )?;
-        Ok(selection_set)
+        Ok(())
     }
 
     /// The resulting spans must be sorted by range

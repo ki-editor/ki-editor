@@ -135,6 +135,7 @@ tungstenite = { version = "0.21", features = [
 ], optional = true }
 cross = "0.2.5"
 libc = "0.2.174"
+crc32fast = "1.4.2"
 
 [dev-dependencies]
 serial_test = "~3.2.0"

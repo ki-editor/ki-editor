@@ -17,7 +17,9 @@ export class PromptManager extends Manager {
             title: params.title,
             items: params.items,
         });
-        this.dispatcher.sendNotification("prompt.enter", result);
+        if (result) {
+            this.dispatcher.sendNotification("prompt.enter", result);
+        }
     }
 }
 

@@ -66,6 +66,9 @@ pub enum IntegrationEvent {
     RequestLspRename,
     RequestLspCodeAction,
     RequestLspDocumentSymbols,
+    SyncBufferRequest {
+        path: CanonicalizedPath,
+    },
 }
 
 /// Trait for components that can emit integration events

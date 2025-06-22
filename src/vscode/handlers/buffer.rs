@@ -13,13 +13,13 @@ use crate::{
     },
 };
 use itertools::Itertools;
-use ki_protocol_types::{BufferActiveParams, BufferDiffParams, BufferOpenParams, BufferParams};
+use ki_protocol_types::{BufferContentParams, BufferDiffParams, BufferOpenParams, BufferParams};
 use log::{error, info}; // Added debug
 use ropey::Rope; // Added Rope
 
 impl VSCodeApp {
     /// Handle buffer open request from VSCode
-    pub fn handle_buffer_open_request(&mut self, params: BufferOpenParams) -> Result<()> {
+    pub(crate) fn handle_buffer_open_request(&mut self, params: BufferOpenParams) -> Result<()> {
         let BufferOpenParams {
             uri,
             content,
@@ -65,7 +65,7 @@ impl VSCodeApp {
     }
 
     /// Handle buffer close request from VSCode
-    pub fn handle_buffer_close_request(&mut self, params: BufferParams) -> Result<()> {
+    pub(crate) fn handle_buffer_close_request(&mut self, params: BufferParams) -> Result<()> {
         let BufferParams { uri, .. } = params;
         info!("Buffer closed: uri={}", uri);
 
@@ -92,12 +92,10 @@ impl VSCodeApp {
     }
 
     /// Handle buffer save request from VSCode
-    pub fn handle_buffer_save_request(&mut self, params: BufferParams) -> Result<()> {
+    pub(crate) fn handle_buffer_save_request(&mut self, params: BufferParams) -> Result<()> {
         let BufferParams {
             uri: _,
-            content: _,
             language_id: _,
-            version: _,
             ..
         } = params;
         self.app
@@ -109,8 +107,8 @@ impl VSCodeApp {
     }
 
     /// Handle buffer active request from VSCode
-    pub fn handle_buffer_active_request(&mut self, params: BufferActiveParams) -> Result<()> {
-        let BufferActiveParams { uri, content, .. } = params;
+    pub(crate) fn handle_buffer_active_request(&mut self, params: BufferParams) -> Result<()> {
+        let BufferParams { uri, .. } = params;
         let path = uri_to_path(&uri)?;
         self.app
             .lock()
@@ -121,22 +119,14 @@ impl VSCodeApp {
                 focus: true,
             })?;
 
-        // Update the content, this is to prevent buffer desync issues that happens randomly
-        let app_guard = self.app.lock().unwrap();
-        let comp = app_guard.current_component();
-        let context = Context::new(path.clone(), true);
-
-        // Scope the mutable borrow to avoid borrow checker issues
-        {
-            let mut comp_ref = comp.borrow_mut();
-            comp_ref.set_content(&content, &context)?;
-        };
-
         Ok(())
     }
 
     /// Handle buffer change request from VSCode
-    pub fn handle_buffer_change_request(&mut self, params: BufferDiffParams) -> anyhow::Result<()> {
+    pub(crate) fn handle_buffer_change_request(
+        &mut self,
+        params: BufferDiffParams,
+    ) -> anyhow::Result<()> {
         let BufferDiffParams { buffer_id, edits } = params;
 
         let path = uri_to_path(&buffer_id)?;
@@ -187,6 +177,39 @@ impl VSCodeApp {
             .borrow_mut()
             .editor_mut()
             .apply_edit_transaction(transaction, &Context::default())?;
+
+        Ok(())
+    }
+
+    pub(crate) fn handle_sync_buffer_response(
+        &self,
+        params: BufferContentParams,
+    ) -> std::result::Result<(), anyhow::Error> {
+        let BufferContentParams { uri, content, .. } = params;
+        let path = uri_to_path(&uri)?;
+        self.app
+            .lock()
+            .unwrap()
+            .handle_dispatch(Dispatch::OpenFile {
+                path: path.clone(),
+                owner: BufferOwner::User,
+                focus: false,
+            })?;
+
+        // Update the content, this is to prevent buffer desync issues that happens randomly
+        let mut app_guard = self.app.lock().unwrap();
+        let comp = app_guard.current_component();
+        let context = Context::new(path.clone(), true);
+
+        // Scope the mutable borrow to avoid borrow checker issues
+        {
+            let mut comp_ref = comp.borrow_mut();
+            comp_ref.editor_mut().update_content(&content, &context)?;
+        };
+
+        for event in app_guard.take_queued_events() {
+            app_guard.handle_event(event)?;
+        }
 
         Ok(())
     }

@@ -19,17 +19,15 @@
 -   [x] After closing VS Code peeking, Ki editor still focuses on the other files
 -   [x] When buffer is active, VS Code should send the latest content to Ki to minimize desync issue
 -   [x] Cannot jump to last line if last line is in view
-
+-   [x] Add command to sync documents when out of sync
+-   [x] Published to VS Code marketplace is not the latest version
+-   [x] Ki and VS Code buffer content desync sometimes after, say, auto formatting
+-   [] VS Code extension README not updated
 -   [] Save not working properly (require multiple presses of Enter)
 -   [] Scroll up/down not working
 -   [] Make Ki works in Global Search opened in VS Code editor as buffer
 -   [] Cylce cursor not working
 -   [] Should we let VS Code handle Undo/Redo for max safety?
--   [] Published to VS Code marketplace is not the latest version
 -   [] Rename Rust code of vscode to "embed"
-
--   [] Ki and VS Code buffer content desync sometimes after, say, auto formatting
--   [] Add command to sync documents when out of sync
--   [] VS Code extension README not updated
-
 -   [] Selections not updated after code actions are applied
+-   [] Allow opening non-file buffer, like "tasks"

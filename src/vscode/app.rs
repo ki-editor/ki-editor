@@ -182,6 +182,7 @@ impl VSCodeApp {
             }
             InputMessage::DiagnosticsChange(params) => self.handle_diagnostics_change(params),
             InputMessage::PromptEnter(entry) => self.handle_prompt_enter(entry),
+            InputMessage::SyncBufferResponse(params) => self.handle_sync_buffer_response(params),
         };
 
         let duration = start_time.elapsed();
@@ -387,6 +388,7 @@ impl VSCodeApp {
             IntegrationEvent::RequestLspRename => self.request_lsp_rename()?,
             IntegrationEvent::RequestLspCodeAction => self.request_lsp_code_action()?,
             IntegrationEvent::RequestLspDocumentSymbols => self.request_lsp_document_symbols()?,
+            IntegrationEvent::SyncBufferRequest { path } => self.request_buffer_content(path)?,
         }
 
         Ok(())
@@ -523,9 +525,7 @@ impl VSCodeApp {
         let uri = path_to_uri(&path);
         let params = ki_protocol_types::BufferParams {
             uri,
-            content: None,
             language_id: None,
-            version: None,
         };
         self.send_notification(OutputMessageWrapper {
             id: 0,
@@ -856,6 +856,16 @@ impl VSCodeApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::RequestLspDocumentSymbols,
+            error: None,
+        })
+    }
+
+    fn request_buffer_content(&self, path: CanonicalizedPath) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::SyncBufferRequest {
+                uri: path_to_uri(&path),
+            },
             error: None,
         })
     }

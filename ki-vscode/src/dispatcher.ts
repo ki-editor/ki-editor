@@ -160,7 +160,7 @@ export class Dispatcher implements vscode.Disposable {
      */
     public sendNotification<M extends InputMessage["tag"]>(
         tag: M,
-        params?: InputMessageParamsMap[M],
+        params: InputMessageParamsMap[M],
     ): void {
         this.ipc.sendNotification(tag, params);
     }
