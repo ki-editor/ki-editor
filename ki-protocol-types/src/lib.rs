@@ -10,9 +10,9 @@ use typeshare::typeshare;
 /// VS Code Position
 pub struct Position {
     #[typeshare(typescript(type = "number"))]
-    pub line: usize,
+    pub line: u32,
     #[typeshare(typescript(type = "number"))]
-    pub character: usize,
+    pub character: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -47,7 +47,7 @@ pub struct SelectionSet {
     pub buffer_id: String,
     #[serde(default)]
     #[typeshare(typescript(type = "number"))]
-    pub primary: usize,
+    pub primary: u32,
     pub selections: Vec<Selection>,
 }
 
@@ -209,9 +209,9 @@ pub struct SelectionModeParams {
 #[typeshare]
 pub struct LineRange {
     #[typeshare(typescript(type = "number"))]
-    pub start: usize,
+    pub start: u32,
     #[typeshare(typescript(type = "number"))]
-    pub end: usize,
+    pub end: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -226,21 +226,12 @@ pub struct ViewportParams {
 pub struct KeyboardParams {
     pub key: String,
     #[typeshare(typescript(type = "number"))]
-    pub timestamp: u64,
     pub mode: Option<String>,
     pub is_composed: bool,
     pub uri: String,
     /// This is necessary for resolving content desync
     /// between Ki and the host application
     pub content_hash: u32,
-}
-
-// Parameters for editor actions
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[typeshare]
-pub struct EditorActionParams {
-    pub action: EditorAction,
-    pub buffer_id: Option<String>,
 }
 
 // Parameters for external buffer events
@@ -358,6 +349,7 @@ pub enum OutputMessage {
     // Buffer operations
     #[serde(rename = "buffer.open")]
     /// TODO: handle this on VS Code side
+    /// See https://code.visualstudio.com/api/extension-guides/virtual-documents
     BufferOpen(BufferParams),
     #[serde(rename = "buffer.save")]
     BufferSave(BufferParams),
@@ -452,7 +444,7 @@ pub struct MarksParams {
 pub struct InputMessageWrapper {
     pub message: InputMessage,
     #[typeshare(typescript(type = "number"))]
-    pub id: u64,
+    pub id: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -460,7 +452,7 @@ pub struct InputMessageWrapper {
 pub struct OutputMessageWrapper {
     pub message: OutputMessage,
     #[typeshare(typescript(type = "number"))]
-    pub id: u64,
+    pub id: u32,
     pub error: Option<ResponseError>,
 }
 

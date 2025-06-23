@@ -87,7 +87,7 @@ impl VSCodeApp {
 
 pub(crate) fn to_ki_position(position: &ki_protocol_types::Position) -> Position {
     Position {
-        line: position.line,
-        column: position.character,
+        line: position.line as usize,
+        column: position.character as usize,
     }
 }

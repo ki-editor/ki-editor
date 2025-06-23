@@ -62,10 +62,13 @@ watch-clippy:
 watch-generate-recipes:
 	just watch-test "generate_recipes"
 
-watch-vscode-build:
+install-typeshare:
+    cargo install --git https://github.com/tomjw64/typeshare
+
+watch-vscode-build: install-typeshare
     cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo build --features vscode
 
-vscode-build:
+vscode-build: install-typeshare
     cargo build --release --features vscode
     cd ki-vscode && npm install
     cd ki-vscode && npm run format

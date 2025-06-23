@@ -406,8 +406,8 @@ impl Buffer {
             .unwrap_or(0);
 
         Ok(ki_protocol_types::Position {
-            line: line_index,
-            character: column_index,
+            line: line_index as u32,
+            character: column_index as u32,
         })
     }
 

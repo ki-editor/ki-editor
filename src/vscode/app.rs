@@ -103,7 +103,7 @@ impl VSCodeApp {
         self.send_message_to_vscode(wrapper)
     }
 
-    fn handle_request(&mut self, id: u64, message: InputMessage, trace_id: &str) -> Result<()> {
+    fn handle_request(&mut self, id: u32, message: InputMessage, trace_id: &str) -> Result<()> {
         debug!(
             "[{}] Entering handle_request: id={}, message={:?}",
             trace_id, id, message
@@ -277,7 +277,7 @@ impl VSCodeApp {
         None
     }
 
-    pub(crate) fn send_response(&self, id: u64, message: OutputMessage) -> Result<()> {
+    pub(crate) fn send_response(&self, id: u32, message: OutputMessage) -> Result<()> {
         info!("Sending response for request ID {}: {:?}", id, message);
         let wrapper = OutputMessageWrapper {
             id,
@@ -287,7 +287,7 @@ impl VSCodeApp {
         self.send_message_to_vscode(wrapper)
     }
 
-    pub(crate) fn send_error_response(&self, id: u64, error_message: &str) -> Result<()> {
+    pub(crate) fn send_error_response(&self, id: u32, error_message: &str) -> Result<()> {
         let error_response = OutputMessageWrapper {
             id,
             message: OutputMessage::Error(error_message.to_string()),

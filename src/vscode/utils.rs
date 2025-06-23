@@ -6,8 +6,8 @@ use url::Url;
 // Convert VSCode protocol position to Ki editor position
 pub(crate) fn vscode_position_to_ki_position(pos: &VSCodePosition) -> KiPosition {
     KiPosition {
-        line: pos.line,
-        column: pos.character, // VSCode uses 'character', Ki uses 'column'
+        line: pos.line as usize,
+        column: pos.character as usize, // VSCode uses 'character', Ki uses 'column'
     }
 }
 

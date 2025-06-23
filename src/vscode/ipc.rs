@@ -37,7 +37,7 @@ type WsStream = WebSocket<TcpStream>;
 /// Manages the WebSocket IPC communication with the VSCode extension.
 pub struct WebSocketIpc {
     to_vscode_sender: Sender<OutputMessageWrapper>, // Sends messages *to* the WebSocket thread
-    from_vscode_receiver: Receiver<(u64, InputMessage, String)>, // Receives messages *from* the WebSocket thread
+    from_vscode_receiver: Receiver<(u32, InputMessage, String)>, // Receives messages *from* the WebSocket thread
     // JoinHandle is stored to ensure the thread is properly waited for on drop
     _handler_thread: Option<thread::JoinHandle<()>>,
 }
@@ -103,7 +103,7 @@ impl WebSocketIpc {
     /// The main logic running in the dedicated handler thread.
     fn handle_connection(
         mut websocket: WsStream,
-        to_main_sender: Sender<(u64, InputMessage, String)>,
+        to_main_sender: Sender<(u32, InputMessage, String)>,
         from_main_receiver: Receiver<OutputMessageWrapper>,
     ) {
         // Set the stream to non-blocking to allow checking both read and channel
@@ -258,7 +258,7 @@ impl WebSocketIpc {
 
     /// Receives a message from the VSCode extension via the handler thread.
     /// This is non-blocking.
-    pub fn try_receive_from_vscode(&self) -> Result<(u64, InputMessage, String), TryRecvError> {
+    pub fn try_receive_from_vscode(&self) -> Result<(u32, InputMessage, String), TryRecvError> {
         self.from_vscode_receiver.try_recv()
     }
 }

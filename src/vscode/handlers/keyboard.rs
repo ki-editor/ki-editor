@@ -61,7 +61,7 @@ impl VSCodeApp {
     /// Handle keyboard.input request
     pub fn handle_keyboard_input_request(
         &self,
-        id: u64,
+        id: u32,
         params: ki_protocol_types::KeyboardParams,
         trace_id: &str,
     ) -> Result<()> {
