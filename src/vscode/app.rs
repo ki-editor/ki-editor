@@ -2,7 +2,6 @@
 
 use crate::cli::get_version;
 use crate::components::editor::Mode;
-use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::mpsc::{self, TryRecvError};
 use std::sync::Mutex;
@@ -30,7 +29,6 @@ pub struct VSCodeApp {
         mpsc::Receiver<crate::integration_event::IntegrationEvent>,
     pub(crate) app_message_receiver: mpsc::Receiver<AppMessage>,
     pub(crate) ipc_handler: WebSocketIpc,
-    pub(crate) buffer_versions: HashMap<String, u64>,
 }
 
 impl VSCodeApp {
@@ -86,7 +84,6 @@ impl VSCodeApp {
             app_message_receiver: real_app_receiver,
             integration_event_receiver,
             ipc_handler,
-            buffer_versions: HashMap::new(),
         })
     }
 
@@ -123,63 +120,19 @@ impl VSCodeApp {
 
         let result = match message {
             InputMessage::Ping(value) => {
-                debug!("[{}] Processing ping request", trace_id);
                 handlers::ping::handle_ping_request(self, id, value.unwrap_or_default())
             }
-            InputMessage::BufferOpen(params) => {
-                debug!("[{}] Processing buffer open request", trace_id);
-                self.handle_buffer_open_request(params)
-            }
-            InputMessage::BufferClose(params) => {
-                debug!("[{}] Processing buffer close request", trace_id);
-                self.handle_buffer_close_request(params)
-            }
-            InputMessage::BufferSave(params) => {
-                debug!("[{}] Processing buffer save request", trace_id);
-                self.handle_buffer_save_request(params)
-            }
-            InputMessage::BufferActive(params) => {
-                debug!("[{}] Processing buffer active request", trace_id);
-                self.handle_buffer_active_request(params)
-            }
-            InputMessage::BufferChange(params) => {
-                debug!("[{}] Processing buffer change request", trace_id);
-                self.handle_buffer_change_request(params)
-            }
+            InputMessage::BufferOpen(params) => self.handle_buffer_open_request(params),
+            InputMessage::BufferClose(params) => self.handle_buffer_close_request(params),
+            InputMessage::BufferSave(params) => self.handle_buffer_save_request(params),
+            InputMessage::BufferActive(params) => self.handle_buffer_active_request(params),
+            InputMessage::BufferChange(params) => self.handle_buffer_change_request(params),
             InputMessage::KeyboardInput(params) => {
-                info!(
-                    "[{}] Received keyboard.input request: key='{}'",
-                    trace_id, params.key
-                );
                 self.handle_keyboard_input_request(id, params, trace_id)
             }
-            InputMessage::SelectionSet(params) => {
-                debug!("[{}] Processing selection set request", trace_id);
-                self.handle_selection_set_request(params)
-            }
-            InputMessage::ModeSet(params) => {
-                debug!("[{}] Processing mode set request", trace_id);
-                self.handle_mode_set_request(params, trace_id)
-            }
-            InputMessage::SelectionModeSet(params) => {
-                debug!("[{}] Processing selection mode set request", trace_id);
-                self.handle_selection_mode_set_request(params, trace_id)
-            }
-            InputMessage::SearchFind(params) => {
-                debug!("[{}] Processing search find request", trace_id);
-                self.handle_search_find_request(params, trace_id)
-            }
-            InputMessage::ViewportChange(params) => {
-                debug!("[{}] Processing viewport change request", trace_id);
-                self.handle_viewport_change_request(params)
-            }
-            InputMessage::EditorAction(params) => {
-                debug!(
-                    "[{}] Processing editor action request: {}",
-                    trace_id, params.action
-                );
-                self.handle_editor_action_request(id, params, trace_id)
-            }
+            InputMessage::SelectionSet(params) => self.handle_selection_set_request(params),
+            InputMessage::ModeSet(params) => self.handle_mode_set_request(params, trace_id),
+            InputMessage::ViewportChange(params) => self.handle_viewport_change_request(params),
             InputMessage::DiagnosticsChange(params) => self.handle_diagnostics_change(params),
             InputMessage::PromptEnter(entry) => self.handle_prompt_enter(entry),
             InputMessage::SyncBufferResponse(params) => self.handle_sync_buffer_response(params),
@@ -523,10 +476,7 @@ impl VSCodeApp {
 
     fn buffer_saved(&self, path: CanonicalizedPath) -> anyhow::Result<()> {
         let uri = path_to_uri(&path);
-        let params = ki_protocol_types::BufferParams {
-            uri,
-            language_id: None,
-        };
+        let params = ki_protocol_types::BufferParams { uri };
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::BufferSave(params),

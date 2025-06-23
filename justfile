@@ -3,7 +3,7 @@ default:
     @just fmt-check 
     @just build 
     @just build-vscode 
-    @just clippy 
+    @just lint 
     @just test 
     @just doc 
     @just vscode-build
@@ -23,13 +23,15 @@ build:
     @echo "Running cargo build..."
     cargo build --workspace --tests
 
-clippy:
+lint:
     @echo "Running cargo clippy..."
     cargo clippy --workspace -- -D warnings
     cargo clippy --tests -- -D warnings
+    cd ki-vscode && npm run lint
     
-clippy-fix:
+lint-fix:
 	cargo clippy --workspace --tests --fix --allow-staged
+	cd ki-vscode && npm run lint:fix
 
 test testname="":
     @echo "Running cargo test..."
@@ -65,7 +67,7 @@ watch-vscode-build:
 
 vscode-build:
     cargo build --release --features vscode
-    npm install
+    cd ki-vscode && npm install
     cd ki-vscode && npm run format
     cd ki-vscode && npm run lint
 

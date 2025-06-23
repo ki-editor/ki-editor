@@ -23,8 +23,6 @@ impl VSCodeApp {
         let BufferOpenParams {
             uri,
             content,
-            language_id: _,
-            version,
             selections,
         } = params;
 
@@ -32,10 +30,6 @@ impl VSCodeApp {
 
         // Store the original buffer_id for versioning
         let buffer_id = uri.to_string();
-
-        // Update buffer version
-        self.buffer_versions
-            .insert(buffer_id.clone(), version.unwrap_or(0) as u64);
 
         // Open the file
         let dispatch = Dispatch::OpenFile {
@@ -78,26 +72,17 @@ impl VSCodeApp {
             }
         };
 
-        // Close the file in Ki
-        // Using CloseCurrentWindow instead of CloseFile
         self.app
             .lock()
             .unwrap()
             .handle_dispatch(Dispatch::CloseCurrentWindow)?;
-
-        // Remove from version tracking
-        self.buffer_versions.remove(&uri);
 
         Ok(())
     }
 
     /// Handle buffer save request from VSCode
     pub(crate) fn handle_buffer_save_request(&mut self, params: BufferParams) -> Result<()> {
-        let BufferParams {
-            uri: _,
-            language_id: _,
-            ..
-        } = params;
+        let BufferParams { uri: _, .. } = params;
         self.app
             .lock()
             .unwrap()

@@ -2712,33 +2712,31 @@ impl<T: Frontend> App<T> {
         if self.layout.get_current_component_kind() != Some(ComponentKind::SuggestiveEditor) {
             self.handle_event(event)?;
             Ok(())
-        } else {
-            if let Some(path) = path {
-                let component = self.open_file(&path, BufferOwner::User, false, true)?;
+        } else if let Some(path) = path {
+            let component = self.open_file(&path, BufferOwner::User, false, true)?;
 
-                // Compare the checksum of of the content of the buffer in Ki with that of the host application (e.g. VS Code)
-                // This step is necessary to detect unsynchronized buffer
-                if content_hash != crc32fast::hash(&component.borrow().content().as_bytes()) {
-                    // If the buffer is desync, request the latest content
-                    // before handling this event
-                    self.integration_event_sender
-                        .emit_event(IntegrationEvent::SyncBufferRequest { path });
+            // Compare the checksum of of the content of the buffer in Ki with that of the host application (e.g. VS Code)
+            // This step is necessary to detect unsynchronized buffer
+            if content_hash != crc32fast::hash(component.borrow().content().as_bytes()) {
+                // If the buffer is desync, request the latest content
+                // before handling this event
+                self.integration_event_sender
+                    .emit_event(IntegrationEvent::SyncBufferRequest { path });
 
-                    // Suspend this event until the buffer content is synced
-                    self.queued_events.push(event);
+                // Suspend this event until the buffer content is synced
+                self.queued_events.push(event);
 
-                    return Ok(());
-                }
-
-                let dispatches = component
-                    .borrow_mut()
-                    .handle_event(&self.context, event.clone())?;
-                self.handle_dispatches(dispatches)
-            } else {
-                // If no path is provided, handle the event for the current component
-                self.handle_event(event)?;
-                Ok(())
+                return Ok(());
             }
+
+            let dispatches = component
+                .borrow_mut()
+                .handle_event(&self.context, event.clone())?;
+            self.handle_dispatches(dispatches)
+        } else {
+            // If no path is provided, handle the event for the current component
+            self.handle_event(event)?;
+            Ok(())
         }
     }
 }

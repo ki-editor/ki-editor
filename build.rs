@@ -4,7 +4,7 @@ fn main() {
 
     // Get git commit hash at build time
     let git_hash = match std::process::Command::new("git")
-        .args(&["rev-parse", "--short", "HEAD"])
+        .args(["rev-parse", "--short", "HEAD"])
         .output()
     {
         Ok(output) if output.status.success() => {

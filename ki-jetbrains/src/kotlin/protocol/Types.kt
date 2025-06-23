@@ -74,15 +74,12 @@ data class Selection (
 data class BufferOpenParams (
 	val uri: String,
 	val selections: List<Selection>,
-	val content: String,
-	val language_id: String? = null,
-	val version: Int? = null
+	val content: String
 )
 
 @Serializable
 data class BufferParams (
-	val uri: String,
-	val language_id: String? = null
+	val uri: String
 )
 
 @Serializable
@@ -161,17 +158,8 @@ sealed class InputMessage {
 	@SerialName("mode.set")
 	data class ModeSet(val params: TypedModeParams): InputMessage()
 	@Serializable
-	@SerialName("selection_mode.set")
-	data class SelectionModeSet(val params: SelectionModeParams): InputMessage()
-	@Serializable
 	@SerialName("keyboard.input")
 	data class KeyboardInput(val params: KeyboardParams): InputMessage()
-	@Serializable
-	@SerialName("editor.action")
-	data class EditorAction(val params: EditorActionParams): InputMessage()
-	@Serializable
-	@SerialName("search.find")
-	data class SearchFind(val params: SearchParams): InputMessage()
 	@Serializable
 	@SerialName("viewport.change")
 	data class ViewportChange(val params: ViewportParams): InputMessage()
@@ -220,12 +208,6 @@ data class LineRange (
 )
 
 @Serializable
-data class LogParams (
-	val level: String,
-	val message: String
-)
-
-@Serializable
 data class MarksParams (
 	val uri: String,
 	val marks: List<Range>
@@ -249,17 +231,12 @@ sealed class OutputMessage {
 	@SerialName("ping")
 	data class Ping(val params: String): OutputMessage()
 	@Serializable
-	@SerialName("ki.log")
-	data class Log(val params: LogParams): OutputMessage()
-	@Serializable
 	@SerialName("error")
 	data class Error(val params: String): OutputMessage()
+	/// TODO: handle this on VS Code side
 	@Serializable
 	@SerialName("buffer.open")
 	data class BufferOpen(val params: BufferParams): OutputMessage()
-	@Serializable
-	@SerialName("buffer.close")
-	data class BufferClose(val params: BufferParams): OutputMessage()
 	@Serializable
 	@SerialName("buffer.save")
 	data class BufferSave(val params: BufferParams): OutputMessage()
@@ -279,23 +256,8 @@ sealed class OutputMessage {
 	@SerialName("viewport.change")
 	data class ViewportChange(val params: ViewportParams): OutputMessage()
 	@Serializable
-	@SerialName("external_buffer.created")
-	data class ExternalBufferCreated(val params: ExternalBufferParams): OutputMessage()
-	@Serializable
-	@SerialName("external_buffer.updated")
-	data class ExternalBufferUpdated(val params: ExternalBufferParams): OutputMessage()
-	@Serializable
-	@SerialName("command.executed")
-	data class CommandExecuted(val params: CommandParams): OutputMessage()
-	@Serializable
 	@SerialName("prompt.opened")
 	data class PromptOpened(val params: PromptOpenedParams): OutputMessage()
-	@Serializable
-	@SerialName("search.results")
-	data class SearchResults(val params: String): OutputMessage()
-	@Serializable
-	@SerialName("editor.action")
-	data class EditorAction(val params: EditorActionParams): OutputMessage()
 	@Serializable
 	@SerialName("editor.jump")
 	data class JumpsChanged(val params: JumpsParams): OutputMessage()

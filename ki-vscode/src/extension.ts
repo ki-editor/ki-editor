@@ -9,7 +9,6 @@ import { Logger } from "./logger";
 import {
     BufferManager,
     DecorationManager,
-    CommandManager,
     DiagnosticManager,
     KeyboardManager,
     ModeManager,
@@ -100,7 +99,6 @@ export async function activate(
             logger,
             modeManager,
         );
-        const commandManager = new CommandManager(dispatcher, logger);
         const diagnosticManager = new DiagnosticManager(dispatcher, logger);
         const promptManager = new PromptManager(dispatcher, logger);
         const lspManager = new LspManager(dispatcher, logger);
@@ -110,7 +108,6 @@ export async function activate(
         bufferManager.initialize();
         keyboardManager.initialize();
         selectionManager.initialize();
-        commandManager.initialize();
         diagnosticManager.initialize();
         promptManager.initialize();
         decorationManager.initialize();
@@ -122,7 +119,6 @@ export async function activate(
             keyboardManager,
             modeManager,
             selectionManager,
-            commandManager,
             dispatcher,
             diagnosticManager,
             promptManager,

@@ -31,3 +31,4 @@
 -   [] Rename Rust code of vscode to "embed"
 -   [] Selections not updated after code actions are applied
 -   [] Allow opening non-file buffer, like "tasks"
+-   [] Make Ki's File Explorer works in VS Code

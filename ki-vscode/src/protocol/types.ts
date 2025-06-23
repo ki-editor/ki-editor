@@ -56,13 +56,10 @@ export interface BufferOpenParams {
 	uri: string;
 	selections: Selection[];
 	content: string;
-	language_id?: string;
-	version?: number;
 }
 
 export interface BufferParams {
 	uri: string;
-	language_id?: string;
 }
 
 export interface CommandParams {
@@ -108,10 +105,7 @@ export type InputMessage =
 	| { tag: "editor.syncBufferResponse", params: BufferContentParams }
 	| { tag: "selection.set", params: SelectionSet }
 	| { tag: "mode.set", params: TypedModeParams }
-	| { tag: "selection_mode.set", params: SelectionModeParams }
 	| { tag: "keyboard.input", params: KeyboardParams }
-	| { tag: "editor.action", params: EditorActionParams }
-	| { tag: "search.find", params: SearchParams }
 	| { tag: "viewport.change", params: ViewportParams }
 	| { tag: "diagnostics.change", params: BufferDiagnostics[] }
 	| { tag: "prompt.enter", params: string };
@@ -149,11 +143,6 @@ export interface LineRange {
 	end: number;
 }
 
-export interface LogParams {
-	level: string;
-	message: string;
-}
-
 export interface MarksParams {
 	uri: string;
 	marks: Range[];
@@ -166,22 +155,16 @@ export interface ModeParams {
 
 export type OutputMessage = 
 	| { tag: "ping", params: string }
-	| { tag: "ki.log", params: LogParams }
 	| { tag: "error", params: string }
+	/** TODO: handle this on VS Code side */
 	| { tag: "buffer.open", params: BufferParams }
-	| { tag: "buffer.close", params: BufferParams }
 	| { tag: "buffer.save", params: BufferParams }
 	| { tag: "buffer.diff", params: BufferDiffParams }
 	| { tag: "selection.update", params: SelectionSet }
 	| { tag: "mode.change", params: TypedModeParams }
 	| { tag: "selection_mode.change", params: SelectionModeParams }
 	| { tag: "viewport.change", params: ViewportParams }
-	| { tag: "external_buffer.created", params: ExternalBufferParams }
-	| { tag: "external_buffer.updated", params: ExternalBufferParams }
-	| { tag: "command.executed", params: CommandParams }
 	| { tag: "prompt.opened", params: PromptOpenedParams }
-	| { tag: "search.results", params: string }
-	| { tag: "editor.action", params: EditorActionParams }
 	| { tag: "editor.jump", params: JumpsParams }
 	| { tag: "editor.mark", params: MarksParams }
 	| { tag: "lsp.definition", params?: undefined }

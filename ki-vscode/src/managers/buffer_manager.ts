@@ -100,12 +100,6 @@ export class BufferManager extends Manager {
             },
         );
         this.dispatcher.registerKiNotificationHandler(
-            "buffer.close",
-            (params: BufferParams) => {
-                this.logger.log(`Buffer closed: ${params.uri}`);
-            },
-        );
-        this.dispatcher.registerKiNotificationHandler(
             "buffer.save",
             (params: BufferParams) => {
                 this.handleBufferSave(params);
@@ -239,7 +233,6 @@ export class BufferManager extends Manager {
         // Send close notification to Ki
         this.dispatcher.sendRequest("buffer.close", {
             uri: uri,
-            language_id: document.languageId,
         });
 
         // Remove from openBuffers
@@ -261,7 +254,6 @@ export class BufferManager extends Manager {
         // Send save notification to Ki
         this.dispatcher.sendRequest("buffer.save", {
             uri: uri,
-            language_id: document.languageId,
         });
     }
 
@@ -412,7 +404,6 @@ export class BufferManager extends Manager {
         // Send active notification to Ki
         this.dispatcher.sendNotification("buffer.active", {
             uri: uri,
-            language_id: document.languageId,
         });
     }
 
@@ -731,8 +722,6 @@ export class BufferManager extends Manager {
             this.dispatcher.sendRequest("buffer.open", {
                 uri: uri,
                 content: document.getText(),
-                language_id: document.languageId,
-                version: document.version,
                 selections:
                     editor?.selections.map((selection) => ({
                         anchor: selection.anchor,

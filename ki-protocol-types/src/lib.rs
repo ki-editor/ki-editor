@@ -146,7 +146,6 @@ impl std::fmt::Display for EditorAction {
 #[typeshare]
 pub struct BufferParams {
     pub uri: String,
-    pub language_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,8 +161,6 @@ pub struct BufferOpenParams {
     pub uri: String,
     pub selections: Vec<Selection>,
     pub content: String,
-    pub language_id: Option<String>,
-    pub version: Option<i32>,
 }
 
 // Parameters for buffer diff events
@@ -277,14 +274,6 @@ pub struct SearchParams {
     pub regex: bool,
 }
 
-// Parameters for logging
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[typeshare]
-pub struct LogParams {
-    pub level: String,
-    pub message: String,
-}
-
 // Input Messages (VSCode -> Ki)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[typeshare]
@@ -315,20 +304,10 @@ pub enum InputMessage {
     // Mode operations
     #[serde(rename = "mode.set")]
     ModeSet(TypedModeParams),
-    #[serde(rename = "selection_mode.set")]
-    SelectionModeSet(SelectionModeParams),
 
     // Input operations
     #[serde(rename = "keyboard.input")]
     KeyboardInput(KeyboardParams),
-
-    // Editor actions
-    #[serde(rename = "editor.action")]
-    EditorAction(EditorActionParams),
-
-    // Search operations
-    #[serde(rename = "search.find")]
-    SearchFind(SearchParams),
 
     // Viewport operations
     #[serde(rename = "viewport.change")]
@@ -373,16 +352,13 @@ pub enum OutputMessage {
     // System operations
     #[serde(rename = "ping")]
     Ping(String),
-    #[serde(rename = "ki.log")]
-    Log(LogParams),
     #[serde(rename = "error")]
     Error(String),
 
     // Buffer operations
     #[serde(rename = "buffer.open")]
+    /// TODO: handle this on VS Code side
     BufferOpen(BufferParams),
-    #[serde(rename = "buffer.close")]
-    BufferClose(BufferParams),
     #[serde(rename = "buffer.save")]
     BufferSave(BufferParams),
     #[serde(rename = "buffer.diff")]
@@ -402,25 +378,9 @@ pub enum OutputMessage {
     #[serde(rename = "viewport.change")]
     ViewportChange(ViewportParams),
 
-    // External buffer operations
-    #[serde(rename = "external_buffer.created")]
-    ExternalBufferCreated(ExternalBufferParams),
-    #[serde(rename = "external_buffer.updated")]
-    ExternalBufferUpdated(ExternalBufferParams),
-
-    // Command operations
-    #[serde(rename = "command.executed")]
-    CommandExecuted(CommandParams),
-
+    // Others
     #[serde(rename = "prompt.opened")]
-    PromptOpened(PromptOpenedParams), // Search operations
-    #[serde(rename = "search.results")]
-    SearchResults(String),
-
-    // Editor actions
-    #[serde(rename = "editor.action")]
-    EditorAction(EditorActionParams),
-
+    PromptOpened(PromptOpenedParams),
     #[serde(rename = "editor.jump")]
     JumpsChanged(JumpsParams),
     #[serde(rename = "editor.mark")]
@@ -534,10 +494,7 @@ impl MessageMethod for InputMessage {
             Self::BufferActive(_) => Cow::Borrowed("buffer.active"),
             Self::SelectionSet(_) => Cow::Borrowed("selection.set"),
             Self::ModeSet(_) => Cow::Borrowed("mode.set"),
-            Self::SelectionModeSet(_) => Cow::Borrowed("selection_mode.set"),
             Self::KeyboardInput(_) => Cow::Borrowed("keyboard.input"),
-            Self::EditorAction(_) => Cow::Borrowed("editor.action"),
-            Self::SearchFind(_) => Cow::Borrowed("search.find"),
             Self::ViewportChange(_) => Cow::Borrowed("viewport.change"),
             Self::DiagnosticsChange(_) => Cow::Borrowed("diagnostics.change"),
             Self::PromptEnter(_) => Cow::Borrowed("prompt.enter"),
@@ -555,10 +512,7 @@ impl MessageMethod for InputMessage {
             Self::BufferActive(_) => "BufferActive",
             Self::SelectionSet(_) => "SelectionSet",
             Self::ModeSet(_) => "ModeSet",
-            Self::SelectionModeSet(_) => "SelectionModeSet",
             Self::KeyboardInput(_) => "KeyboardInput",
-            Self::EditorAction(_) => "EditorAction",
-            Self::SearchFind(_) => "SearchFind",
             Self::ViewportChange(_) => "ViewportChange",
             Self::DiagnosticsChange(_) => "DiagnosticsChange",
             Self::PromptEnter(_) => "PromptEnter",
@@ -572,21 +526,14 @@ impl MessageMethod for OutputMessage {
     fn method_name(&self) -> Cow<'static, str> {
         match self {
             OutputMessage::Ping(_) => Cow::Borrowed("ping"),
-            OutputMessage::Log(_) => Cow::Borrowed("ki.log"),
             OutputMessage::Error(_) => Cow::Borrowed("error"),
             OutputMessage::BufferOpen(_) => Cow::Borrowed("buffer.open"),
-            OutputMessage::BufferClose(_) => Cow::Borrowed("buffer.close"),
             OutputMessage::BufferSave(_) => Cow::Borrowed("buffer.save"),
             OutputMessage::BufferDiff(_) => Cow::Borrowed("buffer.diff"),
             OutputMessage::SelectionUpdate(_) => Cow::Borrowed("selection.update"),
             OutputMessage::ModeChange(_) => Cow::Borrowed("mode.change"),
             OutputMessage::SelectionModeChange(_) => Cow::Borrowed("selection_mode.change"),
             OutputMessage::ViewportChange(_) => Cow::Borrowed("viewport.change"),
-            OutputMessage::ExternalBufferCreated(_) => Cow::Borrowed("external_buffer.created"),
-            OutputMessage::ExternalBufferUpdated(_) => Cow::Borrowed("external_buffer.updated"),
-            OutputMessage::CommandExecuted(_) => Cow::Borrowed("command.executed"),
-            OutputMessage::SearchResults(_) => Cow::Borrowed("search.results"),
-            OutputMessage::EditorAction(_) => Cow::Borrowed("editor.action"),
             OutputMessage::JumpsChanged(_) => Cow::Borrowed("editor.jump"),
             OutputMessage::PromptOpened(_) => Cow::Borrowed("prompt.opened"),
             OutputMessage::MarksChanged(_) => Cow::Borrowed("editor.mark"),
@@ -607,21 +554,14 @@ impl MessageMethod for OutputMessage {
     fn variant_name(&self) -> &'static str {
         match self {
             OutputMessage::Ping(_) => "Ping",
-            OutputMessage::Log(_) => "Log",
             OutputMessage::Error(_) => "Error",
             OutputMessage::BufferOpen(_) => "BufferOpen",
-            OutputMessage::BufferClose(_) => "BufferClose",
             OutputMessage::BufferSave(_) => "BufferSave",
             OutputMessage::BufferDiff(_) => "BufferDiff",
             OutputMessage::SelectionUpdate(_) => "SelectionUpdate",
             OutputMessage::ModeChange(_) => "ModeChange",
             OutputMessage::SelectionModeChange(_) => "SelectionModeChange",
             OutputMessage::ViewportChange(_) => "ViewportChange",
-            OutputMessage::ExternalBufferCreated(_) => "ExternalBufferCreated",
-            OutputMessage::ExternalBufferUpdated(_) => "ExternalBufferUpdated",
-            OutputMessage::CommandExecuted(_) => "CommandExecuted",
-            OutputMessage::SearchResults(_) => "SearchResults",
-            OutputMessage::EditorAction(_) => "EditorAction",
             OutputMessage::JumpsChanged(_) => "JumpsChanged",
             OutputMessage::PromptOpened(_) => "PromptOpened",
             OutputMessage::MarksChanged(_) => "MarksChanged",
