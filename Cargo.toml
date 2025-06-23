@@ -42,27 +42,17 @@ itertools = "~0.13.0"
 
 [features]
 wayland = ["arboard/wayland-data-control"]
-vscode = [
-  "dep:typeshare",
-  "dep:thiserror",
-  "dep:uuid",
-  "dep:url",
-  "dep:ki-protocol-types",
-  "dep:tungstenite",
-]
-default = ["vscode"]
 
 [build-dependencies]
 chrono = "0.4.39"
 grammar = { path = "grammar" }
 shared = { path = "shared" }
-typeshare = { git = "https://github.com/tomjw64/typeshare", branch = "allow-override-for-disallowed-types", optional = true }
-ki-protocol-types = { path = "ki-protocol-types", optional = true }
+typeshare = { git = "https://github.com/tomjw64/typeshare", branch = "allow-override-for-disallowed-types" }
+ki-protocol-types = { path = "ki-protocol-types" }
 
 [dependencies.typeshare]
 git = "https://github.com/tomjw64/typeshare"
 branch = "allow-override-for-disallowed-types"
-optional = true
 
 [dependencies]
 anyhow.workspace = true
@@ -79,7 +69,7 @@ serde_json.workspace = true
 serde.workspace = true
 tree-sitter.workspace = true
 itertools.workspace = true
-thiserror = { version = "1.0.56", optional = true }
+thiserror = { version = "1.0.56" }
 tree-sitter-md = "~0.3.2"
 portable-pty = "0.8.1"
 vt100 = "0.15.2"
@@ -125,14 +115,14 @@ num = "0.4.3"
 serde_json5 = "0.1.0"
 comfy-table = "7.1.3"
 chrono = "0.4.39"
-ki-protocol-types = { path = "ki-protocol-types", optional = true }
-uuid = { version = "1.4.1", features = ["v4", "serde"], optional = true }
-url = { version = "2.5.2", optional = true }
+ki-protocol-types = { path = "ki-protocol-types" }
+uuid = { version = "1.4.1", features = ["v4", "serde"] }
+url = { version = "2.5.2" }
 
 # Add tungstenite for WebSocket support
 tungstenite = { version = "0.21", features = [
   "rustls-tls-webpki-roots",
-], optional = true }
+] }
 cross = "0.2.5"
 libc = "0.2.174"
 crc32fast = "1.4.2"

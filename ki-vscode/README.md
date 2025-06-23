@@ -107,7 +107,7 @@ npm install
 3. Build Ki's bridge:
 
 ```bash
-just watch-vscode-build
+just watch-build
 ```
 
 4. Running the extension

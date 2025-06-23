@@ -22,6 +22,9 @@ build: install-typeshare
     @echo "Running cargo build..."
     cargo build --workspace --tests
 
+watch-build: install-typeshare
+    cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo build
+
 lint:
     @echo "Running cargo clippy..."
     cargo clippy --workspace -- -D warnings
@@ -64,11 +67,7 @@ watch-generate-recipes:
 install-typeshare:
     cargo install --git https://github.com/tomjw64/typeshare
 
-watch-vscode-build: install-typeshare
-    cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo build --features vscode
-
-vscode-build: install-typeshare
-    cargo build --release --features vscode
+vscode-build: build
     cd ki-vscode && npm install
     cd ki-vscode && npm run format
     cd ki-vscode && npm run lint
