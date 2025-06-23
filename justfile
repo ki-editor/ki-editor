@@ -2,11 +2,10 @@ default:
     @just tree-sitter-quickfix 
     @just fmt-check 
     @just build 
-    @just build-vscode 
+    @just vscode-build 
     @just lint 
     @just test 
     @just doc 
-    @just vscode-build
     
 install:
     cargo install --locked --path .
@@ -19,7 +18,7 @@ fmt:
 	cargo fmt --all
 	cd ki-vscode && npm run format
 
-build:
+build: install-typeshare
     @echo "Running cargo build..."
     cargo build --workspace --tests
 
