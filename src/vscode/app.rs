@@ -7,7 +7,7 @@ use std::sync::mpsc::{self, TryRecvError};
 use std::sync::Mutex;
 use std::thread;
 
-use crate::app::{App, AppMessage, Dispatch, StatusLineComponent};
+use crate::app::{App, AppMessage, Dispatch};
 use crate::frontend::crossterm::Crossterm;
 use anyhow::Result;
 use ki_protocol_types::{
@@ -46,17 +46,8 @@ impl VSCodeApp {
         }
 
         let frontend = std::rc::Rc::new(std::sync::Mutex::new(Crossterm::new()?));
-        let status_line_components = vec![
-            StatusLineComponent::Mode,
-            StatusLineComponent::SelectionMode,
-            StatusLineComponent::LastSearchString,
-            StatusLineComponent::Reveal,
-            StatusLineComponent::CurrentWorkingDirectory,
-            StatusLineComponent::GitBranch,
-            StatusLineComponent::KeyboardLayout,
-            StatusLineComponent::Help,
-            StatusLineComponent::LastDispatch,
-        ];
+
+        let status_line_components = vec![];
 
         let (real_app_sender, real_app_receiver) = mpsc::channel::<AppMessage>();
         let resolved_wd = working_directory.unwrap_or("./".try_into()?);
@@ -650,12 +641,12 @@ impl VSCodeApp {
                 .map(|diagnostic| lsp_types::Diagnostic {
                     range: lsp_types::Range {
                         start: lsp_types::Position::new(
-                            diagnostic.range.start.line as u32,
-                            diagnostic.range.start.character as u32,
+                            diagnostic.range.start.line,
+                            diagnostic.range.start.character,
                         ),
                         end: lsp_types::Position::new(
-                            diagnostic.range.end.line as u32,
-                            diagnostic.range.end.character as u32,
+                            diagnostic.range.end.line,
+                            diagnostic.range.end.character,
                         ),
                     },
                     severity: diagnostic.severity.map(|severity| match severity {
