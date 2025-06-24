@@ -99,7 +99,7 @@ pub struct BufferParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[typeshare]
-pub struct BufferContentParams {
+pub struct SyncBufferResponseParams {
     pub uri: String,
     pub content: String,
 }
@@ -120,27 +120,10 @@ pub struct BufferDiffParams {
     pub edits: Vec<DiffEdit>, // A list of edits to apply sequentially.
 }
 
-// Parameters for cursor update events
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[typeshare]
-pub struct CursorParams {
-    pub buffer_id: String,
-    pub anchors: Vec<Position>, // Anchor positions for multi-cursor
-    pub actives: Vec<Position>, // Active/cursor positions for multi-cursor
-}
-
-// Parameters for mode change events
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[typeshare]
-pub struct ModeParams {
-    pub mode: String, // Using string for backward compatibility
-    pub buffer_id: Option<String>,
-}
-
 // Parameters for typed mode change events
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[typeshare]
-pub struct TypedModeParams {
+pub struct ModeParams {
     pub mode: EditorMode,
     pub buffer_id: Option<String>,
 }
@@ -180,37 +163,6 @@ pub struct KeyboardParams {
     pub content_hash: u32,
 }
 
-// Parameters for external buffer events
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[typeshare]
-pub struct ExternalBufferParams {
-    pub buffer_id: String,
-    pub content: String,
-}
-
-// Parameters for command execution
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[typeshare]
-pub struct CommandParams {
-    pub name: String,
-    pub args: Vec<String>,
-    pub success: Option<bool>,
-}
-
-// Parameters for search operations
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[typeshare]
-pub struct SearchParams {
-    pub buffer_id: String,
-    pub query: String,
-    #[serde(default)]
-    pub case_sensitive: bool,
-    #[serde(default)]
-    pub whole_word: bool,
-    #[serde(default)]
-    pub regex: bool,
-}
-
 // Input Messages (Host -> Ki)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[typeshare]
@@ -228,7 +180,7 @@ pub enum InputMessage {
     #[serde(rename = "buffer.active")]
     BufferActive(BufferParams),
     #[serde(rename = "editor.syncBufferResponse")]
-    SyncBufferResponse(BufferContentParams),
+    SyncBufferResponse(SyncBufferResponseParams),
 
     // Selection operations (includes cursor information)
     #[serde(rename = "selection.set")]
@@ -300,7 +252,7 @@ pub enum OutputMessage {
 
     // Mode operations
     #[serde(rename = "mode.change")]
-    ModeChange(TypedModeParams),
+    ModeChange(ModeParams),
     #[serde(rename = "selection_mode.change")]
     SelectionModeChange(SelectionModeParams),
 

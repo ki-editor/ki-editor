@@ -51,7 +51,7 @@ data class BufferParams (
 )
 
 @Serializable
-data class BufferContentParams (
+data class SyncBufferResponseParams (
 	val uri: String,
 	val content: String
 )
@@ -67,19 +67,6 @@ data class BufferOpenParams (
 data class BufferDiffParams (
 	val buffer_id: String,
 	val edits: List<DiffEdit>
-)
-
-@Serializable
-data class CursorParams (
-	val buffer_id: String,
-	val anchors: List<Position>,
-	val actives: List<Position>
-)
-
-@Serializable
-data class ModeParams (
-	val mode: String,
-	val buffer_id: String? = null
 )
 
 @Serializable
@@ -101,7 +88,7 @@ enum class EditorMode(val string: String) {
 }
 
 @Serializable
-data class TypedModeParams (
+data class ModeParams (
 	val mode: EditorMode,
 	val buffer_id: String? = null
 )
@@ -186,28 +173,6 @@ data class KeyboardParams (
 )
 
 @Serializable
-data class ExternalBufferParams (
-	val buffer_id: String,
-	val content: String
-)
-
-@Serializable
-data class CommandParams (
-	val name: String,
-	val args: List<String>,
-	val success: Boolean? = null
-)
-
-@Serializable
-data class SearchParams (
-	val buffer_id: String,
-	val query: String,
-	val case_sensitive: Boolean? = null,
-	val whole_word: Boolean? = null,
-	val regex: Boolean? = null
-)
-
-@Serializable
 enum class DiagnosticSeverity(val string: String) {
 	@SerialName("Warning")
 	Warning("Warning"),
@@ -278,7 +243,7 @@ sealed class InputMessage {
 	data class BufferActive(val params: BufferParams): InputMessage()
 	@Serializable
 	@SerialName("editor.syncBufferResponse")
-	data class SyncBufferResponse(val params: BufferContentParams): InputMessage()
+	data class SyncBufferResponse(val params: SyncBufferResponseParams): InputMessage()
 	@Serializable
 	@SerialName("selection.set")
 	data class SelectionSet(val params: SelectionSet): InputMessage()
@@ -332,7 +297,7 @@ sealed class OutputMessage {
 	data class SelectionUpdate(val params: SelectionSet): OutputMessage()
 	@Serializable
 	@SerialName("mode.change")
-	data class ModeChange(val params: TypedModeParams): OutputMessage()
+	data class ModeChange(val params: ModeParams): OutputMessage()
 	@Serializable
 	@SerialName("selection_mode.change")
 	data class SelectionModeChange(val params: SelectionModeParams): OutputMessage()

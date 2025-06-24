@@ -37,7 +37,7 @@ export interface BufferParams {
 	uri: string;
 }
 
-export interface BufferContentParams {
+export interface SyncBufferResponseParams {
 	uri: string;
 	content: string;
 }
@@ -53,17 +53,6 @@ export interface BufferDiffParams {
 	edits: DiffEdit[];
 }
 
-export interface CursorParams {
-	buffer_id: string;
-	anchors: Position[];
-	actives: Position[];
-}
-
-export interface ModeParams {
-	mode: string;
-	buffer_id?: string;
-}
-
 export enum EditorMode {
 	Normal = "normal",
 	Insert = "insert",
@@ -74,7 +63,7 @@ export enum EditorMode {
 	Extend = "extend",
 }
 
-export interface TypedModeParams {
+export interface ModeParams {
 	mode: EditorMode;
 	buffer_id?: string;
 }
@@ -120,25 +109,6 @@ export interface KeyboardParams {
 	 * between Ki and the host application
 	 */
 	content_hash: number;
-}
-
-export interface ExternalBufferParams {
-	buffer_id: string;
-	content: string;
-}
-
-export interface CommandParams {
-	name: string;
-	args: string[];
-	success?: boolean;
-}
-
-export interface SearchParams {
-	buffer_id: string;
-	query: string;
-	case_sensitive?: boolean;
-	whole_word?: boolean;
-	regex?: boolean;
 }
 
 export enum DiagnosticSeverity {
@@ -189,7 +159,7 @@ export type InputMessage =
 	| { tag: "buffer.open", params: BufferOpenParams }
 	| { tag: "buffer.change", params: BufferDiffParams }
 	| { tag: "buffer.active", params: BufferParams }
-	| { tag: "editor.syncBufferResponse", params: BufferContentParams }
+	| { tag: "editor.syncBufferResponse", params: SyncBufferResponseParams }
 	| { tag: "selection.set", params: SelectionSet }
 	| { tag: "keyboard.input", params: KeyboardParams }
 	| { tag: "viewport.change", params: ViewportParams }
@@ -212,7 +182,7 @@ export type OutputMessage =
 	| { tag: "buffer.save", params: BufferParams }
 	| { tag: "buffer.diff", params: BufferDiffParams }
 	| { tag: "selection.update", params: SelectionSet }
-	| { tag: "mode.change", params: TypedModeParams }
+	| { tag: "mode.change", params: ModeParams }
 	| { tag: "selection_mode.change", params: SelectionModeParams }
 	| { tag: "viewport.change", params: ViewportParams }
 	| { tag: "prompt.opened", params: PromptOpenedParams }

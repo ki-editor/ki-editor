@@ -482,7 +482,7 @@ impl EmbeddedApp {
 
         self.send_notification(OutputMessageWrapper {
             id: 0,
-            message: OutputMessage::ModeChange(ki_protocol_types::TypedModeParams {
+            message: OutputMessage::ModeChange(ki_protocol_types::ModeParams {
                 mode: editor_mode,
                 buffer_id: buffer_id.clone(),
             }),

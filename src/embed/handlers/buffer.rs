@@ -12,7 +12,9 @@ use crate::{
     },
 };
 use itertools::Itertools;
-use ki_protocol_types::{BufferContentParams, BufferDiffParams, BufferOpenParams, BufferParams};
+use ki_protocol_types::{
+    BufferDiffParams, BufferOpenParams, BufferParams, SyncBufferResponseParams,
+};
 use ropey::Rope;
 
 impl EmbeddedApp {
@@ -131,9 +133,9 @@ impl EmbeddedApp {
 
     pub(crate) fn handle_sync_buffer_response(
         &self,
-        params: BufferContentParams,
+        params: SyncBufferResponseParams,
     ) -> std::result::Result<(), anyhow::Error> {
-        let BufferContentParams { uri, content, .. } = params;
+        let SyncBufferResponseParams { uri, content, .. } = params;
         let path = uri_to_path(&uri)?;
         self.app
             .lock()
