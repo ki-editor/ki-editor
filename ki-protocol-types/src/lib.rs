@@ -1,4 +1,4 @@
-///! This crate defines the shared data structures for the Ki Editor and Host application IPC protocol.
+/// This crate defines the shared data structures for the Ki Editor and Host application IPC protocol.
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use typeshare::typeshare;
@@ -30,23 +30,10 @@ pub struct Selection {
     pub is_extended: bool,
 }
 
-impl Selection {
-    pub fn new(anchor: Position, active: Position, is_extended: bool) -> Self {
-        Selection {
-            anchor,
-            active,
-            is_extended,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[typeshare]
 pub struct SelectionSet {
     pub buffer_id: String,
-    #[serde(default)]
-    #[typeshare(typescript(type = "number"))]
-    pub primary: u32,
     pub selections: Vec<Selection>,
 }
 
@@ -104,40 +91,6 @@ pub enum DiagnosticKind {
     Hint,
 }
 
-// Editor actions enum for type-safe editor operations
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[typeshare]
-#[serde(rename_all = "camelCase")]
-pub enum EditorAction {
-    Undo,
-    Redo,
-    Save,
-    ForceSave,
-    Copy,
-    Cut,
-    Paste,
-    SelectAll,
-}
-
-// Implement Display for EditorAction for better logging and error messages
-impl std::fmt::Display for EditorAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            EditorAction::Undo => write!(f, "Undo"),
-            EditorAction::Redo => write!(f, "Redo"),
-            EditorAction::Save => write!(f, "Save"),
-            EditorAction::ForceSave => write!(f, "ForceSave"),
-            EditorAction::Copy => write!(f, "Copy"),
-            EditorAction::Cut => write!(f, "Cut"),
-            EditorAction::Paste => write!(f, "Paste"),
-            EditorAction::SelectAll => write!(f, "SelectAll"),
-        }
-    }
-}
-
-// Message parameter structures
-
-// Parameters for buffer events
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[typeshare]
 pub struct BufferParams {

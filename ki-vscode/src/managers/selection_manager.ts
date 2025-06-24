@@ -14,47 +14,34 @@ export class SelectionManager extends Manager {
     private activeEditor: vscode.TextEditor | undefined;
     private ignoreSelectionChange = false;
 
-    constructor(
-        dispatcher: Dispatcher,
-        logger: Logger,
-        modeManager: ModeManager,
-    ) {
+    constructor(dispatcher: Dispatcher, logger: Logger, modeManager: ModeManager) {
         super(dispatcher, logger);
         this.modeManager = modeManager;
     }
     public initialize(): void {
         // Register VSCode event handlers
         vscode.window.onDidChangeActiveTextEditor((editor) => {
-            this.handleEditorActive({ editor });
+            this.notifyEditorActive({ editor });
         });
-        vscode.window.onDidChangeTextEditorSelection((event) =>
-            this.handleSelectionChange(event),
-        );
+        vscode.window.onDidChangeTextEditorSelection((event) => this.notifySelectionChanged(event));
 
         // Register integration event handlers
-        this.dispatcher.registerKiNotificationHandler(
-            "selection.update",
-            (params: SelectionSet) => {
-                this.handleSelectionChanged(params);
-            },
-        );
+        this.dispatcher.registerKiNotificationHandler("selection.update", (params: SelectionSet) => {
+            this.handleSelectionChanged(params);
+        });
 
         // Initialize with active editor
         this.activeEditor = vscode.window.activeTextEditor;
     }
 
-    private handleEditorActive(params: {
-        editor: vscode.TextEditor | undefined;
-    }): void {
+    private notifyEditorActive(params: { editor: vscode.TextEditor | undefined }): void {
         this.activeEditor = params.editor;
     }
 
     /**
      * Handle selection change event from VSCode
      */
-    private handleSelectionChange(
-        event: vscode.TextEditorSelectionChangeEvent,
-    ): void {
+    private notifySelectionChanged(event: vscode.TextEditorSelectionChangeEvent): void {
         const editor = event.textEditor;
         if (!editor || editor.document.uri.scheme !== "file") {
             return;
@@ -62,9 +49,7 @@ export class SelectionManager extends Manager {
 
         // Skip if we're ignoring selection changes (due to Ki-initiated updates)
         if (this.ignoreSelectionChange) {
-            this.logger.log(
-                "Ignoring selection change from VSCode (initiated by Ki)",
-            );
+            this.logger.log("Ignoring selection change from VSCode (initiated by Ki)");
             return;
         }
 
@@ -79,13 +64,8 @@ export class SelectionManager extends Manager {
             event.kind === vscode.TextEditorSelectionChangeKind.Mouse ||
             event.kind === vscode.TextEditorSelectionChangeKind.Command;
 
-        if (
-            !nonKeyboardChanges &&
-            this.modeManager.getCurrentMode() !== "insert"
-        ) {
-            this.logger.log(
-                `Ignoring non-mouse and non-insert mode selection change in VSCode: ${uri}`,
-            );
+        if (!nonKeyboardChanges && this.modeManager.getCurrentMode() !== "insert") {
+            this.logger.log(`Ignoring non-mouse and non-insert mode selection change in VSCode: ${uri}`);
             return;
         }
 
@@ -96,8 +76,7 @@ export class SelectionManager extends Manager {
         try {
             // Convert VSCode selections to Ki format
 
-            const offset =
-                this.modeManager.getCurrentMode() === "insert" ? 1 : 0;
+            const offset = this.modeManager.getCurrentMode() === "insert" ? 1 : 0;
             // The column/character needs to minus 1 in insert mode
             // because of how Ki and VS Code treats cursor differently in insert mode
             const kiSelections = selections.map((sel) => {
@@ -118,7 +97,6 @@ export class SelectionManager extends Manager {
             this.dispatcher.sendNotification("selection.set", {
                 buffer_id: uri,
                 selections: kiSelections,
-                primary: 0, // Always use the first selection as primary
             });
         } finally {
             // Reset the flag after a short delay to allow Ki to process the selection
@@ -137,9 +115,7 @@ export class SelectionManager extends Manager {
             return;
         }
 
-        this.logger.log(
-            `Received selection changed event with ${params.selections.length} selections`,
-        );
+        this.logger.log(`Received selection changed event with ${params.selections.length} selections`);
 
         // Find the active editor
         if (!this.activeEditor) {
@@ -157,20 +133,12 @@ export class SelectionManager extends Manager {
 
         try {
             // Convert Ki selections to VSCode selections
-            const selections: vscode.Selection[] = params.selections.map(
-                (sel) => {
-                    return new vscode.Selection(
-                        new vscode.Position(
-                            sel.anchor.line,
-                            sel.anchor.character,
-                        ),
-                        new vscode.Position(
-                            sel.active.line,
-                            sel.active.character,
-                        ),
-                    );
-                },
-            );
+            const selections: vscode.Selection[] = params.selections.map((sel) => {
+                return new vscode.Selection(
+                    new vscode.Position(sel.anchor.line, sel.anchor.character),
+                    new vscode.Position(sel.active.line, sel.active.character),
+                );
+            });
 
             // Store current visible ranges before applying selections
             const visibleRanges = this.activeEditor.visibleRanges;
@@ -185,9 +153,7 @@ export class SelectionManager extends Manager {
 
                 // Check if the primary active position is already visible
                 const isVisible = visibleRanges.some(
-                    (range) =>
-                        primaryActive.line >= range.start.line &&
-                        primaryActive.line <= range.end.line,
+                    (range) => primaryActive.line >= range.start.line && primaryActive.line <= range.end.line,
                 );
 
                 // Only reveal if not already visible
@@ -202,15 +168,10 @@ export class SelectionManager extends Manager {
             // Return the latest visible ranges after revealing the primary selection
             this.dispatcher.sendNotification("viewport.change", {
                 buffer_id: this.activeEditor.document.uri.toString(),
-                visible_line_ranges: this.activeEditor.visibleRanges.map(
-                    (range) => ({
-                        start: Math.max(
-                            0,
-                            range.start.line - JUMP_SAFETY_PADDING,
-                        ),
-                        end: range.end.line + JUMP_SAFETY_PADDING,
-                    }),
-                ),
+                visible_line_ranges: this.activeEditor.visibleRanges.map((range) => ({
+                    start: Math.max(0, range.start.line - JUMP_SAFETY_PADDING),
+                    end: range.end.line + JUMP_SAFETY_PADDING,
+                })),
             });
         } finally {
             // Reset flag immediately after applying the selection

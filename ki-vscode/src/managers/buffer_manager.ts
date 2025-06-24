@@ -2,11 +2,7 @@ import * as vscode from "vscode";
 import type { Dispatcher } from "../dispatcher";
 import type { Logger } from "../logger";
 import type { BufferParams } from "../protocol/types";
-import {
-    type BufferDiffParams,
-    type DiffEdit,
-    EditorAction,
-} from "../protocol/types";
+import type { BufferDiffParams, DiffEdit } from "../protocol/types";
 import { Manager } from "./manager";
 import type { ModeManager } from "./mode_manager";
 
@@ -42,25 +38,15 @@ interface BufferChangedEvent {
  */
 export class BufferManager extends Manager {
     private modeManager: ModeManager;
-    private openBuffers: Map<
-        string,
-        { document: vscode.TextDocument; version: number }
-    > = new Map();
+    private openBuffers: Map<string, { document: vscode.TextDocument; version: number }> = new Map();
     private ignoreBufferChangeCounter = 0;
     private pendingBufferDiffs: Map<string, BufferDiffParams[]> = new Map();
     private processingBufferDiffs: Map<string, boolean> = new Map();
-    private pendingChangesets: Map<
-        string,
-        vscode.TextDocumentContentChangeEvent[][]
-    > = new Map();
+    private pendingChangesets: Map<string, vscode.TextDocumentContentChangeEvent[][]> = new Map();
     private changeTimeout: NodeJS.Timeout | null = null;
     private commandDisposables: vscode.Disposable[] = [];
 
-    constructor(
-        dispatcher: Dispatcher,
-        logger: Logger,
-        modeManager: ModeManager,
-    ) {
+    constructor(dispatcher: Dispatcher, logger: Logger, modeManager: ModeManager) {
         super(dispatcher, logger);
         this.modeManager = modeManager;
     }
@@ -70,68 +56,37 @@ export class BufferManager extends Manager {
      */
     public initialize(): void {
         // Register VSCode document events
-        vscode.workspace.onDidOpenTextDocument((document) =>
-            this.handleDocumentOpen(document),
-        );
-        vscode.workspace.onDidCloseTextDocument((document) =>
-            this.handleDocumentClose(document),
-        );
-        vscode.workspace.onDidSaveTextDocument((document) =>
-            this.handleDocumentSave(document),
-        );
-        vscode.workspace.onDidChangeTextDocument((event) =>
-            this.handleDocumentChange(event),
-        );
-        vscode.window.onDidChangeActiveTextEditor((editor) =>
-            this.handleEditorActive({ editor }),
-        );
+        vscode.workspace.onDidOpenTextDocument((document) => this.handleDocumentOpen(document));
+        vscode.workspace.onDidChangeTextDocument((event) => this.handleDocumentChange(event));
+        vscode.window.onDidChangeActiveTextEditor((editor) => this.handleEditorActive({ editor }));
 
         // Register events from Ki
-        this.dispatcher.registerKiNotificationHandler(
-            "buffer.diff",
-            (params: BufferDiffParams) => {
-                this.handleBufferDiff(params);
-            },
-        );
-        this.dispatcher.registerKiNotificationHandler(
-            "buffer.open",
-            (params: BufferParams) => {
-                this.logger.log(`Buffer opened: ${params.uri}`);
-            },
-        );
-        this.dispatcher.registerKiNotificationHandler(
-            "buffer.save",
-            (params: BufferParams) => {
-                this.handleBufferSave(params);
-            },
-        );
+        this.dispatcher.registerKiNotificationHandler("buffer.diff", (params: BufferDiffParams) => {
+            this.handleBufferDiff(params);
+        });
+        this.dispatcher.registerKiNotificationHandler("buffer.open", (params: BufferParams) => {
+            this.logger.log(`Buffer opened: ${params.uri}`);
+        });
+        this.dispatcher.registerKiNotificationHandler("buffer.save", (params: BufferParams) => {
+            this.handleBufferSave(params);
+        });
 
-        this.dispatcher.registerKiNotificationHandler(
-            "editor.syncBufferRequest",
-            (params) => {
-                this.handleSyncBuffer(params);
-            },
-        );
-
-        // Register undo/redo command listeners
-        this.registerUndoRedoCommands();
+        this.dispatcher.registerKiNotificationHandler("editor.syncBufferRequest", (params) => {
+            this.handleSyncBuffer(params);
+        });
 
         this.initializeActiveEditor();
     }
 
     private handleSyncBuffer(params: { uri: string }) {
-        const document = vscode.workspace.textDocuments.find(
-            (doc) => doc.uri.toString() === params.uri.toString(),
-        );
+        const document = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === params.uri.toString());
         if (document) {
             this.dispatcher.sendNotification("editor.syncBufferResponse", {
                 uri: params.uri,
                 content: document.getText(),
             });
         } else {
-            this.logger.error(
-                `Unable to find document with URI "${params.uri}"`,
-            );
+            this.logger.error(`Unable to find document with URI "${params.uri}"`);
         }
     }
 
@@ -141,45 +96,11 @@ export class BufferManager extends Manager {
 
     private async saveOpenDocument(uri: vscode.Uri): Promise<void> {
         // Find the document if it's already open
-        const document = vscode.workspace.textDocuments.find(
-            (doc) => doc.uri.toString() === uri.toString(),
-        );
+        const document = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === uri.toString());
 
         if (document?.isDirty) {
             await document.save();
         }
-    }
-
-    /**
-     * Register undo/redo command listeners
-     */
-    private registerUndoRedoCommands(): void {
-        // Register our handlers for the main undo/redo commands
-        this.commandDisposables.push(
-            vscode.commands.registerCommand("undo", () =>
-                this.handleUndoRedo(true),
-            ),
-            vscode.commands.registerCommand("redo", () =>
-                this.handleUndoRedo(false),
-            ),
-            // Also override the default commands to prevent them from being executed
-            vscode.commands.registerCommand("default:undo", () =>
-                this.handleUndoRedo(true),
-            ),
-            vscode.commands.registerCommand("default:redo", () =>
-                this.handleUndoRedo(false),
-            ),
-            // And the keyboard shortcuts
-            vscode.commands.registerCommand("editor.action.undo", () =>
-                this.handleUndoRedo(true),
-            ),
-            vscode.commands.registerCommand("editor.action.redo", () =>
-                this.handleUndoRedo(false),
-            ),
-        );
-
-        // Add command disposables to our disposables array
-        this.commandDisposables.forEach((d) => this.registerDisposable(d));
     }
 
     public initializeActiveEditor(): void {
@@ -218,53 +139,11 @@ export class BufferManager extends Manager {
         this.sendBufferOpenNotificationToKi(document);
     }
 
-    /**
-     * Handle document close event
-     */
-    private handleDocumentClose(document: vscode.TextDocument): void {
-        // Skip non-file documents
-        if (document.uri.scheme !== "file") {
-            return;
-        }
-
-        const uri = document.uri.toString();
-        this.logger.log(`Document closed: ${uri}`);
-
-        // Send close notification to Ki
-        this.dispatcher.sendRequest("buffer.close", {
-            uri: uri,
-        });
-
-        // Remove from openBuffers
-        this.openBuffers.delete(uri);
-    }
-
-    /**
-     * Handle document save event
-     */
-    private handleDocumentSave(document: vscode.TextDocument): void {
-        // Skip non-file documents
-        if (document.uri.scheme !== "file") {
-            return;
-        }
-
-        const uri = document.uri.toString();
-        this.logger.log(`Document saved: ${uri}`);
-
-        // Send save notification to Ki
-        this.dispatcher.sendRequest("buffer.save", {
-            uri: uri,
-        });
-    }
-
     private handleDocumentChange(event: vscode.TextDocumentChangeEvent): void {
         const document = event.document;
 
         // Skip non-file documents and empty changes
-        if (
-            document.uri.scheme !== "file" ||
-            event.contentChanges.length === 0
-        ) {
+        if (document.uri.scheme !== "file" || event.contentChanges.length === 0) {
             return;
         }
 
@@ -291,10 +170,7 @@ export class BufferManager extends Manager {
     /**
      * Add a pending change to the queue
      */
-    private addPendingChange(
-        uri: string,
-        changes: vscode.TextDocumentContentChangeEvent[],
-    ): void {
+    private addPendingChange(uri: string, changes: vscode.TextDocumentContentChangeEvent[]): void {
         if (!this.pendingChangesets.has(uri)) {
             this.pendingChangesets.set(uri, []);
         }
@@ -325,13 +201,9 @@ export class BufferManager extends Manager {
             for (const changes of changeset) {
                 if (changes.length === 0) continue;
 
-                const document = vscode.workspace.textDocuments.find(
-                    (doc) => doc.uri.toString() === uri,
-                );
+                const document = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === uri);
                 if (!document) {
-                    this.logger.warn(
-                        `Document not found for pending changes: ${uri}`,
-                    );
+                    this.logger.warn(`Document not found for pending changes: ${uri}`);
                     continue;
                 }
 
@@ -352,9 +224,7 @@ export class BufferManager extends Manager {
                     };
                 });
 
-                this.logger.log(
-                    `Sending buffer.change with ${edits.length} diffs for ${uri}`,
-                );
+                this.logger.log(`Sending buffer.change with ${edits.length} diffs for ${uri}`);
 
                 // Send the diff edits to Ki via buffer.change InputMessage
                 this.dispatcher.sendNotification("buffer.change", {
@@ -386,9 +256,7 @@ export class BufferManager extends Manager {
     /**
      * Handle editor active event
      */
-    private handleEditorActive(params: {
-        editor: vscode.TextEditor | undefined;
-    }): void {
+    private handleEditorActive(params: { editor: vscode.TextEditor | undefined }): void {
         const { editor } = params;
         if (!editor) return;
 
@@ -423,9 +291,7 @@ export class BufferManager extends Manager {
 
         // Skip empty edits
         if (params.edits.length === 0) {
-            this.logger.log(
-                `Skipping buffer diff with no edits for ${params.buffer_id}`,
-            );
+            this.logger.log(`Skipping buffer diff with no edits for ${params.buffer_id}`);
             return;
         }
 
@@ -441,34 +307,23 @@ export class BufferManager extends Manager {
         this.logger.log(`Buffer URI for lookup: ${normalizedUri}`);
 
         // Find the document by normalized URI
-        let document = vscode.workspace.textDocuments.find(
-            (doc) => doc.uri.toString() === normalizedUri,
-        );
+        let document = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === normalizedUri);
 
         if (!document) {
             // Try to find the document by path
             const path = normalizedUri.replace("file://", "");
             document = vscode.workspace.textDocuments.find(
-                (doc) =>
-                    doc.uri.fsPath === path ||
-                    doc.uri.toString().includes(path),
+                (doc) => doc.uri.fsPath === path || doc.uri.toString().includes(path),
             );
 
             if (!document) {
                 // Try to find any open document that might match
                 for (const doc of vscode.workspace.textDocuments) {
                     if (doc.uri.scheme === "file") {
-                        this.logger.log(
-                            `Checking if ${doc.uri.toString()} matches ${normalizedUri}`,
-                        );
-                        if (
-                            doc.uri.toString().includes(normalizedUri) ||
-                            normalizedUri.includes(doc.uri.fsPath)
-                        ) {
+                        this.logger.log(`Checking if ${doc.uri.toString()} matches ${normalizedUri}`);
+                        if (doc.uri.toString().includes(normalizedUri) || normalizedUri.includes(doc.uri.fsPath)) {
                             document = doc;
-                            this.logger.log(
-                                `Found matching document: ${doc.uri.toString()}`,
-                            );
+                            this.logger.log(`Found matching document: ${doc.uri.toString()}`);
                             break;
                         }
                     }
@@ -476,9 +331,7 @@ export class BufferManager extends Manager {
             }
 
             if (!document) {
-                this.logger.warn(
-                    `Document not found for buffer diff: ${normalizedUri}`,
-                );
+                this.logger.warn(`Document not found for buffer diff: ${normalizedUri}`);
                 return;
             }
         }
@@ -504,12 +357,8 @@ export class BufferManager extends Manager {
 
         try {
             // Process all pending diffs in order
-            while (
-                this.pendingBufferDiffs.has(uri) &&
-                (this.pendingBufferDiffs.get(uri)?.length ?? 0) > 0
-            ) {
-                const params: BufferDiffParams | undefined =
-                    this.pendingBufferDiffs.get(uri)?.shift();
+            while (this.pendingBufferDiffs.has(uri) && (this.pendingBufferDiffs.get(uri)?.length ?? 0) > 0) {
+                const params: BufferDiffParams | undefined = this.pendingBufferDiffs.get(uri)?.shift();
                 if (!params) return;
 
                 // Convert to our internal format for processing
@@ -542,22 +391,15 @@ export class BufferManager extends Manager {
     /**
      * Apply a single buffer diff
      */
-    private async applyBufferDiff(
-        uri: string,
-        event: BufferChangedEvent,
-    ): Promise<void> {
+    private async applyBufferDiff(uri: string, event: BufferChangedEvent): Promise<void> {
         this.logger.log(`Applying buffer diff for ${uri}`);
 
         // Try to find the document by URI
-        let document = vscode.workspace.textDocuments.find(
-            (doc) => doc.uri.toString() === uri,
-        );
+        let document = vscode.workspace.textDocuments.find((doc) => doc.uri.toString() === uri);
 
         // If not found, try to find by path
         if (!document) {
-            this.logger.warn(
-                `Document not found by URI for buffer diff: ${uri}`,
-            );
+            this.logger.warn(`Document not found by URI for buffer diff: ${uri}`);
 
             // Try with and without file:// prefix
             let path = uri;
@@ -577,9 +419,7 @@ export class BufferManager extends Manager {
                     doc.uri.toString() === path ||
                     doc.uri.fsPath === path.replace(/^file:\/\//, "")
                 ) {
-                    this.logger.log(
-                        `Found document by path instead: ${doc.uri.toString()}`,
-                    );
+                    this.logger.log(`Found document by path instead: ${doc.uri.toString()}`);
                     document = doc;
                     break;
                 }
@@ -589,14 +429,10 @@ export class BufferManager extends Manager {
             if (!document) {
                 const activeEditor = vscode.window.activeTextEditor;
                 if (activeEditor) {
-                    this.logger.log(
-                        `Using active editor as fallback: ${activeEditor.document.uri.toString()}`,
-                    );
+                    this.logger.log(`Using active editor as fallback: ${activeEditor.document.uri.toString()}`);
                     document = activeEditor.document;
                 } else {
-                    this.logger.error(
-                        `Document not found for buffer diff and no active editor: ${uri}`,
-                    );
+                    this.logger.error(`Document not found for buffer diff and no active editor: ${uri}`);
                     return;
                 }
             }
@@ -604,9 +440,7 @@ export class BufferManager extends Manager {
 
         // Increment counter to ignore upcoming change events from VSCode
         this.ignoreBufferChangeCounter++;
-        this.logger.log(
-            `Incremented ignore counter to ${this.ignoreBufferChangeCounter} for ${event.path}`,
-        );
+        this.logger.log(`Incremented ignore counter to ${this.ignoreBufferChangeCounter} for ${event.path}`);
 
         const editor = vscode.window.activeTextEditor;
         await editor?.edit((editBuilder) => {
@@ -631,81 +465,14 @@ export class BufferManager extends Manager {
         // Using a small timeout ensures the decrement happens after the current event loop cycle.
         return new Promise<void>((resolve) => {
             setTimeout(() => {
-                this.ignoreBufferChangeCounter = Math.max(
-                    0,
-                    this.ignoreBufferChangeCounter - 1,
-                );
-                this.logger.log(
-                    `Decremented ignore counter to ${this.ignoreBufferChangeCounter} for ${event.path}`,
-                );
+                this.ignoreBufferChangeCounter = Math.max(0, this.ignoreBufferChangeCounter - 1);
+                this.logger.log(`Decremented ignore counter to ${this.ignoreBufferChangeCounter} for ${event.path}`);
                 resolve();
             }, 10); // Small delay to ensure VSCode processes the edit
         });
     }
 
-    /**
-     * Handle undo/redo operations
-     */
-    private handleUndoRedo(isUndo: boolean): void {
-        this.logger.log(
-            `${isUndo ? "Undo" : "Redo"} operation detected - intercepting VSCode command and sending to Ki`,
-        );
-
-        // Get the active document
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
-            this.logger.warn("No active editor for undo/redo operation");
-            return;
-        }
-
-        const document = editor.document;
-        if (document.uri.scheme !== "file") {
-            this.logger.warn("Active document is not a file");
-            return;
-        }
-
-        this.logger.log(
-            `Handling ${isUndo ? "undo" : "redo"} for document: ${document.uri.toString()}`,
-        );
-
-        // Increment counter to ignore upcoming change events from VSCode
-        // This prevents feedback loops if the undo/redo causes document changes
-        this.ignoreBufferChangeCounter++;
-        this.logger.log(
-            `Incremented ignore counter to ${this.ignoreBufferChangeCounter} for undo/redo operation`,
-        );
-
-        // Send the undo/redo command to Ki
-        this.dispatcher
-            .sendRequest("editor.action", {
-                action: isUndo ? EditorAction.Undo : EditorAction.Redo,
-                buffer_id: document.uri.toString(),
-            })
-            .then((response) => {
-                this.logger.log(
-                    `Sent ${isUndo ? "undo" : "redo"} command to Ki, response: ${JSON.stringify(response)}`,
-                );
-
-                // Ki will send buffer.diff events in response to the undo/redo,
-                // which will be handled by our normal buffer diff handling code
-            })
-            .catch((error) => {
-                this.logger.error(
-                    `Error sending ${isUndo ? "undo" : "redo"} command to Ki:`,
-                    error,
-                );
-
-                // Reset counter on error
-                this.ignoreBufferChangeCounter = Math.max(
-                    0,
-                    this.ignoreBufferChangeCounter - 1,
-                );
-            });
-    }
-
-    private sendBufferOpenNotificationToKi(
-        document: vscode.TextDocument,
-    ): void {
+    private sendBufferOpenNotificationToKi(document: vscode.TextDocument): void {
         const uri = document.uri.toString();
 
         this.openBuffers.set(uri, { document, version: document.version });
@@ -715,9 +482,7 @@ export class BufferManager extends Manager {
         //
         // Reference: see https://github.com/microsoft/vscode/issues/114047#issue-782319649
         setTimeout(() => {
-            const editor = vscode.window.visibleTextEditors.find(
-                (e) => e.document.uri.toString() === uri,
-            );
+            const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === uri);
 
             this.dispatcher.sendRequest("buffer.open", {
                 uri: uri,

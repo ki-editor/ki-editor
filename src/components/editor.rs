@@ -2618,12 +2618,22 @@ impl Editor {
     pub(crate) fn dispatch_selection_changed(&self) -> Dispatch {
         Dispatch::ToHostApp(ToHostApp::SelectionChanged {
             component_id: self.id(),
-            selections: self
-                .selection_set
-                .selections()
-                .into_iter()
-                .cloned()
-                .collect(),
+            selections: {
+                // Rearrange the selection such that selections[cursor_index] will be the first selection
+                let cursor_index = self.selection_set.cursor_index;
+                let (current, others): (Vec<_>, Vec<_>) = self
+                    .selection_set
+                    .selections()
+                    .into_iter()
+                    .enumerate()
+                    .partition(|(i, _)| *i == cursor_index);
+
+                current
+                    .into_iter()
+                    .map(|(_, sel)| sel.clone())
+                    .chain(others.into_iter().map(|(_, sel)| sel.clone()))
+                    .collect()
+            },
         })
     }
 

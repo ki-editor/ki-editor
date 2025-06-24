@@ -2,7 +2,6 @@
 
 use ki_protocol_types::{InputMessage, InputMessageWrapper, MessageMethod, OutputMessageWrapper};
 use log::{debug, error, info, trace, warn};
-use serde_json;
 use std::io::ErrorKind;
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};

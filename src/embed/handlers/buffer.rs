@@ -40,7 +40,6 @@ impl EmbeddedApp {
         self.handle_selection_set_notification(ki_protocol_types::SelectionSet {
             buffer_id: buffer_id.clone(),
             selections,
-            primary: 0,
         })?;
 
         let app_guard = self.app.lock().unwrap();

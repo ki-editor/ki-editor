@@ -22,13 +22,15 @@
 -   [x] Add command to sync documents when out of sync
 -   [x] Published to VS Code marketplace is not the latest version
 -   [x] Ki and VS Code buffer content desync sometimes after, say, auto formatting
--   [] VS Code extension README not updated
+-   [x] Cylce cursor not working
+-   [x] VS Code extension README not updated
+-   [x] Rename Rust code of vscode to "embed"
+
 -   [] Save not working properly (require multiple presses of Enter)
 -   [] Scroll up/down not working
 -   [] Make Ki works in Global Search opened in VS Code editor as buffer
--   [] Cylce cursor not working
 -   [] Should we let VS Code handle Undo/Redo for max safety?
--   [] Rename Rust code of vscode to "embed"
 -   [] Selections not updated after code actions are applied
 -   [] Allow opening non-file buffer, like "tasks"
 -   [] Make Ki's File Explorer works in VS Code
+-   [] Map `go to location` from Ki to VS Code

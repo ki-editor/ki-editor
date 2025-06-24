@@ -22,7 +22,6 @@ export interface Selection {
 
 export interface SelectionSet {
 	buffer_id: string;
-	primary?: number;
 	selections: Selection[];
 }
 
@@ -251,16 +250,5 @@ export enum DiagnosticKind {
 	Warning = "Warning",
 	All = "All",
 	Hint = "Hint",
-}
-
-export enum EditorAction {
-	Undo = "undo",
-	Redo = "redo",
-	Save = "save",
-	ForceSave = "forceSave",
-	Copy = "copy",
-	Cut = "cut",
-	Paste = "paste",
-	SelectAll = "selectAll",
 }
 

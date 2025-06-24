@@ -432,7 +432,6 @@ impl EmbeddedApp {
 
         let selection_set = ki_protocol_types::SelectionSet {
             buffer_id,
-            primary: 0,
             selections: host_selections,
         };
         self.send_notification(OutputMessageWrapper {

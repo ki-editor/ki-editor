@@ -33,7 +33,6 @@ data class Selection (
 @Serializable
 data class SelectionSet (
 	val buffer_id: String,
-	val primary: UInt? = null,
 	val selections: List<Selection>
 )
 
@@ -410,25 +409,5 @@ enum class DiagnosticKind(val string: String) {
 	All("All"),
 	@SerialName("Hint")
 	Hint("Hint"),
-}
-
-@Serializable
-enum class EditorAction(val string: String) {
-	@SerialName("undo")
-	Undo("undo"),
-	@SerialName("redo")
-	Redo("redo"),
-	@SerialName("save")
-	Save("save"),
-	@SerialName("forceSave")
-	ForceSave("forceSave"),
-	@SerialName("copy")
-	Copy("copy"),
-	@SerialName("cut")
-	Cut("cut"),
-	@SerialName("paste")
-	Paste("paste"),
-	@SerialName("selectAll")
-	SelectAll("selectAll"),
 }
 
