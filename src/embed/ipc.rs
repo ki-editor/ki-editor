@@ -1,4 +1,4 @@
-//! WebSocket IPC communication with VSCode
+//! WebSocket IPC communication with Host Application (e.g. VS Code)
 
 use ki_protocol_types::{InputMessage, InputMessageWrapper, MessageMethod, OutputMessageWrapper};
 use log::{debug, error, info, trace, warn};
@@ -14,7 +14,7 @@ use tungstenite::{
 use uuid::Uuid;
 
 #[derive(Debug, Error)]
-pub enum IpcError {
+pub(crate) enum IpcError {
     #[error("Network IO error: {0}")]
     Network(#[from] std::io::Error),
 
@@ -34,19 +34,19 @@ pub enum IpcError {
 // Helper type alias for the WebSocket stream
 type WsStream = WebSocket<TcpStream>;
 
-/// Manages the WebSocket IPC communication with the VSCode extension.
-pub struct WebSocketIpc {
-    to_vscode_sender: Sender<OutputMessageWrapper>, // Sends messages *to* the WebSocket thread
-    from_vscode_receiver: Receiver<(u32, InputMessage, String)>, // Receives messages *from* the WebSocket thread
+/// Manages the WebSocket IPC communication with the Host extension.
+pub(crate) struct WebSocketIpc {
+    to_host_sender: Sender<OutputMessageWrapper>, // Sends messages *to* the WebSocket thread
+    from_host_receiver: Receiver<(u32, InputMessage, String)>, // Receives messages *from* the WebSocket thread
     // JoinHandle is stored to ensure the thread is properly waited for on drop
-    _handler_thread: Option<thread::JoinHandle<()>>,
+    handler_thread: Option<thread::JoinHandle<()>>,
 }
 
 impl WebSocketIpc {
     /// Sets up WebSocket IPC.
     /// Binds a TCP listener, prints the port, and spawns a handler thread.
-    pub fn new() -> Result<(Self, u16), IpcError> {
-        info!("Setting up VSCode WebSocket IPC...");
+    pub(crate) fn new() -> Result<(Self, u16), IpcError> {
+        info!("Setting up Host WebSocket IPC...");
 
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let port = listener.local_addr()?.port();
@@ -59,9 +59,9 @@ impl WebSocketIpc {
 
         info!("WebSocket server listening on port {}", port);
 
-        // Create channels for communication between the handler thread and VSCodeApp
-        let (to_main_sender, from_vscode_receiver) = mpsc::channel();
-        let (to_vscode_sender, from_main_receiver) = mpsc::channel();
+        // Create channels for communication between the handler thread and HostApp
+        let (to_main_sender, from_host_receiver) = mpsc::channel();
+        let (to_host_sender, from_main_receiver) = mpsc::channel();
 
         let handler_thread = thread::spawn(move || {
             info!("WebSocket handler thread started. Waiting for connection...");
@@ -92,9 +92,9 @@ impl WebSocketIpc {
 
         Ok((
             Self {
-                to_vscode_sender,
-                from_vscode_receiver,
-                _handler_thread: Some(handler_thread),
+                to_host_sender,
+                from_host_receiver,
+                handler_thread: Some(handler_thread),
             },
             port,
         ))
@@ -118,7 +118,7 @@ impl WebSocketIpc {
                 Ok(msg) => {
                     match msg {
                         WsMessage::Text(text) => {
-                            trace!("WebSocket received text message (len={})", text.len());
+                            trace!("Received WebSocket message from Host (len={})", text.len());
                             match serde_json::from_str::<InputMessageWrapper>(&text) {
                                 Ok(wrapper) => {
                                     debug!(
@@ -177,13 +177,13 @@ impl WebSocketIpc {
                 }
             }
 
-            // 2. Try to receive message from main thread to send to VSCode
+            // 2. Try to receive message from main thread to send to Host
             match from_main_receiver.try_recv() {
                 Ok(wrapper_to_send) => {
                     let id = wrapper_to_send.id;
                     let message_type = format!("{:?}", wrapper_to_send.message);
 
-                    debug!("WebSocket handler: Received message from main thread to send to VSCode: id={}, type={}",
+                    debug!("WebSocket handler: Received message from main thread to send to Host: id={}, type={}",
                         id, message_type);
 
                     match serde_json::to_string(&wrapper_to_send) {
@@ -230,17 +230,20 @@ impl WebSocketIpc {
         info!("WebSocket connection handler terminated.");
     }
 
-    /// Sends a message to the VSCode extension via the handler thread.
-    pub fn send_message_to_vscode(&self, message: OutputMessageWrapper) -> Result<(), IpcError> {
+    /// Sends a message to the Host extension via the handler thread.
+    pub(crate) fn send_message_to_host(
+        &self,
+        message: OutputMessageWrapper,
+    ) -> Result<(), IpcError> {
         let id = message.id;
         let message_type = format!("{:?}", message.message);
 
         debug!(
-            "WebSocketIpc: Sending message to VSCode: id={}, type={}",
+            "WebSocketIpc: Sending message to Host: id={}, type={}",
             id, message_type
         );
 
-        match self.to_vscode_sender.send(message) {
+        match self.to_host_sender.send(message) {
             Ok(_) => {
                 debug!(
                     "WebSocketIpc: Successfully sent message to handler thread: id={}, type={}",
@@ -256,10 +259,12 @@ impl WebSocketIpc {
         }
     }
 
-    /// Receives a message from the VSCode extension via the handler thread.
+    /// Receives a message from the Host extension via the handler thread.
     /// This is non-blocking.
-    pub fn try_receive_from_vscode(&self) -> Result<(u32, InputMessage, String), TryRecvError> {
-        self.from_vscode_receiver.try_recv()
+    pub(crate) fn try_receive_from_host(
+        &self,
+    ) -> Result<(u32, InputMessage, String), TryRecvError> {
+        self.from_host_receiver.try_recv()
     }
 }
 
@@ -267,7 +272,7 @@ impl Drop for WebSocketIpc {
     fn drop(&mut self) {
         info!("Dropping WebSocketIpc. Waiting for handler thread to join...");
         // Take the handle to join it. If it's already None, it means it panicked or finished.
-        if let Some(handle) = self._handler_thread.take() {
+        if let Some(handle) = self.handler_thread.take() {
             if let Err(e) = handle.join() {
                 error!("WebSocket handler thread panicked: {:?}", e);
             }

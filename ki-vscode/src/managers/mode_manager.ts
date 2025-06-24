@@ -33,7 +33,6 @@ export class ModeManager extends Manager {
             vscode.StatusBarAlignment.Left,
             100,
         );
-        this.statusBarItem.command = "ki.toggleMode";
         this.registerDisposable(this.statusBarItem);
 
         this.updateStatusBar();
@@ -61,8 +60,6 @@ export class ModeManager extends Manager {
             },
         );
 
-        this.registerCommands();
-
         this.updateStatusBar();
     }
 
@@ -73,35 +70,6 @@ export class ModeManager extends Manager {
         this.currentSelectionMode = params.mode;
 
         this.updateStatusBar();
-    }
-
-    private registerCommands(): void {
-        // Register toggle mode command
-        const toggleModeCommand = vscode.commands.registerCommand(
-            "ki.toggleMode",
-            () => {
-                this.toggleMode();
-            },
-        );
-        this.registerDisposable(toggleModeCommand);
-    }
-
-    /**
-     * Toggle between normal and insert mode
-     */
-    private toggleMode(): void {
-        const newMode =
-            this.currentMode === EditorMode.Normal
-                ? EditorMode.Insert
-                : EditorMode.Normal;
-        this.logger.log(`Toggling mode from ${this.currentMode} to ${newMode}`);
-
-        // Send mode change to Ki
-        this.dispatcher.sendNotification("mode.set", {
-            buffer_id:
-                vscode.window.activeTextEditor?.document.uri.toString() || "",
-            mode: newMode,
-        });
     }
 
     private handleModeChanged(params: TypedModeParams): void {

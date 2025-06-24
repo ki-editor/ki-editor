@@ -9,7 +9,6 @@ package com.kieditor.protocol
 import androidx.compose.runtime.NoLiveLiterals
 import kotlinx.serialization.*
 
-/// VS Code Position
 @Serializable
 data class Position (
 	val line: UInt,
@@ -24,7 +23,9 @@ data class Range (
 
 @Serializable
 data class Selection (
+	/// The other end of the selection
 	val anchor: Position,
+	/// The cursor position
 	val active: Position,
 	val is_extended: Boolean? = null
 )
@@ -36,9 +37,12 @@ data class SelectionSet (
 	val selections: List<Selection>
 )
 
+/// Represents a single text edit operation.
 @Serializable
 data class DiffEdit (
+	/// The range of the text to be replaced.
 	val range: Range,
+	/// The new text to replace the range.
 	val new_text: String
 )
 
@@ -176,10 +180,8 @@ data class ViewportParams (
 @Serializable
 data class KeyboardParams (
 	val key: String,
-	val mode: String? = null,
-	val is_composed: Boolean,
 	val uri: String,
-	/// This is necessary for resolving content desync
+	/// This is necessary for resolving buffer content desync
 	/// between Ki and the host application
 	val content_hash: UInt
 )
@@ -270,12 +272,6 @@ sealed class InputMessage {
 	@SerialName("buffer.open")
 	data class BufferOpen(val params: BufferOpenParams): InputMessage()
 	@Serializable
-	@SerialName("buffer.close")
-	data class BufferClose(val params: BufferParams): InputMessage()
-	@Serializable
-	@SerialName("buffer.save")
-	data class BufferSave(val params: BufferParams): InputMessage()
-	@Serializable
 	@SerialName("buffer.change")
 	data class BufferChange(val params: BufferDiffParams): InputMessage()
 	@Serializable
@@ -287,9 +283,6 @@ sealed class InputMessage {
 	@Serializable
 	@SerialName("selection.set")
 	data class SelectionSet(val params: SelectionSet): InputMessage()
-	@Serializable
-	@SerialName("mode.set")
-	data class ModeSet(val params: TypedModeParams): InputMessage()
 	@Serializable
 	@SerialName("keyboard.input")
 	data class KeyboardInput(val params: KeyboardParams): InputMessage()

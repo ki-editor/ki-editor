@@ -1,18 +1,18 @@
 use log::{LevelFilter, Log, Metadata, Record};
 use std::io::{self, Write};
 
-/// VSCodeLogger forwards log messages to VSCode
-pub struct VSCodeLogger {
+/// Forwards log messages to host app
+pub(crate) struct HostLogger {
     min_level: LevelFilter,
 }
 
-impl VSCodeLogger {
-    pub fn new(min_level: LevelFilter) -> Self {
+impl HostLogger {
+    pub(crate) fn new(min_level: LevelFilter) -> Self {
         Self { min_level }
     }
 }
 
-impl Log for VSCodeLogger {
+impl Log for HostLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
         metadata.level() <= self.min_level
     }
@@ -30,7 +30,7 @@ impl Log for VSCodeLogger {
             let message = format!("{}", record.args());
 
             // Just output to stderr for debugging
-            // This appears in the VSCode debug console already
+            // This appears in the Host debug console already
             let _ = writeln!(io::stderr(), "[{}] {}", level_str, message);
         }
     }

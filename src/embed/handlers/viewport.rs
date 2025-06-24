@@ -1,13 +1,11 @@
-//! Viewport change handlers for VSCode IPC messages
-
-use crate::vscode::app::VSCodeApp;
+use crate::embed::app::EmbeddedApp;
 use anyhow::Result;
 use itertools::Itertools;
 use ki_protocol_types::ViewportParams;
 
-impl VSCodeApp {
-    /// Handle viewport change request from VSCode
-    pub fn handle_viewport_change_request(&mut self, params: ViewportParams) -> Result<()> {
+impl EmbeddedApp {
+    /// Handle viewport change request from Host
+    pub(crate) fn handle_viewport_change_request(&mut self, params: ViewportParams) -> Result<()> {
         let component = self.app.lock().unwrap().current_component();
         let mut component_ref = component.borrow_mut();
         let editor = component_ref.editor_mut();

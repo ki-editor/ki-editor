@@ -1,16 +1,10 @@
-//! Selection-related handlers for VSCode IPC messages
-
 use super::prelude::*;
-use crate::{components::component::Component, vscode::VSCodeApp};
+use crate::{components::component::Component, embed::EmbeddedApp};
 use ki_protocol_types::SelectionSet;
 
-impl VSCodeApp {
-    // The check_for_selection_changes method has been removed as it's no longer used.
-    // Selection updates are now sent via the IntegrationEvent::SelectionChanged event.
-
-    /// Handle selection.set notification from VSCode
-    /// Note: This handler does NOT call check_for_changes() afterwards to prevent feedback loops
-    pub fn handle_selection_set_notification(&mut self, params: SelectionSet) -> Result<()> {
+impl EmbeddedApp {
+    /// Handle selection.set notification from Host
+    pub(crate) fn handle_selection_set_notification(&mut self, params: SelectionSet) -> Result<()> {
         let path = uri_to_path(&params.buffer_id)?;
         let Some(editor) = self.app.lock().unwrap().get_editor_by_file_path(&path) else {
             return Err(anyhow::anyhow!(
@@ -80,7 +74,7 @@ impl VSCodeApp {
         Ok(())
     }
 
-    pub fn handle_selection_set_request(&mut self, params: SelectionSet) -> Result<()> {
+    pub(crate) fn handle_selection_set_request(&mut self, params: SelectionSet) -> Result<()> {
         self.handle_selection_set_notification(params)
     }
 }

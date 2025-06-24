@@ -45,7 +45,7 @@ pub(crate) mod transformation;
 pub(crate) mod ui_tree;
 mod utils;
 
-mod vscode;
+mod embed;
 
 mod divide_viewport;
 mod env;

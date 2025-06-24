@@ -65,9 +65,7 @@ pub(crate) struct App<T: Frontend> {
     /// - Notifications from language server
     receiver: Receiver<AppMessage>,
 
-    // VSCode notification sender has been removed in favor of integration_event_sender
-
-    // Sender for integration events (used by external integrations like VSCode)
+    /// Sender for integration events (used by external integrations like VSCode)
     integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
 
     lsp_manager: LspManager,
@@ -911,34 +909,8 @@ impl<T: Frontend> App<T> {
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
-            Dispatch::BufferEditTransaction { path, edits } => {
-                // Emit an integration event for the buffer change
-                self.integration_event_sender.emit_event(
-                    crate::integration_event::IntegrationEvent::BufferChanged {
-                        path: path.clone(),
-                        edits: edits.clone(),
-                    },
-                );
-            }
-            Dispatch::ModeChanged => self.mode_changed(),
-            Dispatch::SelectionModeChanged(selection_mode) => {
-                self.selection_mode_changed(selection_mode)
-            }
-            Dispatch::SelectionChanged {
-                component_id,
-                selections,
-            } => self.selection_changed(component_id, selections),
-            Dispatch::JumpsChanged {
-                component_id,
-                jumps,
-            } => self.jumps_changed(component_id, jumps),
-            Dispatch::PromptEntered(entry) => self.prompt_entered(entry)?,
-            Dispatch::MarksChanged(component_id, marks) => self.marks_updated(component_id, marks),
-            Dispatch::TargetedEvent {
-                event,
-                path,
-                content_hash,
-            } => self.handle_targeted_event(event, path, content_hash)?,
+            Dispatch::ToHostApp(to_host_app) => self.handle_to_host_app(to_host_app)?,
+            Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
         }
         Ok(())
     }
@@ -1773,7 +1745,7 @@ impl<T: Frontend> App<T> {
                         .editor()
                         .dispatch_selection_mode_changed(),
                 )
-                .append(Dispatch::ModeChanged);
+                .append(Dispatch::ToHostApp(ToHostApp::ModeChanged));
             self.handle_dispatches(other_dispatches)?;
         };
 
@@ -2739,6 +2711,46 @@ impl<T: Frontend> App<T> {
             Ok(())
         }
     }
+
+    fn handle_to_host_app(&mut self, to_host_app: ToHostApp) -> anyhow::Result<()> {
+        match to_host_app {
+            ToHostApp::BufferEditTransaction { path, edits } => {
+                // Emit an integration event for the buffer change
+                self.integration_event_sender.emit_event(
+                    crate::integration_event::IntegrationEvent::BufferChanged {
+                        path: path.clone(),
+                        edits: edits.clone(),
+                    },
+                );
+            }
+            ToHostApp::ModeChanged => self.mode_changed(),
+            ToHostApp::SelectionModeChanged(selection_mode) => {
+                self.selection_mode_changed(selection_mode)
+            }
+            ToHostApp::SelectionChanged {
+                component_id,
+                selections,
+            } => self.selection_changed(component_id, selections),
+            ToHostApp::JumpsChanged {
+                component_id,
+                jumps,
+            } => self.jumps_changed(component_id, jumps),
+            ToHostApp::PromptEntered(entry) => self.prompt_entered(entry)?,
+            ToHostApp::MarksChanged(component_id, marks) => self.marks_updated(component_id, marks),
+        }
+        Ok(())
+    }
+
+    fn handle_from_host_app(&mut self, from_host_app: FromHostApp) -> anyhow::Result<()> {
+        match from_host_app {
+            FromHostApp::TargetedEvent {
+                event,
+                path,
+                content_hash,
+            } => self.handle_targeted_event(event, path, content_hash)?,
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2979,19 +2991,24 @@ pub(crate) enum Dispatch {
     NavigateForward,
     NavigateBack,
     ToggleFileMark,
-    // Used to send buffer changes from EditTransaction to external integrations
+    Suspend,
+
+    ToHostApp(ToHostApp),
+    FromHostApp(FromHostApp),
+}
+
+/// Used to send notify host app about changes
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ToHostApp {
     BufferEditTransaction {
         path: CanonicalizedPath,
         edits: Vec<ki_protocol_types::DiffEdit>,
     },
-    /// Indicates that the editor mode has changed (used for VSCode integration)
     ModeChanged,
-    /// Indicates that the selection has changed (used for VSCode integration)
     SelectionChanged {
         component_id: crate::components::component::ComponentId,
         selections: Vec<crate::selection::Selection>,
     },
-    /// Indicates that the jumps has (used for VSCode integration)
     JumpsChanged {
         component_id: crate::components::component::ComponentId,
         jumps: Vec<(char, CharIndex)>,
@@ -2999,12 +3016,15 @@ pub(crate) enum Dispatch {
     SelectionModeChanged(SelectionMode),
     PromptEntered(String),
     MarksChanged(ComponentId, Vec<crate::char_index_range::CharIndexRange>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum FromHostApp {
     TargetedEvent {
         event: Event,
         path: Option<CanonicalizedPath>,
         content_hash: u32,
     },
-    Suspend,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

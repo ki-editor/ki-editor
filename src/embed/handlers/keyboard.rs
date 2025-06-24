@@ -1,12 +1,10 @@
-//! Keyboard-related handlers for VSCode IPC messages
-
 use super::prelude::*;
-use crate::app::{AppMessage, Dispatch};
-use crate::vscode::app::VSCodeApp;
+use crate::app::{AppMessage, Dispatch, FromHostApp};
+use crate::embed::app::EmbeddedApp;
 use crossterm::event::{KeyCode, KeyModifiers as CrosstermKeyModifiers};
 use event::event::Event;
 
-impl VSCodeApp {
+impl EmbeddedApp {
     fn parse_keyboard_input(
         keyboard_input: ki_protocol_types::KeyboardParams,
     ) -> event::event::KeyEvent {
@@ -32,12 +30,13 @@ impl VSCodeApp {
         };
 
         // Determine modifiers (basic)
-        // TODO: Protocol might need explicit modifier info
-        let crossterm_modifiers = CrosstermKeyModifiers::empty(); // Start empty
-                                                                  // This is a simplification; real modifier state might be complex.
-                                                                  // If VSCode sends modifier state explicitly, use that instead.
-                                                                  // For now, we infer based on common prefixes if needed, but ideally
-                                                                  // the `keyboard_input` struct would have explicit modifier fields.
+        let crossterm_modifiers = CrosstermKeyModifiers::empty();
+
+        // Start empty
+        // This is a simplification; real modifier state might be complex.
+        // If Host app sends modifier state explicitly, use that instead.
+        // For now, we infer based on common prefixes if needed, but ideally
+        // the `keyboard_input` struct would have explicit modifier fields.
 
         // Map crossterm modifiers to event::KeyModifiers enum
         let event_modifiers = match code {
@@ -59,7 +58,7 @@ impl VSCodeApp {
     }
 
     /// Handle keyboard.input request
-    pub fn handle_keyboard_input_request(
+    pub(crate) fn handle_keyboard_input_request(
         &self,
         id: u32,
         params: ki_protocol_types::KeyboardParams,
@@ -68,11 +67,12 @@ impl VSCodeApp {
         let path = uri_to_path(&params.uri).ok();
         let content_hash = params.content_hash;
         let event = Event::Key(Self::parse_keyboard_input(params));
-        let app_message = AppMessage::ExternalDispatch(Dispatch::TargetedEvent {
-            event,
-            path,
-            content_hash,
-        });
+        let app_message =
+            AppMessage::ExternalDispatch(Dispatch::FromHostApp(FromHostApp::TargetedEvent {
+                event,
+                path,
+                content_hash,
+            }));
 
         // Send the parameters directly to the App thread via the new AppMessage variant
         if let Err(e) = self.app_sender.send(app_message) {

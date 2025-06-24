@@ -193,9 +193,6 @@ export class KeyboardManager extends Manager {
         this.dispatcher
             .sendRequest("keyboard.input", {
                 key: text,
-                timestamp: Date.now(),
-                mode: this.modeManager.getCurrentMode(),
-                is_composed: false,
                 uri,
                 content_hash: zlib.crc32(editor.document.getText()),
             })
@@ -238,9 +235,6 @@ export class KeyboardManager extends Manager {
         this.dispatcher
             .sendRequest("keyboard.input", {
                 key: keyCode,
-                timestamp: Date.now(),
-                mode: this.modeManager.getCurrentMode(),
-                is_composed: false,
                 uri,
                 content_hash: zlib.crc32(editor.document.getText()),
             })

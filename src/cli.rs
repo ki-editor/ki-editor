@@ -1,5 +1,5 @@
 use crate::components::editor_keymap_printer;
-use crate::vscode;
+use crate::embed;
 use crate::RunConfig;
 use chrono::Local;
 use clap::{Args, Parser, Subcommand};
@@ -173,7 +173,9 @@ pub(crate) fn cli() -> anyhow::Result<()> {
     match cli.command {
         Some(CommandPlaceholder::Edit(args)) => run_edit_command(args),
         Some(CommandPlaceholder::At { command }) => match command {
-            Commands::Embed(args) => vscode::run_vscode(args.working_directory.try_into()?),
+            Commands::Embed(args) => {
+                embed::app::run_embedded_ki(args.working_directory.try_into()?)
+            }
             Commands::Grammar { command } => {
                 match command {
                     Grammar::Build => shared::grammar::build_grammars(),

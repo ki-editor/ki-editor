@@ -1,13 +1,10 @@
-// This crate defines the shared data structures for the Ki Editor VSCode IPC protocol.
-
+///! This crate defines the shared data structures for the Ki Editor and Host application IPC protocol.
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use typeshare::typeshare;
 
-// Common data structures
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[typeshare]
-/// VS Code Position
 pub struct Position {
     #[typeshare(typescript(type = "number"))]
     pub line: u32,
@@ -25,8 +22,10 @@ pub struct Range {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[typeshare]
 pub struct Selection {
-    pub anchor: Position, // The anchor (where selection started)
-    pub active: Position, // The active/cursor position
+    /// The other end of the selection
+    pub anchor: Position,
+    /// The cursor position
+    pub active: Position,
     #[serde(default)]
     pub is_extended: bool,
 }
@@ -51,15 +50,16 @@ pub struct SelectionSet {
     pub selections: Vec<Selection>,
 }
 
-// Represents a single text edit operation.
+/// Represents a single text edit operation.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[typeshare]
 pub struct DiffEdit {
-    pub range: Range,     // The range of the text to be replaced.
-    pub new_text: String, // The new text to insert.
+    /// The range of the text to be replaced.
+    pub range: Range,
+    /// The new text to replace the range.
+    pub new_text: String,
 }
 
-// Editor Mode enum for type-safe mode representation
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[typeshare]
 #[serde(rename_all = "camelCase")]
@@ -71,11 +71,8 @@ pub enum EditorMode {
     Swap,
     Replace,
     Extend,
-    // Add other modes as needed
 }
 
-// Selection Mode enum for type-safe selection mode representation
-// This should match Ki's internal SelectionMode enum as closely as possible
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[typeshare]
 #[serde(tag = "type", content = "params")]
@@ -120,7 +117,6 @@ pub enum EditorAction {
     Cut,
     Paste,
     SelectAll,
-    // Add other actions as needed to match DispatchEditor
 }
 
 // Implement Display for EditorAction for better logging and error messages
@@ -225,11 +221,8 @@ pub struct ViewportParams {
 #[typeshare]
 pub struct KeyboardParams {
     pub key: String,
-    #[typeshare(typescript(type = "number"))]
-    pub mode: Option<String>,
-    pub is_composed: bool,
     pub uri: String,
-    /// This is necessary for resolving content desync
+    /// This is necessary for resolving buffer content desync
     /// between Ki and the host application
     pub content_hash: u32,
 }
@@ -265,7 +258,7 @@ pub struct SearchParams {
     pub regex: bool,
 }
 
-// Input Messages (VSCode -> Ki)
+// Input Messages (Host -> Ki)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[typeshare]
 #[serde(tag = "tag", content = "params")]
@@ -277,10 +270,6 @@ pub enum InputMessage {
     // Buffer operations
     #[serde(rename = "buffer.open")]
     BufferOpen(BufferOpenParams),
-    #[serde(rename = "buffer.close")]
-    BufferClose(BufferParams),
-    #[serde(rename = "buffer.save")]
-    BufferSave(BufferParams),
     #[serde(rename = "buffer.change")]
     BufferChange(BufferDiffParams),
     #[serde(rename = "buffer.active")]
@@ -291,10 +280,6 @@ pub enum InputMessage {
     // Selection operations (includes cursor information)
     #[serde(rename = "selection.set")]
     SelectionSet(SelectionSet),
-
-    // Mode operations
-    #[serde(rename = "mode.set")]
-    ModeSet(TypedModeParams),
 
     // Input operations
     #[serde(rename = "keyboard.input")]
@@ -335,7 +320,7 @@ pub enum DiagnosticSeverity {
     Error,
 }
 
-// Output Messages (Ki -> VSCode)
+// Output Messages (Ki -> Host)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[typeshare]
 #[serde(tag = "tag", content = "params")]
@@ -465,27 +450,19 @@ pub struct ResponseError {
     pub data: Option<serde_json::Value>,
 }
 
-// Define a more efficient MessageMethod trait with runtime and compile-time options
 pub trait MessageMethod {
-    // Dynamic method that gets the message name at runtime
+    /// Dynamic method that gets the message name at runtime
     fn method_name(&self) -> Cow<'static, str>;
-
-    // Static method for compile-time generated names (for optimized code paths)
-    fn variant_name(&self) -> &'static str;
 }
 
-// Implementation for InputMessage
 impl MessageMethod for InputMessage {
     fn method_name(&self) -> Cow<'static, str> {
         match self {
             Self::Ping(_) => Cow::Borrowed("ping"),
             Self::BufferOpen(_) => Cow::Borrowed("buffer.open"),
-            Self::BufferClose(_) => Cow::Borrowed("buffer.close"),
-            Self::BufferSave(_) => Cow::Borrowed("buffer.save"),
             Self::BufferChange(_) => Cow::Borrowed("buffer.change"),
             Self::BufferActive(_) => Cow::Borrowed("buffer.active"),
             Self::SelectionSet(_) => Cow::Borrowed("selection.set"),
-            Self::ModeSet(_) => Cow::Borrowed("mode.set"),
             Self::KeyboardInput(_) => Cow::Borrowed("keyboard.input"),
             Self::ViewportChange(_) => Cow::Borrowed("viewport.change"),
             Self::DiagnosticsChange(_) => Cow::Borrowed("diagnostics.change"),
@@ -493,27 +470,8 @@ impl MessageMethod for InputMessage {
             Self::SyncBufferResponse(_) => Cow::Borrowed("editor.syncBufferResponse"),
         }
     }
-
-    fn variant_name(&self) -> &'static str {
-        match self {
-            Self::Ping(_) => "Ping",
-            Self::BufferOpen(_) => "BufferOpen",
-            Self::BufferClose(_) => "BufferClose",
-            Self::BufferSave(_) => "BufferSave",
-            Self::BufferChange(_) => "BufferChange",
-            Self::BufferActive(_) => "BufferActive",
-            Self::SelectionSet(_) => "SelectionSet",
-            Self::ModeSet(_) => "ModeSet",
-            Self::KeyboardInput(_) => "KeyboardInput",
-            Self::ViewportChange(_) => "ViewportChange",
-            Self::DiagnosticsChange(_) => "DiagnosticsChange",
-            Self::PromptEnter(_) => "PromptEnter",
-            Self::SyncBufferResponse(_) => "BufferContent",
-        }
-    }
 }
 
-// Implementation for OutputMessage
 impl MessageMethod for OutputMessage {
     fn method_name(&self) -> Cow<'static, str> {
         match self {
@@ -540,34 +498,6 @@ impl MessageMethod for OutputMessage {
             OutputMessage::RequestLspCodeAction => Cow::Borrowed("lsp.codeAction"),
             OutputMessage::RequestLspDocumentSymbols => Cow::Borrowed("lsp.documentSymbols"),
             OutputMessage::SyncBufferRequest { .. } => Cow::Borrowed("editor.requestBufferContent"),
-        }
-    }
-
-    fn variant_name(&self) -> &'static str {
-        match self {
-            OutputMessage::Ping(_) => "Ping",
-            OutputMessage::Error(_) => "Error",
-            OutputMessage::BufferOpen(_) => "BufferOpen",
-            OutputMessage::BufferSave(_) => "BufferSave",
-            OutputMessage::BufferDiff(_) => "BufferDiff",
-            OutputMessage::SelectionUpdate(_) => "SelectionUpdate",
-            OutputMessage::ModeChange(_) => "ModeChange",
-            OutputMessage::SelectionModeChange(_) => "SelectionModeChange",
-            OutputMessage::ViewportChange(_) => "ViewportChange",
-            OutputMessage::JumpsChanged(_) => "JumpsChanged",
-            OutputMessage::PromptOpened(_) => "PromptOpened",
-            OutputMessage::MarksChanged(_) => "MarksChanged",
-            OutputMessage::RequestLspDefinition => "RequestLspDefinition",
-            OutputMessage::RequestLspHover => "RequestLspHover",
-            OutputMessage::RequestLspReferences => "RequestLspReferences",
-            OutputMessage::RequestLspDeclaration => "RequestLspDeclaration",
-            OutputMessage::RequestLspTypeDefinition => "RequestLspTypeDefinition",
-            OutputMessage::RequestLspImplementation => "RequestLspImplementation",
-            OutputMessage::KeyboardLayoutChanged(_) => "KeyboardLayoutChanged",
-            OutputMessage::RequestLspRename => "RequestLspRename",
-            OutputMessage::RequestLspCodeAction => "RequestLspCodeAction",
-            OutputMessage::RequestLspDocumentSymbols => "RequestLspDocumentSymbols",
-            OutputMessage::SyncBufferRequest { .. } => "RequestBufferContent",
         }
     }
 }

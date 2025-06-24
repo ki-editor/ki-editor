@@ -1,5 +1,3 @@
-//! VSCode integration app implementation
-
 use crate::cli::get_version;
 use crate::components::editor::Mode;
 use std::rc::Rc;
@@ -7,7 +5,7 @@ use std::sync::mpsc::{self, TryRecvError};
 use std::sync::Mutex;
 use std::thread;
 
-use crate::app::{App, AppMessage, Dispatch};
+use crate::app::{App, AppMessage, Dispatch, ToHostApp};
 use crate::frontend::crossterm::Crossterm;
 use anyhow::Result;
 use ki_protocol_types::{
@@ -18,11 +16,11 @@ use log::{debug, error, info, trace};
 use shared::canonicalized_path::CanonicalizedPath;
 
 use super::ipc::WebSocketIpc;
-use super::logger::VSCodeLogger;
+use super::logger::HostLogger;
 use super::utils::*;
-use crate::vscode::handlers;
+use crate::embed::handlers;
 
-pub struct VSCodeApp {
+pub(crate) struct EmbeddedApp {
     pub(crate) app: Rc<Mutex<App<Crossterm>>>,
     pub(crate) app_sender: mpsc::Sender<AppMessage>,
     pub(crate) integration_event_receiver:
@@ -31,16 +29,16 @@ pub struct VSCodeApp {
     pub(crate) ipc_handler: WebSocketIpc,
 }
 
-impl VSCodeApp {
-    pub fn new(working_directory: Option<CanonicalizedPath>) -> Result<Self> {
+impl EmbeddedApp {
+    pub(crate) fn new(working_directory: Option<CanonicalizedPath>) -> Result<Self> {
         let log_level = if std::env::var("KI_DEBUG").is_ok() {
             log::LevelFilter::Debug
         } else {
             log::LevelFilter::Info
         };
-        let logger = VSCodeLogger::new(log_level);
+        let logger = HostLogger::new(log_level);
         if let Err(e) = log::set_boxed_logger(Box::new(logger)) {
-            eprintln!("Failed to initialize VSCode logger: {}", e);
+            eprintln!("Failed to initialize logger: {}", e);
         } else {
             log::set_max_level(log_level);
         }
@@ -67,7 +65,7 @@ impl VSCodeApp {
         )?;
 
         let (ipc_handler, _port) = WebSocketIpc::new()?;
-        info!("WebSocketIpc initialized. Waiting for VSCode connection...");
+        info!("WebSocketIpc initialized. Waiting for Host connection...");
 
         Ok(Self {
             app: Rc::new(Mutex::new(core_app)),
@@ -78,20 +76,20 @@ impl VSCodeApp {
         })
     }
 
-    pub fn send_message_to_vscode(&self, message: OutputMessageWrapper) -> Result<()> {
+    pub(crate) fn send_message_to_host(&self, message: OutputMessageWrapper) -> Result<()> {
         self.ipc_handler
-            .send_message_to_vscode(message)
+            .send_message_to_host(message)
             .map_err(|e| anyhow::anyhow!("Failed to send message to IPC handler: {}", e))
     }
 
-    pub fn send_notification(&self, wrapper: OutputMessageWrapper) -> Result<()> {
+    pub(crate) fn send_notification(&self, wrapper: OutputMessageWrapper) -> Result<()> {
         let notification_type = format!("{:?}", wrapper.message);
         trace!(
             "SENDING Notification: Type={:?}, ID={}",
             notification_type,
             wrapper.id
         );
-        self.send_message_to_vscode(wrapper)
+        self.send_message_to_host(wrapper)
     }
 
     fn handle_request(&mut self, id: u32, message: InputMessage, trace_id: &str) -> Result<()> {
@@ -114,15 +112,12 @@ impl VSCodeApp {
                 handlers::ping::handle_ping_request(self, id, value.unwrap_or_default())
             }
             InputMessage::BufferOpen(params) => self.handle_buffer_open_request(params),
-            InputMessage::BufferClose(params) => self.handle_buffer_close_request(params),
-            InputMessage::BufferSave(params) => self.handle_buffer_save_request(params),
             InputMessage::BufferActive(params) => self.handle_buffer_active_request(params),
             InputMessage::BufferChange(params) => self.handle_buffer_change_request(params),
             InputMessage::KeyboardInput(params) => {
                 self.handle_keyboard_input_request(id, params, trace_id)
             }
             InputMessage::SelectionSet(params) => self.handle_selection_set_request(params),
-            InputMessage::ModeSet(params) => self.handle_mode_set_request(params, trace_id),
             InputMessage::ViewportChange(params) => self.handle_viewport_change_request(params),
             InputMessage::DiagnosticsChange(params) => self.handle_diagnostics_change(params),
             InputMessage::PromptEnter(entry) => self.handle_prompt_enter(entry),
@@ -137,7 +132,7 @@ impl VSCodeApp {
 
         debug!("[{}] Exiting handle_request: id={}", trace_id, id);
         trace!(
-            target: "vscode_flow",
+            target: "host_flow",
             "[{}] EXIT handle_request: ID={:?}, Type={:?}, Duration={:?}, Result={}",
             trace_id,
             id,
@@ -149,26 +144,26 @@ impl VSCodeApp {
         result
     }
 
-    pub fn run(&mut self) -> Result<()> {
-        trace!("Starting VSCodeApp main loop");
+    pub(crate) fn run(&mut self) -> Result<()> {
+        trace!("Starting Host main loop");
 
         loop {
             let mut received_message = false;
 
-            match self.ipc_handler.try_receive_from_vscode() {
+            match self.ipc_handler.try_receive_from_host() {
                 Ok((id, message, trace_id)) => {
                     received_message = true;
                     debug!(
-                        "[{}] Received message from VSCode: id={}, message={:?}",
+                        "[{}] Received message from Host: id={}, message={:?}",
                         &trace_id, id, &message
                     );
                     if let Err(e) = self.handle_request(id, message, &trace_id) {
-                        error!("Error handling request from VSCode: {}", e);
+                        error!("Error handling request from Host: {}", e);
                     }
                 }
                 Err(TryRecvError::Empty) => {}
                 Err(TryRecvError::Disconnected) => {
-                    error!("IPC channel from VSCode disconnected! Exiting.");
+                    error!("IPC channel from Host disconnected! Exiting.");
                     break;
                 }
             }
@@ -238,7 +233,7 @@ impl VSCodeApp {
             }
         }
 
-        trace!("VSCodeApp main loop stopped");
+        trace!("Host main loop stopped");
         Ok(())
     }
 
@@ -275,7 +270,7 @@ impl VSCodeApp {
             message,
             error: None,
         };
-        self.send_message_to_vscode(wrapper)
+        self.send_message_to_host(wrapper)
     }
 
     pub(crate) fn send_error_response(&self, id: u32, error_message: &str) -> Result<()> {
@@ -288,7 +283,7 @@ impl VSCodeApp {
                 data: None,
             }),
         };
-        self.send_message_to_vscode(error_response)
+        self.send_message_to_host(error_response)
     }
 
     fn handle_integration_event(
@@ -406,7 +401,7 @@ impl VSCodeApp {
         let editor = component_ref.editor();
         let buffer = editor.buffer();
 
-        let vscode_selections = selections
+        let host_selections = selections
             .iter()
             .map(|selection| {
                 let range = selection.extended_range();
@@ -426,12 +421,10 @@ impl VSCodeApp {
 
                 use crate::components::editor::Direction;
                 Ok(ki_protocol_types::Selection {
-                    active: buffer
-                        .char_to_position(primary_cursor)?
-                        .to_vscode_position(),
+                    active: buffer.char_to_position(primary_cursor)?.to_host_position(),
                     anchor: buffer
                         .char_to_position(secondary_cursor)?
-                        .to_vscode_position(),
+                        .to_host_position(),
                     is_extended: selection.initial_range.is_some(),
                 })
             })
@@ -440,7 +433,7 @@ impl VSCodeApp {
         let selection_set = ki_protocol_types::SelectionSet {
             buffer_id,
             primary: 0,
-            selections: vscode_selections,
+            selections: host_selections,
         };
         self.send_notification(OutputMessageWrapper {
             id: 0,
@@ -592,7 +585,7 @@ impl VSCodeApp {
             .map(|(char, char_index)| -> anyhow::Result<_> {
                 Ok((
                     char,
-                    buffer.char_to_position(char_index)?.to_vscode_position(),
+                    buffer.char_to_position(char_index)?.to_host_position(),
                 ))
             })
             .collect::<anyhow::Result<Vec<_>, _>>()?;
@@ -618,7 +611,7 @@ impl VSCodeApp {
                 return Ok(());
             }
         };
-        app_guard.handle_dispatch(Dispatch::PromptEntered(entry))?;
+        app_guard.handle_dispatch(Dispatch::ToHostApp(ToHostApp::PromptEntered(entry)))?;
         Ok(())
     }
 
@@ -706,8 +699,8 @@ impl VSCodeApp {
                 let std::ops::Range { start, end } =
                     buffer.char_index_range_to_position_range(range)?;
                 Ok(ki_protocol_types::Range {
-                    start: start.to_vscode_position(),
-                    end: end.to_vscode_position(),
+                    start: start.to_host_position(),
+                    end: end.to_host_position(),
                 })
             })
             .collect::<anyhow::Result<Vec<_>, _>>()?;
@@ -812,14 +805,13 @@ impl VSCodeApp {
     }
 }
 
-pub fn run_vscode(working_directory: CanonicalizedPath) -> anyhow::Result<()> {
-    eprintln!("== VSCode integration initializing ==");
+pub(crate) fn run_embedded_ki(working_directory: CanonicalizedPath) -> anyhow::Result<()> {
+    eprintln!("== Ki running as embedded app ==");
 
-    let mut vscode_app = VSCodeApp::new(Some(working_directory))?;
+    let mut embedded_app = EmbeddedApp::new(Some(working_directory))?;
 
-    eprintln!("VSCode integration backend started. Waiting for VSCode extension to connect...");
-    info!("VSCode integration backend started. Waiting for VSCode extension to connect...");
+    info!("Host integration backend started. Waiting for Host extension to connect...");
     info!("Running on version {}", get_version());
 
-    vscode_app.run()
+    embedded_app.run()
 }

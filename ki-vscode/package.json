@@ -79,11 +79,6 @@
                 "category": "Ki"
             },
             {
-                "command": "ki.toggleMode",
-                "title": "Ki: Toggle Mode",
-                "category": "Ki"
-            },
-            {
                 "command": "ki.enableKeyInterception",
                 "title": "Ki: Enable Keyboard Interception",
                 "category": "Ki"

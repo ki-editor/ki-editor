@@ -1,13 +1,13 @@
 use crate::position::Position as KiPosition;
-use ki_protocol_types::Position as VSCodePosition;
+use ki_protocol_types::Position as HostPosition;
 use shared::canonicalized_path::CanonicalizedPath;
 use url::Url;
 
-// Convert VSCode protocol position to Ki editor position
-pub(crate) fn vscode_position_to_ki_position(pos: &VSCodePosition) -> KiPosition {
+// Convert Host protocol position to Ki editor position
+pub(crate) fn host_position_to_ki_position(pos: &HostPosition) -> KiPosition {
     KiPosition {
         line: pos.line as usize,
-        column: pos.character as usize, // VSCode uses 'character', Ki uses 'column'
+        column: pos.character as usize,
     }
 }
 

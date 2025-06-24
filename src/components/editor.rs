@@ -7,7 +7,7 @@ use super::{
     suggestive_editor::{Decoration, Info},
 };
 use crate::{
-    app::{Dimension, Dispatch},
+    app::{Dimension, Dispatch, ToHostApp},
     buffer::Buffer,
     components::component::Component,
     context::LocalSearchConfig,
@@ -1276,7 +1276,10 @@ impl Editor {
                     // Get the path for the buffer
                     self.buffer().path().map(|path| {
                         // Create a dispatch to send buffer edit transaction to external integrations
-                        Dispatches::one(crate::app::Dispatch::BufferEditTransaction { path, edits })
+                        Dispatches::one(Dispatch::ToHostApp(ToHostApp::BufferEditTransaction {
+                            path,
+                            edits,
+                        }))
                     })
                 })
                 .flatten()
@@ -2613,7 +2616,7 @@ impl Editor {
     }
 
     pub(crate) fn dispatch_selection_changed(&self) -> Dispatch {
-        Dispatch::SelectionChanged {
+        Dispatch::ToHostApp(ToHostApp::SelectionChanged {
             component_id: self.id(),
             selections: self
                 .selection_set
@@ -2621,11 +2624,11 @@ impl Editor {
                 .into_iter()
                 .cloned()
                 .collect(),
-        }
+        })
     }
 
     pub(crate) fn dispatch_marks_changed(&self) -> Dispatch {
-        Dispatch::MarksChanged(self.id(), self.buffer().marks())
+        Dispatch::ToHostApp(ToHostApp::MarksChanged(self.id(), self.buffer().marks()))
     }
 
     pub(crate) fn cursor_keep_primary_only(&mut self) {
@@ -2827,7 +2830,10 @@ impl Editor {
                 // Create a BufferEditTransaction dispatch for external integrations
                 let dispatch = if let Some(path) = self.buffer().path() {
                     // Create a dispatch to send buffer edit transaction
-                    Dispatches::one(crate::app::Dispatch::BufferEditTransaction { path, edits })
+                    Dispatches::one(Dispatch::ToHostApp(ToHostApp::BufferEditTransaction {
+                        path,
+                        edits,
+                    }))
                 } else {
                     Default::default()
                 };
@@ -2841,7 +2847,7 @@ impl Editor {
         let dispatches = dispatches.chain(self.get_document_did_change_dispatch());
 
         // Also send a mode change notification to ensure external integrations are in sync
-        let dispatches = dispatches.append(crate::app::Dispatch::ModeChanged);
+        let dispatches = dispatches.append(Dispatch::ToHostApp(ToHostApp::ModeChanged));
 
         log::trace!("undo_or_redo: Returning dispatches");
 
@@ -3765,7 +3771,7 @@ impl Editor {
     }
 
     fn dispatch_jumps_changed(&self) -> Dispatch {
-        Dispatch::JumpsChanged {
+        Dispatch::ToHostApp(ToHostApp::JumpsChanged {
             component_id: self.id(),
             jumps: self
                 .jumps
@@ -3777,11 +3783,13 @@ impl Editor {
                         .collect_vec()
                 })
                 .unwrap_or_default(),
-        }
+        })
     }
 
     pub(crate) fn dispatch_selection_mode_changed(&self) -> Dispatch {
-        Dispatch::SelectionModeChanged(self.selection_set.mode.clone())
+        Dispatch::ToHostApp(ToHostApp::SelectionModeChanged(
+            self.selection_set.mode.clone(),
+        ))
     }
 
     pub(crate) fn update_content(

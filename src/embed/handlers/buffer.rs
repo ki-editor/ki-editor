@@ -1,24 +1,22 @@
-//! Buffer-related handlers for VSCode IPC messages
+//! Buffer-related handlers for Host-Ki IPC messages
 
 use super::prelude::*;
 use crate::{
     app::Dispatch,
     buffer::BufferOwner,
-    components::editor::DispatchEditor,
     context::Context,
     edit::{Action, ActionGroup, Edit, EditTransaction},
-    vscode::{
-        app::VSCodeApp,
-        utils::{uri_to_path, vscode_position_to_ki_position}, // Use position conversion util
+    embed::{
+        app::EmbeddedApp,
+        utils::{host_position_to_ki_position, uri_to_path},
     },
 };
 use itertools::Itertools;
 use ki_protocol_types::{BufferContentParams, BufferDiffParams, BufferOpenParams, BufferParams};
-use log::{error, info}; // Added debug
-use ropey::Rope; // Added Rope
+use ropey::Rope;
 
-impl VSCodeApp {
-    /// Handle buffer open request from VSCode
+impl EmbeddedApp {
+    /// Handle buffer open request from Host
     pub(crate) fn handle_buffer_open_request(&mut self, params: BufferOpenParams) -> Result<()> {
         let BufferOpenParams {
             uri,
@@ -58,43 +56,9 @@ impl VSCodeApp {
         Ok(())
     }
 
-    /// Handle buffer close request from VSCode
-    pub(crate) fn handle_buffer_close_request(&mut self, params: BufferParams) -> Result<()> {
-        let BufferParams { uri, .. } = params;
-        info!("Buffer closed: uri={}", uri);
-
-        // Convert to CanonicalizedPath
-        let _path = match uri_to_path(&uri) {
-            Ok(p) => p,
-            Err(e) => {
-                error!("Failed to convert URI to path: {}: {}", uri, e);
-                return Ok(());
-            }
-        };
-
-        self.app
-            .lock()
-            .unwrap()
-            .handle_dispatch(Dispatch::CloseCurrentWindow)?;
-
-        Ok(())
-    }
-
-    /// Handle buffer save request from VSCode
-    pub(crate) fn handle_buffer_save_request(&mut self, params: BufferParams) -> Result<()> {
-        let BufferParams { uri: _, .. } = params;
-        self.app
-            .lock()
-            .unwrap()
-            .handle_dispatch(Dispatch::ToEditor(DispatchEditor::ForceSave))?;
-
-        Ok(())
-    }
-
-    /// Handle buffer active request from VSCode
+    /// Handle buffer active request from Host
     pub(crate) fn handle_buffer_active_request(&mut self, params: BufferParams) -> Result<()> {
-        let BufferParams { uri, .. } = params;
-        let path = uri_to_path(&uri)?;
+        let path = uri_to_path(&params.uri)?;
         self.app
             .lock()
             .unwrap()
@@ -107,7 +71,7 @@ impl VSCodeApp {
         Ok(())
     }
 
-    /// Handle buffer change request from VSCode
+    /// Handle buffer change request from Host
     pub(crate) fn handle_buffer_change_request(
         &mut self,
         params: BufferDiffParams,
@@ -130,8 +94,8 @@ impl VSCodeApp {
             edits
                 .into_iter()
                 .map(|diff_edit| -> anyhow::Result<_> {
-                    let start_ki_pos = vscode_position_to_ki_position(&diff_edit.range.start);
-                    let end_ki_pos = vscode_position_to_ki_position(&diff_edit.range.end);
+                    let start_ki_pos = host_position_to_ki_position(&diff_edit.range.start);
+                    let end_ki_pos = host_position_to_ki_position(&diff_edit.range.end);
 
                     let start_char_index = buffer.position_to_char(start_ki_pos)?;
                     let end_char_index = buffer.position_to_char(end_ki_pos)?;
