@@ -1,4 +1,5 @@
 use crate::components::editor_keymap_printer;
+use crate::embed;
 use crate::RunConfig;
 use chrono::Local;
 use clap::{Args, Parser, Subcommand};
@@ -21,6 +22,12 @@ struct Cli {
 
     #[command(flatten)]
     edit: EditArgs,
+}
+
+#[derive(Args, Default, Clone)]
+struct EmbedArgs {
+    /// This is crucial for Git-related features such as Git Hunks to work properly.
+    working_directory: String,
 }
 
 #[derive(Subcommand)]
@@ -58,6 +65,12 @@ enum Commands {
     },
     /// Run Ki in the given path, treating the path as the working directory
     In(InArgs),
+
+    /// Run in embedded mode.
+    /// Used for running as VS Code extension for example.
+    Embed(EmbedArgs),
+
+    Version,
 }
 
 #[derive(Args, Default, Clone)]
@@ -160,6 +173,9 @@ pub(crate) fn cli() -> anyhow::Result<()> {
     match cli.command {
         Some(CommandPlaceholder::Edit(args)) => run_edit_command(args),
         Some(CommandPlaceholder::At { command }) => match command {
+            Commands::Embed(args) => {
+                embed::app::run_embedded_ki(args.working_directory.try_into()?)
+            }
             Commands::Grammar { command } => {
                 match command {
                     Grammar::Build => shared::grammar::build_grammars(),
@@ -197,11 +213,20 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                 working_directory: Some(args.path.try_into()?),
                 ..Default::default()
             }),
+            Commands::Version => {
+                println!("{}", get_version());
+                Ok(())
+            }
         },
         None => run_edit_command(cli.edit),
     }
 }
 
+pub(crate) fn get_version() -> String {
+    let git_hash = env!("GIT_HASH");
+    let build_time = env!("BUILD_TIME");
+    format!("{} (Built on {})", git_hash, build_time)
+}
 #[cfg(test)]
 mod test_process_edit_args {
     use shared::canonicalized_path::CanonicalizedPath;

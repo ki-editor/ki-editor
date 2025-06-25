@@ -21,7 +21,7 @@ which = "~7.0.0"
 # TODO: these two should be on !wasm32 only
 
 # cloning/compiling tree-sitter grammars
-cc = { version = "1" }
+cc = { version = "1.2.25" }
 threadpool = { version = "1.0" }
 tempfile = "3.8.0"
 dunce = "1.0.4"

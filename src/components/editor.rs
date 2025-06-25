@@ -7,7 +7,7 @@ use super::{
     suggestive_editor::{Decoration, Info},
 };
 use crate::{
-    app::{Dimension, Dispatch},
+    app::{Dimension, Dispatch, ToHostApp},
     buffer::Buffer,
     components::component::Component,
     context::LocalSearchConfig,
@@ -217,7 +217,7 @@ impl Component for Editor {
             EnterSwapMode => self.enter_swap_mode(),
             ReplacePattern { config } => {
                 let selection_set = self.selection_set.clone();
-                let (_, selection_set) =
+                let (_, selection_set, _) =
                     self.buffer_mut()
                         .replace(config, selection_set, last_visible_line)?;
                 return Ok(self
@@ -247,7 +247,7 @@ impl Component for Editor {
             ScrollPageUp => return self.scroll_page_up(context),
             ShowJumps {
                 use_current_selection_mode,
-            } => self.show_jumps(use_current_selection_mode, context)?,
+            } => return self.show_jumps(use_current_selection_mode, context),
             SwitchViewAlignment => self.switch_view_alignment(context),
             #[cfg(test)]
             SetScrollOffset(n) => self.set_scroll_offset(n),
@@ -372,6 +372,7 @@ impl Clone for Editor {
             copied_text_history_offset: Default::default(),
             normal_mode_override: self.normal_mode_override.clone(),
             reveal: self.reveal.clone(),
+            visible_line_ranges: Default::default(),
         }
     }
 }
@@ -396,6 +397,10 @@ pub(crate) struct Editor {
     copied_text_history_offset: Counter,
     pub(crate) normal_mode_override: Option<NormalModeOverride>,
     pub(crate) reveal: Option<Reveal>,
+
+    /// This is only used when Ki is running as an embedded component,
+    /// for example, inside VS Code.
+    visible_line_ranges: Option<Vec<Range<usize>>>,
 }
 
 #[derive(Default)]
@@ -623,6 +628,7 @@ impl Editor {
 
             normal_mode_override: None,
             reveal: None,
+            visible_line_ranges: Default::default(),
         }
     }
 
@@ -644,6 +650,7 @@ impl Editor {
             copied_text_history_offset: Default::default(),
             normal_mode_override: None,
             reveal: None,
+            visible_line_ranges: Default::default(),
         };
 
         // Select the first line of the file
@@ -847,10 +854,14 @@ impl Editor {
         let object =
             self.get_selection_mode_trait_object(selection, use_current_selection_mode, context)?;
 
-        let line_ranges = Some(self.visible_line_range())
-            .into_iter()
-            .chain(self.hidden_parent_line_ranges()?)
-            .collect_vec();
+        let line_ranges = if let Some(ranges) = &self.visible_line_ranges {
+            ranges.clone()
+        } else {
+            Some(self.visible_line_range())
+                .into_iter()
+                .chain(self.hidden_parent_line_ranges()?)
+                .collect_vec()
+        };
         let jumps = object.jumps(
             &selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
@@ -869,12 +880,13 @@ impl Editor {
         &mut self,
         use_current_selection_mode: bool,
         context: &Context,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Dispatches> {
         self.jump_from_selection(
             &self.selection_set.primary_selection().clone(),
             use_current_selection_mode,
             context,
-        )
+        )?;
+        Ok(Dispatches::one(self.dispatch_jumps_changed()))
     }
 
     pub(crate) fn delete(
@@ -1207,10 +1219,10 @@ impl Editor {
         self.paste_text(direction, copied_texts, context)
     }
 
-    /// If `cut` if true, the replaced text will override the clipboard.  
+    /// If `cut` if true, the replaced text will override the clipboard.
     ///
-    /// If `history_offset` is 0, it means select the latest copied text;  
-    ///   +n means select the nth next copied text (cycle to the first copied text if current copied text is the latest)  
+    /// If `history_offset` is 0, it means select the latest copied text;
+    ///   +n means select the nth next copied text (cycle to the first copied text if current copied text is the latest)
     ///   -n means select the nth previous copied text (cycle to the last copied text if current copied text is the first)
     pub(crate) fn replace_with_copied_text(
         &mut self,
@@ -1239,13 +1251,14 @@ impl Editor {
             .chain(dispatches))
     }
 
-    fn apply_edit_transaction(
+    pub(crate) fn apply_edit_transaction(
         &mut self,
         edit_transaction: EditTransaction,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
+        // Apply the transaction to the buffer
         let last_visible_line = self.last_visible_line(context);
-        let new_selection_set = self.buffer.borrow_mut().apply_edit_transaction(
+        let (new_selection_set, edits) = self.buffer.borrow_mut().apply_edit_transaction(
             &edit_transaction,
             self.selection_set.clone(),
             self.mode != Mode::Insert,
@@ -1253,13 +1266,40 @@ impl Editor {
             last_visible_line,
         )?;
 
+        // Create a BufferEditTransaction dispatch for external integrations
+        let buffer_edit_dispatch = if context.is_running_as_embedded() {
+            edit_transaction
+                .edits()
+                .is_empty()
+                .not()
+                .then(|| {
+                    // Get the path for the buffer
+                    self.buffer().path().map(|path| {
+                        // Create a dispatch to send buffer edit transaction to external integrations
+                        Dispatches::one(Dispatch::ToHostApp(ToHostApp::BufferEditTransaction {
+                            path,
+                            edits,
+                        }))
+                    })
+                })
+                .flatten()
+                .unwrap_or_default()
+        } else {
+            Dispatches::default()
+        };
+
         self.set_selection_set(new_selection_set, context);
 
         self.recalculate_scroll_offset(context);
 
         self.clamp(context)?;
 
-        Ok(self.get_document_did_change_dispatch())
+        // Add the buffer edit transaction dispatch
+        let dispatches = self
+            .get_document_did_change_dispatch()
+            .chain(buffer_edit_dispatch);
+
+        Ok(dispatches)
     }
 
     pub(crate) fn get_document_did_change_dispatch(&mut self) -> Dispatches {
@@ -1291,7 +1331,7 @@ impl Editor {
         self.recalculate_scroll_offset(context)
     }
 
-    fn get_selection_set(
+    pub(crate) fn get_selection_set(
         &self,
         mode: &SelectionMode,
         movement: Movement,
@@ -1399,6 +1439,7 @@ impl Editor {
                 }
             }
         }
+        .map(|dispatches| dispatches.append(self.dispatch_jumps_changed()))
     }
 
     /// Similar to Change in Vim, but does not copy the current selection
@@ -1601,7 +1642,7 @@ impl Editor {
         let selections = self
             .selection_set
             .map(|selection| selection.extended_range());
-        self.buffer_mut().save_marks(selections.into())
+        self.buffer_mut().save_marks(selections.into());
     }
 
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {
@@ -1974,7 +2015,7 @@ impl Editor {
     }
 
     /// Swaps the current selection with the text range from
-    /// just after the current selection until the last occurrence.    
+    /// just after the current selection until the last occurrence.
     fn swap_till_last(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         let selection_mode = self.selection_set.mode.clone();
         let edit_transaction = {
@@ -2401,11 +2442,16 @@ impl Editor {
 
     fn do_save(&mut self, force: bool, context: &Context) -> anyhow::Result<Dispatches> {
         let last_visible_line = self.last_visible_line(context);
-        let Some(path) =
+
+        let path = if context.is_running_as_embedded() {
+            self.path()
+        } else {
             self.buffer
                 .borrow_mut()
                 .save(self.selection_set.clone(), force, last_visible_line)?
-        else {
+        };
+
+        let Some(path) = path else {
             return Ok(Default::default());
         };
 
@@ -2569,6 +2615,32 @@ impl Editor {
         Ok(())
     }
 
+    pub(crate) fn dispatch_selection_changed(&self) -> Dispatch {
+        Dispatch::ToHostApp(ToHostApp::SelectionChanged {
+            component_id: self.id(),
+            selections: {
+                // Rearrange the selection such that selections[cursor_index] will be the first selection
+                let cursor_index = self.selection_set.cursor_index;
+                let (current, others): (Vec<_>, Vec<_>) = self
+                    .selection_set
+                    .selections()
+                    .into_iter()
+                    .enumerate()
+                    .partition(|(i, _)| *i == cursor_index);
+
+                current
+                    .into_iter()
+                    .map(|(_, sel)| sel.clone())
+                    .chain(others.into_iter().map(|(_, sel)| sel.clone()))
+                    .collect()
+            },
+        })
+    }
+
+    pub(crate) fn dispatch_marks_changed(&self) -> Dispatch {
+        Dispatch::ToHostApp(ToHostApp::MarksChanged(self.id(), self.buffer().marks()))
+    }
+
     pub(crate) fn cursor_keep_primary_only(&mut self) {
         self.mode = Mode::Normal;
         if self.reveal == Some(Reveal::Cursor) {
@@ -2618,7 +2690,16 @@ impl Editor {
     }
 
     fn half_page_height(&self) -> usize {
-        (self.dimension().height / 2) as usize
+        let height = if let Some(visible_line_ranges) = self.visible_line_ranges.as_ref() {
+            visible_line_ranges
+                .iter()
+                .map(|range| range.len())
+                .max()
+                .unwrap_or_default()
+        } else {
+            self.dimension().height as usize
+        };
+        height / 2
     }
 
     #[cfg(test)]
@@ -2742,16 +2823,45 @@ impl Editor {
 
     fn undo_or_redo(&mut self, undo: bool, context: &Context) -> Result<Dispatches, anyhow::Error> {
         let last_visible_line = self.last_visible_line(context);
-        let selection_set = if undo {
-            self.buffer_mut().undo(last_visible_line)?
+
+        // Call the appropriate buffer method to perform undo/redo
+        let result = if undo {
+            self.buffer_mut().undo(last_visible_line)
         } else {
-            self.buffer_mut().redo(last_visible_line)?
+            self.buffer_mut().redo(last_visible_line)
+        }?;
+
+        // Create dispatches for document changes and buffer edit transaction
+        let dispatches = match result {
+            Some((selection_set, edits)) => {
+                // Update selection set
+                let dispatches = self.update_selection_set(selection_set, false, context);
+
+                // Create a BufferEditTransaction dispatch for external integrations
+                let dispatch = if let Some(path) = self.buffer().path() {
+                    // Create a dispatch to send buffer edit transaction
+                    Dispatches::one(Dispatch::ToHostApp(ToHostApp::BufferEditTransaction {
+                        path,
+                        edits,
+                    }))
+                } else {
+                    Default::default()
+                };
+
+                dispatches.chain(dispatch)
+            }
+            Option::None => Dispatches::default(),
         };
 
-        Ok(selection_set
-            .map(|selection_set| self.update_selection_set(selection_set, false, context))
-            .unwrap_or_default()
-            .chain(self.get_document_did_change_dispatch()))
+        // Add document did change dispatch
+        let dispatches = dispatches.chain(self.get_document_did_change_dispatch());
+
+        // Also send a mode change notification to ensure external integrations are in sync
+        let dispatches = dispatches.append(Dispatch::ToHostApp(ToHostApp::ModeChanged));
+
+        log::trace!("undo_or_redo: Returning dispatches");
+
+        Ok(dispatches)
     }
 
     #[cfg(test)]
@@ -2895,7 +3005,7 @@ impl Editor {
         }
     }
 
-    fn set_selection_set(&mut self, selection_set: SelectionSet, context: &Context) {
+    pub(crate) fn set_selection_set(&mut self, selection_set: SelectionSet, context: &Context) {
         self.selection_set = selection_set;
         self.recalculate_scroll_offset(context)
     }
@@ -3650,6 +3760,57 @@ impl Editor {
             .to_vec()
         });
         self.apply_edit_transaction(edit_transaction, context)
+    }
+
+    pub(crate) fn set_visible_line_ranges(&mut self, visible_line_ranges: Vec<Range<usize>>) {
+        let max_line_index = self.buffer().len_lines().saturating_sub(1);
+        self.visible_line_ranges = Some(
+            visible_line_ranges
+                .into_iter()
+                .map(|range| {
+                    // Clamp range.end to buffer bounds because the VS Code adapter may send out-of-bounds ranges.
+                    // VS Code tends to under-report visible line ranges, so our adapter adds safety padding
+                    // to ensure we don't miss any visible content. This padding can cause the reported ranges
+                    // to extend beyond the actual buffer size. For example, if the buffer has 100 lines
+                    // (indices 0-99), the adapter might report a visible range like 95..105.
+                    let end = range.end.min(max_line_index);
+                    range.start..(end + 1)
+                })
+                .collect(),
+        )
+    }
+
+    fn dispatch_jumps_changed(&self) -> Dispatch {
+        Dispatch::ToHostApp(ToHostApp::JumpsChanged {
+            component_id: self.id(),
+            jumps: self
+                .jumps
+                .as_ref()
+                .map(|jumps| {
+                    jumps
+                        .iter()
+                        .map(|jump| (jump.character, jump.selection.range.start))
+                        .collect_vec()
+                })
+                .unwrap_or_default(),
+        })
+    }
+
+    pub(crate) fn dispatch_selection_mode_changed(&self) -> Dispatch {
+        Dispatch::ToHostApp(ToHostApp::SelectionModeChanged(
+            self.selection_set.mode.clone(),
+        ))
+    }
+
+    pub(crate) fn update_content(
+        &mut self,
+        new_content: &str,
+        context: &Context,
+    ) -> anyhow::Result<()> {
+        let current_selection_set = self.selection_set.clone();
+        let last_visible_line = self.last_visible_line(context);
+        self.buffer_mut()
+            .update_content(new_content, current_selection_set, last_visible_line)
     }
 }
 

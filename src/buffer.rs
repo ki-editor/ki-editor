@@ -51,7 +51,7 @@ pub(crate) struct Buffer {
     selection_set_history: History<SelectionSet>,
     dirty: bool,
     owner: BufferOwner,
-    undo_stack: Vec<EditHistory>,
+    pub(crate) undo_stack: Vec<EditHistory>,
     redo_stack: Vec<EditHistory>,
     batch_id: SyntaxHighlightRequestBatchId,
 }
@@ -75,6 +75,12 @@ impl Buffer {
                 language.and_then(|language| {
                     parser
                         .set_language(&language)
+                        .map_err(|error| {
+                            log::error!(
+                                "Failed to parse using language {:?} due to error {error:?}",
+                                language
+                            );
+                        })
                         .ok()
                         .and_then(|_| parser.parse(text, None))
                 })
@@ -385,6 +391,26 @@ impl Buffer {
         })
     }
 
+    /// VS Code positions the cursor at the start of the next line (line+1, character 0).
+    /// when at a newline, while Ki treats newlines as regular characters within the current line.
+    /// This function converts Ki's character-based position to VS Code's line/character position.
+    pub(crate) fn char_to_vscode_position(
+        &self,
+        char_index: CharIndex,
+    ) -> anyhow::Result<ki_protocol_types::Position> {
+        let line_index = self.char_to_line(char_index)?;
+        let column_index = self
+            .rope
+            .try_line_to_char(line_index)
+            .map(|line_start_char_index| char_index.0.saturating_sub(line_start_char_index))
+            .unwrap_or(0);
+
+        Ok(ki_protocol_types::Position {
+            line: line_index as u32,
+            character: column_index as u32,
+        })
+    }
+
     pub(crate) fn position_to_char(&self, position: Position) -> anyhow::Result<CharIndex> {
         let line = position.line.clamp(0, self.len_lines());
         let column = position.column.clamp(
@@ -486,7 +512,7 @@ impl Buffer {
         self.tree.as_ref().map(|tree| traverse(tree.walk(), order))
     }
 
-    /// Returns the new selection set
+    /// Returns the new selection set and the edit transaction
     pub(crate) fn apply_edit_transaction(
         &mut self,
         edit_transaction: &EditTransaction,
@@ -494,7 +520,7 @@ impl Buffer {
         reparse_tree: bool,
         update_undo_stack: bool,
         last_visible_line: u16,
-    ) -> Result<SelectionSet, anyhow::Error> {
+    ) -> Result<(SelectionSet, Vec<ki_protocol_types::DiffEdit>), anyhow::Error> {
         let new_selection_set = edit_transaction
             .non_empty_selections()
             .map(|selections| current_selection_set.clone().set_selections(selections))
@@ -506,10 +532,24 @@ impl Buffer {
 
         let inverted_edit_transaction = edit_transaction.inverse();
 
+        // NOTE: the VS Code edits should be computed BEFORE applying the edits
+        let applied_vscode_edits = edit_transaction
+            .unnormalized_edits()
+            .into_iter()
+            .map(|edit| edit.to_vscode_diff_edit(self))
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
         edit_transaction
             .edits()
             .into_iter()
             .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
+
+        // NOTE: the inverted VS Code edits should be computed AFTER applying the edits
+        let inverted_unnormalized_edits = inverted_edit_transaction.unnormalized_edits();
+        let inverted_vscode_edits = inverted_unnormalized_edits
+            .into_iter()
+            .map(|edit| edit.to_vscode_diff_edit(self))
+            .collect::<anyhow::Result<Vec<_>>>()?;
 
         let new_buffer_state = BufferState {
             selection_set: new_selection_set.clone(),
@@ -519,6 +559,8 @@ impl Buffer {
         if update_undo_stack {
             self.undo_stack.push(EditHistory {
                 edit_transaction: inverted_edit_transaction,
+                unnormalized_edits: inverted_vscode_edits,
+                inverted_unnormalized_edits: applied_vscode_edits.clone(),
                 old_state: current_buffer_state,
                 new_state: new_buffer_state,
             });
@@ -533,7 +575,8 @@ impl Buffer {
 
         self.batch_id.increment();
 
-        Ok(new_selection_set)
+        // Return both the new selection set and a clone of the edit transaction
+        Ok((new_selection_set, applied_vscode_edits))
     }
 
     // Add these methods for undo/redo
@@ -715,12 +758,12 @@ impl Buffer {
         self.save_without_formatting(force)
     }
 
-    fn update_content(
+    pub(crate) fn update_content(
         &mut self,
         new_content: &str,
         current_selection_set: SelectionSet,
         last_visible_line: u16,
-    ) -> anyhow::Result<SelectionSet> {
+    ) -> anyhow::Result<()> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
         self.apply_edit_transaction(
             &edit_transaction,
@@ -728,7 +771,8 @@ impl Buffer {
             true,
             true,
             last_visible_line,
-        )
+        )?;
+        Ok(())
     }
 
     /// The resulting spans must be sorted by range
@@ -914,7 +958,7 @@ impl Buffer {
         config: LocalSearchConfig,
         current_selection_set: SelectionSet,
         last_visible_line: u16,
-    ) -> anyhow::Result<(bool, SelectionSet)> {
+    ) -> anyhow::Result<(bool, SelectionSet, Vec<ki_protocol_types::DiffEdit>)> {
         let before = self.rope.to_string();
         let edit_transaction = match config.mode {
             LocalSearchConfigMode::NamingConventionAgnostic => {
@@ -958,7 +1002,7 @@ impl Buffer {
                 )
             }
         };
-        let selection_set = self.apply_edit_transaction(
+        let (selection_set, edits) = self.apply_edit_transaction(
             &edit_transaction,
             current_selection_set,
             true,
@@ -967,7 +1011,7 @@ impl Buffer {
         )?;
         let after = self.content();
         let modified = before != after;
-        Ok((modified, selection_set))
+        Ok((modified, selection_set, edits))
     }
 
     pub(crate) fn char_index_range_to_byte_range(
@@ -1040,17 +1084,23 @@ impl Buffer {
     pub(crate) fn redo(
         &mut self,
         last_visible_line: u16,
-    ) -> Result<Option<SelectionSet>, anyhow::Error> {
+    ) -> Result<Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>)>, anyhow::Error> {
         if let Some(history) = self.redo_stack.pop() {
+            let edits = history.unnormalized_edits.clone();
+
+            // Apply the edits
             history
                 .edit_transaction
                 .edits()
                 .into_iter()
                 .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
             self.reparse_tree()?;
+
             let selection_set = history.old_state.selection_set.clone();
             self.undo_stack.push(history.inverse());
-            Ok(Some(selection_set))
+
+            // Return both the selection set and the applied transaction
+            Ok(Some((selection_set, edits)))
         } else {
             Ok(None)
         }
@@ -1059,17 +1109,23 @@ impl Buffer {
     pub(crate) fn undo(
         &mut self,
         last_visible_line: u16,
-    ) -> Result<Option<SelectionSet>, anyhow::Error> {
+    ) -> Result<Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>)>, anyhow::Error> {
         if let Some(history) = self.undo_stack.pop() {
+            let edits = history.unnormalized_edits.clone();
+
+            // Apply the edits
             history
                 .edit_transaction
                 .edits()
                 .into_iter()
                 .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
             self.reparse_tree()?;
+
             let selection_set = history.old_state.selection_set.clone();
             self.redo_stack.push(history.inverse());
-            Ok(Some(selection_set))
+
+            // Return both the selection set and the applied transaction
+            Ok(Some((selection_set, edits)))
         } else {
             Ok(None)
         }
@@ -1148,7 +1204,7 @@ fn f(
 ) -> Result<
   A,
   B
-> { 
+> {
   hello
 }",
         );
@@ -1458,7 +1514,7 @@ fn f(
             let old = r#"
 fn main() {
     let x = x;
-    
+
 let z = z;
 
     let y = y;
@@ -1515,6 +1571,14 @@ pub(crate) struct EditHistory {
     pub(crate) edit_transaction: EditTransaction,
     pub(crate) old_state: BufferState,
     pub(crate) new_state: BufferState,
+
+    /// This is required by VS Code because VS Code will offset the edits on their end.
+    unnormalized_edits: Vec<ki_protocol_types::DiffEdit>,
+
+    /// Required for Undo/Redo properly on VS Code.
+    /// This has to be precomputed beforehand, because we cannot obtain the inverted edit Positions
+    /// without relying on the pre-edited buffer.
+    inverted_unnormalized_edits: Vec<ki_protocol_types::DiffEdit>,
 }
 impl EditHistory {
     fn inverse(self) -> EditHistory {
@@ -1522,6 +1586,8 @@ impl EditHistory {
             edit_transaction: self.edit_transaction.inverse(),
             old_state: self.new_state,
             new_state: self.old_state,
+            inverted_unnormalized_edits: self.unnormalized_edits,
+            unnormalized_edits: self.inverted_unnormalized_edits,
         }
     }
 }

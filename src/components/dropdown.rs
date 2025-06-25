@@ -47,6 +47,10 @@ impl DropdownItem {
         Self { info, ..self }
     }
 
+    pub(crate) fn info(&self) -> Option<&Info> {
+        self.info.as_ref()
+    }
+
     pub(crate) fn set_dispatches(self, dispatches: Dispatches) -> DropdownItem {
         Self { dispatches, ..self }
     }

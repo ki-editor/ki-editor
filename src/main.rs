@@ -9,6 +9,7 @@ mod context;
 mod edit;
 pub(crate) mod frontend;
 mod grid;
+mod integration_event;
 #[cfg(test)]
 mod integration_test;
 mod search;
@@ -44,6 +45,8 @@ pub(crate) mod transformation;
 pub(crate) mod ui_tree;
 mod utils;
 
+mod embed;
+
 mod divide_viewport;
 mod env;
 mod format_path_list;
@@ -61,8 +64,7 @@ use crate::app::AppMessage;
 fn main() {
     cli::cli().unwrap();
 }
-
-#[derive(Default, PartialEq, Debug)]
+#[derive(Default)]
 pub(crate) struct RunConfig {
     pub(crate) entry_path: Option<CanonicalizedPath>,
     pub(crate) working_directory: Option<CanonicalizedPath>,
@@ -90,6 +92,9 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
             StatusLineComponent::LastDispatch,
         ]
         .to_vec(),
+        None, // No integration event sender
+        true,
+        false,
     )?;
     app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 

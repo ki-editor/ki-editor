@@ -19,6 +19,7 @@ use crate::{
     frontend::Frontend,
     git,
     grid::{Grid, LineUpdate},
+    integration_event::{IntegrationEvent, IntegrationEventEmitter},
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
@@ -33,7 +34,7 @@ use crate::{
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     screen::{Screen, Window},
     search::parse_search_config,
-    selection::SelectionMode,
+    selection::{CharIndex, SelectionMode},
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
     ui_tree::{ComponentKind, KindedComponent},
 };
@@ -64,6 +65,9 @@ pub(crate) struct App<T: Frontend> {
     /// - Notifications from language server
     receiver: Receiver<AppMessage>,
 
+    /// Sender for integration events (used by external integrations like VSCode)
+    integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
+
     lsp_manager: LspManager,
     enable_lsp: bool,
 
@@ -79,6 +83,13 @@ pub(crate) struct App<T: Frontend> {
     status_line_components: Vec<StatusLineComponent>,
     last_action_description: Option<String>,
     last_action_short_description: Option<String>,
+
+    /// This is necessary when Ki is running as an embedded application
+    last_prompt_config: Option<PromptConfig>,
+
+    /// This is used for suspending events until the buffer content
+    /// is synced between Ki and the host application.
+    queued_events: Vec<Event>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
@@ -110,6 +121,9 @@ impl<T: Frontend> App<T> {
             sender,
             receiver,
             status_line_components,
+            None, // No integration event sender
+            false,
+            false,
         )
     }
 
@@ -118,19 +132,23 @@ impl<T: Frontend> App<T> {
         self.enable_lsp = false
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_channel(
         frontend: Rc<Mutex<T>>,
         working_directory: CanonicalizedPath,
         sender: Sender<AppMessage>,
         receiver: Receiver<AppMessage>,
         status_line_components: Vec<StatusLineComponent>,
+        integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
+        enable_lsp: bool,
+        is_running_as_embedded: bool,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let app = App {
-            context: Context::new(working_directory.clone()),
+            context: Context::new(working_directory.clone(), is_running_as_embedded),
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
-            enable_lsp: true,
+            enable_lsp,
             sender,
             layout: Layout::new(
                 dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT),
@@ -143,9 +161,13 @@ impl<T: Frontend> App<T> {
             status_line_components,
             last_action_description: None,
             last_action_short_description: None,
+            integration_event_sender,
+            last_prompt_config: None,
+            queued_events: Vec::new(),
         };
         Ok(app)
     }
+
     fn update_highlighted_spans(
         &self,
         component_id: ComponentId,
@@ -181,24 +203,7 @@ impl<T: Frontend> App<T> {
         self.render()?;
 
         while let Ok(message) = self.receiver.recv() {
-            match message {
-                AppMessage::Event(event) => self.handle_event(event),
-                AppMessage::LspNotification(notification) => {
-                    self.handle_lsp_notification(notification).map(|_| false)
-                }
-                AppMessage::QuitAll => {
-                    self.quit()?;
-                    Ok(true)
-                }
-                AppMessage::SyntaxHighlightResponse {
-                    component_id,
-                    batch_id,
-                    highlighted_spans,
-                } => self
-                    .update_highlighted_spans(component_id, batch_id, highlighted_spans)
-                    .map(|_| false),
-            }
-            .unwrap_or_else(|e| {
+            self.process_message(message).unwrap_or_else(|e| {
                 self.show_global_info(Info::new("ERROR".to_string(), e.to_string()));
                 false
             });
@@ -211,6 +216,32 @@ impl<T: Frontend> App<T> {
         }
 
         self.quit()
+    }
+
+    pub(crate) fn process_message(&mut self, message: AppMessage) -> anyhow::Result<bool> {
+        match message {
+            AppMessage::Event(event) => self.handle_event(event),
+            AppMessage::LspNotification(notification) => {
+                self.handle_lsp_notification(notification).map(|_| false)
+            }
+            AppMessage::QuitAll => {
+                self.quit()?;
+                Ok(true)
+            }
+            AppMessage::SyntaxHighlightResponse {
+                component_id,
+                batch_id,
+                highlighted_spans,
+            } => self
+                .update_highlighted_spans(component_id, batch_id, highlighted_spans)
+                .map(|_| false),
+            // Handle the new ExternalDispatch variant
+            AppMessage::ExternalDispatch(dispatch) => {
+                // Process the dispatch directly
+                self.handle_dispatch(dispatch)?;
+                Ok(false)
+            }
+        }
     }
 
     fn prepare_to_suspend_or_quit(&mut self) -> anyhow::Result<()> {
@@ -263,7 +294,7 @@ impl<T: Frontend> App<T> {
     }
 
     /// Returns true if the app should quit.
-    fn handle_event(&mut self, event: Event) -> anyhow::Result<bool> {
+    pub(crate) fn handle_event(&mut self, event: Event) -> anyhow::Result<bool> {
         // Pass event to focused window
         let component = self.current_component();
         match event {
@@ -489,6 +520,10 @@ impl<T: Frontend> App<T> {
         }
     }
 
+    fn send_integration_event(&self, event: crate::integration_event::IntegrationEvent) {
+        self.integration_event_sender.emit_event(event)
+    }
+
     pub(crate) fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
         log::info!("App::handle_dispatch = {}", dispatch.variant_name());
         match dispatch {
@@ -510,9 +545,9 @@ impl<T: Frontend> App<T> {
                 self.open_file(&path, owner, true, focus)?;
             }
             Dispatch::OpenFileFromPathBuf { path, owner, focus } => {
-                self.open_file(&path.try_into()?, owner, true, focus)?;
+                let canonicalized_path = path.try_into()?;
+                self.open_file(&canonicalized_path, owner, true, focus)?;
             }
-
             Dispatch::OpenFilePicker(kind) => {
                 self.open_file_picker(kind)?;
             }
@@ -555,6 +590,7 @@ impl<T: Frontend> App<T> {
                             include_declaration,
                         },
                     )?;
+                    self.send_integration_event(IntegrationEvent::RequestLspReferences);
                 }
             }
             Dispatch::RequestHover => {
@@ -563,6 +599,8 @@ impl<T: Frontend> App<T> {
                     self.lsp_manager
                         .send_message(params.path.clone(), FromEditor::TextDocumentHover(params))?;
                 }
+
+                self.send_integration_event(IntegrationEvent::RequestLspHover);
             }
             Dispatch::RequestDefinitions(scope) => {
                 if let Some(params) = self.get_request_params() {
@@ -571,6 +609,8 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentDefinition(params),
                     )?;
+
+                    self.send_integration_event(IntegrationEvent::RequestLspDefinition);
                 }
             }
             Dispatch::RequestDeclarations(scope) => {
@@ -580,6 +620,8 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentDeclaration(params),
                     )?;
+
+                    self.send_integration_event(IntegrationEvent::RequestLspDeclaration);
                 }
             }
             Dispatch::RequestImplementations(scope) => {
@@ -591,6 +633,7 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentImplementation(params),
                     )?;
+                    self.send_integration_event(IntegrationEvent::RequestLspImplementation);
                 }
             }
             Dispatch::RequestTypeDefinitions(scope) => {
@@ -602,6 +645,7 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentTypeDefinition(params),
                     )?;
+                    self.send_integration_event(IntegrationEvent::RequestLspTypeDefinition);
                 }
             }
             Dispatch::RequestDocumentSymbols => {
@@ -611,6 +655,7 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentDocumentSymbol(params),
                     )?;
+                    self.send_integration_event(IntegrationEvent::RequestLspDocumentSymbols);
                 }
             }
             Dispatch::PrepareRename => {
@@ -619,6 +664,7 @@ impl<T: Frontend> App<T> {
                         params.path.clone(),
                         FromEditor::TextDocumentPrepareRename(params),
                     )?;
+                    self.send_integration_event(IntegrationEvent::RequestLspRename);
                 }
             }
             Dispatch::RenameSymbol { new_name } => {
@@ -638,6 +684,7 @@ impl<T: Frontend> App<T> {
                             diagnostics,
                         },
                     )?;
+                    self.send_integration_event(IntegrationEvent::RequestLspCodeAction);
                 }
             }
             Dispatch::RequestSignatureHelp => {
@@ -663,7 +710,7 @@ impl<T: Frontend> App<T> {
                         content.clone(),
                     )?;
                 }
-                if let Some(path) = path {
+                if let Some(path) = path.clone() {
                     self.lsp_manager.send_message(
                         path.clone(),
                         FromEditor::TextDocumentDidChange {
@@ -675,6 +722,24 @@ impl<T: Frontend> App<T> {
                 }
             }
             Dispatch::DocumentDidSave { path } => {
+                // Emit an integration event for buffer save
+                // Find the component that has this path
+                for component in self.layout.components() {
+                    // Store the component reference to extend its lifetime
+                    let component_rc = component.component();
+                    let component_ref = component_rc.borrow();
+                    if let Some(component_path) = component_ref.path() {
+                        if component_path == path {
+                            self.integration_event_sender.emit_event(
+                                crate::integration_event::IntegrationEvent::BufferSaved {
+                                    path: path.clone(),
+                                },
+                            );
+                            break;
+                        }
+                    }
+                }
+
                 self.lsp_manager.send_message(
                     path.clone(),
                     FromEditor::TextDocumentDidSave { file_path: path },
@@ -690,7 +755,6 @@ impl<T: Frontend> App<T> {
             Dispatch::ShowKeymapLegend(keymap_legend_config) => {
                 self.show_keymap_legend(keymap_legend_config)
             }
-
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
             Dispatch::RemainOnlyCurrentComponent => self.layout.remain_only_current_component(),
@@ -721,7 +785,6 @@ impl<T: Frontend> App<T> {
                 .context
                 .set_clipboard_content(contents, use_system_clipboard)?,
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
-
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
                 self.handle_event(Event::Key(key_event))?;
@@ -806,9 +869,8 @@ impl<T: Frontend> App<T> {
             #[cfg(test)]
             Dispatch::OpenPrompt {
                 config,
-                key,
                 current_line,
-            } => self.open_prompt(config, key, current_line)?,
+            } => self.open_prompt(config, current_line)?,
             Dispatch::ShowEditorInfo(info) => self.show_editor_info(info)?,
             Dispatch::ReceiveCodeActions(code_actions) => {
                 self.open_code_actions_prompt(code_actions)?;
@@ -840,14 +902,24 @@ impl<T: Frontend> App<T> {
                 DispatchSuggestiveEditor::SelectCompletionItem,
             )?,
             Dispatch::SetKeyboardLayoutKind(keyboard_layout_kind) => {
-                self.context.set_keyboard_layout_kind(keyboard_layout_kind)
+                self.context.set_keyboard_layout_kind(keyboard_layout_kind);
+                self.keyboard_layout_changed();
             }
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_prompt()?,
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
+            Dispatch::ToHostApp(to_host_app) => self.handle_to_host_app(to_host_app)?,
+            Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
         }
         Ok(())
+    }
+
+    pub(crate) fn get_editor_by_file_path(
+        &self,
+        path: &CanonicalizedPath,
+    ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
+        self.layout.get_existing_editor(path)
     }
 
     pub(crate) fn current_component(&self) -> Rc<RefCell<dyn Component>> {
@@ -900,8 +972,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::MoveToIndex,
             },
-            PromptHistoryKey::MoveToIndex,
             None,
         )
     }
@@ -915,8 +987,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Rename,
             },
-            PromptHistoryKey::Rename,
             current_name,
         )
     }
@@ -939,8 +1011,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Search,
             },
-            PromptHistoryKey::Search,
             None,
         )
     }
@@ -975,8 +1047,8 @@ impl<T: Frontend> App<T> {
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
+                    prompt_history_key: PromptHistoryKey::AddPath,
                 },
-                PromptHistoryKey::AddPath,
                 Some(path.display_absolute()),
             )
         } else {
@@ -995,8 +1067,8 @@ impl<T: Frontend> App<T> {
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
+                    prompt_history_key: PromptHistoryKey::MovePath,
                 },
-                PromptHistoryKey::MovePath,
                 Some(path.display_absolute()),
             )
         } else {
@@ -1015,8 +1087,8 @@ impl<T: Frontend> App<T> {
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
+                    prompt_history_key: PromptHistoryKey::CopyFile,
                 },
-                PromptHistoryKey::CopyFile,
                 Some(path.display_absolute()),
             )
         } else {
@@ -1038,8 +1110,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Symbol,
             },
-            PromptHistoryKey::Symbol,
             None,
         )
     }
@@ -1103,8 +1175,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::OpenFile,
             },
-            PromptHistoryKey::OpenFile,
             None,
         )
     }
@@ -1140,7 +1212,7 @@ impl<T: Frontend> App<T> {
 
         if focus {
             self.layout
-                .replace_and_focus_current_suggestive_editor(component.clone())
+                .replace_and_focus_current_suggestive_editor(component.clone());
         }
         if let Some(language) = language {
             self.request_syntax_highlight(component_id, batch_id, language, content)?;
@@ -1268,7 +1340,7 @@ impl<T: Frontend> App<T> {
         }
     }
 
-    fn update_diagnostics(
+    pub(crate) fn update_diagnostics(
         &mut self,
         path: CanonicalizedPath,
         diagnostics: Vec<lsp_types::Diagnostic>,
@@ -1323,6 +1395,29 @@ impl<T: Frontend> App<T> {
         store_history: bool,
     ) -> Result<(), anyhow::Error> {
         let component = self.open_file(&location.path, BufferOwner::System, store_history, true)?;
+
+        if self.is_running_as_embedded() {
+            // Emit an integration event for selection change
+            let component_ref = component.borrow();
+            let component_id = component_ref.id();
+
+            // Create a selection at the location position
+            // We'll let the editor.set_position_range call below handle the actual selection
+            // Just emit a simple empty selection at the start position for now
+            let buffer = component_ref.editor().buffer();
+            if let Ok(char_index) = location.range.start.to_char_index(&buffer) {
+                let selection = crate::selection::Selection::new((char_index..char_index).into());
+
+                // Emit a selection changed event
+                self.integration_event_sender.emit_event(
+                    crate::integration_event::IntegrationEvent::SelectionChanged {
+                        component_id,
+                        selections: vec![selection],
+                    },
+                );
+            }
+        }
+
         let dispatches = component
             .borrow_mut()
             .editor_mut()
@@ -1624,11 +1719,36 @@ impl<T: Frontend> App<T> {
         dispatch_editor: DispatchEditor,
         component: Rc<RefCell<dyn Component>>,
     ) -> anyhow::Result<()> {
+        // Call the component's handle_dispatch_editor method
         let dispatches = component
             .borrow_mut()
-            .handle_dispatch_editor(&mut self.context, dispatch_editor)?;
+            .handle_dispatch_editor(&mut self.context, dispatch_editor.clone())?;
 
         self.handle_dispatches(dispatches)?;
+
+        if self.is_running_as_embedded() {
+            /*
+            Note: we always send the latest selection set & selection mode to VS Code
+              regardless of whether they actually changes after handling
+              `dispatch_editor`. This is the simplest and most reliable way
+              to ensure the updated selection set is sent to VS Code,
+              rather than tracking all possible paths that lead to selection updates.
+              We are sacrificing a little performance (by sending the same selection set to VS Code occasionally)
+              in exchange for better code maintainability and behavioral correctness.
+            */
+            let other_dispatches = Dispatches::default()
+                .append(component.borrow().editor().dispatch_selection_changed())
+                .append(component.borrow().editor().dispatch_marks_changed())
+                .append(
+                    component
+                        .borrow()
+                        .editor()
+                        .dispatch_selection_mode_changed(),
+                )
+                .append(Dispatch::ToHostApp(ToHostApp::ModeChanged));
+            self.handle_dispatches(other_dispatches)?;
+        };
+
         Ok(())
     }
 
@@ -1736,8 +1856,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::FilterGlob(filter_glob),
             },
-            PromptHistoryKey::FilterGlob(filter_glob),
             None,
         )
     }
@@ -1958,8 +2078,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Replacement,
             },
-            PromptHistoryKey::Replacement,
             None,
         )
     }
@@ -1982,8 +2102,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::Search,
             },
-            PromptHistoryKey::Search,
             None,
         )
     }
@@ -2092,14 +2212,27 @@ impl<T: Frontend> App<T> {
     fn open_prompt(
         &mut self,
         prompt_config: PromptConfig,
-        key: PromptHistoryKey,
+        current_line: Option<String>,
+    ) -> anyhow::Result<()> {
+        if self.is_running_as_embedded() {
+            self.open_prompt_embedded(prompt_config, current_line)
+        } else {
+            self.open_prompt_non_embedded(prompt_config, current_line)
+        }
+    }
+
+    fn open_prompt_non_embedded(
+        &mut self,
+        prompt_config: PromptConfig,
         current_line: Option<String>,
     ) -> anyhow::Result<()> {
         if let Some(line) = current_line {
-            self.context.push_history_prompt(key, line)
+            self.context
+                .push_history_prompt(prompt_config.prompt_history_key, line)
         }
+        let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
-        let (prompt, dispatches) = Prompt::new(prompt_config, key, history);
+        let (prompt, dispatches) = Prompt::new(prompt_config, history);
 
         self.layout.add_and_focus_prompt(
             ComponentKind::Prompt,
@@ -2109,6 +2242,54 @@ impl<T: Frontend> App<T> {
         self.handle_dispatches(dispatches)
     }
 
+    fn open_prompt_embedded(
+        &mut self,
+        prompt_config: PromptConfig,
+        current_line: Option<String>,
+    ) -> anyhow::Result<()> {
+        let key = prompt_config.prompt_history_key;
+
+        let history = self.context.get_prompt_history(key);
+
+        let items = prompt_config
+            .items
+            .iter()
+            .map(|item| ki_protocol_types::PromptItem {
+                label: item.display(),
+                details: item.info().map(|info| info.content()).cloned(),
+            })
+            .chain(
+                history
+                    .into_iter()
+                    .map(|label| ki_protocol_types::PromptItem {
+                        label,
+                        details: None,
+                    }),
+            )
+            .collect();
+
+        if let Some(line) = current_line {
+            self.context.push_history_prompt(key, line)
+        }
+        let title = prompt_config.title.clone();
+
+        self.last_prompt_config = Some(prompt_config);
+
+        self.integration_event_sender
+            .emit_event(crate::integration_event::IntegrationEvent::PromptOpened { title, items });
+        Ok(())
+    }
+
+    fn prompt_entered(&mut self, entry: String) -> anyhow::Result<()> {
+        let Some(prompt_config) = self.last_prompt_config.take() else {
+            return Ok(());
+        };
+        let dispatches = prompt_config.on_enter.to_dispatches(&entry)?;
+        self.handle_dispatches(dispatches.append(Dispatch::PushPromptHistory {
+            key: prompt_config.prompt_history_key,
+            line: entry,
+        }))
+    }
     fn render_dropdown(
         &mut self,
         editor: Rc<RefCell<Editor>>,
@@ -2182,8 +2363,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::CodeAction,
             },
-            PromptHistoryKey::CodeAction,
             None,
         )?;
         Ok(())
@@ -2265,8 +2446,8 @@ impl<T: Frontend> App<T> {
                 fire_dispatches_on_change: Some(Dispatches::one(Dispatch::SetTheme(
                     self.context.theme().clone(),
                 ))),
+                prompt_history_key: PromptHistoryKey::Theme,
             },
-            PromptHistoryKey::Theme,
             None,
         )
     }
@@ -2274,20 +2455,16 @@ impl<T: Frontend> App<T> {
     fn open_keyboard_layout_prompt(&mut self) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
-                on_enter: DispatchPrompt::Null,
+                on_enter: DispatchPrompt::SetKeyboardLayoutKind,
                 items: KeyboardLayoutKind::iter()
-                    .map(|keyboard_layout| {
-                        DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
-                            Dispatches::one(Dispatch::SetKeyboardLayoutKind(keyboard_layout)),
-                        )
-                    })
+                    .map(|keyboard_layout| DropdownItem::new(keyboard_layout.display().to_string()))
                     .collect_vec(),
                 title: "Keyboard Layout".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::KeyboardLayout,
             },
-            PromptHistoryKey::Theme,
             None,
         )
     }
@@ -2315,8 +2492,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::PipeToShell,
             },
-            PromptHistoryKey::PipeToShell,
             None,
         )
     }
@@ -2360,8 +2537,8 @@ impl<T: Frontend> App<T> {
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::FilterSelectionsMatchingSearch { maintain },
             },
-            PromptHistoryKey::FilterSelectionsMatchingSearch { maintain },
             None,
         )
     }
@@ -2405,6 +2582,170 @@ impl<T: Frontend> App<T> {
             if let Some(new_path) = self.context.toggle_file_mark(path).cloned() {
                 self.open_file(&new_path, BufferOwner::User, true, true)?;
             }
+        }
+        Ok(())
+    }
+
+    fn mode_changed(&self) {
+        // This dispatch is handled by the VSCode integration to send mode change notifications
+        // No action needed here as the mode has already been changed in the editor
+
+        // Get the current component and its mode
+        let component = self.current_component();
+        let component_ref = component.borrow();
+        let editor = component_ref.editor();
+        // Emit an integration event for the mode change
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::ModeChanged {
+                component_id: editor.id(),
+                mode: editor.mode.clone(),
+            },
+        );
+    }
+
+    fn selection_changed(
+        &self,
+        component_id: ComponentId,
+        selections: Vec<crate::selection::Selection>,
+    ) {
+        // Convert component_id to usize for integration event
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::SelectionChanged {
+                component_id,
+                selections: selections.clone(),
+            },
+        );
+    }
+
+    fn jumps_changed(&self, component_id: ComponentId, jumps: Vec<(char, CharIndex)>) {
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::JumpsChanged {
+                component_id,
+                jumps,
+            },
+        );
+    }
+
+    fn marks_updated(
+        &self,
+        component_id: ComponentId,
+        marks: Vec<crate::char_index_range::CharIndexRange>,
+    ) {
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::MarksChanged {
+                component_id,
+                marks,
+            },
+        );
+    }
+
+    fn selection_mode_changed(&self, selection_mode: SelectionMode) {
+        // This dispatch is handled by the VSCode integration to send mode change notifications
+        // No action needed here as the mode has already been changed in the editor
+
+        // Get the current component and its mode
+        let component = self.current_component();
+        let component_ref = component.borrow();
+        let editor = component_ref.editor();
+        // Emit an integration event for the mode change
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::SelectionModeChanged {
+                component_id: editor.id(),
+                selection_mode,
+            },
+        );
+    }
+
+    fn keyboard_layout_changed(&self) {
+        self.integration_event_sender.emit_event(
+            crate::integration_event::IntegrationEvent::KeyboardLayoutChanged(
+                self.context.keyboard_layout_kind().display(),
+            ),
+        );
+    }
+
+    fn is_running_as_embedded(&self) -> bool {
+        self.context.is_running_as_embedded()
+    }
+
+    pub(crate) fn take_queued_events(&mut self) -> Vec<Event> {
+        std::mem::take(&mut self.queued_events)
+    }
+
+    fn handle_targeted_event(
+        &mut self,
+        event: Event,
+        path: Option<CanonicalizedPath>,
+        content_hash: u32,
+    ) -> anyhow::Result<()> {
+        // If the current component kind is a not a SuggestiveEditor, we handle the event directly
+        if self.layout.get_current_component_kind() != Some(ComponentKind::SuggestiveEditor) {
+            self.handle_event(event)?;
+            Ok(())
+        } else if let Some(path) = path {
+            let component = self.open_file(&path, BufferOwner::User, false, true)?;
+
+            // Compare the checksum of of the content of the buffer in Ki with that of the host application (e.g. VS Code)
+            // This step is necessary to detect unsynchronized buffer
+            if content_hash != crc32fast::hash(component.borrow().content().as_bytes()) {
+                // If the buffer is desync, request the latest content
+                // before handling this event
+                self.integration_event_sender
+                    .emit_event(IntegrationEvent::SyncBufferRequest { path });
+
+                // Suspend this event until the buffer content is synced
+                self.queued_events.push(event);
+
+                return Ok(());
+            }
+
+            let dispatches = component
+                .borrow_mut()
+                .handle_event(&self.context, event.clone())?;
+            self.handle_dispatches(dispatches)
+        } else {
+            // If no path is provided, handle the event for the current component
+            self.handle_event(event)?;
+            Ok(())
+        }
+    }
+
+    fn handle_to_host_app(&mut self, to_host_app: ToHostApp) -> anyhow::Result<()> {
+        match to_host_app {
+            ToHostApp::BufferEditTransaction { path, edits } => {
+                // Emit an integration event for the buffer change
+                self.integration_event_sender.emit_event(
+                    crate::integration_event::IntegrationEvent::BufferChanged {
+                        path: path.clone(),
+                        edits: edits.clone(),
+                    },
+                );
+            }
+            ToHostApp::ModeChanged => self.mode_changed(),
+            ToHostApp::SelectionModeChanged(selection_mode) => {
+                self.selection_mode_changed(selection_mode)
+            }
+            ToHostApp::SelectionChanged {
+                component_id,
+                selections,
+            } => self.selection_changed(component_id, selections),
+            ToHostApp::JumpsChanged {
+                component_id,
+                jumps,
+            } => self.jumps_changed(component_id, jumps),
+            ToHostApp::PromptEntered(entry) => self.prompt_entered(entry)?,
+            ToHostApp::MarksChanged(component_id, marks) => self.marks_updated(component_id, marks),
+        }
+        Ok(())
+    }
+
+    fn handle_from_host_app(&mut self, from_host_app: FromHostApp) -> anyhow::Result<()> {
+        match from_host_app {
+            FromHostApp::TargetedEvent {
+                event,
+                path,
+                content_hash,
+            } => self.handle_targeted_event(event, path, content_hash)?,
         }
         Ok(())
     }
@@ -2616,7 +2957,6 @@ pub(crate) enum Dispatch {
     #[cfg(test)]
     OpenPrompt {
         config: PromptConfig,
-        key: PromptHistoryKey,
         current_line: Option<String>,
     },
     ShowEditorInfo(Info),
@@ -2650,6 +2990,39 @@ pub(crate) enum Dispatch {
     NavigateBack,
     ToggleFileMark,
     Suspend,
+
+    ToHostApp(ToHostApp),
+    FromHostApp(FromHostApp),
+}
+
+/// Used to send notify host app about changes
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ToHostApp {
+    BufferEditTransaction {
+        path: CanonicalizedPath,
+        edits: Vec<ki_protocol_types::DiffEdit>,
+    },
+    ModeChanged,
+    SelectionChanged {
+        component_id: crate::components::component::ComponentId,
+        selections: Vec<crate::selection::Selection>,
+    },
+    JumpsChanged {
+        component_id: crate::components::component::ComponentId,
+        jumps: Vec<(char, CharIndex)>,
+    },
+    SelectionModeChanged(SelectionMode),
+    PromptEntered(String),
+    MarksChanged(ComponentId, Vec<crate::char_index_range::CharIndexRange>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum FromHostApp {
+    TargetedEvent {
+        event: Event,
+        path: Option<CanonicalizedPath>,
+        content_hash: u32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2738,6 +3111,8 @@ pub(crate) enum AppMessage {
         batch_id: SyntaxHighlightRequestBatchId,
         highlighted_spans: HighlightedSpans,
     },
+    // New variant for external dispatches
+    ExternalDispatch(Dispatch),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2779,6 +3154,7 @@ pub(crate) enum DispatchPrompt {
     FilterSelectionMatchingSearch {
         maintain: bool,
     },
+    SetKeyboardLayoutKind,
 }
 impl DispatchPrompt {
     pub(crate) fn to_dispatches(&self, text: &str) -> anyhow::Result<Dispatches> {
@@ -2895,6 +3271,14 @@ impl DispatchPrompt {
                     search: text.to_string(),
                 }),
             )),
+            DispatchPrompt::SetKeyboardLayoutKind => {
+                let keyboard_layout_kind = KeyboardLayoutKind::iter()
+                    .find(|keyboard_layout| keyboard_layout.display() == text)
+                    .ok_or_else(|| anyhow::anyhow!("No keyboard layout is named {text:?}"))?;
+                Ok(Dispatches::one(Dispatch::SetKeyboardLayoutKind(
+                    keyboard_layout_kind,
+                )))
+            }
         }
     }
 }

@@ -41,8 +41,63 @@ pub struct Language {
     pub(crate) lsp_language_id: Option<LanguageId>,
     pub(crate) lsp_command: Option<LspCommand>,
     pub(crate) tree_sitter_grammar_config: Option<GrammarConfig>,
+    /// This will be used when we can't load the language file using `tree_sitter_grammar_config`.
+    pub(crate) language_fallback: Option<CargoLinkedTreesitterLanguage>,
     pub(crate) highlight_query: Option<&'static str>,
     pub(crate) formatter_command: Option<Command>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CargoLinkedTreesitterLanguage {
+    Typescript,
+    TSX,
+    Python,
+    Rust,
+    Graphql,
+    Javascript,
+    JSX,
+    JSON,
+    YAML,
+    HTML,
+    XML,
+    Zig,
+    Markdown,
+    Go,
+    Lua,
+    Gleam,
+    Bash,
+    C,
+    CPP,
+    CSS,
+}
+
+impl CargoLinkedTreesitterLanguage {
+    pub(crate) fn to_tree_sitter_language(&self) -> tree_sitter::Language {
+        match self {
+            CargoLinkedTreesitterLanguage::Typescript => {
+                tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()
+            }
+            CargoLinkedTreesitterLanguage::TSX => tree_sitter_typescript::LANGUAGE_TSX.into(),
+            CargoLinkedTreesitterLanguage::Python => tree_sitter_python::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Rust => tree_sitter_rust::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Graphql => tree_sitter_graphql::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Javascript => tree_sitter_javascript::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::JSX => tree_sitter_javascript::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::JSON => tree_sitter_json::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::YAML => tree_sitter_yaml::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::HTML => tree_sitter_html::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::XML => tree_sitter_xml::LANGUAGE_XML.into(),
+            CargoLinkedTreesitterLanguage::Zig => tree_sitter_zig::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Markdown => tree_sitter_md::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Go => tree_sitter_go::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Lua => tree_sitter_lua::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Gleam => tree_sitter_gleam::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Bash => tree_sitter_bash::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::C => tree_sitter_c::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::CPP => tree_sitter_cpp::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::CSS => tree_sitter_css::LANGUAGE.into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,6 +124,7 @@ impl Language {
             lsp_command: None,
             tree_sitter_grammar_config: None,
             formatter_command: None,
+            language_fallback: None,
         }
     }
 
@@ -101,7 +157,15 @@ impl Language {
     }
 
     pub fn tree_sitter_language(&self) -> Option<tree_sitter::Language> {
-        grammar::grammar::get_language(&self.tree_sitter_grammar_config()?.grammar_id).ok()
+        grammar::grammar::get_language(&self.tree_sitter_grammar_config()?.grammar_id)
+            .map_err(|err| {
+                log::error!(
+                    "Language::tree_sitter_language: unable to obtain language due to {err:?}"
+                );
+                err
+            })
+            .ok()
+            .or_else(|| Some(self.language_fallback.clone()?.to_tree_sitter_language()))
     }
 
     pub(crate) fn tree_sitter_grammar_config(&self) -> Option<GrammarConfiguration> {

@@ -72,6 +72,13 @@ impl Position {
             ..self
         }
     }
+
+    pub(crate) fn to_host_position(self) -> ki_protocol_types::Position {
+        ki_protocol_types::Position {
+            character: self.column as u32,
+            line: self.line as u32,
+        }
+    }
 }
 
 impl Ord for Position {
