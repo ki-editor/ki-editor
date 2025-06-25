@@ -26,13 +26,13 @@
 -   [x] VS Code extension README not updated
 -   [x] Rename Rust code of vscode to "embed"
 -   [x] Should we let VS Code handle Undo/Redo for max safety? (now VS Code undo is not overwritten, so there are two
-        types of Undo, Ki and 
-
+        types of Undo, Ki and
+-   [x] Map `go to location` from Ki to VS Code
 -   [] Save not working properly (require multiple presses of Enter)
 -   [] Scroll up/down not working
 -   [] Make Ki works in Global Search opened in VS Code editor as bufferVS Code)
 -   [] Selections not updated after code actions are applied
 -   [] Allow opening non-file buffer, like "tasks"
 -   [] Make Ki's File Explorer works in VS Code
--   [] Map `go to location` from Ki to VS Code
 -   [] Map matching search decorations
+-   [] Selection desync occasionally

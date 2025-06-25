@@ -28,9 +28,6 @@ impl EmbeddedApp {
 
         let path = uri_to_path(&uri)?;
 
-        // Store the original buffer_id for versioning
-        let buffer_id = uri.to_string();
-
         // Open the file
         let dispatch = Dispatch::OpenFile {
             path: path.clone(),
@@ -40,7 +37,7 @@ impl EmbeddedApp {
         self.app.lock().unwrap().handle_dispatch(dispatch)?;
 
         self.handle_selection_set_notification(ki_protocol_types::SelectionSet {
-            buffer_id: buffer_id.clone(),
+            uri: Some(uri.to_string()),
             selections,
         })?;
 

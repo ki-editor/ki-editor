@@ -116,7 +116,7 @@ export class SelectionManager extends Manager {
 
             // Send selection update to Ki
             this.dispatcher.sendNotification("selection.set", {
-                buffer_id: uri,
+                uri,
                 selections: kiSelections,
             });
         } finally {
@@ -130,7 +130,7 @@ export class SelectionManager extends Manager {
     /**
      * Handle selection changed event from Ki
      */
-    private handleSelectionChanged(params: SelectionSet): void {
+    private async handleSelectionChanged(params: SelectionSet) {
         if (this.modeManager.getCurrentMode() === "insert") {
             this.logger.error("ignoring selection change becos inest mode");
             return;
@@ -153,6 +153,17 @@ export class SelectionManager extends Manager {
 
         // Set flag to ignore selection changes triggered by this update
         this.ignoreSelectionChange = true;
+
+        // If the URI is present and it is not equal to the URI of the active editor
+        // Open the editor
+        if (
+            params.uri &&
+            params.uri !== this.activeEditor.document.uri.toString()
+        ) {
+            this.activeEditor = await vscode.window.showTextDocument(
+                vscode.Uri.parse(params.uri),
+            );
+        }
 
         try {
             // Convert Ki selections to VSCode selections

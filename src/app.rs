@@ -1399,7 +1399,7 @@ impl<T: Frontend> App<T> {
         if self.is_running_as_embedded() {
             // Emit an integration event for selection change
             let component_ref = component.borrow();
-            let component_id = crate::integration_event::component_id_to_usize(&component_ref.id());
+            let component_id = component_ref.id();
 
             // Create a selection at the location position
             // We'll let the editor.set_position_range call below handle the actual selection
@@ -2594,12 +2594,12 @@ impl<T: Frontend> App<T> {
         let component = self.current_component();
         let component_ref = component.borrow();
         let editor = component_ref.editor();
-        let mode = editor.mode.clone();
-        let component_id = crate::integration_event::component_id_to_usize(&editor.id());
-
         // Emit an integration event for the mode change
         self.integration_event_sender.emit_event(
-            crate::integration_event::IntegrationEvent::ModeChanged { component_id, mode },
+            crate::integration_event::IntegrationEvent::ModeChanged {
+                component_id: editor.id(),
+                mode: editor.mode.clone(),
+            },
         );
     }
 
@@ -2611,7 +2611,7 @@ impl<T: Frontend> App<T> {
         // Convert component_id to usize for integration event
         self.integration_event_sender.emit_event(
             crate::integration_event::IntegrationEvent::SelectionChanged {
-                component_id: crate::integration_event::component_id_to_usize(&component_id),
+                component_id,
                 selections: selections.clone(),
             },
         );
@@ -2620,7 +2620,7 @@ impl<T: Frontend> App<T> {
     fn jumps_changed(&self, component_id: ComponentId, jumps: Vec<(char, CharIndex)>) {
         self.integration_event_sender.emit_event(
             crate::integration_event::IntegrationEvent::JumpsChanged {
-                component_id: crate::integration_event::component_id_to_usize(&component_id),
+                component_id,
                 jumps,
             },
         );
@@ -2633,7 +2633,7 @@ impl<T: Frontend> App<T> {
     ) {
         self.integration_event_sender.emit_event(
             crate::integration_event::IntegrationEvent::MarksChanged {
-                component_id: crate::integration_event::component_id_to_usize(&component_id),
+                component_id,
                 marks,
             },
         );
@@ -2647,12 +2647,10 @@ impl<T: Frontend> App<T> {
         let component = self.current_component();
         let component_ref = component.borrow();
         let editor = component_ref.editor();
-        let component_id = crate::integration_event::component_id_to_usize(&editor.id());
-
         // Emit an integration event for the mode change
         self.integration_event_sender.emit_event(
             crate::integration_event::IntegrationEvent::SelectionModeChanged {
-                component_id,
+                component_id: editor.id(),
                 selection_mode,
             },
         );

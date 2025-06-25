@@ -1,4 +1,5 @@
 use crate::cli::get_version;
+use crate::components::component::ComponentId;
 use crate::components::editor::Mode;
 use std::rc::Rc;
 use std::sync::mpsc::{self, TryRecvError};
@@ -333,10 +334,7 @@ impl EmbeddedApp {
         Ok(())
     }
 
-    fn get_buffer_id_from_component_id(
-        &self,
-        component_id: crate::integration_event::ComponentId,
-    ) -> Option<String> {
+    fn get_buffer_id_from_component_id(&self, component_id: ComponentId) -> Option<String> {
         let app_guard = match self.app.try_lock() {
             Ok(guard) => guard,
             Err(_) => {
@@ -350,7 +348,7 @@ impl EmbeddedApp {
             let component_ref = component.component();
             let borrowed = component_ref.borrow();
 
-            if crate::integration_event::component_id_to_usize(&borrowed.id()) == component_id {
+            if borrowed.id() == component_id {
                 if let Some(path) = borrowed.path() {
                     return Some(path.display_absolute());
                 }
@@ -362,7 +360,7 @@ impl EmbeddedApp {
 
     fn get_component_by_id(
         &self,
-        component_id: crate::integration_event::ComponentId,
+        component_id: crate::components::component::ComponentId,
     ) -> Option<crate::ui_tree::KindedComponent> {
         let app_guard = match self.app.try_lock() {
             Ok(guard) => guard,
@@ -377,7 +375,7 @@ impl EmbeddedApp {
             let component_ref = component.component();
             let borrowed = component_ref.borrow();
 
-            if crate::integration_event::component_id_to_usize(&borrowed.id()) == component_id {
+            if borrowed.id() == component_id {
                 return Some(component.clone());
             }
         }
@@ -387,12 +385,9 @@ impl EmbeddedApp {
 
     fn selection_changed(
         &self,
-        component_id: usize,
+        component_id: ComponentId,
         selections: Vec<crate::selection::Selection>,
     ) -> anyhow::Result<()> {
-        let Some(buffer_id) = self.get_buffer_id_from_component_id(component_id) else {
-            return Ok(());
-        };
         let Some(component) = self.get_component_by_id(component_id) else {
             return Ok(());
         };
@@ -431,7 +426,7 @@ impl EmbeddedApp {
             .collect::<anyhow::Result<Vec<_>>>()?;
 
         let selection_set = ki_protocol_types::SelectionSet {
-            buffer_id,
+            uri: buffer.path().map(|path| path_to_uri(&path)),
             selections: host_selections,
         };
         self.send_notification(OutputMessageWrapper {
@@ -467,7 +462,7 @@ impl EmbeddedApp {
         })
     }
 
-    fn mode_changed(&self, component_id: usize, mode: Mode) -> anyhow::Result<()> {
+    fn mode_changed(&self, component_id: ComponentId, mode: Mode) -> anyhow::Result<()> {
         let buffer_id = self.get_buffer_id_from_component_id(component_id);
 
         let editor_mode = match mode {
@@ -492,7 +487,7 @@ impl EmbeddedApp {
 
     fn selection_mode_changed(
         &self,
-        component_id: usize,
+        component_id: ComponentId,
         selection_mode: crate::selection::SelectionMode,
     ) -> anyhow::Result<()> {
         let buffer_id = self.get_buffer_id_from_component_id(component_id);
@@ -564,7 +559,7 @@ impl EmbeddedApp {
 
     fn jumps_changed(
         &self,
-        component_id: usize,
+        component_id: ComponentId,
         jumps: Vec<(char, crate::selection::CharIndex)>,
     ) -> anyhow::Result<()> {
         let Some(buffer_id) = self.get_buffer_id_from_component_id(component_id) else {
@@ -678,7 +673,7 @@ impl EmbeddedApp {
 
     fn marks_changed(
         &self,
-        component_id: usize,
+        component_id: ComponentId,
         marks: Vec<crate::char_index_range::CharIndexRange>,
     ) -> anyhow::Result<()> {
         let Some(buffer_id) = self.get_buffer_id_from_component_id(component_id) else {

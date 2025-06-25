@@ -39,11 +39,11 @@ and features, while enjoying Ki's fluid and efficient text editing motions.
 1. Text operations (e.g. Delete, Swap etc)
 1. LSP operations (e.g. Go to Definition)
 1. Change keyboard layout (via `space t`)
+1. Global operations (e.g. Global Search, Global Marks, Global Diagnostics)
 
 ## Unmapped functionalities
 
-1. Global search and replace
-2. Window operations (e.g. change tab, pin tab, swap pane, etc.)
+1. Window operations (e.g. change tab, pin tab, swap pane, etc.)
 
 ## Quick Start
 

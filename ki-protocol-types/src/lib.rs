@@ -33,7 +33,7 @@ pub struct Selection {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[typeshare]
 pub struct SelectionSet {
-    pub buffer_id: String,
+    pub uri: Option<String>,
     pub selections: Vec<Selection>,
 }
 

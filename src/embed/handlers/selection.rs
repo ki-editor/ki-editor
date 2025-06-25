@@ -5,7 +5,11 @@ use ki_protocol_types::SelectionSet;
 impl EmbeddedApp {
     /// Handle selection.set notification from Host
     pub(crate) fn handle_selection_set_notification(&mut self, params: SelectionSet) -> Result<()> {
-        let path = uri_to_path(&params.buffer_id)?;
+        let Some(uri) = params.uri else {
+            log::info!("EmbeddedApp::handle_selection_set_notification: params.uri is None");
+            return Ok(());
+        };
+        let path = uri_to_path(&uri)?;
         let Some(editor) = self.app.lock().unwrap().get_editor_by_file_path(&path) else {
             return Err(anyhow::anyhow!(
                 "Editor not found for path: {}",

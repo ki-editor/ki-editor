@@ -21,7 +21,7 @@ export interface Selection {
 }
 
 export interface SelectionSet {
-	buffer_id: string;
+	uri?: string;
 	selections: Selection[];
 }
 

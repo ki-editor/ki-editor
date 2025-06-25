@@ -1,24 +1,9 @@
 use crate::{
-    components::editor::Mode,
+    components::{component::ComponentId, editor::Mode},
     selection::{CharIndex, Selection, SelectionMode},
 };
 use shared::canonicalized_path::CanonicalizedPath;
 use std::sync::mpsc::Sender;
-
-/// Component ID used to identify which component an event is related to
-pub type ComponentId = usize;
-
-/// Convert from components::component::ComponentId to integration_event::ComponentId
-pub fn component_id_to_usize(id: &crate::components::component::ComponentId) -> ComponentId {
-    // Since we can't access the private field directly, we'll use the debug representation
-    // This is a bit of a hack, but it's the simplest way to get the value without modifying
-    // the original ComponentId struct
-    let debug_str = format!("{:?}", id);
-    let value_str = debug_str
-        .trim_start_matches("ComponentId(")
-        .trim_end_matches(")");
-    value_str.parse::<usize>().unwrap_or(0)
-}
 
 /// Events emitted by Ki for external integrations
 #[derive(Debug, Clone)]
@@ -41,11 +26,11 @@ pub enum IntegrationEvent {
         selections: Vec<Selection>,
     },
     JumpsChanged {
-        component_id: usize,
+        component_id: ComponentId,
         jumps: Vec<(char, CharIndex)>,
     },
     SelectionModeChanged {
-        component_id: usize,
+        component_id: ComponentId,
         selection_mode: SelectionMode,
     },
     PromptOpened {
@@ -53,7 +38,7 @@ pub enum IntegrationEvent {
         items: Vec<ki_protocol_types::PromptItem>,
     },
     MarksChanged {
-        component_id: usize,
+        component_id: ComponentId,
         marks: Vec<crate::char_index_range::CharIndexRange>,
     },
     RequestLspDefinition,

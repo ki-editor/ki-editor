@@ -1,5 +1,10 @@
 # Changelog
 
+# [0.0.12]
+
+-   Make "Go to location" from Ki works in VS Code
+    -   This is necessary for Global operations (such as Global Search) to work
+
 # [0.0.11]
 
 -   Fix buffer content desync issues

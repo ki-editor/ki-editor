@@ -32,7 +32,7 @@ data class Selection (
 
 @Serializable
 data class SelectionSet (
-	val buffer_id: String,
+	val uri: String? = null,
 	val selections: List<Selection>
 )
 
