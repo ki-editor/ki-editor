@@ -5,7 +5,6 @@ import type { Logger } from "./logger";
 import type {
     InputMessage,
     InputMessageWrapper,
-    OutputMessage,
     OutputMessageWrapper,
 } from "./protocol/types";
 

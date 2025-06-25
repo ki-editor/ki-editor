@@ -29,7 +29,7 @@ export enum ErrorSeverity {
 /**
  * Error context information
  */
-export interface ErrorContext {
+interface ErrorContext {
     /**
      * Component where the error occurred
      */
@@ -86,10 +86,7 @@ export class ErrorHandler {
                 break;
             case ErrorSeverity.Error:
             case ErrorSeverity.Fatal:
-                this.logger.error(
-                    `${contextInfo}: ${errorMessage}`,
-                    context.details,
-                );
+                this.logger.error(`${contextInfo}: ${errorMessage}`, context.details);
                 break;
         }
 
@@ -101,13 +98,10 @@ export class ErrorHandler {
         // Additional handling for fatal errors
         if (severity === ErrorSeverity.Fatal) {
             // Log additional information
-            this.logger.error(
-                "Fatal error occurred, application may be unstable",
-                {
-                    error: errorMessage,
-                    context,
-                },
-            );
+            this.logger.error("Fatal error occurred, application may be unstable", {
+                error: errorMessage,
+                context,
+            });
         }
     }
 

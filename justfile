@@ -29,10 +29,17 @@ lint:
     @echo "Running cargo clippy..."
     cargo clippy --workspace -- -D warnings
     cargo clippy --tests -- -D warnings
+    @just vscode-lint
+    
+vscode-lint:
+    cd ki-vscode && ./node_modules/.bin/ts-unused-exports tsconfig.json --ignoreFiles="src/protocol/types"
     cd ki-vscode && npm run lint
     
 lint-fix:
 	cargo clippy --workspace --tests --fix --allow-staged
+	@just vscode-lint-fix
+
+vscode-lint-fix:
 	cd ki-vscode && npm run lint:fix
 
 test testname="":
