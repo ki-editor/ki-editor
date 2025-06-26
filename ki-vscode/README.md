@@ -115,8 +115,7 @@ just watch-build
 ```
 
 4. Running the extension
-    - This step is a little troublesome, because first you have to open VS Code in the `ki-vscode` folder of the
-      `ki-editor` repository
+    - Open this repository in VS Code
     - Then, press F5 in VSCode to launch a new window with the extension loaded
 
 ### Building Ki Binaries
