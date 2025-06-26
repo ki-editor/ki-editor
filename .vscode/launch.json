@@ -5,11 +5,11 @@
             "name": "Run Extension (Debug with Source Maps)",
             "type": "extensionHost",
             "request": "launch",
-            "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
-            "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/ki-vscode"],
+            "outFiles": ["${workspaceFolder}/ki-vscode/dist/**/*.js"],
             "sourceMaps": true,
             "resolveSourceMapLocations": [
-                "${workspaceFolder}/**",
+                "${workspaceFolder}/ki-vscode/**",
                 "!**/node_modules/**"
             ],
             "env": {
@@ -18,20 +18,21 @@
                 "NODE_OPTIONS": "--inspect",
                 "DISABLE_DEBUG": "false"
             },
-            "preLaunchTask": "tsc: build with source maps"
+            "preLaunchTask": "tsc: build with source maps",
+            "cwd": "${workspaceFolder}/ki-vscode"
         },
         {
             "name": "Extension Tests",
             "type": "extensionHost",
             "request": "launch",
             "args": [
-                "--extensionDevelopmentPath=${workspaceFolder}",
-                "--extensionTestsPath=${workspaceFolder}/dist/test/suite/index"
+                "--extensionDevelopmentPath=${workspaceFolder}/ki-vscode",
+                "--extensionTestsPath=${workspaceFolder}/ki-vscode/dist/test/suite/index"
             ],
-            "outFiles": ["${workspaceFolder}/dist/test/**/*.js"],
+            "outFiles": ["${workspaceFolder}/ki-vscode/dist/test/**/*.js"],
             "sourceMaps": true,
             "resolveSourceMapLocations": [
-                "${workspaceFolder}/**",
+                "${workspaceFolder}/ki-vscode/**",
                 "!**/node_modules/**"
             ],
             "preLaunchTask": "${defaultBuildTask}"

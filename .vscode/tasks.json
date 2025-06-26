@@ -12,26 +12,38 @@
             "group": {
                 "kind": "build",
                 "isDefault": true
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/ki-vscode"
             }
         },
         {
             "type": "npm",
             "script": "compile",
             "group": "build",
-            "problemMatcher": "$tsc"
+            "problemMatcher": "$tsc",
+            "options": {
+                "cwd": "${workspaceFolder}/ki-vscode"
+            }
         },
         {
             "label": "tsc: build with source maps",
             "type": "npm",
             "script": "compile:sourcemaps",
             "group": "build",
-            "problemMatcher": "$tsc"
+            "problemMatcher": "$tsc",
+            "options": {
+                "cwd": "${workspaceFolder}/ki-vscode"
+            }
         },
         {
             "type": "npm",
             "script": "test",
             "group": "test",
-            "problemMatcher": "$jest"
+            "problemMatcher": "$jest",
+            "options": {
+                "cwd": "${workspaceFolder}/ki-vscode"
+            }
         }
     ]
 }
