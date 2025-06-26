@@ -43,7 +43,11 @@ and features, while enjoying Ki's fluid and efficient text editing motions.
 
 ## Unmapped functionalities
 
-1. Window operations (e.g. change tab, pin tab, swap pane, etc.)
+Almost all unmapped functionalities are related to UIs.
+
+1. Alt-keys operations (e.g. change tab, swap pane, scrolling etc.)
+2. Keymap Legend (hint)
+3. Quickfix List UI.
 
 ## Quick Start
 
