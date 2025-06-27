@@ -329,6 +329,7 @@ impl EmbeddedApp {
             IntegrationEvent::RequestLspCodeAction => self.request_lsp_code_action()?,
             IntegrationEvent::RequestLspDocumentSymbols => self.request_lsp_document_symbols()?,
             IntegrationEvent::SyncBufferRequest { path } => self.request_buffer_content(path)?,
+            IntegrationEvent::ShowInfo { info } => self.show_info(info)?,
         }
 
         Ok(())
@@ -794,6 +795,14 @@ impl EmbeddedApp {
             message: OutputMessage::SyncBufferRequest {
                 uri: path_to_uri(&path),
             },
+            error: None,
+        })
+    }
+
+    fn show_info(&self, info: Option<String>) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::ShowInfo { info },
             error: None,
         })
     }

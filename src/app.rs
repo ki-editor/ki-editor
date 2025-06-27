@@ -1382,6 +1382,13 @@ impl<T: Frontend> App<T> {
     }
 
     fn show_global_info(&mut self, info: Info) {
+        if self.is_running_as_embedded() {
+            self.integration_event_sender.emit_event(
+                crate::integration_event::IntegrationEvent::ShowInfo {
+                    info: Some(info.display()),
+                },
+            );
+        }
         self.layout
             .show_global_info(info, &self.context)
             .unwrap_or_else(|err| {
@@ -1506,8 +1513,17 @@ impl<T: Frontend> App<T> {
     }
 
     fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
+        if self.is_running_as_embedded() {
+            let title = keymap_legend_config.title.clone();
+            let body =
+                keymap_legend_config.display(self.context.keyboard_layout_kind(), u16::MAX, true);
+            self.integration_event_sender
+                .emit_event(IntegrationEvent::ShowInfo {
+                    info: Some(format!("{}\n\n{}", title, body)),
+                });
+        }
         self.layout
-            .show_keymap_legend(keymap_legend_config, &self.context)
+            .show_keymap_legend(keymap_legend_config, &self.context);
     }
 
     fn global_replace(&mut self) -> anyhow::Result<()> {
@@ -2325,7 +2341,14 @@ impl<T: Frontend> App<T> {
     }
 
     fn show_editor_info(&mut self, info: Info) -> anyhow::Result<()> {
-        self.layout.show_editor_info(info, &self.context)
+        if self.is_running_as_embedded() {
+            self.integration_event_sender
+                .emit_event(IntegrationEvent::ShowInfo {
+                    info: Some(info.display()),
+                });
+        }
+        self.layout.show_editor_info(info, &self.context)?;
+        Ok(())
     }
 
     #[cfg(test)]
@@ -2371,7 +2394,9 @@ impl<T: Frontend> App<T> {
     }
 
     fn close_current_window_and_focus_parent(&mut self) {
-        self.layout.close_current_window_and_focus_parent()
+        self.layout.close_current_window_and_focus_parent();
+        self.integration_event_sender
+            .emit_event(IntegrationEvent::ShowInfo { info: None });
     }
 
     #[cfg(test)]

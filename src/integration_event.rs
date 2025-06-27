@@ -48,6 +48,10 @@ pub enum IntegrationEvent {
     RequestLspImplementation,
     RequestLspTypeDefinition,
     KeyboardLayoutChanged(&'static str),
+    ShowInfo {
+        /// Set to `None` to hide the info
+        info: Option<String>,
+    },
     RequestLspRename,
     RequestLspCodeAction,
     RequestLspDocumentSymbols,

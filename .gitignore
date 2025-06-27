@@ -11,3 +11,4 @@ docs/assets/recipes.json
 .direnv
 .roomodes
 .ruru
+node_modules

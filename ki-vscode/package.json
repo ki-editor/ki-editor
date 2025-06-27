@@ -1,6 +1,6 @@
 {
     "name": "ki-editor-vscode",
-    "version": "0.0.12",
+    "version": "0.0.13",
     "description": "VSCode extension for Ki Editor (Preview)",
     "main": "./dist/extension.js",
     "publisher": "ki-editor",
@@ -30,9 +30,6 @@
         "publish": "vsce publish",
         "package:full": "npm run build:binaries && npm run package",
         "vscode:prepublish": "bun scripts/bundle.ts",
-        "format": "biome format --write",
-        "lint": "biome lint",
-        "lint:fix": "biome lint --write",
         "build:binaries": "cd .. && ./build-all-platforms.sh"
     },
     "activationEvents": ["onStartupFinished"],
@@ -205,7 +202,6 @@
         ]
     },
     "devDependencies": {
-        "@biomejs/biome": "1.9.4",
         "@types/bun": "latest",
         "@types/jest": "29.5.14",
         "@types/node": "^20.11.0",

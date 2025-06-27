@@ -176,7 +176,7 @@ impl KeymapLegendBody {
 }
 
 impl KeymapLegendConfig {
-    fn display(
+    pub(crate) fn display(
         &self,
         keyboard_layout_kind: &KeyboardLayoutKind,
         width: u16,
