@@ -1,4 +1,5 @@
 default:
+    npm install
     @just tree-sitter-quickfix 
     @just fmt-check 
     @just build 
