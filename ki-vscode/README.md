@@ -69,7 +69,7 @@ Almost all unmapped functionalities are related to UIs.
     - Press `Esc` to enter Normal mode
     - Use Ki commands and keybindings
     - Press `u` to return to Insert mode
-    - Press `space m` to see help
+    - Press `space /` to see help (press Esc twice to close help)
 
 ## Extension Settings
 
