@@ -200,6 +200,9 @@ export type OutputMessage =
 	| { tag: "lsp.documentSymbols", params?: undefined }
 	| { tag: "editor.syncBufferRequest", params: {
 	uri: string;
+}}
+	| { tag: "editor.showInfo", params: {
+	info?: string;
 }};
 
 export interface ResponseError {

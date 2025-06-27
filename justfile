@@ -1,4 +1,5 @@
 default:
+    npm install
     @just tree-sitter-quickfix 
     @just fmt-check 
     @just build 
@@ -16,7 +17,7 @@ fmt-check:
     
 fmt:
 	cargo fmt --all
-	cd ki-vscode && npm run format
+	npm run format
 
 build: install-typeshare
     @echo "Running cargo build..."
@@ -33,14 +34,14 @@ lint:
     
 vscode-lint:
     cd ki-vscode && ./node_modules/.bin/ts-unused-exports tsconfig.json --ignoreFiles="src/protocol/types"
-    cd ki-vscode && npm run lint
+    npm run lint
     
 lint-fix:
 	cargo clippy --workspace --tests --fix --allow-staged
 	@just vscode-lint-fix
 
 vscode-lint-fix:
-	cd ki-vscode && npm run lint:fix
+	npm run lint:fix
 
 test testname="":
     @echo "Running cargo test..."
@@ -76,8 +77,6 @@ install-typeshare:
 
 vscode-build: build
     cd ki-vscode && npm install
-    cd ki-vscode && npm run format
-    cd ki-vscode && npm run lint
 
 vscode-package:
     ./build-all-platforms.sh

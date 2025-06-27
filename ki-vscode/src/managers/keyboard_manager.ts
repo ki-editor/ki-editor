@@ -29,6 +29,7 @@ export class KeyboardManager extends Manager {
     private typeSubscription: vscode.Disposable | undefined;
     private specialKeySubscriptions: vscode.Disposable[] = [];
     private ignoreNextKey = false;
+    private outputChannel = vscode.window.createOutputChannel("Ki: Info");
 
     // Map of special keys to their VSCode key codes
     private specialKeyMap: Record<SpecialKey, string> = {
@@ -70,6 +71,23 @@ export class KeyboardManager extends Manager {
         vscode.window.onDidChangeActiveTextEditor(() => {
             this.updateTypeHandler();
         });
+
+        this.dispatcher.registerKiNotificationHandler(
+            "editor.showInfo",
+            (params) => this.showInfo(params.info),
+        );
+    }
+
+    private showInfo(info: string | undefined): void | Promise<void> {
+        if (!info) {
+            this.outputChannel.hide();
+        } else {
+            this.outputChannel.clear();
+            this.outputChannel.appendLine(info);
+
+            const preserveFocus = true;
+            this.outputChannel.show(preserveFocus);
+        }
     }
 
     /**

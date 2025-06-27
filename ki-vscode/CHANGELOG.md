@@ -1,5 +1,12 @@
 # Changelog
 
+# [0.0.13]
+
+- Add support for showing Info from Ki, which includes:
+    - Generic error messages
+    - Diagnostic messages
+    - Keymap Legend
+
 # [0.0.12]
 
 -   Make "Go to location" from Ki works in VS Code

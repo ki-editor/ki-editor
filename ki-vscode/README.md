@@ -40,6 +40,7 @@ and features, while enjoying Ki's fluid and efficient text editing motions.
 1. LSP operations (e.g. Go to Definition)
 1. Change keyboard layout (via `space t`)
 1. Global operations (e.g. Global Search, Global Marks, Global Diagnostics)
+1. Info (e.g. Keymap Legend, Diagnostic Message, etc.)
 
 ## Unmapped functionalities
 
@@ -47,7 +48,6 @@ Almost all unmapped functionalities are related to UIs.
 
 1. Alt-keys operations (e.g. change tab, swap pane, scrolling etc.)
 2. Keymap Legend (hint)
-3. Quickfix List UI.
 
 ## Quick Start
 
@@ -69,6 +69,7 @@ Almost all unmapped functionalities are related to UIs.
     - Press `Esc` to enter Normal mode
     - Use Ki commands and keybindings
     - Press `u` to return to Insert mode
+    - Press `space /` to see help (press Esc twice to close help)
 
 ## Extension Settings
 

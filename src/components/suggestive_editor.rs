@@ -1067,6 +1067,10 @@ impl Info {
     pub(crate) fn title(&self) -> String {
         self.title.clone()
     }
+
+    pub(crate) fn display(&self) -> String {
+        format!("{}\n\n{}", self.title(), self.content())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

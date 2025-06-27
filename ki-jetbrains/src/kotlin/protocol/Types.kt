@@ -273,6 +273,12 @@ data class OutputMessageSyncBufferRequestInner (
 	val uri: String
 )
 
+/// Generated type representing the anonymous struct variant `ShowInfo` of the `OutputMessage` Rust enum
+@Serializable
+data class OutputMessageShowInfoInner (
+	val info: String? = null
+)
+
 @Serializable
 sealed class OutputMessage {
 	@Serializable
@@ -346,6 +352,9 @@ sealed class OutputMessage {
 	@Serializable
 	@SerialName("editor.syncBufferRequest")
 	data class SyncBufferRequest(val params: OutputMessageSyncBufferRequestInner): OutputMessage()
+	@Serializable
+	@SerialName("editor.showInfo")
+	data class ShowInfo(val params: OutputMessageShowInfoInner): OutputMessage()
 }
 
 @Serializable

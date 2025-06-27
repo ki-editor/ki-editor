@@ -291,6 +291,8 @@ pub enum OutputMessage {
     RequestLspDocumentSymbols,
     #[serde(rename = "editor.syncBufferRequest")]
     SyncBufferRequest { uri: String },
+    #[serde(rename = "editor.showInfo")]
+    ShowInfo { info: Option<String> },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -403,6 +405,7 @@ impl MessageMethod for OutputMessage {
             OutputMessage::RequestLspCodeAction => Cow::Borrowed("lsp.codeAction"),
             OutputMessage::RequestLspDocumentSymbols => Cow::Borrowed("lsp.documentSymbols"),
             OutputMessage::SyncBufferRequest { .. } => Cow::Borrowed("editor.requestBufferContent"),
+            OutputMessage::ShowInfo { .. } => Cow::Borrowed("editor.showInfo"),
         }
     }
 }
