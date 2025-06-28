@@ -48,34 +48,24 @@ impl IterBasedSelectionMode for SyntaxNode {
         &'a self,
         params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        if self.coarse {
-            TopNode.iter(params)
-        } else {
-            SyntaxToken.iter(params)
-        }
+        TopNode.iter(params)
     }
+
     fn expand(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         self.select_vertical(params, true)
     }
-    fn down(
+
+    fn shrink(
         &self,
         params: &super::SelectionModeParams,
-        _: Option<usize>,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         self.select_vertical(params, false)
     }
 
-    fn up(
-        &self,
-        params: &super::SelectionModeParams,
-        _: Option<usize>,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.select_vertical(params, true)
-    }
-    fn right(
+    fn next(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
@@ -97,7 +87,8 @@ impl IterBasedSelectionMode for SyntaxNode {
                 .ok()
         }))
     }
-    fn left(
+
+    fn previous(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
@@ -120,6 +111,34 @@ impl IterBasedSelectionMode for SyntaxNode {
         }))
     }
 
+    fn all_meaningful_selections<'a>(
+        &'a self,
+        params: &super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
+        let buffer = params.buffer;
+        let current_selection = params.current_selection;
+        let node = buffer
+            .get_current_node(current_selection, false)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter: Cannot find Treesitter language"
+            ))?;
+
+        if let Some(parent) = node.parent() {
+            let children = {
+                (0..parent.named_child_count())
+                    .filter_map(move |i| parent.named_child(i))
+                    .collect_vec()
+            };
+            Ok(Box::new(
+                children
+                    .into_iter()
+                    .map(|node| ByteRange::new(node.byte_range())),
+            ))
+        } else {
+            Ok(Box::new(std::iter::empty()))
+        }
+    }
+
     fn all_selections<'a>(
         &'a self,
         params: &super::SelectionModeParams<'a>,
@@ -133,11 +152,7 @@ impl IterBasedSelectionMode for SyntaxNode {
             ))?;
 
         if let Some(parent) = node.parent() {
-            let children = if self.coarse {
-                (0..parent.named_child_count())
-                    .filter_map(move |i| parent.named_child(i))
-                    .collect_vec()
-            } else {
+            let children = {
                 (0..parent.child_count())
                     .filter_map(move |i| parent.child(i))
                     .collect_vec()

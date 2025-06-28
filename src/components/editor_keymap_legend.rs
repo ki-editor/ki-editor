@@ -44,6 +44,18 @@ impl Editor {
                 Dispatch::ToEditor(MoveSelection(Right)),
             ),
             Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                "<".to_string(),
+                "Prev".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Previous)),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::Next_),
+                ">".to_string(),
+                "Next".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Next)),
+            ),
+            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Up___),
                 "▲".to_string(),
                 "Up".to_string(),
@@ -56,16 +68,40 @@ impl Editor {
                 Dispatch::ToEditor(MoveSelection(Down)),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Alpha),
+                context.keyboard_layout_kind().get_key(&Meaning::First),
                 "◀◀".to_string(),
-                "Alph".to_string(),
+                "First".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::First)),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::Last),
+                "▶▶".to_string(),
+                "Last".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Last)),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::Alpha),
+                "α".to_string(),
+                "Alpha".to_string(),
                 Dispatch::ToEditor(MoveSelection(Movement::Alpha)),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Beta_),
-                "▶▶".to_string(),
-                "Beta".to_string(),
-                Dispatch::ToEditor(MoveSelection(Movement::Beta)),
+                context.keyboard_layout_kind().get_key(&Meaning::Omega),
+                "Ω".to_string(),
+                "Omega".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Omega)),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::Expnd),
+                "Expand".to_string(),
+                "Expand".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Expand)),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::Shrnk),
+                "Shrink".to_string(),
+                "Shrink".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Shrink)),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Jump_),
@@ -244,7 +280,7 @@ impl Editor {
     pub(crate) fn keymap_secondary_selection_modes_init(&self, context: &Context) -> Vec<Keymap> {
         [
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::FindP),
+                "[",
                 Direction::Start.format_action("Find"),
                 "Find (Local) - Backward".to_string(),
                 Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
@@ -254,7 +290,7 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::FindN),
+                "]",
                 Direction::End.format_action("Find"),
                 "Find (Local) - Forward".to_string(),
                 Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
@@ -264,7 +300,7 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Globl),
+                "\\",
                 "Global".to_string(),
                 "Find (Global)".to_string(),
                 Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
@@ -1207,18 +1243,11 @@ impl Editor {
                             },
                         ),
                         Keymap::new(
-                            context.keyboard_layout_kind().get_find_keymap(
-                                scope,
-                                &match (scope, if_current_not_found) {
-                                    (Scope::Local, IfCurrentNotFound::LookForward) => {
-                                        Meaning::FindN
-                                    }
-                                    (Scope::Local, IfCurrentNotFound::LookBackward) => {
-                                        Meaning::FindP
-                                    }
-                                    (Scope::Global, _) => Meaning::Globl,
-                                },
-                            ),
+                            match (scope, if_current_not_found) {
+                                (Scope::Local, IfCurrentNotFound::LookForward) => "]",
+                                (Scope::Local, IfCurrentNotFound::LookBackward) => "[",
+                                (Scope::Global, _) => "\\",
+                            },
                             "Repeat".to_string(),
                             Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
                         ),

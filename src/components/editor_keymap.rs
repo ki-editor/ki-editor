@@ -15,25 +15,25 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchN, WordF, SrchC, MultC, Swap_, /****/ FindP, InstP, Up___, InstN, FindN,
+        SrchN, WordF, SrchC, MultC, Swap_, /****/ First, Prev_, Up___, Next_, Last,
     ],
     [
-        Line_, Token, Sytx_, Extnd, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
+        Line_, Token, Sytx_, Extnd, OpenN, /****/ DeltN, Left_, Down_, Right, Chng_,
     ],
     [
-        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ Globl, Chng_, Alpha, Beta_, XAchr,
+        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ InstP, Jump_, XAchr, Expnd, InstN,
     ],
 ];
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SrchP, Word_, Char_, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
+        SrchP, Word_, Char_, _____, Raise, /****/ Alpha, RplcP, Join_, RplcN, Omega,
     ],
     [
-        LineF, _____, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
+        LineF, _____, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ChngX,
     ],
     [
-        Redo_, PRplc, RplcX, PsteP, MarkF, /****/ _____, ChngX, _____, _____, SSEnd,
+        Redo_, PRplc, RplcX, PsteP, MarkF, /****/ CrsrP, ToIdx, Shrnk, SSEnd, CrsrN,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -45,10 +45,10 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
         KilLP, CSrch, LineU, _____, KilLN, /****/ NBack, GBack, ScrlU, GForw, NForw,
     ],
     [
-        _____, LineP, LineD, LineN, OpenM, /****/ DTknP, MrkFP, ScrlD, MrkFN, SView,
+        _____, LineP, LineD, LineN, OpenM, /****/ DTknP, MrkFP, ScrlD, MrkFN, SHelp,
     ],
     [
-        Undo_, _____, WClse, UPstE, _____, /****/ _____, SHelp, _____, _____, WSwth,
+        Undo_, _____, WClse, UPstE, _____, /****/ _____, SView, _____, _____, WSwth,
     ],
 ];
 
@@ -87,7 +87,7 @@ pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ Globl, _____, _____, _____, _____,
+        LImpl, LDefn, LType, LRfrE, Mark_, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
@@ -120,10 +120,10 @@ pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
         QSave, SaveA, Explr, _____, KeybL, /****/ _____, RevlS, RevlC, RevlM, _____,
     ],
     [
-        Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LCdAc, Pipe_, _____,
+        Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LCdAc, Pipe_, LRnme,
     ],
     [
-        UndoT, _____, _____, _____, TSNSx, /****/ _____, LRnme, _____, _____, SHelp,
+        UndoT, _____, _____, _____, TSNSx, /****/ _____, _____, _____, _____, SHelp,
     ],
 ];
 
@@ -496,6 +496,10 @@ pub(crate) enum Meaning {
     ChngX,
     /// Change Surround
     Chng_,
+    /// Expand
+    Expnd,
+    /// Shrink
+    Shrnk,
     /// Copy
     Copy_,
     /// Cycle primary select next
@@ -518,8 +522,14 @@ pub(crate) enum Meaning {
     FindN,
     /// Local find backward
     FindP,
+    /// First
+    First,
+    /// Last
+    Last,
     /// Alpha
     Alpha,
+    /// Omega
+    Omega,
     /// Go back
     GBack,
     /// Go forward
@@ -544,10 +554,12 @@ pub(crate) enum Meaning {
     KilLN,
     /// Kill to line start
     KilLP,
-    /// Beta
-    Beta_,
     /// Left
     Left_,
+    /// Previous
+    Prev_,
+    /// Next
+    Next_,
     /// Line Up
     LineU,
     /// Line Down

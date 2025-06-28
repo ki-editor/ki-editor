@@ -506,17 +506,22 @@ impl IfCurrentNotFound {
 pub(crate) enum Movement {
     Right,
     Left,
-    Beta,
+    Last,
     Current(IfCurrentNotFound),
     Up,
     Down,
-    Alpha,
+    First,
     /// 0-based
     Index(usize),
     Jump(CharIndexRange),
     Expand,
     DeleteBackward,
     DeleteForward,
+    Alpha,
+    Omega,
+    Previous,
+    Next,
+    Shrink,
 }
 impl Movement {
     pub(crate) fn into_movement_applicandum(
@@ -526,7 +531,7 @@ impl Movement {
         match self {
             Movement::Right => MovementApplicandum::Right,
             Movement::Left => MovementApplicandum::Left,
-            Movement::Beta => MovementApplicandum::Beta,
+            Movement::Last => MovementApplicandum::Last,
             Movement::Current(if_current_not_found) => {
                 MovementApplicandum::Current(if_current_not_found)
             }
@@ -536,12 +541,17 @@ impl Movement {
             Movement::Down => MovementApplicandum::Down {
                 sticky_column_index: *sticky_column_index,
             },
-            Movement::Alpha => MovementApplicandum::Alpha,
+            Movement::First => MovementApplicandum::First,
             Movement::Index(index) => MovementApplicandum::Index(index),
             Movement::Jump(chars) => MovementApplicandum::Jump(chars),
             Movement::Expand => MovementApplicandum::Expand,
+            Movement::Shrink => MovementApplicandum::Shrink,
             Movement::DeleteBackward => MovementApplicandum::DeleteBackward,
             Movement::DeleteForward => MovementApplicandum::DeleteForward,
+            Movement::Alpha => MovementApplicandum::Alpha,
+            Movement::Omega => MovementApplicandum::Omega,
+            Movement::Previous => MovementApplicandum::Previous,
+            Movement::Next => MovementApplicandum::Next,
         }
     }
 }
@@ -552,7 +562,7 @@ impl Movement {
 pub(crate) enum MovementApplicandum {
     Right,
     Left,
-    Beta,
+    Last,
     Current(IfCurrentNotFound),
     Up {
         sticky_column_index: Option<usize>,
@@ -560,13 +570,18 @@ pub(crate) enum MovementApplicandum {
     Down {
         sticky_column_index: Option<usize>,
     },
-    Alpha,
+    First,
     /// 0-based
     Index(usize),
     Jump(CharIndexRange),
     Expand,
     DeleteBackward,
     DeleteForward,
+    Alpha,
+    Omega,
+    Next,
+    Previous,
+    Shrink,
 }
 
 impl Editor {
@@ -1959,8 +1974,8 @@ impl Editor {
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
         match movement {
-            Movement::Beta => self.swap_till_last(context),
-            Movement::Alpha => self.swap_till_first(context),
+            Movement::Last => self.swap_till_last(context),
+            Movement::First => self.swap_till_first(context),
             _ => self.replace_faultlessly(&self.selection_set.mode.clone(), movement, context),
         }
     }
@@ -1989,7 +2004,7 @@ impl Editor {
                             current_selection,
                             cursor_direction: &self.cursor_direction,
                         };
-                        let first = selection_mode.alpha(&params).ok()??.range();
+                        let first = selection_mode.first(&params).ok()??.range();
                         // Find the before current selection
                         let before_current = selection_mode.left(&params).ok()??.range();
                         let first_range = current_selection.range();
@@ -2038,7 +2053,7 @@ impl Editor {
                         };
 
                         // Select from the first until before current
-                        let last = selection_mode.beta(&params).ok()??.range();
+                        let last = selection_mode.last(&params).ok()??.range();
                         // Find the before current selection
                         let after_current = selection_mode.right(&params).ok()??.range();
                         let first_range = current_selection.range();
@@ -2077,10 +2092,10 @@ impl Editor {
             )
         };
         match movement {
-            MovementApplicandum::Alpha => {
+            MovementApplicandum::First => {
                 while let Ok(true) = add_selection(&MovementApplicandum::Left) {}
             }
-            MovementApplicandum::Beta => {
+            MovementApplicandum::Last => {
                 while let Ok(true) = add_selection(&MovementApplicandum::Right) {}
             }
             other_movement => {
@@ -2765,9 +2780,9 @@ impl Editor {
             context,
             [
                 DisableSelectionExtension,
-                (MoveSelection(Movement::Alpha)),
+                (MoveSelection(Movement::First)),
                 EnableSelectionExtension,
-                (MoveSelection(Movement::Beta)),
+                (MoveSelection(Movement::Last)),
             ]
             .to_vec(),
         )

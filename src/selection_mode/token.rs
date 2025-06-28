@@ -36,14 +36,14 @@ fn find_word_end(
 }
 
 impl SelectionModeTrait for Token {
-    fn alpha(
+    fn previous(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         TokenSymbolOnly.left(params)
     }
 
-    fn beta(
+    fn next(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
@@ -142,6 +142,41 @@ impl SelectionModeTrait for Token {
     ) -> String {
         process_paste_gap(prev_gap, next_gap)
     }
+
+    fn alpha(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        Ok(None)
+    }
+
+    fn omega(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        Ok(None)
+    }
+
+    fn first(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        Ok(None)
+    }
+
+    fn last(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        Ok(None)
+    }
+
+    fn shrink(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        Ok(None)
+    }
 }
 
 pub(crate) fn process_paste_gap(prev_gap: Option<String>, next_gap: Option<String>) -> String {
@@ -168,7 +203,7 @@ pub(crate) fn process_paste_gap(prev_gap: Option<String>, next_gap: Option<Strin
 struct TokenSymbolOnly;
 
 impl PositionBasedSelectionMode for TokenSymbolOnly {
-    fn get_current_selection_by_cursor(
+    fn get_current_meaningful_selection_by_cursor(
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: CharIndex,
@@ -218,7 +253,7 @@ impl PositionBasedSelectionMode for TokenSymbolOnly {
 struct TokenNoSkipSymbol;
 
 impl PositionBasedSelectionMode for TokenNoSkipSymbol {
-    fn get_current_selection_by_cursor(
+    fn get_current_meaningful_selection_by_cursor(
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: CharIndex,
@@ -231,7 +266,7 @@ impl PositionBasedSelectionMode for TokenNoSkipSymbol {
 struct TokenSkipSymbol;
 
 impl PositionBasedSelectionMode for TokenSkipSymbol {
-    fn get_current_selection_by_cursor(
+    fn get_current_meaningful_selection_by_cursor(
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: CharIndex,
@@ -377,11 +412,11 @@ mod test_token {
                     SelectionMode::Token,
                 )),
                 Expect(CurrentSelectedTexts(&["foo"])),
-                Editor(MoveSelection(Beta)),
+                Editor(MoveSelection(Last)),
                 Expect(CurrentSelectedTexts(&["?"])),
-                Editor(MoveSelection(Beta)),
+                Editor(MoveSelection(Last)),
                 Expect(CurrentSelectedTexts(&[":"])),
-                Editor(MoveSelection(Alpha)),
+                Editor(MoveSelection(First)),
                 Expect(CurrentSelectedTexts(&["?"])),
             ])
         })

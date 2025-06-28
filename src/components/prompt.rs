@@ -95,7 +95,7 @@ impl Prompt {
                         SelectionMode::Line,
                     )),
                     Dispatch::ToEditor(DispatchEditor::MoveSelection(
-                        super::editor::Movement::Beta,
+                        super::editor::Movement::Last,
                     )),
                     Dispatch::ToEditor(DispatchEditor::MoveToLineEnd),
                 ]

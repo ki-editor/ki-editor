@@ -68,14 +68,14 @@ fn toggle_visual_mode() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Last)),
             Expect(CurrentSelectedTexts(&["fn f("])),
             Editor(SwapExtensionAnchor),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["f("])),
             Editor(Reset),
             Expect(CurrentSelectedTexts(&["f"])),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Last)),
             Expect(CurrentSelectedTexts(&["("])),
         ])
     })
@@ -3552,7 +3552,7 @@ fn select_current_line_when_cursor_is_at_last_space_of_current_line() -> anyhow:
             }),
             Editor(SetContent("abc \n yo".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Last)),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&[" "])),
             Editor(MoveSelection(Left)),
@@ -3577,9 +3577,9 @@ fn first_last_char() -> anyhow::Result<()> {
             Editor(SetContent("babyHelloCamp".to_string())),
             Editor(MatchLiteral("Hello".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Last)),
             Expect(CurrentSelectedTexts(&["o"])),
-            Editor(MoveSelection(Alpha)),
+            Editor(MoveSelection(First)),
             Expect(CurrentSelectedTexts(&["H"])),
         ])
     })
@@ -3603,9 +3603,9 @@ fn first_last_word() -> anyhow::Result<()> {
             )),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["HTTP"])),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Last)),
             Expect(CurrentSelectedTexts(&["Request"])),
-            Editor(MoveSelection(Alpha)),
+            Editor(MoveSelection(First)),
             Expect(CurrentSelectedTexts(&["HTTP"])),
         ])
     })
@@ -3627,7 +3627,7 @@ fn swap_till_last() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["apple: T"])),
             Editor(EnterSwapMode),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Last)),
             Expect(CurrentComponentContent(
                 "fn main(foo: T, banana: T, coffee: T, apple: T) {}",
             )),
@@ -3651,7 +3651,7 @@ fn swap_till_first() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["banana: T"])),
             Editor(EnterSwapMode),
-            Editor(MoveSelection(Alpha)),
+            Editor(MoveSelection(First)),
             Expect(CurrentComponentContent(
                 "fn main(banana: T, foo: T, apple: T, coffee: T) {}",
             )),
@@ -3675,7 +3675,7 @@ fn add_cursor_till_first() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["banana: T"])),
             Editor(EnterMultiCursorMode),
-            Editor(MoveSelection(Alpha)),
+            Editor(MoveSelection(First)),
             Expect(CurrentSelectedTexts(&["foo: T", "apple: T", "banana: T"])),
         ])
     })
@@ -3697,7 +3697,7 @@ fn add_cursor_till_last() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["apple: T"])),
             Editor(EnterMultiCursorMode),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Last)),
             Expect(CurrentSelectedTexts(&[
                 "apple: T",
                 "banana: T",
@@ -4312,7 +4312,7 @@ tim
                 .to_string(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Last)),
             Expect(CurrentSelectedTexts(&["tim"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(MoveSelection(Up)),

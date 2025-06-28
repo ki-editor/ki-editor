@@ -12,28 +12,13 @@ impl Word {
     pub(crate) fn new(skip_symbols: bool) -> Self {
         Self { skip_symbols }
     }
-}
 
-impl PositionBasedSelectionMode for Word {
-    fn alpha(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        get_word(params, SelectionPosition::First)
-    }
-
-    fn beta(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        get_word(params, SelectionPosition::Last)
-    }
-
-    fn get_current_selection_by_cursor(
+    fn get_current_selection(
         &self,
         buffer: &Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
+        skip_symbols: bool,
     ) -> anyhow::Result<Option<ByteRange>> {
         let rope = buffer.rope();
         let len_chars = rope.len_chars();
@@ -47,7 +32,7 @@ impl PositionBasedSelectionMode for Word {
         }
 
         let predicate = |c: char| {
-            if self.skip_symbols {
+            if skip_symbols {
                 c.is_ascii_alphanumeric()
             } else {
                 !c.is_whitespace()
@@ -78,9 +63,7 @@ impl PositionBasedSelectionMode for Word {
 
         let current_char = buffer.char(current)?;
 
-        if current_char.is_whitespace()
-            || (self.skip_symbols && !current_char.is_ascii_alphanumeric())
-        {
+        if current_char.is_whitespace() || (skip_symbols && !current_char.is_ascii_alphanumeric()) {
             return Ok(None);
         }
 
@@ -183,6 +166,40 @@ impl PositionBasedSelectionMode for Word {
         Ok(Some(ByteRange::new(
             buffer.char_index_range_to_byte_range(range)?,
         )))
+    }
+}
+
+impl PositionBasedSelectionMode for Word {
+    fn first(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        get_word(params, SelectionPosition::First)
+    }
+
+    fn last(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        get_word(params, SelectionPosition::Last)
+    }
+
+    fn get_current_meaningful_selection_by_cursor(
+        &self,
+        buffer: &Buffer,
+        cursor_char_index: CharIndex,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<ByteRange>> {
+        self.get_current_selection(buffer, cursor_char_index, if_current_not_found, true)
+    }
+
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &Buffer,
+        cursor_char_index: CharIndex,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<ByteRange>> {
+        self.get_current_selection(buffer, cursor_char_index, if_current_not_found, false)
     }
 
     fn process_paste_gap(
