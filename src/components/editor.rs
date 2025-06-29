@@ -9,7 +9,10 @@ use super::{
 use crate::{
     app::{Dimension, Dispatch, ToHostApp},
     buffer::Buffer,
-    components::component::Component,
+    components::{
+        component::Component,
+        keymap_legend::{KeymapLegendBody, KeymapLegendConfig},
+    },
     context::LocalSearchConfig,
     edit::{Action, ActionGroup, Edit, EditTransaction},
     list::grep::RegexConfig,
@@ -166,6 +169,7 @@ impl Component for Editor {
                 Direction::End,
                 CopiedTexts::new(NonEmpty::singleton(content)),
                 context,
+                false,
             ),
             event::event::Event::Mouse(event) => self.handle_mouse_event(event),
             _ => Ok(Default::default()),
@@ -187,11 +191,9 @@ impl Component for Editor {
             SetSelectionMode(if_current_not_found, selection_mode) => {
                 return self.set_selection_mode(if_current_not_found, selection_mode, context);
             }
-
             FindOneChar(if_current_not_found) => {
                 self.enter_single_character_mode(if_current_not_found)
             }
-
             MoveSelection(direction) => return self.handle_movement(context, direction),
             Copy {
                 use_system_clipboard,
@@ -272,7 +274,12 @@ impl Component for Editor {
             Paste {
                 direction,
                 use_system_clipboard,
-            } => return self.paste(direction, context, use_system_clipboard),
+            } => return self.paste(direction, context, use_system_clipboard, true),
+            NewPaste {
+                direction,
+                use_system_clipboard,
+                with_gap,
+            } => return self.paste(direction, context, use_system_clipboard, with_gap),
             SwapCursor => self.swap_cursor(context),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
@@ -1160,12 +1167,14 @@ impl Editor {
         direction: Direction,
         copied_texts: CopiedTexts,
         context: &Context,
+        with_gap: bool,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
             self.get_selection_set_with_gap(&direction, context)?
                 .into_iter()
                 .enumerate()
                 .map(|(index, (selection, gap))| {
+                    let gap = if with_gap { gap } else { Rope::new() };
                     let current_range = selection.extended_range();
                     let insertion_range_start = match direction {
                         Direction::Start => current_range.start,
@@ -1227,11 +1236,12 @@ impl Editor {
         direction: Direction,
         context: &Context,
         use_system_clipboard: bool,
+        with_gap: bool,
     ) -> anyhow::Result<Dispatches> {
         let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0)? else {
             return Ok(Default::default());
         };
-        self.paste_text(direction, copied_texts, context)
+        self.paste_text(direction, copied_texts, context, with_gap)
     }
 
     /// If `cut` if true, the replaced text will override the clipboard.
@@ -3926,6 +3936,11 @@ pub(crate) enum DispatchEditor {
     Paste {
         direction: Direction,
         use_system_clipboard: bool,
+    },
+    NewPaste {
+        direction: Direction,
+        use_system_clipboard: bool,
+        with_gap: bool,
     },
     SwapCursor,
     MoveCharacterBack,
