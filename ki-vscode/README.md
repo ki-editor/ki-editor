@@ -157,7 +157,7 @@ The extension includes statically linked binaries for all major platforms. To bu
 Create a VSIX package with the extension and all platform binaries:
 
 ```bash
-npm run package:full
+just vscode-package
 ```
 
 This will build the binaries for all platforms and package them with the extension.
