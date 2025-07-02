@@ -15,25 +15,25 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        Char_, WordF, SrchC, MultC, Swap_, /****/ First, Chng_, Up___, DeltN, Last,
+        SrchN, WordF, SrchC, MultC, Swap_, /****/ First, Prev_, Up___, Next_, Last,
     ],
     [
-        Line_, Token, Sytx_, Extnd, OpenN, /****/ Prev_, Left_, Down_, Right, Next_,
+        Line_, Token, Sytx_, OpenN, Extnd, /****/ DeltN, Left_, Down_, Right, Jump_,
     ],
     [
-        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ _____, Jump_, _____, XAchr, SrchN,
+        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ _____, Chng_, Expnd, Shrnk, XAchr,
     ],
 ];
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        _____, Word_, _____, _____, Raise, /****/ Alpha, ChngX, Join_, DeltP, Omega,
+        SrchP, Word_, Char_, _____, Raise, /****/ Alpha, RplcP, Join_, RplcN, Omega,
     ],
     [
-        LineF, _____, FStyx, Trsfm, OpenP, /****/ RplcP, DeDnt, Break, Indnt, RplcN,
+        LineF, _____, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
     ],
     [
-        Redo_, PRplc, RplcX, PsteP, MarkF, /****/ ToIdx, CrsrP, SSEnd, CrsrN, SrchP,
+        Redo_, PRplc, RplcX, PsteP, MarkF, /****/ _____, ChngX, CrsrP, CrsrN, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -45,10 +45,10 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
         KilLP, CSrch, LineU, _____, KilLN, /****/ NBack, GBack, ScrlU, GForw, NForw,
     ],
     [
-        _____, LineP, LineD, LineN, OpenM, /****/ DTknP, MrkFP, ScrlD, MrkFN, SHelp,
+        _____, LineP, LineD, LineN, OpenM, /****/ DTknP, MrkFP, ScrlD, MrkFN, SView,
     ],
     [
-        Undo_, _____, WClse, UPstE, _____, /****/ _____, SView, _____, _____, WSwth,
+        Undo_, _____, WClse, UPstE, _____, /****/ _____, SHelp, _____, _____, WSwth,
     ],
 ];
 
@@ -117,13 +117,13 @@ pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
     [
-        QSave, SaveA, Explr, _____, KeybL, /****/ _____, RevlS, RevlC, RevlM, _____,
+        QSave, SaveA, Explr, _____, KeybL, /****/ _____, LRnme, _____, _____, _____,
     ],
     [
-        Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LCdAc, Pipe_, LRnme,
+        Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LCdAc, Pipe_, _____,
     ],
     [
-        UndoT, _____, _____, _____, TSNSx, /****/ _____, _____, _____, _____, SHelp,
+        UndoT, _____, _____, _____, TSNSx, /****/ _____, RevlS, RevlC, RevlM, SHelp,
     ],
 ];
 

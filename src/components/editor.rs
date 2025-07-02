@@ -350,6 +350,7 @@ impl Component for Editor {
             ExecuteCompletion { replacement, edit } => {
                 return self.execute_completion(replacement, edit, context)
             }
+            OpenNewLine(direction) => return self.open_line(direction, context),
         }
         Ok(Default::default())
     }
@@ -2378,16 +2379,65 @@ impl Editor {
             .collect::<anyhow::Result<Vec<_>>>()
     }
 
+    fn open_line(&mut self, direction: Direction, context: &Context) -> anyhow::Result<Dispatches> {
+        let action_groups = self
+            .selection_set
+            .map(|selection| {
+                let current_line_index = self.buffer().char_to_line(selection.range().start)?;
+                let current_line_indentation: String = self
+                    .buffer()
+                    .get_line_by_line_index(current_line_index)
+                    .map(|line| {
+                        line.to_string()
+                            .chars()
+                            .take_while(|c| c.is_whitespace())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let line_start = self.buffer().line_to_char(current_line_index)?;
+                let line_end = self.buffer().line_to_char(current_line_index)?
+                    + self
+                        .buffer()
+                        .get_line_by_line_index(current_line_index)
+                        .ok_or_else(|| {
+                            anyhow::anyhow!("Unable to get line by line index {current_line_index}")
+                        })?
+                        .len_chars();
+                let range = match direction {
+                    Direction::Start => (line_start..line_start).into(),
+                    Direction::End => (line_end..line_end).into(),
+                };
+                Ok(ActionGroup::new(
+                    [
+                        Action::Edit(Edit::new(
+                            self.buffer().rope(),
+                            range,
+                            Rope::from_str(&format!("{current_line_indentation}\n")),
+                        )),
+                        Action::Select(selection.clone().set_range({
+                            let start = match direction {
+                                Direction::Start => line_start,
+                                Direction::End => line_end,
+                            } + current_line_indentation.chars().count();
+                            (start..start).into()
+                        })),
+                    ]
+                    .to_vec(),
+                ))
+            })
+            .into_iter()
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        let edit_transaction = EditTransaction::from_action_groups(action_groups);
+        Ok(self
+            .apply_edit_transaction(edit_transaction, context)?
+            .append(Dispatch::ToEditor(EnterInsertMode(Direction::Start))))
+    }
+
     fn open(
         &mut self,
         direction: Direction,
         context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
-        let dispatches = if self.selection_set.mode.is_syntax_node() {
-            Dispatches::default()
-        } else {
-            self.set_selection_mode(IfCurrentNotFound::LookForward, SelectionMode::Line, context)?
-        };
         let edit_transaction = EditTransaction::from_action_groups(
             self.get_selection_set_with_gap(&direction, context)?
                 .into_iter()
@@ -2425,10 +2475,9 @@ impl Editor {
                 .collect_vec(),
         );
 
-        Ok(dispatches.chain(
-            self.apply_edit_transaction(edit_transaction, context)?
-                .append(Dispatch::ToEditor(EnterInsertMode(direction))),
-        ))
+        Ok(self
+            .apply_edit_transaction(edit_transaction, context)?
+            .append(Dispatch::ToEditor(EnterInsertMode(direction))))
     }
 
     pub(crate) fn apply_positional_edits(
@@ -3908,6 +3957,7 @@ pub(crate) enum DispatchEditor {
         kind: SurroundKind,
     },
     Open(Direction),
+    OpenNewLine(Direction),
     ToggleMark,
     EnterNormalMode,
     EnterSwapMode,

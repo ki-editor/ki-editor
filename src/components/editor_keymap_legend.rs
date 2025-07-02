@@ -368,12 +368,6 @@ impl Editor {
                 },
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::OpenP),
-                Direction::Start.format_action("Open"),
-                Direction::Start.format_action("Open"),
-                Dispatch::ShowKeymapLegend(self.open_keymap_legend_config(context)),
-            ),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Undo_),
                 "Undo".to_string(),
                 "Undo".to_string(),
@@ -452,24 +446,34 @@ impl Editor {
             title: "Open".to_string(),
             body: KeymapLegendBody::Positional(Keymaps::new(&[
                 Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                    context.keyboard_layout_kind().get_key(&Meaning::Left_),
                     Direction::Start.format_action("Insert"),
                     Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
                 ),
                 Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Next_),
+                    context.keyboard_layout_kind().get_key(&Meaning::Right),
                     Direction::End.format_action("Insert"),
                     Dispatch::ToEditor(EnterInsertMode(Direction::End)),
                 ),
                 Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Right),
+                    context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                    Direction::Start.format_action("Open"),
+                    Dispatch::ToEditor(Open(Direction::Start)),
+                ),
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::Next_),
                     Direction::End.format_action("Open"),
                     Dispatch::ToEditor(Open(Direction::End)),
                 ),
                 Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Left_),
-                    Direction::Start.format_action("Open"),
-                    Dispatch::ToEditor(Open(Direction::Start)),
+                    context.keyboard_layout_kind().get_key(&Meaning::Up___),
+                    "Open new line above".to_string(),
+                    Dispatch::ToEditor(OpenNewLine(Direction::Start)),
+                ),
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::Down_),
+                    "Open new line below".to_string(),
+                    Dispatch::ToEditor(OpenNewLine(Direction::End)),
                 ),
             ])),
         }
@@ -484,37 +488,37 @@ impl Editor {
             title: "Paste".to_string(),
             body: KeymapLegendBody::Positional(Keymaps::new(&[
                 Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Prev_),
-                    Direction::Start.format_action("Paste without Gap"),
+                    context.keyboard_layout_kind().get_key(&Meaning::Left_),
+                    Direction::Start.format_action("Paste"),
                     Dispatch::ToEditor(DispatchEditor::NewPaste {
                         direction: Direction::Start,
-                        use_system_clipboard,
-                        with_gap: false,
-                    }),
-                ),
-                Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Next_),
-                    Direction::End.format_action("Paste without Gap"),
-                    Dispatch::ToEditor(DispatchEditor::NewPaste {
-                        direction: Direction::End,
                         use_system_clipboard,
                         with_gap: false,
                     }),
                 ),
                 Keymap::new(
                     context.keyboard_layout_kind().get_key(&Meaning::Right),
-                    Direction::End.format_action("Paste with Gap"),
+                    Direction::End.format_action("Paste"),
                     Dispatch::ToEditor(DispatchEditor::NewPaste {
                         direction: Direction::End,
+                        use_system_clipboard,
+                        with_gap: false,
+                    }),
+                ),
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                    Direction::Start.format_action("Paste with Gap"),
+                    Dispatch::ToEditor(DispatchEditor::NewPaste {
+                        direction: Direction::Start,
                         use_system_clipboard,
                         with_gap: true,
                     }),
                 ),
                 Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Left_),
-                    Direction::Start.format_action("Paste with Gap"),
+                    context.keyboard_layout_kind().get_key(&Meaning::Next_),
+                    Direction::End.format_action("Paste with Gap"),
                     Dispatch::ToEditor(DispatchEditor::NewPaste {
-                        direction: Direction::Start,
+                        direction: Direction::End,
                         use_system_clipboard,
                         with_gap: true,
                     }),
@@ -554,20 +558,6 @@ impl Editor {
                 normal_mode_override.delete_backward.as_ref(),
                 none_if_no_override,
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::InstP),
-                Direction::Start.format_action("Insert"),
-                Direction::Start.format_action("Insert"),
-                Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
-            )
-            .override_keymap(normal_mode_override.insert.as_ref(), none_if_no_override),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::InstN),
-                Direction::End.format_action("Insert"),
-                Direction::End.format_action("Insert"),
-                Dispatch::ToEditor(EnterInsertMode(Direction::End)),
-            )
-            .override_keymap(normal_mode_override.append.as_ref(), none_if_no_override),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::OpenN),
                 Direction::End.format_action("Open"),
