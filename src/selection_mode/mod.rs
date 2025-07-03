@@ -724,7 +724,7 @@ pub trait PositionBasedSelectionMode {
         let mut result = Vec::new();
         let mut cursor_char_index = char_index_start;
         let result = loop {
-            match self.get_current_meaningful_selection_by_cursor(
+            match self.get_current_selection_by_cursor(
                 buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
@@ -801,7 +801,7 @@ pub trait PositionBasedSelectionMode {
         &self,
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.get_current_meaningful_selection_by_cursor(
+        self.get_current_selection_by_cursor(
             params.buffer,
             params
                 .current_selection
@@ -823,7 +823,7 @@ pub trait PositionBasedSelectionMode {
         &self,
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.get_current_meaningful_selection_by_cursor(
+        self.get_current_selection_by_cursor(
             params.buffer,
             params.current_selection.range().start - 1,
             IfCurrentNotFound::LookBackward,
@@ -861,7 +861,7 @@ pub trait PositionBasedSelectionMode {
         &self,
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.get_current_selection_by_cursor(
+        self.get_current_meaningful_selection_by_cursor(
             params.buffer,
             params
                 .current_selection
@@ -883,7 +883,7 @@ pub trait PositionBasedSelectionMode {
         &self,
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.get_current_selection_by_cursor(
+        self.get_current_meaningful_selection_by_cursor(
             params.buffer,
             params.current_selection.range().start - 1,
             IfCurrentNotFound::LookBackward,
@@ -1068,11 +1068,9 @@ pub trait PositionBasedSelectionMode {
             )
         };
         loop {
-            if let Some(result) = self.get_current_meaningful_selection_by_cursor(
-                buffer,
-                new_cursor_char_index,
-                first_look,
-            )? {
+            if let Some(result) =
+                self.get_current_selection_by_cursor(buffer, new_cursor_char_index, first_look)?
+            {
                 if buffer.byte_to_line(result.range.start)? == new_position.line {
                     let selection = (*current_selection)
                         .clone()
@@ -1086,11 +1084,9 @@ pub trait PositionBasedSelectionMode {
                 }
             }
 
-            if let Some(result) = self.get_current_meaningful_selection_by_cursor(
-                buffer,
-                new_cursor_char_index,
-                second_look,
-            )? {
+            if let Some(result) =
+                self.get_current_selection_by_cursor(buffer, new_cursor_char_index, second_look)?
+            {
                 if buffer.byte_to_line(result.range.start)? == new_position.line {
                     let selection = (*current_selection)
                         .clone()
@@ -1130,13 +1126,13 @@ pub trait PositionBasedSelectionMode {
         params: &SelectionModeParams,
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let range = self.get_current_meaningful_selection_by_cursor(
+        let range = self.get_current_selection_by_cursor(
             params.buffer,
             params.cursor_char_index(),
             if_current_not_found,
         )?;
         let range = if range.is_none() {
-            self.get_current_meaningful_selection_by_cursor(
+            self.get_current_selection_by_cursor(
                 params.buffer,
                 params.cursor_char_index(),
                 if_current_not_found.inverse(),
@@ -1165,7 +1161,7 @@ pub trait PositionBasedSelectionMode {
         let limit = CharIndex(params.buffer.len_chars());
         let mut current_index: usize = 0;
         while cursor_char_index < limit {
-            if let Some(range) = self.get_current_meaningful_selection_by_cursor(
+            if let Some(range) = self.get_current_selection_by_cursor(
                 params.buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,

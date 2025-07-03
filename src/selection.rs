@@ -490,7 +490,7 @@ impl SelectionMode {
         };
         Ok(match self {
             SelectionMode::Word { skip_symbols } => {
-                Box::new(PositionBased(selection_mode::Word::new(*skip_symbols)))
+                Box::new(PositionBased(selection_mode::Word::new()))
             }
             SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::Line => Box::new(PositionBased(selection_mode::LineTrimmed)),

@@ -45,7 +45,7 @@ fn get_char(
     params: &super::SelectionModeParams,
     position: SelectionPosition,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
-    if let Some(current_word) = PositionBased(Word::new(false)).current(
+    if let Some(current_word) = PositionBased(Word::new()).current(
         params,
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {

@@ -81,80 +81,32 @@ impl IterBasedSelectionMode for SyntaxNode {
         self.select_vertical(params, false)
     }
 
+    fn left(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.navigate_sibling_nodes(params, &Direction::Start, false)
+    }
+
     fn right(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let buffer = params.buffer;
-        let current_selection = params.current_selection;
-        let node = buffer
-            .get_current_node(current_selection, false)?
-            .ok_or(anyhow::anyhow!(
-                "SyntaxNode::iter: Cannot find Treesitter language"
-            ))?;
-        let node = node.next_named_sibling();
-        Ok(node.and_then(|node| {
-            ByteRange::new(node.byte_range())
-                .to_selection(params.buffer, params.current_selection)
-                .ok()
-        }))
-    }
-
-    fn next(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let buffer = params.buffer;
-        let current_selection = params.current_selection;
-        let node = buffer
-            .get_current_node(current_selection, false)?
-            .ok_or(anyhow::anyhow!(
-                "SyntaxNode::iter: Cannot find Treesitter language"
-            ))?;
-        let node = node.next_sibling();
-        Ok(node.and_then(|node| {
-            ByteRange::new(node.byte_range())
-                .to_selection(params.buffer, params.current_selection)
-                .ok()
-        }))
+        self.navigate_sibling_nodes(params, &Direction::End, false)
     }
 
     fn previous(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let buffer = params.buffer;
-        let current_selection = params.current_selection;
-        let node = buffer
-            .get_current_node(current_selection, false)?
-            .ok_or(anyhow::anyhow!(
-                "SyntaxNode::iter: Cannot find Treesitter language"
-            ))?;
-        let node = node.prev_sibling();
-        Ok(node.and_then(|node| {
-            ByteRange::new(node.byte_range())
-                .to_selection(params.buffer, params.current_selection)
-                .ok()
-        }))
+        self.navigate_sibling_nodes(params, &Direction::Start, true)
     }
 
-    fn left(
+    fn next(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let buffer = params.buffer;
-        let current_selection = params.current_selection;
-        let node = buffer
-            .get_current_node(current_selection, false)?
-            .ok_or(anyhow::anyhow!(
-                "SyntaxNode::iter: Cannot find Treesitter language"
-            ))?;
-        let node = node.prev_named_sibling();
-        Ok(node.and_then(|node| {
-            ByteRange::new(node.byte_range())
-                .to_selection(params.buffer, params.current_selection)
-                .ok()
-        }))
+        self.navigate_sibling_nodes(params, &Direction::End, true)
     }
 
     fn all_meaningful_selections<'a>(
@@ -235,6 +187,31 @@ impl IterBasedSelectionMode for SyntaxNode {
 }
 
 impl SyntaxNode {
+    fn navigate_sibling_nodes(
+        &self,
+        params: &super::SelectionModeParams,
+        direction: &Direction,
+        named: bool,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let buffer = params.buffer;
+        let current_selection = params.current_selection;
+        let node = buffer
+            .get_current_node(current_selection, false)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter: Cannot find Treesitter language"
+            ))?;
+        let node = match (named, direction) {
+            (true, Direction::Start) => node.prev_named_sibling(),
+            (true, Direction::End) => node.next_named_sibling(),
+            (false, Direction::Start) => node.prev_sibling(),
+            (false, Direction::End) => node.next_sibling(),
+        };
+        Ok(node.and_then(|node| {
+            ByteRange::new(node.byte_range())
+                .to_selection(params.buffer, params.current_selection)
+                .ok()
+        }))
+    }
     pub(crate) fn select_vertical(
         &self,
         params: &super::SelectionModeParams,

@@ -40,14 +40,14 @@ impl SelectionModeTrait for Token {
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenSymbolOnly.left(params)
+        TokenSkipSymbol.left(params)
     }
 
     fn next(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenSymbolOnly.right(params)
+        TokenSkipSymbol.right(params)
     }
 
     fn delete_backward(
@@ -123,14 +123,14 @@ impl SelectionModeTrait for Token {
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenSkipSymbol.right(params)
+        TokenNoSkipSymbol.right(params)
     }
 
     fn left(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenSkipSymbol.left(params)
+        TokenNoSkipSymbol.left(params)
     }
 
     fn process_paste_gap(

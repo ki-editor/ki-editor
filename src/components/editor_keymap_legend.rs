@@ -467,12 +467,12 @@ impl Editor {
                 ),
                 Keymap::new(
                     context.keyboard_layout_kind().get_key(&Meaning::Up___),
-                    "Open new line above".to_string(),
+                    "Open above".to_string(),
                     Dispatch::ToEditor(OpenNewLine(Direction::Start)),
                 ),
                 Keymap::new(
                     context.keyboard_layout_kind().get_key(&Meaning::Down_),
-                    "Open new line below".to_string(),
+                    "Open below".to_string(),
                     Dispatch::ToEditor(OpenNewLine(Direction::End)),
                 ),
             ])),
@@ -507,7 +507,7 @@ impl Editor {
                 ),
                 Keymap::new(
                     context.keyboard_layout_kind().get_key(&Meaning::Prev_),
-                    Direction::Start.format_action("Paste with Gap"),
+                    Direction::Start.format_action("Gapped Paste"),
                     Dispatch::ToEditor(DispatchEditor::NewPaste {
                         direction: Direction::Start,
                         use_system_clipboard,
@@ -516,7 +516,7 @@ impl Editor {
                 ),
                 Keymap::new(
                     context.keyboard_layout_kind().get_key(&Meaning::Next_),
-                    Direction::End.format_action("Paste with Gap"),
+                    Direction::End.format_action("Gapped Paste"),
                     Dispatch::ToEditor(DispatchEditor::NewPaste {
                         direction: Direction::End,
                         use_system_clipboard,

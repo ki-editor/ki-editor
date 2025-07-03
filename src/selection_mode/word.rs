@@ -1,16 +1,14 @@
 use super::{ByteRange, PositionBasedSelectionMode, SelectionModeTrait, Token};
 use crate::{buffer::Buffer, components::editor::IfCurrentNotFound, selection::CharIndex};
 
-pub struct Word {
-    skip_symbols: bool,
-}
+pub struct Word;
 
 const SUBWORD_REGEX: &str =
     r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z]{2,}|[A-Z][a-z]+|[A-Z]|[a-z]+|[^\w\s]|_|[0-9]+";
 
 impl Word {
-    pub(crate) fn new(skip_symbols: bool) -> Self {
-        Self { skip_symbols }
+    pub(crate) fn new() -> Self {
+        Self
     }
 
     fn get_current_selection(
@@ -225,7 +223,7 @@ mod test_word {
     #[test]
     fn simple_case() {
         let buffer = Buffer::new(None, "snake Case camel");
-        PositionBased(super::Word::new(true)).assert_all_selections(
+        PositionBased(super::Word::new()).assert_all_selections(
             &buffer,
             Selection::default(),
             &[(0..5, "snake"), (6..10, "Case"), (11..16, "camel")],
@@ -238,7 +236,7 @@ mod test_word {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
         );
-        PositionBased(super::Word::new(true)).assert_all_selections(
+        PositionBased(super::Word::new()).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -264,7 +262,7 @@ mod test_word {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
         );
-        PositionBased(super::Word::new(false)).assert_all_selections(
+        PositionBased(super::Word::new()).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -296,7 +294,7 @@ mod test_word {
     #[test]
     fn consecutive_uppercase_letters() {
         let buffer = Buffer::new(None, "XMLParser JSONObject HTMLElement");
-        PositionBased(super::Word::new(true)).assert_all_selections(
+        PositionBased(super::Word::new()).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
