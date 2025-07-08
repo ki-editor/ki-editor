@@ -15,25 +15,25 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchN, WordF, SrchC, MultC, Swap_, /****/ First, Prev_, Up___, Next_, Last,
+        MultC, Token, Next_, Rplc_, Word_, /****/ Copy_, Undo_, InstP, OpenN, PsteN,
     ],
     [
-        Line_, Token, Sytx_, OpenN, Extnd, /****/ DeltN, Left_, Down_, Right, Jump_,
+        InstN, Sytx_, DeltN, Jump_, First, /****/ Left_, Down_, Up___, Right, Line_,
     ],
     [
-        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ _____, Chng_, Expnd, Shrnk, XAchr,
+        Last, Swap_, Chng_, Extnd, Prev_, /****/ _____, Mark_, XAchr, SrchC, SrchN,
     ],
 ];
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SrchP, Word_, Char_, _____, Raise, /****/ Alpha, RplcP, Join_, RplcN, Omega,
+        SSEnd, Char_, LineF, PRplc, _____, /****/ RplcX, Redo_, RplcP, RplcN, _____,
     ],
     [
-        LineF, _____, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
+        _____, FStyx, DeltP, ToIdx, Alpha, /****/ CrsrP, Join_, Break, CrsrN, Trsfm,
     ],
     [
-        Redo_, PRplc, RplcX, PsteP, MarkF, /****/ _____, ChngX, CrsrP, CrsrN, SSEnd,
+        Omega, Raise, ChngX, _____, _____, /****/ _____, MarkF, DeDnt, Indnt, SrchP,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up

@@ -92,18 +92,6 @@ impl Editor {
                 Dispatch::ToEditor(MoveSelection(Movement::Omega)),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Expnd),
-                "Expand".to_string(),
-                "Expand".to_string(),
-                Dispatch::ToEditor(MoveSelection(Movement::Expand)),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Shrnk),
-                "Shrink".to_string(),
-                "Shrink".to_string(),
-                Dispatch::ToEditor(MoveSelection(Movement::Shrink)),
-            ),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Jump_),
                 "Jump".to_string(),
                 "Jump".to_string(),
@@ -242,17 +230,6 @@ impl Editor {
                 Dispatch::ToEditor(SetSelectionMode(
                     self.cursor_direction.reverse().to_if_current_not_found(),
                     Token,
-                )),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::WordF),
-                "Word*".to_string(),
-                "Select Word*".to_string(),
-                Dispatch::ToEditor(SetSelectionMode(
-                    self.cursor_direction.reverse().to_if_current_not_found(),
-                    Word {
-                        skip_symbols: false,
-                    },
                 )),
             ),
             Keymap::new_extended(
@@ -425,6 +402,18 @@ impl Editor {
                 "Dedent".to_string(),
                 "Dedent".to_string(),
                 Dispatch::ToEditor(Dedent),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::InstN),
+                Direction::End.format_action("Insert"),
+                Direction::End.format_action("Insert"),
+                Dispatch::ToEditor(EnterInsertMode(Direction::End)),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::InstP),
+                Direction::Start.format_action("Insert"),
+                Direction::Start.format_action("Insert"),
+                Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
             ),
         ]
         .into_iter()
@@ -607,15 +596,6 @@ impl Editor {
                 format("Change X"),
                 format!("{}{}", "Change Cut", extra),
                 Dispatch::ToEditor(ChangeCut {
-                    use_system_clipboard,
-                }),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::PsteP),
-                format!("{}{}", Direction::Start.format_action("Paste"), extra),
-                format!("{}{}", Direction::Start.format_action("Paste"), extra),
-                Dispatch::ToEditor(Paste {
-                    direction: Direction::Start,
                     use_system_clipboard,
                 }),
             ),
