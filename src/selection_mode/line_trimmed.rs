@@ -149,8 +149,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
         while line_index < buffer.len_lines() {
             if let Some(slice) = buffer.get_line_by_line_index(line_index) {
                 if slice.chars().all(|char| char.is_whitespace()) {
-                    let range = buffer.line_to_char_range(line_index)?;
-                    return Ok(Some(params.current_selection.clone().set_range(range)));
+                    return self.to_index(params, line_index);
                 } else {
                     line_index += 1
                 }
@@ -195,8 +194,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
         let mut line_index = buffer.char_to_line(start_char_index)?;
         while let Some(slice) = buffer.get_line_by_line_index(line_index) {
             if slice.chars().all(|char| char.is_whitespace()) {
-                let range = buffer.line_to_char_range(line_index)?;
-                return Ok(Some(params.current_selection.clone().set_range(range)));
+                return self.to_index(params, line_index);
             } else if line_index == 0 {
                 break;
             } else {
