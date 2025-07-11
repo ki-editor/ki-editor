@@ -7,7 +7,9 @@ use my_proc_macros::key;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    components::editor::RegexHighlightRuleCaptureStyle,
+    components::{
+        editor::RegexHighlightRuleCaptureStyle, editor_keymap_printer::KeymapDisplayOption,
+    },
     context::Context,
     grid::StyleKey,
     rectangle::Rectangle,
@@ -24,7 +26,7 @@ use super::{
 pub(crate) struct KeymapLegend {
     editor: Editor,
     config: KeymapLegendConfig,
-    show_shift_alt_keys: bool,
+    option: KeymapDisplayOption,
     keymap_layout_kind: super::editor_keymap::KeyboardLayoutKind,
 }
 
@@ -48,14 +50,14 @@ impl Keymaps {
         &self,
         keyboard_layout_kind: &KeyboardLayoutKind,
         terminal_width: u16,
-        show_shift_alt_keys: bool,
+        option: &KeymapDisplayOption,
     ) -> String {
         let table = KeymapPrintSection::from_keymaps(
             "".to_string(),
             self,
             keyboard_layout_kind.get_keyboard_layout(),
         )
-        .display(terminal_width, show_shift_alt_keys);
+        .display(terminal_width, option);
 
         format!("Press space to toggle alt/shift keys.\n{table}")
     }
@@ -157,11 +159,11 @@ impl KeymapLegendBody {
         &self,
         keyboard_layout_kind: &KeyboardLayoutKind,
         width: u16,
-        show_shift_alt_keys: bool,
+        option: &KeymapDisplayOption,
     ) -> String {
         match self {
             KeymapLegendBody::Positional(keymaps) => {
-                keymaps.display_positional(keyboard_layout_kind, width, show_shift_alt_keys)
+                keymaps.display_positional(keyboard_layout_kind, width, option)
             }
             KeymapLegendBody::Mnemonic(keymaps) => keymaps.display_mnemonic(0, width as usize),
         }
@@ -180,10 +182,9 @@ impl KeymapLegendConfig {
         &self,
         keyboard_layout_kind: &KeyboardLayoutKind,
         width: u16,
-        show_shift_alt_keys: bool,
+        option: &KeymapDisplayOption,
     ) -> String {
-        self.body
-            .display(keyboard_layout_kind, width, show_shift_alt_keys)
+        self.body.display(keyboard_layout_kind, width, option)
     }
 
     pub(crate) fn keymaps(&self) -> Keymaps {
@@ -384,7 +385,10 @@ impl KeymapLegend {
         KeymapLegend {
             editor,
             config,
-            show_shift_alt_keys: false,
+            option: KeymapDisplayOption {
+                show_alt: false,
+                show_shift: false,
+            },
             keymap_layout_kind: context.keyboard_layout_kind().clone(),
         }
     }
@@ -393,7 +397,7 @@ impl KeymapLegend {
         let content = self.config.display(
             &self.keymap_layout_kind,
             self.editor.rectangle().width,
-            self.show_shift_alt_keys,
+            &self.option,
         );
         self.editor_mut()
             .set_content(&content, context)
@@ -425,7 +429,17 @@ impl Component for KeymapLegend {
             match &event {
                 key!("esc") => self.editor.enter_normal_mode(context),
                 key!("space") => {
-                    self.show_shift_alt_keys = !self.show_shift_alt_keys;
+                    self.option = if !self.option.show_alt {
+                        KeymapDisplayOption {
+                            show_alt: true,
+                            show_shift: true,
+                        }
+                    } else {
+                        KeymapDisplayOption {
+                            show_alt: false,
+                            show_shift: false,
+                        }
+                    };
                     Ok(Default::default())
                 }
                 key!("ctrl+c") => Ok(Dispatches::one(Dispatch::CloseCurrentWindow)),
@@ -513,7 +527,14 @@ mod test_keymap_legend {
         );
         let context = Context::default();
         let actual = keymaps
-            .display_positional(context.keyboard_layout_kind(), 19, false)
+            .display_positional(
+                context.keyboard_layout_kind(),
+                19,
+                &KeymapDisplayOption {
+                    show_alt: false,
+                    show_shift: false,
+                },
+            )
             .to_string();
         let expected = "
 Press space to toggle alt/shift keys.
@@ -529,7 +550,14 @@ Press space to toggle alt/shift keys.
         assert_eq!(actual, expected);
 
         let actual = keymaps
-            .display_positional(context.keyboard_layout_kind(), 19, true)
+            .display_positional(
+                context.keyboard_layout_kind(),
+                19,
+                &KeymapDisplayOption {
+                    show_alt: true,
+                    show_shift: true,
+                },
+            )
             .to_string();
         let expected = "
 Press space to toggle alt/shift keys.
