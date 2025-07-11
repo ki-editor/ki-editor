@@ -174,18 +174,18 @@ Why?
                     content: "camelCase snake_case".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w h h"),
+                    events: keys!("w d d"),
                     expectations: Box::new([CurrentSelectedTexts(&["snake"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
                 },
                 Recipe {
-                    description: "Delete token (backward)",
+                    description: "Delete word (backward)",
                     content: "camelCase snake_case PascalCase".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s l l H H"),
+                    events: keys!("w l l D D"),
                     expectations: Box::new([CurrentSelectedTexts(&["camelCase"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -196,7 +196,7 @@ Why?
                     content: "foo bar spam".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s l l h h"),
+                    events: keys!("w l l d d"),
                     expectations: Box::new([CurrentSelectedTexts(&["foo"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -603,10 +603,10 @@ fn foo() {
             .to_vec(),
         },
         RecipeGroup {
-            filename: "word",
+            filename: "subword",
             recipes: [
                 Recipe {
-                    description: "Word (skip symbols)",
+                    description: "Subword (up/down/left/right)",
                     content: "
 HTTPNetwork 88 kebab-case 
 snake_case 99 PascalCase
@@ -614,19 +614,31 @@ snake_case 99 PascalCase
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("W l l l l l k j j j j j i"),
+                    events: keys!("z l l l l j h h h h h k"),
                     expectations: Box::new([CurrentSelectedTexts(&["HTTP"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
                 },
                 Recipe {
-                    description: "Word: alpha/beta movement",
+                    description: "Subword (next/previous)",
+                    content: "snake_case kebab-case"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("z e e e b b b"),
+                    expectations: Box::new([CurrentSelectedTexts(&["snake"])]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Subword: First/Last movement",
                     content: "hello HTTPNetworkRequestMiddleware world"
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w l . ,"),
+                    events: keys!("z l G g"),
                     expectations: Box::new([CurrentSelectedTexts(&["HTTP"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -636,49 +648,18 @@ snake_case 99 PascalCase
             .to_vec(),
         },
         RecipeGroup {
-            filename: "fine-word",
+            filename: "word",
             recipes: [
                 Recipe {
-                    description: "Fine Word",
+                    description: "Word: Prev/Next skip symbols",
                     content: "
-camelCase , kebab-case snake_case
+camelCase , kebab-case : snake_case 
 "
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w l l l l l j j j j j"),
-                    expectations: Box::new([CurrentSelectedTexts(&["camel"])]),
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-            ]
-            .to_vec(),
-        },
-        RecipeGroup {
-            filename: "token",
-            recipes: [
-                Recipe {
-                    description: "Token: Left/Right skip symbols",
-                    content: "
-camelCase , kebab-case -> snake_case 
-"
-                    .trim(),
-                    file_extension: "md",
-                    prepare_events: &[],
-                    events: keys!("s l l j j"),
+                    events: keys!("w e e b b"),
                     expectations: Box::new([CurrentSelectedTexts(&["camelCase"])]),
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-                Recipe {
-                    description: "Token: Alpha/Beta moves to symbols only",
-                    content: "camelCase , kebab-case -> snake_case".trim(),
-                    file_extension: "md",
-                    prepare_events: &[],
-                    events: keys!("s . . , ,"),
-                    expectations: Box::new([CurrentSelectedTexts(&[","])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
@@ -1792,14 +1773,14 @@ And by opposing end them. To die—to sleep,",
             only: false,
         },
         Recipe {
-            description: "Token movement",
+            description: "Word movement",
             content: "hello-world camelCase snake_case",
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("s l l"),
+            events: keys!("w l l"),
             expectations: Box::new([CurrentSelectedTexts(&["snake_case"])]),
             terminal_height: None,
-            similar_vim_combos: &["W", "E", "B"],
+            similar_vim_combos: &["w", "e", "b"],
             only: false,
         },
         Recipe {

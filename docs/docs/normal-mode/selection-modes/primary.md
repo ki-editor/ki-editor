@@ -116,26 +116,15 @@ Full Line.
 
 Same as [Line](#line), however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.
 
-## `Token`
-
-Token.
+## `Word`
 
 Each unit is a sequence of alphanumeric characters including `-` and `_`.
 
-| Movement   | Symbols | Alphanumeric |
-| ---------- | ------- | ------------ |
-| Left/Right |         | ✓            |
-| Alpha/Beta | ✓       |              |
-| Jump       | ✓       | ✓            |
-| Up/Down    | ✓       | ✓            |
-| Current    | ✓       | ✓            |
+Prev/Next movement skips symbols, while Up/Down/Left/Right movements does not skip symbols.
 
-Left/Right movement skips symbols, while Alpha/Beta movement moves to symbols only.
+This means Prev/Next movements are optimized for navigating alphanumeric tokens,
 
-This means Left/Right movements are optimized for navigating alphanumeric tokens,
-while Alpha/Beta movements are optimized for symbolic tokens, which is useful for navigating sentences.
-
-Why don't Left/Right movements also navigate symbols? Because they would be too slow; it would take a lot of unnecessary keypresses to reach the target.
+Why don't Prev/Next movements also navigate symbols? Because they would be too slow; it would take a lot of unnecessary keypresses to reach the target.
 
 Suppose the following example:
 
@@ -150,38 +139,22 @@ If the current selection is selecting `use`, the following table demonstrates ho
 | Include                            | `crate` `:` `:` `{` `components` `:` `:` `editor` `:` `:` `OpenFile` | 11    |
 | Exclude                            | `crate` `components` `editor` `OpenFile`                             | 4     |
 
-Why do we need the Alpha/Beta movements to navigate symbols? Because sometimes, we just need to move to a symbol.
 
-For example, in the following code, suppose we wanted to add an `&` symbol before `[Color]`.
-
-```rs
-fn apply_style(&self, colors: [Color]);
-```
-
-If there are no movements for Token which navigate to symbols, then we are forced to change the selection mode to either Word or Char, before inserting.
-
-<TutorialFallback filename="token"/>
-
-[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
-[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
-
-## `Word`
-
-This selects word within a token.
-
-For example, `myOatPepperBanana` consists of 4 short words, namely: `my`, `Oat`, `Pepper` and `Banana`.
-
-This is useful for renaming identifiers, especially if we only want to change a single word of the name. [^1]
 
 <TutorialFallback filename="word"/>
 
-## `Word*`
+[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
+[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 
-Fine Word.
+## `Subword`
 
-This is similar to [Word](#word), except that it does not skip symbols.
+This selects subword within a word.
 
-<TutorialFallback filename="fine-word"/>
+For example, `myOatPepperBanana` consists of 4 short subword, namely: `my`, `Oat`, `Pepper` and `Banana`.
+
+This is useful for renaming identifiers, especially if we only want to change a single subword of the name. [^1]
+
+<TutorialFallback filename="subword"/>
 
 ## `Char`
 

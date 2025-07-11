@@ -14,12 +14,16 @@ every [selection modes](./selection-modes/index.md).
 
 There are 9 movements in total:
 
-1. [Left/Right](#--leftright)
-1. [Up/Down](#--updown)
-1. [Alpha/Beta](#--alphabeta)
-1. [Jump](#jump)
-1. [To Index](#index-jump-to-index)
-1. [Current](#current)
+- [Core Movements](#core-movements)
+  - [Intro](#intro)
+  - [Keymap](#keymap)
+    - [`◀` `▶` Left/Right](#--leftright)
+    - [`▲` `▼` Up/Down](#--updown)
+      - [Sticky Column](#sticky-column)
+    - [`◀◀` `▶▶` Alpha/Beta](#--alphabeta)
+    - [`Jump`](#jump)
+    - [`Index` Jump to Index](#index-jump-to-index)
+    - [Current](#current)
 
 ## Keymap
 
@@ -64,14 +68,14 @@ However, since First/Last functionality isn't equally useful across all selectio
 
 This is why the movement was renamed from First/Last to the more generic Alpha/Beta.
 
-| Selection Mode   | Meaning                              |
-| ---------------- | ------------------------------------ |
-| Syntax Node      | First/Last named sibling             |
-| Quickfix         | First/Last item                      |
-| Char             | First/Last char in the current word  |
-| Word             | First/Last word in the current token |
-| Token            | Previous/Next symbolic tokens        |
-| Line & Full Line | First/Last line of the current file  |
+| Selection Mode   | Meaning                                |
+| ---------------- | -------------------------------------- |
+| Syntax Node      | First/Last named sibling               |
+| Quickfix         | First/Last item                        |
+| Char             | First/Last char in the current subword |
+| Subword          | First/Last word in the current word    |
+| Token            | Previous/Next symbolic tokens          |
+| Line & Full Line | First/Last line of the current file    |
 
 ### `Jump`
 

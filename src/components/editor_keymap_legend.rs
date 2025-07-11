@@ -43,6 +43,16 @@ impl Editor {
                 "Right".to_string(),
                 Dispatch::ToEditor(MoveSelection(Right)),
             ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                "Prev".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Previous)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Next_),
+                "Next".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Next)),
+            ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Up___),
                 "▲".to_string(),
@@ -55,17 +65,15 @@ impl Editor {
                 "Down".to_string(),
                 Dispatch::ToEditor(MoveSelection(Down)),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Alpha),
-                "◀◀".to_string(),
-                "Alph".to_string(),
-                Dispatch::ToEditor(MoveSelection(Movement::Alpha)),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::First),
+                "First".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::First)),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Beta_),
-                "▶▶".to_string(),
-                "Beta".to_string(),
-                Dispatch::ToEditor(MoveSelection(Movement::Beta)),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Last_),
+                "Last".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Last)),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Jump_),
@@ -200,32 +208,21 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Token),
-                "Token".to_string(),
-                "Select Token".to_string(),
-                Dispatch::ToEditor(SetSelectionMode(
-                    self.cursor_direction.reverse().to_if_current_not_found(),
-                    Token,
-                )),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::WordF),
-                "Word*".to_string(),
-                "Select Word*".to_string(),
-                Dispatch::ToEditor(SetSelectionMode(
-                    self.cursor_direction.reverse().to_if_current_not_found(),
-                    Word {
-                        skip_symbols: false,
-                    },
-                )),
-            ),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Word_),
                 "Word".to_string(),
                 "Select Word".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(
                     self.cursor_direction.reverse().to_if_current_not_found(),
-                    Word { skip_symbols: true },
+                    Word,
+                )),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::SWord),
+                "Subword".to_string(),
+                "Select Subword".to_string(),
+                Dispatch::ToEditor(SetSelectionMode(
+                    self.cursor_direction.reverse().to_if_current_not_found(),
+                    Subword,
                 )),
             ),
             Keymap::new_extended(
@@ -244,7 +241,7 @@ impl Editor {
     pub(crate) fn keymap_secondary_selection_modes_init(&self, context: &Context) -> Vec<Keymap> {
         [
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::FindP),
+                "[",
                 Direction::Start.format_action("Find"),
                 "Find (Local) - Backward".to_string(),
                 Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
@@ -254,7 +251,7 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::FindN),
+                "]",
                 Direction::End.format_action("Find"),
                 "Find (Local) - Forward".to_string(),
                 Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
@@ -264,7 +261,7 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Globl),
+                "\\",
                 "Global".to_string(),
                 "Find (Global)".to_string(),
                 Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
@@ -332,12 +329,6 @@ impl Editor {
                 },
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::OpenP),
-                Direction::Start.format_action("Open"),
-                Direction::Start.format_action("Open"),
-                Dispatch::ToEditor(Open(Direction::Start)),
-            ),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Undo_),
                 "Undo".to_string(),
                 "Undo".to_string(),
@@ -396,6 +387,18 @@ impl Editor {
                 "Dedent".to_string(),
                 Dispatch::ToEditor(Dedent),
             ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::InstN),
+                Direction::End.format_action("Insert"),
+                Direction::End.format_action("Insert"),
+                Dispatch::ToEditor(EnterInsertMode(Direction::End)),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::InstP),
+                Direction::Start.format_action("Insert"),
+                Direction::Start.format_action("Insert"),
+                Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
+            ),
         ]
         .into_iter()
         .chain(Some(self.search_current_selection_keymap(
@@ -406,6 +409,95 @@ impl Editor {
         .chain(self.keymap_actions_overridable(normal_mode_override, none_if_no_override, context))
         .chain(self.keymap_clipboard_related_actions(false, normal_mode_override.clone(), context))
         .collect_vec()
+    }
+
+    fn open_keymap_legend_config(
+        &self,
+        context: &Context,
+    ) -> super::keymap_legend::KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Open".to_string(),
+            body: KeymapLegendBody::Positional(Keymaps::new(&[
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::Left_),
+                    Direction::Start.format_action("Insert"),
+                    Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
+                ),
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::Right),
+                    Direction::End.format_action("Insert"),
+                    Dispatch::ToEditor(EnterInsertMode(Direction::End)),
+                ),
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                    Direction::Start.format_action("Open"),
+                    Dispatch::ToEditor(Open(Direction::Start)),
+                ),
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::Next_),
+                    Direction::End.format_action("Open"),
+                    Dispatch::ToEditor(Open(Direction::End)),
+                ),
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::Up___),
+                    "Open above".to_string(),
+                    Dispatch::ToEditor(OpenNewLine(Direction::Start)),
+                ),
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::Down_),
+                    "Open below".to_string(),
+                    Dispatch::ToEditor(OpenNewLine(Direction::End)),
+                ),
+            ])),
+        }
+    }
+
+    fn paste_keymap_legend_config(
+        &self,
+        context: &Context,
+        use_system_clipboard: bool,
+    ) -> super::keymap_legend::KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Paste".to_string(),
+            body: KeymapLegendBody::Positional(Keymaps::new(&[
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::Left_),
+                    Direction::Start.format_action("Paste"),
+                    Dispatch::ToEditor(DispatchEditor::NewPaste {
+                        direction: Direction::Start,
+                        use_system_clipboard,
+                        with_gap: false,
+                    }),
+                ),
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::Right),
+                    Direction::End.format_action("Paste"),
+                    Dispatch::ToEditor(DispatchEditor::NewPaste {
+                        direction: Direction::End,
+                        use_system_clipboard,
+                        with_gap: false,
+                    }),
+                ),
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                    Direction::Start.format_action("Gapped Paste"),
+                    Dispatch::ToEditor(DispatchEditor::NewPaste {
+                        direction: Direction::Start,
+                        use_system_clipboard,
+                        with_gap: true,
+                    }),
+                ),
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::Next_),
+                    Direction::End.format_action("Gapped Paste"),
+                    Dispatch::ToEditor(DispatchEditor::NewPaste {
+                        direction: Direction::End,
+                        use_system_clipboard,
+                        with_gap: true,
+                    }),
+                ),
+            ])),
+        }
     }
 
     pub(crate) fn keymap_actions_overridable(
@@ -440,24 +532,16 @@ impl Editor {
                 none_if_no_override,
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::InstP),
-                Direction::Start.format_action("Insert"),
-                Direction::Start.format_action("Insert"),
-                Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
-            )
-            .override_keymap(normal_mode_override.insert.as_ref(), none_if_no_override),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::InstN),
-                Direction::End.format_action("Insert"),
-                Direction::End.format_action("Insert"),
-                Dispatch::ToEditor(EnterInsertMode(Direction::End)),
-            )
-            .override_keymap(normal_mode_override.append.as_ref(), none_if_no_override),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::OpenN),
                 Direction::End.format_action("Open"),
                 Direction::End.format_action("Open"),
-                Dispatch::ToEditor(Open(Direction::End)),
+                Dispatch::ToEditor(DispatchEditor::Open(Direction::End)),
+            )
+            .override_keymap(normal_mode_override.open.as_ref(), none_if_no_override),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::OpenP),
+                Direction::Start.format_action("Open"),
+                Dispatch::ToEditor(DispatchEditor::Open(Direction::Start)),
             )
             .override_keymap(normal_mode_override.open.as_ref(), none_if_no_override),
         ]
@@ -506,15 +590,6 @@ impl Editor {
                 }),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::PsteP),
-                format!("{}{}", Direction::Start.format_action("Paste"), extra),
-                format!("{}{}", Direction::Start.format_action("Paste"), extra),
-                Dispatch::ToEditor(Paste {
-                    direction: Direction::Start,
-                    use_system_clipboard,
-                }),
-            ),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::RplcX),
                 format("Replace X"),
                 format!("{}{}", "Replace Cut", extra),
@@ -552,12 +627,23 @@ impl Editor {
         let extra = if use_system_clipboard { "+ " } else { "" };
         let format = |description: &str| format!("{extra}{description}");
         [
-            Keymap::new_extended(
+            Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::PsteN),
-                format("Paste →"),
-                format!("{}{}", Direction::End.format_action("Paste"), extra),
+                Direction::End.format_action("Paste"),
                 Dispatch::ToEditor(Paste {
                     direction: Direction::End,
+                    use_system_clipboard,
+                }),
+            )
+            .override_keymap(
+                normal_mode_override.paste.clone().as_ref(),
+                none_if_no_override,
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::PsteP),
+                Direction::Start.format_action("Paste"),
+                Dispatch::ToEditor(Paste {
+                    direction: Direction::Start,
                     use_system_clipboard,
                 }),
             )
@@ -1207,18 +1293,11 @@ impl Editor {
                             },
                         ),
                         Keymap::new(
-                            context.keyboard_layout_kind().get_find_keymap(
-                                scope,
-                                &match (scope, if_current_not_found) {
-                                    (Scope::Local, IfCurrentNotFound::LookForward) => {
-                                        Meaning::FindN
-                                    }
-                                    (Scope::Local, IfCurrentNotFound::LookBackward) => {
-                                        Meaning::FindP
-                                    }
-                                    (Scope::Global, _) => Meaning::Globl,
-                                },
-                            ),
+                            match (scope, if_current_not_found) {
+                                (Scope::Local, IfCurrentNotFound::LookForward) => "]",
+                                (Scope::Local, IfCurrentNotFound::LookBackward) => "[",
+                                (Scope::Global, _) => "\\",
+                            },
                             "Repeat".to_string(),
                             Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
                         ),

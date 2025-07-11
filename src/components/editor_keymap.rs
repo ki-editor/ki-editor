@@ -15,25 +15,25 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchN, WordF, SrchC, MultC, Swap_, /****/ FindP, InstP, Up___, InstN, FindN,
+        MultC, Word_, Next_, Rplc_, Swap_, /****/ Copy_, Undo_, InstP, OpenN, PsteN,
     ],
     [
-        Line_, Token, Sytx_, Extnd, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
+        InstN, Sytx_, DeltN, Jump_, First, /****/ Left_, Down_, Up___, Right, Line_,
     ],
     [
-        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ Globl, Chng_, Alpha, Beta_, XAchr,
+        SWord, _____, Chng_, Extnd, Prev_, /****/ _____, Mark_, XAchr, SrchC, SrchN,
     ],
 ];
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SrchP, Word_, Char_, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
+        _____, Trsfm, RplcN, PRplc, Raise, /****/ RplcX, Redo_, _____, OpenP, PsteP,
     ],
     [
-        LineF, _____, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
+        _____, FStyx, DeltP, ToIdx, Last_, /****/ CrsrP, Join_, Break, CrsrN, LineF,
     ],
     [
-        Redo_, PRplc, RplcX, PsteP, MarkF, /****/ _____, ChngX, _____, _____, SSEnd,
+        Char_, _____, ChngX, SSEnd, RplcP, /****/ _____, MarkF, DeDnt, Indnt, SrchP,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -87,7 +87,7 @@ pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ Globl, _____, _____, _____, _____,
+        LImpl, LDefn, LType, LRfrE, Mark_, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
@@ -117,13 +117,13 @@ pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
     [
-        QSave, SaveA, Explr, _____, KeybL, /****/ _____, RevlS, RevlC, RevlM, _____,
+        QSave, SaveA, Explr, _____, KeybL, /****/ _____, _____, _____, _____, _____,
     ],
     [
         Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LCdAc, Pipe_, _____,
     ],
     [
-        UndoT, _____, _____, _____, TSNSx, /****/ _____, LRnme, _____, _____, SHelp,
+        UndoT, _____, LRnme, _____, TSNSx, /****/ _____, RevlS, RevlC, RevlM, SHelp,
     ],
 ];
 
@@ -496,6 +496,10 @@ pub(crate) enum Meaning {
     ChngX,
     /// Change Surround
     Chng_,
+    /// Expand
+    Expnd,
+    /// Shrink
+    Shrnk,
     /// Copy
     Copy_,
     /// Cycle primary select next
@@ -518,8 +522,14 @@ pub(crate) enum Meaning {
     FindN,
     /// Local find backward
     FindP,
+    /// First
+    First,
+    /// Last
+    Last_,
     /// Alpha
     Alpha,
+    /// Omega
+    Omega,
     /// Go back
     GBack,
     /// Go forward
@@ -544,10 +554,12 @@ pub(crate) enum Meaning {
     KilLN,
     /// Kill to line start
     KilLP,
-    /// Beta
-    Beta_,
     /// Left
     Left_,
+    /// Previous
+    Prev_,
+    /// Next
+    Next_,
     /// Line Up
     LineU,
     /// Line Down
@@ -609,7 +621,7 @@ pub(crate) enum Meaning {
     /// GoToIndex
     ToIdx,
     /// Select Token
-    Token,
+    Word_,
     /// Transform
     Trsfm,
     /// Paste (End)
@@ -625,7 +637,7 @@ pub(crate) enum Meaning {
     /// Switch window
     WSwth,
     /// Select Word
-    Word_,
+    SWord,
     /// Select Fine Word
     WordF,
     /// Swap cursor with anchor

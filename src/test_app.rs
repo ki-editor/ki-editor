@@ -737,7 +737,7 @@ fn copy_replace() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(Copy {
                 use_system_clipboard: false,
             }),
@@ -748,7 +748,7 @@ fn copy_replace() -> anyhow::Result<()> {
             }),
             Expect(CurrentComponentContent("fn fn() { let x = 1; }")),
             Expect(CurrentSelectedTexts(&["fn"])),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Right)),
             Editor(ReplaceWithCopiedText {
                 use_system_clipboard: false,
                 cut: false,
@@ -768,7 +768,7 @@ fn cut_replace() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ChangeCut {
                 use_system_clipboard: false,
             }),
@@ -797,11 +797,11 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
-            Editor(MoveSelection(Beta)),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
             Editor(ChangeCut {
                 use_system_clipboard: false,
@@ -830,17 +830,17 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Movement::Right)),
-            Editor(MoveSelection(Movement::Beta)),
-            Editor(MoveSelection(Movement::Beta)),
+            Editor(MoveSelection(Movement::Right)),
+            Editor(MoveSelection(Movement::Right)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
             Editor(Copy {
                 use_system_clipboard: false,
             }),
             Editor(Reset),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["{"])),
             Editor(ReplaceWithCopiedText {
                 use_system_clipboard: false,
@@ -865,11 +865,11 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Movement::Right)),
-            Editor(MoveSelection(Movement::Beta)),
-            Editor(MoveSelection(Movement::Beta)),
+            Editor(MoveSelection(Movement::Last)),
+            Editor(MoveSelection(Movement::Last)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
             Editor(Copy {
                 use_system_clipboard: false,
@@ -911,7 +911,7 @@ fn multi_paste() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["let x = S(spongebob_squarepants);"])),
             Editor(CursorAddToAllSelections),
             Editor(MoveSelection(Movement::Down)),
-            Editor(MoveSelection(Movement::Right)),
+            Editor(MoveSelection(Movement::Next)),
             Expect(CurrentSelectedTexts(&["S(spongebob_squarepants)", "S(b)"])),
             Editor(ChangeCut {
                 use_system_clipboard: false,
@@ -967,7 +967,7 @@ fn signature_help() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Expect(CurrentMode(Mode::Normal)),
             //
             // Signature help should not be shown in normal mode
@@ -1220,24 +1220,14 @@ fn global_marks() -> Result<(), anyhow::Error> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                Word {
-                    skip_symbols: false,
-                },
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(ToggleMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                Word {
-                    skip_symbols: false,
-                },
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(ToggleMark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Mark,
@@ -1828,9 +1818,9 @@ fn same_range_diagnostics_should_be_merged() -> Result<(), anyhow::Error> {
             Expect(EditorInfoContent(expected_info)),
             // Expect there's only one diagnostic, by the fact that moving to the first and
             // last diagnostic still renders the same info
-            Editor(MoveSelection(Alpha)),
+            Editor(MoveSelection(First)),
             Expect(EditorInfoContent(expected_info)),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Last)),
             Expect(EditorInfoContent(expected_info)),
         ])
     })
@@ -2428,7 +2418,7 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,
@@ -2479,7 +2469,7 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,
