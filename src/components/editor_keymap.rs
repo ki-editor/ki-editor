@@ -21,19 +21,19 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         InstN, Sytx_, DeltN, Jump_, First, /****/ Left_, Down_, Up___, Right, Line_,
     ],
     [
-        Last, Swap_, Chng_, Extnd, Prev_, /****/ _____, Mark_, XAchr, SrchC, SrchN,
+        Char_, Swap_, Chng_, Extnd, Prev_, /****/ _____, Mark_, XAchr, SrchC, SrchN,
     ],
 ];
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SSEnd, Char_, LineF, PRplc, _____, /****/ RplcX, Redo_, RplcP, RplcN, _____,
+        _____, _____, RplcN, PRplc, Trsfm, /****/ RplcX, Redo_, _____, OpenP, PsteP,
     ],
     [
-        _____, FStyx, DeltP, ToIdx, Alpha, /****/ CrsrP, Join_, Break, CrsrN, Trsfm,
+        _____, FStyx, DeltP, ToIdx, Last_, /****/ CrsrP, Join_, Break, CrsrN, LineF,
     ],
     [
-        Omega, Raise, ChngX, _____, _____, /****/ _____, MarkF, DeDnt, Indnt, SrchP,
+        _____, Raise, ChngX, SSEnd, RplcP, /****/ _____, MarkF, DeDnt, Indnt, SrchP,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -117,13 +117,13 @@ pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
     [
-        QSave, SaveA, Explr, _____, KeybL, /****/ _____, LRnme, _____, _____, _____,
+        QSave, SaveA, Explr, _____, KeybL, /****/ _____, _____, _____, _____, _____,
     ],
     [
         Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LCdAc, Pipe_, _____,
     ],
     [
-        UndoT, _____, _____, _____, TSNSx, /****/ _____, RevlS, RevlC, RevlM, SHelp,
+        UndoT, _____, LRnme, _____, TSNSx, /****/ _____, RevlS, RevlC, RevlM, SHelp,
     ],
 ];
 
@@ -525,7 +525,7 @@ pub(crate) enum Meaning {
     /// First
     First,
     /// Last
-    Last,
+    Last_,
     /// Alpha
     Alpha,
     /// Omega

@@ -43,15 +43,13 @@ impl Editor {
                 "Right".to_string(),
                 Dispatch::ToEditor(MoveSelection(Right)),
             ),
-            Keymap::new_extended(
+            Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Prev_),
-                "<".to_string(),
                 "Prev".to_string(),
                 Dispatch::ToEditor(MoveSelection(Movement::Previous)),
             ),
-            Keymap::new_extended(
+            Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Next_),
-                ">".to_string(),
                 "Next".to_string(),
                 Dispatch::ToEditor(MoveSelection(Movement::Next)),
             ),
@@ -67,29 +65,15 @@ impl Editor {
                 "Down".to_string(),
                 Dispatch::ToEditor(MoveSelection(Down)),
             ),
-            Keymap::new_extended(
+            Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::First),
-                "◀◀".to_string(),
                 "First".to_string(),
                 Dispatch::ToEditor(MoveSelection(Movement::First)),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Last),
-                "▶▶".to_string(),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Last_),
                 "Last".to_string(),
                 Dispatch::ToEditor(MoveSelection(Movement::Last)),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Alpha),
-                "α".to_string(),
-                "Alpha".to_string(),
-                Dispatch::ToEditor(MoveSelection(Movement::Alpha)),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Omega),
-                "Ω".to_string(),
-                "Omega".to_string(),
-                Dispatch::ToEditor(MoveSelection(Movement::Omega)),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Jump_),
@@ -551,7 +535,13 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::OpenN),
                 Direction::End.format_action("Open"),
                 Direction::End.format_action("Open"),
-                Dispatch::ShowKeymapLegend(self.open_keymap_legend_config(context)),
+                Dispatch::ToEditor(DispatchEditor::Open(Direction::End)),
+            )
+            .override_keymap(normal_mode_override.open.as_ref(), none_if_no_override),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::OpenP),
+                Direction::Start.format_action("Open"),
+                Dispatch::ToEditor(DispatchEditor::Open(Direction::Start)),
             )
             .override_keymap(normal_mode_override.open.as_ref(), none_if_no_override),
         ]
@@ -639,10 +629,23 @@ impl Editor {
         [
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::PsteN),
-                "Paste".to_string(),
-                Dispatch::ShowKeymapLegend(
-                    self.paste_keymap_legend_config(context, use_system_clipboard),
-                ),
+                Direction::End.format_action("Paste"),
+                Dispatch::ToEditor(Paste {
+                    direction: Direction::End,
+                    use_system_clipboard,
+                }),
+            )
+            .override_keymap(
+                normal_mode_override.paste.clone().as_ref(),
+                none_if_no_override,
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::PsteP),
+                Direction::Start.format_action("Paste"),
+                Dispatch::ToEditor(Paste {
+                    direction: Direction::Start,
+                    use_system_clipboard,
+                }),
             )
             .override_keymap(
                 normal_mode_override.paste.clone().as_ref(),
