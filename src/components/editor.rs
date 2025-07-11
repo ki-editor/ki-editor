@@ -854,9 +854,7 @@ impl Editor {
         if use_current_selection_mode {
             self.selection_set.mode.clone()
         } else {
-            SelectionMode::Word {
-                skip_symbols: false,
-            }
+            SelectionMode::Subword
         }
         .to_selection_mode_trait_object(
             &self.buffer(),
@@ -1725,7 +1723,7 @@ impl Editor {
             let dispatches = {
                 use SelectionMode::*;
                 match self.selection_set.mode {
-                    Line | LineFull | Token | Word { .. } => self
+                    Line | LineFull | Word | Subword { .. } => self
                         .move_selection_with_selection_mode_without_global_mode(
                             Movement::Current(IfCurrentNotFound::LookBackward),
                             self.selection_set.mode.clone(),
@@ -2201,11 +2199,9 @@ impl Editor {
                             &self.buffer(),
                             &current_selection.clone().set_range((start..start).into()),
                             &if short {
-                                SelectionMode::Word {
-                                    skip_symbols: false,
-                                }
+                                SelectionMode::Subword
                             } else {
-                                SelectionMode::Token
+                                SelectionMode::Word
                             },
                             &movement.into_movement_applicandum(
                                 self.selection_set.sticky_column_index(),

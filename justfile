@@ -87,9 +87,9 @@ vscode-publish: vscode-package
     
 # Build and install the locally build VS Code extension
 vscode-install:
-    rm ki-vscode/ki-editor-vscode-*.vsix 
+    rm ki-vscode/ki-editor-vscode-*.vsix || true
     cargo build --release 
-    cp target/debug/ki ./ki-vscode/dist/bin/ki-darwin-arm64  
+    cp target/release/ki ./ki-vscode/dist/bin/ki-darwin-arm64  
     cd ki-vscode && npm run package  
     rm -rf ~/.vscode/extensions/ki-editor.ki-editor-vscode-0.0.*/** 
     code --install-extension ki-vscode/ki-editor-vscode-*.vsix 

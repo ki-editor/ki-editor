@@ -15,25 +15,25 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        MultC, Token, Next_, Rplc_, Word_, /****/ Copy_, Undo_, InstP, OpenN, PsteN,
+        MultC, Word_, Next_, Rplc_, Swap_, /****/ Copy_, Undo_, InstP, OpenN, PsteN,
     ],
     [
         InstN, Sytx_, DeltN, Jump_, First, /****/ Left_, Down_, Up___, Right, Line_,
     ],
     [
-        Char_, Swap_, Chng_, Extnd, Prev_, /****/ _____, Mark_, XAchr, SrchC, SrchN,
+        SWord, _____, Chng_, Extnd, Prev_, /****/ _____, Mark_, XAchr, SrchC, SrchN,
     ],
 ];
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        _____, _____, RplcN, PRplc, Trsfm, /****/ RplcX, Redo_, _____, OpenP, PsteP,
+        _____, Trsfm, RplcN, PRplc, Raise, /****/ RplcX, Redo_, _____, OpenP, PsteP,
     ],
     [
         _____, FStyx, DeltP, ToIdx, Last_, /****/ CrsrP, Join_, Break, CrsrN, LineF,
     ],
     [
-        _____, Raise, ChngX, SSEnd, RplcP, /****/ _____, MarkF, DeDnt, Indnt, SrchP,
+        Char_, _____, ChngX, SSEnd, RplcP, /****/ _____, MarkF, DeDnt, Indnt, SrchP,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -621,7 +621,7 @@ pub(crate) enum Meaning {
     /// GoToIndex
     ToIdx,
     /// Select Token
-    Token,
+    Word_,
     /// Transform
     Trsfm,
     /// Paste (End)
@@ -637,7 +637,7 @@ pub(crate) enum Meaning {
     /// Switch window
     WSwth,
     /// Select Word
-    Word_,
+    SWord,
     /// Select Fine Word
     WordF,
     /// Swap cursor with anchor

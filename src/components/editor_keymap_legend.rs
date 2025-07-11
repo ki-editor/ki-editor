@@ -208,21 +208,21 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Token),
-                "Token".to_string(),
-                "Select Token".to_string(),
-                Dispatch::ToEditor(SetSelectionMode(
-                    self.cursor_direction.reverse().to_if_current_not_found(),
-                    Token,
-                )),
-            ),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Word_),
                 "Word".to_string(),
                 "Select Word".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(
                     self.cursor_direction.reverse().to_if_current_not_found(),
-                    Word { skip_symbols: true },
+                    Word,
+                )),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::SWord),
+                "Subword".to_string(),
+                "Select Subword".to_string(),
+                Dispatch::ToEditor(SetSelectionMode(
+                    self.cursor_direction.reverse().to_if_current_not_found(),
+                    Subword,
                 )),
             ),
             Keymap::new_extended(
