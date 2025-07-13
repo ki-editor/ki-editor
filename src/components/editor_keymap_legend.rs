@@ -387,18 +387,6 @@ impl Editor {
                 "Dedent".to_string(),
                 Dispatch::ToEditor(Dedent),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::InstN),
-                Direction::End.format_action("Insert"),
-                Direction::End.format_action("Insert"),
-                Dispatch::ToEditor(EnterInsertMode(Direction::End)),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::InstP),
-                Direction::Start.format_action("Insert"),
-                Direction::Start.format_action("Insert"),
-                Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
-            ),
         ]
         .into_iter()
         .chain(Some(self.search_current_selection_keymap(
@@ -409,95 +397,6 @@ impl Editor {
         .chain(self.keymap_actions_overridable(normal_mode_override, none_if_no_override, context))
         .chain(self.keymap_clipboard_related_actions(false, normal_mode_override.clone(), context))
         .collect_vec()
-    }
-
-    fn open_keymap_legend_config(
-        &self,
-        context: &Context,
-    ) -> super::keymap_legend::KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Open".to_string(),
-            body: KeymapLegendBody::Positional(Keymaps::new(&[
-                Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Left_),
-                    Direction::Start.format_action("Insert"),
-                    Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
-                ),
-                Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Right),
-                    Direction::End.format_action("Insert"),
-                    Dispatch::ToEditor(EnterInsertMode(Direction::End)),
-                ),
-                Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Prev_),
-                    Direction::Start.format_action("Open"),
-                    Dispatch::ToEditor(Open(Direction::Start)),
-                ),
-                Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Next_),
-                    Direction::End.format_action("Open"),
-                    Dispatch::ToEditor(Open(Direction::End)),
-                ),
-                Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Up___),
-                    "Open above".to_string(),
-                    Dispatch::ToEditor(OpenNewLine(Direction::Start)),
-                ),
-                Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Down_),
-                    "Open below".to_string(),
-                    Dispatch::ToEditor(OpenNewLine(Direction::End)),
-                ),
-            ])),
-        }
-    }
-
-    fn paste_keymap_legend_config(
-        &self,
-        context: &Context,
-        use_system_clipboard: bool,
-    ) -> super::keymap_legend::KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Paste".to_string(),
-            body: KeymapLegendBody::Positional(Keymaps::new(&[
-                Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Left_),
-                    Direction::Start.format_action("Paste"),
-                    Dispatch::ToEditor(DispatchEditor::NewPaste {
-                        direction: Direction::Start,
-                        use_system_clipboard,
-                        with_gap: false,
-                    }),
-                ),
-                Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Right),
-                    Direction::End.format_action("Paste"),
-                    Dispatch::ToEditor(DispatchEditor::NewPaste {
-                        direction: Direction::End,
-                        use_system_clipboard,
-                        with_gap: false,
-                    }),
-                ),
-                Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Prev_),
-                    Direction::Start.format_action("Gapped Paste"),
-                    Dispatch::ToEditor(DispatchEditor::NewPaste {
-                        direction: Direction::Start,
-                        use_system_clipboard,
-                        with_gap: true,
-                    }),
-                ),
-                Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::Next_),
-                    Direction::End.format_action("Gapped Paste"),
-                    Dispatch::ToEditor(DispatchEditor::NewPaste {
-                        direction: Direction::End,
-                        use_system_clipboard,
-                        with_gap: true,
-                    }),
-                ),
-            ])),
-        }
     }
 
     pub(crate) fn keymap_actions_overridable(
@@ -544,6 +443,20 @@ impl Editor {
                 Dispatch::ToEditor(DispatchEditor::Open(Direction::Start)),
             )
             .override_keymap(normal_mode_override.open.as_ref(), none_if_no_override),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::InstN),
+                Direction::End.format_action("Insert"),
+                Direction::End.format_action("Insert"),
+                Dispatch::ToEditor(EnterInsertMode(Direction::End)),
+            )
+            .override_keymap(normal_mode_override.append.as_ref(), none_if_no_override),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::InstP),
+                Direction::Start.format_action("Insert"),
+                Direction::Start.format_action("Insert"),
+                Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
+            )
+            .override_keymap(normal_mode_override.insert.as_ref(), none_if_no_override),
         ]
         .into_iter()
         .flatten()
@@ -1681,7 +1594,7 @@ pub(crate) fn multicursor_mode_normal_mode_override() -> NormalModeOverride {
             description: "Remove Match",
             dispatch: Dispatch::OpenFilterSelectionsPrompt { maintain: false },
         }),
-        change: Some(KeymapOverride {
+        open: Some(KeymapOverride {
             description: "Keep Prime Curs",
             dispatch: Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
         }),

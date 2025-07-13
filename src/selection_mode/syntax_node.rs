@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use crate::{components::editor::Direction, selection_mode::ApplyMovementResult};
 
-use super::{ByteRange, IterBasedSelectionMode, SyntaxToken, TopNode};
+use super::{ByteRange, IterBasedSelectionMode, TopNode};
 
 pub(crate) struct SyntaxNode {
     /// If this is true:
