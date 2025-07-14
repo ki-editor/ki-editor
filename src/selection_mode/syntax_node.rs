@@ -58,13 +58,6 @@ impl IterBasedSelectionMode for SyntaxNode {
         self.select_vertical(params, true)
     }
 
-    fn shrink(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.select_vertical(params, false)
-    }
-
     fn up(
         &self,
         params: &super::SelectionModeParams,

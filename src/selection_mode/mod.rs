@@ -32,7 +32,6 @@ use position_pair::ParsedChar;
 use std::ops::Range;
 pub(crate) use subword::Subword;
 pub(crate) use syntax_node::SyntaxNode;
-pub(crate) use syntax_token::SyntaxToken;
 pub(crate) use top_node::TopNode;
 pub(crate) use word::Word;
 
@@ -408,10 +407,6 @@ impl<T: PositionBasedSelectionMode> SelectionModeTrait for PositionBased<T> {
     fn omega(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.0.omega(params)
     }
-
-    fn shrink(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.0.shrink(params)
-    }
 }
 
 pub trait SelectionModeTrait {
@@ -462,17 +457,12 @@ pub trait SelectionModeTrait {
             MovementApplicandum::Expand => self.expand(params),
             MovementApplicandum::DeleteBackward => convert(self.delete_backward(params)),
             MovementApplicandum::DeleteForward => convert(self.delete_forward(params)),
-            MovementApplicandum::Alpha => convert(self.alpha(params)),
-            MovementApplicandum::Omega => convert(self.omega(params)),
             MovementApplicandum::Next => convert(self.next(params)),
             MovementApplicandum::Previous => convert(self.previous(params)),
-            MovementApplicandum::Shrink => self.shrink(params),
         }
     }
 
     fn expand(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>>;
-
-    fn shrink(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>>;
 
     fn up(
         &self,
@@ -989,10 +979,6 @@ pub trait PositionBasedSelectionMode {
         params.expand()
     }
 
-    fn shrink(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
-        Ok(None)
-    }
-
     fn up(
         &self,
         params: &SelectionModeParams,
@@ -1248,10 +1234,6 @@ impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
             .selections_in_line_number_ranges(params, line_number_ranges)
     }
 
-    fn shrink(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.0.shrink(params)
-    }
-
     fn next(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.0.next(params)
     }
@@ -1378,10 +1360,6 @@ pub(crate) trait IterBasedSelectionMode {
         params: &SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         self.iter_filtered(params)
-    }
-
-    fn shrink(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
-        Ok(None)
     }
 
     fn expand(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {

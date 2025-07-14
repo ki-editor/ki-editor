@@ -170,13 +170,6 @@ impl SelectionModeTrait for Word {
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         Ok(None)
     }
-
-    fn shrink(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        Ok(None)
-    }
 }
 
 pub(crate) fn process_paste_gap(prev_gap: Option<String>, next_gap: Option<String>) -> String {

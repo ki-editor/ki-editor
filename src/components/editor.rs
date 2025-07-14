@@ -9,10 +9,7 @@ use super::{
 use crate::{
     app::{Dimension, Dispatch, ToHostApp},
     buffer::Buffer,
-    components::{
-        component::Component,
-        keymap_legend::{KeymapLegendBody, KeymapLegendConfig},
-    },
+    components::component::Component,
     context::LocalSearchConfig,
     edit::{Action, ActionGroup, Edit, EditTransaction},
     list::grep::RegexConfig,
@@ -525,11 +522,8 @@ pub(crate) enum Movement {
     Expand,
     DeleteBackward,
     DeleteForward,
-    Alpha,
-    Omega,
     Previous,
     Next,
-    Shrink,
 }
 impl Movement {
     pub(crate) fn into_movement_applicandum(
@@ -553,13 +547,10 @@ impl Movement {
             Movement::Index(index) => MovementApplicandum::Index(index),
             Movement::Jump(chars) => MovementApplicandum::Jump(chars),
             Movement::Expand => MovementApplicandum::Expand,
-            Movement::Shrink => MovementApplicandum::Shrink,
-            Movement::DeleteBackward => MovementApplicandum::DeleteBackward,
             Movement::DeleteForward => MovementApplicandum::DeleteForward,
-            Movement::Alpha => MovementApplicandum::Alpha,
-            Movement::Omega => MovementApplicandum::Omega,
             Movement::Previous => MovementApplicandum::Previous,
             Movement::Next => MovementApplicandum::Next,
+            Movement::DeleteBackward => MovementApplicandum::DeleteBackward,
         }
     }
 }
@@ -585,11 +576,8 @@ pub(crate) enum MovementApplicandum {
     Expand,
     DeleteBackward,
     DeleteForward,
-    Alpha,
-    Omega,
     Next,
     Previous,
-    Shrink,
 }
 
 impl Editor {
