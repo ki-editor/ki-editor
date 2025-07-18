@@ -36,14 +36,14 @@ fn find_word_end(
 }
 
 impl SelectionModeTrait for Word {
-    fn previous(
+    fn left(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         TokenSkipSymbol.left(params)
     }
 
-    fn next(
+    fn right(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
@@ -119,14 +119,14 @@ impl SelectionModeTrait for Word {
         TokenNoSkipSymbol.to_index(params, index)
     }
 
-    fn right(
+    fn next(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         TokenNoSkipSymbol.right(params)
     }
 
-    fn left(
+    fn previous(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
@@ -303,7 +303,7 @@ fn get_current_token_by_cursor(
 }
 
 #[cfg(test)]
-mod test_token {
+mod test_word {
     use crate::buffer::BufferOwner;
     use crate::components::editor::Direction;
     use crate::selection::SelectionMode;

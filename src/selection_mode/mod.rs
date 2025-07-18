@@ -791,7 +791,7 @@ pub trait PositionBasedSelectionMode {
         &self,
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.get_current_selection_by_cursor(
+        self.get_current_meaningful_selection_by_cursor(
             params.buffer,
             params
                 .current_selection
@@ -813,7 +813,7 @@ pub trait PositionBasedSelectionMode {
         &self,
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.get_current_selection_by_cursor(
+        self.get_current_meaningful_selection_by_cursor(
             params.buffer,
             params.current_selection.range().start - 1,
             IfCurrentNotFound::LookBackward,
@@ -851,7 +851,7 @@ pub trait PositionBasedSelectionMode {
         &self,
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.get_current_meaningful_selection_by_cursor(
+        self.get_current_selection_by_cursor(
             params.buffer,
             params
                 .current_selection
@@ -873,7 +873,7 @@ pub trait PositionBasedSelectionMode {
         &self,
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.get_current_meaningful_selection_by_cursor(
+        self.get_current_selection_by_cursor(
             params.buffer,
             params.current_selection.range().start - 1,
             IfCurrentNotFound::LookBackward,

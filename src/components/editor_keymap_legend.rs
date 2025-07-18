@@ -45,7 +45,7 @@ impl Editor {
             ),
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Prev_),
-                "Prev".to_string(),
+                "Previous".to_string(),
                 Dispatch::ToEditor(MoveSelection(Movement::Previous)),
             ),
             Keymap::new(

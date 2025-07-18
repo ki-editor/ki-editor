@@ -2003,7 +2003,7 @@ impl Editor {
                         };
                         let first = selection_mode.first(&params).ok()??.range();
                         // Find the before current selection
-                        let before_current = selection_mode.left(&params).ok()??.range();
+                        let before_current = selection_mode.previous(&params).ok()??.range();
                         let first_range = current_selection.range();
                         let second_range: CharIndexRange =
                             (first.start()..before_current.end()).into();
@@ -2052,7 +2052,7 @@ impl Editor {
                         // Select from the first until before current
                         let last = selection_mode.last(&params).ok()??.range();
                         // Find the before current selection
-                        let after_current = selection_mode.right(&params).ok()??.range();
+                        let after_current = selection_mode.next(&params).ok()??.range();
                         let first_range = current_selection.range();
                         let second_range: CharIndexRange =
                             (after_current.start()..last.end()).into();
@@ -2090,10 +2090,10 @@ impl Editor {
         };
         match movement {
             MovementApplicandum::First => {
-                while let Ok(true) = add_selection(&MovementApplicandum::Left) {}
+                while let Ok(true) = add_selection(&MovementApplicandum::Previous) {}
             }
             MovementApplicandum::Last => {
-                while let Ok(true) = add_selection(&MovementApplicandum::Right) {}
+                while let Ok(true) = add_selection(&MovementApplicandum::Next) {}
             }
             other_movement => {
                 add_selection(other_movement)?;

@@ -212,7 +212,7 @@ impl PositionBasedSelectionMode for Subword {
 }
 
 #[cfg(test)]
-mod test_word {
+mod test_subword {
     use super::*;
     use crate::buffer::BufferOwner;
     use crate::components::editor::Direction;

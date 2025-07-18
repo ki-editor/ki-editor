@@ -78,28 +78,28 @@ impl IterBasedSelectionMode for SyntaxNode {
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.navigate_sibling_nodes(params, &Direction::Start, false)
+        self.navigate_sibling_nodes(params, &Direction::Start, true)
     }
 
     fn right(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.navigate_sibling_nodes(params, &Direction::End, false)
+        self.navigate_sibling_nodes(params, &Direction::End, true)
     }
 
     fn previous(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.navigate_sibling_nodes(params, &Direction::Start, true)
+        self.navigate_sibling_nodes(params, &Direction::Start, false)
     }
 
     fn next(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.navigate_sibling_nodes(params, &Direction::End, true)
+        self.navigate_sibling_nodes(params, &Direction::End, false)
     }
 
     fn all_meaningful_selections<'a>(
@@ -176,6 +176,20 @@ impl IterBasedSelectionMode for SyntaxNode {
                 }
             }
         }
+    }
+
+    fn delete_backward(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.previous(params)
+    }
+
+    fn delete_forward(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.next(params)
     }
 }
 
@@ -397,7 +411,7 @@ fn main() {
                         IfCurrentNotFound::LookForward,
                         SelectionMode::SyntaxNode,
                     )),
-                    Editor(MoveSelection(Right)),
+                    Editor(MoveSelection(Next)),
                     Editor(Copy {
                         use_system_clipboard: false,
                     }),
