@@ -696,7 +696,7 @@ mod test_suggestive_editor {
                 Editor(SetContent("foo bar spam".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
-                    crate::selection::SelectionMode::Subword,
+                    crate::selection::SelectionMode::Word,
                 )),
                 Editor(CursorAddToAllSelections),
                 Editor(EnterInsertMode(Direction::End)),

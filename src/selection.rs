@@ -420,7 +420,7 @@ impl SelectionSet {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) enum SelectionMode {
     // Regex
-    Subword,
+    Word,
     Token,
     Line,
     Character,
@@ -469,7 +469,7 @@ impl SelectionMode {
             SelectionMode::GitHunk(diff_mode) => format!("HUNK{}", diff_mode.display()).to_string(),
             SelectionMode::Mark => "MARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
-            SelectionMode::Subword => "SUBWORD".to_string(),
+            SelectionMode::Word => "SUBWORD".to_string(),
             SelectionMode::Token => "WORD".to_string(),
         }
     }
@@ -487,7 +487,7 @@ impl SelectionMode {
             cursor_direction,
         };
         Ok(match self {
-            SelectionMode::Subword => Box::new(PositionBased(selection_mode::Word::new())),
+            SelectionMode::Word => Box::new(PositionBased(selection_mode::Word::new())),
             SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::Line => Box::new(PositionBased(selection_mode::LineTrimmed)),
             SelectionMode::LineFull => Box::new(PositionBased(selection_mode::LineFull::new())),
@@ -528,7 +528,7 @@ impl SelectionMode {
     pub(crate) fn is_contiguous(&self) -> bool {
         matches!(
             self,
-            SelectionMode::Subword { .. }
+            SelectionMode::Word { .. }
                 | SelectionMode::Token { .. }
                 | SelectionMode::Line
                 | SelectionMode::LineFull

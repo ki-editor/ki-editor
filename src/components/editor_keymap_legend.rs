@@ -222,7 +222,7 @@ impl Editor {
                 "Select Subword".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(
                     self.cursor_direction.reverse().to_if_current_not_found(),
-                    Subword,
+                    Word,
                 )),
             ),
             Keymap::new_extended(

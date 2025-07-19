@@ -320,7 +320,7 @@ mod test_subword {
                 Editor(SetContent("".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
-                    crate::selection::SelectionMode::Subword,
+                    crate::selection::SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&[""])),
                 Editor(MoveSelection(Down)),
@@ -344,7 +344,7 @@ mod test_subword {
                     Editor(SetContent("foo bar\nspam".to_string())),
                     Editor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
-                        SelectionMode::Subword,
+                        SelectionMode::Word,
                     )),
                     Editor(MoveSelection(Right)),
                     Expect(CurrentSelectedTexts(&["bar"])),
