@@ -421,7 +421,7 @@ impl SelectionSet {
 pub(crate) enum SelectionMode {
     // Regex
     Subword,
-    Word,
+    Token,
     Line,
     Character,
     Custom,
@@ -470,7 +470,7 @@ impl SelectionMode {
             SelectionMode::Mark => "MARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
             SelectionMode::Subword => "SUBWORD".to_string(),
-            SelectionMode::Word => "WORD".to_string(),
+            SelectionMode::Token => "WORD".to_string(),
         }
     }
 
@@ -487,8 +487,8 @@ impl SelectionMode {
             cursor_direction,
         };
         Ok(match self {
-            SelectionMode::Subword => Box::new(PositionBased(selection_mode::Subword::new())),
-            SelectionMode::Word => Box::new(selection_mode::Word),
+            SelectionMode::Subword => Box::new(PositionBased(selection_mode::Word::new())),
+            SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::Line => Box::new(PositionBased(selection_mode::LineTrimmed)),
             SelectionMode::LineFull => Box::new(PositionBased(selection_mode::LineFull::new())),
             SelectionMode::Character => Box::new(PositionBased(selection_mode::Character)),
@@ -529,7 +529,7 @@ impl SelectionMode {
         matches!(
             self,
             SelectionMode::Subword { .. }
-                | SelectionMode::Word { .. }
+                | SelectionMode::Token { .. }
                 | SelectionMode::Line
                 | SelectionMode::LineFull
                 | SelectionMode::Character

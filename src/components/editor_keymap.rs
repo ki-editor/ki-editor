@@ -15,10 +15,10 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchN, SWord, SrchC, MultC, Swap_, /****/ InstP, Prev_, Up___, Next_, InstN,
+        SrchN, Word_, SrchC, MultC, Swap_, /****/ InstP, Prev_, Up___, Next_, InstN,
     ],
     [
-        Line_, Word_, Sytx_, Extnd, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
+        Line_, Token, Sytx_, Extnd, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
     ],
     [
         Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ _____, Chng_, First, Last_, XAchr,
@@ -695,7 +695,7 @@ pub(crate) enum Meaning {
     /// GoToIndex
     ToIdx,
     /// Select Token
-    Word_,
+    Token,
     /// Transform
     Trsfm,
     /// Paste (End)
@@ -711,7 +711,7 @@ pub(crate) enum Meaning {
     /// Switch window
     WSwth,
     /// Select Word
-    SWord,
+    Word_,
     /// Select Fine Word
     WordF,
     /// Swap cursor with anchor

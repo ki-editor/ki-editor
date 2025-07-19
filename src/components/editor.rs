@@ -1711,7 +1711,7 @@ impl Editor {
             let dispatches = {
                 use SelectionMode::*;
                 match self.selection_set.mode {
-                    Line | LineFull | Word | Subword { .. } => self
+                    Line | LineFull | Token | Subword { .. } => self
                         .move_selection_with_selection_mode_without_global_mode(
                             Movement::Current(IfCurrentNotFound::LookBackward),
                             self.selection_set.mode.clone(),
@@ -2003,7 +2003,7 @@ impl Editor {
                         };
                         let first = selection_mode.first(&params).ok()??.range();
                         // Find the before current selection
-                        let before_current = selection_mode.previous(&params).ok()??.range();
+                        let before_current = selection_mode.left(&params).ok()??.range();
                         let first_range = current_selection.range();
                         let second_range: CharIndexRange =
                             (first.start()..before_current.end()).into();
@@ -2052,7 +2052,7 @@ impl Editor {
                         // Select from the first until before current
                         let last = selection_mode.last(&params).ok()??.range();
                         // Find the before current selection
-                        let after_current = selection_mode.next(&params).ok()??.range();
+                        let after_current = selection_mode.right(&params).ok()??.range();
                         let first_range = current_selection.range();
                         let second_range: CharIndexRange =
                             (after_current.start()..last.end()).into();
@@ -2090,10 +2090,10 @@ impl Editor {
         };
         match movement {
             MovementApplicandum::First => {
-                while let Ok(true) = add_selection(&MovementApplicandum::Previous) {}
+                while let Ok(true) = add_selection(&MovementApplicandum::Left) {}
             }
             MovementApplicandum::Last => {
-                while let Ok(true) = add_selection(&MovementApplicandum::Next) {}
+                while let Ok(true) = add_selection(&MovementApplicandum::Right) {}
             }
             other_movement => {
                 add_selection(other_movement)?;
@@ -2189,7 +2189,7 @@ impl Editor {
                             &if short {
                                 SelectionMode::Subword
                             } else {
-                                SelectionMode::Word
+                                SelectionMode::Token
                             },
                             &movement.into_movement_applicandum(
                                 self.selection_set.sticky_column_index(),

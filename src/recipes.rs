@@ -1359,7 +1359,7 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     .trim(),
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("/ p r i n t enter q q s d"),
+                    events: keys!("/ p r i n t enter r r d h"),
                     expectations: Box::new([]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -1392,7 +1392,7 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     file_extension: "md",
                     prepare_events: &[],
                     events: keys!(
-                        "/ r / ^ - space backslash [ space backslash ] enter q q s y d ; G p a backspace"
+                        "q r / ^ - space backslash [ space backslash ] enter r r d c h a . v p backspace"
                     ),
                     expectations: Box::new([CurrentComponentContent(r#"# Fake To-Do List
 
@@ -1447,7 +1447,7 @@ pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> 
                     file_extension: "rs",
                     prepare_events: &[],
                     events: keys!(
-                        "/ y x enter s q q j l v o j esc i S o m e esc s j l j T q o"
+                        "q y x enter d r r k l f p j esc y S o m e esc d k l k T r g"
                     ),
                     expectations: Box::new([]),
                     terminal_height: None,
@@ -1672,7 +1672,7 @@ fn main() {
                 .trim(),
                 file_extension: "rs",
                 prepare_events: &[],
-                events: keys!("s , ,"),
+                events: keys!("d / /"),
                 expectations: Box::new([EditorCursorPosition(Position { line: 0, column: 0 })]),
                 terminal_height: Some(5),
                 similar_vim_combos: &[],
@@ -1683,7 +1683,7 @@ fn main() {
                 content: "foo bar spam baz()".trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("; , w"),
+                events: keys!("a / s"),
                 expectations: Box::new([CurrentSelectedTexts(&[")"])]),
                 terminal_height: None,
                 similar_vim_combos: &[],

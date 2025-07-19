@@ -177,20 +177,6 @@ impl IterBasedSelectionMode for SyntaxNode {
             }
         }
     }
-
-    fn delete_backward(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.previous(params)
-    }
-
-    fn delete_forward(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.next(params)
-    }
 }
 
 impl SyntaxNode {
