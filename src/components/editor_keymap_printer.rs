@@ -134,8 +134,8 @@ impl KeymapPrintSection {
                 5,
                 Cell::new(
                     [
-                        option.show_alt.then(|| "⌥\n").unwrap_or(""),
-                        option.show_shift.then(|| "⇧\n").unwrap_or(""),
+                        if option.show_alt { "⌥\n" } else { "" },
+                        if option.show_shift { "⇧\n" } else { "" },
                         "∅",
                     ]
                     .join(""),
