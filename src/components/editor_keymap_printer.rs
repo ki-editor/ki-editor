@@ -22,6 +22,7 @@ use comfy_table::{
     Table,
     Width::{self, Fixed},
 };
+use itertools::Itertools;
 
 #[derive(Debug, Clone)]
 pub(crate) struct KeymapPrintSection {
@@ -35,34 +36,45 @@ pub(crate) struct Key {
     pub(crate) shifted: Option<Keymap>,
     pub(crate) alted: Option<Keymap>,
 }
+
+pub(crate) struct KeymapDisplayOption {
+    pub(crate) show_alt: bool,
+    pub(crate) show_shift: bool,
+}
+
 impl Key {
     fn has_content(&self) -> bool {
         self.normal.is_some() || self.shifted.is_some() || self.alted.is_some()
     }
 
-    fn display(&self, show_shift_alt_keys: bool) -> String {
-        if show_shift_alt_keys {
-            [
-                self.alted
-                    .as_ref()
-                    .map(|key| key.display())
-                    .unwrap_or_default(),
-                self.shifted
-                    .as_ref()
-                    .map(|key| key.display())
-                    .unwrap_or_default(),
+    fn display(&self, option: &KeymapDisplayOption) -> String {
+        [].into_iter()
+            .chain(option.show_alt.then(|| {
+                format!(
+                    "{}\n",
+                    self.alted
+                        .as_ref()
+                        .map(|key| key.display())
+                        .unwrap_or_default()
+                )
+            }))
+            .chain(option.show_shift.then(|| {
+                format!(
+                    "{}\n",
+                    self.shifted
+                        .as_ref()
+                        .map(|key| key.display())
+                        .unwrap_or_default()
+                )
+            }))
+            .chain(Some(
                 self.normal
                     .as_ref()
                     .map(|key| key.display())
                     .unwrap_or_default(),
-            ]
-            .join("\n")
-        } else {
-            self.normal
-                .as_ref()
-                .map(|key| key.display())
-                .unwrap_or_default()
-        }
+            ))
+            .collect_vec()
+            .join("")
     }
 }
 
@@ -106,25 +118,28 @@ impl KeymapPrintSection {
             .any(|keys| keys.iter().any(|key| key.has_content()))
     }
 
-    pub(crate) fn display(&self, terminal_width: u16, show_shift_alt_keys: bool) -> String {
+    pub(crate) fn display(&self, terminal_width: u16, option: &KeymapDisplayOption) -> String {
         let max_column_width = terminal_width / 11;
         let mut table = Table::new();
         let table_rows = self.keys.iter().map(|row| {
             let mut cols: Vec<Cell> = row
                 .iter()
                 .map(|key| {
-                    let display = key.display(show_shift_alt_keys);
+                    let display = key.display(option);
                     Cell::new(display).set_alignment(CellAlignment::Center)
                 })
                 .collect();
 
             cols.insert(
                 5,
-                Cell::new(if show_shift_alt_keys {
-                    "⌥\n⇧\n∅"
-                } else {
-                    "∅"
-                }),
+                Cell::new(
+                    [
+                        if option.show_alt { "⌥\n" } else { "" },
+                        if option.show_shift { "⇧\n" } else { "" },
+                        "∅",
+                    ]
+                    .join(""),
+                ),
             );
 
             cols
@@ -136,7 +151,7 @@ impl KeymapPrintSection {
                 .iter()
                 .filter_map(|row| row.get(column_index))
                 .map(|key| {
-                    key.display(show_shift_alt_keys)
+                    key.display(option)
                         .lines()
                         .map(|line| line.chars().count())
                         .max()
@@ -344,7 +359,10 @@ fn print_single_keymap_table(keymap: &KeymapPrintSection) {
         crossterm::terminal::size()
             .map(|(terminal_width, _)| terminal_width / 11)
             .unwrap_or(8),
-        true,
+        &KeymapDisplayOption {
+            show_alt: true,
+            show_shift: true,
+        },
     );
 
     println!("{}", table);
@@ -381,7 +399,15 @@ fn print_keymap_drawer(section: &KeymapPrintSection) {
 
     println!("  {}:", safe_name);
     for row in section.keys.iter() {
-        let row_strings: Vec<String> = row.iter().map(|key| key.display(true)).collect();
+        let row_strings: Vec<String> = row
+            .iter()
+            .map(|key| {
+                key.display(&KeymapDisplayOption {
+                    show_alt: true,
+                    show_shift: true,
+                })
+            })
+            .collect();
 
         println!("    - [\"{}\"]", row_strings.join("\", \""));
     }
