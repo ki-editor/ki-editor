@@ -888,11 +888,11 @@ pub trait PositionBasedSelectionMode {
     }
 
     fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.right(params)
+        self.next(params)
     }
 
     fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.left(params)
+        self.previous(params)
     }
 
     fn revealed_selections<'a>(
@@ -1644,11 +1644,11 @@ pub(crate) trait IterBasedSelectionMode {
             .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
     }
     fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.right(params)
+        self.next(params)
     }
 
     fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.left(params)
+        self.previous(params)
     }
 
     /// This uses `all_selections` instead of `iter_filtered`.
