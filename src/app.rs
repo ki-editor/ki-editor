@@ -6,6 +6,7 @@ use crate::{
         dropdown::{DropdownItem, DropdownRender},
         editor::{Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, Reveal},
         editor_keymap::{KeyboardLayoutKind, Meaning},
+        editor_keymap_printer::KeymapDisplayOption,
         file_explorer::FileExplorer,
         keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
         prompt::{Prompt, PromptConfig, PromptHistoryKey},
@@ -1515,8 +1516,14 @@ impl<T: Frontend> App<T> {
     fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
         if self.is_running_as_embedded() {
             let title = keymap_legend_config.title.clone();
-            let body =
-                keymap_legend_config.display(self.context.keyboard_layout_kind(), u16::MAX, true);
+            let body = keymap_legend_config.display(
+                self.context.keyboard_layout_kind(),
+                u16::MAX,
+                &KeymapDisplayOption {
+                    show_alt: false,
+                    show_shift: true,
+                },
+            );
             self.integration_event_sender
                 .emit_event(IntegrationEvent::ShowInfo {
                     info: Some(format!("{}\n\n{}", title, body)),
