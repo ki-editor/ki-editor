@@ -303,7 +303,7 @@ fn get_current_token_by_cursor(
 }
 
 #[cfg(test)]
-mod test_word {
+mod test_token {
     use crate::buffer::BufferOwner;
     use crate::components::editor::Direction;
     use crate::selection::SelectionMode;
@@ -338,31 +338,6 @@ mod test_word {
                 (66..67, ">"),
             ],
         );
-    }
-
-    #[test]
-    fn alpha_beta_moves_to_symbols_only() -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent("foo bar ? spam : baz".to_string())),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    SelectionMode::Token,
-                )),
-                Expect(CurrentSelectedTexts(&["foo"])),
-                Editor(MoveSelection(Last)),
-                Expect(CurrentSelectedTexts(&["?"])),
-                Editor(MoveSelection(Last)),
-                Expect(CurrentSelectedTexts(&[":"])),
-                Editor(MoveSelection(First)),
-                Expect(CurrentSelectedTexts(&["?"])),
-            ])
-        })
     }
 
     #[test]

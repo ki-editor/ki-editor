@@ -1,6 +1,9 @@
 use itertools::Itertools;
 
-use crate::{components::editor::Direction, selection_mode::ApplyMovementResult};
+use crate::{
+    components::editor::Direction,
+    selection_mode::{syntax_token::SyntaxToken, ApplyMovementResult},
+};
 
 use super::{ByteRange, IterBasedSelectionMode, TopNode};
 
@@ -44,24 +47,21 @@ impl IterBasedSelectionMode for SyntaxNode {
                 .map(|node| ByteRange::new(node.byte_range())),
         ))
     }
+
     fn iter<'a>(
         &'a self,
         params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        TopNode.iter(params)
+        if self.coarse {
+            TopNode.iter(params)
+        } else {
+            SyntaxToken.iter(params)
+        }
     }
 
     fn expand(
         &self,
         params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.select_vertical(params, true)
-    }
-
-    fn up(
-        &self,
-        params: &super::SelectionModeParams,
-        _: Option<usize>,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         self.select_vertical(params, true)
     }
@@ -72,6 +72,14 @@ impl IterBasedSelectionMode for SyntaxNode {
         _: Option<usize>,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         self.select_vertical(params, false)
+    }
+
+    fn up(
+        &self,
+        params: &super::SelectionModeParams,
+        _: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        self.select_vertical(params, true)
     }
 
     fn left(
@@ -411,7 +419,7 @@ fn main() {
                         IfCurrentNotFound::LookForward,
                         SelectionMode::SyntaxNode,
                     )),
-                    Editor(MoveSelection(Next)),
+                    Editor(MoveSelection(Right)),
                     Editor(Copy {
                         use_system_clipboard: false,
                     }),

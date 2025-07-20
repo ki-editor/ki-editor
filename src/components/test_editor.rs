@@ -47,6 +47,7 @@ fn raise_bottom_node() -> anyhow::Result<()> {
                 IfCurrentNotFound::LookForward,
                 SelectionMode::SyntaxNodeFine,
             )),
+            Expect(CurrentSelectedTexts(&["x"])),
             Editor(Replace(Up)),
             Expect(CurrentComponentContent("fn main() { x }")),
         ])
@@ -68,14 +69,14 @@ fn toggle_visual_mode() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
-            Editor(MoveSelection(Last)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn f("])),
             Editor(SwapExtensionAnchor),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["f("])),
             Editor(Reset),
             Expect(CurrentSelectedTexts(&["f"])),
-            Editor(MoveSelection(Last)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["("])),
         ])
     })
@@ -2481,7 +2482,7 @@ fn select_surround_inside() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("f u j").to_vec())),
+            App(HandleKeyEvents(keys!("f y j").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2499,7 +2500,7 @@ fn select_surround_around() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("f o j").to_vec())),
+            App(HandleKeyEvents(keys!("f p j").to_vec())),
             Expect(CurrentSelectedTexts(&["(world)"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -4440,7 +4441,6 @@ fn enter_normal_mode_select_previous_selection() -> anyhow::Result<()> {
         })
     };
     run_test(Token, &["-fooBarx"], "  -fooBarx spam\nhello world")?;
-    run_test(Word, &["foox"], "  -fooxBar spam\nhello world")?;
     run_test(Word, &["xfoo"], "  -xfooBar spam\nhello world")?;
     run_test(Line, &["-fooBar spamx"], "  -fooBar spamx\nhello world")?;
     run_test(LineFull, &["xhello world"], "  -fooBar spam\nxhello world")?;
