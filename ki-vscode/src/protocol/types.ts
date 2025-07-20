@@ -72,9 +72,8 @@ export type SelectionMode =
 	| { type: "Character", params?: undefined }
 	| { type: "Line", params?: undefined }
 	| { type: "LineFull", params?: undefined }
-	| { type: "Subword", params?: undefined }
-	| { type: "WordFine", params?: undefined }
 	| { type: "Word", params?: undefined }
+	| { type: "Token", params?: undefined }
 	| { type: "Custom", params?: undefined }
 	| { type: "SyntaxNode", params?: undefined }
 	| { type: "SyntaxNodeFine", params?: undefined }

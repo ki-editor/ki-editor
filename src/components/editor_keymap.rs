@@ -27,7 +27,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SrchP, _____, Char_, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
+        SrchP, Char_, _____, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
     ],
     [
         LineF, _____, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
@@ -712,8 +712,6 @@ pub(crate) enum Meaning {
     WSwth,
     /// Select Word
     Word_,
-    /// Select Fine Word
-    WordF,
     /// Swap cursor with anchor
     XAchr,
     /// Swap Selection End

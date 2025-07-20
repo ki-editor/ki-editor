@@ -18,9 +18,10 @@ There are 9 movements in total:
   - [Intro](#intro)
   - [Keymap](#keymap)
     - [`◀` `▶` Left/Right](#--leftright)
+    - [Previous/Next](#previousnext)
     - [`▲` `▼` Up/Down](#--updown)
       - [Sticky Column](#sticky-column)
-    - [`◀◀` `▶▶` Alpha/Beta](#--alphabeta)
+    - [First/Last](#firstlast)
     - [`Jump`](#jump)
     - [`Index` Jump to Index](#index-jump-to-index)
     - [Current](#current)
@@ -31,14 +32,25 @@ There are 9 movements in total:
 
 ### `◀` `▶` Left/Right
 
-Left/Right means move to the previous/next selection of the current selection mode.
+Left/Right means move to the previous/next **meaningful** selection of the current selection mode.
 
 For example:
 
 | Selection Mode | Meaning                     |
 | -------------- | --------------------------- |
 | Syntax Node    | Next/Previous named sibling |
-| Full Line      | Next/Previous empty line    |
+| Token          | Non-symbol token            |
+
+### Previous/Next
+
+Previous/Next means move to the previous/next selection of the current selection mode.
+
+For example:
+
+| Selection Mode | Meaning                                |
+| -------------- | -------------------------------------- |
+| Syntax Node    | Sibling nodes including anonymous ones |
+| Token          | All tokens including symbols           |
 
 ### `▲` `▼` Up/Down
 
@@ -60,7 +72,7 @@ The sticky column will be cleared once any non-vertical movement is executed.
 
 <TutorialFallback filename="sticky-column"/>
 
-### `◀◀` `▶▶` Alpha/Beta
+### First/Last
 
 By default, Alpha/Beta moves to the First/Last selection of the current selection mode.
 
@@ -68,14 +80,14 @@ However, since First/Last functionality isn't equally useful across all selectio
 
 This is why the movement was renamed from First/Last to the more generic Alpha/Beta.
 
-| Selection Mode   | Meaning                                |
-| ---------------- | -------------------------------------- |
-| Syntax Node      | First/Last named sibling               |
-| Quickfix         | First/Last item                        |
-| Char             | First/Last char in the current subword |
-| Subword          | First/Last word in the current word    |
-| Token            | Previous/Next symbolic tokens          |
-| Line & Full Line | First/Last line of the current file    |
+| Selection Mode   | Meaning                              |
+| ---------------- | ------------------------------------ |
+| Syntax Node      | First/Last named sibling             |
+| Quickfix         | First/Last item                      |
+| Char             | First/Last char in the current word  |
+| Word             | First/Last word in the current token |
+| Token            | Previous/Next symbolic tokens        |
+| Line & Full Line | First/Last line of the current file  |
 
 ### `Jump`
 

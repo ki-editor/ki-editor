@@ -1634,7 +1634,7 @@ pub(crate) fn multicursor_mode_normal_mode_override() -> NormalModeOverride {
             description: "Remove Match",
             dispatch: Dispatch::OpenFilterSelectionsPrompt { maintain: false },
         }),
-        open: Some(KeymapOverride {
+        change: Some(KeymapOverride {
             description: "Keep Prime Curs",
             dispatch: Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
         }),
