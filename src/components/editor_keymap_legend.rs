@@ -55,17 +55,25 @@ impl Editor {
                 "Down".to_string(),
                 Dispatch::ToEditor(MoveSelection(Down)),
             ),
-            Keymap::new_extended(
+            Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::First),
-                "◀◀".to_string(),
-                "Alph".to_string(),
+                "First".to_string(),
                 Dispatch::ToEditor(MoveSelection(Movement::First)),
             ),
-            Keymap::new_extended(
+            Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Last_),
-                "▶▶".to_string(),
-                "Beta".to_string(),
+                "Last".to_string(),
                 Dispatch::ToEditor(MoveSelection(Movement::Last)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Next_),
+                "Next".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Next)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                "Previous".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Previous)),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Jump_),
@@ -233,7 +241,7 @@ impl Editor {
     pub(crate) fn keymap_secondary_selection_modes_init(&self, context: &Context) -> Vec<Keymap> {
         [
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::FindP),
+                "[",
                 Direction::Start.format_action("Find"),
                 "Find (Local) - Backward".to_string(),
                 Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
@@ -243,7 +251,7 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::FindN),
+                "]",
                 Direction::End.format_action("Find"),
                 "Find (Local) - Forward".to_string(),
                 Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
