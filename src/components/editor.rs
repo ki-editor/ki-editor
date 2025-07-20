@@ -166,6 +166,7 @@ impl Component for Editor {
                 Direction::End,
                 CopiedTexts::new(NonEmpty::singleton(content)),
                 context,
+                false,
             ),
             event::event::Event::Mouse(event) => self.handle_mouse_event(event),
             _ => Ok(Default::default()),
@@ -187,11 +188,9 @@ impl Component for Editor {
             SetSelectionMode(if_current_not_found, selection_mode) => {
                 return self.set_selection_mode(if_current_not_found, selection_mode, context);
             }
-
             FindOneChar(if_current_not_found) => {
                 self.enter_single_character_mode(if_current_not_found)
             }
-
             MoveSelection(direction) => return self.handle_movement(context, direction),
             Copy {
                 use_system_clipboard,
@@ -272,7 +271,12 @@ impl Component for Editor {
             Paste {
                 direction,
                 use_system_clipboard,
-            } => return self.paste(direction, context, use_system_clipboard),
+            } => return self.paste(direction, context, use_system_clipboard, true),
+            NewPaste {
+                direction,
+                use_system_clipboard,
+                with_gap,
+            } => return self.paste(direction, context, use_system_clipboard, with_gap),
             SwapCursor => self.swap_cursor(context),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
@@ -343,6 +347,7 @@ impl Component for Editor {
             ExecuteCompletion { replacement, edit } => {
                 return self.execute_completion(replacement, edit, context)
             }
+            OpenNewLine(direction) => return self.open_line(direction, context),
         }
         Ok(Default::default())
     }
@@ -506,17 +511,19 @@ impl IfCurrentNotFound {
 pub(crate) enum Movement {
     Right,
     Left,
-    Beta,
+    Last,
     Current(IfCurrentNotFound),
     Up,
     Down,
-    Alpha,
+    First,
     /// 0-based
     Index(usize),
     Jump(CharIndexRange),
     Expand,
     DeleteBackward,
     DeleteForward,
+    Previous,
+    Next,
 }
 impl Movement {
     pub(crate) fn into_movement_applicandum(
@@ -526,7 +533,7 @@ impl Movement {
         match self {
             Movement::Right => MovementApplicandum::Right,
             Movement::Left => MovementApplicandum::Left,
-            Movement::Beta => MovementApplicandum::Beta,
+            Movement::Last => MovementApplicandum::Last,
             Movement::Current(if_current_not_found) => {
                 MovementApplicandum::Current(if_current_not_found)
             }
@@ -536,12 +543,14 @@ impl Movement {
             Movement::Down => MovementApplicandum::Down {
                 sticky_column_index: *sticky_column_index,
             },
-            Movement::Alpha => MovementApplicandum::Alpha,
+            Movement::First => MovementApplicandum::First,
             Movement::Index(index) => MovementApplicandum::Index(index),
             Movement::Jump(chars) => MovementApplicandum::Jump(chars),
             Movement::Expand => MovementApplicandum::Expand,
-            Movement::DeleteBackward => MovementApplicandum::DeleteBackward,
             Movement::DeleteForward => MovementApplicandum::DeleteForward,
+            Movement::Previous => MovementApplicandum::Previous,
+            Movement::Next => MovementApplicandum::Next,
+            Movement::DeleteBackward => MovementApplicandum::DeleteBackward,
         }
     }
 }
@@ -552,7 +561,7 @@ impl Movement {
 pub(crate) enum MovementApplicandum {
     Right,
     Left,
-    Beta,
+    Last,
     Current(IfCurrentNotFound),
     Up {
         sticky_column_index: Option<usize>,
@@ -560,13 +569,15 @@ pub(crate) enum MovementApplicandum {
     Down {
         sticky_column_index: Option<usize>,
     },
-    Alpha,
+    First,
     /// 0-based
     Index(usize),
     Jump(CharIndexRange),
     Expand,
     DeleteBackward,
     DeleteForward,
+    Next,
+    Previous,
 }
 
 impl Editor {
@@ -831,9 +842,7 @@ impl Editor {
         if use_current_selection_mode {
             self.selection_set.mode.clone()
         } else {
-            SelectionMode::Word {
-                skip_symbols: false,
-            }
+            SelectionMode::Word
         }
         .to_selection_mode_trait_object(
             &self.buffer(),
@@ -1145,12 +1154,14 @@ impl Editor {
         direction: Direction,
         copied_texts: CopiedTexts,
         context: &Context,
+        with_gap: bool,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
             self.get_selection_set_with_gap(&direction, context)?
                 .into_iter()
                 .enumerate()
                 .map(|(index, (selection, gap))| {
+                    let gap = if with_gap { gap } else { Rope::new() };
                     let current_range = selection.extended_range();
                     let insertion_range_start = match direction {
                         Direction::Start => current_range.start,
@@ -1212,11 +1223,12 @@ impl Editor {
         direction: Direction,
         context: &Context,
         use_system_clipboard: bool,
+        with_gap: bool,
     ) -> anyhow::Result<Dispatches> {
         let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0)? else {
             return Ok(Default::default());
         };
-        self.paste_text(direction, copied_texts, context)
+        self.paste_text(direction, copied_texts, context, with_gap)
     }
 
     /// If `cut` if true, the replaced text will override the clipboard.
@@ -1959,8 +1971,8 @@ impl Editor {
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
         match movement {
-            Movement::Beta => self.swap_till_last(context),
-            Movement::Alpha => self.swap_till_first(context),
+            Movement::Last => self.swap_till_last(context),
+            Movement::First => self.swap_till_first(context),
             _ => self.replace_faultlessly(&self.selection_set.mode.clone(), movement, context),
         }
     }
@@ -1989,7 +2001,7 @@ impl Editor {
                             current_selection,
                             cursor_direction: &self.cursor_direction,
                         };
-                        let first = selection_mode.alpha(&params).ok()??.range();
+                        let first = selection_mode.first(&params).ok()??.range();
                         // Find the before current selection
                         let before_current = selection_mode.left(&params).ok()??.range();
                         let first_range = current_selection.range();
@@ -2038,7 +2050,7 @@ impl Editor {
                         };
 
                         // Select from the first until before current
-                        let last = selection_mode.beta(&params).ok()??.range();
+                        let last = selection_mode.last(&params).ok()??.range();
                         // Find the before current selection
                         let after_current = selection_mode.right(&params).ok()??.range();
                         let first_range = current_selection.range();
@@ -2077,10 +2089,10 @@ impl Editor {
             )
         };
         match movement {
-            MovementApplicandum::Alpha => {
+            MovementApplicandum::First => {
                 while let Ok(true) = add_selection(&MovementApplicandum::Left) {}
             }
-            MovementApplicandum::Beta => {
+            MovementApplicandum::Last => {
                 while let Ok(true) = add_selection(&MovementApplicandum::Right) {}
             }
             other_movement => {
@@ -2175,9 +2187,7 @@ impl Editor {
                             &self.buffer(),
                             &current_selection.clone().set_range((start..start).into()),
                             &if short {
-                                SelectionMode::Word {
-                                    skip_symbols: false,
-                                }
+                                SelectionMode::Word
                             } else {
                                 SelectionMode::Token
                             },
@@ -2351,6 +2361,60 @@ impl Editor {
             })
             .into_iter()
             .collect::<anyhow::Result<Vec<_>>>()
+    }
+
+    fn open_line(&mut self, direction: Direction, context: &Context) -> anyhow::Result<Dispatches> {
+        let action_groups = self
+            .selection_set
+            .map(|selection| {
+                let current_line_index = self.buffer().char_to_line(selection.range().start)?;
+                let current_line_indentation: String = self
+                    .buffer()
+                    .get_line_by_line_index(current_line_index)
+                    .map(|line| {
+                        line.to_string()
+                            .chars()
+                            .take_while(|c| c.is_whitespace())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let line_start = self.buffer().line_to_char(current_line_index)?;
+                let line_end = self.buffer().line_to_char(current_line_index)?
+                    + self
+                        .buffer()
+                        .get_line_by_line_index(current_line_index)
+                        .ok_or_else(|| {
+                            anyhow::anyhow!("Unable to get line by line index {current_line_index}")
+                        })?
+                        .len_chars();
+                let range = match direction {
+                    Direction::Start => (line_start..line_start).into(),
+                    Direction::End => (line_end..line_end).into(),
+                };
+                Ok(ActionGroup::new(
+                    [
+                        Action::Edit(Edit::new(
+                            self.buffer().rope(),
+                            range,
+                            Rope::from_str(&format!("{current_line_indentation}\n")),
+                        )),
+                        Action::Select(selection.clone().set_range({
+                            let start = match direction {
+                                Direction::Start => line_start,
+                                Direction::End => line_end,
+                            } + current_line_indentation.chars().count();
+                            (start..start).into()
+                        })),
+                    ]
+                    .to_vec(),
+                ))
+            })
+            .into_iter()
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        let edit_transaction = EditTransaction::from_action_groups(action_groups);
+        Ok(self
+            .apply_edit_transaction(edit_transaction, context)?
+            .append(Dispatch::ToEditor(EnterInsertMode(Direction::Start))))
     }
 
     fn open(
@@ -2765,9 +2829,9 @@ impl Editor {
             context,
             [
                 DisableSelectionExtension,
-                (MoveSelection(Movement::Alpha)),
+                (MoveSelection(Movement::First)),
                 EnableSelectionExtension,
-                (MoveSelection(Movement::Beta)),
+                (MoveSelection(Movement::Last)),
             ]
             .to_vec(),
         )
@@ -3883,6 +3947,7 @@ pub(crate) enum DispatchEditor {
         kind: SurroundKind,
     },
     Open(Direction),
+    OpenNewLine(Direction),
     ToggleMark,
     EnterNormalMode,
     EnterSwapMode,
@@ -3911,6 +3976,11 @@ pub(crate) enum DispatchEditor {
     Paste {
         direction: Direction,
         use_system_clipboard: bool,
+    },
+    NewPaste {
+        direction: Direction,
+        use_system_clipboard: bool,
+        with_gap: bool,
     },
     SwapCursor,
     MoveCharacterBack,

@@ -15,19 +15,19 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchN, WordF, SrchC, MultC, Swap_, /****/ FindP, InstP, Up___, InstN, FindN,
+        SrchN, Word_, SrchC, MultC, Swap_, /****/ InstP, Prev_, Up___, Next_, InstN,
     ],
     [
         Line_, Token, Sytx_, Extnd, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
     ],
     [
-        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ Globl, Chng_, Alpha, Beta_, XAchr,
+        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ _____, Chng_, First, Last_, XAchr,
     ],
 ];
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SrchP, Word_, Char_, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
+        SrchP, Char_, _____, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
     ],
     [
         LineF, _____, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
@@ -57,7 +57,7 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
 /// are both located on the right-side.
 pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
     [
-        OneCh, CSrch, NtrlN, PSrch, Qkfix, /****/ FindP, _____, _____, _____, FindN,
+        OneCh, CSrch, NtrlN, PSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
@@ -78,16 +78,76 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
     ],
 ];
 
+pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ Rveal, RplcA, Explr, OPick, Pipe_,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ LHovr, _____, LCdAc, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, LRnme, SaveA, QSave, SHelp,
+    ],
+];
+
+pub(crate) const KEYMAP_SPACE_SHIFTED: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, TSNSx,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, QNSav, _____,
+    ],
+];
+
+pub(crate) const KEYMAP_REVEAL: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, RevlS, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, RevlC, _____, _____, /****/ _____, RevlM, _____, _____, _____,
+    ],
+];
+
+pub(crate) const KEYMAP_PICK: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, Symbl, Buffr, File_, GitFC, /****/ _____, Theme, KeybL, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
+pub(crate) const KEYMAP_PICK_SHIFTED: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
 /// This keymap should be almost identical with that of Find Local
 pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
     [
-        Srch_, CSrch, SrchC, PSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
+        Srch_, CSrch, SrchC, Qkfix, PSrch, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
+        DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, LRfrE, _____, LDefn, LType,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ Globl, _____, _____, _____, _____,
+        _____, _____, _____, _____, Mark_, /****/ LImpl, _____, _____, _____, _____,
     ],
 ];
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
@@ -96,10 +156,10 @@ pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
+        _____, _____, _____, DgInf, GHnkM, /****/ _____, LRfrI, _____, LDecl, _____,
     ],
     [
-        _____, LDecl, _____, LRfrI, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -112,30 +172,6 @@ pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
-    ],
-];
-
-pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
-    [
-        QSave, SaveA, Explr, _____, KeybL, /****/ _____, RevlS, RevlC, RevlM, _____,
-    ],
-    [
-        Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LCdAc, Pipe_, _____,
-    ],
-    [
-        UndoT, _____, _____, _____, TSNSx, /****/ _____, LRnme, _____, _____, SHelp,
-    ],
-];
-
-pub(crate) const KEYMAP_SPACE_SHIFTED: KeyboardMeaningLayout = [
-    [
-        QNSav, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
-    ],
-    [
-        _____, _____, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
-    ],
-    [
-        _____, RplcA, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -232,11 +268,13 @@ struct KeySet {
     insert_control: HashMap<Meaning, &'static str>,
     find_local: HashMap<Meaning, &'static str>,
     find_global: HashMap<Meaning, &'static str>,
+    pick: HashMap<Meaning, &'static str>,
     surround: HashMap<Meaning, &'static str>,
     space: HashMap<Meaning, &'static str>,
     search_config: HashMap<Meaning, &'static str>,
     transform: HashMap<Meaning, &'static str>,
     yes_no: HashMap<Meaning, &'static str>,
+    reveal: HashMap<Meaning, &'static str>,
 }
 
 impl KeySet {
@@ -320,6 +358,12 @@ impl KeySet {
                     .flatten()
                     .zip(layout.into_iter().flatten()),
             ),
+            reveal: HashMap::from_iter(
+                KEYMAP_REVEAL
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten()),
+            ),
             transform: HashMap::from_iter(
                 KEYMAP_TRANSFORM
                     .into_iter()
@@ -331,6 +375,18 @@ impl KeySet {
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten()),
+            ),
+            pick: HashMap::from_iter(
+                KEYMAP_PICK
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten())
+                    .chain(
+                        KEYMAP_PICK_SHIFTED
+                            .into_iter()
+                            .flatten()
+                            .zip(layout.into_iter().flatten().map(shifted)),
+                    ),
             ),
         }
     }
@@ -453,6 +509,24 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
+    pub(crate) fn get_pick_keymap(&self, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        keyset
+            .pick
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
+    }
+
+    pub(crate) fn get_reveal_keymap(&self, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        keyset
+            .reveal
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
+    }
+
     pub(crate) fn get_yes_no_key(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
@@ -496,6 +570,10 @@ pub(crate) enum Meaning {
     ChngX,
     /// Change Surround
     Chng_,
+    /// Expand
+    Expnd,
+    /// Shrink
+    Shrnk,
     /// Copy
     Copy_,
     /// Cycle primary select next
@@ -518,8 +596,14 @@ pub(crate) enum Meaning {
     FindN,
     /// Local find backward
     FindP,
+    /// First
+    First,
+    /// Last
+    Last_,
     /// Alpha
     Alpha,
+    /// Omega
+    Omega,
     /// Go back
     GBack,
     /// Go forward
@@ -544,10 +628,12 @@ pub(crate) enum Meaning {
     KilLN,
     /// Kill to line start
     KilLP,
-    /// Beta
-    Beta_,
     /// Left
     Left_,
+    /// Previous
+    Prev_,
+    /// Next
+    Next_,
     /// Line Up
     LineU,
     /// Line Down
@@ -626,8 +712,6 @@ pub(crate) enum Meaning {
     WSwth,
     /// Select Word
     Word_,
-    /// Select Fine Word
-    WordF,
     /// Swap cursor with anchor
     XAchr,
     /// Swap Selection End
@@ -712,6 +796,8 @@ pub(crate) enum Meaning {
     UndoT,
     /// TS Node Sexp
     TSNSx,
+    /// Open Picker
+    OPick,
     /// LSP Code Actions
     LCdAc,
     /// Pick Buffers
@@ -768,6 +854,8 @@ pub(crate) enum Meaning {
     Pipe_,
     /// Open matching files
     OpenM,
+    ///
+    Rveal,
     /// Reveal selections
     RevlS,
     /// Reveal cursors

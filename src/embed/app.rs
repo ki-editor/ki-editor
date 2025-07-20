@@ -499,12 +499,7 @@ impl EmbeddedApp {
             crate::selection::SelectionMode::Line | crate::selection::SelectionMode::LineFull => {
                 ki_protocol_types::SelectionMode::Line
             }
-            crate::selection::SelectionMode::Word { skip_symbols: true } => {
-                ki_protocol_types::SelectionMode::Word
-            }
-            crate::selection::SelectionMode::Word {
-                skip_symbols: false,
-            } => ki_protocol_types::SelectionMode::WordFine,
+            crate::selection::SelectionMode::Word => ki_protocol_types::SelectionMode::Word,
             crate::selection::SelectionMode::Token { .. } => {
                 ki_protocol_types::SelectionMode::Token
             }
