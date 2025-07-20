@@ -748,7 +748,7 @@ fn copy_replace() -> anyhow::Result<()> {
             }),
             Expect(CurrentComponentContent("fn fn() { let x = 1; }")),
             Expect(CurrentSelectedTexts(&["fn"])),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Editor(ReplaceWithCopiedText {
                 use_system_clipboard: false,
                 cut: false,

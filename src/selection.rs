@@ -469,8 +469,8 @@ impl SelectionMode {
             SelectionMode::GitHunk(diff_mode) => format!("HUNK{}", diff_mode.display()).to_string(),
             SelectionMode::Mark => "MARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
-            SelectionMode::Word => "SUBWORD".to_string(),
-            SelectionMode::Token => "WORD".to_string(),
+            SelectionMode::Word => "WORD".to_string(),
+            SelectionMode::Token => "TOKEN".to_string(),
         }
     }
 
