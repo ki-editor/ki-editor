@@ -1705,7 +1705,7 @@ impl Editor {
             let dispatches = {
                 use SelectionMode::*;
                 match self.selection_set.mode {
-                    Line | LineFull | Token | Word { .. } => self
+                    Line | LineFull | Token | Word => self
                         .move_selection_with_selection_mode_without_global_mode(
                             Movement::Current(IfCurrentNotFound::LookBackward),
                             self.selection_set.mode.clone(),
