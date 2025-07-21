@@ -823,6 +823,7 @@ fn open_after_selection() -> anyhow::Result<()> {
     })
 }
 
+#[test]
 fn open_after_use_max_gap() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -4572,56 +4573,3 @@ fuor
         ])
     })
 }
-
-#[test]
-fn open_line_above() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent(
-                "
-foobar
-    spambaz"
-                    .trim()
-                    .to_string(),
-            )),
-            Editor(MatchLiteral("baz".to_string())),
-            Editor(OpenNewLine(Direction::Start)),
-            App(HandleKeyEvents(keys!("a b c").to_vec())),
-            Expect(CurrentComponentContent("foobar\n    abc\n    spambaz")),
-        ])
-    })
-}
-
-#[test]
-fn open_line_below() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent(
-                "
-foobar
-    spambaz
-hello"
-                    .trim()
-                    .to_string(),
-            )),
-            Editor(MatchLiteral("baz".to_string())),
-            Editor(OpenNewLine(Direction::End)),
-            App(HandleKeyEvents(keys!("a b c").to_vec())),
-            Expect(CurrentComponentContent(
-                "foobar\n    spambaz\n    abc\nhello",
-            )),
-        ])
-    })
-}
-
-// TODO: store also failed search input in history

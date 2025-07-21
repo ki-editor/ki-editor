@@ -143,30 +143,16 @@ impl SelectionModeTrait for Token {
         process_paste_gap(prev_gap, next_gap)
     }
 
-    fn alpha(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        Ok(None)
-    }
-
-    fn omega(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        Ok(None)
-    }
-
     fn first(
         &self,
-        params: &super::SelectionModeParams,
+        _: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         Ok(None)
     }
 
     fn last(
         &self,
-        params: &super::SelectionModeParams,
+        _: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         Ok(None)
     }

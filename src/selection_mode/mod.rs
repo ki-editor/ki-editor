@@ -399,14 +399,6 @@ impl<T: PositionBasedSelectionMode> SelectionModeTrait for PositionBased<T> {
     fn previous(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.0.previous(params)
     }
-
-    fn alpha(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.alpha(params)
-    }
-
-    fn omega(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.omega(params)
-    }
 }
 
 pub trait SelectionModeTrait {
@@ -561,12 +553,6 @@ pub trait SelectionModeTrait {
 
     /// Last meaningful selection
     fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
-
-    /// First selection, can be meaningless, such as empty line
-    fn alpha(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
-
-    /// Last selection, can be meaningless, such as empty line
-    fn omega(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
 
     fn current(
         &self,
@@ -824,26 +810,6 @@ pub trait PositionBasedSelectionMode {
                 .clone()
                 .update_with_byte_range(params.buffer, range)
         })
-        .transpose()
-    }
-
-    fn alpha(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.get_current_selection_by_cursor(
-            params.buffer,
-            CharIndex(0),
-            IfCurrentNotFound::LookForward,
-        )?
-        .map(|byte_range| byte_range.to_selection(params.buffer, params.current_selection))
-        .transpose()
-    }
-
-    fn omega(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.get_current_selection_by_cursor(
-            params.buffer,
-            CharIndex(params.buffer.len_chars()) - 1,
-            IfCurrentNotFound::LookBackward,
-        )?
-        .map(|byte_range| byte_range.to_selection(params.buffer, params.current_selection))
         .transpose()
     }
 
@@ -1297,14 +1263,6 @@ impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
         self.0
             .process_paste_gap(params, prev_gap, next_gap, direction)
     }
-
-    fn alpha(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.alpha(params)
-    }
-
-    fn omega(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.omega(params)
-    }
 }
 
 pub(crate) trait IterBasedSelectionMode {
@@ -1355,6 +1313,7 @@ pub(crate) trait IterBasedSelectionMode {
         self.iter_filtered(params)
     }
 
+    #[cfg(test)]
     fn all_selections<'a>(
         &'a self,
         params: &SelectionModeParams<'a>,
@@ -1668,30 +1627,6 @@ pub(crate) trait IterBasedSelectionMode {
     fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         Ok(self
             .all_meaningful_selections(params)?
-            .sorted()
-            .last()
-            .and_then(|range| {
-                range
-                    .to_selection(params.buffer, params.current_selection)
-                    .ok()
-            }))
-    }
-
-    fn alpha(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        Ok(self
-            .all_selections(params)?
-            .sorted()
-            .next()
-            .and_then(|range| {
-                range
-                    .to_selection(params.buffer, params.current_selection)
-                    .ok()
-            }))
-    }
-
-    fn omega(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        Ok(self
-            .all_selections(params)?
             .sorted()
             .last()
             .and_then(|range| {

@@ -272,11 +272,6 @@ impl Component for Editor {
                 direction,
                 use_system_clipboard,
             } => return self.paste(direction, context, use_system_clipboard, true),
-            NewPaste {
-                direction,
-                use_system_clipboard,
-                with_gap,
-            } => return self.paste(direction, context, use_system_clipboard, with_gap),
             SwapCursor => self.swap_cursor(context),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
@@ -347,7 +342,6 @@ impl Component for Editor {
             ExecuteCompletion { replacement, edit } => {
                 return self.execute_completion(replacement, edit, context)
             }
-            OpenNewLine(direction) => return self.open_line(direction, context),
         }
         Ok(Default::default())
     }
@@ -2363,60 +2357,6 @@ impl Editor {
             .collect::<anyhow::Result<Vec<_>>>()
     }
 
-    fn open_line(&mut self, direction: Direction, context: &Context) -> anyhow::Result<Dispatches> {
-        let action_groups = self
-            .selection_set
-            .map(|selection| {
-                let current_line_index = self.buffer().char_to_line(selection.range().start)?;
-                let current_line_indentation: String = self
-                    .buffer()
-                    .get_line_by_line_index(current_line_index)
-                    .map(|line| {
-                        line.to_string()
-                            .chars()
-                            .take_while(|c| c.is_whitespace())
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                let line_start = self.buffer().line_to_char(current_line_index)?;
-                let line_end = self.buffer().line_to_char(current_line_index)?
-                    + self
-                        .buffer()
-                        .get_line_by_line_index(current_line_index)
-                        .ok_or_else(|| {
-                            anyhow::anyhow!("Unable to get line by line index {current_line_index}")
-                        })?
-                        .len_chars();
-                let range = match direction {
-                    Direction::Start => (line_start..line_start).into(),
-                    Direction::End => (line_end..line_end).into(),
-                };
-                Ok(ActionGroup::new(
-                    [
-                        Action::Edit(Edit::new(
-                            self.buffer().rope(),
-                            range,
-                            Rope::from_str(&format!("{current_line_indentation}\n")),
-                        )),
-                        Action::Select(selection.clone().set_range({
-                            let start = match direction {
-                                Direction::Start => line_start,
-                                Direction::End => line_end,
-                            } + current_line_indentation.chars().count();
-                            (start..start).into()
-                        })),
-                    ]
-                    .to_vec(),
-                ))
-            })
-            .into_iter()
-            .collect::<anyhow::Result<Vec<_>>>()?;
-        let edit_transaction = EditTransaction::from_action_groups(action_groups);
-        Ok(self
-            .apply_edit_transaction(edit_transaction, context)?
-            .append(Dispatch::ToEditor(EnterInsertMode(Direction::Start))))
-    }
-
     fn open(
         &mut self,
         direction: Direction,
@@ -3947,7 +3887,6 @@ pub(crate) enum DispatchEditor {
         kind: SurroundKind,
     },
     Open(Direction),
-    OpenNewLine(Direction),
     ToggleMark,
     EnterNormalMode,
     EnterSwapMode,
@@ -3976,11 +3915,6 @@ pub(crate) enum DispatchEditor {
     Paste {
         direction: Direction,
         use_system_clipboard: bool,
-    },
-    NewPaste {
-        direction: Direction,
-        use_system_clipboard: bool,
-        with_gap: bool,
     },
     SwapCursor,
     MoveCharacterBack,
