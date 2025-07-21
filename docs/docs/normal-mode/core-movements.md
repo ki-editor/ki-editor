@@ -14,17 +14,14 @@ every [selection modes](./selection-modes/index.md).
 
 There are 9 movements in total:
 
-- [Core Movements](#core-movements)
-  - [Intro](#intro)
-  - [Keymap](#keymap)
-    - [`◀` `▶` Left/Right](#--leftright)
-    - [Previous/Next](#previousnext)
-    - [`▲` `▼` Up/Down](#--updown)
-      - [Sticky Column](#sticky-column)
-    - [First/Last](#firstlast)
-    - [`Jump`](#jump)
-    - [`Index` Jump to Index](#index-jump-to-index)
-    - [Current](#current)
+- [`◀` `▶` Left/Right](#--leftright)
+- [Previous/Next](#previousnext)
+- [`▲` `▼` Up/Down](#--updown)
+- [Sticky Column](#sticky-column)
+- [First/Last](#firstlast)
+- [`Jump`](#jump)
+- [`Index` Jump to Index](#index-jump-to-index)
+- [Current](#current)
 
 ## Keymap
 
