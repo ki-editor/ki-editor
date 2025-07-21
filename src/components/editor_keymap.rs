@@ -15,7 +15,7 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchN, Word_, SrchC, MultC, Swap_, /****/ InstP, Prev_, Up___, Next_, InstN,
+        SrchN, Word_, SrchC, MultC, Swap_, /****/ Prev_, InstP, Up___, InstN, Next_,
     ],
     [
         Line_, Token, Sytx_, Extnd, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,

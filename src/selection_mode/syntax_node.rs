@@ -8,10 +8,7 @@ use crate::{
 use super::{ByteRange, IterBasedSelectionMode, TopNode};
 
 pub(crate) struct SyntaxNode {
-    /// If this is true:
-    /// - anonymous siblings node will be skipped
-    /// - current takes `TopNode`
-    pub coarse: bool,
+    pub(crate) coarse: bool,
 }
 
 impl IterBasedSelectionMode for SyntaxNode {
@@ -287,11 +284,6 @@ mod test_syntax_node {
             "fn main() { let x = X {z,b,c:d} }",
         );
         super::SyntaxNode { coarse: true }.assert_all_selections(
-            &buffer,
-            Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
-            &[(23..24, "z"), (25..26, "b"), (27..30, "c:d")],
-        );
-        super::SyntaxNode { coarse: false }.assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
             &[

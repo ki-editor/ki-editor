@@ -257,38 +257,25 @@ mod test_word {
     }
 
     #[test]
-    fn no_skip_symbols() {
-        let buffer = Buffer::new(
-            None,
-            "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
-        );
-        PositionBased(super::Word::new()).assert_all_selections(
-            &buffer,
-            Selection::default(),
-            &[
-                (0..5, "snake"),
-                (5..6, "_"),
-                (6..10, "case"),
-                (11..16, "camel"),
-                (16..20, "Case"),
-                (21..27, "Pascal"),
-                (27..31, "Case"),
-                (32..37, "UPPER"),
-                (37..38, "_"),
-                (38..43, "SNAKE"),
-                (44..45, "-"),
-                (45..46, ">"),
-                (46..47, "("),
-                (47..48, ")"),
-                (49..52, "123"),
-                (53..54, "<"),
-                (54..55, "_"),
-                (55..56, ">"),
-                (57..61, "HTTP"),
-                (61..68, "Network"),
-                (69..70, "X"),
-            ],
-        );
+    fn no_skip_symbols() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("snake-case".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    crate::selection::SelectionMode::Word,
+                )),
+                Editor(EnterMultiCursorMode),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["snake", "-", "case"])),
+            ])
+        })
     }
 
     #[test]

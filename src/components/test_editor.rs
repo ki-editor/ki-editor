@@ -2482,7 +2482,7 @@ fn select_surround_inside() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("f y j").to_vec())),
+            App(HandleKeyEvents(keys!("f u j").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2500,7 +2500,7 @@ fn select_surround_around() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("f p j").to_vec())),
+            App(HandleKeyEvents(keys!("f o j").to_vec())),
             Expect(CurrentSelectedTexts(&["(world)"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])

@@ -1789,7 +1789,7 @@ pub(crate) trait IterBasedSelectionMode {
             .collect_vec();
 
         let actual = self
-            .all_meaningful_selections(&SelectionModeParams {
+            .all_selections(&SelectionModeParams {
                 buffer,
                 current_selection: &current_selection,
                 cursor_direction: &Direction::default(),
