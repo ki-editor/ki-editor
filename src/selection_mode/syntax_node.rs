@@ -44,7 +44,6 @@ impl IterBasedSelectionMode for SyntaxNode {
                 .map(|node| ByteRange::new(node.byte_range())),
         ))
     }
-
     fn iter<'a>(
         &'a self,
         params: &super::SelectionModeParams<'a>,
@@ -55,14 +54,12 @@ impl IterBasedSelectionMode for SyntaxNode {
             SyntaxToken.iter(params)
         }
     }
-
     fn expand(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         self.select_vertical(params, true)
     }
-
     fn down(
         &self,
         params: &super::SelectionModeParams,

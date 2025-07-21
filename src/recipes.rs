@@ -1508,7 +1508,7 @@ fn syntax_node() -> RecipeGroup {
                 only: false,
             },
             Recipe {
-                description: "Navigate named sibling nodes via Next/Previous movement",
+                description: "Navigate named sibling nodes via Left/Right movement",
                 content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                 file_extension: "json",
                 prepare_events: keys!("w p"),
@@ -1519,7 +1519,7 @@ fn syntax_node() -> RecipeGroup {
                 only: false,
             },
             Recipe {
-                description: "Navigate sibling nodes via alpha/beta movement",
+                description: "Navigate to first/last named sibling nodes via First/Last movement",
                 content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                 file_extension: "json",
                 prepare_events: keys!("w p"),

@@ -74,11 +74,7 @@ The sticky column will be cleared once any non-vertical movement is executed.
 
 ### First/Last
 
-By default, Alpha/Beta moves to the First/Last selection of the current selection mode.
-
-However, since First/Last functionality isn't equally useful across all selection modes, certain modes like Token override this default behavior to provide more practical functionality.
-
-This is why the movement was renamed from First/Last to the more generic Alpha/Beta.
+By default, First/Last moves to the first/last selection of the current selection mode.
 
 | Selection Mode   | Meaning                              |
 | ---------------- | ------------------------------------ |

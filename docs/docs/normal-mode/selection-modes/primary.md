@@ -99,7 +99,7 @@ and trailing spaces of each line are not selected.
 | Movement   | Meaning                                         |
 | ---------- | ----------------------------------------------- |
 | Up/Down    | Move to line above/below                        |
-| Alpha/Beta | Move to the first/last line of the current file |
+| First/Last | Move to the first/last line of the current file |
 | Left       | Move to the parent line                         |
 
 Parent lines are highlighted lines that represent the parent nodes of the current selection.
@@ -162,6 +162,6 @@ Character.
 
 In this selection mode, the movements behave like the usual editor, where [Left/Right](./../core-movements.md#--leftright) means left/right, and so on.
 
-[Alpha/Beta](./../core-movements.md#--alphabeta) means the first/last character of the current word.
+[First/Last](./../core-movements.md#--firstlast) means the first/last character of the current word.
 
 <TutorialFallback filename="char"/>
