@@ -132,6 +132,7 @@ impl IterBasedSelectionMode for SyntaxNode {
         }
     }
 
+    #[cfg(test)]
     fn all_selections<'a>(
         &'a self,
         params: &super::SelectionModeParams<'a>,
