@@ -51,6 +51,7 @@ For example:
 | -------------- | -------------------------------------- |
 | Syntax Node    | Sibling nodes including anonymous ones |
 | Token          | All tokens including symbols           |
+| Line           | Empty lines                            |
 
 ### `▲` `▼` Up/Down
 
