@@ -14,12 +14,13 @@ every [selection modes](./selection-modes/index.md).
 
 There are 9 movements in total:
 
-1. [Left/Right](#--leftright)
-1. [Up/Down](#--updown)
-1. [Alpha/Beta](#--alphabeta)
-1. [Jump](#jump)
-1. [To Index](#index-jump-to-index)
-1. [Current](#current)
+* [`◀` `▶` Left/Right](#--leftright)
+* [Previous/Next](#previousnext)
+* [`▲` `▼` Up/Down](#--updown)
+* [First/Last](#firstlast)
+* [`Jump`](#jump)
+* [`Index` Jump to Index](#index-jump-to-index)
+* [Current](#current)
 
 ## Keymap
 
@@ -27,14 +28,26 @@ There are 9 movements in total:
 
 ### `◀` `▶` Left/Right
 
-Left/Right means move to the previous/next selection of the current selection mode.
+Left/Right means move to the previous/next **meaningful** selection of the current selection mode.
 
 For example:
 
 | Selection Mode | Meaning                     |
 | -------------- | --------------------------- |
 | Syntax Node    | Next/Previous named sibling |
-| Full Line      | Next/Previous empty line    |
+| Token          | Non-symbol token            |
+
+### Previous/Next
+
+Previous/Next means move to the previous/next selection of the current selection mode, **without** skipping any selections (generally).
+
+For example:
+
+| Selection Mode | Meaning                                |
+| -------------- | -------------------------------------- |
+| Syntax Node    | Sibling nodes including anonymous ones |
+| Token          | All tokens including symbols           |
+| Line           | Empty lines                            |
 
 ### `▲` `▼` Up/Down
 
@@ -56,13 +69,9 @@ The sticky column will be cleared once any non-vertical movement is executed.
 
 <TutorialFallback filename="sticky-column"/>
 
-### `◀◀` `▶▶` Alpha/Beta
+### First/Last
 
-By default, Alpha/Beta moves to the First/Last selection of the current selection mode.
-
-However, since First/Last functionality isn't equally useful across all selection modes, certain modes like Token override this default behavior to provide more practical functionality.
-
-This is why the movement was renamed from First/Last to the more generic Alpha/Beta.
+By default, First/Last moves to the first/last selection of the current selection mode.
 
 | Selection Mode   | Meaning                              |
 | ---------------- | ------------------------------------ |

@@ -748,7 +748,7 @@ fn copy_replace() -> anyhow::Result<()> {
             }),
             Expect(CurrentComponentContent("fn fn() { let x = 1; }")),
             Expect(CurrentSelectedTexts(&["fn"])),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Next)),
             Editor(ReplaceWithCopiedText {
                 use_system_clipboard: false,
                 cut: false,
@@ -800,8 +800,8 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
-            Editor(MoveSelection(Beta)),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Next)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
             Editor(ChangeCut {
                 use_system_clipboard: false,
@@ -832,15 +832,15 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(EnableSelectionExtension),
-            Editor(MoveSelection(Movement::Right)),
-            Editor(MoveSelection(Movement::Beta)),
-            Editor(MoveSelection(Movement::Beta)),
+            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
             Editor(Copy {
                 use_system_clipboard: false,
             }),
             Editor(Reset),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["{"])),
             Editor(ReplaceWithCopiedText {
                 use_system_clipboard: false,
@@ -868,8 +868,8 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Movement::Right)),
-            Editor(MoveSelection(Movement::Beta)),
-            Editor(MoveSelection(Movement::Beta)),
+            Editor(MoveSelection(Movement::Next)),
+            Editor(MoveSelection(Movement::Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
             Editor(Copy {
                 use_system_clipboard: false,
@@ -1220,24 +1220,14 @@ fn global_marks() -> Result<(), anyhow::Error> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                Word {
-                    skip_symbols: false,
-                },
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ToggleMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                Word {
-                    skip_symbols: false,
-                },
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ToggleMark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Mark,
@@ -1828,9 +1818,9 @@ fn same_range_diagnostics_should_be_merged() -> Result<(), anyhow::Error> {
             Expect(EditorInfoContent(expected_info)),
             // Expect there's only one diagnostic, by the fact that moving to the first and
             // last diagnostic still renders the same info
-            Editor(MoveSelection(Alpha)),
+            Editor(MoveSelection(First)),
             Expect(EditorInfoContent(expected_info)),
-            Editor(MoveSelection(Beta)),
+            Editor(MoveSelection(Last)),
             Expect(EditorInfoContent(expected_info)),
         ])
     })

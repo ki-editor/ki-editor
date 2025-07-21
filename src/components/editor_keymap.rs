@@ -15,19 +15,19 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchN, WordF, SrchC, MultC, Swap_, /****/ FindP, InstP, Up___, InstN, FindN,
+        SrchN, Word_, SrchC, MultC, Swap_, /****/ Prev_, InstP, Up___, InstN, Next_,
     ],
     [
         Line_, Token, Sytx_, Extnd, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
     ],
     [
-        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ Globl, Chng_, Alpha, Beta_, XAchr,
+        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ Globl, Chng_, First, Last_, XAchr,
     ],
 ];
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SrchP, Word_, Char_, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
+        SrchP, Char_, _____, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
     ],
     [
         LineF, _____, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
@@ -518,8 +518,8 @@ pub(crate) enum Meaning {
     FindN,
     /// Local find backward
     FindP,
-    /// Alpha
-    Alpha,
+    /// First
+    First,
     /// Go back
     GBack,
     /// Go forward
@@ -544,8 +544,8 @@ pub(crate) enum Meaning {
     KilLN,
     /// Kill to line start
     KilLP,
-    /// Beta
-    Beta_,
+    /// Last
+    Last_,
     /// Left
     Left_,
     /// Line Up
@@ -626,8 +626,6 @@ pub(crate) enum Meaning {
     WSwth,
     /// Select Word
     Word_,
-    /// Select Fine Word
-    WordF,
     /// Swap cursor with anchor
     XAchr,
     /// Swap Selection End
@@ -774,6 +772,10 @@ pub(crate) enum Meaning {
     RevlC,
     /// Reveal marks
     RevlM,
+    /// Previous
+    Prev_,
+    /// Next
+    Next_,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

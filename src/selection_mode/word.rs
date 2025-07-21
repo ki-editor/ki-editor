@@ -1,39 +1,22 @@
 use super::{ByteRange, PositionBasedSelectionMode, SelectionModeTrait, Token};
 use crate::{buffer::Buffer, components::editor::IfCurrentNotFound, selection::CharIndex};
 
-pub struct Word {
-    skip_symbols: bool,
-}
+pub struct Word;
 
-const SUBWORD_REGEX: &str =
+const WORD_REGEX: &str =
     r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z]{2,}|[A-Z][a-z]+|[A-Z]|[a-z]+|[^\w\s]|_|[0-9]+";
 
 impl Word {
-    pub(crate) fn new(skip_symbols: bool) -> Self {
-        Self { skip_symbols }
-    }
-}
-
-impl PositionBasedSelectionMode for Word {
-    fn alpha(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        get_word(params, SelectionPosition::First)
+    pub(crate) fn new() -> Self {
+        Self
     }
 
-    fn beta(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        get_word(params, SelectionPosition::Last)
-    }
-
-    fn get_current_selection_by_cursor(
+    fn get_current_selection(
         &self,
         buffer: &Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
+        skip_symbols: bool,
     ) -> anyhow::Result<Option<ByteRange>> {
         let rope = buffer.rope();
         let len_chars = rope.len_chars();
@@ -47,7 +30,7 @@ impl PositionBasedSelectionMode for Word {
         }
 
         let predicate = |c: char| {
-            if self.skip_symbols {
+            if skip_symbols {
                 c.is_ascii_alphanumeric()
             } else {
                 !c.is_whitespace()
@@ -78,9 +61,7 @@ impl PositionBasedSelectionMode for Word {
 
         let current_char = buffer.char(current)?;
 
-        if current_char.is_whitespace()
-            || (self.skip_symbols && !current_char.is_ascii_alphanumeric())
-        {
+        if current_char.is_whitespace() || (skip_symbols && !current_char.is_ascii_alphanumeric()) {
             return Ok(None);
         }
 
@@ -184,6 +165,40 @@ impl PositionBasedSelectionMode for Word {
             buffer.char_index_range_to_byte_range(range)?,
         )))
     }
+}
+
+impl PositionBasedSelectionMode for Word {
+    fn first(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        get_word(params, SelectionPosition::First)
+    }
+
+    fn last(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        get_word(params, SelectionPosition::Last)
+    }
+
+    fn get_current_meaningful_selection_by_cursor(
+        &self,
+        buffer: &Buffer,
+        cursor_char_index: CharIndex,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<ByteRange>> {
+        self.get_current_selection(buffer, cursor_char_index, if_current_not_found, true)
+    }
+
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &Buffer,
+        cursor_char_index: CharIndex,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<ByteRange>> {
+        self.get_current_selection(buffer, cursor_char_index, if_current_not_found, false)
+    }
 
     fn process_paste_gap(
         &self,
@@ -208,7 +223,7 @@ mod test_word {
     #[test]
     fn simple_case() {
         let buffer = Buffer::new(None, "snake Case camel");
-        PositionBased(super::Word::new(true)).assert_all_selections(
+        PositionBased(super::Word::new()).assert_all_selections(
             &buffer,
             Selection::default(),
             &[(0..5, "snake"), (6..10, "Case"), (11..16, "camel")],
@@ -221,7 +236,7 @@ mod test_word {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
         );
-        PositionBased(super::Word::new(true)).assert_all_selections(
+        PositionBased(super::Word::new()).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -242,44 +257,31 @@ mod test_word {
     }
 
     #[test]
-    fn no_skip_symbols() {
-        let buffer = Buffer::new(
-            None,
-            "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
-        );
-        PositionBased(super::Word::new(false)).assert_all_selections(
-            &buffer,
-            Selection::default(),
-            &[
-                (0..5, "snake"),
-                (5..6, "_"),
-                (6..10, "case"),
-                (11..16, "camel"),
-                (16..20, "Case"),
-                (21..27, "Pascal"),
-                (27..31, "Case"),
-                (32..37, "UPPER"),
-                (37..38, "_"),
-                (38..43, "SNAKE"),
-                (44..45, "-"),
-                (45..46, ">"),
-                (46..47, "("),
-                (47..48, ")"),
-                (49..52, "123"),
-                (53..54, "<"),
-                (54..55, "_"),
-                (55..56, ">"),
-                (57..61, "HTTP"),
-                (61..68, "Network"),
-                (69..70, "X"),
-            ],
-        );
+    fn no_skip_symbols() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("snake-case".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    crate::selection::SelectionMode::Word,
+                )),
+                Editor(EnterMultiCursorMode),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["snake", "-", "case"])),
+            ])
+        })
     }
 
     #[test]
     fn consecutive_uppercase_letters() {
         let buffer = Buffer::new(None, "XMLParser JSONObject HTMLElement");
-        PositionBased(super::Word::new(true)).assert_all_selections(
+        PositionBased(super::Word::new()).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -305,9 +307,7 @@ mod test_word {
                 Editor(SetContent("".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
-                    crate::selection::SelectionMode::Word {
-                        skip_symbols: false,
-                    },
+                    crate::selection::SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&[""])),
                 Editor(MoveSelection(Down)),
@@ -331,9 +331,7 @@ mod test_word {
                     Editor(SetContent("foo bar\nspam".to_string())),
                     Editor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
-                        SelectionMode::Word {
-                            skip_symbols: false,
-                        },
+                        SelectionMode::Word,
                     )),
                     Editor(MoveSelection(Right)),
                     Expect(CurrentSelectedTexts(&["bar"])),
@@ -368,7 +366,7 @@ fn get_word(
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {
         let content = params.buffer.slice(&current_word.range())?.to_string();
-        let regex = fancy_regex::Regex::new(SUBWORD_REGEX)?;
+        let regex = fancy_regex::Regex::new(WORD_REGEX)?;
         let mut captures = regex.captures_iter(&content);
         if let Some(match_) = match position {
             SelectionPosition::First => captures.next(),

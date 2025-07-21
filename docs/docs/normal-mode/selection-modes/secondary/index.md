@@ -26,7 +26,9 @@ Most secondary selection modes are nested below the 3 keybindings below,
 with the exception of Search and Search Current, which are placed on the
 first layer due to their ubiquity.
 
-<KeymapFallback filename="Secondary Selection Modes Init"/>
+- `[` : Local (Backward)
+- `]` : Local (Forward)
+- `n` (Qwerty) : Global
 
 Local Find is directional, meaning that if the cursor position does not overlap
 with any selections of the chosen secondary selection mode, the cursor will

@@ -55,17 +55,25 @@ impl Editor {
                 "Down".to_string(),
                 Dispatch::ToEditor(MoveSelection(Down)),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Alpha),
-                "◀◀".to_string(),
-                "Alph".to_string(),
-                Dispatch::ToEditor(MoveSelection(Movement::Alpha)),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::First),
+                "First".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::First)),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Beta_),
-                "▶▶".to_string(),
-                "Beta".to_string(),
-                Dispatch::ToEditor(MoveSelection(Movement::Beta)),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Last_),
+                "Last".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Last)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Next_),
+                "Next".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Next)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                "Previous".to_string(),
+                Dispatch::ToEditor(MoveSelection(Movement::Previous)),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Jump_),
@@ -209,23 +217,12 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::WordF),
-                "Word*".to_string(),
-                "Select Word*".to_string(),
-                Dispatch::ToEditor(SetSelectionMode(
-                    self.cursor_direction.reverse().to_if_current_not_found(),
-                    Word {
-                        skip_symbols: false,
-                    },
-                )),
-            ),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Word_),
                 "Word".to_string(),
                 "Select Word".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(
                     self.cursor_direction.reverse().to_if_current_not_found(),
-                    Word { skip_symbols: true },
+                    Word,
                 )),
             ),
             Keymap::new_extended(
@@ -244,7 +241,7 @@ impl Editor {
     pub(crate) fn keymap_secondary_selection_modes_init(&self, context: &Context) -> Vec<Keymap> {
         [
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::FindP),
+                "[",
                 Direction::Start.format_action("Find"),
                 "Find (Local) - Backward".to_string(),
                 Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
@@ -254,7 +251,7 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::FindN),
+                "]",
                 Direction::End.format_action("Find"),
                 "Find (Local) - Forward".to_string(),
                 Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(

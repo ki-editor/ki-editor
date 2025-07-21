@@ -73,7 +73,6 @@ export type SelectionMode =
 	| { type: "Line", params?: undefined }
 	| { type: "LineFull", params?: undefined }
 	| { type: "Word", params?: undefined }
-	| { type: "WordFine", params?: undefined }
 	| { type: "Token", params?: undefined }
 	| { type: "Custom", params?: undefined }
 	| { type: "SyntaxNode", params?: undefined }

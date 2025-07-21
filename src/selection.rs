@@ -420,7 +420,7 @@ impl SelectionSet {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) enum SelectionMode {
     // Regex
-    Word { skip_symbols: bool },
+    Word,
     Token,
     Line,
     Character,
@@ -469,9 +469,7 @@ impl SelectionMode {
             SelectionMode::GitHunk(diff_mode) => format!("HUNK{}", diff_mode.display()).to_string(),
             SelectionMode::Mark => "MARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
-            SelectionMode::Word { skip_symbols } => {
-                format!("WORD{}", if *skip_symbols { "" } else { "*" })
-            }
+            SelectionMode::Word => "WORD".to_string(),
             SelectionMode::Token => "TOKEN".to_string(),
         }
     }
@@ -489,9 +487,7 @@ impl SelectionMode {
             cursor_direction,
         };
         Ok(match self {
-            SelectionMode::Word { skip_symbols } => {
-                Box::new(PositionBased(selection_mode::Word::new(*skip_symbols)))
-            }
+            SelectionMode::Word => Box::new(PositionBased(selection_mode::Word::new())),
             SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::Line => Box::new(PositionBased(selection_mode::LineTrimmed)),
             SelectionMode::LineFull => Box::new(PositionBased(selection_mode::LineFull::new())),

@@ -1,6 +1,6 @@
 {
     "name": "ki-editor-vscode",
-    "version": "0.0.13",
+    "version": "0.0.14",
     "description": "VSCode extension for Ki Editor (Preview)",
     "main": "./dist/extension.js",
     "publisher": "ki-editor",
@@ -28,9 +28,7 @@
         "bundle": "bun scripts/bundle.ts",
         "package": "vsce package",
         "publish": "vsce publish",
-        "package:full": "npm run build:binaries && npm run package",
-        "vscode:prepublish": "bun scripts/bundle.ts",
-        "build:binaries": "cd .. && ./build-all-platforms.sh"
+        "vscode:prepublish": "bun scripts/bundle.ts"
     },
     "activationEvents": ["onStartupFinished"],
     "contributes": {
