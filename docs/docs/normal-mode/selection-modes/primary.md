@@ -24,14 +24,14 @@ There are two Syntax Node selection modes:
 - Coarse: faster movement, lower accuracy
 - Fine: higher accuracy, slower movement
 
-| Movement                                             | Meaning                                              |
-| ---------------------------------------------------- | ---------------------------------------------------- |
-| [Left/Right](../core-movements.md#--leftright)       | Next/Previous **named** sibling node                 |
-| [Previous/Next](../core-movements.md#--previousnext) | Next/Previous sibling node, including anonymous ones |
-| Up                                                   | Parent node                                          |
-| Down                                                 | First **named** child                                |
-| Current                                              | Select the largest node                              |
-| Jump                                                 | Jump to largest node                                 |
+| Movement                                           | Meaning                                              |
+| -------------------------------------------------- | ---------------------------------------------------- |
+| [Left/Right](../core-movements.md#--leftright)     | Next/Previous **named** sibling node                 |
+| [Previous/Next](../core-movements.md#previousnext) | Next/Previous sibling node, including anonymous ones |
+| Up                                                 | Parent node                                          |
+| Down                                               | First **named** child                                |
+| Current                                            | Select the largest node                              |
+| Jump                                               | Jump to largest node                                 |
 
 ### Largest Node
 
@@ -70,14 +70,14 @@ See more at [https://tree-sitter.github.io/tree-sitter/using-parsers/2-basic-par
 
 Fine Syntax Node.
 
-| Movement                                             | Meaning                                              |
-| ---------------------------------------------------- | ---------------------------------------------------- |
-| [Left/Right](../core-movements.md#--leftright)       | Next/Previous **named** sibling node                 |
-| [Previous/Next](../core-movements.md#--previousnext) | Next/Previous sibling node, including anonymous ones |
-| Up                                                   | Parent node                                          |
-| Shrink                                               | First child (including anonymous)                    |
-| Current                                              | Smallest node that matches the current selection     |
-| Jump                                                 | Jump to smallest node                                |
+| Movement                                           | Meaning                                              |
+| -------------------------------------------------- | ---------------------------------------------------- |
+| [Left/Right](../core-movements.md#--leftright)     | Next/Previous **named** sibling node                 |
+| [Previous/Next](../core-movements.md#previousnext) | Next/Previous sibling node, including anonymous ones |
+| Up                                                 | Parent node                                          |
+| Shrink                                             | First child (including anonymous)                    |
+| Current                                            | Smallest node that matches the current selection     |
+| Jump                                               | Jump to smallest node                                |
 
 Fine Syntax Node is useful when you start to expand the selection starting from the current smallest node.
 
@@ -170,6 +170,6 @@ Character.
 
 In this selection mode, the movements behave like the usual editor, where [Left/Right](./../core-movements.md#--leftright) means left/right, and so on.
 
-[First/Last](./../core-movements.md#--firstlast) means the first/last character of the current word.
+[First/Last](./../core-movements.md#firstlast) means the first/last character of the current word.
 
 <TutorialFallback filename="char"/>
