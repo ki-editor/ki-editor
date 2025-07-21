@@ -271,6 +271,8 @@
             rust-analyzer
             pkg-config
             openssl
+            just
+            git
           ];
         };
       }

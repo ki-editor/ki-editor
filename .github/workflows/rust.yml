@@ -26,6 +26,8 @@ jobs:
       - name: Install devenv.sh
         run: nix profile install nixpkgs#devenv
       - name: Run everything
+        run: nix develop --command just
+      - name: Run everything (devenv)
         run: devenv shell just
       - uses: dtolnay/rust-toolchain@v1
         with:
