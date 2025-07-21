@@ -14,14 +14,13 @@ every [selection modes](./selection-modes/index.md).
 
 There are 9 movements in total:
 
-- [`◀` `▶` Left/Right](#--leftright)
-- [Previous/Next](#previousnext)
-- [`▲` `▼` Up/Down](#--updown)
-- [Sticky Column](#sticky-column)
-- [First/Last](#firstlast)
-- [`Jump`](#jump)
-- [`Index` Jump to Index](#index-jump-to-index)
-- [Current](#current)
+* [`◀` `▶` Left/Right](#--leftright)
+* [Previous/Next](#previousnext)
+* [`▲` `▼` Up/Down](#--updown)
+* [First/Last](#firstlast)
+* [`Jump`](#jump)
+* [`Index` Jump to Index](#index-jump-to-index)
+* [Current](#current)
 
 ## Keymap
 
@@ -40,7 +39,7 @@ For example:
 
 ### Previous/Next
 
-Previous/Next means move to the previous/next selection of the current selection mode.
+Previous/Next means move to the previous/next selection of the current selection mode, **without** skipping any selections (generally).
 
 For example:
 
