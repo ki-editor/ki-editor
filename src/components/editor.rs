@@ -3259,8 +3259,7 @@ impl Editor {
     }
 
     fn indent(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let indentation: Rope = std::iter::repeat(INDENT_CHAR)
-            .take(INDENT_WIDTH)
+        let indentation: Rope = std::iter::repeat_n(INDENT_CHAR, INDENT_WIDTH)
             .collect::<String>()
             .into();
         let edit_transaction = EditTransaction::from_action_groups(
