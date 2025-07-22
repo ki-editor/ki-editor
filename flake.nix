@@ -268,6 +268,7 @@
 
         devShells.default = (crane.mkLib pkgs).devShell {
           packages = with pkgs; [
+            nodejs
             rust-analyzer
             pkg-config
             openssl

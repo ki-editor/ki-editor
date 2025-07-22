@@ -20,25 +20,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: cachix/install-nix-action@v26
-      - uses: cachix/cachix-action@v14
-        with:
-          name: devenv
-      - name: Install devenv.sh
-        run: nix profile install nixpkgs#devenv
       - name: Run everything
         run: nix develop --command just
-      - name: Run everything (devenv)
-        run: devenv shell just
-      - uses: dtolnay/rust-toolchain@v1
-        with:
-          toolchain: 1.85.0
-          components: rustfmt, clippy
-      - uses: extractions/setup-just@v1
-      - name: Just
-        run: just
-
       - name: Verify installation
-        run: just install
+        run: nix develop --command just install
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
