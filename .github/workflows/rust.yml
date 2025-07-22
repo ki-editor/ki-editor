@@ -15,7 +15,7 @@ env:
 jobs:
   check:
     name: all-rust-check
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
