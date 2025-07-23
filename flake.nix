@@ -222,7 +222,7 @@
           rustTarget = if pkgs.stdenv.isDarwin then
             if pkgs.stdenv.hostPlatform.isAarch64 then "aarch64-apple-darwin" else "x86_64-apple-darwin"
           else if pkgs.stdenv.isLinux then
-            "x86_64-unknown-linux-gnu"
+	    if pkgs.stdenv.hostPlatform.isAarch64 then "aarch64-unknown-linux-musl" else "x86_64-unknown-linux-musl"
           else
             throw "Unsupported native system";
         };
