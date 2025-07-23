@@ -290,6 +290,20 @@ Why?
                     only: false,
                 },
                 Recipe {
+                    description: "Surround with XML tag",
+                    content: "hello world".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("s f g p x y enter"),
+                    expectations: Box::new([
+                        CurrentComponentContent("<xy>hello</xy> world"),
+                        CurrentSelectedTexts(&["<xy>hello</xy>"]),
+                    ]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
                     description: "Delete Surround",
                     content: "(hello world)".trim(),
                     file_extension: "md",

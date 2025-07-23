@@ -62,6 +62,7 @@ pub(crate) enum PromptHistoryKey {
         maintain: bool,
     },
     KeyboardLayout,
+    SurroundXmlTag,
 }
 
 impl Prompt {

@@ -2892,3 +2892,40 @@ spam
         ])
     })
 }
+
+#[test]
+fn surround_with_xml_tag() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            App(OpenSurroundXmlPrompt),
+            App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            Expect(CurrentComponentContent("<foo>hello</foo>")),
+            Expect(CurrentSelectedTexts(&["<foo>hello</foo>"])),
+        ])
+    })
+}
+#[test]
+fn surround_with_empty_xml_tag() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            App(OpenSurroundXmlPrompt),
+            App(HandleKeyEvents(keys!("enter").to_vec())),
+            Expect(CurrentComponentContent("<>hello</>")),
+            Expect(CurrentSelectedTexts(&["<>hello</>"])),
+        ])
+    })
+}

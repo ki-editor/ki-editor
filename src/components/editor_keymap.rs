@@ -105,7 +105,7 @@ pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
     [
-        _____, _____, _____, _____, _____, /****/ _____, SQuot, DQuot, BckTk, _____,
+        _____, _____, _____, _____, _____, /****/ _____, SQuot, DQuot, BckTk, XML__,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, Paren, Brckt, Brace, Anglr,
@@ -776,6 +776,8 @@ pub(crate) enum Meaning {
     Prev_,
     /// Next
     Next_,
+    /// XML, used for Surround
+    XML__,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

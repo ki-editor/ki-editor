@@ -124,6 +124,10 @@ impl Keymaps {
     pub(crate) fn iter(&self) -> std::slice::Iter<'_, Keymap> {
         self.0.iter()
     }
+
+    pub(crate) fn into_vec(self) -> Vec<Keymap> {
+        self.0
+    }
 }
 
 fn dedent(s: &str) -> String {

@@ -1507,12 +1507,24 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
         KeymapLegendConfig {
             title: "Surround".to_string(),
 
-            body: KeymapLegendBody::Positional(generate_enclosures_keymaps(
-                |enclosure| {
-                    let (open, close) = enclosure.open_close_symbols_str();
-                    Dispatch::ToEditor(Surround(open.to_string(), close.to_string()))
-                },
-                context,
+            body: KeymapLegendBody::Positional(Keymaps::new(
+                &generate_enclosures_keymaps(
+                    |enclosure| {
+                        let (open, close) = enclosure.open_close_symbols_str();
+                        Dispatch::ToEditor(Surround(open.to_string(), close.to_string()))
+                    },
+                    context,
+                )
+                .into_vec()
+                .into_iter()
+                .chain(Some(Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_surround_keymap(&Meaning::XML__),
+                    "<></>".to_string(),
+                    Dispatch::OpenSurroundXmlPrompt,
+                )))
+                .collect_vec(),
             )),
         }
     }
