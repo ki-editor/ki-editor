@@ -2507,7 +2507,9 @@ impl Editor {
                             Action::Select(
                                 selection.clone().set_range(
                                     (selection.extended_range().start
-                                        ..selection.extended_range().end + 2)
+                                        ..selection.extended_range().end
+                                            + open.chars().count()
+                                            + close.chars().count())
                                         .into(),
                                 ),
                             ),

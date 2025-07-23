@@ -912,6 +912,7 @@ impl<T: Frontend> App<T> {
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
             Dispatch::ToHostApp(to_host_app) => self.handle_to_host_app(to_host_app)?,
             Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
+            Dispatch::OpenSurroundXmlPrompt => self.open_surround_xml_prompt()?,
         }
         Ok(())
     }
@@ -991,6 +992,22 @@ impl<T: Frontend> App<T> {
                 prompt_history_key: PromptHistoryKey::Rename,
             },
             current_name,
+        )
+    }
+
+    fn open_surround_xml_prompt(&mut self) -> anyhow::Result<()> {
+        self.open_prompt(
+            PromptConfig {
+                title: "Surround selection with XML tag (can be empty for React Fragment)"
+                    .to_string(),
+                on_enter: DispatchPrompt::SurroundXmlTag,
+                items: vec![],
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: false,
+                fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::SurroundXmlTag,
+            },
+            None,
         )
     }
 
@@ -3025,6 +3042,7 @@ pub(crate) enum Dispatch {
 
     ToHostApp(ToHostApp),
     FromHostApp(FromHostApp),
+    OpenSurroundXmlPrompt,
 }
 
 /// Used to send notify host app about changes
@@ -3187,6 +3205,7 @@ pub(crate) enum DispatchPrompt {
         maintain: bool,
     },
     SetKeyboardLayoutKind,
+    SurroundXmlTag,
 }
 impl DispatchPrompt {
     pub(crate) fn to_dispatches(&self, text: &str) -> anyhow::Result<Dispatches> {
@@ -3311,6 +3330,9 @@ impl DispatchPrompt {
                     keyboard_layout_kind,
                 )))
             }
+            DispatchPrompt::SurroundXmlTag => Ok(Dispatches::one(Dispatch::ToEditor(
+                DispatchEditor::Surround(format!("<{text}>"), format!("</{text}>")),
+            ))),
         }
     }
 }
