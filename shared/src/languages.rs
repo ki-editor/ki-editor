@@ -9,6 +9,7 @@ pub const LANGUAGES: &[&Language] = &[
     &c(),
     &common_lisp(),
     &cpp(),
+    &c_sharp(),
     &css(),
     &csv(),
     &diff(),
@@ -171,6 +172,26 @@ const fn csv() -> Language {
             url: "https://github.com/arnau/tree-sitter-csv",
             commit: "main",
             subpath: None,
+        }),
+        language_fallback: None,
+        ..Language::new()
+    }
+}
+
+const fn c_sharp() -> Language {
+    Language {
+        extensions: &["cs", "csx", "cake"],
+        formatter_command: Some(Command("csharpier", &["format", "--write-stdout"])),
+        lsp_command: Some(LspCommand {
+            command: Command("omnisharp", &["--languageserver"]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("c_sharp")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "c_sharp",
+            url: "https://github.com/tree-sitter/tree-sitter-c-sharp",
+            subpath: None,
+            commit: "master",
         }),
         language_fallback: None,
         ..Language::new()
