@@ -116,7 +116,7 @@ impl PositionBasedSelectionMode for LineFull {
         Ok(self.up(params, None)?.map(|result| result.selection))
     }
 
-    fn get_current_selection_by_cursor(
+    fn get_current_meaningful_selection_by_cursor(
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,

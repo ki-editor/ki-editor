@@ -114,9 +114,6 @@ sealed class SelectionMode {
 	@SerialName("Word")
 	object Word: SelectionMode()
 	@Serializable
-	@SerialName("WordFine")
-	object WordFine: SelectionMode()
-	@Serializable
 	@SerialName("Token")
 	object Token: SelectionMode()
 	@Serializable

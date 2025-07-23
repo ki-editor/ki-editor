@@ -8,21 +8,21 @@ use super::{
 pub(crate) struct Character;
 
 impl PositionBasedSelectionMode for Character {
-    fn alpha(
+    fn first(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         get_char(params, SelectionPosition::First)
     }
 
-    fn beta(
+    fn last(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         get_char(params, SelectionPosition::Last)
     }
 
-    fn get_current_selection_by_cursor(
+    fn get_current_meaningful_selection_by_cursor(
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
@@ -45,7 +45,7 @@ fn get_char(
     params: &super::SelectionModeParams,
     position: SelectionPosition,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
-    if let Some(current_word) = PositionBased(Word::new(false)).current(
+    if let Some(current_word) = PositionBased(Word::new()).current(
         params,
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {

@@ -1,14 +1,14 @@
 use itertools::Itertools;
 
-use crate::{components::editor::Direction, selection_mode::ApplyMovementResult};
+use crate::{
+    components::editor::Direction,
+    selection_mode::{syntax_token::SyntaxToken, ApplyMovementResult},
+};
 
-use super::{ByteRange, IterBasedSelectionMode, SyntaxToken, TopNode};
+use super::{ByteRange, IterBasedSelectionMode, TopNode};
 
 pub(crate) struct SyntaxNode {
-    /// If this is true:
-    /// - anonymous siblings node will be skipped
-    /// - current takes `TopNode`
-    pub coarse: bool,
+    pub(crate) coarse: bool,
 }
 
 impl IterBasedSelectionMode for SyntaxNode {
@@ -75,32 +75,39 @@ impl IterBasedSelectionMode for SyntaxNode {
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         self.select_vertical(params, true)
     }
-    fn right(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let buffer = params.buffer;
-        let current_selection = params.current_selection;
-        let node = buffer
-            .get_current_node(current_selection, false)?
-            .ok_or(anyhow::anyhow!(
-                "SyntaxNode::iter: Cannot find Treesitter language"
-            ))?;
-        let node = if self.coarse {
-            node.next_named_sibling()
-        } else {
-            node.next_sibling()
-        };
-        Ok(node.and_then(|node| {
-            ByteRange::new(node.byte_range())
-                .to_selection(params.buffer, params.current_selection)
-                .ok()
-        }))
-    }
+
     fn left(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.navigate_sibling_nodes(params, &Direction::Start, true)
+    }
+
+    fn right(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.navigate_sibling_nodes(params, &Direction::End, true)
+    }
+
+    fn previous(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.navigate_sibling_nodes(params, &Direction::Start, false)
+    }
+
+    fn next(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.navigate_sibling_nodes(params, &Direction::End, false)
+    }
+
+    fn all_meaningful_selections<'a>(
+        &'a self,
+        params: &super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
         let node = buffer
@@ -108,18 +115,24 @@ impl IterBasedSelectionMode for SyntaxNode {
             .ok_or(anyhow::anyhow!(
                 "SyntaxNode::iter: Cannot find Treesitter language"
             ))?;
-        let node = if self.coarse {
-            node.prev_named_sibling()
+
+        if let Some(parent) = node.parent() {
+            let children = {
+                (0..parent.named_child_count())
+                    .filter_map(move |i| parent.named_child(i))
+                    .collect_vec()
+            };
+            Ok(Box::new(
+                children
+                    .into_iter()
+                    .map(|node| ByteRange::new(node.byte_range())),
+            ))
         } else {
-            node.prev_sibling()
-        };
-        Ok(node.and_then(|node| {
-            ByteRange::new(node.byte_range())
-                .to_selection(params.buffer, params.current_selection)
-                .ok()
-        }))
+            Ok(Box::new(std::iter::empty()))
+        }
     }
 
+    #[cfg(test)]
     fn all_selections<'a>(
         &'a self,
         params: &super::SelectionModeParams<'a>,
@@ -133,11 +146,7 @@ impl IterBasedSelectionMode for SyntaxNode {
             ))?;
 
         if let Some(parent) = node.parent() {
-            let children = if self.coarse {
-                (0..parent.named_child_count())
-                    .filter_map(move |i| parent.named_child(i))
-                    .collect_vec()
-            } else {
+            let children = {
                 (0..parent.child_count())
                     .filter_map(move |i| parent.child(i))
                     .collect_vec()
@@ -171,9 +180,48 @@ impl IterBasedSelectionMode for SyntaxNode {
             }
         }
     }
+
+    fn delete_backward(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.left(params)
+    }
+
+    fn delete_forward(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.right(params)
+    }
 }
 
 impl SyntaxNode {
+    fn navigate_sibling_nodes(
+        &self,
+        params: &super::SelectionModeParams,
+        direction: &Direction,
+        named: bool,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let buffer = params.buffer;
+        let current_selection = params.current_selection;
+        let node = buffer
+            .get_current_node(current_selection, false)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter: Cannot find Treesitter language"
+            ))?;
+        let node = match (named, direction) {
+            (true, Direction::Start) => node.prev_named_sibling(),
+            (true, Direction::End) => node.next_named_sibling(),
+            (false, Direction::Start) => node.prev_sibling(),
+            (false, Direction::End) => node.next_sibling(),
+        };
+        Ok(node.and_then(|node| {
+            ByteRange::new(node.byte_range())
+                .to_selection(params.buffer, params.current_selection)
+                .ok()
+        }))
+    }
     pub(crate) fn select_vertical(
         &self,
         params: &super::SelectionModeParams,
@@ -234,11 +282,6 @@ mod test_syntax_node {
             "fn main() { let x = X {z,b,c:d} }",
         );
         super::SyntaxNode { coarse: true }.assert_all_selections(
-            &buffer,
-            Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
-            &[(23..24, "z"), (25..26, "b"), (27..30, "c:d")],
-        );
-        super::SyntaxNode { coarse: false }.assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
             &[
