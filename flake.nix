@@ -268,9 +268,15 @@
 
         devShells.default = (crane.mkLib pkgs).devShell {
           packages = with pkgs; [
+            python3
+            typeshare
+            which
+            nodejs
             rust-analyzer
             pkg-config
             openssl
+            just
+            git
           ];
         };
       }

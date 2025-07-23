@@ -1628,7 +1628,7 @@ pub(crate) trait IterBasedSelectionMode {
         Ok(self
             .all_meaningful_selections(params)?
             .sorted()
-            .last()
+            .next_back()
             .and_then(|range| {
                 range
                     .to_selection(params.buffer, params.current_selection)

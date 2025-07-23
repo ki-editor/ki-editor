@@ -19,11 +19,11 @@ fmt:
 	cargo fmt --all
 	npm run format
 
-build: install-typeshare
+build:
     @echo "Running cargo build..."
     cargo build --workspace --tests
 
-watch-build: install-typeshare
+watch-build:
     cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo build
 
 lint:
@@ -73,9 +73,6 @@ generate-recipes:
 	
 watch-generate-recipes:
 	just watch-test "generate_recipes"
-
-install-typeshare:
-    cargo install --git https://github.com/tomjw64/typeshare
 
 vscode-build: build
     cd ki-vscode && npm install

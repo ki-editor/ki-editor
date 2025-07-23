@@ -528,8 +528,8 @@ impl SelectionMode {
     pub(crate) fn is_contiguous(&self) -> bool {
         matches!(
             self,
-            SelectionMode::Word { .. }
-                | SelectionMode::Token { .. }
+            SelectionMode::Word
+                | SelectionMode::Token
                 | SelectionMode::Line
                 | SelectionMode::LineFull
                 | SelectionMode::Character

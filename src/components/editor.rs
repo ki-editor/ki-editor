@@ -1705,7 +1705,7 @@ impl Editor {
             let dispatches = {
                 use SelectionMode::*;
                 match self.selection_set.mode {
-                    Line | LineFull | Token | Word { .. } => self
+                    Line | LineFull | Token | Word => self
                         .move_selection_with_selection_mode_without_global_mode(
                             Movement::Current(IfCurrentNotFound::LookBackward),
                             self.selection_set.mode.clone(),
@@ -3259,8 +3259,7 @@ impl Editor {
     }
 
     fn indent(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let indentation: Rope = std::iter::repeat(INDENT_CHAR)
-            .take(INDENT_WIDTH)
+        let indentation: Rope = std::iter::repeat_n(INDENT_CHAR, INDENT_WIDTH)
             .collect::<String>()
             .into();
         let edit_transaction = EditTransaction::from_action_groups(
