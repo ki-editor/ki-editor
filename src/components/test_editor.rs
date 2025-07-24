@@ -4573,3 +4573,38 @@ fuor
         ])
     })
 }
+
+#[test]
+fn line_move_right_back_to_historical_position() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+fn main() {
+    foo();
+    bar();
+}
+                "
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Expect(CurrentSelectedTexts(&["bar();"])),
+            Editor(MoveSelection(Left)),
+            Expect(CurrentSelectedTexts(&["fn main() {"])),
+            App(HandleKeyEvents(keys!("backspace").to_vec())),
+            Expect(CurrentSelectedTexts(&["bar();"])),
+            App(HandleKeyEvents(keys!("tab").to_vec())),
+            Expect(CurrentSelectedTexts(&["fn main() {"])),
+        ])
+    })
+}
