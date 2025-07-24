@@ -63,6 +63,7 @@ use crate::{
 };
 use crate::{lsp::process::LspNotification, themes::Color};
 
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum Step {
     App(Dispatch),
     AppLater(Box<dyn Fn() -> Dispatch>),
@@ -2325,7 +2326,7 @@ fn request_signature_help() -> anyhow::Result<()> {
 
 #[test]
 /// These JSON files will be used in docs
-fn export_keymaps_json() {
+fn doc_assets_export_keymaps_json() {
     #[derive(Serialize, Clone)]
     struct KeyboardLayoutJson {
         name: String,

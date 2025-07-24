@@ -47,12 +47,15 @@ test testname="":
     @echo "Running cargo test..."
     git config --get --global user.name  || git config --global user.name  Tester 
     git config --get --global user.email || git config --global user.email tester@gmail.com
-    cargo test --workspace -- --nocapture -- {{testname}}
+    cargo test --workspace -- --skip 'doc_assets_' --nocapture -- {{testname}}
     
 tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
 
-doc:
+doc-assets:
+    cargo test --workspace -- --nocapture 'doc_assets_'
+
+doc: doc-assets
     just -f docs/justfile
 
 doc-serve:

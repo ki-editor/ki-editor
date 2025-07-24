@@ -120,11 +120,14 @@ Dedent/Indent the current selection by 4 spaces.
 
 ### `Transform`
 
+<KeymapFallback filename="Transform"/>
+
 Transformative actions are nested under here, such as (non-exhaustive):
 
-- `w`: Wrap (Wrap current selection into multiple lines)
-- `l`: Convert to `lower case`
-- `s`: Convert to `snake_case`
+- Casing conversion
+- Wrap
+- Toggle line comment
+- Toggle block comment
 
 ## Meta
 

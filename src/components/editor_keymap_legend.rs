@@ -905,39 +905,54 @@ impl Editor {
             Some(extend_mode_normal_mode_override(context)),
         )
     }
+    pub(crate) fn keymap_transform(&self, context: &Context) -> Vec<Keymap> {
+        [
+            (Meaning::Camel, "camelCase", Case::Camel),
+            (Meaning::Lower, "lower case", Case::Lower),
+            (Meaning::Kbab_, "kebab-case", Case::Kebab),
+            (Meaning::UKbab, "Upper-Kebab", Case::UpperKebab),
+            (Meaning::Pscal, "PascalCase", Case::Pascal),
+            (Meaning::Snke_, "snake_case", Case::Snake),
+            (Meaning::USnke, "UPPER_SNAKE_CASE", Case::UpperSnake),
+            (Meaning::Title, "Title Case", Case::Title),
+            (Meaning::Upper, "UPPER CASE", Case::Upper),
+        ]
+        .into_iter()
+        .map(|(meaning, description, case)| {
+            Keymap::new(
+                context.keyboard_layout_kind().get_transform_key(&meaning),
+                description.to_string(),
+                Dispatch::ToEditor(Transform(Transformation::Case(case))),
+            )
+        })
+        .chain(Some(Keymap::new(
+            context
+                .keyboard_layout_kind()
+                .get_transform_key(&Meaning::Wrap_),
+            "Wrap".to_string(),
+            Dispatch::ToEditor(Transform(Transformation::Wrap)),
+        )))
+        .chain(Some(Keymap::new(
+            context
+                .keyboard_layout_kind()
+                .get_transform_key(&Meaning::CmtLn),
+            "Line Comment".to_string(),
+            Dispatch::ToEditor(DispatchEditor::ToggleLineComment),
+        )))
+        .chain(Some(Keymap::new(
+            context
+                .keyboard_layout_kind()
+                .get_transform_key(&Meaning::CmtBk),
+            "Block Comment".to_string(),
+            Dispatch::ToEditor(DispatchEditor::ToggleBlockComment),
+        )))
+        .collect_vec()
+    }
     pub(crate) fn transform_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Transform".to_string(),
 
-            body: KeymapLegendBody::Positional(Keymaps::new(
-                &[
-                    (Meaning::Camel, "camelCase", Case::Camel),
-                    (Meaning::Lower, "lower case", Case::Lower),
-                    (Meaning::Kbab_, "kebab-case", Case::Kebab),
-                    (Meaning::UKbab, "Upper-Kebab", Case::UpperKebab),
-                    (Meaning::Pscal, "PascalCase", Case::Pascal),
-                    (Meaning::Snke_, "snake_case", Case::Snake),
-                    (Meaning::USnke, "UPPER_SNAKE_CASE", Case::UpperSnake),
-                    (Meaning::Title, "Title Case", Case::Title),
-                    (Meaning::Upper, "UPPER CASE", Case::Upper),
-                ]
-                .into_iter()
-                .map(|(meaning, description, case)| {
-                    Keymap::new(
-                        context.keyboard_layout_kind().get_transform_key(&meaning),
-                        description.to_string(),
-                        Dispatch::ToEditor(Transform(Transformation::Case(case))),
-                    )
-                })
-                .chain(Some(Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_transform_key(&Meaning::Wrap_),
-                    "Wrap".to_string(),
-                    Dispatch::ToEditor(Transform(Transformation::Wrap)),
-                )))
-                .collect_vec(),
-            )),
+            body: KeymapLegendBody::Positional(Keymaps::new(&self.keymap_transform(context))),
         }
     }
 
