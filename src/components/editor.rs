@@ -342,6 +342,8 @@ impl Component for Editor {
             ExecuteCompletion { replacement, edit } => {
                 return self.execute_completion(replacement, edit, context)
             }
+            ToggleLineComment => return self.toggle_line_comment(context),
+            ToggleBlockComment => return self.toggle_block_comment(context),
         }
         Ok(Default::default())
     }
@@ -3817,6 +3819,28 @@ impl Editor {
         self.buffer_mut()
             .update_content(new_content, current_selection_set, last_visible_line)
     }
+
+    fn toggle_line_comment(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        let Some(prefix) = self
+            .buffer()
+            .language()
+            .and_then(|langugae| langugae.line_comment_prefix())
+        else {
+            return Ok(Default::default());
+        };
+        self.transform_selection(Transformation::ToggleLineComment { prefix }, context)
+    }
+
+    fn toggle_block_comment(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        let Some((open, close)) = self
+            .buffer()
+            .language()
+            .and_then(|langugae| langugae.block_comment_affixes())
+        else {
+            return Ok(Default::default());
+        };
+        self.transform_selection(Transformation::ToggleBlockComment { open, close }, context)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3953,6 +3977,8 @@ pub(crate) enum DispatchEditor {
         replacement: String,
         edit: Option<CompletionItemEdit>,
     },
+    ToggleLineComment,
+    ToggleBlockComment,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

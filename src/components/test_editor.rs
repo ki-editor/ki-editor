@@ -4608,3 +4608,51 @@ fn main() {
         ])
     })
 }
+
+#[test]
+fn toggle_line_comment() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello world".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Editor(ToggleLineComment),
+            Expect(CurrentSelectedTexts(&["// hello world"])),
+            Expect(CurrentComponentContent("// hello world")),
+            Editor(ToggleLineComment),
+            Expect(CurrentSelectedTexts(&["hello world"])),
+            Expect(CurrentComponentContent("hello world")),
+        ])
+    })
+}
+
+#[test]
+fn toggle_block_comment() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello world".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Editor(ToggleBlockComment),
+            Expect(CurrentSelectedTexts(&["/* hello world */"])),
+            Expect(CurrentComponentContent("/* hello world */")),
+            Editor(ToggleBlockComment),
+            Expect(CurrentSelectedTexts(&["hello world"])),
+            Expect(CurrentComponentContent("hello world")),
+        ])
+    })
+}

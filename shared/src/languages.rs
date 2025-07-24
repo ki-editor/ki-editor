@@ -49,6 +49,7 @@ pub const LANGUAGES: &[&Language] = &[
     &yaml(),
     &zig(),
 ];
+
 const fn bash() -> Language {
     Language {
         extensions: &["sh", "bash"],
@@ -66,6 +67,7 @@ const fn bash() -> Language {
             subpath: None,
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::Bash),
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -86,6 +88,7 @@ const fn fish() -> Language {
             subpath: None,
         }),
         language_fallback: None,
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -106,9 +109,12 @@ const fn c() -> Language {
             subpath: None,
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::C),
+        line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
+
 const fn unison() -> Language {
     Language {
         extensions: &["u"],
@@ -137,6 +143,7 @@ const fn common_lisp() -> Language {
             commit: "master",
             subpath: None,
         }),
+        line_comment_prefix: Some(";"),
         ..Language::new()
     }
 }
@@ -160,6 +167,8 @@ const fn cpp() -> Language {
             subpath: None,
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::CPP),
+        line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
@@ -194,6 +203,8 @@ const fn c_sharp() -> Language {
             commit: "master",
         }),
         language_fallback: None,
+        line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
@@ -209,6 +220,7 @@ const fn css() -> Language {
             subpath: None,
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::CSS),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
@@ -236,6 +248,7 @@ const fn dockerfile() -> Language {
             subpath: None,
         }),
         language_fallback: None,
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -256,6 +269,7 @@ const fn elixir() -> Language {
             subpath: None,
         }),
         language_fallback: None,
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -269,6 +283,7 @@ const fn gitattributes() -> Language {
             commit: "master",
             subpath: None,
         }),
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -282,6 +297,7 @@ const fn gitcommit() -> Language {
             commit: "main",
             subpath: None,
         }),
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -295,6 +311,7 @@ const fn gitconfig() -> Language {
             commit: "main",
             subpath: None,
         }),
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -308,6 +325,7 @@ const fn gitignore() -> Language {
             commit: "main",
             subpath: None,
         }),
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -321,6 +339,7 @@ const fn gitrebase() -> Language {
             commit: "main",
             subpath: None,
         }),
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -341,6 +360,7 @@ const fn gleam() -> Language {
             subpath: None,
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::Gleam),
+        line_comment_prefix: Some("//"),
         ..Language::new()
     }
 }
@@ -361,6 +381,8 @@ const fn golang() -> Language {
             commit: "master",
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::Go),
+        line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
@@ -381,6 +403,7 @@ const fn graphql() -> Language {
             subpath: None,
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::Graphql),
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -417,6 +440,7 @@ const fn heex() -> Language {
             subpath: None,
         }),
         language_fallback: None,
+        block_comment_affixes: Some(("<!--", "-->")),
         ..Language::new()
     }
 }
@@ -437,6 +461,7 @@ const fn html() -> Language {
             subpath: None,
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::HTML),
+        block_comment_affixes: Some(("<!--", "-->")),
         ..Language::new()
     }
 }
@@ -476,6 +501,8 @@ const fn javascript() -> Language {
             subpath: None,
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::Javascript),
+        line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
@@ -496,6 +523,8 @@ const fn javascript_react() -> Language {
             subpath: None,
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::JSX),
+        line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
@@ -524,6 +553,7 @@ const fn just() -> Language {
             commit: "main",
             subpath: None,
         }),
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -544,6 +574,8 @@ const fn lua() -> Language {
             subpath: None,
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::Lua),
+        line_comment_prefix: Some("--"),
+        block_comment_affixes: Some(("--[[", "]]")),
         ..Language::new()
     }
 }
@@ -564,6 +596,7 @@ const fn markdown() -> Language {
             subpath: Some("tree-sitter-markdown"),
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::Markdown),
+        block_comment_affixes: Some(("<!--", "-->")),
         ..Language::new()
     }
 }
@@ -584,6 +617,8 @@ const fn nix() -> Language {
             subpath: None,
         }),
         language_fallback: None,
+        line_comment_prefix: Some("#"),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
@@ -604,6 +639,7 @@ const fn python() -> Language {
             subpath: None,
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::Python),
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -627,6 +663,8 @@ const fn rescript() -> Language {
             subpath: None,
         }),
         language_fallback: None,
+        line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
@@ -650,6 +688,7 @@ const fn ruby() -> Language {
             subpath: None,
         }),
         language_fallback: None,
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -667,6 +706,7 @@ const fn roc() -> Language {
             subpath: None,
         }),
         language_fallback: None,
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -687,6 +727,8 @@ const fn rust() -> Language {
             subpath: None,
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::Rust),
+        line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
@@ -701,6 +743,8 @@ const fn sql() -> Language {
             commit: "25f94f998de79bae9df28add9782f9ea6ea0e2b8",
             subpath: None,
         }),
+        line_comment_prefix: Some("--"),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
@@ -721,6 +765,8 @@ const fn swift() -> Language {
             subpath: None,
         }),
         language_fallback: None,
+        line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
@@ -735,6 +781,7 @@ const fn toml() -> Language {
             subpath: None,
         }),
         language_fallback: None,
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -748,6 +795,7 @@ const fn tree_sitter_query() -> Language {
             commit: "main",
             subpath: None,
         }),
+        line_comment_prefix: Some(";"),
         ..Language::new()
     }
 }
@@ -768,6 +816,8 @@ const fn typescript() -> Language {
             subpath: Some("typescript"),
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::Typescript),
+        line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
@@ -788,6 +838,8 @@ const fn typescript_react() -> Language {
             subpath: Some("tsx"),
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::TSX),
+        line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
@@ -802,6 +854,7 @@ const fn xml() -> Language {
             commit: "master",
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::XML),
+        block_comment_affixes: Some(("<!--", "-->")),
         ..Language::new()
     }
 }
@@ -816,6 +869,7 @@ const fn yaml() -> Language {
             commit: "master",
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::YAML),
+        line_comment_prefix: Some("#"),
         ..Language::new()
     }
 }
@@ -836,6 +890,7 @@ const fn zig() -> Language {
             commit: "master",
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::Zig),
+        line_comment_prefix: Some("//"),
         ..Language::new()
     }
 }

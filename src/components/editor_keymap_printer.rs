@@ -325,6 +325,11 @@ impl KeymapPrintSections {
                 &Keymaps::new(&editor.keymap_universal(&context)),
                 layout,
             ),
+            KeymapPrintSection::from_keymaps(
+                "Transform".to_string(),
+                &Keymaps::new(&editor.keymap_transform(&context)),
+                layout,
+            ),
         ]
         .to_vec();
 

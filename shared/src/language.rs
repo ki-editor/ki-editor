@@ -45,6 +45,8 @@ pub struct Language {
     pub(crate) language_fallback: Option<CargoLinkedTreesitterLanguage>,
     pub(crate) highlight_query: Option<&'static str>,
     pub(crate) formatter_command: Option<Command>,
+    pub(crate) line_comment_prefix: Option<&'static str>,
+    pub(crate) block_comment_affixes: Option<(&'static str, &'static str)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -125,11 +127,21 @@ impl Language {
             tree_sitter_grammar_config: None,
             formatter_command: None,
             language_fallback: None,
+            line_comment_prefix: None,
+            block_comment_affixes: None,
         }
     }
 
     fn file_names(&self) -> &'static [&'static str] {
         self.file_names
+    }
+
+    pub fn line_comment_prefix(&self) -> Option<&'static str> {
+        self.line_comment_prefix
+    }
+
+    pub fn block_comment_affixes(&self) -> Option<(&'static str, &'static str)> {
+        self.block_comment_affixes
     }
 }
 

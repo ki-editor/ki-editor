@@ -8,7 +8,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use crate::{buffer::BufferOwner, position::Position, recipes, rectangle::Rectangle, test_app::*};
 
 #[test]
-fn generate_recipes() -> anyhow::Result<()> {
+fn doc_assets_generate_recipes() -> anyhow::Result<()> {
     let recipe_groups = recipes::recipe_groups();
     let contains_only_recipes = recipe_groups.iter().any(|group| {
         group.recipes.iter().any(|recipe| {

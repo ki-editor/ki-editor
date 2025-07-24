@@ -153,10 +153,10 @@ pub(crate) const KEYMAP_SEARCH_CONFIG: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_TRANSFORM: KeyboardMeaningLayout = [
     [
-        _____, USnke, Pscal, _____, _____, /****/ _____, _____, UKbab, Upper, _____,
+        Upper, USnke, Pscal, UKbab, Title, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, Snke_, Camel, _____, _____, /****/ _____, Wrap_, Kbab_, Lower, Title,
+        Lower, Snke_, Camel, Kbab_, _____, /****/ _____, Wrap_, CmtLn, CmtBk, _____,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
@@ -774,6 +774,10 @@ pub(crate) enum Meaning {
     Next_,
     /// XML, used for Surround
     XML__,
+    /// Block Comment
+    CmtBk,
+    /// Line Comment
+    CmtLn,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {
