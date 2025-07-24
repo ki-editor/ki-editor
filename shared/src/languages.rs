@@ -671,7 +671,8 @@ const fn rescript() -> Language {
 
 const fn ruby() -> Language {
     Language {
-        extensions: &["rb"],
+        extensions: &["rb", "rbs", "gemspec", "rake", "podspec"],
+        file_names: &["Gemfile", "Rakefile",  "Podfile", "Fastfile", "config.ru"],
         formatter_command: Some(Command(
             "rubocop",
             &["--fix-layout", "--stdin", "/dev/null", "--stderr"],
@@ -687,7 +688,7 @@ const fn ruby() -> Language {
             commit: "master",
             subpath: None,
         }),
-        language_fallback: None,
+        language_fallback: Some(CargoLinkedTreesitterLanguage::Ruby),
         line_comment_prefix: Some("#"),
         ..Language::new()
     }
