@@ -42,7 +42,7 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// Meta also means Alt (Windows) or Option (Mac).
 pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
     [
-        KilLP, CSrch, LineU, _____, KilLN, /****/ NBack, GBack, ScrlU, GForw, NForw,
+        KilLP, CSrch, LineU, _____, KilLN, /****/ NBack, _____, ScrlU, _____, NForw,
     ],
     [
         _____, LineP, LineD, LineN, OpenM, /****/ DTknP, MrkFP, ScrlD, MrkFN, SView,
@@ -520,10 +520,6 @@ pub(crate) enum Meaning {
     FindP,
     /// First
     First,
-    /// Go back
-    GBack,
-    /// Go forward
-    GForw,
     /// Navigate back (faster alternative of Go Back, skips contiguous navigation, works across files)
     NBack,
     /// Navigate forward

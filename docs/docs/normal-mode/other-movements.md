@@ -49,6 +49,8 @@ This is similar to Vim's Visual Mode `o`.
 
 ### `← Select`/`Select →`
 
+Keybindings: `backspace`/`tab`
+
 Go to the previous/next selection. This is similar to Vim's `ctrl+o`/`ctrl+i`, but it onlys work within a file.
 
 This is useful when you messed up the current selection, especially when you are

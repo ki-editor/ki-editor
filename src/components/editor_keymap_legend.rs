@@ -120,13 +120,13 @@ impl Editor {
                 Dispatch::ToEditor(ScrollPageUp),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::GBack),
+                "backspace",
                 Direction::Start.format_action("Select"),
                 "Go back".to_string(),
                 Dispatch::ToEditor(GoBack),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::GForw),
+                "tab",
                 Direction::End.format_action("Select"),
                 "Go forward".to_string(),
                 Dispatch::ToEditor(GoForward),
