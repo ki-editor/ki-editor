@@ -179,7 +179,8 @@ impl KeymapPrintSection {
             ])
             .set_width(terminal_width)
             .load_preset(comfy_table::presets::UTF8_FULL)
-            .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
+            .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS)
+            .set_content_arrangement(comfy_table::ContentArrangement::Dynamic);
 
         format!("{}", table)
     }

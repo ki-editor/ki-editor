@@ -1548,6 +1548,8 @@ impl<T: Frontend> App<T> {
         }
         self.layout
             .show_keymap_legend(keymap_legend_config, &self.context);
+        self.layout
+            .recalculate_layout(&self.context);
     }
 
     fn global_replace(&mut self) -> anyhow::Result<()> {
