@@ -62,7 +62,7 @@ impl Keymaps {
         if !table.is_empty() {
             format!("Press space to toggle alt/shift keys.\n{table}")
         } else {
-            format!("Window is too small to display keymap legend :(")
+            "Window is too small to display keymap legend :(".to_string()
         }
     }
     fn display_mnemonic(&self, indent: usize, width: usize) -> String {
