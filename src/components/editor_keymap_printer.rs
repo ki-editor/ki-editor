@@ -179,10 +179,15 @@ impl KeymapPrintSection {
             ])
             .set_width(terminal_width)
             .load_preset(comfy_table::presets::UTF8_FULL)
-            .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS)
-            .set_content_arrangement(comfy_table::ContentArrangement::Dynamic);
+            .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
 
-        format!("{}", table)
+        let content_width: u16 = table.column_max_content_widths().iter().sum();
+        // column content, separators, padding & editor margins
+        if content_width + 12 + 22 + 2 < terminal_width {
+            format!("{}", table)
+        } else {
+            String::new()
+        }
     }
 
     #[cfg(test)]

@@ -59,7 +59,11 @@ impl Keymaps {
         )
         .display(terminal_width, option);
 
-        format!("Press space to toggle alt/shift keys.\n{table}")
+        if !table.is_empty() {
+            format!("Press space to toggle alt/shift keys.\n{table}")
+        } else {
+            format!("Window is too small to display keymap legend :(")
+        }
     }
     fn display_mnemonic(&self, indent: usize, width: usize) -> String {
         let width = width.saturating_sub(indent);
@@ -533,7 +537,7 @@ mod test_keymap_legend {
         let actual = keymaps
             .display_positional(
                 context.keyboard_layout_kind(),
-                19,
+                100,
                 &KeymapDisplayOption {
                     show_alt: false,
                     show_shift: false,
@@ -556,7 +560,7 @@ Press space to toggle alt/shift keys.
         let actual = keymaps
             .display_positional(
                 context.keyboard_layout_kind(),
-                19,
+                100,
                 &KeymapDisplayOption {
                     show_alt: true,
                     show_shift: true,
