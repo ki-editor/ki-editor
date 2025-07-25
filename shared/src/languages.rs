@@ -672,7 +672,7 @@ const fn rescript() -> Language {
 const fn ruby() -> Language {
     Language {
         extensions: &["rb", "rbs", "gemspec", "rake", "podspec"],
-        file_names: &["Gemfile", "Rakefile",  "Podfile", "Fastfile", "config.ru"],
+        file_names: &["Gemfile", "Rakefile", "Podfile", "Fastfile", "config.ru"],
         formatter_command: Some(Command(
             "rubocop",
             &["--fix-layout", "--stdin", "/dev/null", "--stderr"],
