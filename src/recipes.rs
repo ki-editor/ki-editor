@@ -15,6 +15,7 @@ pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
         reveal_marks(),
         showcase(),
         syntax_node(),
+        multicursors(),
         RecipeGroup {
             filename: "jump",
             recipes: [
@@ -1579,6 +1580,24 @@ fn syntax_node() -> RecipeGroup {
                 only: false,
             },
         ]
+        .to_vec(),
+    }
+}
+
+fn multicursors() -> RecipeGroup {
+    RecipeGroup {
+        filename: "multi-cursor",
+        recipes: [Recipe {
+            description: "Non-movements keys escape multicursor mode",
+            content: "hello world hello world".trim(),
+            file_extension: "rs",
+            prepare_events: &[],
+            events: keys!("s e r l m z"),
+            expectations: Box::new([CurrentComponentContent("z world z world")]),
+            terminal_height: None,
+            similar_vim_combos: &[],
+            only: true,
+        }]
         .to_vec(),
     }
 }

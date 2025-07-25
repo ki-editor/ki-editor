@@ -49,6 +49,7 @@ pub(crate) enum Mode {
     Normal,
     Insert,
     MultiCursor,
+    AddCursor,
     FindOneChar(IfCurrentNotFound),
     Swap,
     Replace,
@@ -1636,12 +1637,14 @@ impl Editor {
             ),
             Mode::Swap => self.swap(movement, context),
             Mode::Replace => self.replace_with_movement(&movement, context),
-            Mode::MultiCursor => self
-                .add_cursor(
+            Mode::MultiCursor | Mode::AddCursor => {
+                self.mode = Mode::AddCursor;
+                self.add_cursor(
                     &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
                     context,
                 )
-                .map(|_| Default::default()),
+                .map(|_| Default::default())
+            }
             _ => Ok(Default::default()),
         }
     }
@@ -2583,6 +2586,7 @@ impl Editor {
                 Mode::Swap => "SWAP".to_string(),
                 Mode::Replace => "RPLCE".to_string(),
                 Mode::Extend => "XTEND".to_string(),
+                Mode::AddCursor => "+CURS".to_string(),
             }
         }
     }
