@@ -169,6 +169,8 @@ enum class EditorMode(val string: String) {
 	Replace("replace"),
 	@SerialName("extend")
 	Extend("extend"),
+	@SerialName("addCursor")
+	AddCursor("addCursor"),
 }
 
 @Serializable

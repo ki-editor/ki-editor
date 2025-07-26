@@ -832,7 +832,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::MultC),
                 "Multi Curs".to_string(),
                 "Enter Multi-cursor mode".to_string(),
-                Dispatch::ToEditor(EnterMultiCursorMode),
+                Dispatch::ShowKeymapLegend(self.multicursor_mode_keymap_legend_config(context)),
             )
             .override_keymap(
                 normal_mode_override.multicursor.clone().as_ref(),
@@ -892,11 +892,19 @@ impl Editor {
         &self,
         context: &Context,
     ) -> KeymapLegendConfig {
-        self.normal_mode_keymap_legend_config(
-            context,
-            "Multicursor",
-            Some(multicursor_mode_normal_mode_override()),
-        )
+        let overrides = multicursor_mode_normal_mode_override();
+        KeymapLegendConfig {
+            title: "Multi-cursor".to_string(),
+            body: KeymapLegendBody::Positional(Keymaps::new(
+                &self
+                    .keymap_core_movements(context)
+                    .into_iter()
+                    .chain(self.keymap_primary_selection_modes(context))
+                    .chain(self.keymap_secondary_selection_modes_init(context))
+                    .chain(self.keymap_actions_overridable(&overrides, true, context))
+                    .collect_vec(),
+            )),
+        }
     }
     pub(crate) fn extend_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         self.normal_mode_keymap_legend_config(

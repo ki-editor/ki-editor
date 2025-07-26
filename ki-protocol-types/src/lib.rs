@@ -58,6 +58,7 @@ pub enum EditorMode {
     Swap,
     Replace,
     Extend,
+    AddCursor,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

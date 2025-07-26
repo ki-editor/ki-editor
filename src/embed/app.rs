@@ -474,6 +474,7 @@ impl EmbeddedApp {
             Mode::Swap => ki_protocol_types::EditorMode::Swap,
             Mode::Replace => ki_protocol_types::EditorMode::Replace,
             Mode::Extend => ki_protocol_types::EditorMode::Extend,
+            Mode::AddCursor => ki_protocol_types::EditorMode::AddCursor,
         };
 
         self.send_notification(OutputMessageWrapper {
