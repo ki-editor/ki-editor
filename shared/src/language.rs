@@ -71,6 +71,7 @@ pub enum CargoLinkedTreesitterLanguage {
     C,
     CPP,
     CSS,
+    Ruby,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -98,6 +99,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::C => tree_sitter_c::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::CPP => tree_sitter_cpp::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::CSS => tree_sitter_css::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Ruby => tree_sitter_ruby::LANGUAGE.into(),
         }
     }
 }
