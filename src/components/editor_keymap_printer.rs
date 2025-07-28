@@ -311,11 +311,6 @@ impl KeymapPrintSections {
                 layout,
             ),
             KeymapPrintSection::from_keymaps(
-                "Sub Modes".to_string(),
-                &Keymaps::new(&editor.keymap_sub_modes(&context)),
-                layout,
-            ),
-            KeymapPrintSection::from_keymaps(
                 "Multi-cursor".to_string(),
                 &Keymaps::new(&editor.keymap_overridable(
                     &multicursor_mode_normal_mode_override(),
