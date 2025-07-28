@@ -52,8 +52,8 @@ test testname="":
 tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
 
-doc-assets:
-    cargo test --workspace -- --nocapture 'doc_assets_'
+doc-assets testname="":
+    cargo test --workspace -- --nocapture 'doc_assets_' {{testname}}
 
 doc: doc-assets
     just -f docs/justfile

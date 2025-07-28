@@ -113,8 +113,6 @@ export class ModeManager extends Manager {
                 return EditorMode.Swap;
             case "replace":
                 return EditorMode.Replace;
-            case "extend":
-                return EditorMode.Extend;
             default:
                 this.logger.warn(`Unknown mode: ${mode}, defaulting to Normal`);
                 return EditorMode.Normal;
@@ -139,8 +137,6 @@ export class ModeManager extends Manager {
                     return { modeText: "Ki: SWAP", icon: "$(arrow-swap)" };
                 case EditorMode.Replace:
                     return { modeText: "Ki: REPLACE", icon: "$(replace)" };
-                case EditorMode.Extend:
-                    return { modeText: "Ki: EXTEND", icon: "$(selection)" };
                 default:
                     return { modeText: "Ki: UNKNOWN", icon: "$(question)" };
             }
@@ -190,7 +186,6 @@ export class ModeManager extends Manager {
                     return vscode.TextEditorCursorStyle.Line;
                 case EditorMode.Normal:
                     return vscode.TextEditorCursorStyle.Block;
-                case EditorMode.Extend:
                 case EditorMode.Replace:
                     return vscode.TextEditorCursorStyle.Underline;
                 default:

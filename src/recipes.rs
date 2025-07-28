@@ -15,6 +15,7 @@ pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
         reveal_marks(),
         showcase(),
         syntax_node(),
+        multicursors(),
         RecipeGroup {
             filename: "jump",
             recipes: [
@@ -824,6 +825,20 @@ foov foou bar",
                     only: false,
                 },
                 Recipe {
+                    description: "Split selections by marks",
+                    content: "foo bar spam"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("s b l l b a r ] b"),
+                    expectations: Box::new([
+                        CurrentSelectedTexts(&["foo", "spam"]),
+                    ]),
+                    terminal_height: Some(7),
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
                     description: "Split selections by line",
                     content: "
 fn foo() {
@@ -1273,7 +1288,7 @@ foo bar spam
             .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("w r r P P P r h h H H"),
+            events: keys!("w r r P P P r h r h r H r H"),
             expectations: Box::new([CurrentSelectedTexts(&["foo", "bar", "om"])]),
             terminal_height: None,
             similar_vim_combos: &[],
@@ -1579,6 +1594,24 @@ fn syntax_node() -> RecipeGroup {
                 only: false,
             },
         ]
+        .to_vec(),
+    }
+}
+
+fn multicursors() -> RecipeGroup {
+    RecipeGroup {
+        filename: "multi-cursor",
+        recipes: [Recipe {
+            description: "Non-movements keys escape multicursor mode",
+            content: "hello world hello world".trim(),
+            file_extension: "rs",
+            prepare_events: &[],
+            events: keys!("s e r l m z"),
+            expectations: Box::new([CurrentComponentContent("z world z world")]),
+            terminal_height: None,
+            similar_vim_combos: &[],
+            only: false,
+        }]
         .to_vec(),
     }
 }

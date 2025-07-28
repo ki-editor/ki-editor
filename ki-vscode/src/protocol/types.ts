@@ -115,7 +115,6 @@ export enum EditorMode {
 	FindOneChar = "findOneChar",
 	Swap = "swap",
 	Replace = "replace",
-	Extend = "extend",
 }
 
 export interface ModeParams {

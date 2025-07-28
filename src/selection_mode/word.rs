@@ -215,7 +215,7 @@ impl PositionBasedSelectionMode for Word {
 mod test_word {
     use super::*;
     use crate::buffer::BufferOwner;
-    use crate::components::editor::Direction;
+    use crate::components::editor::{Direction, PriorChange};
     use crate::selection::SelectionMode;
     use crate::test_app::*;
     use crate::{buffer::Buffer, selection::Selection, selection_mode::PositionBased};
@@ -270,8 +270,10 @@ mod test_word {
                     IfCurrentNotFound::LookForward,
                     crate::selection::SelectionMode::Word,
                 )),
-                Editor(EnterMultiCursorMode),
-                Editor(MoveSelection(Next)),
+                Editor(MoveSelectionWithPriorChange(
+                    Next,
+                    Some(PriorChange::EnterMultiCursorMode),
+                )),
                 Editor(MoveSelection(Next)),
                 Expect(CurrentSelectedTexts(&["snake", "-", "case"])),
             ])

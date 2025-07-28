@@ -1,6 +1,6 @@
 fn main() {
-    shared::grammar::fetch_grammars();
-    shared::grammar::build_grammars();
+    // shared::grammar::fetch_grammars();
+    // shared::grammar::build_grammars();
 
     // Get git commit hash at build time
     let git_hash = match std::process::Command::new("git")

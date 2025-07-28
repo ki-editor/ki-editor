@@ -57,7 +57,6 @@ pub enum EditorMode {
     FindOneChar,
     Swap,
     Replace,
-    Extend,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

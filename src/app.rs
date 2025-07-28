@@ -4,7 +4,9 @@ use crate::{
     components::{
         component::{Component, ComponentId, GetGridResult},
         dropdown::{DropdownItem, DropdownRender},
-        editor::{Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, Reveal},
+        editor::{
+            Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, PriorChange, Reveal,
+        },
         editor_keymap::{KeyboardLayoutKind, Meaning},
         editor_keymap_printer::KeymapDisplayOption,
         file_explorer::FileExplorer,
@@ -541,6 +543,15 @@ impl<T: Frontend> App<T> {
                 scope,
                 if_current_not_found,
             } => self.open_search_prompt(scope, if_current_not_found)?,
+            Dispatch::OpenSearchPromptWithPriorChange {
+                scope,
+                if_current_not_found,
+                prior_change,
+            } => self.open_search_prompt_with_prior_change(
+                scope,
+                if_current_not_found,
+                prior_change,
+            )?,
             Dispatch::OpenPipeToShellPrompt => self.open_pipe_to_shell_prompt()?,
             Dispatch::OpenFile { path, owner, focus } => {
                 self.open_file(&path, owner, true, focus)?;
@@ -761,7 +772,9 @@ impl<T: Frontend> App<T> {
             Dispatch::RemainOnlyCurrentComponent => self.layout.remain_only_current_component(),
             Dispatch::ToEditor(dispatch_editor) => self.handle_dispatch_editor(dispatch_editor)?,
             Dispatch::GotoLocation(location) => self.go_to_location(&location, true)?,
-            Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt()?,
+            Dispatch::OpenMoveToIndexPrompt(prior_change) => {
+                self.open_move_to_index_prompt(prior_change)?
+            }
             Dispatch::QuitAll => self.quit_all()?,
             Dispatch::SaveQuitAll => self.save_quit_all()?,
             Dispatch::RevealInExplorer(path) => self.reveal_path_in_explorer(&path)?,
@@ -965,7 +978,14 @@ impl<T: Frontend> App<T> {
         );
     }
 
-    fn open_move_to_index_prompt(&mut self) -> anyhow::Result<()> {
+    fn open_move_to_index_prompt(
+        &mut self,
+        prior_change: Option<PriorChange>,
+    ) -> anyhow::Result<()> {
+        self.current_component()
+            .borrow_mut()
+            .editor_mut()
+            .handle_prior_change(prior_change);
         self.open_prompt(
             PromptConfig {
                 title: "Move to index".to_string(),
@@ -2799,6 +2819,20 @@ impl<T: Frontend> App<T> {
         }
         Ok(())
     }
+
+    fn open_search_prompt_with_prior_change(
+        &mut self,
+        scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
+        prior_change: Option<PriorChange>,
+    ) -> anyhow::Result<()> {
+        self.current_component()
+            .borrow_mut()
+            .editor_mut()
+            .handle_prior_change(prior_change);
+        self.open_search_prompt(scope, if_current_not_found)?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2882,6 +2916,11 @@ pub(crate) enum Dispatch {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
     },
+    OpenSearchPromptWithPriorChange {
+        scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
+        prior_change: Option<PriorChange>,
+    },
     OpenFile {
         path: CanonicalizedPath,
         owner: BufferOwner,
@@ -2932,7 +2971,7 @@ pub(crate) enum Dispatch {
     ToEditor(DispatchEditor),
     RequestDocumentSymbols,
     GotoLocation(Location),
-    OpenMoveToIndexPrompt,
+    OpenMoveToIndexPrompt(Option<PriorChange>),
     QuitAll,
     SaveQuitAll,
     RevealInExplorer(CanonicalizedPath),

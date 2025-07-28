@@ -221,22 +221,22 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymaps(
                 "Normal".to_string(),
-                &editor.normal_mode_keymaps(&context, Default::default()),
+                &Keymaps::new(&editor.normal_mode_keymaps(&context, Default::default(), None)),
                 layout,
             ),
             KeymapPrintSection::from_keymaps(
                 "Movements".to_string(),
-                &Keymaps::new(&editor.keymap_core_movements(&context)),
+                &Keymaps::new(&editor.keymap_core_movements(&context, None)),
                 layout,
             ),
             KeymapPrintSection::from_keymaps(
                 "Primary Selection Modes".to_string(),
-                &Keymaps::new(&editor.keymap_primary_selection_modes(&context)),
+                &Keymaps::new(&editor.keymap_primary_selection_modes(&context, None)),
                 layout,
             ),
             KeymapPrintSection::from_keymaps(
                 "Secondary Selection Modes Init".to_string(),
-                &Keymaps::new(&editor.keymap_secondary_selection_modes_init(&context)),
+                &Keymaps::new(&editor.keymap_secondary_selection_modes_init(&context, None)),
                 layout,
             ),
             KeymapPrintSection::from_keymaps(
@@ -246,6 +246,7 @@ impl KeymapPrintSections {
                         &context,
                         Scope::Local,
                         IfCurrentNotFound::LookForward,
+                        None,
                     )
                     .keymaps(),
                 layout,
@@ -257,6 +258,7 @@ impl KeymapPrintSections {
                         &context,
                         Scope::Local,
                         IfCurrentNotFound::LookBackward,
+                        None,
                     )
                     .keymaps(),
                 layout,
@@ -268,13 +270,14 @@ impl KeymapPrintSections {
                         &context,
                         Scope::Global,
                         IfCurrentNotFound::LookForward,
+                        None,
                     )
                     .keymaps(),
                 layout,
             ),
             KeymapPrintSection::from_keymaps(
                 "Actions".to_string(),
-                &Keymaps::new(&editor.keymap_actions(&Default::default(), false, &context)),
+                &Keymaps::new(&editor.keymap_actions(&Default::default(), false, &context, None)),
                 layout,
             ),
             KeymapPrintSection::from_keymaps(
@@ -305,11 +308,6 @@ impl KeymapPrintSections {
                     true,
                     &context,
                 )),
-                layout,
-            ),
-            KeymapPrintSection::from_keymaps(
-                "Sub Modes".to_string(),
-                &Keymaps::new(&editor.keymap_sub_modes(&Default::default(), &context)),
                 layout,
             ),
             KeymapPrintSection::from_keymaps(
