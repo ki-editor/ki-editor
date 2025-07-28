@@ -49,11 +49,15 @@ pub(crate) enum Mode {
     Normal,
     Insert,
     MultiCursor,
-    AddCursor,
     FindOneChar(IfCurrentNotFound),
     Swap,
     Replace,
-    Extend,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug, Eq)]
+pub(crate) enum PriorChange {
+    EnterMultiCursorMode,
+    EnableSelectionExtension,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -187,12 +191,28 @@ impl Component for Editor {
             AlignViewBottom => self.align_cursor_to_bottom(context),
             Transform(transformation) => return self.transform_selection(transformation, context),
             SetSelectionMode(if_current_not_found, selection_mode) => {
-                return self.set_selection_mode(if_current_not_found, selection_mode, context);
+                return self.set_selection_mode(
+                    if_current_not_found,
+                    selection_mode,
+                    context,
+                    None,
+                );
+            }
+            SetSelectionModeWithPriorChange(if_current_not_found, selection_mode, prior_change) => {
+                return self.set_selection_mode(
+                    if_current_not_found,
+                    selection_mode,
+                    context,
+                    prior_change,
+                );
             }
             FindOneChar(if_current_not_found) => {
                 self.enter_single_character_mode(if_current_not_found)
             }
-            MoveSelection(direction) => return self.handle_movement(context, direction),
+            MoveSelection(movement) => return self.handle_movement(context, movement),
+            MoveSelectionWithPriorChange(movement, prior_change) => {
+                return self.handle_movement_with_prior_change(context, movement, prior_change)
+            }
             Copy {
                 use_system_clipboard,
             } => return self.copy(use_system_clipboard),
@@ -204,7 +224,6 @@ impl Component for Editor {
             SetContent(content) => self.set_content(&content, context)?,
             EnableSelectionExtension => self.enable_selection_extension(),
             DisableSelectionExtension => self.disable_selection_extension(),
-            EnterExtendMode => self.enter_extend_mode(),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction, context),
             Delete(direction) => return self.delete(direction, None, context),
             Insert(string) => return self.insert(&string, context),
@@ -247,7 +266,8 @@ impl Component for Editor {
             ScrollPageUp => return self.scroll_page_up(context),
             ShowJumps {
                 use_current_selection_mode,
-            } => return self.show_jumps(use_current_selection_mode, context),
+                prior_change,
+            } => return self.show_jumps(use_current_selection_mode, context, prior_change),
             SwitchViewAlignment => self.switch_view_alignment(context),
             #[cfg(test)]
             SetScrollOffset(n) => self.set_scroll_offset(n),
@@ -266,7 +286,6 @@ impl Component for Editor {
             SelectLineAt(index) => {
                 return Ok(self.select_line_at(index, context)?.into_vec().into())
             }
-            EnterMultiCursorMode => self.enter_multicursor_mode(),
             Surround(open, close) => return self.surround(open, close, context),
             EnterReplaceMode => self.enter_replace_mode(),
             Paste {
@@ -345,6 +364,11 @@ impl Component for Editor {
             }
             ToggleLineComment => return self.toggle_line_comment(context),
             ToggleBlockComment => return self.toggle_block_comment(context),
+            ShowKeymapLegendExtend => {
+                return Ok(Dispatches::one(Dispatch::ShowKeymapLegend(
+                    self.extend_mode_keymap_legend_config(context),
+                )))
+            }
         }
         Ok(Default::default())
     }
@@ -886,7 +910,9 @@ impl Editor {
         &mut self,
         use_current_selection_mode: bool,
         context: &Context,
+        prior_change: Option<PriorChange>,
     ) -> anyhow::Result<Dispatches> {
+        self.handle_prior_change(prior_change);
         self.jump_from_selection(
             &self.selection_set.primary_selection().clone(),
             use_current_selection_mode,
@@ -1361,11 +1387,6 @@ impl Editor {
             .to_char_index(&self.cursor_direction)
     }
 
-    pub(crate) fn enter_extend_mode(&mut self) {
-        self.enable_selection_extension();
-        self.mode = Mode::Extend
-    }
-
     pub(crate) fn enable_selection_extension(&mut self) {
         self.selection_set.enable_selection_extension();
     }
@@ -1395,9 +1416,6 @@ impl Editor {
                     let keymap_legend_config = self.get_current_keymap_legend_config(context);
 
                     if let Some(keymap) = keymap_legend_config.keymaps().get(&key_event) {
-                        if let Mode::Extend = self.mode {
-                            self.mode = Mode::Normal
-                        }
                         return Ok(keymap.get_dispatches());
                     }
                     log::info!("unhandled event: {:?}", key_event);
@@ -1538,7 +1556,9 @@ impl Editor {
         if_current_not_found: IfCurrentNotFound,
         selection_mode: SelectionMode,
         context: &Context,
+        prior_change: Option<PriorChange>,
     ) -> anyhow::Result<Dispatches> {
+        self.handle_prior_change(prior_change);
         if self.mode == Mode::MultiCursor {
             let selection_set = self.selection_set.clone().set_mode(selection_mode.clone());
             let selection_set = if let Some(all_selections) = selection_set.all_selections(
@@ -1637,14 +1657,12 @@ impl Editor {
             ),
             Mode::Swap => self.swap(movement, context),
             Mode::Replace => self.replace_with_movement(&movement, context),
-            Mode::MultiCursor | Mode::AddCursor => {
-                self.mode = Mode::AddCursor;
-                self.add_cursor(
+            Mode::MultiCursor => self
+                .add_cursor(
                     &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
                     context,
                 )
-                .map(|_| Default::default())
-            }
+                .map(|_| Default::default()),
             _ => Ok(Default::default()),
         }
     }
@@ -2370,7 +2388,12 @@ impl Editor {
         let dispatches = if self.selection_set.mode.is_syntax_node() {
             Dispatches::default()
         } else {
-            self.set_selection_mode(IfCurrentNotFound::LookForward, SelectionMode::Line, context)?
+            self.set_selection_mode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+                context,
+                None,
+            )?
         };
         let edit_transaction = EditTransaction::from_action_groups(
             self.get_selection_set_with_gap(&direction, context)?
@@ -2585,8 +2608,6 @@ impl Editor {
                 Mode::FindOneChar(_) => "ONE".to_string(),
                 Mode::Swap => "SWAP".to_string(),
                 Mode::Replace => "RPLCE".to_string(),
-                Mode::Extend => "XTEND".to_string(),
-                Mode::AddCursor => "+CURS".to_string(),
             }
         }
     }
@@ -2687,6 +2708,7 @@ impl Editor {
                         },
                     },
                     context,
+                    None,
                 )
             }
             KeyCode::Esc => {
@@ -2733,6 +2755,7 @@ impl Editor {
                 },
             },
             context,
+            None,
         )
     }
 
@@ -2984,10 +3007,6 @@ impl Editor {
         Ok(dispatches)
     }
 
-    fn enter_multicursor_mode(&mut self) {
-        self.mode = Mode::MultiCursor
-    }
-
     fn enter_replace_mode(&mut self) {
         self.mode = Mode::Replace
     }
@@ -3071,6 +3090,7 @@ impl Editor {
             IfCurrentNotFound::LookForward,
             SelectionMode::Custom,
             context,
+            None,
         );
         self.disable_selection_extension();
         self.apply_edit_transaction(edit_transaction, context)
@@ -3149,6 +3169,7 @@ impl Editor {
             IfCurrentNotFound::LookForward,
             SelectionMode::Custom,
             context,
+            None,
         );
         self.apply_edit_transaction(edit_transaction, context)
     }
@@ -3649,9 +3670,7 @@ impl Editor {
     ) -> super::keymap_legend::KeymapLegendConfig {
         match self.mode {
             Mode::Insert => self.insert_mode_keymap_legend_config(true, context),
-            Mode::MultiCursor => self.multicursor_mode_keymap_legend_config(context),
-            Mode::Extend => self.extend_mode_keymap_legend_config(context),
-            _ => self.normal_mode_keymap_legend_config(context, "Normal", None),
+            _ => self.normal_mode_keymap_legend_config(context, None, None),
         }
     }
 
@@ -3845,6 +3864,25 @@ impl Editor {
         };
         self.transform_selection(Transformation::ToggleBlockComment { open, close }, context)
     }
+
+    fn handle_movement_with_prior_change(
+        &mut self,
+        context: &mut Context,
+        movement: Movement,
+        prior_change: Option<PriorChange>,
+    ) -> Result<Dispatches, anyhow::Error> {
+        self.handle_prior_change(prior_change);
+        self.handle_movement(context, movement)
+    }
+
+    pub(crate) fn handle_prior_change(&mut self, prior_change: Option<PriorChange>) {
+        if let Some(prior_change) = prior_change {
+            match prior_change {
+                PriorChange::EnterMultiCursorMode => self.mode = Mode::MultiCursor,
+                PriorChange::EnableSelectionExtension => self.enable_selection_extension(),
+            }
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3866,6 +3904,7 @@ pub(crate) enum DispatchEditor {
     SetScrollOffset(u16),
     ShowJumps {
         use_current_selection_mode: bool,
+        prior_change: Option<PriorChange>,
     },
     ScrollPageDown,
     ScrollPageUp,
@@ -3875,10 +3914,13 @@ pub(crate) enum DispatchEditor {
     AlignViewBottom,
     Transform(Transformation),
     SetSelectionMode(IfCurrentNotFound, SelectionMode),
+    SetSelectionModeWithPriorChange(IfCurrentNotFound, SelectionMode, Option<PriorChange>),
     Save,
     ForceSave,
     FindOneChar(IfCurrentNotFound),
     MoveSelection(Movement),
+    /// This is used for initiating modes such as Multicursor and Extend.
+    MoveSelectionWithPriorChange(Movement, Option<PriorChange>),
     SwitchViewAlignment,
     Copy {
         use_system_clipboard: bool,
@@ -3892,7 +3934,6 @@ pub(crate) enum DispatchEditor {
     SetRectangle(Rectangle),
     EnableSelectionExtension,
     DisableSelectionExtension,
-    EnterExtendMode,
     Change,
     ChangeCut {
         use_system_clipboard: bool,
@@ -3920,7 +3961,6 @@ pub(crate) enum DispatchEditor {
     EnterNormalMode,
     EnterSwapMode,
     EnterReplaceMode,
-    EnterMultiCursorMode,
     CursorAddToAllSelections,
     CyclePrimarySelection(Direction),
     CursorKeepPrimaryOnly,
@@ -3983,6 +4023,7 @@ pub(crate) enum DispatchEditor {
     },
     ToggleLineComment,
     ToggleBlockComment,
+    ShowKeymapLegendExtend,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

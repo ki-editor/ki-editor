@@ -392,6 +392,7 @@ mod test_token {
                 })),
                 Editor(ShowJumps {
                     use_current_selection_mode: true,
+                    prior_change: None,
                 }),
                 Expect(JumpChars(&['f', '?', 'b', ':', 's'])),
             ])

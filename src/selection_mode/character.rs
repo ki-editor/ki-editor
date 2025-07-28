@@ -193,6 +193,7 @@ mod test_character {
                 })),
                 Editor(ShowJumps {
                     use_current_selection_mode: true,
+                    prior_change: None,
                 }),
                 Expect(JumpChars(&[
                     '\n', '\n', 'a', 'a', 'b', 'f', 'm', 'o', 'o', 'p', 'r', 's',

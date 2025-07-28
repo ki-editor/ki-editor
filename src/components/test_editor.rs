@@ -2,7 +2,7 @@ use crate::app::{LocalSearchConfigUpdate, Scope};
 use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::CopiedTexts;
-use crate::components::editor::{DispatchEditor::*, Movement::*};
+use crate::components::editor::{DispatchEditor::*, Movement::*, PriorChange};
 use crate::context::{Context, LocalSearchConfigMode, Search};
 use crate::grid::IndexedHighlightGroup;
 use crate::list::grep::RegexConfig;
@@ -1397,6 +1397,7 @@ fn jump() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ShowJumps {
                 use_current_selection_mode: false,
+                prior_change: None,
             }),
             // Expect the jump to be the first character of each word
             // Note 'y' and 'd' are excluded because they are out of view,
@@ -1456,6 +1457,7 @@ fn main() {
             Expect(CurrentSelectedTexts(&["beta()"])),
             Editor(ShowJumps {
                 use_current_selection_mode: true,
+                prior_change: None,
             }),
             Expect(JumpChars(&['f', 'b', '}'])),
             App(HandleKeyEvent(key!("f"))),
@@ -1487,6 +1489,7 @@ fn highlight_and_jump() -> anyhow::Result<()> {
             Editor(EnableSelectionExtension),
             Editor(ShowJumps {
                 use_current_selection_mode: false,
+                prior_change: None,
             }),
             // Expect the jump to be the first character of each word
             // Note 'y' and 'd' are excluded because they are out of view,
@@ -1517,6 +1520,7 @@ fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ShowJumps {
                 use_current_selection_mode: false,
+                prior_change: None,
             }),
             // Expect the jump to NOT be the first character of each word
             // Since, the first character of each selection are the same, which is 'w'
@@ -2784,8 +2788,10 @@ fn multi_cursor_insert() -> Result<(), anyhow::Error> {
                 }),
                 Editor(SetContent("hello world".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-                Editor(EnterMultiCursorMode),
-                Editor(MoveSelection(Right)),
+                Editor(MoveSelectionWithPriorChange(
+                    Right,
+                    Some(PriorChange::EnterMultiCursorMode),
+                )),
                 Expect(CurrentSelectedTexts(&["hello", "world"])),
                 Editor(EnterInsertMode(Direction::End)),
                 App(HandleKeyEvent(key!("x"))),
@@ -3119,8 +3125,10 @@ fn cycle_primary_selection_should_based_on_range_order() -> anyhow::Result<()> {
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
             Expect(CurrentPrimarySelection("spam")),
-            Editor(EnterMultiCursorMode),
-            Editor(MoveSelection(Left)),
+            Editor(MoveSelectionWithPriorChange(
+                Left,
+                Some(PriorChange::EnterMultiCursorMode),
+            )),
             Editor(MoveSelection(Left)),
             Editor(EnterNormalMode),
             Expect(CurrentPrimarySelection("foo")),
@@ -3204,8 +3212,11 @@ foo bar
                 .trim()
                 .to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(EnterExtendMode),
+            Editor(SetSelectionModeWithPriorChange(
+                IfCurrentNotFound::LookForward,
+                Line,
+                Some(PriorChange::EnableSelectionExtension),
+            )),
             App(HandleKeyEvent(key!("k"))),
             Expect(CurrentSelectedTexts(&["foo bar\n  spam"])),
             Editor(Delete(Direction::End)),
@@ -3412,8 +3423,10 @@ foov foou bar
                 .to_string(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(EnterMultiCursorMode),
-            Editor(MoveSelection(Down)),
+            Editor(MoveSelectionWithPriorChange(
+                Down,
+                Some(PriorChange::EnterMultiCursorMode),
+            )),
             Expect(CurrentSelectedTexts(&["fooz bar fooy", "bar foox foow"])),
             Editor(MatchLiteral("foo".to_string())),
             Expect(CurrentSelectionMode(SelectionMode::Find {
@@ -3561,8 +3574,10 @@ fn add_cursor_till_first() -> anyhow::Result<()> {
             Editor(MatchLiteral("banana: T".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["banana: T"])),
-            Editor(EnterMultiCursorMode),
-            Editor(MoveSelection(First)),
+            Editor(MoveSelectionWithPriorChange(
+                First,
+                Some(PriorChange::EnterMultiCursorMode),
+            )),
             Expect(CurrentSelectedTexts(&["foo: T", "apple: T", "banana: T"])),
         ])
     })
@@ -3583,8 +3598,10 @@ fn add_cursor_till_last() -> anyhow::Result<()> {
             Editor(MatchLiteral("apple: T".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["apple: T"])),
-            Editor(EnterMultiCursorMode),
-            Editor(MoveSelection(Last)),
+            Editor(MoveSelectionWithPriorChange(
+                Last,
+                Some(PriorChange::EnterMultiCursorMode),
+            )),
             Expect(CurrentSelectedTexts(&[
                 "apple: T",
                 "banana: T",
@@ -3758,9 +3775,12 @@ fn visual_select_anchor_change_selection_mode() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent("helloWorld fooBar".trim().to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionModeWithPriorChange(
+                IfCurrentNotFound::LookForward,
+                Token,
+                Some(PriorChange::EnableSelectionExtension),
+            )),
             Expect(CurrentSelectedTexts(&["helloWorld"])),
-            Editor(EnterExtendMode),
             App(HandleKeyEvent(key!("l"))),
             Expect(CurrentSelectedTexts(&["helloWorld fooBar"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
@@ -4143,8 +4163,10 @@ fn multicursor_intersected_edits() -> anyhow::Result<()> {
             Editor(SetContent("fn main() { foo() }".to_string())),
             Editor(MatchLiteral("foo()".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(EnterMultiCursorMode),
-            Editor(MoveSelection(Up)),
+            Editor(MoveSelectionWithPriorChange(
+                Up,
+                Some(PriorChange::EnterMultiCursorMode),
+            )),
             Expect(CurrentSelectedTexts(&["{ foo() }", "foo()"])),
             Editor(Delete(Direction::End)),
             // Expect the primary cursor is still there
@@ -4386,7 +4408,7 @@ fn go_to_line_number() -> Result<(), anyhow::Error> {
                 IfCurrentNotFound::LookForward,
                 SelectionMode::Line,
             )),
-            App(OpenMoveToIndexPrompt),
+            App(OpenMoveToIndexPrompt(None)),
             App(HandleKeyEvents(keys!("3 enter").to_vec())),
             Expect(CurrentSelectedTexts(&["spam"])),
         ])

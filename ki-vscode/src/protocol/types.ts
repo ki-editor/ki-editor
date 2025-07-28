@@ -115,8 +115,6 @@ export enum EditorMode {
 	FindOneChar = "findOneChar",
 	Swap = "swap",
 	Replace = "replace",
-	Extend = "extend",
-	AddCursor = "addCursor",
 }
 
 export interface ModeParams {
