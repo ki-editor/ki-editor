@@ -825,6 +825,26 @@ foov foou bar",
                     only: false,
                 },
                 Recipe {
+                    description: "Split selections by last search",
+                    content: "
+fn main(foo: str) {
+    bar(foo);
+
+    foo = x + foo;
+    return foo;
+}"
+                    .trim(),
+                    file_extension: "rs",
+                    prepare_events: &[],
+                    events: keys!("s l l e a d r n"),
+                    expectations: Box::new([
+                        CurrentSelectedTexts(&["foo", "foo", "foo", "foo", "foo",]),
+                    ]),
+                    terminal_height: Some(7),
+                    similar_vim_combos: &[],
+                    only: true,
+                },
+                Recipe {
                     description: "Split selections by marks",
                     content: "foo bar spam"
                     .trim(),

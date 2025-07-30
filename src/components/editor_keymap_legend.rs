@@ -185,13 +185,25 @@ impl Editor {
         context: &Context,
         prior_change: Option<PriorChange>,
     ) -> Vec<Keymap> {
+        let search = context
+            .local_search_config()
+            .last_search()
+            .unwrap_or_else(|| Search {
+                mode: LocalSearchConfigMode::Regex(RegexConfig {
+                    escaped: true,
+                    case_sensitive: false,
+                    match_whole_word: false,
+                }),
+                search: "".to_string(),
+            });
+        let direction = self.cursor_direction.reverse().to_if_current_not_found();
         [
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Line_),
                 "Line".to_string(),
                 "Select Line".to_string(),
                 Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    IfCurrentNotFound::LookForward,
+                    direction,
                     Line,
                     prior_change,
                 )),
@@ -201,7 +213,7 @@ impl Editor {
                 "Line*".to_string(),
                 "Select Line*".to_string(),
                 Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    self.cursor_direction.reverse().to_if_current_not_found(),
+                    direction,
                     LineFull,
                     prior_change,
                 )),
@@ -211,7 +223,7 @@ impl Editor {
                 "Syntax".to_string(),
                 "Select Syntax Node".to_string(),
                 Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    self.cursor_direction.reverse().to_if_current_not_found(),
+                    direction,
                     SyntaxNode,
                     prior_change,
                 )),
@@ -221,7 +233,7 @@ impl Editor {
                 "Syntax*".to_string(),
                 "Select Syntax Node*".to_string(),
                 Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    self.cursor_direction.reverse().to_if_current_not_found(),
+                    direction,
                     SyntaxNodeFine,
                     prior_change,
                 )),
@@ -231,7 +243,7 @@ impl Editor {
                 "Token".to_string(),
                 "Select Token".to_string(),
                 Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    self.cursor_direction.reverse().to_if_current_not_found(),
+                    direction,
                     Token,
                     prior_change,
                 )),
@@ -241,7 +253,7 @@ impl Editor {
                 "Word".to_string(),
                 "Select Word".to_string(),
                 Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    self.cursor_direction.reverse().to_if_current_not_found(),
+                    direction,
                     Word,
                     prior_change,
                 )),
@@ -251,8 +263,28 @@ impl Editor {
                 "Char".to_string(),
                 "Select Character".to_string(),
                 Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    self.cursor_direction.reverse().to_if_current_not_found(),
+                    direction,
                     Character,
+                    prior_change,
+                )),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::LSrhF),
+                Direction::End.format_action("Last Search"),
+                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
+                    IfCurrentNotFound::LookForward,
+                    Find {
+                        search: search.clone(),
+                    },
+                    prior_change,
+                )),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::LSrhB),
+                Direction::Start.format_action("Last Search"),
+                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
+                    IfCurrentNotFound::LookBackward,
+                    Find { search },
                     prior_change,
                 )),
             ),
@@ -289,7 +321,7 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Globl),
+                "\\",
                 "Global".to_string(),
                 "Find (Global)".to_string(),
                 Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
@@ -1252,7 +1284,6 @@ impl Editor {
         prior_change: Option<PriorChange>,
     ) -> KeymapLegendConfig {
         let search_keymaps = {
-            let config = context.get_local_search_config(scope);
             [].into_iter()
                 .chain(
                     [
@@ -1269,36 +1300,11 @@ impl Editor {
                             },
                         ),
                         Keymap::new(
-                            context
-                                .keyboard_layout_kind()
-                                .get_find_keymap(scope, &Meaning::PSrch),
-                            "Last".to_string(),
-                            Dispatch::UpdateLocalSearchConfig {
-                                scope,
-                                if_current_not_found,
-                                update: crate::app::LocalSearchConfigUpdate::Search(
-                                    config
-                                        .last_search()
-                                        .map(|search| search.search.to_string())
-                                        .unwrap_or_default(),
-                                ),
-                                show_config_after_enter: false,
-                                run_search_after_config_updated: true,
+                            match (scope, if_current_not_found) {
+                                (Scope::Local, IfCurrentNotFound::LookForward) => "[",
+                                (Scope::Local, IfCurrentNotFound::LookBackward) => "]",
+                                (Scope::Global, _) => "\\",
                             },
-                        ),
-                        Keymap::new(
-                            context.keyboard_layout_kind().get_find_keymap(
-                                scope,
-                                &match (scope, if_current_not_found) {
-                                    (Scope::Local, IfCurrentNotFound::LookForward) => {
-                                        Meaning::FindN
-                                    }
-                                    (Scope::Local, IfCurrentNotFound::LookBackward) => {
-                                        Meaning::FindP
-                                    }
-                                    (Scope::Global, _) => Meaning::Globl,
-                                },
-                            ),
                             "Repeat".to_string(),
                             Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
                         ),

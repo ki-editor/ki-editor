@@ -28,7 +28,7 @@ first layer due to their ubiquity.
 
 - `[` : Local (Backward)
 - `]` : Local (Forward)
-- `n` (Qwerty) : Global
+- `\**\**`: Global
 
 Local Find is directional, meaning that if the cursor position does not overlap
 with any selections of the chosen secondary selection mode, the cursor will
@@ -51,9 +51,9 @@ They are almost identical except:
 1. `One` and `Int` are only applicable for the Local keymaps
 2. `Search` and `This` are only applicable for the Global keymap
 3. Position of `Repeat` is different all 3 keymaps to enable easy combo:  
-   a. To repeat the last secondary selection backward, press `y` (Qwerty) twice  
-   b. To repeat the last secondary selection forward, press `p` (Qwerty) twice  
-   c. To repeat the last secondary selection globally, press `n` (Qwerty) twice
+   a. To repeat the last secondary selection backward, press `[` twice  
+   b. To repeat the last secondary selection forward, press `]` twice  
+   c. To repeat the last secondary selection globally, press `\\` twice
 
 ### Local (Forward)
 

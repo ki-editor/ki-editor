@@ -21,7 +21,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         Line_, Token, Sytx_, Extnd, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
     ],
     [
-        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ Globl, Chng_, First, Last_, XAchr,
+        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ LSrhF, Chng_, First, Last_, XAchr,
     ],
 ];
 
@@ -33,7 +33,7 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         LineF, _____, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
     ],
     [
-        Redo_, PRplc, RplcX, PsteP, MarkF, /****/ _____, ChngX, _____, _____, SSEnd,
+        Redo_, PRplc, RplcX, PsteP, MarkF, /****/ LSrhB, ChngX, _____, _____, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -57,7 +57,7 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
 /// are both located on the right-side.
 pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
     [
-        OneCh, CSrch, NtrlN, PSrch, Qkfix, /****/ FindP, _____, _____, _____, FindN,
+        OneCh, CSrch, NtrlN, _____, Qkfix, /****/ FindP, _____, _____, _____, FindN,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
@@ -81,13 +81,13 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// This keymap should be almost identical with that of Find Local
 pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
     [
-        Srch_, CSrch, SrchC, PSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
+        Srch_, CSrch, SrchC, _____, Qkfix, /****/ _____, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ Globl, _____, _____, _____, _____,
+        LImpl, LDefn, LType, LRfrE, Mark_, /****/ LSrhB, _____, _____, _____, _____,
     ],
 ];
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
@@ -524,8 +524,6 @@ pub(crate) enum Meaning {
     NBack,
     /// Navigate forward
     NForw,
-    /// Find (global)
-    Globl,
     /// Indent
     Indnt,
     /// Remove selections matching search
@@ -628,8 +626,10 @@ pub(crate) enum Meaning {
     SSEnd,
     /// Search (directionless)
     Srch_,
-    /// Search (using previous search)
-    PSrch,
+    /// Last Search (Backward)
+    LSrhB,
+    /// Last Search (Forward)
+    LSrhF,
     /// Quickfix
     Qkfix,
     /// Git Hunk (against current branch)
