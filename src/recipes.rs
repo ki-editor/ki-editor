@@ -842,7 +842,7 @@ fn main(foo: str) {
                     ]),
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
                 Recipe {
                     description: "Split selections by marks",
