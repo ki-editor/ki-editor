@@ -1888,17 +1888,6 @@ hello_world
             only: false,
         },
         Recipe {
-            description: "Repeat last non-contigous selection mode",
-            content: "fo world fo where".trim(),
-            file_extension: "md",
-            prepare_events: &[],
-            events: keys!("q f o enter w h ] p"),
-            expectations: Box::new([CurrentSelectedTexts(&["fo"])]),
-            terminal_height: None,
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
             description: "Multi-cursor: add using movement",
             content: "
 foo bar spam

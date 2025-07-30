@@ -54,6 +54,10 @@ tree-sitter-quickfix:
 
 doc-assets testname="":
     cargo test --workspace -- --nocapture 'doc_assets_' {{testname}}
+    
+# This command helps you locate the actual recipe that is failing
+doc-assets-get-recipes-error:
+    just doc-assets generate_recipes > /dev/null
 
 doc: doc-assets
     just -f docs/justfile
