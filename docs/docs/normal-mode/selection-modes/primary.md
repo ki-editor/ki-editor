@@ -173,3 +173,8 @@ In this selection mode, the movements behave like the usual editor, where [Left/
 [First/Last](./../core-movements.md#firstlast) means the first/last character of the current word.
 
 <TutorialFallback filename="char"/>
+
+
+## `Last Search`
+
+Repeats the last search.

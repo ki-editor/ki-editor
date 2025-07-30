@@ -3131,6 +3131,7 @@ pub(crate) enum GlobalSearchFilterGlob {
 pub(crate) enum LocalSearchConfigUpdate {
     Mode(LocalSearchConfigMode),
     Replacement(String),
+    #[cfg(test)]
     Search(String),
     Config(crate::context::LocalSearchConfig),
 }

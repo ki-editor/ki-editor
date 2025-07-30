@@ -825,6 +825,26 @@ foov foou bar",
                     only: false,
                 },
                 Recipe {
+                    description: "Split selections by last search",
+                    content: "
+fn main(foo: str) {
+    bar(foo);
+
+    foo = x + foo;
+    return foo;
+}"
+                    .trim(),
+                    file_extension: "rs",
+                    prepare_events: &[],
+                    events: keys!("s l l e a d r n"),
+                    expectations: Box::new([
+                        CurrentSelectedTexts(&["foo", "foo", "foo", "foo", "foo",]),
+                    ]),
+                    terminal_height: Some(7),
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
                     description: "Split selections by marks",
                     content: "foo bar spam"
                     .trim(),
@@ -1865,17 +1885,6 @@ hello_world
             expectations: Box::new([CurrentComponentContent("Case")]),
             terminal_height: None,
             similar_vim_combos: &["u", "ctrl+r"],
-            only: false,
-        },
-        Recipe {
-            description: "Repeat last non-contigous selection mode",
-            content: "fo world fo where".trim(),
-            file_extension: "md",
-            prepare_events: &[],
-            events: keys!("q f o enter w h ] p"),
-            expectations: Box::new([CurrentSelectedTexts(&["fo"])]),
-            terminal_height: None,
-            similar_vim_combos: &[],
             only: false,
         },
         Recipe {
