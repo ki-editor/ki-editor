@@ -87,7 +87,7 @@ const fn fish() -> Language {
             commit: "master",
             subpath: None,
         }),
-        language_fallback: None,
+        language_fallback: Some(CargoLinkedTreesitterLanguage::Fish),
         line_comment_prefix: Some("#"),
         ..Language::new()
     }
@@ -111,25 +111,6 @@ const fn c() -> Language {
         language_fallback: Some(CargoLinkedTreesitterLanguage::C),
         line_comment_prefix: Some("//"),
         block_comment_affixes: Some(("/*", "*/")),
-        ..Language::new()
-    }
-}
-
-const fn unison() -> Language {
-    Language {
-        extensions: &["u"],
-        lsp_command: Some(LspCommand {
-            command: Command("nc", &["localhost", "5757"]),
-            ..LspCommand::default()
-        }),
-        lsp_language_id: Some(LanguageId::new("unison")),
-        tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "unison",
-            url: "https://github.com/kylegoetz/tree-sitter-unison",
-            commit: "master",
-            subpath: None,
-        }),
-        language_fallback: None,
         ..Language::new()
     }
 }
@@ -234,6 +215,7 @@ const fn diff() -> Language {
             commit: "main",
             subpath: None,
         }),
+        language_fallback: Some(CargoLinkedTreesitterLanguage::Diff),
         ..Language::new()
     }
 }
@@ -268,7 +250,7 @@ const fn elixir() -> Language {
             commit: "main",
             subpath: None,
         }),
-        language_fallback: None,
+        language_fallback: Some(CargoLinkedTreesitterLanguage::Elixir),
         line_comment_prefix: Some("#"),
         ..Language::new()
     }
@@ -439,7 +421,7 @@ const fn heex() -> Language {
             commit: "main",
             subpath: None,
         }),
-        language_fallback: None,
+        language_fallback: Some(CargoLinkedTreesitterLanguage::Heex),
         block_comment_affixes: Some(("<!--", "-->")),
         ..Language::new()
     }
@@ -616,7 +598,7 @@ const fn nix() -> Language {
             commit: "master",
             subpath: None,
         }),
-        language_fallback: None,
+        language_fallback: Some(CargoLinkedTreesitterLanguage::Nix),
         line_comment_prefix: Some("#"),
         block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
@@ -765,7 +747,7 @@ const fn swift() -> Language {
             commit: "with-generated-files",
             subpath: None,
         }),
-        language_fallback: None,
+        language_fallback: Some(CargoLinkedTreesitterLanguage::Swift),
         line_comment_prefix: Some("//"),
         block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
@@ -781,7 +763,7 @@ const fn toml() -> Language {
             commit: "master",
             subpath: None,
         }),
-        language_fallback: None,
+        language_fallback: Some(CargoLinkedTreesitterLanguage::Toml),
         line_comment_prefix: Some("#"),
         ..Language::new()
     }
@@ -841,6 +823,25 @@ const fn typescript_react() -> Language {
         language_fallback: Some(CargoLinkedTreesitterLanguage::TSX),
         line_comment_prefix: Some("//"),
         block_comment_affixes: Some(("/*", "*/")),
+        ..Language::new()
+    }
+}
+
+const fn unison() -> Language {
+    Language {
+        extensions: &["u"],
+        lsp_command: Some(LspCommand {
+            command: Command("nc", &["localhost", "5757"]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("unison")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "unison",
+            url: "https://github.com/kylegoetz/tree-sitter-unison",
+            commit: "master",
+            subpath: None,
+        }),
+        language_fallback: None,
         ..Language::new()
     }
 }

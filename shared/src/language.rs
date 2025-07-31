@@ -72,6 +72,13 @@ pub enum CargoLinkedTreesitterLanguage {
     CPP,
     CSS,
     Ruby,
+    Nix,
+    Fish,
+    Diff,
+    Elixir,
+    Swift,
+    Heex,
+    Toml,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -100,6 +107,13 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::CPP => tree_sitter_cpp::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::CSS => tree_sitter_css::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Ruby => tree_sitter_ruby::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Nix => tree_sitter_nix::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Fish => tree_sitter_fish::language().into(),
+            CargoLinkedTreesitterLanguage::Diff => tree_sitter_diff::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Elixir => tree_sitter_elixir::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Swift => tree_sitter_swift::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Heex => tree_sitter_heex::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Toml => tree_sitter_toml_ng::LANGUAGE.into(),
         }
     }
 }
