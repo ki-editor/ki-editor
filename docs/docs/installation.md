@@ -38,7 +38,7 @@ cargo install --locked --path .
 
 [^1]: This flake also provides a basic development environment for Ki Editor which can be enabled by `nix develop` command.
 
-1. Install ki package
+### 1. Install ki package
 
   - with `nix profile`:
 
@@ -67,7 +67,10 @@ nix profile install github:ki-editor/ki-editor
 }
 ```
 
-2. Build tree-sitter grammars:
+### 2. Build tree-sitter grammars
+
+This step is optional as most of the Tree-sitter grammars are already linked at build time.
+
 
 ```sh
 ki @ grammar fetch && ki @ grammar build

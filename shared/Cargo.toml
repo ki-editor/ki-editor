@@ -43,6 +43,13 @@ tree-sitter-typescript = "0.23.2"
 tree-sitter-xml = "0.7.0"
 tree-sitter-yaml = "0.7.1"
 tree-sitter-zig = "1.1.2"
+tree-sitter-nix = "0.3.0"
+tree-sitter-fish = "3.6.0"
+tree-sitter-diff = "0.1.0"
+tree-sitter-elixir = "0.3.4"
+tree-sitter-swift = "0.7.1"
+tree-sitter-heex = "0.8.1"
+tree-sitter-toml-ng = "0.7.0"
 
 
 [dev-dependencies]
