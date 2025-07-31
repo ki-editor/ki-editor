@@ -108,7 +108,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::CSS => tree_sitter_css::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Ruby => tree_sitter_ruby::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Nix => tree_sitter_nix::LANGUAGE.into(),
-            CargoLinkedTreesitterLanguage::Fish => tree_sitter_fish::language().into(),
+            CargoLinkedTreesitterLanguage::Fish => tree_sitter_fish::language(),
             CargoLinkedTreesitterLanguage::Diff => tree_sitter_diff::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Elixir => tree_sitter_elixir::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Swift => tree_sitter_swift::LANGUAGE.into(),
