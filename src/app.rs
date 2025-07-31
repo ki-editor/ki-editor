@@ -2525,13 +2525,9 @@ impl<T: Frontend> App<T> {
     fn open_keyboard_layout_prompt(&mut self) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
-                on_enter: DispatchPrompt::Null,
+                on_enter: DispatchPrompt::SetKeyboardLayoutKind,
                 items: KeyboardLayoutKind::iter()
-                    .map(|keyboard_layout| {
-                        DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
-                            Dispatches::one(Dispatch::SetKeyboardLayoutKind(keyboard_layout)),
-                        )
-                    })
+                    .map(|keyboard_layout| DropdownItem::new(keyboard_layout.display().to_string()))
                     .collect_vec(),
                 title: "Keyboard Layout".to_string(),
                 enter_selects_first_matching_item: true,
@@ -3249,6 +3245,7 @@ pub(crate) enum DispatchPrompt {
     FilterSelectionMatchingSearch {
         maintain: bool,
     },
+    SetKeyboardLayoutKind,
     SurroundXmlTag,
 }
 impl DispatchPrompt {
@@ -3366,6 +3363,14 @@ impl DispatchPrompt {
                     search: text.to_string(),
                 }),
             )),
+            DispatchPrompt::SetKeyboardLayoutKind => {
+                let keyboard_layout_kind = KeyboardLayoutKind::iter()
+                    .find(|keyboard_layout| keyboard_layout.display() == text)
+                    .ok_or_else(|| anyhow::anyhow!("No keyboard layout is named {text:?}"))?;
+                Ok(Dispatches::one(Dispatch::SetKeyboardLayoutKind(
+                    keyboard_layout_kind,
+                )))
+            }
             DispatchPrompt::SurroundXmlTag => Ok(Dispatches::one(Dispatch::ToEditor(
                 DispatchEditor::Surround(format!("<{text}>"), format!("</{text}>")),
             ))),
