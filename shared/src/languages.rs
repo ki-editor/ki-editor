@@ -429,7 +429,7 @@ const fn heex() -> Language {
 
 const fn html() -> Language {
     Language {
-        extensions: &["htm", "html"],
+        extensions: &["htm", "html", "svg"],
         formatter_command: Some(Command("prettierd", &[".html"])),
         lsp_command: Some(LspCommand {
             command: Command("emmet-language-server", &["--stdio"]),
