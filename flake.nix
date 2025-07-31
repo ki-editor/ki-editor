@@ -168,7 +168,7 @@
                 pkg-config
                 git
                 nodejs
-                typeshare-cli
+                typeshare
               ] ++ extraNativeBuildInputs;
 
               # Build inputs
