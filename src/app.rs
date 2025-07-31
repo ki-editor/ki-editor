@@ -2523,11 +2523,24 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_keyboard_layout_prompt(&mut self) -> anyhow::Result<()> {
+        let embedded = self.context.is_running_as_embedded();
         self.open_prompt(
             PromptConfig {
-                on_enter: DispatchPrompt::SetKeyboardLayoutKind,
+                on_enter: if embedded {
+                    DispatchPrompt::SetKeyboardLayoutKind
+                } else {
+                    DispatchPrompt::Null
+                },
                 items: KeyboardLayoutKind::iter()
-                    .map(|keyboard_layout| DropdownItem::new(keyboard_layout.display().to_string()))
+                    .map(|keyboard_layout| {
+                        DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
+                            if embedded {
+                                Dispatches::default()
+                            } else {
+                                Dispatches::one(Dispatch::SetKeyboardLayoutKind(keyboard_layout))
+                            },
+                        )
+                    })
                     .collect_vec(),
                 title: "Keyboard Layout".to_string(),
                 enter_selects_first_matching_item: true,
