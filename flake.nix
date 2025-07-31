@@ -22,31 +22,6 @@
           inherit targets;
         };
 
-        # Create a derivation for the typeshare CLI from the specific fork
-        typeshare-cli = pkgs.rustPlatform.buildRustPackage rec {
-          pname = "typeshare";
-          version = "1.0.3-fork";
-
-          src = pkgs.fetchFromGitHub {
-            owner = "tomjw64";
-            repo = "typeshare";
-            rev = "357540884d47a840aab6705e1508f3573056b29a"; # Latest commit from allow-override-for-disallowed-types branch
-            sha256 = "sha256-EZb1z0UWDWvlGdH3jVhSnq5bntORM2R8Z7DfIo/+eqQ=";
-          };
-
-          cargoHash = "sha256-gwVjmWoPyIhl5HENEjxFCBy/gIV1QbRfCyPycv1gYts=";
-
-          # Only build the CLI binary, not the library
-          cargoBuildFlags = [ "--bin" "typeshare" ];
-
-          meta = with pkgs.lib; {
-            description = "Generate TypeScript and Kotlin types from Rust code (fork with allow-override-for-disallowed-types)";
-            homepage = "https://github.com/tomjw64/typeshare";
-            license = licenses.mit;
-            maintainers = [ ];
-          };
-        };
-
         # Create a hook to generate the VERSION file
         createVersionFile = ''
           echo "Creating VERSION file..."
