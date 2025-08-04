@@ -766,7 +766,7 @@ pub trait PositionBasedSelectionMode {
     fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.get_current_meaningful_selection_by_cursor(
             params.buffer,
-            CharIndex(params.buffer.len_chars()) - 1,
+            CharIndex(params.buffer.len_chars()),
             IfCurrentNotFound::LookBackward,
         )?
         .map(|byte_range| byte_range.to_selection(params.buffer, params.current_selection))
@@ -1035,7 +1035,6 @@ pub trait PositionBasedSelectionMode {
                     }));
                 }
             }
-
             if let Some(result) =
                 self.get_current_selection_by_cursor(buffer, new_cursor_char_index, second_look)?
             {

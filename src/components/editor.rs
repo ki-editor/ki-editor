@@ -932,7 +932,8 @@ impl Editor {
         } else {
             Default::default()
         };
-        if self.selection_set.mode == SelectionMode::Line && direction == Direction::End {
+        // TODO: remove this block or not??
+        if false && self.selection_set.mode == SelectionMode::Line && direction == Direction::End {
             return self.delete_line_forward(copy_dispatches, context);
         }
         let edit_transaction = EditTransaction::from_action_groups({

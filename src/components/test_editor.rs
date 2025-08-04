@@ -2,7 +2,11 @@ use crate::app::{LocalSearchConfigUpdate, Scope};
 use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::CopiedTexts;
-use crate::components::editor::{DispatchEditor::*, Movement::*, PriorChange};
+use crate::components::editor::{
+    DispatchEditor::*,
+    Movement::{self, *},
+    PriorChange,
+};
 use crate::context::{Context, LocalSearchConfigMode, Search};
 use crate::grid::IndexedHighlightGroup;
 use crate::list::grep::RegexConfig;

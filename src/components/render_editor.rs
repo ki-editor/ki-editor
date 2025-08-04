@@ -498,14 +498,12 @@ impl Editor {
                     .map(ByteRange::new)
                     .collect()
             } else {
-                self
-                    //.possible_selections(self.selection_set.primary_selection(), context)
-                    .possible_selections_in_line_number_range(
-                        self.selection_set.primary_selection(),
-                        context,
-                        visible_line_range,
-                    )
-                    .unwrap_or_default()
+                self.possible_selections_in_line_number_range(
+                    self.selection_set.primary_selection(),
+                    context,
+                    visible_line_range,
+                )
+                .unwrap_or_default()
             }
             .into_iter()
             .map(|range| HighlightSpan {

@@ -19,10 +19,11 @@ impl PositionBasedSelectionMode for LineTrimmed {
         cursor_char_index: crate::selection::CharIndex,
         _: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
-        let last_cursor_char_index = CharIndex(buffer.len_chars());
-        if cursor_char_index >= last_cursor_char_index {
+        let max_cursor_char_index = CharIndex(buffer.len_chars());
+        if cursor_char_index > max_cursor_char_index {
             return Ok(None);
         }
+
         let line_index = buffer.char_to_line(cursor_char_index)?;
         let Some(line) = buffer.get_line_by_line_index(line_index) else {
             return Ok(None);
@@ -293,6 +294,7 @@ pub(crate) fn trim_leading_spaces(byte_start: usize, line: &str) -> usize {
 #[cfg(test)]
 mod test_line {
     use crate::buffer::BufferOwner;
+    use crate::components::editor::Movement;
     use crate::selection::SelectionMode;
     use crate::test_app::*;
 
@@ -526,5 +528,59 @@ foo
         };
         run_test(Direction::End)?;
         run_test(Direction::Start)
+    }
+
+    #[test]
+    fn able_to_go_to_last_line_which_is_empty() -> anyhow::Result<()> {
+        fn test(movement: Movement) -> anyhow::Result<()> {
+            execute_test(|s| {
+                Box::new([
+                    App(OpenFile {
+                        path: s.main_rs(),
+                        owner: BufferOwner::User,
+                        focus: true,
+                    }),
+                    Editor(SetContent("hello\n".to_string())),
+                    Editor(SetSelectionMode(
+                        IfCurrentNotFound::LookForward,
+                        SelectionMode::Line,
+                    )),
+                    Editor(MoveSelection(movement)),
+                    Expect(EditorCursorPosition(crate::position::Position {
+                        line: 1,
+                        column: 0,
+                    })),
+                    Expect(CurrentSelectedTexts(&[""])),
+                ])
+            })
+        }
+        test(Movement::Last)?;
+        test(Movement::Down)
+    }
+
+    #[test]
+    fn able_to_delete_last_line_which_is_empty() -> anyhow::Result<()> {
+        fn test(direction: Direction) -> anyhow::Result<()> {
+            execute_test(|s| {
+                Box::new([
+                    App(OpenFile {
+                        path: s.main_rs(),
+                        owner: BufferOwner::User,
+                        focus: true,
+                    }),
+                    Editor(SetContent("hello\n".to_string())),
+                    Editor(SetSelectionMode(
+                        IfCurrentNotFound::LookForward,
+                        SelectionMode::Line,
+                    )),
+                    Editor(MoveSelection(Movement::Last)),
+                    Expect(CurrentSelectedTexts(&[""])),
+                    Editor(Delete(direction.clone())),
+                    Expect(CurrentComponentContent("hello")),
+                ])
+            })
+        }
+        test(Direction::End)?;
+        test(Direction::Start)
     }
 }
