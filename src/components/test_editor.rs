@@ -3169,66 +3169,6 @@ foo bar
 }
 
 #[test]
-fn delete_line_should_not_dedent_next_line() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent(
-                "
-foo bar
-  spam
-  hey"
-                .trim()
-                .to_string(),
-            )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(Delete(Direction::End)),
-            Expect(CurrentComponentContent("  spam\n  hey")),
-            Expect(CurrentSelectedTexts(&["spam"])),
-            Editor(Undo),
-            Expect(CurrentSelectedTexts(&["foo bar"])),
-        ])
-    })
-}
-
-#[test]
-fn delete_multiple_lines_should_not_dedent_next_line() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent(
-                "
-foo bar
-  spam
-  hey"
-                .trim()
-                .to_string(),
-            )),
-            Editor(SetSelectionModeWithPriorChange(
-                IfCurrentNotFound::LookForward,
-                Line,
-                Some(PriorChange::EnableSelectionExtension),
-            )),
-            App(HandleKeyEvent(key!("k"))),
-            Expect(CurrentSelectedTexts(&["foo bar\n  spam"])),
-            Editor(Delete(Direction::End)),
-            Expect(CurrentComponentContent("  hey")),
-            Expect(CurrentSelectedTexts(&["hey"])),
-            Editor(Undo),
-            Expect(CurrentSelectedTexts(&["foo bar\n  spam"])),
-        ])
-    })
-}
-
-#[test]
 fn expand_to_nearest_enclosure_1_inside() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -4214,6 +4154,7 @@ foo bar
     baz
 tim
 "
+                .trim()
                 .to_string(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),

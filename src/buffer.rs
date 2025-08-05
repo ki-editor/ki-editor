@@ -353,17 +353,10 @@ impl Buffer {
         .unwrap_or_default())
     }
 
+    /// Number of lines is always equals to
+    /// the number of newline characters plus one.
     pub(crate) fn len_lines(&self) -> usize {
-        // Need to minus 1 if last character is a newline.
-        // For some reason, Rope::len_lines will return an extra line
-        // if the last character is a newline.
-        let deduction =
-            if let Some('\n') = self.rope.get_char(self.rope.len_chars().saturating_sub(1)) {
-                1
-            } else {
-                0
-            };
-        self.rope.len_lines().saturating_sub(deduction)
+        self.rope.len_lines()
     }
 
     pub(crate) fn char_to_line(&self, char_index: CharIndex) -> anyhow::Result<usize> {
@@ -419,7 +412,9 @@ impl Buffer {
                 .map(|slice| slice.len_chars())
                 .unwrap_or_default(),
         );
-        Ok(CharIndex(self.rope.try_line_to_char(line)? + column))
+        Ok(CharIndex(
+            (self.rope.try_line_to_char(line)? + column).clamp(0, self.len_chars()),
+        ))
     }
 
     pub(crate) fn byte_to_char(&self, byte_index: usize) -> anyhow::Result<CharIndex> {
