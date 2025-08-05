@@ -848,7 +848,7 @@ const fn unison() -> Language {
 
 const fn xml() -> Language {
     Language {
-        extensions: &["xml"],
+        extensions: &["xml", "xaml", "axaml"],
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "xml",
             url: "https://github.com/tree-sitter-grammars/tree-sitter-xml",
