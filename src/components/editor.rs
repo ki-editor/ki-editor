@@ -932,10 +932,6 @@ impl Editor {
         } else {
             Default::default()
         };
-        // TODO: remove this block or not??
-        if false && self.selection_set.mode == SelectionMode::Line && direction == Direction::End {
-            return self.delete_line_forward(copy_dispatches, context);
-        }
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -3511,65 +3507,6 @@ impl Editor {
             true,
             context,
         )
-    }
-
-    fn delete_line_forward(
-        &mut self,
-        copy_dispatches: Dispatches,
-        context: &Context,
-    ) -> Result<Dispatches, anyhow::Error> {
-        let edit_transaction = EditTransaction::from_action_groups({
-            let buffer = self.buffer();
-            self.selection_set
-                .map(|selection| -> anyhow::Result<_> {
-                    let line_range =
-                        buffer.char_index_range_to_line_range(selection.extended_range())?;
-
-                    let delete_range = buffer.line_range_to_full_char_index_range(line_range)?;
-
-                    let get_selection = |movement: Movement| {
-                        Selection::get_selection_(
-                            &buffer,
-                            &selection.clone().collapsed_to_anchor_range(&Direction::End),
-                            &self.selection_set.mode,
-                            &movement.into_movement_applicandum(
-                                self.selection_set.sticky_column_index(),
-                            ),
-                            &self.cursor_direction,
-                            context,
-                        )
-                    };
-                    let select_range = get_selection(Movement::Down)?
-                        .or_else(|| get_selection(Movement::Up).ok().flatten())
-                        .map(|result| result.selection.range())
-                        .unwrap_or_else(|| selection.range());
-
-                    Ok([
-                        ActionGroup::new(
-                            [Action::Edit(Edit::new(
-                                self.buffer().rope(),
-                                delete_range,
-                                Rope::new(),
-                            ))]
-                            .to_vec(),
-                        ),
-                        ActionGroup::new(
-                            [Action::Select(
-                                selection
-                                    .clone()
-                                    .set_range(select_range)
-                                    .set_initial_range(None),
-                            )]
-                            .to_vec(),
-                        ),
-                    ])
-                })
-                .into_iter()
-                .flatten()
-                .flatten()
-                .collect()
-        });
-        Ok(copy_dispatches.chain(self.apply_edit_transaction(edit_transaction, context)?))
     }
 
     fn delete_current_cursor(&mut self, direction: Direction) {
