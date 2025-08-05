@@ -1137,6 +1137,16 @@ impl Buffer {
             .get_char(cursor_char_index.0)
             .ok_or_else(|| anyhow::anyhow!("Unable to get char at {cursor_char_index:?}"))
     }
+
+    /// Returns `None` if the buffer content is empty
+    pub(crate) fn last_char_index(&self) -> Option<CharIndex> {
+        let len_chars = self.rope.len_chars();
+        if len_chars == 0 {
+            None
+        } else {
+            Some(CharIndex(len_chars - 1))
+        }
+    }
 }
 
 #[cfg(test)]
