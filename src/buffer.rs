@@ -429,16 +429,6 @@ impl Buffer {
         self.rope.len_chars()
     }
 
-    /// Returns the maximum valid character index for cursor positioning.
-    ///
-    /// This is `self.len_chars()` rather than `self.len_chars() - 1` because
-    /// cursor positioning allows placing the cursor after the last character.
-    /// This is essential for rendering the cursor in an empty rope and for
-    /// positioning the cursor at the end of content.
-    pub(crate) fn last_char_index(&self) -> CharIndex {
-        CharIndex(self.rope.len_chars())
-    }
-
     pub(crate) fn slice(&self, range: &CharIndexRange) -> anyhow::Result<Rope> {
         let slice = self.rope.get_slice(range.start.0..range.end.0);
         match slice {
