@@ -18,16 +18,10 @@ impl Word {
         if_current_not_found: IfCurrentNotFound,
         skip_symbols: bool,
     ) -> anyhow::Result<Option<ByteRange>> {
-        let rope = buffer.rope();
-        let len_chars = rope.len_chars();
-        if len_chars == 0 {
+        let Some(last_char_index) = buffer.last_char_index() else {
             return Ok(None);
-        }
-        let last_char_index = CharIndex(len_chars - 1);
-
-        if cursor_char_index > last_char_index {
-            return Ok(None);
-        }
+        };
+        let cursor_char_index = cursor_char_index.min(last_char_index);
 
         let predicate = |c: char| {
             if skip_symbols {

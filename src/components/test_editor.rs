@@ -4621,3 +4621,34 @@ fn toggle_block_comment() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> {
+    fn run_test(selection_mode: SelectionMode) -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("hello\n".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(MoveSelection(Last)),
+                Expect(EditorCursorPosition(Position::new(1, 0))),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    selection_mode.clone(),
+                )),
+                Expect(CurrentSelectedTexts(&["hello"])),
+            ])
+        })
+    }
+    run_test(Token)?;
+    run_test(Word)?;
+    Ok(())
+}

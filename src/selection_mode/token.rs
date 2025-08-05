@@ -219,13 +219,10 @@ fn get_current_token_by_cursor(
     cursor_char_index: crate::selection::CharIndex,
     if_current_not_found: IfCurrentNotFound,
 ) -> anyhow::Result<Option<super::ByteRange>> {
-    let len_chars = buffer.len_chars();
-    if len_chars == 0 {
+    let Some(last_char_index) = buffer.last_char_index() else {
         return Ok(None);
-    }
-    let last_char_index = CharIndex(len_chars - 1);
+    };
 
-    // Define predicates once
     let is_target = |char: char| {
         if skip_symbols {
             is_word(char)
@@ -234,11 +231,7 @@ fn get_current_token_by_cursor(
         }
     };
 
-    if cursor_char_index > last_char_index {
-        return Ok(None);
-    }
-
-    let last_char_index = CharIndex(buffer.len_chars().saturating_sub(1));
+    let cursor_char_index = cursor_char_index.min(last_char_index);
 
     let current = {
         let mut current = cursor_char_index;
