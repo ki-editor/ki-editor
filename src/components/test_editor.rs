@@ -4624,7 +4624,10 @@ fn toggle_block_comment() -> anyhow::Result<()> {
 
 #[test]
 fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> {
-    fn run_test(selection_mode: SelectionMode) -> anyhow::Result<()> {
+    fn run_test(
+        selection_mode: SelectionMode,
+        selected_texts: &'static [&'static str],
+    ) -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -4644,11 +4647,12 @@ fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> 
                     IfCurrentNotFound::LookForward,
                     selection_mode.clone(),
                 )),
-                Expect(CurrentSelectedTexts(&["hello"])),
+                Expect(CurrentSelectedTexts(selected_texts)),
             ])
         })
     }
-    run_test(Token)?;
-    run_test(Word)?;
+    run_test(Token, &["hello"])?;
+    run_test(Word, &["hello"])?;
+    run_test(Character, &["\n"])?;
     Ok(())
 }

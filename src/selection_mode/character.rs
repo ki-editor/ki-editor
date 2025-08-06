@@ -28,16 +28,15 @@ impl PositionBasedSelectionMode for Character {
         cursor_char_index: crate::selection::CharIndex,
         _: IfCurrentNotFound,
     ) -> anyhow::Result<Option<ByteRange>> {
-        let len_chars = buffer.len_chars();
-        if len_chars == 0 || cursor_char_index > CharIndex(len_chars - 1) {
-            Ok(None)
-        } else {
-            let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
-            let char = buffer.char(cursor_char_index)?;
-            Ok(Some(ByteRange::new(
-                cursor_byte..cursor_byte + char.len_utf8(),
-            )))
-        }
+        let Some(last_char_index) = buffer.last_char_index() else {
+            return Ok(None);
+        };
+        let cursor_char_index = cursor_char_index.min(last_char_index);
+        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+        let char = buffer.char(cursor_char_index)?;
+        Ok(Some(ByteRange::new(
+            cursor_byte..cursor_byte + char.len_utf8(),
+        )))
     }
 }
 
