@@ -238,10 +238,13 @@ impl<T: Frontend> App<T> {
             } => self
                 .update_highlighted_spans(component_id, batch_id, highlighted_spans)
                 .map(|_| false),
-            // Handle the new ExternalDispatch variant
             AppMessage::ExternalDispatch(dispatch) => {
                 // Process the dispatch directly
                 self.handle_dispatch(dispatch)?;
+                Ok(false)
+            }
+            AppMessage::NotifyError(error) => {
+                self.show_global_info(Info::new("App Error".to_string(), format!("{error:#?}")));
                 Ok(false)
             }
         }
@@ -3217,6 +3220,7 @@ pub(crate) enum AppMessage {
     },
     // New variant for external dispatches
     ExternalDispatch(Dispatch),
+    NotifyError(std::io::Error),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
