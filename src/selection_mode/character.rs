@@ -1,4 +1,4 @@
-use crate::{components::editor::IfCurrentNotFound, selection::CharIndex};
+use crate::components::editor::IfCurrentNotFound;
 
 use super::{
     word::SelectionPosition, ByteRange, PositionBased, PositionBasedSelectionMode,
