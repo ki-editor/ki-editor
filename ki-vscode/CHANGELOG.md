@@ -1,5 +1,8 @@
 # Changelog
 
+# [0.0.15]
+Up to https://github.com/ki-editor/ki-editor/commit/c956df7c13dee9e3aee5da9615f943ed6191b9d7.
+
 # [0.0.13]
 
 - Add support for showing Info from Ki, which includes:
