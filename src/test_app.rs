@@ -1139,6 +1139,31 @@ pub(crate) fn non_git_ignored_files() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+fn number_of_lines_rendered_should_equal_to_number_of_newline_characters_plus_one(
+) -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(TerminalDimensionChanged(Dimension {
+                width: 200,
+                height: 6,
+            })),
+            Editor(SetContent("hello\n".to_string())),
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+1│█ello
+2│"
+                .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
 fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
