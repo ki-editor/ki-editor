@@ -6,6 +6,10 @@ use crate::app::Scope;
 
 pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
     // a = Easiest to access
+    // b
+    // .
+    // .
+    // n
     // o = Hardest to access
     // Left side (a-o)        Right side (a-o)
     ['m', 'h', 'f', 'i', 'n', /*|*/ 'n', 'i', 'f', 'h', 'm'], // Top row
@@ -27,7 +31,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SrchP, Char_, _____, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
+        SrchP, Char_, SchWC, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
     ],
     [
         LineF, _____, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
@@ -93,7 +97,7 @@ pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
 pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, SchWC, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
@@ -592,6 +596,8 @@ pub(crate) enum Meaning {
     ScrlU,
     /// Search current selection
     SrchC,
+    /// Open search prompt with current selection
+    SchWC,
     /// Search (local) next
     SrchN,
     /// Search (local) previous
