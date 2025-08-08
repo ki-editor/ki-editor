@@ -1913,7 +1913,7 @@ fn should_be_able_to_handle_key_event_even_when_no_file_is_opened() -> anyhow::R
     execute_test(|_| {
         Box::new([
             Expect(CurrentComponentContent("")),
-            App(HandleKeyEvents(keys!("u h e l l o").to_vec())),
+            App(HandleKeyEvents(keys!("h h e l l o").to_vec())),
             Expect(CurrentComponentContent("hello")),
         ])
     })
