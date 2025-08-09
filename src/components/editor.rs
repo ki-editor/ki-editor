@@ -230,7 +230,7 @@ impl Component for Editor {
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
             ToggleMark => self.toggle_marks(),
-            EnterNormalMode => return self.enter_normal_mode(context),
+            EnterNormalMode => self.enter_normal_mode(context)?,
             CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
             EnterSwapMode => self.enter_swap_mode(),
@@ -1700,8 +1700,8 @@ impl Editor {
         Ok(Dispatches::one(Dispatch::RequestSignatureHelp))
     }
 
-    pub(crate) fn enter_normal_mode(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
-        let dispatches = if self.mode == Mode::Insert {
+    pub(crate) fn enter_normal_mode(&mut self, context: &Context) -> anyhow::Result<()> {
+        if self.mode == Mode::Insert {
             // This is necessary for cursor to not overflow after exiting insert mode
             self.set_selection_set(
                 self.selection_set
@@ -1722,30 +1722,15 @@ impl Editor {
                     })?,
                 context,
             );
-            let dispatches = {
-                use SelectionMode::*;
-                match self.selection_set.mode {
-                    Line | LineFull | Token | Word => self
-                        .move_selection_with_selection_mode_without_global_mode(
-                            Movement::Current(IfCurrentNotFound::LookBackward),
-                            self.selection_set.mode.clone(),
-                            context,
-                        )?,
-                    _ => Default::default(),
-                }
-            };
             self.clamp(context)?;
             self.buffer_mut().reparse_tree()?;
-            dispatches
-        } else {
-            Default::default()
-        };
+        }
         // TODO: continue from here, need to add test: upon exiting insert mode, should close all panels
         // Maybe we should call this function the exit_insert_mode?
 
         self.mode = Mode::Normal;
         self.selection_set.unset_initial_range();
-        Ok(dispatches)
+        Ok(())
     }
 
     #[cfg(test)]
@@ -2486,9 +2471,8 @@ impl Editor {
 
         self.clamp(context)?;
         self.cursor_keep_primary_only();
-        let dispatches = self.enter_normal_mode(context)?;
-        Ok(dispatches
-            .append(Dispatch::RemainOnlyCurrentComponent)
+        self.enter_normal_mode(context)?;
+        Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent)
             .append(Dispatch::DocumentDidSave { path })
             .chain(self.get_document_did_change_dispatch())
             .append(Dispatch::RemainOnlyCurrentComponent)
