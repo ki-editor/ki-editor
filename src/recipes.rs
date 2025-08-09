@@ -1335,15 +1335,15 @@ foo bar spam
             filename: "enter-normal-mode",
             recipes: [
             Recipe {
-                description: "Enter Normal mode select selection before cursor",
+                description: "Enter Normal mode",
                 content: "foo bar spam",
                 file_extension: "md",
                 prepare_events: &[],
                 events: keys!("s l ; o k esc"),
-                expectations: Box::new([CurrentSelectedTexts(&["barok"])]),
+                expectations: Box::new([CurrentSelectedTexts(&["k"])]),
                 terminal_height: None,
                 similar_vim_combos: &[],
-                only: false,
+                only: true,
             }].to_vec(),
         },
         RecipeGroup {

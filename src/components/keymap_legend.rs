@@ -435,7 +435,10 @@ impl Component for KeymapLegend {
         let close_current_window = Dispatch::CloseCurrentWindowAndFocusParent;
         if self.editor.mode == Mode::Insert {
             match &event {
-                key!("esc") => self.editor.enter_normal_mode(context),
+                key!("esc") => {
+                    self.editor.enter_normal_mode(context)?;
+                    Ok(Default::default())
+                }
                 key!("space") => {
                     self.option = if !self.option.show_alt {
                         KeymapDisplayOption {

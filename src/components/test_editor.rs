@@ -2239,7 +2239,7 @@ fn tree_sitter_should_not_reparse_in_insert_mode() -> anyhow::Result<()> {
     assert_eq!(current_range, new_range);
 
     // Entering normal mode should reparse the tree
-    let _ = editor.enter_normal_mode(&context)?;
+    editor.enter_normal_mode(&context)?;
     let new_range = editor.buffer().tree().unwrap().root_node().range();
     assert_ne!(current_range, new_range);
 
@@ -4087,6 +4087,8 @@ fn undo_redo_multicursor() -> anyhow::Result<()> {
             Editor(Undo),
             Editor(Redo),
             Editor(EnterNormalMode),
+            Expect(CurrentSelectedTexts(&["x", "x"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookBackward, Token)),
             Expect(CurrentSelectedTexts(&["foox", "barx"])),
         ])
     })
@@ -4379,51 +4381,6 @@ fn test_search_query_should_not_trim_surrounding_whitespace() -> Result<(), anyh
             Expect(CurrentSelectedTexts(&["xfoo", "foobarfoo"])),
         ])
     })
-}
-
-#[test]
-fn enter_normal_mode_select_previous_selection() -> anyhow::Result<()> {
-    let run_test = |selection_mode: SelectionMode,
-                    expected_selection: &'static [&str],
-                    expected_content: &'static str| {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent("  -fooBar spam\nhello world".to_string())),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    selection_mode.clone(),
-                )),
-                Editor(EnterInsertMode(Direction::End)),
-                App(HandleKeyEvents(keys!("x").to_vec())),
-                Editor(EnterNormalMode),
-                Expect(CurrentComponentContent(expected_content)),
-                Expect(CurrentSelectedTexts(expected_selection)),
-            ])
-        })
-    };
-    run_test(Token, &["-fooBarx"], "  -fooBarx spam\nhello world")?;
-    run_test(Word, &["xfoo"], "  -xfooBar spam\nhello world")?;
-    run_test(Line, &["-fooBar spamx"], "  -fooBar spamx\nhello world")?;
-    run_test(LineFull, &["xhello world"], "  -fooBar spam\nxhello world")?;
-
-    // Other than the 4 selection modes above, other mode should select only one character
-    run_test(Character, &["x"], " x -fooBar spam\nhello world")?;
-    run_test(
-        SelectionMode::Find {
-            search: Search {
-                mode: Default::default(),
-                search: "foob".to_string(),
-            },
-        },
-        &["x"],
-        "  -fooBxar spam\nhello world",
-    )?;
-    Ok(())
 }
 
 #[test]
