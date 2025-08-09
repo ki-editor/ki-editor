@@ -1343,7 +1343,7 @@ foo bar spam
                 expectations: Box::new([CurrentSelectedTexts(&["k"])]),
                 terminal_height: None,
                 similar_vim_combos: &[],
-                only: true,
+                only: false,
             }].to_vec(),
         },
         RecipeGroup {
