@@ -450,22 +450,24 @@ impl Editor {
             let result =
                 clamped_hidden_parent_lines_grid.merge_vertical(trimmed_visible_lines_grid);
 
-            let section_divider_cell_updates = (borderize_first_line
-                && visible_lines_grid.height() > 1)
-                .then(|| {
-                    (0..width)
-                        .map(|column| CellUpdate {
-                            position: Position::new(0, column as usize),
-                            symbol: None,
-                            style: Style::new()
-                                .background_color(theme.ui.section_divider_background),
-                            is_cursor: false,
-                            is_protected_range_start: false,
-                            source: Some(StyleKey::UiSectionDivider),
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
+            let section_divider_cell_updates =
+                if borderize_first_line && visible_lines_grid.height() > 1 {
+                    {
+                        (0..width)
+                            .map(|column| CellUpdate {
+                                position: Position::new(0, column as usize),
+                                symbol: None,
+                                style: Style::new()
+                                    .background_color(theme.ui.section_divider_background),
+                                is_cursor: false,
+                                is_protected_range_start: false,
+                                source: Some(StyleKey::UiSectionDivider),
+                            })
+                            .collect()
+                    }
+                } else {
+                    Default::default()
+                };
 
             result.apply_cell_updates(section_divider_cell_updates)
         };

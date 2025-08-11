@@ -88,7 +88,7 @@ pub(crate) fn replace(
                 buffer.save_without_formatting(false)?;
                 sender
                     .send(path)
-                    .map_err(|err| log::info!("Error = {:?}", err))
+                    .map_err(|err| log::info!("Error = {err:?}"))
                     .unwrap_or_default();
             }
             Ok(())
@@ -126,7 +126,7 @@ pub(crate) fn run(
                         regex.clone(),
                     ) {
                         let _ = sender.send(location).map_err(|error| {
-                            log::error!("sender.send {:?}", error);
+                            log::error!("sender.send {error:?}");
                         });
                     }
                     Ok(true)

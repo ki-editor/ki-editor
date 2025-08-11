@@ -1415,7 +1415,7 @@ impl Editor {
                     if let Some(keymap) = keymap_legend_config.keymaps().get(&key_event) {
                         return Ok(keymap.get_dispatches());
                     }
-                    log::info!("unhandled event: {:?}", key_event);
+                    log::info!("unhandled event: {key_event:?}");
                     Ok(vec![].into())
                 }
             }
@@ -2511,7 +2511,7 @@ impl Editor {
                             Action::Edit(Edit::new(
                                 self.buffer().rope(),
                                 selection.extended_range(),
-                                format!("{}{}{}", open, old, close).into(),
+                                format!("{open}{old}{close}").into(),
                             )),
                             Action::Select(
                                 selection.clone().set_range(
@@ -2596,7 +2596,7 @@ impl Editor {
     pub(crate) fn display_selection_mode(&self) -> String {
         let selection_mode = self.selection_set.mode.display();
         let cursor_count = self.selection_set.len();
-        format!("{: <5}x{}", selection_mode, cursor_count)
+        format!("{selection_mode: <5}x{cursor_count}")
     }
 
     pub(crate) fn visible_line_range(&self) -> Range<usize> {
@@ -3289,7 +3289,7 @@ impl Editor {
                         .map(|line| {
                             (
                                 indentation.len_chars() as isize,
-                                format!("{}{}", indentation, line),
+                                format!("{indentation}{line}"),
                             )
                         })
                         .collect_vec();
@@ -3544,7 +3544,7 @@ impl Editor {
                             [Action::Edit(Edit::new(
                                 self.buffer().rope(),
                                 edit_range,
-                                format!("\n{}{}", indentation, current).into(),
+                                format!("\n{indentation}{current}").into(),
                             ))]
                             .to_vec(),
                         ),

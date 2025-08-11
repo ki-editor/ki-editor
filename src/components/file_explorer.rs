@@ -51,7 +51,7 @@ impl FileExplorer {
         let mut editor = Editor::from_text(
             shared::language::from_extension("yaml")
                 .and_then(|language| language.tree_sitter_language()),
-            &format!("{}\n", text),
+            &format!("{text}\n"),
         );
         editor.set_title("File Explorer".to_string());
         editor.set_normal_mode_override(file_explorer_normal_mode_override());
@@ -276,9 +276,9 @@ impl Tree {
                             String::new()
                         };
                         if tail.is_empty() {
-                            format!("{} :", head)
+                            format!("{head} :")
                         } else {
-                            format!("{} :\n{}", head, tail)
+                            format!("{head} :\n{tail}")
                         }
                     }
                 };
@@ -335,7 +335,7 @@ impl Tree {
             },
         });
         let tree = Tree::new(working_directory)?;
-        log::info!("opened_paths = {:?}", opened_paths);
+        log::info!("opened_paths = {opened_paths:?}");
         let tree = opened_paths
             .into_iter()
             .fold(tree, |tree, path| tree.toggle(&path, |_| true));

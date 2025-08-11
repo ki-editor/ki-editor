@@ -104,7 +104,7 @@ impl Keymaps {
             .map(|chunks| {
                 chunks
                     .map(|chunk| {
-                        let second_formatted = format!("{: <width$}", chunk, width = column_width);
+                        let second_formatted = format!("{chunk: <column_width$}");
                         second_formatted
                     })
                     .join("")
@@ -380,7 +380,7 @@ impl KeymapLegend {
                     .map(|duplicate| format!("{}: {}", duplicate.key, duplicate.description))
                     .collect_vec()
             );
-            log::info!("{}", message);
+            log::info!("{message}");
             // panic!("{}", message);
         }
 

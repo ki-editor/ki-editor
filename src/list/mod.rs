@@ -46,7 +46,7 @@ impl WalkBuilderConfig {
                             range,
                         })
                         .map_err(|error| {
-                            log::error!("sender.send {:?}", error);
+                            log::error!("sender.send {error:?}");
                         });
 
                     Ok(())
@@ -99,7 +99,7 @@ impl WalkBuilderConfig {
                         {
                             let path = path.path().into();
                             if let Err(error) = f(path, sender.clone()) {
-                                log::error!("sender.send {:?}", error)
+                                log::error!("sender.send {error:?}")
                             }
                         } else if path.path().ends_with(".git") {
                             return WalkState::Skip;

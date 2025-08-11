@@ -216,8 +216,8 @@ impl ExpectKind {
             AppGrid(grid) => {
                         let expected = grid.to_string().trim_matches('\n').to_string();
                         let actual = app.get_screen()?.stringify().trim_matches('\n').to_string();
-                        log(format!("expected =\n{}", expected));
-                        log(format!("actual =\n{}", actual));
+                        log(format!("expected =\n{expected}"));
+                        log(format!("actual =\n{actual}"));
                         contextualize(actual, expected)
                     }
             CurrentPath(path) => contextualize(app.get_current_file_path().unwrap(), path.clone()),
@@ -1856,7 +1856,7 @@ fn same_range_diagnostics_should_be_merged() -> Result<(), anyhow::Error> {
 fn code_action() -> anyhow::Result<()> {
     execute_test(|s| {
         let code_action = |new_text: &str| CodeAction {
-            title: format!("Use {}", new_text),
+            title: format!("Use {new_text}"),
             kind: None,
             edit: Some(WorkspaceEdit {
                 edits: [TextDocumentEdit {
@@ -2375,7 +2375,7 @@ fn doc_assets_export_keymaps_json() {
         keyboard_layouts: Vec<KeyboardLayoutJson>,
     }
 
-    let get_path = |name: &str| format!("docs/static/keymaps/{}.json", name);
+    let get_path = |name: &str| format!("docs/static/keymaps/{name}.json");
     let keyboard_layouts = KeyboardLayoutKind::iter()
         .map(|keyboard_layout| KeyboardLayoutJson {
             name: keyboard_layout.display().to_string(),

@@ -155,7 +155,7 @@ impl SuggestiveEditor {
                 }
             }
             DispatchSuggestiveEditor::UpdateCurrentCompletionItem(completion_item) => {
-                Ok(self.update_current_completion_item(completion_item))
+                Ok(self.update_current_completion_item(*completion_item))
             }
             DispatchSuggestiveEditor::MoveToCompletionItem(Direction::End) => {
                 self.next_completion_item()
@@ -258,7 +258,7 @@ impl SuggestiveEditor {
     fn next_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
         self.completion_dropdown.next_item();
         let dispatches = self.render_completion_dropdown(false);
-        log::info!("next_compl = {:?}", dispatches);
+        log::info!("next_compl = {dispatches:?}");
         Ok(self.render_completion_dropdown(false))
     }
 
@@ -286,7 +286,7 @@ pub(crate) enum DispatchSuggestiveEditor {
     #[cfg(test)]
     CompletionFilter(SuggestiveEditorFilter),
     Completion(Completion),
-    UpdateCurrentCompletionItem(CompletionItem),
+    UpdateCurrentCompletionItem(Box<CompletionItem>),
     MoveToCompletionItem(Direction),
     SelectCompletionItem,
 }
@@ -624,10 +624,10 @@ mod test_suggestive_editor {
                 Editor(Insert(" a".to_string())),
                 App(HandleKeyEvent(key!("ctrl+n"))),
                 // Update the current completion
-                SuggestiveEditor(UpdateCurrentCompletionItem(
+                SuggestiveEditor(UpdateCurrentCompletionItem(Box::new(
                     CompletionItem::from_label("abanana".to_string())
                         .set_insert_text(Some("apisang".to_string())),
-                )),
+                ))),
                 App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("hello apisang")),
             ])

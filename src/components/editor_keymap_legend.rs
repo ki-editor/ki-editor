@@ -1575,7 +1575,7 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
         context: &Context,
     ) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: format!("Select Surround ({:?})", kind),
+            title: format!("Select Surround ({kind:?})"),
 
             body: KeymapLegendBody::Positional(generate_enclosures_keymaps(
                 |enclosure| {

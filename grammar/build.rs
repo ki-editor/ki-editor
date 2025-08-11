@@ -23,7 +23,7 @@ fn main() {
     );
 
     println!("cargo:rerun-if-changed=../VERSION");
-    println!("cargo:rustc-env=VERSION_AND_GIT_HASH={}", version);
+    println!("cargo:rustc-env=VERSION_AND_GIT_HASH={version}");
 
     if git_hash.is_none() {
         return;

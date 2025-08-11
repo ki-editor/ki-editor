@@ -184,7 +184,7 @@ impl KeymapPrintSection {
         let content_width: u16 = table.column_max_content_widths().iter().sum();
         // column content, separators, padding & editor margins
         if content_width + 12 + 22 + 2 < terminal_width {
-            format!("{}", table)
+            format!("{table}")
         } else {
             String::new()
         }
@@ -374,7 +374,7 @@ fn print_single_keymap_table(keymap: &KeymapPrintSection) {
         },
     );
 
-    println!("{}", table);
+    println!("{table}");
     println!();
 }
 
@@ -406,7 +406,7 @@ fn print_keymap_drawer(section: &KeymapPrintSection) {
         .replace("-", "_")
         .replace("+", "plus");
 
-    println!("  {}:", safe_name);
+    println!("  {safe_name}:");
     for row in section.keys.iter() {
         let row_strings: Vec<String> = row
             .iter()
