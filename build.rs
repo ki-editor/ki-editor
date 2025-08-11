@@ -18,8 +18,8 @@ fn main() {
         .format("%Y-%m-%d %I:%M %p %Z")
         .to_string();
 
-    println!("cargo:rustc-env=GIT_HASH={}", git_hash);
-    println!("cargo:rustc-env=BUILD_TIME={}", build_time);
+    println!("cargo:rustc-env=GIT_HASH={git_hash}");
+    println!("cargo:rustc-env=BUILD_TIME={build_time}");
 
     println!("Generating types...");
 
@@ -81,8 +81,8 @@ fn main() {
         panic!("typeshare failed to generate Kotlin types");
     }
 
-    println!("TypeScript definitions generated at {:?}", ts_output_path);
-    println!("Kotlin definitions generated at {:?}", kotlin_output_path);
+    println!("TypeScript definitions generated at {ts_output_path:?}");
+    println!("Kotlin definitions generated at {kotlin_output_path:?}");
 
     println!("cargo:rerun-if-changed=build.rs");
 

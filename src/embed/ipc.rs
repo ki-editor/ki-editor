@@ -44,6 +44,7 @@ pub(crate) struct WebSocketIpc {
 impl WebSocketIpc {
     /// Sets up WebSocket IPC.
     /// Binds a TCP listener, prints the port, and spawns a handler thread.
+    #[allow(clippy::result_large_err)]
     pub(crate) fn new() -> Result<(Self, u16), IpcError> {
         info!("Setting up Host WebSocket IPC...");
 
@@ -51,12 +52,12 @@ impl WebSocketIpc {
         let port = listener.local_addr()?.port();
 
         // Print the port to stdout for the extension to capture
-        println!("KI_LISTENING_ON={}", port);
+        println!("KI_LISTENING_ON={port}");
         use std::io::Write;
         // Ensure it gets printed immediately
         std::io::stdout().flush()?;
 
-        info!("WebSocket server listening on port {}", port);
+        info!("WebSocket server listening on port {port}");
 
         // Create channels for communication between the handler thread and HostApp
         let (to_main_sender, from_host_receiver) = mpsc::channel();
@@ -66,7 +67,7 @@ impl WebSocketIpc {
             info!("WebSocket handler thread started. Waiting for connection...");
             match listener.accept() {
                 Ok((stream, addr)) => {
-                    info!("Accepted connection from {}", addr);
+                    info!("Accepted connection from {addr}");
                     match accept(stream) {
                         Ok(websocket) => {
                             info!("WebSocket handshake successful.");
@@ -74,7 +75,7 @@ impl WebSocketIpc {
                             Self::handle_connection(websocket, to_main_sender, from_main_receiver);
                         }
                         Err(HandshakeError::Failure(f)) => {
-                            error!("WebSocket handshake failed: {}", f);
+                            error!("WebSocket handshake failed: {f}");
                         }
                         Err(HandshakeError::Interrupted(_)) => {
                             error!("WebSocket handshake interrupted");
@@ -82,7 +83,7 @@ impl WebSocketIpc {
                     }
                 }
                 Err(e) => {
-                    error!("Failed to accept connection: {}", e);
+                    error!("Failed to accept connection: {e}");
                     // Signal failure?
                 }
             }
@@ -107,7 +108,7 @@ impl WebSocketIpc {
     ) {
         // Set the stream to non-blocking to allow checking both read and channel
         if let Err(e) = websocket.get_mut().set_nonblocking(true) {
-            error!("Failed to set WebSocket stream to non-blocking: {}", e);
+            error!("Failed to set WebSocket stream to non-blocking: {e}");
             return; // Cannot proceed without non-blocking
         }
 
@@ -130,8 +131,7 @@ impl WebSocketIpc {
                                         to_main_sender.send((wrapper.id, wrapper.message, trace_id))
                                     {
                                         error!(
-                                            "Failed to send received message to main thread: {}",
-                                            e
+                                            "Failed to send received message to main thread: {e}"
                                         );
                                         break; // Channel broken, exit thread
                                     }
@@ -166,10 +166,10 @@ impl WebSocketIpc {
                             info!("WebSocket connection closed.");
                         }
                         WsError::Io(e) => {
-                            error!("WebSocket IO error: {}", e);
+                            error!("WebSocket IO error: {e}");
                         }
                         _ => {
-                            error!("WebSocket error: {}", e);
+                            error!("WebSocket error: {e}");
                         }
                     }
                     break; // Assume fatal error for the connection
@@ -182,8 +182,7 @@ impl WebSocketIpc {
                     let id = wrapper_to_send.id;
                     let message_type = format!("{:?}", wrapper_to_send.message);
 
-                    debug!("WebSocket handler: Received message from main thread to send to Host: id={}, type={}",
-                        id, message_type);
+                    debug!("WebSocket handler: Received message from main thread to send to Host: id={id}, type={message_type}");
 
                     match serde_json::to_string(&wrapper_to_send) {
                         Ok(serialized) => {
@@ -197,16 +196,14 @@ impl WebSocketIpc {
                             match websocket.send(WsMessage::Text(serialized)) {
                                 Ok(_) => {}
                                 Err(e) => {
-                                    error!("WebSocket handler: Failed to write message to WebSocket: id={}, type={}, error={}",
-                                        id, message_type, e);
+                                    error!("WebSocket handler: Failed to write message to WebSocket: id={id}, type={message_type}, error={e}");
                                     // If write fails, assume connection is broken
                                     break;
                                 }
                             }
                         }
                         Err(e) => {
-                            error!("WebSocket handler: Failed to serialize message for WebSocket: id={}, type={}, error={}",
-                                id, message_type, e);
+                            error!("WebSocket handler: Failed to serialize message for WebSocket: id={id}, type={message_type}, error={e}");
                             // Log error but don't break, maybe the next message is fine
                         }
                     }
@@ -230,6 +227,7 @@ impl WebSocketIpc {
     }
 
     /// Sends a message to the Host extension via the handler thread.
+    #[allow(clippy::result_large_err)]
     pub(crate) fn send_message_to_host(
         &self,
         message: OutputMessageWrapper,
@@ -237,22 +235,17 @@ impl WebSocketIpc {
         let id = message.id;
         let message_type = format!("{:?}", message.message);
 
-        debug!(
-            "WebSocketIpc: Sending message to Host: id={}, type={}",
-            id, message_type
-        );
+        debug!("WebSocketIpc: Sending message to Host: id={id}, type={message_type}");
 
         match self.to_host_sender.send(message) {
             Ok(_) => {
                 debug!(
-                    "WebSocketIpc: Successfully sent message to handler thread: id={}, type={}",
-                    id, message_type
+                    "WebSocketIpc: Successfully sent message to handler thread: id={id}, type={message_type}"
                 );
                 Ok(())
             }
             Err(e) => {
-                error!("WebSocketIpc: Failed to send message to handler thread: id={}, type={}, error={}",
-                    id, message_type, e);
+                error!("WebSocketIpc: Failed to send message to handler thread: id={id}, type={message_type}, error={e}");
                 Err(IpcError::SendError(e.to_string()))
             }
         }
@@ -273,7 +266,7 @@ impl Drop for WebSocketIpc {
         // Take the handle to join it. If it's already None, it means it panicked or finished.
         if let Some(handle) = self.handler_thread.take() {
             if let Err(e) = handle.join() {
-                error!("WebSocket handler thread panicked: {:?}", e);
+                error!("WebSocket handler thread panicked: {e:?}");
             }
         }
         info!("WebSocketIpc dropped.");

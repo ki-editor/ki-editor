@@ -148,7 +148,7 @@ pub(crate) enum FromEditor {
         command: super::code_action::Command,
     },
     CompletionItemResolve {
-        completion_item: lsp_types::CompletionItem,
+        completion_item: Box<lsp_types::CompletionItem>,
         params: RequestParams,
     },
 }
@@ -468,16 +468,14 @@ impl LspServerProcess {
                                 .send(AppMessage::LspNotification(LspNotification::Error(error)))
                                 .unwrap_or_else(|error| {
                                     log::error!(
-                                        "[LspServerProcess] Error sending error to app: {:?}",
-                                        error
+                                        "[LspServerProcess] Error sending error to app: {error:?}"
                                     );
                                 });
                             sender
                             .send(LspServerProcessMessage::Shutdown)
                             .unwrap_or_else(|error| {
                                 log::error!(
-                                    "[LspServerProcess] Error sending Shutdown to the loop outside: {:?}",
-                                    error
+                                    "[LspServerProcess] Error sending Shutdown to the loop outside: {error:?}"
                                 );
                             });
                             break;
@@ -521,9 +519,7 @@ impl LspServerProcess {
                     self.handle_reply(json_value.clone())
                     .unwrap_or_else(|error| {
                         log::info!(
-                            "LspServerProcess::listen | Error handling reply from LSP server, json={:?}, error={:?}",
-                            json_value,
-                            error
+                            "LspServerProcess::listen | Error handling reply from LSP server, json={json_value:?}, error={error:?}"
                         );
                     });
                 }
@@ -588,7 +584,7 @@ impl LspServerProcess {
         sender
             .send(LspServerProcessMessage::FromLspServer(reply))
             .unwrap_or_else(|error| {
-                log::error!("[LspServerProcess] Error sending reply: {:?}", error);
+                log::error!("[LspServerProcess] Error sending reply: {error:?}");
             });
 
         Ok(())
@@ -641,7 +637,7 @@ impl LspServerProcess {
 
                 match method.as_str() {
                     "initialize" => {
-                        log::info!("Initialize response: {:?}", response);
+                        log::info!("Initialize response: {response:?}");
                         let payload: <lsp_request!("initialize") as Request>::Result =
                             serde_json::from_value(response)?;
 
@@ -839,7 +835,7 @@ impl LspServerProcess {
                             .unwrap();
                     }
                     _ => {
-                        log::info!("Unknown method: {:#?}", method);
+                        log::info!("Unknown method: {method:#?}");
                     }
                 }
             }
@@ -903,7 +899,7 @@ impl LspServerProcess {
                         )
                     }
 
-                    _ => log::info!("unhandled Incoming Notification: {}", method),
+                    _ => log::info!("unhandled Incoming Notification: {method}"),
                 }
             }
         }
@@ -1474,10 +1470,10 @@ impl LspServerProcess {
             FromEditor::CompletionItemResolve {
                 completion_item,
                 params,
-            } => self.completion_item_resolve(params, completion_item),
+            } => self.completion_item_resolve(params, *completion_item),
         }
         .unwrap_or_else(|error| {
-            log::info!("LspServerProcess::handle_from_editor | error={:?}", error);
+            log::info!("LspServerProcess::handle_from_editor | error={error:?}");
         });
     }
 
@@ -1554,7 +1550,7 @@ impl ErrorTracker {
             self.max_consecutive_errors,
             error
         );
-        log::warn!("LspServerProcess::listen: stderr = {}", stderr);
+        log::warn!("LspServerProcess::listen: stderr = {stderr}");
 
         if self.consecutive_errors >= self.max_consecutive_errors {
             // Send exit notification
@@ -1623,7 +1619,7 @@ mod test_lsp_server_process {
             Ok(AppMessage::LspNotification(LspNotification::Error(msg))) => {
                 assert!(msg.contains("Too many consecutive errors"));
             }
-            other => panic!("Expected error notification, got: {:?}", other),
+            other => panic!("Expected error notification, got: {other:?}"),
         }
 
         // Verify the thread has actually finished by waiting a short time

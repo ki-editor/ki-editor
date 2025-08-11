@@ -406,7 +406,7 @@ impl<T: Frontend> App<T> {
                                 .unwrap_or_else(|| {
                                     self.current_component().borrow().editor().display_mode()
                                 });
-                            Some(format!("{: <5}", mode))
+                            Some(format!("{mode: <5}"))
                         }
                         StatusLineComponent::SelectionMode => Some(
                             self.current_component()
@@ -439,7 +439,7 @@ impl<T: Frontend> App<T> {
                     })
                     .join(" ")
             });
-            let title = format!(" {}", title);
+            let title = format!(" {title}");
             let grid = Grid::new(Dimension {
                 height: 1,
                 width: dimension.width,
@@ -576,7 +576,7 @@ impl<T: Frontend> App<T> {
                     self.lsp_manager.send_message(
                         params.path.clone(),
                         FromEditor::CompletionItemResolve {
-                            completion_item,
+                            completion_item: Box::new(completion_item),
                             params,
                         },
                     )?
@@ -1038,7 +1038,7 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
-                title: format!("{:?} search", scope,),
+                title: format!("{scope:?} search",),
                 items: self.words(),
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                     scope,
@@ -1430,7 +1430,7 @@ impl<T: Frontend> App<T> {
         self.layout
             .show_global_info(info, &self.context)
             .unwrap_or_else(|err| {
-                log::error!("Error showing info: {:?}", err);
+                log::error!("Error showing info: {err:?}");
             });
     }
 
@@ -1563,7 +1563,7 @@ impl<T: Frontend> App<T> {
             );
             self.integration_event_sender
                 .emit_event(IntegrationEvent::ShowInfo {
-                    info: Some(format!("{}\n\n{}", title, body)),
+                    info: Some(format!("{title}\n\n{body}")),
                 });
         }
         self.layout
@@ -1911,7 +1911,7 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
-                title: format!("Set global search {:?} files glob", filter_glob),
+                title: format!("Set global search {filter_glob:?} files glob"),
                 on_enter: DispatchPrompt::GlobalSearchConfigSetGlob { filter_glob },
                 items: Vec::new(),
                 enter_selects_first_matching_item: false,
@@ -1967,7 +1967,7 @@ impl<T: Frontend> App<T> {
             LocalSearchConfigMode::NamingConventionAgnostic => None,
         };
         self.show_keymap_legend(KeymapLegendConfig {
-            title: format!("Configure Search ({:?})", scope),
+            title: format!("Configure Search ({scope:?})"),
             body: KeymapLegendBody::Mnemonic(Keymaps::new(
                 &[
                     Keymap::new(
@@ -2130,7 +2130,7 @@ impl<T: Frontend> App<T> {
     ) -> Result<(), anyhow::Error> {
         self.open_prompt(
             PromptConfig {
-                title: format!("Set Replace ({:?})", scope),
+                title: format!("Set Replace ({scope:?})"),
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigReplacement {
                     scope,
                     if_current_not_found,
@@ -2152,7 +2152,7 @@ impl<T: Frontend> App<T> {
     ) -> Result<(), anyhow::Error> {
         self.open_prompt(
             PromptConfig {
-                title: format!("Set Search ({:?})", scope),
+                title: format!("Set Search ({scope:?})"),
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                     scope,
                     show_config_after_enter: false,
@@ -2557,7 +2557,7 @@ impl<T: Frontend> App<T> {
         completion_item: CompletionItem,
     ) -> anyhow::Result<()> {
         self.handle_dispatch_suggestive_editor(
-            DispatchSuggestiveEditor::UpdateCurrentCompletionItem(completion_item),
+            DispatchSuggestiveEditor::UpdateCurrentCompletionItem(Box::new(completion_item)),
         )
     }
 

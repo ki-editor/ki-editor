@@ -28,7 +28,7 @@ impl std::fmt::Display for GetGridResult {
                 .to_string(),
             None => self.grid.to_string(),
         };
-        write!(f, "{}", content)
+        write!(f, "{content}")
     }
 }
 

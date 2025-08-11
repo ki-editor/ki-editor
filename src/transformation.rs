@@ -40,7 +40,7 @@ impl std::fmt::Display for Transformation {
             Transformation::Case(case) => write!(
                 f,
                 "{}",
-                format!("{:?}", case).to_case(convert_case::Case::Title)
+                format!("{case:?}").to_case(convert_case::Case::Title)
             ),
             Transformation::Join => write!(f, "Join",),
             Transformation::Wrap => write!(f, "Wrap",),
