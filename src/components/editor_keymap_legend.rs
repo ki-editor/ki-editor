@@ -1126,9 +1126,7 @@ impl Editor {
                     Dispatch::ToEditor(DispatchEditor::ShowHelp),
                 )))
                 .chain(Some(Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_keymap(&Meaning::KeybL),
+                    "*",
                     "Keyboard".to_string(),
                     Dispatch::OpenKeyboardLayoutPrompt,
                 )))

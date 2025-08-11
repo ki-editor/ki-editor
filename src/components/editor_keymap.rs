@@ -117,7 +117,7 @@ pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
     [
-        QSave, SaveA, Explr, Buffr, KeybL, /****/ _____, RevlS, RevlC, RevlM, _____,
+        QSave, SaveA, Explr, Buffr, _____, /****/ _____, RevlS, RevlC, RevlM, _____,
     ],
     [
         Theme, Symbl, File_, LRnme, GitFC, /****/ _____, LHovr, LCdAc, Pipe_, _____,
@@ -694,8 +694,6 @@ pub(crate) enum Meaning {
     GitFC,
     /// Pick Git Status File (against main branch)
     GitFM,
-    /// Pick Keyboard Layout
-    KeybL,
     /// LSP Hover
     LHovr,
     /// Undo Tree
