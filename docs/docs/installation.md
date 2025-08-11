@@ -1,12 +1,26 @@
 # Installation
 
-## Build from source
+# Build from source with Nix (Recommended)
+This is the most reliable installation method as all required dependencies,
+including system dependencies, will be included automatically.
+
+1. Ensure that [Nix: the package manager](https://nixos.org/download/) is installed.
+2. Clone the project: 
+```sh
+git clone https://github.com/ki-editor/ki-editor.git
+```
+3. Run installation:
+```sh
+nix develop --command just install
+```
+
+# Build from source without Nix
 
 1. Ensure the Rust toolchain is installed using [rustup.rs](https://rustup.rs/).
-2. Use Rust 1.80.0:
+2. Use Rust 1.89.0:
 
 ```sh
-rustup default 1.80.0
+rustup default 1.89.0
 ```
 
 3. Install openssl's development package
