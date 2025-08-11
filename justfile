@@ -14,10 +14,12 @@ install:
 fmt-check:
     @echo "Checking formating"
     cargo fmt --all -- --check
+    alejandra -c .
     
 fmt:
 	cargo fmt --all
 	npm run format
+	alejandra .
 
 build:
     @echo "Running cargo build..."
