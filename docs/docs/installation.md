@@ -1,6 +1,10 @@
 # Installation
 
-# Build from source with Nix (Recommended)
+## VS Code Extension
+
+Ki is also available as a Visual Studio Code extension, at https://marketplace.visualstudio.com/items?itemName=ki-editor.ki-editor-vscode.
+
+## Build from source with Nix (Recommended)
 This is the most reliable installation method as all required dependencies,
 including system dependencies, will be included automatically.
 
@@ -14,7 +18,7 @@ git clone https://github.com/ki-editor/ki-editor.git
 nix develop --command just install
 ```
 
-# Build from source without Nix
+## Build from source without Nix
 
 1. Ensure the Rust toolchain is installed using [rustup.rs](https://rustup.rs/).
 2. Use Rust 1.89.0:
