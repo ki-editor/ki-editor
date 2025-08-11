@@ -29,6 +29,7 @@ git clone https://github.com/ki-editor/ki-editor.git
 
 ```sh
 cd ki-editor
+cargo install typeshare-cli  --git https://github.com/tomjw64/typeshare  --branch allow-override-for-disallowed-types
 cargo install --locked --path .
 ```
 
