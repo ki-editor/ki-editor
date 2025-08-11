@@ -352,11 +352,11 @@
 
           # Include common environment variables and platform-specific paths
           shellHook = ''
-              export OPENSSL_STATIC=1
-              export LIBICONV_STATIC=1
-              export RUST_SRC_PATH="${rustToolchain}/lib/rustlib/src/rust/library"
+            export OPENSSL_STATIC=1
+            export LIBICONV_STATIC=1
+            export RUST_SRC_PATH="${rustToolchain}/lib/rustlib/src/rust/library"
 
-              ${
+            ${
               if pkgs.stdenv.isDarwin
               then ''
                 export OPENSSL_LIB_DIR=${pkgs.openssl.out}/lib
@@ -367,9 +367,9 @@
                 export OPENSSL_INCLUDE_DIR=${pkgs.pkgsStatic.openssl.dev}/include
               ''
             }
-              echo "Creating VERSION file for development..."
-              echo "0.1.0" > VERSION
-              echo "Development environment ready!"
+            echo "Creating VERSION file for development..."
+            echo "0.1.0" > VERSION
+            echo "Development environment ready!"
           '';
         };
       }
