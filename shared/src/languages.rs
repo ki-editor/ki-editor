@@ -15,6 +15,7 @@ pub const LANGUAGES: &[&Language] = &[
     &diff(),
     &dockerfile(),
     &elixir(),
+    &f_sharp(),
     &gitattributes(),
     &gitcommit(),
     &gitconfig(),
@@ -252,6 +253,30 @@ const fn elixir() -> Language {
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::Elixir),
         line_comment_prefix: Some("#"),
+        ..Language::new()
+    }
+}
+
+const fn f_sharp() -> Language {
+    Language {
+        extensions: &["fs", "fsi", "fsx", "fsscript"],
+        formatter_command: None,
+        lsp_command: Some(LspCommand {
+            // Use --log-file and --log-level arguments to debug fsautocomplete issues.
+            // Example: --log-file /path/to/fsac.log --log-level debug
+            command: Command("fsautocomplete", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("fsharp")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "fsharp",
+            url: "https://github.com/ionide/tree-sitter-fsharp.git",
+            commit: "main",
+            subpath: Some("fsharp"),
+        }),
+        language_fallback: None,
+        line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("(*", "*)")),
         ..Language::new()
     }
 }
