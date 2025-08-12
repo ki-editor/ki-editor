@@ -260,8 +260,10 @@ const fn elixir() -> Language {
 const fn f_sharp() -> Language {
     Language {
         extensions: &["fs", "fsi", "fsx", "fsscript"],
-        formatter_command: Some(Command("fantomas", &["--stdin"])),
+        formatter_command: None,
         lsp_command: Some(LspCommand {
+            // Use --log-file and --log-level arguments to debug fsautocomplete issues.
+            // Example: --log-file /path/to/fsac.log --log-level debug
             command: Command("fsautocomplete", &[]),
             ..LspCommand::default()
         }),
@@ -272,7 +274,7 @@ const fn f_sharp() -> Language {
             commit: "main",
             subpath: Some("fsharp"),
         }),
-        language_fallback: None, 
+        language_fallback: None,
         line_comment_prefix: Some("//"),
         block_comment_affixes: Some(("(*", "*)")),
         ..Language::new()
