@@ -456,10 +456,10 @@ impl Dropdown {
                             } else {
                                 "├─"
                             };
-                            format!(" {} {}", indicator, content)
+                            format!(" {indicator} {content}")
                         })
                         .join("\n");
-                    format!("■┬ {}\n{}", group_key, items)
+                    format!("■┬ {group_key}\n{items}")
                 } else {
                     group
                         .items

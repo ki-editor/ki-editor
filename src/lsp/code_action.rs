@@ -84,7 +84,7 @@ impl TryFrom<lsp_types::CodeAction> for CodeAction {
     type Error = anyhow::Error;
 
     fn try_from(value: lsp_types::CodeAction) -> Result<Self, Self::Error> {
-        log::info!("CodeAction: {:#?}", value);
+        log::info!("CodeAction: {value:#?}");
 
         let title = value.title;
         Ok(CodeAction {

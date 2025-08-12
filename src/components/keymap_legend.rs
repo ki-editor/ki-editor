@@ -52,18 +52,12 @@ impl Keymaps {
         terminal_width: u16,
         option: &KeymapDisplayOption,
     ) -> String {
-        let table = KeymapPrintSection::from_keymaps(
+        KeymapPrintSection::from_keymaps(
             "".to_string(),
             self,
             keyboard_layout_kind.get_keyboard_layout(),
         )
-        .display(terminal_width, option);
-
-        if !table.is_empty() {
-            format!("Press space to toggle alt/shift keys.\n{table}")
-        } else {
-            "Window is too small to display keymap legend :(".to_string()
-        }
+        .display(terminal_width, option)
     }
     fn display_mnemonic(&self, indent: usize, width: usize) -> String {
         let width = width.saturating_sub(indent);
@@ -104,7 +98,7 @@ impl Keymaps {
             .map(|chunks| {
                 chunks
                     .map(|chunk| {
-                        let second_formatted = format!("{: <width$}", chunk, width = column_width);
+                        let second_formatted = format!("{chunk: <column_width$}");
                         second_formatted
                     })
                     .join("")
@@ -380,7 +374,7 @@ impl KeymapLegend {
                     .map(|duplicate| format!("{}: {}", duplicate.key, duplicate.description))
                     .collect_vec()
             );
-            log::info!("{}", message);
+            log::info!("{message}");
             // panic!("{}", message);
         }
 
@@ -394,8 +388,8 @@ impl KeymapLegend {
             editor,
             config,
             option: KeymapDisplayOption {
-                show_alt: false,
-                show_shift: false,
+                show_alt: true,
+                show_shift: true,
             },
             keymap_layout_kind: context.keyboard_layout_kind().clone(),
         }
@@ -435,19 +429,8 @@ impl Component for KeymapLegend {
         let close_current_window = Dispatch::CloseCurrentWindowAndFocusParent;
         if self.editor.mode == Mode::Insert {
             match &event {
-                key!("esc") => self.editor.enter_normal_mode(context),
-                key!("space") => {
-                    self.option = if !self.option.show_alt {
-                        KeymapDisplayOption {
-                            show_alt: true,
-                            show_shift: true,
-                        }
-                    } else {
-                        KeymapDisplayOption {
-                            show_alt: false,
-                            show_shift: false,
-                        }
-                    };
+                key!("esc") => {
+                    self.editor.enter_normal_mode(context)?;
                     Ok(Default::default())
                 }
                 key!("ctrl+c") => Ok(Dispatches::one(Dispatch::CloseCurrentWindow)),
@@ -545,7 +528,6 @@ mod test_keymap_legend {
             )
             .to_string();
         let expected = "
-Press space to toggle alt/shift keys.
 ╭───────┬───┬─────────────┬───┬──────┬───┬───┬───┬───┬───┬───╮
 │       ┆   ┆             ┆   ┆      ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
@@ -553,6 +535,7 @@ Press space to toggle alt/shift keys.
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
 │       ┆   ┆ Caterpillar ┆   ┆ Bomb ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ╰───────┴───┴─────────────┴───┴──────┴───┴───┴───┴───┴───┴───╯
+[] Local    \\ Global    * Pick Keyboard
 "
         .trim_matches('\n');
         assert_eq!(actual, expected);
@@ -568,7 +551,6 @@ Press space to toggle alt/shift keys.
             )
             .to_string();
         let expected = "
-Press space to toggle alt/shift keys.
 ╭───────┬───┬─────────────┬─────┬────────┬───┬───┬───┬───┬───┬───╮
 │       ┆   ┆             ┆     ┆        ┆ ⌥ ┆   ┆   ┆   ┆   ┆   │
 │       ┆   ┆             ┆     ┆        ┆ ⇧ ┆   ┆   ┆   ┆   ┆   │
@@ -582,6 +564,7 @@ Press space to toggle alt/shift keys.
 │       ┆   ┆             ┆     ┆        ┆ ⇧ ┆   ┆   ┆   ┆   ┆   │
 │       ┆   ┆ Caterpillar ┆     ┆  Bomb  ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ╰───────┴───┴─────────────┴─────┴────────┴───┴───┴───┴───┴───┴───╯
+[] Local    \\ Global    * Pick Keyboard
 "
         .trim_matches('\n');
         assert_eq!(actual, expected);

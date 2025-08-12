@@ -1126,9 +1126,7 @@ impl Editor {
                     Dispatch::ToEditor(DispatchEditor::ShowHelp),
                 )))
                 .chain(Some(Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_keymap(&Meaning::KeybL),
+                    "*",
                     "Keyboard".to_string(),
                     Dispatch::OpenKeyboardLayoutPrompt,
                 )))
@@ -1575,7 +1573,7 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
         context: &Context,
     ) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: format!("Select Surround ({:?})", kind),
+            title: format!("Select Surround ({kind:?})"),
 
             body: KeymapLegendBody::Positional(generate_enclosures_keymaps(
                 |enclosure| {

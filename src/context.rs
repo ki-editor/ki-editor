@@ -408,12 +408,16 @@ impl RegexConfig {
         format!(
             "{}{}{}",
             if self.escaped { "Literal" } else { "Regex" },
-            self.case_sensitive
-                .then_some(" A=a".to_string())
-                .unwrap_or_default(),
-            self.match_whole_word
-                .then_some(" [Ab]".to_string())
-                .unwrap_or_default(),
+            if self.case_sensitive {
+                " A=a".to_string()
+            } else {
+                String::new()
+            },
+            if self.match_whole_word {
+                " [Ab]".to_string()
+            } else {
+                String::new()
+            }
         )
     }
 }

@@ -118,6 +118,7 @@ impl KeymapPrintSection {
             .any(|keys| keys.iter().any(|key| key.has_content()))
     }
 
+    /// Returns None if the terminal width is too small
     pub(crate) fn display(&self, terminal_width: u16, option: &KeymapDisplayOption) -> String {
         let max_column_width = terminal_width / 11;
         let mut table = Table::new();
@@ -184,9 +185,11 @@ impl KeymapPrintSection {
         let content_width: u16 = table.column_max_content_widths().iter().sum();
         // column content, separators, padding & editor margins
         if content_width + 12 + 22 + 2 < terminal_width {
-            format!("{}", table)
+            let exmatrix_keybindings =
+                ["[] Local", "\\ Global", "* Pick Keyboard"].join(&" ".repeat(4));
+            format!("{table}\n{exmatrix_keybindings}")
         } else {
-            String::new()
+            "Window is too small to display keymap legend :(".to_string()
         }
     }
 
@@ -374,7 +377,7 @@ fn print_single_keymap_table(keymap: &KeymapPrintSection) {
         },
     );
 
-    println!("{}", table);
+    println!("{table}");
     println!();
 }
 
@@ -406,7 +409,7 @@ fn print_keymap_drawer(section: &KeymapPrintSection) {
         .replace("-", "_")
         .replace("+", "plus");
 
-    println!("  {}:", safe_name);
+    println!("  {safe_name}:");
     for row in section.keys.iter() {
         let row_strings: Vec<String> = row
             .iter()

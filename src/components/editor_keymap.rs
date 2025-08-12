@@ -15,25 +15,25 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchN, Word_, SrchC, MultC, Swap_, /****/ Prev_, InstP, Up___, InstN, Next_,
+        SrchN, Word_, SrchC, MultC, Swap_, /****/ Mark_, Prev_, Up___, Next_, PsteN,
     ],
     [
-        Line_, Token, Sytx_, Extnd, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
+        Line_, Token, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
     ],
     [
-        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ LSrhF, Chng_, First, Last_, XAchr,
+        Undo_, Rplc_, Copy_, DeltN, OpenN, /****/ LSrhF, Jump_, First, Last_, XAchr,
     ],
 ];
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SrchP, Char_, _____, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
+        SrchP, Char_, _____, _____, Raise, /****/ MarkF, RplcP, Join_, RplcN, PsteP,
     ],
     [
-        LineF, _____, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
+        LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
     ],
     [
-        Redo_, PRplc, RplcX, PsteP, MarkF, /****/ LSrhB, ChngX, _____, _____, SSEnd,
+        Redo_, PRplc, RplcX, DeltP, OpenP, /****/ LSrhB, ToIdx, _____, _____, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -57,13 +57,13 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
 /// are both located on the right-side.
 pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
     [
-        OneCh, CSrch, NtrlN, _____, Qkfix, /****/ FindP, _____, _____, _____, FindN,
+        OneCh, CSrch, NtrlN, _____, Qkfix, /****/ Mark_, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ _____, _____, _____, _____, _____,
+        LImpl, LDefn, LType, LRfrE, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
@@ -81,13 +81,13 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// This keymap should be almost identical with that of Find Local
 pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
     [
-        Srch_, CSrch, SrchC, _____, Qkfix, /****/ _____, _____, _____, _____, _____,
+        Srch_, CSrch, SrchC, _____, Qkfix, /****/ Mark_, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ LSrhB, _____, _____, _____, _____,
+        LImpl, LDefn, LType, LRfrE, _____, /****/ LSrhB, _____, _____, _____, _____,
     ],
 ];
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
@@ -117,13 +117,13 @@ pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
     [
-        QSave, SaveA, Explr, _____, KeybL, /****/ _____, RevlS, RevlC, RevlM, _____,
+        QSave, SaveA, Explr, Buffr, _____, /****/ _____, RevlS, RevlC, RevlM, _____,
     ],
     [
-        Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LCdAc, Pipe_, _____,
+        Theme, Symbl, File_, LRnme, GitFC, /****/ _____, LHovr, LCdAc, Pipe_, _____,
     ],
     [
-        UndoT, _____, _____, _____, TSNSx, /****/ _____, LRnme, _____, _____, SHelp,
+        UndoT, _____, _____, _____, TSNSx, /****/ _____, _____, _____, _____, SHelp,
     ],
 ];
 
@@ -514,10 +514,6 @@ pub(crate) enum Meaning {
     Down_,
     /// Swap
     Swap_,
-    /// Local find forward
-    FindN,
-    /// Local find backward
-    FindP,
     /// First
     First,
     /// Navigate back (faster alternative of Go Back, skips contiguous navigation, works across files)
@@ -698,8 +694,6 @@ pub(crate) enum Meaning {
     GitFC,
     /// Pick Git Status File (against main branch)
     GitFM,
-    /// Pick Keyboard Layout
-    KeybL,
     /// LSP Hover
     LHovr,
     /// Undo Tree

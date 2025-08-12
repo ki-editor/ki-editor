@@ -111,7 +111,7 @@ enum KeymapFormat {
 
 fn create_timestamp_file() -> anyhow::Result<(PathBuf, File)> {
     let timestamp = Local::now().format("%Y-%m-%d-%H-%M-%S").to_string();
-    let path = PathBuf::from(format!("{}.txt", timestamp));
+    let path = PathBuf::from(format!("{timestamp}.txt"));
     let file = File::create(&path)?;
     Ok((path, file))
 }
@@ -225,7 +225,7 @@ pub(crate) fn cli() -> anyhow::Result<()> {
 pub(crate) fn get_version() -> String {
     let git_hash = env!("GIT_HASH");
     let build_time = env!("BUILD_TIME");
-    format!("{} (Built on {})", git_hash, build_time)
+    format!("{git_hash} (Built on {build_time})")
 }
 #[cfg(test)]
 mod test_process_edit_args {

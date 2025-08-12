@@ -122,7 +122,7 @@ impl LspManager {
         for (_, channel) in self.lsp_server_process_channels.drain() {
             channel
                 .shutdown()
-                .unwrap_or_else(|error| log::error!("{:?}", error));
+                .unwrap_or_else(|error| log::error!("{error:?}"));
         }
     }
 

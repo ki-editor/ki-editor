@@ -76,10 +76,7 @@ impl EmbeddedApp {
 
         // Send the parameters directly to the App thread via the new AppMessage variant
         if let Err(e) = self.app_sender.send(app_message) {
-            error!(
-                "[{}] Failed to send KeyboardInput AppMessage to Core App: {}",
-                trace_id, e
-            );
+            error!("[{trace_id}] Failed to send KeyboardInput AppMessage to Core App: {e}");
             self.send_error_response(id, "Failed to process keyboard input")?;
             return Ok(());
         }

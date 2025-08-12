@@ -15,16 +15,16 @@ pub(crate) fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<fa
         pattern.to_string()
     };
     let pattern = if config.match_whole_word {
-        format!("\\b{}\\b", pattern)
+        format!("\\b{pattern}\\b")
     } else {
         pattern
     };
     let pattern = if config.case_sensitive {
         pattern
     } else {
-        format!("(?i){}", pattern)
+        format!("(?i){pattern}")
     };
-    let pattern = format!("(?m){}", pattern);
+    let pattern = format!("(?m){pattern}");
     Ok(fancy_regex::Regex::new(&pattern)?)
 }
 

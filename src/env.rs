@@ -18,11 +18,10 @@ pub(crate) fn parse_env<T: Clone>(
             let choice_list = choice_names.join("\n");
             panic!(
                 "
-{:?} was not found. Please update your {env_name} environment variable.
+{user_value:?} was not found. Please update your {env_name} environment variable.
 
 Available choices:
-{}",
-                user_value, choice_list
+{choice_list}"
             );
         })
         .clone()

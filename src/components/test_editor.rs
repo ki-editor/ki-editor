@@ -2137,7 +2137,7 @@ fn surround() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
-            App(HandleKeyEvents(keys!("f g j").to_vec())),
+            App(HandleKeyEvents(keys!("g b j").to_vec())),
             Expect(CurrentComponentContent("fn main() { (x.y()) }")),
             Expect(SelectionExtensionEnabled(false)),
         ])
@@ -2239,7 +2239,7 @@ fn tree_sitter_should_not_reparse_in_insert_mode() -> anyhow::Result<()> {
     assert_eq!(current_range, new_range);
 
     // Entering normal mode should reparse the tree
-    let _ = editor.enter_normal_mode(&context)?;
+    editor.enter_normal_mode(&context)?;
     let new_range = editor.buffer().tree().unwrap().root_node().range();
     assert_ne!(current_range, new_range);
 
@@ -2487,7 +2487,7 @@ fn select_surround_inside() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("f u j").to_vec())),
+            App(HandleKeyEvents(keys!("g h j").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2505,7 +2505,7 @@ fn select_surround_around() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("f o j").to_vec())),
+            App(HandleKeyEvents(keys!("g ; j").to_vec())),
             Expect(CurrentSelectedTexts(&["(world)"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2541,7 +2541,7 @@ fn delete_surround() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("f h j").to_vec())),
+            App(HandleKeyEvents(keys!("g v j").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello world)")),
@@ -2560,7 +2560,7 @@ fn change_surround_selection_not_on_enclosure() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("f m j l").to_vec())),
+            App(HandleKeyEvents(keys!("g f j l").to_vec())),
             Expect(CurrentSelectedTexts(&["{world}"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello {world})")),
@@ -2579,7 +2579,7 @@ fn change_surround_selection_on_enclosure() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello)".to_string())),
             Editor(MatchLiteral("(hello)".to_string())),
-            App(HandleKeyEvents(keys!("f m j l").to_vec())),
+            App(HandleKeyEvents(keys!("g f j l").to_vec())),
             Expect(CurrentSelectedTexts(&["{hello}"])),
         ])
     })
@@ -3778,7 +3778,7 @@ fn background_editor_user_from_explorer() -> anyhow::Result<()> {
     execute_test(|_| {
         Box::new([
             App(HandleKeyEvents(
-                keys!("space f m a i n . r s enter").to_vec(),
+                keys!("space d m a i n . r s enter").to_vec(),
             )),
             Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
             Expect(OpenedFilesCount(1)),
@@ -3998,7 +3998,7 @@ fn surround_extended_selection() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
-            App(HandleKeyEvents(keys!("f g j").to_vec())),
+            App(HandleKeyEvents(keys!("g b j").to_vec())),
             Expect(CurrentComponentContent("(foo bar)")),
         ])
     })
@@ -4087,6 +4087,8 @@ fn undo_redo_multicursor() -> anyhow::Result<()> {
             Editor(Undo),
             Editor(Redo),
             Editor(EnterNormalMode),
+            Expect(CurrentSelectedTexts(&["x", "x"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookBackward, Token)),
             Expect(CurrentSelectedTexts(&["foox", "barx"])),
         ])
     })
@@ -4382,51 +4384,6 @@ fn test_search_query_should_not_trim_surrounding_whitespace() -> Result<(), anyh
 }
 
 #[test]
-fn enter_normal_mode_select_previous_selection() -> anyhow::Result<()> {
-    let run_test = |selection_mode: SelectionMode,
-                    expected_selection: &'static [&str],
-                    expected_content: &'static str| {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent("  -fooBar spam\nhello world".to_string())),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    selection_mode.clone(),
-                )),
-                Editor(EnterInsertMode(Direction::End)),
-                App(HandleKeyEvents(keys!("x").to_vec())),
-                Editor(EnterNormalMode),
-                Expect(CurrentComponentContent(expected_content)),
-                Expect(CurrentSelectedTexts(expected_selection)),
-            ])
-        })
-    };
-    run_test(Token, &["-fooBarx"], "  -fooBarx spam\nhello world")?;
-    run_test(Word, &["xfoo"], "  -xfooBar spam\nhello world")?;
-    run_test(Line, &["-fooBar spamx"], "  -fooBar spamx\nhello world")?;
-    run_test(LineFull, &["xhello world"], "  -fooBar spam\nxhello world")?;
-
-    // Other than the 4 selection modes above, other mode should select only one character
-    run_test(Character, &["x"], " x -fooBar spam\nhello world")?;
-    run_test(
-        SelectionMode::Find {
-            search: Search {
-                mode: Default::default(),
-                search: "foob".to_string(),
-            },
-        },
-        &["x"],
-        "  -fooBxar spam\nhello world",
-    )?;
-    Ok(())
-}
-
-#[test]
 fn vertical_movement_sticky_column_position_based_selection_mode() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -4533,7 +4490,7 @@ fuor
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["foo", "for", "fuor"])),
             // Keep only selections matching `r/f.o`
-            App(HandleKeyEvents(keys!("r u r / f . o enter").to_vec())),
+            App(HandleKeyEvents(keys!("r h r / f . o enter").to_vec())),
             Expect(CurrentSelectedTexts(&["foo", "fuor"])),
         ])
     })

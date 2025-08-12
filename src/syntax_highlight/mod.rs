@@ -203,7 +203,7 @@ pub(crate) fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlig
                     });
                 }
                 Err(error) => {
-                    log::info!("syntax_highlight_error = {:#?}", error)
+                    log::info!("syntax_highlight_error = {error:#?}")
                 }
             }
         });

@@ -77,8 +77,7 @@ impl Buffer {
                         .set_language(&language)
                         .map_err(|error| {
                             log::error!(
-                                "Failed to parse using language {:?} due to error {error:?}",
-                                language
+                                "Failed to parse using language {language:?} due to error {error:?}"
                             );
                         })
                         .ok()
@@ -713,7 +712,7 @@ impl Buffer {
                     return Some(content);
                 }
                 Err(error) => {
-                    log::info!("Error formatting: {}", error);
+                    log::info!("Error formatting: {error}");
                 }
             }
         }

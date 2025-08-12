@@ -2277,7 +2277,7 @@ pub mod builder {
         {
             self.color = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for color: {}", e));
+                .map_err(|e| format!("error converting supplied value for color: {e}"));
             self
         }
         pub fn font_style<T>(mut self, value: T) -> Self
@@ -2287,7 +2287,7 @@ pub mod builder {
         {
             self.font_style = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for font_style: {}", e));
+                .map_err(|e| format!("error converting supplied value for font_style: {e}"));
             self
         }
         pub fn font_weight<T>(mut self, value: T) -> Self
@@ -2297,7 +2297,7 @@ pub mod builder {
         {
             self.font_weight = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for font_weight: {}", e));
+                .map_err(|e| format!("error converting supplied value for font_weight: {e}"));
             self
         }
     }
@@ -2343,7 +2343,7 @@ pub mod builder {
         {
             self.background = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for background: {}", e));
+                .map_err(|e| format!("error converting supplied value for background: {e}"));
             self
         }
         pub fn cursor<T>(mut self, value: T) -> Self
@@ -2353,7 +2353,7 @@ pub mod builder {
         {
             self.cursor = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for cursor: {}", e));
+                .map_err(|e| format!("error converting supplied value for cursor: {e}"));
             self
         }
         pub fn selection<T>(mut self, value: T) -> Self
@@ -2363,7 +2363,7 @@ pub mod builder {
         {
             self.selection = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for selection: {}", e));
+                .map_err(|e| format!("error converting supplied value for selection: {e}"));
             self
         }
     }
@@ -2409,7 +2409,7 @@ pub mod builder {
         {
             self.appearance = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for appearance: {}", e));
+                .map_err(|e| format!("error converting supplied value for appearance: {e}"));
             self
         }
         pub fn name<T>(mut self, value: T) -> Self
@@ -2419,7 +2419,7 @@ pub mod builder {
         {
             self.name = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for name: {}", e));
+                .map_err(|e| format!("error converting supplied value for name: {e}"));
             self
         }
         pub fn style<T>(mut self, value: T) -> Self
@@ -2429,7 +2429,7 @@ pub mod builder {
         {
             self.style = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for style: {}", e));
+                .map_err(|e| format!("error converting supplied value for style: {e}"));
             self
         }
     }
@@ -2475,7 +2475,7 @@ pub mod builder {
         {
             self.author = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for author: {}", e));
+                .map_err(|e| format!("error converting supplied value for author: {e}"));
             self
         }
         pub fn name<T>(mut self, value: T) -> Self
@@ -2485,7 +2485,7 @@ pub mod builder {
         {
             self.name = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for name: {}", e));
+                .map_err(|e| format!("error converting supplied value for name: {e}"));
             self
         }
         pub fn themes<T>(mut self, value: T) -> Self
@@ -2495,7 +2495,7 @@ pub mod builder {
         {
             self.themes = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for themes: {}", e));
+                .map_err(|e| format!("error converting supplied value for themes: {e}"));
             self
         }
     }
@@ -2797,7 +2797,7 @@ pub mod builder {
         {
             self.background = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for background: {}", e));
+                .map_err(|e| format!("error converting supplied value for background: {e}"));
             self
         }
         pub fn border<T>(mut self, value: T) -> Self
@@ -2807,7 +2807,7 @@ pub mod builder {
         {
             self.border = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for border: {}", e));
+                .map_err(|e| format!("error converting supplied value for border: {e}"));
             self
         }
         pub fn border_disabled<T>(mut self, value: T) -> Self
@@ -2817,7 +2817,7 @@ pub mod builder {
         {
             self.border_disabled = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for border_disabled: {}", e));
+                .map_err(|e| format!("error converting supplied value for border_disabled: {e}"));
             self
         }
         pub fn border_focused<T>(mut self, value: T) -> Self
@@ -2827,7 +2827,7 @@ pub mod builder {
         {
             self.border_focused = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for border_focused: {}", e));
+                .map_err(|e| format!("error converting supplied value for border_focused: {e}"));
             self
         }
         pub fn border_selected<T>(mut self, value: T) -> Self
@@ -2837,7 +2837,7 @@ pub mod builder {
         {
             self.border_selected = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for border_selected: {}", e));
+                .map_err(|e| format!("error converting supplied value for border_selected: {e}"));
             self
         }
         pub fn border_transparent<T>(mut self, value: T) -> Self
@@ -2846,10 +2846,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.border_transparent = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for border_transparent: {}",
-                    e
-                )
+                format!("error converting supplied value for border_transparent: {e}")
             });
             self
         }
@@ -2860,7 +2857,7 @@ pub mod builder {
         {
             self.border_variant = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for border_variant: {}", e));
+                .map_err(|e| format!("error converting supplied value for border_variant: {e}"));
             self
         }
         pub fn conflict<T>(mut self, value: T) -> Self
@@ -2870,7 +2867,7 @@ pub mod builder {
         {
             self.conflict = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for conflict: {}", e));
+                .map_err(|e| format!("error converting supplied value for conflict: {e}"));
             self
         }
         pub fn conflict_background<T>(mut self, value: T) -> Self
@@ -2879,10 +2876,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.conflict_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for conflict_background: {}",
-                    e
-                )
+                format!("error converting supplied value for conflict_background: {e}")
             });
             self
         }
@@ -2893,7 +2887,7 @@ pub mod builder {
         {
             self.conflict_border = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for conflict_border: {}", e));
+                .map_err(|e| format!("error converting supplied value for conflict_border: {e}"));
             self
         }
         pub fn created<T>(mut self, value: T) -> Self
@@ -2903,7 +2897,7 @@ pub mod builder {
         {
             self.created = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for created: {}", e));
+                .map_err(|e| format!("error converting supplied value for created: {e}"));
             self
         }
         pub fn created_background<T>(mut self, value: T) -> Self
@@ -2912,10 +2906,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.created_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for created_background: {}",
-                    e
-                )
+                format!("error converting supplied value for created_background: {e}")
             });
             self
         }
@@ -2926,7 +2917,7 @@ pub mod builder {
         {
             self.created_border = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for created_border: {}", e));
+                .map_err(|e| format!("error converting supplied value for created_border: {e}"));
             self
         }
         pub fn deleted<T>(mut self, value: T) -> Self
@@ -2936,7 +2927,7 @@ pub mod builder {
         {
             self.deleted = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for deleted: {}", e));
+                .map_err(|e| format!("error converting supplied value for deleted: {e}"));
             self
         }
         pub fn deleted_background<T>(mut self, value: T) -> Self
@@ -2945,10 +2936,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.deleted_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for deleted_background: {}",
-                    e
-                )
+                format!("error converting supplied value for deleted_background: {e}")
             });
             self
         }
@@ -2959,7 +2947,7 @@ pub mod builder {
         {
             self.deleted_border = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for deleted_border: {}", e));
+                .map_err(|e| format!("error converting supplied value for deleted_border: {e}"));
             self
         }
         pub fn drop_target_background<T>(mut self, value: T) -> Self
@@ -2968,10 +2956,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.drop_target_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for drop_target_background: {}",
-                    e
-                )
+                format!("error converting supplied value for drop_target_background: {e}")
             });
             self
         }
@@ -2981,10 +2966,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.editor_active_line_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for editor_active_line_background: {}",
-                    e
-                )
+                format!("error converting supplied value for editor_active_line_background: {e}")
             });
             self
         }
@@ -2994,10 +2976,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.editor_active_line_number = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for editor_active_line_number: {}",
-                    e
-                )
+                format!("error converting supplied value for editor_active_line_number: {e}")
             });
             self
         }
@@ -3007,10 +2986,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.editor_active_wrap_guide = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for editor_active_wrap_guide: {}",
-                    e
-                )
+                format!("error converting supplied value for editor_active_wrap_guide: {e}")
             });
             self
         }
@@ -3019,12 +2995,9 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self.editor_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for editor_background: {}",
-                    e
-                )
-            });
+            self.editor_background = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for editor_background: {e}"));
             self
         }
         pub fn editor_document_highlight_read_background<T>(mut self, value: T) -> Self
@@ -3032,7 +3005,7 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self . editor_document_highlight_read_background = value . try_into () . map_err (| e | format ! ("error converting supplied value for editor_document_highlight_read_background: {}" , e)) ;
+            self . editor_document_highlight_read_background = value . try_into () . map_err (| e | format ! ("error converting supplied value for editor_document_highlight_read_background: {e}")) ;
             self
         }
         pub fn editor_document_highlight_write_background<T>(mut self, value: T) -> Self
@@ -3040,7 +3013,7 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self . editor_document_highlight_write_background = value . try_into () . map_err (| e | format ! ("error converting supplied value for editor_document_highlight_write_background: {}" , e)) ;
+            self . editor_document_highlight_write_background = value . try_into () . map_err (| e | format ! ("error converting supplied value for editor_document_highlight_write_background: {e}")) ;
             self
         }
         pub fn editor_foreground<T>(mut self, value: T) -> Self
@@ -3048,12 +3021,9 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self.editor_foreground = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for editor_foreground: {}",
-                    e
-                )
-            });
+            self.editor_foreground = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for editor_foreground: {e}"));
             self
         }
         pub fn editor_gutter_background<T>(mut self, value: T) -> Self
@@ -3062,10 +3032,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.editor_gutter_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for editor_gutter_background: {}",
-                    e
-                )
+                format!("error converting supplied value for editor_gutter_background: {e}")
             });
             self
         }
@@ -3076,8 +3043,7 @@ pub mod builder {
         {
             self.editor_highlighted_line_background = value.try_into().map_err(|e| {
                 format!(
-                    "error converting supplied value for editor_highlighted_line_background: {}",
-                    e
+                    "error converting supplied value for editor_highlighted_line_background: {e}"
                 )
             });
             self
@@ -3087,12 +3053,9 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self.editor_invisible = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for editor_invisible: {}",
-                    e
-                )
-            });
+            self.editor_invisible = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for editor_invisible: {e}"));
             self
         }
         pub fn editor_line_number<T>(mut self, value: T) -> Self
@@ -3101,10 +3064,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.editor_line_number = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for editor_line_number: {}",
-                    e
-                )
+                format!("error converting supplied value for editor_line_number: {e}")
             });
             self
         }
@@ -3114,10 +3074,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.editor_subheader_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for editor_subheader_background: {}",
-                    e
-                )
+                format!("error converting supplied value for editor_subheader_background: {e}")
             });
             self
         }
@@ -3126,12 +3083,9 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self.editor_wrap_guide = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for editor_wrap_guide: {}",
-                    e
-                )
-            });
+            self.editor_wrap_guide = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for editor_wrap_guide: {e}"));
             self
         }
         pub fn element_active<T>(mut self, value: T) -> Self
@@ -3141,7 +3095,7 @@ pub mod builder {
         {
             self.element_active = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for element_active: {}", e));
+                .map_err(|e| format!("error converting supplied value for element_active: {e}"));
             self
         }
         pub fn element_background<T>(mut self, value: T) -> Self
@@ -3150,10 +3104,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.element_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for element_background: {}",
-                    e
-                )
+                format!("error converting supplied value for element_background: {e}")
             });
             self
         }
@@ -3162,12 +3113,9 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self.element_disabled = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for element_disabled: {}",
-                    e
-                )
-            });
+            self.element_disabled = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for element_disabled: {e}"));
             self
         }
         pub fn element_hover<T>(mut self, value: T) -> Self
@@ -3177,7 +3125,7 @@ pub mod builder {
         {
             self.element_hover = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for element_hover: {}", e));
+                .map_err(|e| format!("error converting supplied value for element_hover: {e}"));
             self
         }
         pub fn element_selected<T>(mut self, value: T) -> Self
@@ -3185,12 +3133,9 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self.element_selected = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for element_selected: {}",
-                    e
-                )
-            });
+            self.element_selected = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for element_selected: {e}"));
             self
         }
         pub fn elevated_surface_background<T>(mut self, value: T) -> Self
@@ -3199,10 +3144,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.elevated_surface_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for elevated_surface_background: {}",
-                    e
-                )
+                format!("error converting supplied value for elevated_surface_background: {e}")
             });
             self
         }
@@ -3213,7 +3155,7 @@ pub mod builder {
         {
             self.error = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for error: {}", e));
+                .map_err(|e| format!("error converting supplied value for error: {e}"));
             self
         }
         pub fn error_background<T>(mut self, value: T) -> Self
@@ -3221,12 +3163,9 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self.error_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for error_background: {}",
-                    e
-                )
-            });
+            self.error_background = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for error_background: {e}"));
             self
         }
         pub fn error_border<T>(mut self, value: T) -> Self
@@ -3236,7 +3175,7 @@ pub mod builder {
         {
             self.error_border = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for error_border: {}", e));
+                .map_err(|e| format!("error converting supplied value for error_border: {e}"));
             self
         }
         pub fn ghost_element_active<T>(mut self, value: T) -> Self
@@ -3245,10 +3184,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.ghost_element_active = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for ghost_element_active: {}",
-                    e
-                )
+                format!("error converting supplied value for ghost_element_active: {e}")
             });
             self
         }
@@ -3258,10 +3194,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.ghost_element_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for ghost_element_background: {}",
-                    e
-                )
+                format!("error converting supplied value for ghost_element_background: {e}")
             });
             self
         }
@@ -3271,10 +3204,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.ghost_element_disabled = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for ghost_element_disabled: {}",
-                    e
-                )
+                format!("error converting supplied value for ghost_element_disabled: {e}")
             });
             self
         }
@@ -3284,10 +3214,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.ghost_element_hover = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for ghost_element_hover: {}",
-                    e
-                )
+                format!("error converting supplied value for ghost_element_hover: {e}")
             });
             self
         }
@@ -3297,10 +3224,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.ghost_element_selected = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for ghost_element_selected: {}",
-                    e
-                )
+                format!("error converting supplied value for ghost_element_selected: {e}")
             });
             self
         }
@@ -3311,7 +3235,7 @@ pub mod builder {
         {
             self.hidden = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for hidden: {}", e));
+                .map_err(|e| format!("error converting supplied value for hidden: {e}"));
             self
         }
         pub fn hidden_background<T>(mut self, value: T) -> Self
@@ -3319,12 +3243,9 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self.hidden_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for hidden_background: {}",
-                    e
-                )
-            });
+            self.hidden_background = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for hidden_background: {e}"));
             self
         }
         pub fn hidden_border<T>(mut self, value: T) -> Self
@@ -3334,7 +3255,7 @@ pub mod builder {
         {
             self.hidden_border = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for hidden_border: {}", e));
+                .map_err(|e| format!("error converting supplied value for hidden_border: {e}"));
             self
         }
         pub fn hint<T>(mut self, value: T) -> Self
@@ -3344,7 +3265,7 @@ pub mod builder {
         {
             self.hint = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for hint: {}", e));
+                .map_err(|e| format!("error converting supplied value for hint: {e}"));
             self
         }
         pub fn hint_background<T>(mut self, value: T) -> Self
@@ -3354,7 +3275,7 @@ pub mod builder {
         {
             self.hint_background = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for hint_background: {}", e));
+                .map_err(|e| format!("error converting supplied value for hint_background: {e}"));
             self
         }
         pub fn hint_border<T>(mut self, value: T) -> Self
@@ -3364,7 +3285,7 @@ pub mod builder {
         {
             self.hint_border = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for hint_border: {}", e));
+                .map_err(|e| format!("error converting supplied value for hint_border: {e}"));
             self
         }
         pub fn icon<T>(mut self, value: T) -> Self
@@ -3374,7 +3295,7 @@ pub mod builder {
         {
             self.icon = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for icon: {}", e));
+                .map_err(|e| format!("error converting supplied value for icon: {e}"));
             self
         }
         pub fn icon_accent<T>(mut self, value: T) -> Self
@@ -3384,7 +3305,7 @@ pub mod builder {
         {
             self.icon_accent = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for icon_accent: {}", e));
+                .map_err(|e| format!("error converting supplied value for icon_accent: {e}"));
             self
         }
         pub fn icon_disabled<T>(mut self, value: T) -> Self
@@ -3394,7 +3315,7 @@ pub mod builder {
         {
             self.icon_disabled = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for icon_disabled: {}", e));
+                .map_err(|e| format!("error converting supplied value for icon_disabled: {e}"));
             self
         }
         pub fn icon_muted<T>(mut self, value: T) -> Self
@@ -3404,7 +3325,7 @@ pub mod builder {
         {
             self.icon_muted = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for icon_muted: {}", e));
+                .map_err(|e| format!("error converting supplied value for icon_muted: {e}"));
             self
         }
         pub fn icon_placeholder<T>(mut self, value: T) -> Self
@@ -3412,12 +3333,9 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self.icon_placeholder = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for icon_placeholder: {}",
-                    e
-                )
-            });
+            self.icon_placeholder = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for icon_placeholder: {e}"));
             self
         }
         pub fn ignored<T>(mut self, value: T) -> Self
@@ -3427,7 +3345,7 @@ pub mod builder {
         {
             self.ignored = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for ignored: {}", e));
+                .map_err(|e| format!("error converting supplied value for ignored: {e}"));
             self
         }
         pub fn ignored_background<T>(mut self, value: T) -> Self
@@ -3436,10 +3354,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.ignored_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for ignored_background: {}",
-                    e
-                )
+                format!("error converting supplied value for ignored_background: {e}")
             });
             self
         }
@@ -3450,7 +3365,7 @@ pub mod builder {
         {
             self.ignored_border = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for ignored_border: {}", e));
+                .map_err(|e| format!("error converting supplied value for ignored_border: {e}"));
             self
         }
         pub fn info<T>(mut self, value: T) -> Self
@@ -3460,7 +3375,7 @@ pub mod builder {
         {
             self.info = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for info: {}", e));
+                .map_err(|e| format!("error converting supplied value for info: {e}"));
             self
         }
         pub fn info_background<T>(mut self, value: T) -> Self
@@ -3470,7 +3385,7 @@ pub mod builder {
         {
             self.info_background = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for info_background: {}", e));
+                .map_err(|e| format!("error converting supplied value for info_background: {e}"));
             self
         }
         pub fn info_border<T>(mut self, value: T) -> Self
@@ -3480,7 +3395,7 @@ pub mod builder {
         {
             self.info_border = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for info_border: {}", e));
+                .map_err(|e| format!("error converting supplied value for info_border: {e}"));
             self
         }
         pub fn link_text_hover<T>(mut self, value: T) -> Self
@@ -3490,7 +3405,7 @@ pub mod builder {
         {
             self.link_text_hover = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for link_text_hover: {}", e));
+                .map_err(|e| format!("error converting supplied value for link_text_hover: {e}"));
             self
         }
         pub fn modified<T>(mut self, value: T) -> Self
@@ -3500,7 +3415,7 @@ pub mod builder {
         {
             self.modified = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for modified: {}", e));
+                .map_err(|e| format!("error converting supplied value for modified: {e}"));
             self
         }
         pub fn modified_background<T>(mut self, value: T) -> Self
@@ -3509,10 +3424,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.modified_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for modified_background: {}",
-                    e
-                )
+                format!("error converting supplied value for modified_background: {e}")
             });
             self
         }
@@ -3523,7 +3435,7 @@ pub mod builder {
         {
             self.modified_border = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for modified_border: {}", e));
+                .map_err(|e| format!("error converting supplied value for modified_border: {e}"));
             self
         }
         pub fn pane_focused_border<T>(mut self, value: T) -> Self
@@ -3532,10 +3444,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.pane_focused_border = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for pane_focused_border: {}",
-                    e
-                )
+                format!("error converting supplied value for pane_focused_border: {e}")
             });
             self
         }
@@ -3544,12 +3453,9 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self.panel_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for panel_background: {}",
-                    e
-                )
-            });
+            self.panel_background = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for panel_background: {e}"));
             self
         }
         pub fn panel_focused_border<T>(mut self, value: T) -> Self
@@ -3558,10 +3464,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.panel_focused_border = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for panel_focused_border: {}",
-                    e
-                )
+                format!("error converting supplied value for panel_focused_border: {e}")
             });
             self
         }
@@ -3572,7 +3475,7 @@ pub mod builder {
         {
             self.players = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for players: {}", e));
+                .map_err(|e| format!("error converting supplied value for players: {e}"));
             self
         }
         pub fn predictive<T>(mut self, value: T) -> Self
@@ -3582,7 +3485,7 @@ pub mod builder {
         {
             self.predictive = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for predictive: {}", e));
+                .map_err(|e| format!("error converting supplied value for predictive: {e}"));
             self
         }
         pub fn predictive_background<T>(mut self, value: T) -> Self
@@ -3591,10 +3494,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.predictive_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for predictive_background: {}",
-                    e
-                )
+                format!("error converting supplied value for predictive_background: {e}")
             });
             self
         }
@@ -3603,12 +3503,9 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self.predictive_border = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for predictive_border: {}",
-                    e
-                )
-            });
+            self.predictive_border = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for predictive_border: {e}"));
             self
         }
         pub fn renamed<T>(mut self, value: T) -> Self
@@ -3618,7 +3515,7 @@ pub mod builder {
         {
             self.renamed = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for renamed: {}", e));
+                .map_err(|e| format!("error converting supplied value for renamed: {e}"));
             self
         }
         pub fn renamed_background<T>(mut self, value: T) -> Self
@@ -3627,10 +3524,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.renamed_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for renamed_background: {}",
-                    e
-                )
+                format!("error converting supplied value for renamed_background: {e}")
             });
             self
         }
@@ -3641,7 +3535,7 @@ pub mod builder {
         {
             self.renamed_border = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for renamed_border: {}", e));
+                .map_err(|e| format!("error converting supplied value for renamed_border: {e}"));
             self
         }
         pub fn scrollbar_thumb_background<T>(mut self, value: T) -> Self
@@ -3650,10 +3544,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.scrollbar_thumb_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for scrollbar_thumb_background: {}",
-                    e
-                )
+                format!("error converting supplied value for scrollbar_thumb_background: {e}")
             });
             self
         }
@@ -3663,10 +3554,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.scrollbar_thumb_border = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for scrollbar_thumb_border: {}",
-                    e
-                )
+                format!("error converting supplied value for scrollbar_thumb_border: {e}")
             });
             self
         }
@@ -3676,10 +3564,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.scrollbar_thumb_hover_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for scrollbar_thumb_hover_background: {}",
-                    e
-                )
+                format!("error converting supplied value for scrollbar_thumb_hover_background: {e}")
             });
             self
         }
@@ -3689,10 +3574,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.scrollbar_track_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for scrollbar_track_background: {}",
-                    e
-                )
+                format!("error converting supplied value for scrollbar_track_background: {e}")
             });
             self
         }
@@ -3702,10 +3584,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.scrollbar_track_border = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for scrollbar_track_border: {}",
-                    e
-                )
+                format!("error converting supplied value for scrollbar_track_border: {e}")
             });
             self
         }
@@ -3715,10 +3594,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.search_match_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for search_match_background: {}",
-                    e
-                )
+                format!("error converting supplied value for search_match_background: {e}")
             });
             self
         }
@@ -3728,10 +3604,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.status_bar_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for status_bar_background: {}",
-                    e
-                )
+                format!("error converting supplied value for status_bar_background: {e}")
             });
             self
         }
@@ -3742,7 +3615,7 @@ pub mod builder {
         {
             self.success = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for success: {}", e));
+                .map_err(|e| format!("error converting supplied value for success: {e}"));
             self
         }
         pub fn success_background<T>(mut self, value: T) -> Self
@@ -3751,10 +3624,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.success_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for success_background: {}",
-                    e
-                )
+                format!("error converting supplied value for success_background: {e}")
             });
             self
         }
@@ -3765,7 +3635,7 @@ pub mod builder {
         {
             self.success_border = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for success_border: {}", e));
+                .map_err(|e| format!("error converting supplied value for success_border: {e}"));
             self
         }
         pub fn surface_background<T>(mut self, value: T) -> Self
@@ -3774,10 +3644,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.surface_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for surface_background: {}",
-                    e
-                )
+                format!("error converting supplied value for surface_background: {e}")
             });
             self
         }
@@ -3790,7 +3657,7 @@ pub mod builder {
         {
             self.syntax = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for syntax: {}", e));
+                .map_err(|e| format!("error converting supplied value for syntax: {e}"));
             self
         }
         pub fn tab_active_background<T>(mut self, value: T) -> Self
@@ -3799,10 +3666,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.tab_active_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for tab_active_background: {}",
-                    e
-                )
+                format!("error converting supplied value for tab_active_background: {e}")
             });
             self
         }
@@ -3812,10 +3676,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.tab_bar_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for tab_bar_background: {}",
-                    e
-                )
+                format!("error converting supplied value for tab_bar_background: {e}")
             });
             self
         }
@@ -3825,10 +3686,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.tab_inactive_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for tab_inactive_background: {}",
-                    e
-                )
+                format!("error converting supplied value for tab_inactive_background: {e}")
             });
             self
         }
@@ -3838,10 +3696,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_black = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_black: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_black: {e}")
             });
             self
         }
@@ -3851,10 +3706,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_blue = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_blue: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_blue: {e}")
             });
             self
         }
@@ -3864,10 +3716,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_bright_black = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_bright_black: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_bright_black: {e}")
             });
             self
         }
@@ -3877,10 +3726,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_bright_blue = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_bright_blue: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_bright_blue: {e}")
             });
             self
         }
@@ -3890,10 +3736,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_bright_cyan = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_bright_cyan: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_bright_cyan: {e}")
             });
             self
         }
@@ -3903,10 +3746,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_bright_green = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_bright_green: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_bright_green: {e}")
             });
             self
         }
@@ -3916,10 +3756,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_bright_magenta = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_bright_magenta: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_bright_magenta: {e}")
             });
             self
         }
@@ -3929,10 +3766,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_bright_red = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_bright_red: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_bright_red: {e}")
             });
             self
         }
@@ -3942,10 +3776,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_bright_white = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_bright_white: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_bright_white: {e}")
             });
             self
         }
@@ -3955,10 +3786,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_bright_yellow = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_bright_yellow: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_bright_yellow: {e}")
             });
             self
         }
@@ -3968,10 +3796,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_cyan = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_cyan: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_cyan: {e}")
             });
             self
         }
@@ -3981,10 +3806,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_dim_black = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_dim_black: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_dim_black: {e}")
             });
             self
         }
@@ -3994,10 +3816,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_dim_blue = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_dim_blue: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_dim_blue: {e}")
             });
             self
         }
@@ -4007,10 +3826,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_dim_cyan = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_dim_cyan: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_dim_cyan: {e}")
             });
             self
         }
@@ -4020,10 +3836,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_dim_green = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_dim_green: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_dim_green: {e}")
             });
             self
         }
@@ -4033,10 +3846,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_dim_magenta = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_dim_magenta: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_dim_magenta: {e}")
             });
             self
         }
@@ -4046,10 +3856,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_dim_red = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_dim_red: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_dim_red: {e}")
             });
             self
         }
@@ -4059,10 +3866,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_dim_white = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_dim_white: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_dim_white: {e}")
             });
             self
         }
@@ -4072,10 +3876,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_dim_yellow = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_dim_yellow: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_dim_yellow: {e}")
             });
             self
         }
@@ -4085,10 +3886,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_green = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_green: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_green: {e}")
             });
             self
         }
@@ -4098,10 +3896,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_magenta = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_magenta: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_magenta: {e}")
             });
             self
         }
@@ -4110,12 +3905,9 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self.terminal_ansi_red = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_red: {}",
-                    e
-                )
-            });
+            self.terminal_ansi_red = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for terminal_ansi_red: {e}"));
             self
         }
         pub fn terminal_ansi_white<T>(mut self, value: T) -> Self
@@ -4124,10 +3916,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_white = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_white: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_white: {e}")
             });
             self
         }
@@ -4137,10 +3926,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_ansi_yellow = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_ansi_yellow: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_ansi_yellow: {e}")
             });
             self
         }
@@ -4150,10 +3936,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_background: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_background: {e}")
             });
             self
         }
@@ -4163,10 +3946,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_bright_foreground = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_bright_foreground: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_bright_foreground: {e}")
             });
             self
         }
@@ -4176,10 +3956,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_dim_foreground = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_dim_foreground: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_dim_foreground: {e}")
             });
             self
         }
@@ -4189,10 +3966,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.terminal_foreground = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for terminal_foreground: {}",
-                    e
-                )
+                format!("error converting supplied value for terminal_foreground: {e}")
             });
             self
         }
@@ -4203,7 +3977,7 @@ pub mod builder {
         {
             self.text = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for text: {}", e));
+                .map_err(|e| format!("error converting supplied value for text: {e}"));
             self
         }
         pub fn text_accent<T>(mut self, value: T) -> Self
@@ -4213,7 +3987,7 @@ pub mod builder {
         {
             self.text_accent = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for text_accent: {}", e));
+                .map_err(|e| format!("error converting supplied value for text_accent: {e}"));
             self
         }
         pub fn text_disabled<T>(mut self, value: T) -> Self
@@ -4223,7 +3997,7 @@ pub mod builder {
         {
             self.text_disabled = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for text_disabled: {}", e));
+                .map_err(|e| format!("error converting supplied value for text_disabled: {e}"));
             self
         }
         pub fn text_muted<T>(mut self, value: T) -> Self
@@ -4233,7 +4007,7 @@ pub mod builder {
         {
             self.text_muted = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for text_muted: {}", e));
+                .map_err(|e| format!("error converting supplied value for text_muted: {e}"));
             self
         }
         pub fn text_placeholder<T>(mut self, value: T) -> Self
@@ -4241,12 +4015,9 @@ pub mod builder {
             T: std::convert::TryInto<Option<String>>,
             T::Error: std::fmt::Display,
         {
-            self.text_placeholder = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for text_placeholder: {}",
-                    e
-                )
-            });
+            self.text_placeholder = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for text_placeholder: {e}"));
             self
         }
         pub fn title_bar_background<T>(mut self, value: T) -> Self
@@ -4255,10 +4026,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.title_bar_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for title_bar_background: {}",
-                    e
-                )
+                format!("error converting supplied value for title_bar_background: {e}")
             });
             self
         }
@@ -4268,10 +4036,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.toolbar_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for toolbar_background: {}",
-                    e
-                )
+                format!("error converting supplied value for toolbar_background: {e}")
             });
             self
         }
@@ -4282,7 +4047,7 @@ pub mod builder {
         {
             self.unreachable = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for unreachable: {}", e));
+                .map_err(|e| format!("error converting supplied value for unreachable: {e}"));
             self
         }
         pub fn unreachable_background<T>(mut self, value: T) -> Self
@@ -4291,10 +4056,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.unreachable_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for unreachable_background: {}",
-                    e
-                )
+                format!("error converting supplied value for unreachable_background: {e}")
             });
             self
         }
@@ -4304,10 +4066,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.unreachable_border = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for unreachable_border: {}",
-                    e
-                )
+                format!("error converting supplied value for unreachable_border: {e}")
             });
             self
         }
@@ -4318,7 +4077,7 @@ pub mod builder {
         {
             self.warning = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for warning: {}", e));
+                .map_err(|e| format!("error converting supplied value for warning: {e}"));
             self
         }
         pub fn warning_background<T>(mut self, value: T) -> Self
@@ -4327,10 +4086,7 @@ pub mod builder {
             T::Error: std::fmt::Display,
         {
             self.warning_background = value.try_into().map_err(|e| {
-                format!(
-                    "error converting supplied value for warning_background: {}",
-                    e
-                )
+                format!("error converting supplied value for warning_background: {e}")
             });
             self
         }
@@ -4341,7 +4097,7 @@ pub mod builder {
         {
             self.warning_border = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for warning_border: {}", e));
+                .map_err(|e| format!("error converting supplied value for warning_border: {e}"));
             self
         }
     }

@@ -230,7 +230,7 @@ impl Component for Editor {
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
             ToggleMark => self.toggle_marks(),
-            EnterNormalMode => return self.enter_normal_mode(context),
+            EnterNormalMode => self.enter_normal_mode(context)?,
             CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
             EnterSwapMode => self.enter_swap_mode(),
@@ -1415,7 +1415,7 @@ impl Editor {
                     if let Some(keymap) = keymap_legend_config.keymaps().get(&key_event) {
                         return Ok(keymap.get_dispatches());
                     }
-                    log::info!("unhandled event: {:?}", key_event);
+                    log::info!("unhandled event: {key_event:?}");
                     Ok(vec![].into())
                 }
             }
@@ -1700,8 +1700,8 @@ impl Editor {
         Ok(Dispatches::one(Dispatch::RequestSignatureHelp))
     }
 
-    pub(crate) fn enter_normal_mode(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
-        let dispatches = if self.mode == Mode::Insert {
+    pub(crate) fn enter_normal_mode(&mut self, context: &Context) -> anyhow::Result<()> {
+        if self.mode == Mode::Insert {
             // This is necessary for cursor to not overflow after exiting insert mode
             self.set_selection_set(
                 self.selection_set
@@ -1722,30 +1722,15 @@ impl Editor {
                     })?,
                 context,
             );
-            let dispatches = {
-                use SelectionMode::*;
-                match self.selection_set.mode {
-                    Line | LineFull | Token | Word => self
-                        .move_selection_with_selection_mode_without_global_mode(
-                            Movement::Current(IfCurrentNotFound::LookBackward),
-                            self.selection_set.mode.clone(),
-                            context,
-                        )?,
-                    _ => Default::default(),
-                }
-            };
             self.clamp(context)?;
             self.buffer_mut().reparse_tree()?;
-            dispatches
-        } else {
-            Default::default()
-        };
+        }
         // TODO: continue from here, need to add test: upon exiting insert mode, should close all panels
         // Maybe we should call this function the exit_insert_mode?
 
         self.mode = Mode::Normal;
         self.selection_set.unset_initial_range();
-        Ok(dispatches)
+        Ok(())
     }
 
     #[cfg(test)]
@@ -2486,9 +2471,8 @@ impl Editor {
 
         self.clamp(context)?;
         self.cursor_keep_primary_only();
-        let dispatches = self.enter_normal_mode(context)?;
-        Ok(dispatches
-            .append(Dispatch::RemainOnlyCurrentComponent)
+        self.enter_normal_mode(context)?;
+        Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent)
             .append(Dispatch::DocumentDidSave { path })
             .chain(self.get_document_did_change_dispatch())
             .append(Dispatch::RemainOnlyCurrentComponent)
@@ -2527,7 +2511,7 @@ impl Editor {
                             Action::Edit(Edit::new(
                                 self.buffer().rope(),
                                 selection.extended_range(),
-                                format!("{}{}{}", open, old, close).into(),
+                                format!("{open}{old}{close}").into(),
                             )),
                             Action::Select(
                                 selection.clone().set_range(
@@ -2612,7 +2596,7 @@ impl Editor {
     pub(crate) fn display_selection_mode(&self) -> String {
         let selection_mode = self.selection_set.mode.display();
         let cursor_count = self.selection_set.len();
-        format!("{: <5}x{}", selection_mode, cursor_count)
+        format!("{selection_mode: <5}x{cursor_count}")
     }
 
     pub(crate) fn visible_line_range(&self) -> Range<usize> {
@@ -3305,7 +3289,7 @@ impl Editor {
                         .map(|line| {
                             (
                                 indentation.len_chars() as isize,
-                                format!("{}{}", indentation, line),
+                                format!("{indentation}{line}"),
                             )
                         })
                         .collect_vec();
@@ -3560,7 +3544,7 @@ impl Editor {
                             [Action::Edit(Edit::new(
                                 self.buffer().rope(),
                                 edit_range,
-                                format!("\n{}{}", indentation, current).into(),
+                                format!("\n{indentation}{current}").into(),
                             ))]
                             .to_vec(),
                         ),

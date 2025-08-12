@@ -23,7 +23,7 @@ pub fn clear_cache() -> anyhow::Result<()> {
 pub(crate) fn get_highlight_query(language_id: &str) -> anyhow::Result<GetHighlightQueryResult> {
     let cache_dir = cache_dir();
     std::fs::create_dir_all(cache_dir.clone())?;
-    let cache_path = cache_dir.join(format!("{}.scm", language_id));
+    let cache_path = cache_dir.join(format!("{language_id}.scm"));
     if let Ok(text) = std::fs::read_to_string(cache_path.clone()) {
         return Ok(GetHighlightQueryResult {
             query: text,
@@ -31,7 +31,7 @@ pub(crate) fn get_highlight_query(language_id: &str) -> anyhow::Result<GetHighli
         });
     }
 
-    let nvim_tree_sitter_highlight_query_url = format!("https://raw.githubusercontent.com/nvim-treesitter/nvim-treesitter/master/queries/{}/highlights.scm", language_id);
+    let nvim_tree_sitter_highlight_query_url = format!("https://raw.githubusercontent.com/nvim-treesitter/nvim-treesitter/master/queries/{language_id}/highlights.scm");
 
     let current = reqwest::blocking::get(nvim_tree_sitter_highlight_query_url)?.text()?;
     let parent = get_highlight_query_parents(&current)
@@ -40,7 +40,7 @@ pub(crate) fn get_highlight_query(language_id: &str) -> anyhow::Result<GetHighli
         .collect::<Result<Vec<_>, _>>()?
         .join("\n\n");
 
-    let result = format!("{}\n\n{}", parent, current);
+    let result = format!("{parent}\n\n{current}");
     std::fs::write(cache_path, &result)?;
 
     Ok(GetHighlightQueryResult {

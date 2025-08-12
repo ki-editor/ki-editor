@@ -42,11 +42,7 @@ impl Frontend for Crossterm {
             std::env::var("KI_TERMINAL_HEIGHT"),
         ) {
             if let (Ok(width), Ok(height)) = (width_str.parse::<u16>(), height_str.parse::<u16>()) {
-                log::debug!(
-                    "Using terminal dimensions from environment: {}x{}",
-                    width,
-                    height
-                );
+                log::debug!("Using terminal dimensions from environment: {width}x{height}");
                 return Ok(crate::app::Dimension { width, height });
             }
         }
@@ -54,15 +50,15 @@ impl Frontend for Crossterm {
         // Fallback to crossterm terminal size detection
         match terminal::size() {
             Ok((width, height)) => {
-                log::debug!("Detected terminal dimensions: {}x{}", width, height);
+                log::debug!("Detected terminal dimensions: {width}x{height}");
                 Ok(crate::app::Dimension { width, height })
             }
             Err(e) => {
-                log::warn!("Failed to get terminal dimensions: {}", e);
+                log::warn!("Failed to get terminal dimensions: {e}");
                 // If terminal size detection fails, use reasonable defaults
                 let width = 100;
                 let height = 30;
-                log::debug!("Using default dimensions: {}x{}", width, height);
+                log::debug!("Using default dimensions: {width}x{height}");
                 Ok(crate::app::Dimension { width, height })
             }
         }
@@ -114,7 +110,7 @@ impl Frontend for Crossterm {
                     }
                 }
                 // For other errors, propagate them
-                log::error!("Failed to enable raw mode: {}", e);
+                log::error!("Failed to enable raw mode: {e}");
                 Err(anyhow::anyhow!("Failed to enable raw mode: {}", e))
             }
         }
@@ -144,7 +140,7 @@ impl Frontend for Crossterm {
                     }
                 }
                 // For other errors, log but don't fail
-                log::warn!("Failed to disable raw mode: {}", e);
+                log::warn!("Failed to disable raw mode: {e}");
                 Ok(()) // Return OK to avoid crashing on exit
             }
         }
