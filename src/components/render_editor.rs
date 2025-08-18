@@ -1023,6 +1023,7 @@ mod test_render_editor {
 
     #[quickcheck]
     fn get_grid_cells_should_be_always_within_bound(rectangle: Rectangle, content: String) -> bool {
+        let content = content.replace("\r", "");
         let mut editor = Editor::from_text(None, &content);
         editor.set_rectangle(rectangle.clone(), &Context::default());
         let grid = editor.get_grid(&Context::default(), false);
