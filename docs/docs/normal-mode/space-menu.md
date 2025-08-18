@@ -35,7 +35,6 @@ The space menu can be brought up by pressing `space`.
 | `Git status ^` | Git status (against main branch) [^2]    |
 | `Symbol`       | LSP Symbols                              |
 | `Theme`        | [Themes](../themes.md)                   |
-| `Keyboard`     | Keyboard Layout                          |
 
 [^1]: See more at [Git hunk](./selection-modes/secondary/index.md#hunkhunk)
 [^2]: This is very useful when you want to get the modified/added files commited into the current branch that you are working on.

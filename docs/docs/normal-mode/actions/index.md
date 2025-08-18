@@ -260,3 +260,10 @@ This replaces the current selected text with the copied text.
 Replace Cut, swaps the current selection with the content in the clipboard.
 
 <TutorialFallback filename="replace-cut"/>
+
+
+### `Change keyboard layout`
+
+Keybinding: `*`
+
+This has a special keybinding that is non-positional so that the keyboard layout can be switched easily. 
