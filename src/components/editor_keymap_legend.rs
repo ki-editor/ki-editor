@@ -457,6 +457,11 @@ impl Editor {
                 "Dedent".to_string(),
                 Dispatch::ToEditor(Dedent),
             ),
+            Keymap::new(
+                "*",
+                "Keyboard".to_string(),
+                Dispatch::OpenKeyboardLayoutPrompt,
+            ),
         ]
         .into_iter()
         .chain(Some(self.search_current_selection_keymap(
@@ -1124,11 +1129,6 @@ impl Editor {
                         .get_space_keymap(&Meaning::SHelp),
                     "Help".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowHelp),
-                )))
-                .chain(Some(Keymap::new(
-                    "*",
-                    "Keyboard".to_string(),
-                    Dispatch::OpenKeyboardLayoutPrompt,
                 )))
                 .chain(self.keymap_clipboard_related_actions(true, Default::default(), context))
                 .chain([
