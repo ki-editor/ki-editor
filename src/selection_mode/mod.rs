@@ -1569,6 +1569,13 @@ pub(crate) trait IterBasedSelectionMode {
     }
 
     fn right(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.right_default_impl(params)
+    }
+
+    fn right_default_impl(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection.clone();
         let buffer = params.buffer;
         let byte_range = buffer.char_index_range_to_byte_range(current_selection.range())?;
@@ -1583,6 +1590,10 @@ pub(crate) trait IterBasedSelectionMode {
     }
 
     fn left(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.left_default_impl(params)
+    }
+
+    fn left_default_impl(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection.clone();
         let buffer = params.buffer;
         let byte_range = buffer.char_index_range_to_byte_range(current_selection.range())?;
@@ -1601,6 +1612,7 @@ pub(crate) trait IterBasedSelectionMode {
             })
             .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
     }
+
     fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.next(params)
     }
@@ -1694,8 +1706,8 @@ pub(crate) trait IterBasedSelectionMode {
         // If no intersecting match found, look in the given direction
         else {
             let result = match if_current_not_found {
-                IfCurrentNotFound::LookForward => self.right(params),
-                IfCurrentNotFound::LookBackward => self.left(params),
+                IfCurrentNotFound::LookForward => self.right_default_impl(params),
+                IfCurrentNotFound::LookBackward => self.left_default_impl(params),
             }?;
             if let Some(result) = result {
                 Ok(Some(result))
@@ -1703,8 +1715,8 @@ pub(crate) trait IterBasedSelectionMode {
                 // Look in another direction if matching selection is not found in the
                 // preferred direction
                 match if_current_not_found {
-                    IfCurrentNotFound::LookForward => self.left(params),
-                    IfCurrentNotFound::LookBackward => self.right(params),
+                    IfCurrentNotFound::LookForward => self.left_default_impl(params),
+                    IfCurrentNotFound::LookBackward => self.right_default_impl(params),
                 }
             }
         }

@@ -4609,6 +4609,7 @@ fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> 
         })
     }
     run_test(Token, &["hello"])?;
+    run_test(SyntaxNode, &["hello"])?;
     run_test(Word, &["hello"])?;
     run_test(Character, &["\n"])?;
     Ok(())
