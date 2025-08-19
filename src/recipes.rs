@@ -1449,7 +1449,7 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     )]),
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
                 Recipe {
                     description: "Sorting TODO list based on completion",
