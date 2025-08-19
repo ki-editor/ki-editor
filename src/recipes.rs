@@ -1419,8 +1419,34 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     .trim(),
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("q p r i n t enter r r d h"),
-                    expectations: Box::new([]),
+                    events: keys!("q p r i n t enter r r d v"),
+                    expectations: Box::new([CurrentComponentContent(r#"pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
+    let mut app = App::from_channel(
+        Arc::new(Mutex::new(Crossterm::default())),
+        CanonicalizedPath::try_from(".")?;
+        sender,
+        receiver,
+    )?;
+
+    app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
+    let sender = app.sender();
+
+    let crossterm_join_handle = std::thread::spawn(move || loop {
+        if crossterm::event::read()
+            .map_err(|error| anyhow::anyhow!("{:?}", error))
+            .and_then(|event| Ok(sender.send(AppMessage::Event(event.into()))?))
+            .is_err()
+        {
+            break;
+        }
+    });
+
+    app.run(path)
+        .map_err(|error| anyhow::anyhow!("screen.run {:?}", error))?;
+}"#
+                    )]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
