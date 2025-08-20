@@ -148,21 +148,21 @@ If the current selection is selecting `use`, the following table demonstrates ho
 [^1]: This is possible because even Prompt is an editor, so the Token mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 [^1]: This is possible because even Prompt is an editor, so the Token mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 
-## `Word`
+## `Subword`
 
-This selects word within a word.
+This selects subword within a subword.
 
-For example, `myOatPepperBanana` consists of 4 short word, namely: `my`, `Oat`, `Pepper` and `Banana`.
+For example, `myOatPepperBanana` consists of 4 short subword, namely: `my`, `Oat`, `Pepper` and `Banana`.
 
-This is useful for renaming identifiers, especially if we only want to change a single word of the name. [^1]
+This is useful for renaming identifiers, especially if we only want to change a single subword of the name. [^1]
 
-| Movement              | Meaning                                      |
-| --------------------- | -------------------------------------------- |
-| Up/Down/Previous/Next | Move to all kinds of word, including symbols |
-| Left/Right            | Move to non-symbol word only                 |
+| Movement              | Meaning                                         |
+| --------------------- | ----------------------------------------------- |
+| Up/Down/Previous/Next | Move to all kinds of subword, including symbols |
+| Left/Right            | Move to non-symbol subword only                 |
 
 
-<TutorialFallback filename="word"/>
+<TutorialFallback filename="subword"/>
 
 ## `Char`
 

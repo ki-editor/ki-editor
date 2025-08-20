@@ -1246,14 +1246,14 @@ fn global_marks() -> Result<(), anyhow::Error> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(ToggleMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(ToggleMark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Mark,

@@ -35,11 +35,11 @@ The following keybindings only work when the completion dropdown is opened.
 
 <KeymapFallback filename="Insert"/>
 
-| Label/Keybinding | Meaning               |
-| ---------------- | --------------------- |
-| `Line ←`         | Move to line start    |
-| `Line →`         | Move to line end      |
-| `Kill Line ←`    | Kill line backward    |
-| `Kill Line →`    | Kill line forward     |
-| `Delete Token ←` | Delete token backward |
-| `alt+backspace`  | Delete word backward  |
+| Label/Keybinding | Meaning                 |
+| ---------------- | ----------------------- |
+| `Line ←`         | Move to line start      |
+| `Line →`         | Move to line end        |
+| `Kill Line ←`    | Kill line backward      |
+| `Kill Line →`    | Kill line forward       |
+| `Delete Token ←` | Delete token backward   |
+| `alt+backspace`  | Delete subword backward |

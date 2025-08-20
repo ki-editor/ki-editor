@@ -863,7 +863,7 @@ impl Editor {
         if use_current_selection_mode {
             self.selection_set.mode.clone()
         } else {
-            SelectionMode::Word
+            SelectionMode::Subword
         }
         .to_selection_mode_trait_object(
             &self.buffer(),
@@ -2186,7 +2186,7 @@ impl Editor {
                             &self.buffer(),
                             &current_selection.clone().set_range((start..start).into()),
                             &if short {
-                                SelectionMode::Word
+                                SelectionMode::Subword
                             } else {
                                 SelectionMode::Token
                             },
