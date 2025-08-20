@@ -123,10 +123,10 @@ Same as [Line](#line), however, leading whitespaces are selected, and trailing w
 
 Each unit is a sequence of alphanumeric characters including `-` and `_`.
 
-| Movement              | Meaning                                       |
-| --------------------- | --------------------------------------------- |
-| Up/Down/Previous/Next | Move to all kinds of token, including symbols |
-| Left/Right            | Move to non-symbol token only                 |
+| Movement              | Meaning                                                       |
+| --------------------- | ------------------------------------------------------------- |
+| Up/Down/Previous/Next | Move to all kinds of token, including symbols and whitespaces |
+| Left/Right            | Move to non-symbol token only                                 |
 
 Suppose the following example:
 
