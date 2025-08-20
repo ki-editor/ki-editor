@@ -666,7 +666,7 @@ snake_case 99 PascalCase
             filename: "token",
             recipes: [
                 Recipe {
-                    description: "Token: Left/Right skip symbols",
+                    description: "Token: Left/Right skip symbols & spaces",
                     content: "
 camelCase , kebab-case : snake_case 
 "
@@ -680,11 +680,11 @@ camelCase , kebab-case : snake_case
                     only: false,
                 },
                 Recipe {
-                    description: "Token: Prev/Next no skip symbols",
-                    content: "camelCase , kebab-case -> snake_case".trim(),
+                    description: "Token: Prev/Next no skip symbols & spaces",
+                    content: "camelCase ,   kebab-case\nsnake_case".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s o o o u u"),
+                    events: keys!("s o o o o o o o u u u u"),
                     expectations: Box::new([CurrentSelectedTexts(&[","])]),
                     terminal_height: None,
                     similar_vim_combos: &[],

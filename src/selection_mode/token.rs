@@ -35,6 +35,30 @@ fn find_word_end(
     last_char_index
 }
 
+fn find_whitespace_start(rope: &Rope, current: CharIndex) -> CharIndex {
+    // Create a reverse range from current.0 down to 1 (not including 0)
+    for i in (1..=current.0).rev() {
+        let prev_char = rope.char(i - 1);
+        if !prev_char.is_whitespace() {
+            return CharIndex(i);
+        }
+    }
+    // If we've examined all characters to the start, return index 0
+    CharIndex(0)
+}
+
+fn find_whitespace_end(rope: &Rope, current: CharIndex, last_char_index: CharIndex) -> CharIndex {
+    // Create a range from current.0+1 to last_char_index.0
+    for i in (current.0 + 1)..=last_char_index.0 {
+        let char = rope.char(i);
+        if !char.is_whitespace() {
+            return CharIndex(i - 1);
+        }
+    }
+    // If we've examined all characters to the end, return the last index
+    last_char_index
+}
+
 impl SelectionModeTrait for Token {
     fn left(
         &self,
@@ -77,7 +101,7 @@ impl SelectionModeTrait for Token {
         &'a self,
         params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        TokenNoSkipSymbol.all_selections_gathered_inversely(params)
+        TokenIncludeWhitespace.all_selections_gathered_inversely(params)
     }
 
     fn expand(
@@ -116,21 +140,21 @@ impl SelectionModeTrait for Token {
         params: &super::SelectionModeParams,
         index: usize,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenNoSkipSymbol.to_index(params, index)
+        TokenIncludeWhitespace.to_index(params, index)
     }
 
     fn next(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenNoSkipSymbol.right(params)
+        TokenIncludeWhitespace.right(params)
     }
 
     fn previous(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenNoSkipSymbol.left(params)
+        TokenIncludeWhitespace.left(params)
     }
 
     fn process_paste_gap(
@@ -202,6 +226,19 @@ impl PositionBasedSelectionMode for TokenSkipSymbol {
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<ByteRange>> {
         get_current_token_by_cursor(true, buffer, cursor_char_index, if_current_not_found)
+    }
+}
+
+struct TokenIncludeWhitespace;
+
+impl PositionBasedSelectionMode for TokenIncludeWhitespace {
+    fn get_current_meaningful_selection_by_cursor(
+        &self,
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: CharIndex,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<ByteRange>> {
+        get_current_token_or_whitespace_by_cursor(buffer, cursor_char_index, if_current_not_found)
     }
 }
 
@@ -281,6 +318,74 @@ fn get_current_token_by_cursor(
     )))
 }
 
+fn get_current_token_or_whitespace_by_cursor(
+    buffer: &crate::buffer::Buffer,
+    cursor_char_index: crate::selection::CharIndex,
+    if_current_not_found: IfCurrentNotFound,
+) -> anyhow::Result<Option<super::ByteRange>> {
+    let Some(last_char_index) = buffer.last_char_index() else {
+        return Ok(None);
+    };
+
+    let cursor_char_index = cursor_char_index.min(last_char_index);
+    let rope = buffer.rope();
+
+    let is_target = |char: char| is_word(char) || is_symbol(char) || char.is_whitespace();
+
+    let current = {
+        let mut current = cursor_char_index;
+        loop {
+            if (CharIndex(0)..=last_char_index).contains(&current) {
+                if is_target(buffer.char(current)?) {
+                    break current;
+                } else {
+                    match if_current_not_found {
+                        IfCurrentNotFound::LookForward if current < last_char_index => {
+                            current = current + 1
+                        }
+                        IfCurrentNotFound::LookBackward if current > CharIndex(0) => {
+                            current = current - 1
+                        }
+                        _ => break current,
+                    }
+                }
+            } else {
+                return Ok(None);
+            }
+        }
+    };
+
+    let current_char = rope.char(current.0);
+
+    if !is_target(current_char) {
+        return Ok(None);
+    }
+
+    // Handle whitespace
+    if current_char.is_whitespace() {
+        let start = find_whitespace_start(rope, current);
+        let end = find_whitespace_end(rope, current, last_char_index) + 1;
+
+        return Ok(Some(ByteRange::new(
+            rope.try_char_to_byte(start.0)?..rope.try_char_to_byte(end.0)?,
+        )));
+    }
+
+    // Handle single symbol case
+    if is_symbol(current_char) {
+        let current_byte = rope.try_char_to_byte(current.0)?;
+        return Ok(Some(ByteRange::new(current_byte..current_byte + 1)));
+    }
+
+    // Handle words
+    let start = find_word_start(rope, current, is_word);
+    let end = find_word_end(rope, current, last_char_index, is_word) + 1;
+
+    Ok(Some(ByteRange::new(
+        rope.try_char_to_byte(start.0)?..rope.try_char_to_byte(end.0)?,
+    )))
+}
+
 #[cfg(test)]
 mod test_token {
     use crate::buffer::BufferOwner;
@@ -288,36 +393,7 @@ mod test_token {
     use crate::selection::SelectionMode;
     use crate::test_app::*;
 
-    use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionModeTrait};
-
     use super::*;
-
-    #[test]
-    fn all_selections_no_skip_symbols() {
-        let buffer = Buffer::new(
-            None,
-            "snake_case camelCase PascalCase UPPER_SNAKE kebab-case ->() 123 <_>",
-        );
-        super::Token.assert_all_selections(
-            &buffer,
-            Selection::default(),
-            &[
-                (0..10, "snake_case"),
-                (11..20, "camelCase"),
-                (21..31, "PascalCase"),
-                (32..43, "UPPER_SNAKE"),
-                (44..54, "kebab-case"),
-                (55..56, "-"),
-                (56..57, ">"),
-                (57..58, "("),
-                (58..59, ")"),
-                (60..63, "123"),
-                (64..65, "<"),
-                (65..66, "_"),
-                (66..67, ">"),
-            ],
-        );
-    }
 
     #[test]
     fn current_no_skip_symbols() -> anyhow::Result<()> {
@@ -466,5 +542,47 @@ mod test_token {
         };
         run_test(Direction::End)?;
         run_test(Direction::Start)
+    }
+
+    #[test]
+    fn next_previous_include_whitespace() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo  bar   baz\nspam".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Token,
+                )),
+                Expect(CurrentSelectedTexts(&["foo"])),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["  "])),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["bar"])),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["   "])),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["baz"])),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["\n"])),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["spam"])),
+                Editor(MoveSelection(Previous)),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentSelectedTexts(&["baz"])),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentSelectedTexts(&["   "])),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentSelectedTexts(&["bar"])),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentSelectedTexts(&["  "])),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentSelectedTexts(&["foo"])),
+            ])
+        })
     }
 }

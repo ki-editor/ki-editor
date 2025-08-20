@@ -2203,7 +2203,7 @@ impl Editor {
                     if current_word.extended_range().start <= start {
                         current_word
                     } else {
-                        get_word(Movement::Left)?.selection
+                        get_word(Movement::Previous)?.selection
                     }
                 };
 

@@ -401,7 +401,7 @@ fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             // Go to the middle of the file
-            Editor(MoveSelection(Index(3))),
+            Editor(MoveSelection(Index(4))),
             Expect(CurrentSelectedTexts(&["camelCase"])),
             Editor(EnterInsertMode(Direction::End)),
             Editor(DeleteWordBackward { short: true }),
