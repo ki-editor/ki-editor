@@ -309,11 +309,11 @@ sealed class SelectionMode {
 	@SerialName("LineFull")
 	object LineFull: SelectionMode()
 	@Serializable
+	@SerialName("Subword")
+	object Subword: SelectionMode()
+	@Serializable
 	@SerialName("Word")
 	object Word: SelectionMode()
-	@Serializable
-	@SerialName("Token")
-	object Token: SelectionMode()
 	@Serializable
 	@SerialName("Custom")
 	object Custom: SelectionMode()

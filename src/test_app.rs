@@ -738,7 +738,7 @@ fn copy_replace() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(Copy {
                 use_system_clipboard: false,
             }),
@@ -769,7 +769,7 @@ fn cut_replace() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ChangeCut {
                 use_system_clipboard: false,
             }),
@@ -798,7 +798,7 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Next)),
@@ -831,7 +831,7 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Next)),
@@ -866,7 +866,7 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Movement::Right)),
             Editor(MoveSelection(Movement::Next)),
@@ -968,7 +968,7 @@ fn signature_help() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Expect(CurrentMode(Mode::Normal)),
             //
             // Signature help should not be shown in normal mode
@@ -2444,7 +2444,7 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,
@@ -2495,7 +2495,7 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,
@@ -2929,7 +2929,7 @@ fn surround_with_xml_tag() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent("hello".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             App(OpenSurroundXmlPrompt),
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
             Expect(CurrentComponentContent("<foo>hello</foo>")),
@@ -2947,7 +2947,7 @@ fn surround_with_empty_xml_tag() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent("hello".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             App(OpenSurroundXmlPrompt),
             App(HandleKeyEvents(keys!("enter").to_vec())),
             Expect(CurrentComponentContent("<>hello</>")),

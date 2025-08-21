@@ -4,7 +4,7 @@ use crate::{components::editor::IfCurrentNotFound, selection::CharIndex};
 
 use super::{ApplyMovementResult, ByteRange, PositionBasedSelectionMode, SelectionModeTrait};
 
-pub struct Token;
+pub struct Word;
 
 fn find_word_start(rope: &Rope, current: CharIndex, is_word: impl Fn(char) -> bool) -> CharIndex {
     // Create a reverse range from current.0 down to 1 (not including 0)
@@ -59,33 +59,33 @@ fn find_whitespace_end(rope: &Rope, current: CharIndex, last_char_index: CharInd
     last_char_index
 }
 
-impl SelectionModeTrait for Token {
+impl SelectionModeTrait for Word {
     fn left(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenSkipSymbol.left(params)
+        WordSkipSymbol.left(params)
     }
 
     fn right(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenSkipSymbol.right(params)
+        WordSkipSymbol.right(params)
     }
 
     fn delete_backward(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenNoSkipSymbol.left(params)
+        WordNoSkipSymbol.left(params)
     }
 
     fn delete_forward(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenNoSkipSymbol.right(params)
+        WordNoSkipSymbol.right(params)
     }
 
     fn current(
@@ -93,7 +93,7 @@ impl SelectionModeTrait for Token {
         params: &super::SelectionModeParams,
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenNoSkipSymbol.current(params, if_current_not_found)
+        WordNoSkipSymbol.current(params, if_current_not_found)
     }
 
     #[cfg(test)]
@@ -101,7 +101,7 @@ impl SelectionModeTrait for Token {
         &'a self,
         params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        TokenIncludeWhitespace.all_selections_gathered_inversely(params)
+        WordIncludeWhitespace.all_selections_gathered_inversely(params)
     }
 
     fn expand(
@@ -116,7 +116,7 @@ impl SelectionModeTrait for Token {
         params: &super::SelectionModeParams,
         sticky_column_index: Option<usize>,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        TokenNoSkipSymbol.up(params, sticky_column_index)
+        WordNoSkipSymbol.up(params, sticky_column_index)
     }
 
     fn down(
@@ -124,7 +124,7 @@ impl SelectionModeTrait for Token {
         params: &super::SelectionModeParams,
         sticky_column_index: Option<usize>,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        TokenNoSkipSymbol.down(params, sticky_column_index)
+        WordNoSkipSymbol.down(params, sticky_column_index)
     }
 
     fn selections_in_line_number_ranges(
@@ -132,7 +132,7 @@ impl SelectionModeTrait for Token {
         params: &super::SelectionModeParams,
         line_number_ranges: Vec<std::ops::Range<usize>>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        TokenNoSkipSymbol.selections_in_line_number_ranges(params, line_number_ranges)
+        WordNoSkipSymbol.selections_in_line_number_ranges(params, line_number_ranges)
     }
 
     fn to_index(
@@ -140,21 +140,21 @@ impl SelectionModeTrait for Token {
         params: &super::SelectionModeParams,
         index: usize,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenIncludeWhitespace.to_index(params, index)
+        WordIncludeWhitespace.to_index(params, index)
     }
 
     fn next(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenIncludeWhitespace.right(params)
+        WordIncludeWhitespace.right(params)
     }
 
     fn previous(
         &self,
         params: &super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TokenIncludeWhitespace.left(params)
+        WordIncludeWhitespace.left(params)
     }
 
     fn process_paste_gap(
@@ -203,42 +203,42 @@ pub(crate) fn process_paste_gap(prev_gap: Option<String>, next_gap: Option<Strin
     }
 }
 
-struct TokenNoSkipSymbol;
+struct WordNoSkipSymbol;
 
-impl PositionBasedSelectionMode for TokenNoSkipSymbol {
+impl PositionBasedSelectionMode for WordNoSkipSymbol {
     fn get_current_meaningful_selection_by_cursor(
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<ByteRange>> {
-        get_current_token_by_cursor(false, buffer, cursor_char_index, if_current_not_found)
+        get_current_word_by_cursor(false, buffer, cursor_char_index, if_current_not_found)
     }
 }
 
-struct TokenSkipSymbol;
+struct WordSkipSymbol;
 
-impl PositionBasedSelectionMode for TokenSkipSymbol {
+impl PositionBasedSelectionMode for WordSkipSymbol {
     fn get_current_meaningful_selection_by_cursor(
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<ByteRange>> {
-        get_current_token_by_cursor(true, buffer, cursor_char_index, if_current_not_found)
+        get_current_word_by_cursor(true, buffer, cursor_char_index, if_current_not_found)
     }
 }
 
-struct TokenIncludeWhitespace;
+struct WordIncludeWhitespace;
 
-impl PositionBasedSelectionMode for TokenIncludeWhitespace {
+impl PositionBasedSelectionMode for WordIncludeWhitespace {
     fn get_current_meaningful_selection_by_cursor(
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<ByteRange>> {
-        get_current_token_or_whitespace_by_cursor(buffer, cursor_char_index, if_current_not_found)
+        get_current_word_or_whitespace_by_cursor(buffer, cursor_char_index, if_current_not_found)
     }
 }
 
@@ -250,7 +250,7 @@ fn is_symbol(char: char) -> bool {
     !is_word(char) && !char.is_whitespace()
 }
 
-fn get_current_token_by_cursor(
+fn get_current_word_by_cursor(
     skip_symbols: bool,
     buffer: &crate::buffer::Buffer,
     cursor_char_index: crate::selection::CharIndex,
@@ -318,7 +318,7 @@ fn get_current_token_by_cursor(
     )))
 }
 
-fn get_current_token_or_whitespace_by_cursor(
+fn get_current_word_or_whitespace_by_cursor(
     buffer: &crate::buffer::Buffer,
     cursor_char_index: crate::selection::CharIndex,
     if_current_not_found: IfCurrentNotFound,
@@ -387,7 +387,7 @@ fn get_current_token_or_whitespace_by_cursor(
 }
 
 #[cfg(test)]
-mod test_token {
+mod test_word {
     use crate::buffer::BufferOwner;
     use crate::components::editor::Direction;
     use crate::selection::SelectionMode;
@@ -407,7 +407,7 @@ mod test_token {
                 Editor(SetContent(".red".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
-                    SelectionMode::Token,
+                    SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&["."])),
             ])
@@ -426,7 +426,7 @@ mod test_token {
                 Editor(SetContent(".foo\n=bar\n+spam".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
-                    SelectionMode::Token,
+                    SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&["."])),
                 Editor(MoveSelection(Down)),
@@ -453,7 +453,7 @@ mod test_token {
                 Editor(SetContent("foo ? bar : spam".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
-                    SelectionMode::Token,
+                    SelectionMode::Word,
                 )),
                 App(TerminalDimensionChanged(crate::app::Dimension {
                     height: 3,
@@ -480,7 +480,7 @@ mod test_token {
                 Editor(SetContent("foo.bar.spam".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
-                    SelectionMode::Token,
+                    SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&["foo"])),
                 Editor(Delete(Direction::End)),
@@ -490,7 +490,7 @@ mod test_token {
     }
 
     #[test]
-    fn empty_buffer_should_not_be_token_selectable() -> anyhow::Result<()> {
+    fn empty_buffer_should_not_be_word_selectable() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -501,7 +501,7 @@ mod test_token {
                 Editor(SetContent("".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
-                    SelectionMode::Token,
+                    SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&[""])),
                 Editor(MoveSelection(Down)),
@@ -525,7 +525,7 @@ mod test_token {
                     Editor(SetContent("fooFoo barBar\nspamSpam".to_string())),
                     Editor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
-                        SelectionMode::Token,
+                        SelectionMode::Word,
                     )),
                     Editor(MoveSelection(Right)),
                     Expect(CurrentSelectedTexts(&["barBar"])),
@@ -556,7 +556,7 @@ mod test_token {
                 Editor(SetContent("foo  bar   baz\nspam".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
-                    SelectionMode::Token,
+                    SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&["foo"])),
                 Editor(MoveSelection(Next)),

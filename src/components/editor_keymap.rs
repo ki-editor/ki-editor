@@ -15,10 +15,10 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchN, Word_, SrchC, MultC, Swap_, /****/ Mark_, Prev_, Up___, Next_, PsteN,
+        SrchN, SWord, SrchC, MultC, Swap_, /****/ Mark_, Prev_, Up___, Next_, PsteN,
     ],
     [
-        Line_, Token, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
+        Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
     ],
     [
         Undo_, Rplc_, Copy_, DeltN, OpenN, /****/ LSrhF, Jump_, First, Last_, XAchr,
@@ -45,7 +45,7 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
         KilLP, CSrch, LineU, _____, KilLN, /****/ NBack, _____, ScrlU, _____, NForw,
     ],
     [
-        _____, LineP, LineD, LineN, OpenM, /****/ DTknP, MrkFP, ScrlD, MrkFN, SView,
+        _____, LineP, LineD, LineN, OpenM, /****/ DWrdP, MrkFP, ScrlD, MrkFN, SView,
     ],
     [
         Undo_, _____, WClse, UPstE, _____, /****/ _____, SHelp, _____, _____, WSwth,
@@ -502,8 +502,8 @@ pub(crate) enum Meaning {
     CrsrN,
     /// Cycle primary selection prev
     CrsrP,
-    /// Delete token backward
-    DTknP,
+    /// Delete word backward
+    DWrdP,
     /// Dedent
     DeDnt,
     /// Delete end
@@ -598,8 +598,8 @@ pub(crate) enum Meaning {
     Sytx_,
     /// GoToIndex
     ToIdx,
-    /// Select Token
-    Token,
+    /// Select Word
+    Word_,
     /// Transform
     Trsfm,
     /// Paste (End)
@@ -614,8 +614,8 @@ pub(crate) enum Meaning {
     WClse,
     /// Switch window
     WSwth,
-    /// Select Word
-    Word_,
+    /// Select Subword
+    SWord,
     /// Swap cursor with anchor
     XAchr,
     /// Swap Selection End

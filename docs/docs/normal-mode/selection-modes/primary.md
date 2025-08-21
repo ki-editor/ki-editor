@@ -119,14 +119,14 @@ Full Line.
 
 Same as [Line](#line), however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.
 
-## `Token`
+## `Word`
 
 Each unit is a sequence of alphanumeric characters including `-` and `_`.
 
-| Movement              | Meaning                                                       |
-| --------------------- | ------------------------------------------------------------- |
-| Up/Down/Previous/Next | Move to all kinds of token, including symbols and whitespaces |
-| Left/Right            | Move to non-symbol token only                                 |
+| Movement              | Meaning                                                      |
+| --------------------- | ------------------------------------------------------------ |
+| Up/Down/Previous/Next | Move to all kinds of word, including symbols and whitespaces |
+| Left/Right            | Move to non-symbol word only                                 |
 
 Suppose the following example:
 
@@ -143,10 +143,10 @@ If the current selection is selecting `use`, the following table demonstrates ho
 
 
 
-<TutorialFallback filename="token"/>
+<TutorialFallback filename="word"/>
 
-[^1]: This is possible because even Prompt is an editor, so the Token mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
-[^1]: This is possible because even Prompt is an editor, so the Token mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
+[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
+[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 
 ## `Subword`
 

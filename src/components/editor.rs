@@ -2188,7 +2188,7 @@ impl Editor {
                             &if short {
                                 SelectionMode::Subword
                             } else {
-                                SelectionMode::Token
+                                SelectionMode::Word
                             },
                             &movement.into_movement_applicandum(
                                 self.selection_set.sticky_column_index(),

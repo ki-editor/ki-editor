@@ -1,4 +1,4 @@
-use super::{ByteRange, PositionBasedSelectionMode, SelectionModeTrait, Token};
+use super::{ByteRange, PositionBasedSelectionMode, SelectionModeTrait, Word};
 use crate::{buffer::Buffer, components::editor::IfCurrentNotFound, selection::CharIndex};
 
 pub struct Subword;
@@ -201,7 +201,7 @@ impl PositionBasedSelectionMode for Subword {
         next_gap: Option<String>,
         _: &crate::components::editor::Direction,
     ) -> String {
-        super::token::process_paste_gap(prev_gap, next_gap)
+        super::word::process_paste_gap(prev_gap, next_gap)
     }
 }
 
@@ -357,7 +357,7 @@ fn get_word(
     params: &super::SelectionModeParams,
     position: SelectionPosition,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
-    if let Some(current_word) = Token.current(
+    if let Some(current_word) = Word.current(
         params,
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {

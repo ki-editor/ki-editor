@@ -15,7 +15,7 @@ pub(crate) mod local_quickfix;
 pub(crate) mod regex;
 pub(crate) mod subword;
 pub(crate) mod syntax_node;
-pub(crate) mod token;
+pub(crate) mod word;
 pub(crate) use self::regex::Regex;
 pub(crate) use ast_grep::AstGrep;
 pub(crate) use character::Character;
@@ -32,8 +32,8 @@ use position_pair::ParsedChar;
 use std::ops::Range;
 pub(crate) use subword::Subword;
 pub(crate) use syntax_node::SyntaxNode;
-pub(crate) use token::Token;
 pub(crate) use top_node::TopNode;
+pub(crate) use word::Word;
 
 use crate::{
     buffer::Buffer,

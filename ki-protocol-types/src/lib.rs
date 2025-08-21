@@ -67,7 +67,7 @@ pub enum SelectionMode {
     Line,
     LineFull,
     Subword,
-    Token,
+    Word,
     Custom,
     SyntaxNode,
     SyntaxNodeFine,

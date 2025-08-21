@@ -41,5 +41,5 @@ The following keybindings only work when the completion dropdown is opened.
 | `Line →`         | Move to line end        |
 | `Kill Line ←`    | Kill line backward      |
 | `Kill Line →`    | Kill line forward       |
-| `Delete Token ←` | Delete token backward   |
+| `Delete Word ←`  | Delete word backward    |
 | `alt+backspace`  | Delete subword backward |

@@ -182,7 +182,7 @@ Why?
                     only: false,
                 },
                 Recipe {
-                    description: "Delete token (backward)",
+                    description: "Delete word (backward)",
                     content: "camelCase snake_case PascalCase".trim(),
                     file_extension: "md",
                     prepare_events: &[],
@@ -663,10 +663,10 @@ snake_case 99 PascalCase
             .to_vec(),
         },
         RecipeGroup {
-            filename: "token",
+            filename: "word",
             recipes: [
                 Recipe {
-                    description: "Token: Left/Right skip symbols & spaces",
+                    description: "Word: Left/Right skip symbols & spaces",
                     content: "
 camelCase , kebab-case : snake_case 
 "
@@ -680,7 +680,7 @@ camelCase , kebab-case : snake_case
                     only: false,
                 },
                 Recipe {
-                    description: "Token: Prev/Next no skip symbols & spaces",
+                    description: "Word: Prev/Next no skip symbols & spaces",
                     content: "camelCase ,   kebab-case\nsnake_case".trim(),
                     file_extension: "md",
                     prepare_events: &[],
@@ -1783,7 +1783,7 @@ fn main() {
                 only: false,
             },
             Recipe {
-                description: "Swap Cursors to select last token of current line",
+                description: "Swap Cursors to select last word of current line",
                 content: "foo bar spam baz()".trim(),
                 file_extension: "md",
                 prepare_events: &[],
@@ -1877,7 +1877,7 @@ And by opposing end them. To die—to sleep,",
             only: false,
         },
         Recipe {
-            description: "Token movement",
+            description: "Word movement",
             content: "hello-world camelCase snake_case",
             file_extension: "md",
             prepare_events: &[],

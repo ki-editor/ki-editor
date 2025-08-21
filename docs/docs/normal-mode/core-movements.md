@@ -28,7 +28,7 @@ For example:
 | Selection Mode | Meaning                     |
 | -------------- | --------------------------- |
 | Syntax Node    | Next/Previous named sibling |
-| Token          | Non-symbol token            |
+| Word           | Non-symbol word             |
 
 ### Previous/Next
 
@@ -39,7 +39,7 @@ For example:
 | Selection Mode | Meaning                                |
 | -------------- | -------------------------------------- |
 | Syntax Node    | Sibling nodes including anonymous ones |
-| Token          | All tokens including symbols           |
+| Word           | All words including symbols            |
 | Line           | Empty lines                            |
 
 ### `▲` `▼` Up/Down
@@ -66,14 +66,14 @@ The sticky column will be cleared once any non-vertical movement is executed.
 
 By default, First/Last moves to the first/last selection of the current selection mode.
 
-| Selection Mode   | Meaning                                 |
-| ---------------- | --------------------------------------- |
-| Syntax Node      | First/Last named sibling                |
-| Quickfix         | First/Last item                         |
-| Char             | First/Last char in the current subword  |
-| Subword          | First/Last subword in the current token |
-| Token            | Previous/Next symbolic tokens           |
-| Line & Full Line | First/Last line of the current file     |
+| Selection Mode   | Meaning                                |
+| ---------------- | -------------------------------------- |
+| Syntax Node      | First/Last named sibling               |
+| Quickfix         | First/Last item                        |
+| Char             | First/Last char in the current subword |
+| Subword          | First/Last subword in the current word |
+| Word             | Previous/Next symbolic words           |
+| Line & Full Line | First/Last line of the current file    |
 
 ### `Jump`
 
@@ -93,7 +93,7 @@ Recommended selection modes:
 
 1. Syntax Node
 1. Subword
-1. Token
+1. Word
 
 This movement can also work with the Swap mode to swap two syntax expressions that are far apart.
 
