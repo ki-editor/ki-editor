@@ -20,7 +20,7 @@ pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
             filename: "jump",
             recipes: [
                 Recipe {
-                    description: "Jump to a word",
+                    description: "Jump to a subword",
                     content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                     file_extension: "json",
                     prepare_events: &[],
@@ -171,7 +171,7 @@ Why?
                     only: false,
                 },
                 Recipe {
-                    description: "Delete word (forward)",
+                    description: "Delete subword (forward)",
                     content: "camelCase snake_case".trim(),
                     file_extension: "md",
                     prepare_events: &[],
@@ -231,7 +231,7 @@ Why?
             filename: "extend",
             recipes: [
                 Recipe {
-                    description: "Extend selection (Word)",
+                    description: "Extend selection (Subword)",
                     content: "foo bar spam pi".trim(),
                     file_extension: "md",
                     prepare_events: &[],
@@ -618,10 +618,10 @@ fn foo() {
             .to_vec(),
         },
         RecipeGroup {
-            filename: "word",
+            filename: "Subword",
             recipes: [
                 Recipe {
-                    description: "Word (skip symbols)",
+                    description: "Subword (skip symbols)",
                     content: "
 HTTPNetwork 88 kebab-case 
 snake_case 99 PascalCase
@@ -636,7 +636,7 @@ snake_case 99 PascalCase
                     only: false,
                 },
                 Recipe {
-                    description: "Word (next/previous)",
+                    description: "Subword (next/previous)",
                     content: "snake_case kebab-case"
                     .trim(),
                     file_extension: "md",
@@ -648,7 +648,7 @@ snake_case 99 PascalCase
                     only: false,
                 },
                 Recipe {
-                    description: "Word: First/Last movement",
+                    description: "Subword: First/Last movement",
                     content: "hello HTTPNetworkRequestMiddleware world"
                     .trim(),
                     file_extension: "md",
@@ -712,7 +712,7 @@ snake
                     only: false,
                 },
                 Recipe {
-                    description: "Char: first/last movement (first/last char of current word)",
+                    description: "Char: first/last movement (first/last char of current subword)",
                     content: "campHelloDun".trim(),
                     file_extension: "md",
                     prepare_events: keys!("q h e l l o enter"),
@@ -987,7 +987,7 @@ foo ha"
             .to_vec(),
         },
         RecipeGroup {
-            filename: "match-whole-word",
+            filename: "match-whole-subword",
             recipes: [Recipe {
                 description: "Example",
                 content: "fobar fo spamfo fo".trim(),
@@ -1888,7 +1888,7 @@ And by opposing end them. To die—to sleep,",
             only: false,
         },
         Recipe {
-            description: "Word movement",
+            description: "Subword movement",
             content: "
 camelCase
 hello_world
@@ -1947,7 +1947,7 @@ foo bar spam",
             only: false,
         },
         Recipe {
-            description: "Change the first two word",
+            description: "Change the first two subword",
             content: "This is am Ki".trim(),
             file_extension: "md",
             prepare_events: &[],
@@ -2064,7 +2064,7 @@ And drop on the deck and flop like a fish?
             only: false,
         },
         Recipe {
-            description: "Select last word of current line",
+            description: "Select last subword of current line",
             content: "Hello world?\nBye".trim(),
             file_extension: "md",
             prepare_events: &[],

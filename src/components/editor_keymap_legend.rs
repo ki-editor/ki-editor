@@ -250,11 +250,11 @@ impl Editor {
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Word_),
-                "Word".to_string(),
-                "Select Word".to_string(),
+                "Subword".to_string(),
+                "Select Subword".to_string(),
                 Dispatch::ToEditor(SetSelectionModeWithPriorChange(
                     direction,
-                    Word,
+                    Subword,
                     prior_change,
                 )),
             ),

@@ -490,7 +490,7 @@ impl EmbeddedApp {
             crate::selection::SelectionMode::Line | crate::selection::SelectionMode::LineFull => {
                 ki_protocol_types::SelectionMode::Line
             }
-            crate::selection::SelectionMode::Word => ki_protocol_types::SelectionMode::Word,
+            crate::selection::SelectionMode::Subword => ki_protocol_types::SelectionMode::Subword,
             crate::selection::SelectionMode::Token => ki_protocol_types::SelectionMode::Token,
             crate::selection::SelectionMode::Custom => ki_protocol_types::SelectionMode::Custom,
             crate::selection::SelectionMode::Find { search } => {

@@ -14,13 +14,6 @@ every [selection modes](./selection-modes/index.md).
 
 There are 9 movements in total:
 
-* [`◀` `▶` Left/Right](#--leftright)
-* [Previous/Next](#previousnext)
-* [`▲` `▼` Up/Down](#--updown)
-* [First/Last](#firstlast)
-* [`Jump`](#jump)
-* [`Index` Jump to Index](#index-jump-to-index)
-* [Current](#current)
 
 ## Keymap
 
@@ -73,14 +66,14 @@ The sticky column will be cleared once any non-vertical movement is executed.
 
 By default, First/Last moves to the first/last selection of the current selection mode.
 
-| Selection Mode   | Meaning                              |
-| ---------------- | ------------------------------------ |
-| Syntax Node      | First/Last named sibling             |
-| Quickfix         | First/Last item                      |
-| Char             | First/Last char in the current word  |
-| Word             | First/Last word in the current token |
-| Token            | Previous/Next symbolic tokens        |
-| Line & Full Line | First/Last line of the current file  |
+| Selection Mode   | Meaning                                 |
+| ---------------- | --------------------------------------- |
+| Syntax Node      | First/Last named sibling                |
+| Quickfix         | First/Last item                         |
+| Char             | First/Last char in the current subword  |
+| Subword          | First/Last subword in the current token |
+| Token            | Previous/Next symbolic tokens           |
+| Line & Full Line | First/Last line of the current file     |
 
 ### `Jump`
 
@@ -99,7 +92,7 @@ It works like this:
 Recommended selection modes:
 
 1. Syntax Node
-1. Word
+1. Subword
 1. Token
 
 This movement can also work with the Swap mode to swap two syntax expressions that are far apart.
@@ -128,7 +121,7 @@ There's no specific keybinding for Current because it is triggered whenever a
 selection mode is chosen.
 
 For example, choosing the Line selection mode causes the current line to be
-selected, choosing the Word selection mode causes the current word to be selected.
+selected, choosing the Subword selection mode causes the current subword to be selected.
 
 In cases where there's no matching selection under the cursor, the Current movement chooses the nearest selection based on the following criteria (in order):
 

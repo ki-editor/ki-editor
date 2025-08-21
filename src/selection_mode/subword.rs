@@ -1,12 +1,12 @@
 use super::{ByteRange, PositionBasedSelectionMode, SelectionModeTrait, Token};
 use crate::{buffer::Buffer, components::editor::IfCurrentNotFound, selection::CharIndex};
 
-pub struct Word;
+pub struct Subword;
 
-const WORD_REGEX: &str =
+const SUBWORD_REGEX: &str =
     r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z]{2,}|[A-Z][a-z]+|[A-Z]|[a-z]+|[^\w\s]|_|[0-9]+";
 
-impl Word {
+impl Subword {
     pub(crate) fn new() -> Self {
         Self
     }
@@ -161,7 +161,7 @@ impl Word {
     }
 }
 
-impl PositionBasedSelectionMode for Word {
+impl PositionBasedSelectionMode for Subword {
     fn first(
         &self,
         params: &super::SelectionModeParams,
@@ -206,7 +206,7 @@ impl PositionBasedSelectionMode for Word {
 }
 
 #[cfg(test)]
-mod test_word {
+mod test_subword {
     use super::*;
     use crate::buffer::BufferOwner;
     use crate::components::editor::{Direction, PriorChange};
@@ -217,7 +217,7 @@ mod test_word {
     #[test]
     fn simple_case() {
         let buffer = Buffer::new(None, "snake Case camel");
-        PositionBased(super::Word::new()).assert_all_selections(
+        PositionBased(super::Subword::new()).assert_all_selections(
             &buffer,
             Selection::default(),
             &[(0..5, "snake"), (6..10, "Case"), (11..16, "camel")],
@@ -230,7 +230,7 @@ mod test_word {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
         );
-        PositionBased(super::Word::new()).assert_all_selections(
+        PositionBased(super::Subword::new()).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -262,7 +262,7 @@ mod test_word {
                 Editor(SetContent("snake-case".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
-                    crate::selection::SelectionMode::Word,
+                    crate::selection::SelectionMode::Subword,
                 )),
                 Editor(MoveSelectionWithPriorChange(
                     Next,
@@ -277,7 +277,7 @@ mod test_word {
     #[test]
     fn consecutive_uppercase_letters() {
         let buffer = Buffer::new(None, "XMLParser JSONObject HTMLElement");
-        PositionBased(super::Word::new()).assert_all_selections(
+        PositionBased(super::Subword::new()).assert_all_selections(
             &buffer,
             Selection::default(),
             &[
@@ -303,7 +303,7 @@ mod test_word {
                 Editor(SetContent("".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
-                    crate::selection::SelectionMode::Word,
+                    crate::selection::SelectionMode::Subword,
                 )),
                 Expect(CurrentSelectedTexts(&[""])),
                 Editor(MoveSelection(Down)),
@@ -327,7 +327,7 @@ mod test_word {
                     Editor(SetContent("foo bar\nspam".to_string())),
                     Editor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
-                        SelectionMode::Word,
+                        SelectionMode::Subword,
                     )),
                     Editor(MoveSelection(Right)),
                     Expect(CurrentSelectedTexts(&["bar"])),
@@ -362,7 +362,7 @@ fn get_word(
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {
         let content = params.buffer.slice(&current_word.range())?.to_string();
-        let regex = fancy_regex::Regex::new(WORD_REGEX)?;
+        let regex = fancy_regex::Regex::new(SUBWORD_REGEX)?;
         let mut captures = regex.captures_iter(&content);
         if let Some(match_) = match position {
             SelectionPosition::First => captures.next(),
