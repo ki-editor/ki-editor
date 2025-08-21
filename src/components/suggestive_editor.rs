@@ -439,7 +439,7 @@ mod test_suggestive_editor {
     }
 
     #[test]
-    /// Should replace token, not word
+    /// Should replace word, not subword
     fn completion_without_edit_3() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
