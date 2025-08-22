@@ -185,17 +185,6 @@ impl Editor {
         context: &Context,
         prior_change: Option<PriorChange>,
     ) -> Vec<Keymap> {
-        let search = context
-            .local_search_config()
-            .last_search()
-            .unwrap_or_else(|| Search {
-                mode: LocalSearchConfigMode::Regex(RegexConfig {
-                    escaped: true,
-                    case_sensitive: false,
-                    match_whole_word: false,
-                }),
-                search: "".to_string(),
-            });
         let direction = self.cursor_direction.reverse().to_if_current_not_found();
         [
             Keymap::new_extended(
@@ -269,22 +258,20 @@ impl Editor {
                 )),
             ),
             Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::LSrhF),
-                Direction::End.format_action("Last Search"),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
+                context.keyboard_layout_kind().get_key(&Meaning::RSrhF),
+                Direction::End.format_action("Repeat Search"),
+                Dispatch::ToEditor(DispatchEditor::RepeatSearch(
+                    Scope::Local,
                     IfCurrentNotFound::LookForward,
-                    Find {
-                        search: search.clone(),
-                    },
                     prior_change,
                 )),
             ),
             Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::LSrhB),
-                Direction::Start.format_action("Last Search"),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    IfCurrentNotFound::LookBackward,
-                    Find { search },
+                context.keyboard_layout_kind().get_key(&Meaning::RSrhB),
+                Direction::Start.format_action("Repeat Search"),
+                Dispatch::ToEditor(DispatchEditor::RepeatSearch(
+                    Scope::Local,
+                    IfCurrentNotFound::LookForward,
                     prior_change,
                 )),
             ),
@@ -1479,17 +1466,28 @@ impl Editor {
                 Dispatch::ToEditor(FindOneChar(if_current_not_found)),
             )])
             .collect_vec(),
-            Scope::Global => [Keymap::new_extended(
-                context
-                    .keyboard_layout_kind()
-                    .get_find_keymap(scope, &Meaning::Srch_),
-                "Search".to_string(),
-                "Search".to_string(),
-                Dispatch::OpenSearchPrompt {
-                    scope,
-                    if_current_not_found,
-                },
-            )]
+            Scope::Global => [
+                Keymap::new_extended(
+                    context
+                        .keyboard_layout_kind()
+                        .get_find_keymap(scope, &Meaning::Srch_),
+                    "Search".to_string(),
+                    "Search".to_string(),
+                    Dispatch::OpenSearchPrompt {
+                        scope,
+                        if_current_not_found,
+                    },
+                ),
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::RSrhF),
+                    "Repeat Search".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::RepeatSearch(
+                        Scope::Global,
+                        IfCurrentNotFound::LookForward,
+                        prior_change,
+                    )),
+                ),
+            ]
             .into_iter()
             .chain(Some(self.search_current_selection_keymap(
                 context,

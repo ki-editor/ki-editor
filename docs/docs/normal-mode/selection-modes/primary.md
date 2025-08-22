@@ -175,6 +175,6 @@ In this selection mode, the movements behave like the usual editor, where [Left/
 <TutorialFallback filename="char"/>
 
 
-## `Last Search`
+## `Repeat Search`
 
 Repeats the last search.

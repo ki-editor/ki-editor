@@ -21,7 +21,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
     ],
     [
-        Undo_, Rplc_, Copy_, DeltN, OpenN, /****/ LSrhF, Jump_, First, Last_, XAchr,
+        Undo_, Rplc_, Copy_, DeltN, OpenN, /****/ RSrhF, Jump_, First, Last_, XAchr,
     ],
 ];
 
@@ -33,7 +33,7 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
     ],
     [
-        Redo_, PRplc, RplcX, DeltP, OpenP, /****/ LSrhB, ToIdx, _____, _____, SSEnd,
+        Redo_, PRplc, RplcX, DeltP, OpenP, /****/ RSrhB, ToIdx, _____, _____, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -87,7 +87,7 @@ pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, _____, /****/ LSrhB, _____, _____, _____, _____,
+        LImpl, LDefn, LType, LRfrE, _____, /****/ RSrhB, _____, _____, _____, _____,
     ],
 ];
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
@@ -622,10 +622,10 @@ pub(crate) enum Meaning {
     SSEnd,
     /// Search (directionless)
     Srch_,
-    /// Last Search (Backward)
-    LSrhB,
-    /// Last Search (Forward)
-    LSrhF,
+    /// Repeat Search (Backward)
+    RSrhB,
+    /// Repeat Search (Forward)
+    RSrhF,
     /// Quickfix
     Qkfix,
     /// Git Hunk (against current branch)
