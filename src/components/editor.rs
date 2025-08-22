@@ -369,6 +369,9 @@ impl Component for Editor {
                     self.extend_mode_keymap_legend_config(context),
                 )))
             }
+            RepeatSearch(scope, if_current_not_found, prior_change) => {
+                return self.repeat_search(context, scope, if_current_not_found, prior_change)
+            }
         }
         Ok(Default::default())
     }
@@ -3805,6 +3808,31 @@ impl Editor {
             }
         }
     }
+
+    fn repeat_search(
+        &mut self,
+        context: &Context,
+        scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
+        prior_change: Option<PriorChange>,
+    ) -> anyhow::Result<Dispatches> {
+        let Some(search) = context.local_search_config().last_search() else {
+            return Ok(Dispatches::default());
+        };
+        self.handle_prior_change(prior_change);
+        let dispatches = Dispatches::one(Dispatch::UpdateLocalSearchConfig {
+            scope,
+            if_current_not_found,
+            update: crate::app::LocalSearchConfigUpdate::Config(
+                LocalSearchConfig::new(search.mode)
+                    .set_search(search.search)
+                    .clone(),
+            ),
+            show_config_after_enter: false,
+            run_search_after_config_updated: true,
+        });
+        Ok(dispatches)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3946,6 +3974,7 @@ pub(crate) enum DispatchEditor {
     ToggleLineComment,
     ToggleBlockComment,
     ShowKeymapLegendExtend,
+    RepeatSearch(Scope, IfCurrentNotFound, Option<PriorChange>),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
