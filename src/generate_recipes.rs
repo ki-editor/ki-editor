@@ -93,14 +93,16 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                                     .collect_vec()
                                     .into_boxed_slice()
                                 };
-                                let result = execute_recipe(callback, false)?;
+                                let (term_output, buffer_content) =
+                                    execute_recipe(callback, false)?;
                                 Ok(StepOutput {
                                     key: events
                                         .last()
                                         .map(|event| event.display())
                                         .unwrap_or(" ".to_string()),
                                     description: "".to_string(),
-                                    term_output: result.unwrap(),
+                                    term_output: term_output.unwrap(),
+                                    buffer_content: buffer_content.unwrap(),
                                 })
                             })
                             .collect::<Result<Vec<_>, _>>()?;
@@ -160,6 +162,7 @@ pub(crate) struct StepOutput {
     pub(crate) key: String,
     pub(crate) description: String,
     pub(crate) term_output: String,
+    pub(crate) buffer_content: String,
 }
 
 #[derive(serde::Serialize)]

@@ -523,7 +523,7 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
 pub(crate) fn execute_recipe(
     callback: impl Fn(State) -> Box<[Step]>,
     assert_last_step_is_expect: bool,
-) -> anyhow::Result<Option<String>> {
+) -> anyhow::Result<(Option<String>, Option<String>)> {
     execute_test_helper(
         || Box::new(StringWriter::new()),
         true,
@@ -545,7 +545,7 @@ fn execute_test_helper(
     status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(State) -> Box<[Step]>,
     assert_last_step_is_expect: bool,
-) -> anyhow::Result<Option<String>> {
+) -> anyhow::Result<(Option<String>, Option<String>)> {
     run_test(writer, status_line_components, |mut app, temp_dir| {
         let steps = {
             callback(State {
@@ -610,28 +610,28 @@ fn execute_test_helper(
         if render {
             app.render()?
         }
-
-        Ok(())
+        let buffer_content = app.get_current_component_content();
+        Ok(buffer_content)
     })
 }
 
 fn run_test(
     writer: fn() -> Box<dyn MyWriter>,
     status_line_components: Vec<StatusLineComponent>,
-    callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<()>,
-) -> anyhow::Result<Option<String>> {
+    callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<String>,
+) -> anyhow::Result<(Option<String>, Option<String>)> {
     TestRunner::run(move |temp_dir| {
         let frontend = Rc::new(Mutex::new(MockFrontend::new(writer())));
-
         let mut app = App::new(
             frontend.clone(),
             temp_dir.clone(),
             status_line_components.clone(),
         )?;
         app.disable_lsp();
-        callback(app, temp_dir)?;
+        let buffer_content = callback(app, temp_dir)?;
         use std::borrow::Borrow;
-        let output = frontend.lock().unwrap().borrow().string_content();
+        let term_output = frontend.lock().unwrap().borrow().string_content();
+        let output = (term_output, Some(buffer_content));
 
         Ok(output)
     })
