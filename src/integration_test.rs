@@ -15,8 +15,8 @@ impl Drop for TestRunner {
 
 impl TestRunner {
     pub(crate) fn run(
-        callback: impl Fn(CanonicalizedPath) -> anyhow::Result<Option<String>>,
-    ) -> anyhow::Result<Option<String>> {
+        callback: impl Fn(CanonicalizedPath) -> anyhow::Result<(Option<String>, Option<String>)>,
+    ) -> anyhow::Result<(Option<String>, Option<String>)> {
         let (runner, _) = Self::new()?;
         let output = callback(runner.temp_dir.clone())?;
         Ok(output)
