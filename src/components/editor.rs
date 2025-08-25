@@ -1447,9 +1447,20 @@ impl Editor {
                     .collect_vec();
                 match matching_jumps.split_first() {
                     None => Ok(Default::default()),
-                    Some((jump, [])) => Ok(self
-                        .handle_movement(context, Movement::Jump(jump.selection.extended_range()))?
-                        .append(Dispatch::ToEditor(EnterNormalMode))),
+                    Some((jump, [])) => {
+                        let dispatches = self.handle_movement(
+                            context,
+                            Movement::Jump(jump.selection.extended_range()),
+                        )?;
+                        self.mode = Mode::Normal;
+                        Ok(dispatches.append_some(if context.is_running_as_embedded() {
+                            // We need to manually send a SelectionChanged dispatch here
+                            // because although SelectionChanged is dispatched automatically in most cases, it is not for this case.
+                            Some(self.dispatch_selection_changed())
+                        } else {
+                            None
+                        }))
+                    }
                     Some(_) => {
                         self.jumps = Some(
                             matching_jumps
