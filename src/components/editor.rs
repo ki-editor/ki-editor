@@ -1453,7 +1453,13 @@ impl Editor {
                             Movement::Jump(jump.selection.extended_range()),
                         )?;
                         self.mode = Mode::Normal;
-                        Ok(dispatches)
+                        Ok(dispatches.append_some(if context.is_running_as_embedded() {
+                            // We need to manually send a SelectionChanged dispatch here
+                            // because although SelectionChanged is dispatched automatically in most cases, it is not for this case.
+                            Some(self.dispatch_selection_changed())
+                        } else {
+                            None
+                        }))
                     }
                     Some(_) => {
                         self.jumps = Some(
