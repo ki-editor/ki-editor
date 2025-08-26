@@ -24,6 +24,9 @@ use nary_tree::NodeId;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{cell::RefCell, rc::Rc};
 
+use std::collections::HashMap;
+pub(crate) type BufferContentsMap = HashMap<String, String>;
+
 /// The layout of the app is split into multiple sections: the main panel, info panel, quickfix
 /// lists, prompts, and etc.
 /// The main panel is where the user edits code, and the info panel is for displaying info like
@@ -246,6 +249,18 @@ impl Layout {
             .iter()
             .filter(|(_, editor)| editor.borrow().editor().buffer().owner() == BufferOwner::User)
             .map(|(path, _)| path.clone())
+            .collect()
+    }
+
+    pub(crate) fn get_buffer_contents_map(&self) -> BufferContentsMap {
+        self.background_suggestive_editors
+            .iter()
+            .map(|(path, editor)| {
+                (
+                    path.display_absolute(),
+                    editor.borrow().editor().buffer().content(),
+                )
+            })
             .collect()
     }
 
