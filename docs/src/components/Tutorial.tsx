@@ -11,6 +11,7 @@ const recipeSchema = z.object({
       description: z.string(),
       key: z.string(),
       term_output: z.string(),
+      buffer_contents_map: z.record(z.string(), z.string()), 
     })
   ),
   terminal_height: z.number(),
@@ -149,9 +150,9 @@ const Recipe = (props: { recipe: Recipe }) => {
       <div
         style={{
           display: "grid",
-          justifyContent: "start",
-          alignContent: "start",
-          justifyItems: "center",
+          gridAutoFlow: "column",
+          alignItems: "center",
+          overflow: "hidden",
           gap: 8,
         }}
       >
@@ -163,6 +164,7 @@ const Recipe = (props: { recipe: Recipe }) => {
             justifySelf: "start",
             overflowX: "auto",
             width: "100%",
+            justifyContent: "start",
           }}
         >
           {props.recipe.steps.map((step, index) => (
@@ -175,6 +177,26 @@ const Recipe = (props: { recipe: Recipe }) => {
               style={{ fontFamily: "monospace" }}
             >
               {step.key}
+            </button>
+          ))}
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gap: 8,
+            gridAutoFlow: "column",
+            justifySelf: "end",
+          }}
+        >
+          {Object.entries(props.recipe.steps[stepIndex].buffer_contents_map).map(([_, buffer_content]) => (
+            <button
+              className="kbc-button"
+              onClick={() => {
+                navigator.clipboard.writeText(buffer_content);
+                }
+              }
+            >
+            copy
             </button>
           ))}
         </div>
