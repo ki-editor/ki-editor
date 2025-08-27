@@ -70,6 +70,9 @@ const Recipe = (props: { recipe: Recipe }) => {
     const step = props.recipe.steps[stepIndex];
     instance?.write(step.term_output);
   }, [ref, instance, stepIndex]);
+  const buffer_contents_entries = Object.entries(props.recipe.steps[stepIndex].buffer_contents_map)
+    .sort((a, b) => (a[0].localeCompare(b[0])));
+
 
   return (
     <div
@@ -188,9 +191,8 @@ const Recipe = (props: { recipe: Recipe }) => {
             justifySelf: "end",
           }}
         >
-          {Object.entries(props.recipe.steps[stepIndex].buffer_contents_map)
-            .sort((a, b) => (a[0].localeCompare(b[0])))
-            .map(([_, buffer_content]) => (
+          {buffer_contents_entries
+            .map(([file_name, buffer_content]) => (
               <button
                 className="kbc-button"
                 onClick={() => {
@@ -198,7 +200,7 @@ const Recipe = (props: { recipe: Recipe }) => {
                   }
                 }
               >
-              copy
+                {(buffer_contents_entries.length > 1) ? `Copy (${file_name})` : "Copy"}
               </button>
           ))}
         </div>

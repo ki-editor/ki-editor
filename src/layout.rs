@@ -257,7 +257,7 @@ impl Layout {
             .iter()
             .map(|(path, editor)| {
                 (
-                    path.display_absolute(),
+                    path.file_name().unwrap_or_default(),
                     editor.borrow().editor().buffer().content(),
                 )
             })
