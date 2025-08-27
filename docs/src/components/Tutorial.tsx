@@ -188,16 +188,18 @@ const Recipe = (props: { recipe: Recipe }) => {
             justifySelf: "end",
           }}
         >
-          {Object.entries(props.recipe.steps[stepIndex].buffer_contents_map).map(([_, buffer_content]) => (
-            <button
-              className="kbc-button"
-              onClick={() => {
-                navigator.clipboard.writeText(buffer_content);
+          {Object.entries(props.recipe.steps[stepIndex].buffer_contents_map)
+            .sort((a, b) => (a[0].localeCompare(b[0])))
+            .map(([_, buffer_content]) => (
+              <button
+                className="kbc-button"
+                onClick={() => {
+                  navigator.clipboard.writeText(buffer_content);
+                  }
                 }
-              }
-            >
-            copy
-            </button>
+              >
+              copy
+              </button>
           ))}
         </div>
       </div>
