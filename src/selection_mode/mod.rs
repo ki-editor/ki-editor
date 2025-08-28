@@ -265,7 +265,6 @@ impl SelectionModeParams<'_> {
 #[derive(Debug, Clone)]
 pub(crate) struct ApplyMovementResult {
     pub(crate) selection: Selection,
-    pub(crate) mode: Option<crate::selection::SelectionMode>,
     pub(crate) sticky_column_index: Option<usize>,
 }
 
@@ -273,7 +272,6 @@ impl ApplyMovementResult {
     pub(crate) fn from_selection(selection: Selection) -> Self {
         Self {
             selection,
-            mode: None,
             sticky_column_index: None,
         }
     }
@@ -1030,7 +1028,6 @@ pub trait PositionBasedSelectionMode {
                         .set_info(result.info);
                     return Ok(Some(ApplyMovementResult {
                         selection,
-                        mode: None,
                         sticky_column_index,
                     }));
                 }
@@ -1045,7 +1042,6 @@ pub trait PositionBasedSelectionMode {
                         .set_info(result.info);
                     return Ok(Some(ApplyMovementResult {
                         selection,
-                        mode: None,
                         sticky_column_index,
                     }));
                 }
@@ -1516,7 +1512,6 @@ pub(crate) trait IterBasedSelectionMode {
             .transpose()?;
         Ok(selection.map(|selection| ApplyMovementResult {
             selection,
-            mode: None,
             sticky_column_index: Some(sticky_column_index.unwrap_or(current_position.column)),
         }))
     }

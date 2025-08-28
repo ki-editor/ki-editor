@@ -429,7 +429,7 @@ impl ExpectKind {
                     }
             CurrentSelectionMode(expected) => contextualize(
                         expected,
-                        &app.current_component().borrow().editor().selection_set.mode,
+                        app.current_component().borrow().editor().selection_set.mode(),
                     ),
             LspRequestSent(from_editor) => contextualize(true, app.lsp_request_sent(from_editor)),
             CurrentCopiedTextHistoryOffset(expected) => contextualize(

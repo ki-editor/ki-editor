@@ -45,7 +45,7 @@ impl EmbeddedApp {
             }),
             None => return Ok(()),
         }
-        .set_mode(editor.selection_set.mode.clone());
+        .set_mode(editor.selection_set.mode().clone());
 
         // Skip setting selection if the extended ranges of both selection sets are the same.
         // This is necessary so that selection extension can work.

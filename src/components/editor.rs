@@ -669,7 +669,7 @@ impl Editor {
 
     pub(crate) fn from_buffer(buffer: Rc<RefCell<Buffer>>) -> Self {
         let selection_set = SelectionSet::default();
-        let selection_mode = selection_set.mode.clone();
+        let selection_mode = selection_set.mode().clone();
         let mut result = Self {
             selection_set,
             jumps: None,
@@ -864,7 +864,7 @@ impl Editor {
         context: &Context,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         if use_current_selection_mode {
-            self.selection_set.mode.clone()
+            self.selection_set.mode().clone()
         } else {
             SelectionMode::Subword
         }
@@ -958,7 +958,7 @@ impl Editor {
                         let result_selection = Selection::get_selection_(
                             &buffer,
                             start_selection,
-                            &self.selection_set.mode,
+                            self.selection_set.mode(),
                             &movement.into_movement_applicandum(
                                 self.selection_set.sticky_column_index(),
                             ),
@@ -974,7 +974,7 @@ impl Editor {
                         }
                     };
                     let (delete_range, select_range) = {
-                        if !self.selection_set.mode.is_contiguous() {
+                        if !self.selection_set.mode().is_contiguous() {
                             default
                         }
                         // If the selection mode is contiguous,
@@ -1610,7 +1610,7 @@ impl Editor {
                 .append(Dispatch::ToEditor(EnterNormalMode)))
         } else {
             if self.reveal == Some(Reveal::CurrentSelectionMode)
-                && self.selection_set.mode != selection_mode
+                && self.selection_set.mode() != &selection_mode
             {
                 self.reveal = None
             }
@@ -1664,7 +1664,7 @@ impl Editor {
             Mode::Normal => self.move_selection_with_selection_mode(
                 context,
                 movement,
-                self.selection_set.mode.clone(),
+                self.selection_set.mode().clone(),
             ),
             Mode::Swap => self.swap(movement, context),
             Mode::Replace => self.replace_with_movement(&movement, context),
@@ -1986,14 +1986,14 @@ impl Editor {
         match movement {
             Movement::Last => self.swap_till_last(context),
             Movement::First => self.swap_till_first(context),
-            _ => self.replace_faultlessly(&self.selection_set.mode.clone(), movement, context),
+            _ => self.replace_faultlessly(&self.selection_set.mode().clone(), movement, context),
         }
     }
 
     /// Swaps the current selection with the text range from
     /// the first occurrence until just before the current selection.
     fn swap_till_first(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
-        let selection_mode = self.selection_set.mode.clone();
+        let selection_mode = self.selection_set.mode().clone();
         let edit_transaction = {
             let buffer = self.buffer.borrow();
             EditTransaction::from_action_groups(
@@ -2042,7 +2042,7 @@ impl Editor {
     /// Swaps the current selection with the text range from
     /// just after the current selection until the last occurrence.
     fn swap_till_last(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
-        let selection_mode = self.selection_set.mode.clone();
+        let selection_mode = self.selection_set.mode().clone();
         let edit_transaction = {
             let buffer = self.buffer.borrow();
             EditTransaction::from_action_groups(
@@ -2286,7 +2286,7 @@ impl Editor {
                 };
             self.get_valid_selection(
                 selection,
-                &self.selection_set.mode,
+                self.selection_set.mode(),
                 movement,
                 get_edit_transaction,
                 context,
@@ -2338,7 +2338,7 @@ impl Editor {
         .min(self.buffer().len_lines().saturating_sub(1));
         let position = Position { line, column: 0 };
         let start = position.to_char_index(&self.buffer())?;
-        let selection_mode = self.selection_set.mode.clone();
+        let selection_mode = self.selection_set.mode().clone();
         self.selection_set = SelectionSet::new(NonEmpty::new(
             self.selection_set
                 .primary_selection()
@@ -2381,7 +2381,7 @@ impl Editor {
         direction: Direction,
         context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
-        let dispatches = if self.selection_set.mode.is_syntax_node() {
+        let dispatches = if self.selection_set.mode().is_syntax_node() {
             Dispatches::default()
         } else {
             self.set_selection_mode(
@@ -2490,7 +2490,7 @@ impl Editor {
             .append(Dispatch::DocumentDidSave { path })
             .chain(self.get_document_did_change_dispatch())
             .append(Dispatch::RemainOnlyCurrentComponent)
-            .append_some(if self.selection_set.mode.is_contiguous() {
+            .append_some(if self.selection_set.mode().is_contiguous() {
                 Some(Dispatch::ToEditor(MoveSelection(Movement::Current(
                     IfCurrentNotFound::LookForward,
                 ))))
@@ -2608,7 +2608,7 @@ impl Editor {
     }
 
     pub(crate) fn display_selection_mode(&self) -> String {
-        let selection_mode = self.selection_set.mode.display();
+        let selection_mode = self.selection_set.mode().display();
         let cursor_count = self.selection_set.len();
         format!("{selection_mode: <5}x{cursor_count}")
     }
@@ -3764,7 +3764,7 @@ impl Editor {
 
     pub(crate) fn dispatch_selection_mode_changed(&self) -> Dispatch {
         Dispatch::ToHostApp(ToHostApp::SelectionModeChanged(
-            self.selection_set.mode.clone(),
+            self.selection_set.mode().clone(),
         ))
     }
 
