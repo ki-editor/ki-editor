@@ -694,7 +694,26 @@ camelCase , kebab-case : snake_case
             .to_vec(),
         },
         RecipeGroup {
-            filename: "Char",
+            filename: "subword",
+            recipes: [
+                Recipe {
+                    description: "Example",
+                    content: "myOatPepperBanana areReallyTasty
+but-the-question-is which_one_is_tastiest?
+"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w k o o o i o u k l j"),
+                    expectations: Box::new([CurrentSelectedTexts(&["the"])]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+            ].to_vec(),
+        },
+        RecipeGroup {
+            filename: "char",
             recipes: [
                 Recipe {
                     description: "Char: up/down/left/right movement",
@@ -980,6 +999,21 @@ foo ha"
                 prepare_events: &[],
                 events: keys!("q ( x o ) enter l j"),
                 expectations: Box::new([CurrentSelectedTexts(&["(xo)"])]),
+                terminal_height: Some(7),
+                similar_vim_combos: &[],
+                only: false,
+            }]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "match-whole-word",
+            recipes: [Recipe {
+                description: "Example",
+                content: "hello helloWorld hello hello!".trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("q w space h e l l o enter l"),
+                expectations: Box::new([CurrentSelectedTexts(&["hello"])]),
                 terminal_height: Some(7),
                 similar_vim_combos: &[],
                 only: false,
