@@ -47,6 +47,7 @@ mod utils;
 
 mod embed;
 
+mod alternator;
 mod divide_viewport;
 mod env;
 mod format_path_list;

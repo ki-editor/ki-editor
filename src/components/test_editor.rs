@@ -4645,3 +4645,45 @@ fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> 
     run_test(Character, &["\n"])?;
     Ok(())
 }
+
+#[test]
+
+fn anchor_should_maintain_selection_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "kebab-case camelCase snake_case UPPER_SNAKE_CASE".to_string(),
+            )),
+            Editor(MatchLiteral("camel".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Subword,
+            )),
+            Expect(CurrentSelectedTexts(&["camel"])),
+            Editor(EnableSelectionExtension),
+            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["camelCase snake"])),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Word,
+            )),
+            Expect(CurrentSelectedTexts(&["camelCase snake_case"])),
+            Editor(SwapExtensionAnchor),
+            Expect(CurrentSelectionMode(SelectionMode::Subword)),
+            Editor(MoveSelection(Left)),
+            Expect(CurrentSelectedTexts(&["case camelCase snake_case"])),
+            Editor(SwapExtensionAnchor),
+            Expect(CurrentSelectionMode(SelectionMode::Word)),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&[
+                "case camelCase snake_case UPPER_SNAKE_CASE",
+            ])),
+        ])
+    })
+}
