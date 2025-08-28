@@ -489,7 +489,7 @@ impl Editor {
         let theme = context.theme();
         let buffer = self.buffer();
         let possible_selections =
-            if self.selection_set.mode.is_contiguous() && self.reveal.is_none() {
+            if self.selection_set.mode().is_contiguous() && self.reveal.is_none() {
                 Default::default()
             } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
                 protected_range
@@ -835,7 +835,7 @@ impl Editor {
         line_number_range: &Range<usize>,
     ) -> anyhow::Result<Vec<ByteRange>> {
         let object = self.get_selection_mode_trait_object(selection, true, context)?;
-        if self.selection_set.mode.is_contiguous() {
+        if self.selection_set.mode().is_contiguous() {
             return Ok(Vec::new());
         }
 

@@ -325,6 +325,37 @@ fn test_delete_extended_selection() -> anyhow::Result<()> {
 }
 
 #[test]
+fn extend_jump() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("apple banana cake durian egg".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["banana"])),
+            Editor(EnableSelectionExtension),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 1,
+            })),
+            Editor(ShowJumps {
+                use_current_selection_mode: true,
+                prior_change: None,
+            }),
+            App(HandleKeyEvents(keys!("d").to_vec())),
+            Expect(CurrentSelectedTexts(&["banana cake durian"])),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["banana cake durian egg"])),
+        ])
+    })
+}
+
+#[test]
 fn test_delete_extended_selection_is_last_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -4613,4 +4644,46 @@ fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> 
     run_test(Subword, &["hello"])?;
     run_test(Character, &["\n"])?;
     Ok(())
+}
+
+#[test]
+
+fn anchor_should_maintain_selection_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "kebab-case camelCase snake_case UPPER_SNAKE_CASE".to_string(),
+            )),
+            Editor(MatchLiteral("camel".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Subword,
+            )),
+            Expect(CurrentSelectedTexts(&["camel"])),
+            Editor(EnableSelectionExtension),
+            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["camelCase snake"])),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Word,
+            )),
+            Expect(CurrentSelectedTexts(&["camelCase snake_case"])),
+            Editor(SwapExtensionAnchor),
+            Expect(CurrentSelectionMode(SelectionMode::Subword)),
+            Editor(MoveSelection(Left)),
+            Expect(CurrentSelectedTexts(&["case camelCase snake_case"])),
+            Editor(SwapExtensionAnchor),
+            Expect(CurrentSelectionMode(SelectionMode::Word)),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&[
+                "case camelCase snake_case UPPER_SNAKE_CASE",
+            ])),
+        ])
+    })
 }
