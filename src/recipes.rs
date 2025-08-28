@@ -1009,21 +1009,6 @@ foo ha"
             filename: "match-whole-word",
             recipes: [Recipe {
                 description: "Example",
-                content: "hello helloWorld hello hello!".trim(),
-                file_extension: "md",
-                prepare_events: &[],
-                events: keys!("q w space h e l l o enter l"),
-                expectations: Box::new([CurrentSelectedTexts(&["hello"])]),
-                terminal_height: Some(7),
-                similar_vim_combos: &[],
-                only: false,
-            }]
-            .to_vec(),
-        },
-        RecipeGroup {
-            filename: "match-whole-subword",
-            recipes: [Recipe {
-                description: "Example",
                 content: "fobar fo spamfo fo".trim(),
                 file_extension: "md",
                 prepare_events: &[],
