@@ -58,6 +58,9 @@ use std::{
 use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
+#[cfg(test)]
+use crate::layout::BufferContentsMap;
+
 pub(crate) struct App<T: Frontend> {
     context: Context,
 
@@ -2216,6 +2219,11 @@ impl<T: Frontend> App<T> {
     #[cfg(test)]
     pub(crate) fn get_current_component_content(&self) -> String {
         self.current_component().borrow().editor().content()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn get_buffer_contents_map(&self) -> BufferContentsMap {
+        self.layout.get_buffer_contents_map()
     }
 
     #[cfg(test)]
