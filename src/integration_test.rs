@@ -3,6 +3,7 @@ use std::sync::mpsc::{channel, Receiver};
 use crate::app::AppMessage;
 use shared::canonicalized_path::CanonicalizedPath;
 
+#[cfg(test)]
 use crate::layout::BufferContentsMap;
 
 pub(crate) struct TestRunner {

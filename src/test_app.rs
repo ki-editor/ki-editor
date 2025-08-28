@@ -20,6 +20,7 @@ pub(crate) use SelectionMode::*;
 
 use shared::canonicalized_path::CanonicalizedPath;
 
+#[cfg(test)]
 use crate::layout::BufferContentsMap;
 
 use crate::{

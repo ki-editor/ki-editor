@@ -24,10 +24,8 @@ use nary_tree::NodeId;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{cell::RefCell, rc::Rc};
 
-use std::collections::HashMap;
-
 #[cfg(test)]
-pub(crate) type BufferContentsMap = HashMap<String, String>;
+pub(crate) type BufferContentsMap = std::collections::HashMap<String, String>;
 
 /// The layout of the app is split into multiple sections: the main panel, info panel, quickfix
 /// lists, prompts, and etc.

@@ -58,6 +58,7 @@ use std::{
 use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
+#[cfg(test)]
 use crate::layout::BufferContentsMap;
 
 pub(crate) struct App<T: Frontend> {
