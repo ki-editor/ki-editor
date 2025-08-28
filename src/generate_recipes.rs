@@ -1,6 +1,7 @@
 use itertools::{Either, Itertools};
 use my_proc_macros::key;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use std::collections::HashMap;
 
 // TODO:
 // 1. Emoji not rendering properly
@@ -100,7 +101,8 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                                         .map(|event| event.display())
                                         .unwrap_or(" ".to_string()),
                                     description: "".to_string(),
-                                    term_output: result.unwrap(),
+                                    term_output: result.term_output.unwrap(),
+                                    buffer_contents_map: result.buffer_contents_map,
                                 })
                             })
                             .collect::<Result<Vec<_>, _>>()?;
@@ -160,6 +162,7 @@ pub(crate) struct StepOutput {
     pub(crate) key: String,
     pub(crate) description: String,
     pub(crate) term_output: String,
+    pub(crate) buffer_contents_map: HashMap<String, String>,
 }
 
 #[derive(serde::Serialize)]

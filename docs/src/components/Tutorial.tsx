@@ -11,6 +11,7 @@ const recipeSchema = z.object({
       description: z.string(),
       key: z.string(),
       term_output: z.string(),
+      buffer_contents_map: z.record(z.string(), z.string()), 
     })
   ),
   terminal_height: z.number(),
@@ -69,6 +70,9 @@ const Recipe = (props: { recipe: Recipe }) => {
     const step = props.recipe.steps[stepIndex];
     instance?.write(step.term_output);
   }, [ref, instance, stepIndex]);
+  const buffer_contents_entries = Object.entries(props.recipe.steps[stepIndex].buffer_contents_map)
+    .sort((a, b) => (a[0].localeCompare(b[0])));
+
 
   return (
     <div
@@ -149,9 +153,9 @@ const Recipe = (props: { recipe: Recipe }) => {
       <div
         style={{
           display: "grid",
-          justifyContent: "start",
-          alignContent: "start",
-          justifyItems: "center",
+          gridAutoFlow: "column",
+          alignItems: "center",
+          overflow: "hidden",
           gap: 8,
         }}
       >
@@ -163,6 +167,7 @@ const Recipe = (props: { recipe: Recipe }) => {
             justifySelf: "start",
             overflowX: "auto",
             width: "100%",
+            justifyContent: "start",
           }}
         >
           {props.recipe.steps.map((step, index) => (
@@ -176,6 +181,27 @@ const Recipe = (props: { recipe: Recipe }) => {
             >
               {step.key}
             </button>
+          ))}
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gap: 8,
+            gridAutoFlow: "column",
+            justifySelf: "end",
+          }}
+        >
+          {buffer_contents_entries
+            .map(([file_name, buffer_content]) => (
+              <button
+                className="kbc-button"
+                onClick={() => {
+                  navigator.clipboard.writeText(buffer_content);
+                  }
+                }
+              >
+                {(buffer_contents_entries.length > 1) ? `Copy (${file_name})` : "Copy"}
+              </button>
           ))}
         </div>
       </div>
