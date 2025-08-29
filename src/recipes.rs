@@ -618,7 +618,7 @@ fn foo() {
             .to_vec(),
         },
         RecipeGroup {
-            filename: "Subword",
+            filename: "subword",
             recipes: [
                 Recipe {
                     description: "Subword (skip symbols)",
@@ -694,7 +694,7 @@ camelCase , kebab-case : snake_case
             .to_vec(),
         },
         RecipeGroup {
-            filename: "Char",
+            filename: "char",
             recipes: [
                 Recipe {
                     description: "Char: up/down/left/right movement",
@@ -987,7 +987,7 @@ foo ha"
             .to_vec(),
         },
         RecipeGroup {
-            filename: "match-whole-subword",
+            filename: "match-whole-word",
             recipes: [Recipe {
                 description: "Example",
                 content: "fobar fo spamfo fo".trim(),

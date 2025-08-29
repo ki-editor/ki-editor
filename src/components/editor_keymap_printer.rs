@@ -284,7 +284,7 @@ impl KeymapPrintSections {
                 layout,
             ),
             KeymapPrintSection::from_keymaps(
-                "Other movements".to_string(),
+                "Other Movements".to_string(),
                 &Keymaps::new(&editor.keymap_other_movements(&context)),
                 layout,
             ),
