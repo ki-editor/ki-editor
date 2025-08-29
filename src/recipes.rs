@@ -618,7 +618,7 @@ fn foo() {
             .to_vec(),
         },
         RecipeGroup {
-            filename: "Subword",
+            filename: "subword",
             recipes: [
                 Recipe {
                     description: "Subword (skip symbols)",
@@ -692,25 +692,6 @@ camelCase , kebab-case : snake_case
                 },
             ]
             .to_vec(),
-        },
-        RecipeGroup {
-            filename: "subword",
-            recipes: [
-                Recipe {
-                    description: "Example",
-                    content: "myOatPepperBanana areReallyTasty
-but-the-question-is which_one_is_tastiest?
-"
-                    .trim(),
-                    file_extension: "md",
-                    prepare_events: &[],
-                    events: keys!("w k o o o i o u k l j"),
-                    expectations: Box::new([CurrentSelectedTexts(&["the"])]),
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-            ].to_vec(),
         },
         RecipeGroup {
             filename: "char",
