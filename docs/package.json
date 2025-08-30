@@ -22,10 +22,16 @@
     "@xterm/addon-fit": "^0.10.0",
     "clsx": "^2.0.0",
     "docusaurus-lunr-search": "^3.6.0",
+    "mdast-util-from-markdown": "^2.0.2",
+    "mdast-util-mdx": "^3.0.0",
+    "micromark-extension-mdx": "^2.1.0",
+    "path": "^0.12.7",
     "prism-react-renderer": "^2.3.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-xtermjs": "^1.0.9",
+    "tsx": "^4.20.5",
+    "unist-util-visit": "^5.0.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

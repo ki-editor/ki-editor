@@ -1,15 +1,17 @@
 default:
     @just build
-    
+
 start:
     npm run start
-    
+
 install:
     npm install
-    
+
 typecheck: install
     npm run typecheck
 
-build: typecheck
+check:
+    tsx validate.ts
+
+build: typecheck check
     npm run build
-    
