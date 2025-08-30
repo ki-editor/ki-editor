@@ -306,7 +306,7 @@ impl Editor {
                 .into_iter()
                 .map(|hidden_parent_line_range| Boundary::new(&buffer, hidden_parent_line_range))
                 .collect_vec();
-            let (remaining_highlight_spans, updates): (Vec<_>, Vec<_>) = hidden_parent_lines
+            let (updates, remaining_highlight_spans): (Vec<_>, Vec<_>) = hidden_parent_lines
                 .iter()
                 .filter_map(|line| {
                     if self.reveal.is_some() {
@@ -321,13 +321,18 @@ impl Editor {
                     })
                 })
                 .chain(highlight_spans)
-                .partition_map(|span| span.into_cell_updates(&buffer, theme, &boundaries));
+                .map(|span| span.into_cell_updates(&buffer, theme, &boundaries))
+                .unzip();
+            let updates = updates.into_iter().flatten().collect_vec();
+            let remaining_highlight_spans = remaining_highlight_spans
+                .into_iter()
+                .flatten()
+                .collect_vec();
             let grid = hidden_parent_lines.into_iter().fold(
                 Grid::new(Dimension { height: 0, width }),
                 |grid, line| {
                     let updates = updates
                         .iter()
-                        .flatten()
                         .filter_map(|update| {
                             if update.position.line == line.line {
                                 Some(update.clone().set_position_line(0))
@@ -361,8 +366,7 @@ impl Editor {
                 let boundaries = [Boundary::new(&buffer, visible_line_range)];
                 highlight_spans
                     .into_iter()
-                    .filter_map(|span| span.into_cell_updates(&buffer, theme, &boundaries).right())
-                    .flatten()
+                    .flat_map(|span| span.into_cell_updates(&buffer, theme, &boundaries).0)
                     // Insert the primary cursor cell update by force.
                     // This is necessary because when the content is empty
                     // all cell updates will be excluded when `to_cell_updates` is run,
@@ -863,7 +867,7 @@ impl Editor {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub(crate) struct HighlightSpan {
     pub(crate) source: Source,
     pub(crate) range: HighlightSpanRange,
@@ -873,77 +877,201 @@ pub(crate) struct HighlightSpan {
 }
 
 impl HighlightSpan {
-    /// Convert this `HighlightSpans` into `Vec<CellUpdate>`,
-    /// only perform conversions for positions that falls within the given `boundaries`,
-    /// so that we can minimize the call to the expensive `buffer.xxx_to_position` methods.
+    /// Convert this `HighlightSpan` into `CellUpdate`s and remaining spans after processing a single boundary.
     ///
-    /// If this highlight span is out of all boundaries, then it will be returned as well,
-    /// do avoid cloning.
+    /// Returns a tuple of `(Vec<CellUpdate>, Vec<HighlightSpan>)` where:
+    /// - First element: `CellUpdate`s for the portion of this span that intersects with the boundary
+    /// - Second element: Remaining `HighlightSpan`s for portions that don't intersect with the boundary
     ///
-    /// This is because the HighlightSpan that are used by visible lines grid and hidden lines grid
-    /// should be mutually exclusive.
+    /// The remaining spans represent the "leftover" parts after the intersection is converted to cell updates.
+    /// This allows the span to be progressively "consumed" as it's processed through multiple boundaries.
+    ///
+    /// This method uses the boundary's native range type to minimize expensive range conversions.
+    fn process_boundary(
+        self,
+        buffer: &Buffer,
+        theme: &Theme,
+        boundary: &Boundary,
+    ) -> (Vec<CellUpdate>, Vec<HighlightSpan>) {
+        // Find intersection using the appropriate range type to avoid expensive conversions
+        let (intersection_range, remaining_ranges) = match &self.range {
+            HighlightSpanRange::CharIndexRange(range) => {
+                let intersection =
+                    match range_intersection(&(range.start..range.end), &boundary.char_index_range)
+                    {
+                        Some(range) => range,
+                        None => return (Vec::new(), vec![self]),
+                    };
+
+                let remaining = [
+                    (range.start < intersection.start).then(|| {
+                        HighlightSpanRange::CharIndexRange((range.start..intersection.start).into())
+                    }),
+                    (intersection.end < range.end).then(|| {
+                        HighlightSpanRange::CharIndexRange((intersection.end..range.end).into())
+                    }),
+                ];
+
+                (
+                    HighlightSpanRange::CharIndexRange(intersection.into()),
+                    remaining,
+                )
+            }
+
+            HighlightSpanRange::ByteRange(range) => {
+                let intersection = match range_intersection(range, &boundary.byte_range) {
+                    Some(range) => range,
+                    None => return (Vec::new(), vec![self]),
+                };
+
+                let remaining = [
+                    (range.start < intersection.start)
+                        .then(|| HighlightSpanRange::ByteRange(range.start..intersection.start)),
+                    (intersection.end < range.end)
+                        .then(|| HighlightSpanRange::ByteRange(intersection.end..range.end)),
+                ];
+
+                (HighlightSpanRange::ByteRange(intersection), remaining)
+            }
+
+            HighlightSpanRange::Line(line) => {
+                let line_range = *line..line + 1;
+                let intersection = match range_intersection(&line_range, &boundary.line_range) {
+                    Some(range) => range,
+                    None => return (Vec::new(), vec![self]),
+                };
+
+                let remaining = [
+                    (line_range.start < intersection.start)
+                        .then(|| HighlightSpanRange::Line(line_range.start))
+                        .filter(|_| intersection.start > line_range.start),
+                    (intersection.end < line_range.end)
+                        .then(|| HighlightSpanRange::Line(intersection.end))
+                        .filter(|_| intersection.end < line_range.end),
+                ];
+
+                // For single line, if there's intersection, convert the whole line
+                (HighlightSpanRange::Line(*line), [None, None])
+            }
+
+            HighlightSpanRange::CharIndex(char_index) => {
+                let char_range = *char_index..CharIndex(char_index.0 + 1);
+                let intersection = match range_intersection(&char_range, &boundary.char_index_range)
+                {
+                    Some(_) => char_range,
+                    None => return (Vec::new(), vec![self]),
+                };
+
+                // Single char index - either fully contained or not
+                (HighlightSpanRange::CharIndex(*char_index), [None, None])
+            }
+        };
+
+        // Generate cell updates for intersected portion
+        let cell_updates = match &intersection_range {
+            HighlightSpanRange::CharIndexRange(range) => (range.start.0..range.end.0)
+                .filter_map(|char_index| {
+                    let position = buffer.char_to_position(CharIndex(char_index)).ok()?;
+                    Some(self.create_cell_update(position, theme))
+                })
+                .collect(),
+            HighlightSpanRange::ByteRange(range) => {
+                // Convert to char range only for the intersected portion
+                buffer
+                    .byte_range_to_char_index_range(range)
+                    .map(|char_range| {
+                        (char_range.start.0..char_range.end.0)
+                            .filter_map(|char_index| {
+                                let position =
+                                    buffer.char_to_position(CharIndex(char_index)).ok()?;
+                                Some(self.create_cell_update(position, theme))
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            }
+            HighlightSpanRange::Line(line) => buffer
+                .line_range_to_char_index_range(*line..line + 1)
+                .map(|char_range| {
+                    (char_range.start.0..char_range.end.0)
+                        .filter_map(|char_index| {
+                            let position = buffer.char_to_position(CharIndex(char_index)).ok()?;
+                            Some(self.create_cell_update(position, theme))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            HighlightSpanRange::CharIndex(char_index) => buffer
+                .char_to_position(*char_index)
+                .map(|position| vec![self.create_cell_update(position, theme)])
+                .unwrap_or_default(),
+        };
+
+        // Generate remaining spans
+        let remaining_spans = remaining_ranges
+            .into_iter()
+            .flatten()
+            .map(|range| HighlightSpan {
+                range,
+                ..self.clone()
+            })
+            .collect();
+
+        (cell_updates, remaining_spans)
+    }
+
+    // Helper method to create CellUpdate
+    fn create_cell_update(&self, position: Position, theme: &Theme) -> CellUpdate {
+        CellUpdate {
+            position,
+            symbol: self.set_symbol,
+            style: match &self.source {
+                Source::StyleKey(key) => theme.get_style(key),
+                Source::Style(style) => *style,
+            },
+            is_cursor: self.is_cursor,
+            source: match &self.source {
+                Source::StyleKey(key) => Some(key.clone()),
+                _ => None,
+            },
+            is_protected_range_start: self.is_protected_range_start,
+        }
+    }
+
+    /// Convert this `HighlightSpan` into `CellUpdate`s by processing it through multiple boundaries.
+    ///
+    /// Returns a tuple of `(Vec<CellUpdate>, Vec<HighlightSpan>)` where:
+    /// - First element: All `CellUpdate`s generated from portions of this span that intersected with any boundary
+    /// - Second element: Remaining `HighlightSpan`s that didn't intersect with any boundary
+    ///
+    /// The span is progressively processed through each boundary, with intersecting portions converted
+    /// to `CellUpdate`s and non-intersecting portions carried forward to the next boundary.
+    /// Any portions that don't intersect with any boundary are returned as remaining spans.
+    ///
+    /// This design minimizes expensive `buffer.xxx_to_position` calls by only converting portions
+    /// that actually fall within the given boundaries, and avoids expensive range conversions by
+    /// using each boundary's native range type.
     fn into_cell_updates(
         self,
         buffer: &Buffer,
         theme: &Theme,
         boundaries: &[Boundary],
-    ) -> Either<Self, Vec<CellUpdate>> {
-        let result = boundaries
-            .iter()
-            .filter_map(|boundary| {
-                let char_index_range: CharIndexRange = match &self.range {
-                    HighlightSpanRange::CharIndexRange(range) => {
-                        range_intersection(&(range.start..range.end), &boundary.char_index_range)?
-                            .into()
-                    }
-                    HighlightSpanRange::ByteRange(range) => buffer
-                        .byte_range_to_char_index_range(&range_intersection(
-                            range,
-                            &boundary.byte_range,
-                        )?)
-                        .ok()?,
-                    HighlightSpanRange::CharIndex(char_index) => range_intersection(
-                        &(*char_index..(*char_index + 1)),
-                        &boundary.char_index_range,
-                    )?
-                    .into(),
-                    HighlightSpanRange::Line(line) => buffer
-                        .line_range_to_char_index_range(range_intersection(
-                            &(*line..line + 1),
-                            &boundary.line_range,
-                        )?)
-                        .ok()?,
-                };
-                Some(
-                    char_index_range
-                        .iter()
-                        .flat_map(|char_index| {
-                            let position = buffer.char_to_position(char_index).ok()?;
-                            Some(CellUpdate {
-                                position,
-                                symbol: self.set_symbol,
-                                style: match &self.source {
-                                    Source::StyleKey(key) => theme.get_style(key),
-                                    Source::Style(style) => *style,
-                                },
-                                is_cursor: self.is_cursor,
-                                source: match &self.source {
-                                    Source::StyleKey(key) => Some(key.clone()),
-                                    _ => None,
-                                },
-                                is_protected_range_start: self.is_protected_range_start,
-                            })
-                        })
-                        .collect_vec(),
+    ) -> (Vec<CellUpdate>, Vec<HighlightSpan>) {
+        boundaries.iter().fold(
+            (Vec::new(), vec![self]),
+            |(mut all_cell_updates, spans), boundary| {
+                let (new_cell_updates, remaining_spans): (Vec<_>, Vec<_>) = spans
+                    .into_iter()
+                    .map(|span| span.process_boundary(buffer, theme, boundary))
+                    .unzip();
+
+                all_cell_updates.extend(new_cell_updates.into_iter().flatten());
+                (
+                    all_cell_updates,
+                    remaining_spans.into_iter().flatten().collect(),
                 )
-            })
-            .flatten()
-            .collect_vec();
-        if result.is_empty() {
-            Either::Left(self)
-        } else {
-            Either::Right(result)
-        }
+            },
+        )
     }
 }
 
@@ -972,6 +1100,7 @@ pub(crate) enum HighlightSpanRange {
     Line(usize),
 }
 
+#[derive(Debug)]
 struct Boundary {
     byte_range: Range<usize>,
     char_index_range: Range<CharIndex>,
