@@ -39,6 +39,7 @@
           git
           nodejs
           typeshare
+          tsx
         ];
 
         # Development-specific tools (only needed in devShell)
