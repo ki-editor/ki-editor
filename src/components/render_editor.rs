@@ -1,6 +1,6 @@
-use std::ops::Range;
+use std::ops::{Not, Range};
 
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 use lazy_regex::Lazy;
 use lsp_types::DiagnosticSeverity;
 
@@ -294,7 +294,7 @@ impl Editor {
         let visible_line_range =
             self.visible_line_range_given_scroll_offset_and_height(scroll_offset, height);
         let primary_cursor_char_index = primary_selection.to_char_index(&self.cursor_direction);
-        let (hidden_parent_lines_grid, highlight_spans) = {
+        let (hidden_parent_lines_grid, remaining_highlight_spans) = {
             let highlight_spans = self.get_highlight_spans(
                 context,
                 &visible_line_range,
@@ -361,10 +361,12 @@ impl Editor {
             (grid, remaining_highlight_spans)
         };
 
+        debug_assert!(remaining_highlight_spans.is_empty().not());
+
         let grid = {
             let visible_lines_updates = {
                 let boundaries = [Boundary::new(&buffer, visible_line_range)];
-                highlight_spans
+                remaining_highlight_spans
                     .into_iter()
                     .flat_map(|span| span.into_cell_updates(&buffer, theme, &boundaries).0)
                     // Insert the primary cursor cell update by force.
@@ -951,16 +953,15 @@ impl HighlightSpan {
                 ];
 
                 // For single line, if there's intersection, convert the whole line
-                (HighlightSpanRange::Line(*line), [None, None])
+                (HighlightSpanRange::Line(*line), remaining)
             }
 
             HighlightSpanRange::CharIndex(char_index) => {
                 let char_range = *char_index..CharIndex(char_index.0 + 1);
-                let intersection = match range_intersection(&char_range, &boundary.char_index_range)
-                {
-                    Some(_) => char_range,
-                    None => return (Vec::new(), vec![self]),
-                };
+
+                if range_intersection(&char_range, &boundary.char_index_range).is_none() {
+                    return (Vec::new(), vec![self]);
+                }
 
                 // Single char index - either fully contained or not
                 (HighlightSpanRange::CharIndex(*char_index), [None, None])
@@ -1059,15 +1060,17 @@ impl HighlightSpan {
     ) -> (Vec<CellUpdate>, Vec<HighlightSpan>) {
         boundaries.iter().fold(
             (Vec::new(), vec![self]),
-            |(mut all_cell_updates, spans), boundary| {
+            |(all_cell_updates, spans), boundary| {
                 let (new_cell_updates, remaining_spans): (Vec<_>, Vec<_>) = spans
                     .into_iter()
                     .map(|span| span.process_boundary(buffer, theme, boundary))
                     .unzip();
 
-                all_cell_updates.extend(new_cell_updates.into_iter().flatten());
                 (
-                    all_cell_updates,
+                    all_cell_updates
+                        .into_iter()
+                        .chain(new_cell_updates.into_iter().flatten())
+                        .collect_vec(),
                     remaining_spans.into_iter().flatten().collect(),
                 )
             },
