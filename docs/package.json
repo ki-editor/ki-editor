@@ -32,6 +32,7 @@
     "react-xtermjs": "^1.0.9",
     "tsx": "^4.20.5",
     "unist-util-visit": "^5.0.0",
+    "vitest": "^3.2.4",
     "zod": "^3.23.8"
   },
   "devDependencies": {

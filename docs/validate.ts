@@ -1,15 +1,6 @@
 const glob = require('glob');
 const path = require('path');
 
-const staticResourcesFilePaths = glob.sync('static/**/*.json');
-const staticResourcesFileNames = staticResourcesFilePaths.map(filePath =>
-    path.basename(filePath, path.extname(filePath))
-);
-// console.log(staticResourcesFileNames);
-
-const mdxFilePaths = glob.sync('docs/**/*.{md,mdx}');
-// console.log(mdxFilePaths);
-
 const { fromMarkdown } = require('mdast-util-from-markdown');
 const { mdxFromMarkdown } = require('mdast-util-mdx');
 const { mdx } = require('micromark-extension-mdx');
@@ -35,28 +26,47 @@ function extractArgumentFileNames(mdxContent) {
       
       if (fileNameAttr && fileNameAttr.value) {
         argFileNames.push(fileNameAttr.value);
-      } else {
-        console.log('Warning: Did not extract fileNameAttr from TutorialFall');
       }
     }
   });
   return argFileNames;
 }
 
-const fs = require('fs'); 
+// Export for testing
+module.exports = {
+  extractArgumentFileNames,
+  validateStaticResources
+};
 
-mdxFilePaths.map(testFilePath => {
-  const testFileContent = fs.readFileSync(testFilePath, 'utf8');
-  // console.log(testFileContent);
-  const testArgFileNamesOutput = extractArgumentFileNames(testFileContent);
-  // console.log(testArgFileNamesOutput)
+const fs = require('fs');
 
-  testArgFileNamesOutput.map(argFileName => {
-    let isValidStaticResourceName = staticResourcesFileNames.includes(argFileName);
-    if (!isValidStaticResourceName) {
-      throw new Error(`<TutorialFallback filename="${argFileName}" /> in file ${testFilePath}:\n\tStatic Resource named "${argFileName}" not found`);
-    }
+function validateStaticResources() {  
+  const staticResourcesFilePaths = glob.sync('static/**/*.json');
+  const staticResourcesFileNames = staticResourcesFilePaths.map(filePath =>
+      path.basename(filePath, path.extname(filePath))
+  );
+  // console.log(staticResourcesFileNames);
+  
+  const mdxFilePaths = glob.sync('docs/**/*.{md,mdx}');
+  // console.log(mdxFilePaths);
+  
+  mdxFilePaths.map(testFilePath => {
+    const testFileContent = fs.readFileSync(testFilePath, 'utf8');
+    // console.log(testFileContent);
+    const testArgFileNamesOutput = extractArgumentFileNames(testFileContent);
+    // console.log(testArgFileNamesOutput)
+  
+    testArgFileNamesOutput.map(argFileName => {
+      let isValidStaticResourceName = staticResourcesFileNames.includes(argFileName);
+      if (!isValidStaticResourceName) {
+        throw new Error(`<TutorialFallback filename="${argFileName}" /> in file ${testFilePath}:\n\tStatic Resource named "${argFileName}" not found`);
+      }
+    });
   });
-});
+  
+  console.log("All Static Resource access in <TutorialFallback filename=\"...\" /> were Valid");
+}
 
-console.log("All Static Resource access in <TutorialFallback filename=\"...\" /> were Valid");
+if (require.main === module) {
+  validateStaticResources();
+}

@@ -40,6 +40,7 @@
           nodejs
           typeshare
           tsx
+          vitest
         ];
 
         # Development-specific tools (only needed in devShell)

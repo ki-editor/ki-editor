@@ -12,6 +12,7 @@ typecheck: install
 
 check:
     tsx validate.ts
+    npx vitest run
 
 build: typecheck check
     npm run build
