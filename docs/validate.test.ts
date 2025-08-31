@@ -1,6 +1,6 @@
 import { extractArgumentFileNames } from './validate';
 
-import { assert, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 describe('Validate Static Resource Access', () => {
   it('empty mdx', () => {
@@ -146,5 +146,5 @@ Delete primary cursor backward/forward.
       "keep-primary-cursor-only",
       "delete-cursor",
     ]);
-  })
-})
+  });
+});

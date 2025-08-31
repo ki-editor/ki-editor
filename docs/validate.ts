@@ -3,7 +3,7 @@ const { mdxFromMarkdown } = require('mdast-util-mdx');
 const { mdx } = require('micromark-extension-mdx');
 const { visit } = require('unist-util-visit');
 
-function extractArgumentFileNames(mdxContent) {
+export function extractArgumentFileNames(mdxContent) {
   const tree = fromMarkdown(mdxContent, {
       extensions: [mdx()],
       mdastExtensions: [mdxFromMarkdown()]
@@ -32,15 +32,15 @@ function validateResourceAccess(mdxContent: String, validFilenames: Array<String
   const validResources = argFilenames.map(argFileName =>
     validFilenames.includes(argFileName)
   );
-  
+
   let hasInvalidResource = false;
   validResources.forEach((isValid, index) => {
     if (!isValid) {
-      console.log(`Non-existent static resource: "${argFilenames[index]}"`);
+      console.log(`\tERROR: NON-EXISTENT STATIC RESOURCE:\t "${argFilenames[index]}"`);
       hasInvalidResource = true;
     }
   });
-  
+
   return !hasInvalidResource;
 }
 
@@ -60,11 +60,15 @@ if (require.main === module) {
       path.basename(filePath, path.extname(filePath))
   );
   const mdxFilePaths = glob.sync('docs/**/*.{md,mdx}');
-  let passedAll = mdxFilePaths
+  let validAccesses = mdxFilePaths
     .map(testFilePath => fs.readFileSync(testFilePath, 'utf8'))
-    .map(mdxContent => validateResourceAccess(mdxContent, validResourceFilenames))
-    .every(Boolean);
+    .map(mdxContent => validateResourceAccess(mdxContent, validResourceFilenames));
 
-  if (!passedAll) { console.log("Failed Some Tests") }
-  else { console.log("Passed All Tests") }
+  validAccesses.forEach((validAccess, index) => { 
+    if (!validAccess) {
+      throw new Error(`Invalid static resource access in ${mdxFilePaths[index]}`)
+    }
+  });
+
+  if (validAccesses.every(Boolean)) { console.log("Passed All Tests") }
 }
