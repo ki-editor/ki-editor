@@ -1,6 +1,3 @@
-const glob = require('glob');
-const path = require('path');
-
 const { fromMarkdown } = require('mdast-util-from-markdown');
 const { mdxFromMarkdown } = require('mdast-util-mdx');
 const { mdx } = require('micromark-extension-mdx');
@@ -11,9 +8,8 @@ function extractArgumentFileNames(mdxContent) {
       extensions: [mdx()],
       mdastExtensions: [mdxFromMarkdown()]
   });
-    
+
   const argFileNames = [];
-  // Traverse the ast
   visit(tree, (node) => {
     const nodeType = node.type;
     const isFlowElement = nodeType === 'mdxJsxFlowElement';
@@ -23,7 +19,6 @@ function extractArgumentFileNames(mdxContent) {
       const fileNameAttr = node.attributes?.find(
         attr => attr.type === 'mdxJsxAttribute' && attr.name === 'filename'
       );
-      
       if (fileNameAttr && fileNameAttr.value) {
         argFileNames.push(fileNameAttr.value);
       }
@@ -32,41 +27,38 @@ function extractArgumentFileNames(mdxContent) {
   return argFileNames;
 }
 
-// Export for testing
-module.exports = {
-  extractArgumentFileNames,
-  validateStaticResources
-};
-
-const fs = require('fs');
-
-function validateStaticResources() {  
-  const staticResourcesFilePaths = glob.sync('static/**/*.json');
-  const staticResourcesFileNames = staticResourcesFilePaths.map(filePath =>
-      path.basename(filePath, path.extname(filePath))
+function validateResourceAccess(mdxContent: String, validFilenames: Array<String>) {
+  const argFilenames = extractArgumentFileNames(mdxContent);
+  const validResources = argFilenames.map(argFileName =>
+    validFilenames.includes(argFileName)
   );
-  // console.log(staticResourcesFileNames);
-  
-  const mdxFilePaths = glob.sync('docs/**/*.{md,mdx}');
-  // console.log(mdxFilePaths);
-  
-  mdxFilePaths.map(testFilePath => {
-    const testFileContent = fs.readFileSync(testFilePath, 'utf8');
-    // console.log(testFileContent);
-    const testArgFileNamesOutput = extractArgumentFileNames(testFileContent);
-    // console.log(testArgFileNamesOutput)
-  
-    testArgFileNamesOutput.map(argFileName => {
-      let isValidStaticResourceName = staticResourcesFileNames.includes(argFileName);
-      if (!isValidStaticResourceName) {
-        throw new Error(`<TutorialFallback filename="${argFileName}" /> in file ${testFilePath}:\n\tStatic Resource named "${argFileName}" not found`);
-      }
-    });
-  });
-  
-  console.log("All Static Resource access in <TutorialFallback filename=\"...\" /> were Valid");
+  for (const [index, isValid] of validResources.entries()) {
+    if (!isValid) {
+      console.log(`Non-existent static resource: "${argFilenames[index]}"`);
+      return false;
+    }
+  }
+  return true;
 }
 
+
+module.exports = {
+  extractArgumentFileNames,
+  validateResourceAccess,
+};
+
 if (require.main === module) {
-  validateStaticResources();
+  const glob = require('glob');
+  const path = require('path');
+  const fs = require('fs');
+
+  const staticResources = glob.sync('static/**/*.json');
+  const validResourceFilenames = staticResources.map(filePath =>
+      path.basename(filePath, path.extname(filePath))
+  );
+  const mdxFilePaths = glob.sync('docs/**/*.{md,mdx}');
+  mdxFilePaths.map(testFilePath => {
+    const testFileContent = fs.readFileSync(testFilePath, 'utf8');
+    validateResourceAccess(testFileContent, validResourceFilenames);
+  });
 }
