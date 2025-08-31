@@ -32,13 +32,16 @@ function validateResourceAccess(mdxContent: String, validFilenames: Array<String
   const validResources = argFilenames.map(argFileName =>
     validFilenames.includes(argFileName)
   );
-  for (const [index, isValid] of validResources.entries()) {
+  
+  let hasInvalidResource = false;
+  validResources.forEach((isValid, index) => {
     if (!isValid) {
       console.log(`Non-existent static resource: "${argFilenames[index]}"`);
-      return false;
+      hasInvalidResource = true;
     }
-  }
-  return true;
+  });
+  
+  return !hasInvalidResource;
 }
 
 
@@ -57,8 +60,11 @@ if (require.main === module) {
       path.basename(filePath, path.extname(filePath))
   );
   const mdxFilePaths = glob.sync('docs/**/*.{md,mdx}');
-  mdxFilePaths.map(testFilePath => {
-    const testFileContent = fs.readFileSync(testFilePath, 'utf8');
-    validateResourceAccess(testFileContent, validResourceFilenames);
-  });
+  let passedAll = mdxFilePaths
+    .map(testFilePath => fs.readFileSync(testFilePath, 'utf8'))
+    .map(mdxContent => validateResourceAccess(mdxContent, validResourceFilenames))
+    .every(Boolean);
+
+  if (!passedAll) { console.log("Failed Some Tests") }
+  else { console.log("Passed All Tests") }
 }
