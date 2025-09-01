@@ -4687,3 +4687,55 @@ fn anchor_should_maintain_selection_mode() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+/// When primary selection anchors overlap with hidden parent lines,
+/// the primary selection anchors should not be missing.
+fn primary_selection_anchor_overlap_with_hidden_parent_line() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(TerminalDimensionChanged(crate::app::Dimension {
+                height: 5,
+                // Set width longer than content so that there's no wrapping
+                width: 20,
+            })),
+            Editor(SetContent(
+                "
+fn main() {
+  first();
+  second();
+  t();
+}
+"
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::SyntaxNode,
+            )),
+            Editor(SwapCursor),
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+2│fn main() {
+5│  t();
+6│█"
+                .to_string(),
+            )),
+            Expect(GridCellsStyleKey(
+                [
+                    Position::new(2, 4),
+                    Position::new(2, 5),
+                    Position::new(2, 6),
+                    Position::new(2, 7),
+                ]
+                .to_vec(),
+                Some(StyleKey::UiPrimarySelectionAnchors),
+            )),
+        ])
+    })
+}
