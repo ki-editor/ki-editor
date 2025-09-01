@@ -40,7 +40,7 @@
     "rxjs": "^7.8.2",
     "tsx": "^4.20.5",
     "typescript": "~5.5.2",
-    "unist-util-visit": "^5.0.0"
+    "vitest": "^3.2.4"
   },
   "browserslist": {
     "production": [
