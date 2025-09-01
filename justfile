@@ -77,12 +77,6 @@ watch-test testname:
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo clippy --workspace --tests
 	
-generate-recipes:
-	just test "generate_recipes"
-	
-watch-generate-recipes:
-	just watch-test "generate_recipes"
-
 vscode-build: build
     cd ki-vscode && npm install
 
