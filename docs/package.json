@@ -32,8 +32,14 @@
     "@docusaurus/module-type-aliases": "3.5.2",
     "@docusaurus/tsconfig": "3.5.2",
     "@docusaurus/types": "3.5.2",
+    "mdast": "^3.0.0",
+    "mdast-util-from-markdown": "^2.0.2",
+    "mdast-util-mdx": "^3.0.0",
+    "micromark-extension-mdx": "^2.1.0",
+    "path": "^0.12.7",
     "raw-loader": "^4.0.2",
-    "typescript": "~5.5.2"
+    "typescript": "~5.5.2",
+    "vitest": "^3.2.4"
   },
   "browserslist": {
     "production": [
