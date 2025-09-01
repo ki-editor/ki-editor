@@ -69,6 +69,7 @@ const config: Config = {
       logo: {
         alt: "Ki Logo",
         src: "img/logo.svg",
+        srcDark: "img/logo-white.svg",
       },
       items: [
         {
