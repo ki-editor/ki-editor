@@ -1,38 +1,42 @@
-const { fromMarkdown } = require('mdast-util-from-markdown');
-const { mdxFromMarkdown } = require('mdast-util-mdx');
-const { mdx } = require('micromark-extension-mdx');
-// const { visit } = require('unist-util-visit');
+import { fromMarkdown, Value } from 'mdast-util-from-markdown';
+import { mdxFromMarkdown } from 'mdast-util-mdx';
+import { mdx } from 'micromark-extension-mdx';
+import { Node, Parent } from 'mdast';
+import { MdxJsxAttribute, MdxJsxFlowElement, MdxJsxTextElement } from 'mdast-util-mdx';
+
+// A type guard to check if a node has children
+function isParent(node: Node | Parent): node is Parent {
+  return 'children' in node;
+}
 
 // Pure function to return an array of all nodes in the tree
-function flattenTree(node) {
+function flattenTree(node: Node | Parent): (Node | Parent)[] {
   const nodes = [node];
-  if (node.children) {
-    return nodes.concat(
-      node.children.flatMap(child => flattenTree(child))
-    );
+  if (isParent(node)) {
+    return nodes.concat(node.children.flatMap(flattenTree));
   }
   return nodes;
 }
 
 // Pure predicate function to check if node is a TutorialFallback element
-function isTutorialFallbackNode(node) {
-  const nodeType = node.type;
-  const isFlowElement = nodeType === 'mdxJsxFlowElement';
-  const isJsxTextElement = nodeType === 'mdxJsxTextElement';
-  const isNameTutorialFallback = node.name === 'TutorialFallback';
+function isTutorialFallbackNode(node: Node): node is MdxJsxFlowElement | MdxJsxTextElement {
+  const isFlowElement = node.type === 'mdxJsxFlowElement';
+  const isJsxTextElement = node.type === 'mdxJsxTextElement';
+  const isNameTutorialFallback = 'name' in node && node.name === 'TutorialFallback';
   
   return (isFlowElement || isJsxTextElement) && isNameTutorialFallback;
 }
 
 // Pure function to extract filename from node attributes
-function extractFilename(node) {
+function extractFilename(node: MdxJsxFlowElement | MdxJsxTextElement): string | null {
   const fileNameAttr = node.attributes?.find(
     attr => attr.type === 'mdxJsxAttribute' && attr.name === 'filename'
-  );
+  ) as MdxJsxAttribute | undefined;
   
-  return fileNameAttr?.value || null;
+  return (fileNameAttr?.value as string) || null;
 }
-export function extractArgumentFileNames(mdxContent) {
+
+export function extractArgumentFileNames(mdxContent: Value): (string | null)[] {
   const tree = fromMarkdown(mdxContent, {
     extensions: [mdx()],
     mdastExtensions: [mdxFromMarkdown()]
@@ -40,24 +44,22 @@ export function extractArgumentFileNames(mdxContent) {
 
   return flattenTree(tree)
     .filter(isTutorialFallbackNode)
-    .map(extractFilename)
+    .map(extractFilename);
 }
 
-function validateResourceAccess(mdxContent: String, validFilenames: Array<String>) {
+function validateResourceAccess(mdxContent: Value, validFilenames: string[]): boolean {
   const argFilenames = extractArgumentFileNames(mdxContent);
   const validResources = argFilenames.map(argFileName =>
-    validFilenames.includes(argFileName)
+    validFilenames.includes(argFileName as string)
   );
 
-  let hasInvalidResource = false;
   validResources.forEach((isValid, index) => {
     if (!isValid) {
       console.log(`\tERROR: NON-EXISTENT STATIC RESOURCE:\t "${argFilenames[index]}"`);
-      hasInvalidResource = true;
     }
   });
 
-  return !hasInvalidResource;
+  return validResources.every(isValid => isValid);
 }
 
 
@@ -72,15 +74,15 @@ if (require.main === module) {
   const fs = require('fs');
 
   const staticResources = glob.sync('static/**/*.json');
-  const validResourceFilenames = staticResources.map(filePath =>
+  const validResourceFilenames = staticResources.map((filePath: string) =>
       path.basename(filePath, path.extname(filePath))
   );
   const mdxFilePaths = glob.sync('docs/**/*.{md,mdx}');
   let validAccesses = mdxFilePaths
-    .map(testFilePath => fs.readFileSync(testFilePath, 'utf8'))
-    .map(mdxContent => validateResourceAccess(mdxContent, validResourceFilenames));
+    .map((testFilePath: string) => fs.readFileSync(testFilePath, 'utf8'))
+    .map((mdxContent: Value) => validateResourceAccess(mdxContent, validResourceFilenames));
 
-  validAccesses.forEach((validAccess, index) => { 
+  validAccesses.forEach((validAccess: boolean, index: number) => { 
     if (!validAccess) {
       throw new Error(`Invalid static resource access in ${mdxFilePaths[index]}`)
     }
