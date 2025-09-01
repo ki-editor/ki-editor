@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import Heading from "@theme/Heading";
+import { useColorMode } from '@docusaurus/theme-common';
 import styles from "./styles.module.css";
 
 type FeatureItem = {
@@ -42,10 +43,18 @@ const FeatureList: FeatureItem[] = [
 ];
 
 function Feature({ title, Svg, description }: FeatureItem) {
+  const { colorMode } = useColorMode();
+
   return (
     <div className={clsx("col col--4")}>
       <div className="text--center">
-        <Svg className={styles.featureSvg} role="img" />
+        <Svg
+          className={styles.featureSvg}
+          role="img"
+          style = {{
+            fill: colorMode === 'dark' ? 'white' : 'black'
+          }}
+        />
       </div>
       <div className="text--center padding-horiz--md">
         <Heading as="h3">{title}</Heading>
