@@ -1,30 +1,46 @@
 const { fromMarkdown } = require('mdast-util-from-markdown');
 const { mdxFromMarkdown } = require('mdast-util-mdx');
 const { mdx } = require('micromark-extension-mdx');
-const { visit } = require('unist-util-visit');
+// const { visit } = require('unist-util-visit');
 
+// Pure function to return an array of all nodes in the tree
+function flattenTree(node) {
+  const nodes = [node];
+  if (node.children) {
+    return nodes.concat(
+      node.children.flatMap(child => flattenTree(child))
+    );
+  }
+  return nodes;
+}
+
+// Pure predicate function to check if node is a TutorialFallback element
+function isTutorialFallbackNode(node) {
+  const nodeType = node.type;
+  const isFlowElement = nodeType === 'mdxJsxFlowElement';
+  const isJsxTextElement = nodeType === 'mdxJsxTextElement';
+  const isNameTutorialFallback = node.name === 'TutorialFallback';
+  
+  return (isFlowElement || isJsxTextElement) && isNameTutorialFallback;
+}
+
+// Pure function to extract filename from node attributes
+function extractFilename(node) {
+  const fileNameAttr = node.attributes?.find(
+    attr => attr.type === 'mdxJsxAttribute' && attr.name === 'filename'
+  );
+  
+  return fileNameAttr?.value || null;
+}
 export function extractArgumentFileNames(mdxContent) {
   const tree = fromMarkdown(mdxContent, {
-      extensions: [mdx()],
-      mdastExtensions: [mdxFromMarkdown()]
+    extensions: [mdx()],
+    mdastExtensions: [mdxFromMarkdown()]
   });
 
-  const argFileNames = [];
-  visit(tree, (node) => {
-    const nodeType = node.type;
-    const isFlowElement = nodeType === 'mdxJsxFlowElement';
-    const isJsxTextElement = nodeType === 'mdxJsxTextElement'
-    const isNameTutorialFallback = node.name === 'TutorialFallback';
-    if ((isFlowElement || isJsxTextElement) && (isNameTutorialFallback)) {
-      const fileNameAttr = node.attributes?.find(
-        attr => attr.type === 'mdxJsxAttribute' && attr.name === 'filename'
-      );
-      if (fileNameAttr && fileNameAttr.value) {
-        argFileNames.push(fileNameAttr.value);
-      }
-    }
-  });
-  return argFileNames;
+  return flattenTree(tree)
+    .filter(isTutorialFallbackNode)
+    .map(extractFilename)
 }
 
 function validateResourceAccess(mdxContent: String, validFilenames: Array<String>) {
@@ -70,5 +86,5 @@ if (require.main === module) {
     }
   });
 
-  if (validAccesses.every(Boolean)) { console.log("Passed All Tests") }
+  if (validAccesses.every(Boolean)) { console.log("\t ALL STATIC RESOURCE ACCESSES in md/mdx WERE VALID!") }
 }
