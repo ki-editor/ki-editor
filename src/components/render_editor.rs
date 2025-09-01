@@ -945,10 +945,10 @@ impl HighlightSpan {
 
                 let remaining = [
                     (line_range.start < intersection.start)
-                        .then(|| HighlightSpanRange::Line(line_range.start))
+                        .then_some(HighlightSpanRange::Line(line_range.start))
                         .filter(|_| intersection.start > line_range.start),
                     (intersection.end < line_range.end)
-                        .then(|| HighlightSpanRange::Line(intersection.end))
+                        .then_some(HighlightSpanRange::Line(intersection.end))
                         .filter(|_| intersection.end < line_range.end),
                 ];
 
@@ -970,9 +970,10 @@ impl HighlightSpan {
 
         // Generate cell updates for intersected portion
         let cell_updates = match &intersection_range {
-            HighlightSpanRange::CharIndexRange(range) => (range.start.0..range.end.0)
+            HighlightSpanRange::CharIndexRange(range) => range
+                .iter()
                 .filter_map(|char_index| {
-                    let position = buffer.char_to_position(CharIndex(char_index)).ok()?;
+                    let position = buffer.char_to_position(char_index).ok()?;
                     Some(self.create_cell_update(position, theme))
                 })
                 .collect(),
