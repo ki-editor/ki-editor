@@ -47,21 +47,11 @@ export function extractArgumentFileNames(mdxContent: Value): (string | null)[] {
     .map(extractFilename);
 }
 
-function validateResourceAccess(mdxContent: Value, validFilenames: string[]): boolean {
+function validateResourceAccess(mdxContent: Value, validFilenames: string[]): string[] {
   const argFilenames = extractArgumentFileNames(mdxContent);
-  const validResources = argFilenames.map(argFileName =>
-    validFilenames.includes(argFileName as string)
-  );
-
-  validResources.forEach((isValid, index) => {
-    if (!isValid) {
-      console.log(`\tERROR: NON-EXISTENT STATIC RESOURCE:\t "${argFilenames[index]}"`);
-    }
-  });
-
-  return validResources.every(isValid => isValid);
+  return argFilenames
+    .filter(argFilename => !validFilenames.includes(argFilename as string))
 }
-
 
 module.exports = {
   extractArgumentFileNames,
@@ -77,16 +67,32 @@ if (require.main === module) {
   const validResourceFilenames = staticResources.map((filePath: string) =>
       path.basename(filePath, path.extname(filePath))
   );
-  const mdxFilePaths = glob.sync('docs/**/*.{md,mdx}');
-  let validAccesses = mdxFilePaths
-    .map((testFilePath: string) => fs.readFileSync(testFilePath, 'utf8'))
-    .map((mdxContent: Value) => validateResourceAccess(mdxContent, validResourceFilenames));
 
-  validAccesses.forEach((validAccess: boolean, index: number) => { 
-    if (!validAccess) {
-      throw new Error(`Invalid static resource access in ${mdxFilePaths[index]}`)
-    }
+  const mdxFilePaths = glob.sync('docs/**/*.{md,mdx}');
+  
+  // Collect all validation outputs
+  const allErrors: Array<{ file: string; invalidResources: string[] }> = mdxFilePaths
+    .map(filePath => ({
+      file: filePath,
+      content: fs.readFileSync(filePath, 'utf8')
+    }))
+    .map(({ file, content }) => ({
+      file,
+      invalidResources: validateResourceAccess(content, validResourceFilenames)
+    }))
+    .filter(({ invalidResources }) => invalidResources.length > 0);
+
+  // Log all invalid accesses per file
+  allErrors.forEach(({ file, invalidResources }) => {
+    console.error(`Invalid static resource accesses in ${file}:`);
+    console.error(`\t[${invalidResources.join(', ')}]\n`);
   });
 
-  if (validAccesses.every(Boolean)) { console.log("\t ALL STATIC RESOURCE ACCESSES in md/mdx WERE VALID!") }
+  // Throw one Error for any and all invalid access file paths
+  if (allErrors.length > 0) {
+    const totalInvalidCount = allErrors.reduce((sum, { invalidResources }) => sum + invalidResources.length, 0);
+    throw new Error(`Found ${totalInvalidCount} invalid static resource access(es) across ${allErrors.length} file(s)`);
+  }
+
+  console.log("\tALL STATIC RESOURCE ACCESSES in md/mdx WERE VALID!");
 }
