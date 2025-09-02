@@ -1,35 +1,35 @@
 const makeQuote = (quote) => ($) =>
-  choice(
-    prec.left(seq(quote, quote)),
-    prec.left(seq(quote, $.expressions, quote))
-  );
+    choice(
+        prec.left(seq(quote, quote)),
+        prec.left(seq(quote, $.expressions, quote)),
+    );
 
 const makeEnclose = (open, close) => ($) =>
-  choice(seq(open, close), seq(open, $.expressions, close));
+    choice(seq(open, close), seq(open, $.expressions, close));
 
 module.exports = grammar({
-  name: "quickfix",
+    name: "quickfix",
 
-  extras: ($) => [/ /, "\n"], // Ignore whitespace
+    extras: ($) => [/ /, "\n"], // Ignore whitespace
 
-  rules: {
-    // The entry point of the grammar
-    source_file: ($) => repeat($.section),
+    rules: {
+        // The entry point of the grammar
+        source_file: ($) => repeat($.section),
 
-    // A section is a header followed by zero or more values
-    section: ($) => seq($.header, $.values),
+        // A section is a header followed by zero or more values
+        section: ($) => seq($.header, $.values),
 
-    // A header is a word enclosed in square brackets
-    header: ($) => seq("■┬", $.word),
+        // A header is a word enclosed in square brackets
+        header: ($) => seq("■┬", $.word),
 
-    values: ($) => seq(repeat($.value), $.lastValue),
+        values: ($) => seq(repeat($.value), $.lastValue),
 
-    // A value is a word followed by a newline
-    value: ($) => seq("├", $.word, "\n"),
+        // A value is a word followed by a newline
+        value: ($) => seq("├", $.word, "\n"),
 
-    lastValue: ($) => seq("└", $.word),
+        lastValue: ($) => seq("└", $.word),
 
-    // A word is a sequence of non-whitespace characters
-    word: ($) => /[^\n]+/,
-  },
+        // A word is a sequence of non-whitespace characters
+        word: ($) => /[^\n]+/,
+    },
 });

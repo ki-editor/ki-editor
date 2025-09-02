@@ -11,7 +11,10 @@
             "build",
             "node_modules",
             "dist",
-            "src/protocol/types.ts"
+            "src/protocol/types.ts",
+            "target",
+            "docs/static",
+            "docs/.docusaurus"
         ]
     },
     "formatter": {

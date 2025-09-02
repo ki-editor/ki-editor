@@ -1,120 +1,120 @@
 [
-  {
-    "type": "header",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "word",
-          "named": true
+    {
+        "type": "header",
+        "named": true,
+        "fields": {},
+        "children": {
+            "multiple": false,
+            "required": true,
+            "types": [
+                {
+                    "type": "word",
+                    "named": true
+                }
+            ]
         }
-      ]
-    }
-  },
-  {
-    "type": "lastValue",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "word",
-          "named": true
+    },
+    {
+        "type": "lastValue",
+        "named": true,
+        "fields": {},
+        "children": {
+            "multiple": false,
+            "required": true,
+            "types": [
+                {
+                    "type": "word",
+                    "named": true
+                }
+            ]
         }
-      ]
-    }
-  },
-  {
-    "type": "section",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "header",
-          "named": true
-        },
-        {
-          "type": "values",
-          "named": true
+    },
+    {
+        "type": "section",
+        "named": true,
+        "fields": {},
+        "children": {
+            "multiple": true,
+            "required": true,
+            "types": [
+                {
+                    "type": "header",
+                    "named": true
+                },
+                {
+                    "type": "values",
+                    "named": true
+                }
+            ]
         }
-      ]
-    }
-  },
-  {
-    "type": "source_file",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "section",
-          "named": true
+    },
+    {
+        "type": "source_file",
+        "named": true,
+        "fields": {},
+        "children": {
+            "multiple": true,
+            "required": false,
+            "types": [
+                {
+                    "type": "section",
+                    "named": true
+                }
+            ]
         }
-      ]
-    }
-  },
-  {
-    "type": "value",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "word",
-          "named": true
+    },
+    {
+        "type": "value",
+        "named": true,
+        "fields": {},
+        "children": {
+            "multiple": false,
+            "required": true,
+            "types": [
+                {
+                    "type": "word",
+                    "named": true
+                }
+            ]
         }
-      ]
-    }
-  },
-  {
-    "type": "values",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": true,
-      "types": [
-        {
-          "type": "lastValue",
-          "named": true
-        },
-        {
-          "type": "value",
-          "named": true
+    },
+    {
+        "type": "values",
+        "named": true,
+        "fields": {},
+        "children": {
+            "multiple": true,
+            "required": true,
+            "types": [
+                {
+                    "type": "lastValue",
+                    "named": true
+                },
+                {
+                    "type": "value",
+                    "named": true
+                }
+            ]
         }
-      ]
+    },
+    {
+        "type": "\n",
+        "named": false
+    },
+    {
+        "type": "word",
+        "named": true
+    },
+    {
+        "type": "└",
+        "named": false
+    },
+    {
+        "type": "├",
+        "named": false
+    },
+    {
+        "type": "■┬",
+        "named": false
     }
-  },
-  {
-    "type": "\n",
-    "named": false
-  },
-  {
-    "type": "word",
-    "named": true
-  },
-  {
-    "type": "└",
-    "named": false
-  },
-  {
-    "type": "├",
-    "named": false
-  },
-  {
-    "type": "■┬",
-    "named": false
-  }
 ]
