@@ -11,7 +11,10 @@
             "build",
             "node_modules",
             "dist",
-            "src/protocol/types.ts"
+            "src/protocol/types.ts",
+            "target",
+            "docs/static",
+            "docs/.docusaurus"
         ]
     },
     "formatter": {
@@ -32,7 +35,12 @@
             },
             "complexity": {
                 "noForEach": "off"
-            }
+            },
+            "a11y": {
+                "useButtonType": "off",
+                "useAltText": "off"
+            },
+            "suspicious": { "noArrayIndexKey": "off" }
         }
     },
     "javascript": {
