@@ -494,13 +494,13 @@ mod test_prompt {
                     },
                 }),
                 App(HandleKeyEvents(keys!("f o o _").to_vec())),
-                Expect(EditorInfoContent("foo_bar")),
+                Expect(EditorInfoContents(&["foo_bar"])),
                 App(HandleKeyEvents(keys!("alt+q z a m").to_vec())),
-                Expect(EditorInfoContent("zazam")),
+                Expect(EditorInfoContents(&["zazam"])),
                 App(HandleKeyEvents(keys!("alt+q q").to_vec())),
-                Expect(EditorInfoContent("boque")),
+                Expect(EditorInfoContents(&["boque"])),
                 App(HandleKeyEvents(keys!("esc esc").to_vec())),
-                Expect(EditorInfoContent("back to square one")),
+                Expect(EditorInfoContents(&["back to square one"])),
             ])
         })
     }

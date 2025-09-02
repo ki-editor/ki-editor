@@ -437,10 +437,8 @@ impl Layout {
                 "",
             )))
         });
-        let node_id =
-            self.tree
-                .replace_root_node_child(ComponentKind::QuickfixList, editor.clone(), false);
-
+        self.tree
+            .replace_root_node_child(ComponentKind::QuickfixList, editor.clone(), false);
         let dispatches = {
             let mut editor = editor.borrow_mut();
             editor.set_content(&render.content, context)?;
@@ -449,7 +447,12 @@ impl Layout {
             editor.select_line_at(render.highlight_line_index, context)?
         };
         if let Some(info) = render.info {
-            self.show_info_on(node_id, info, ComponentKind::QuickfixListInfo, context)?;
+            self.show_info_on(
+                self.tree.root_id(),
+                info,
+                ComponentKind::GlobalInfo,
+                context,
+            )?;
         }
         Ok(dispatches)
     }
@@ -479,22 +482,23 @@ impl Layout {
     }
 
     #[cfg(test)]
-    pub(crate) fn editor_info_open(&self) -> bool {
-        self.tree.count_by_kind(ComponentKind::EditorInfo) > 0
+    pub(crate) fn editor_info_contents(&self) -> Vec<String> {
+        self.tree
+            .root()
+            .traverse_pre_order()
+            .filter(|node| node.data().kind() == ComponentKind::EditorInfo)
+            .map(|node| node.data().component().borrow().content())
+            .collect()
     }
 
     #[cfg(test)]
-    pub(crate) fn editor_info_content(&self) -> Option<String> {
-        Some(
-            self.tree
-                .root()
-                .traverse_pre_order()
-                .find(|node| node.data().kind() == ComponentKind::EditorInfo)?
-                .data()
-                .component()
-                .borrow()
-                .content(),
-        )
+    pub(crate) fn global_info_contents(&self) -> Vec<String> {
+        self.tree
+            .root()
+            .traverse_pre_order()
+            .filter(|node| node.data().kind() == ComponentKind::GlobalInfo)
+            .map(|node| node.data().component().borrow().content())
+            .collect()
     }
 
     #[cfg(test)]
@@ -579,10 +583,10 @@ impl Layout {
     }
 
     #[cfg(test)]
-    pub(crate) fn quickfix_list_info(&self) -> Option<String> {
+    pub(crate) fn global_info(&self) -> Option<String> {
         Some(
             self.tree
-                .get_component_by_kind(ComponentKind::QuickfixListInfo)?
+                .get_component_by_kind(ComponentKind::GlobalInfo)?
                 .borrow()
                 .content(),
         )
@@ -597,6 +601,11 @@ impl Layout {
 
     pub(crate) fn hide_editor_info(&mut self) {
         self.tree.remove_current_child(ComponentKind::EditorInfo);
+    }
+
+    pub(crate) fn close_global_info(&mut self) {
+        self.tree
+            .remove_node_child(self.tree.root_id(), ComponentKind::GlobalInfo);
     }
 }
 fn layout_kind() -> (LayoutKind, f32) {

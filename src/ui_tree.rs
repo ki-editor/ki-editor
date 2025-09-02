@@ -326,9 +326,8 @@ impl std::fmt::Debug for KindedComponent {
 pub(crate) enum ComponentKind {
     SuggestiveEditor,
     FileExplorer,
-    GlobalInfo,
     QuickfixList,
-    QuickfixListInfo,
+    GlobalInfo,
     Prompt,
     Dropdown,
     DropdownInfo,

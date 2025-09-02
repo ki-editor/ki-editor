@@ -878,6 +878,7 @@ impl<T: Frontend> App<T> {
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
             Dispatch::CloseDropdown => self.layout.close_dropdown(),
             Dispatch::CloseEditorInfo => self.layout.close_editor_info(),
+            Dispatch::CloseGlobalInfo => self.layout.close_global_info(),
             Dispatch::RenderDropdown { render } => {
                 if let Some(dropdown) = self.layout.open_dropdown(&self.context) {
                     self.render_dropdown(dropdown, render)?;
@@ -929,6 +930,7 @@ impl<T: Frontend> App<T> {
             Dispatch::ToHostApp(to_host_app) => self.handle_to_host_app(to_host_app)?,
             Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
             Dispatch::OpenSurroundXmlPrompt => self.open_surround_xml_prompt()?,
+            Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
         }
         Ok(())
     }
@@ -2405,13 +2407,13 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn editor_info_open(&self) -> bool {
-        self.layout.editor_info_open()
+    pub(crate) fn editor_info_contents(&self) -> Vec<String> {
+        self.layout.editor_info_contents()
     }
 
     #[cfg(test)]
-    pub(crate) fn editor_info_content(&self) -> Option<String> {
-        self.layout.editor_info_content()
+    pub(crate) fn global_info_contents(&self) -> Vec<String> {
+        self.layout.global_info_contents()
     }
 
     fn reveal_path_in_explorer(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
@@ -2458,8 +2460,8 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn quickfix_list_info(&self) -> Option<String> {
-        self.layout.quickfix_list_info()
+    pub(crate) fn global_info(&self) -> Option<String> {
+        self.layout.global_info()
     }
 
     #[cfg(test)]
@@ -3074,6 +3076,7 @@ pub(crate) enum Dispatch {
     OtherWindow,
     CloseCurrentWindowAndFocusParent,
     CloseEditorInfo,
+    CloseGlobalInfo,
     CycleMarkedFile(Direction),
     PushPromptHistory {
         key: PromptHistoryKey,
@@ -3104,6 +3107,7 @@ pub(crate) enum Dispatch {
     ToHostApp(ToHostApp),
     FromHostApp(FromHostApp),
     OpenSurroundXmlPrompt,
+    ShowGlobalInfo(Info),
 }
 
 /// Used to send notify host app about changes

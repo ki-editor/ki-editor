@@ -96,8 +96,8 @@ impl Step {
 #[derive(Debug, Clone)]
 pub(crate) enum ExpectKind {
     FileExplorerContent(String),
-    EditorInfoContent(&'static str),
-    EditorInfoOpen(bool),
+    EditorInfoContents(&'static [&'static str]),
+    GlobalInfoContents(&'static [&'static str]),
     QuickfixListCurrentLine(&'static str),
     DropdownInfosCount(usize),
     QuickfixListContent(String),
@@ -139,7 +139,7 @@ pub(crate) enum ExpectKind {
     ComponentCount(usize),
     CurrentComponentPath(Option<CanonicalizedPath>),
     OpenedFilesCount(usize),
-    QuickfixListInfo(&'static str),
+    GlobalInfo(&'static str),
     ComponentsOrder(Vec<ComponentKind>),
     CurrentComponentTitle(String),
     CurrentSelectionMode(SelectionMode),
@@ -357,9 +357,17 @@ impl ExpectKind {
                         let actual = component.borrow().editor().current_line().unwrap();
                         contextualize(actual, expected.to_string())
                     }
-            EditorInfoOpen(expected) => contextualize(app.editor_info_open(), *expected),
-            EditorInfoContent(expected) => {
-                        contextualize(app.editor_info_content(), Some(expected.to_string()))
+            EditorInfoContents(expected) => {
+                        contextualize(
+                            app.editor_info_contents(),
+                            expected.iter().map(|s|s.to_string()).collect()
+                        )
+                    }
+            GlobalInfoContents(expected) => {
+                        contextualize(
+                            app.global_info_contents(),
+                            expected.iter().map(|s|s.to_string()).collect()
+                        )
                     }
             AppGridContains(substring) => {
                         let content = app.get_screen().unwrap().stringify();
@@ -415,8 +423,8 @@ impl ExpectKind {
                         contextualize(expected, &app.current_component().borrow().path())
                     }
             OpenedFilesCount(expected) => contextualize(expected, &app.opened_files_count()),
-            QuickfixListInfo(expected) => {
-                        contextualize(*expected, &app.quickfix_list_info().unwrap())
+            GlobalInfo(expected) => {
+                        contextualize(*expected, &app.global_info().unwrap())
                     }
             ComponentsOrder(expected) => contextualize(expected, &app.components_order()),
             CurrentComponentTitle(expected) => {
@@ -1713,7 +1721,7 @@ fn main() {
                 ),
             )),
             App(SetGlobalMode(Some(GlobalMode::QuickfixListItem))),
-            Expect(ExpectKind::QuickfixListInfo("This is fine")),
+            Expect(ExpectKind::GlobalInfo("This is fine")),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
@@ -1751,23 +1759,28 @@ fn diagnostic_info() -> Result<(), anyhow::Error> {
                     version: None,
                 }),
             )),
+            Expect(ComponentsOrder([ComponentKind::SuggestiveEditor].to_vec())),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
                 Diagnostic(DiagnosticSeverityRange::All),
             )),
-            Expect(EditorInfoOpen(true)),
-            Expect(EditorInfoContent("Hello world")),
+            Expect(ComponentsOrder(
+                [ComponentKind::SuggestiveEditor, ComponentKind::GlobalInfo].to_vec(),
+            )),
+            Expect(GlobalInfoContents(&["Hello world"])),
             App(HandleKeyEvent(key!("esc"))),
-            Expect(EditorInfoOpen(false)),
+            Expect(ComponentsOrder([ComponentKind::SuggestiveEditor].to_vec())),
             App(Dispatch::HandleLspNotification(
                 LspNotification::PublishDiagnostics(lsp_types::PublishDiagnosticsParams {
                     uri: Url::from_file_path(s.foo_rs()).unwrap(),
+                    // No diagnostic
                     diagnostics: Default::default(),
                     version: None,
                 }),
             )),
             Editor(MoveSelection(Right)),
-            Expect(EditorInfoOpen(false)),
+            // Expect no global info is shown, since there is no diagnostic
+            Expect(ComponentsOrder([ComponentKind::SuggestiveEditor].to_vec())),
         ])
     })
 }
@@ -1861,7 +1874,7 @@ fn same_range_diagnostics_should_be_merged() -> Result<(), anyhow::Error> {
                 info.to_string(),
             )
         };
-        let expected_info = "foo\n=======\nbar\n=======\nspam";
+        let expected_info = &["foo\n=======\nbar\n=======\nspam"];
         Box::new([
             App(OpenFile {
                 path: s.foo_rs(),
@@ -1880,13 +1893,13 @@ fn same_range_diagnostics_should_be_merged() -> Result<(), anyhow::Error> {
                 IfCurrentNotFound::LookForward,
                 Diagnostic(DiagnosticSeverityRange::All),
             )),
-            Expect(EditorInfoContent(expected_info)),
+            Expect(GlobalInfoContents(expected_info)),
             // Expect there's only one diagnostic, by the fact that moving to the first and
             // last diagnostic still renders the same info
             Editor(MoveSelection(First)),
-            Expect(EditorInfoContent(expected_info)),
+            Expect(GlobalInfoContents(expected_info)),
             Editor(MoveSelection(Last)),
-            Expect(EditorInfoContent(expected_info)),
+            Expect(GlobalInfoContents(expected_info)),
         ])
     })
 }

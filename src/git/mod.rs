@@ -227,7 +227,7 @@ impl DiffEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DiffMode {
     UnstagedAgainstMainBranch,
     UnstagedAgainstCurrentBranch,
