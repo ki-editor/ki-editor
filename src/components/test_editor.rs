@@ -13,6 +13,7 @@ use crate::selection::CharIndex;
 use crate::style::Style;
 use crate::test_app::*;
 
+use crate::ui_tree::ComponentKind;
 use crate::{
     components::editor::{Direction, Mode, ViewAlignment},
     grid::StyleKey,
@@ -4647,7 +4648,6 @@ fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> 
 }
 
 #[test]
-
 fn anchor_should_maintain_selection_mode() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -4735,6 +4735,40 @@ fn main() {
                 ]
                 .to_vec(),
                 Some(StyleKey::UiPrimarySelectionAnchors),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn global_git_hunk_and_local_git_hunk_should_not_cause_multiple_info_windows_to_be_shown(
+) -> anyhow::Result<()> {
+    execute_test(|s| {
+        let diff_mode = crate::git::DiffMode::UnstagedAgainstCurrentBranch;
+
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("new content".to_string())),
+            Editor(Save),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                GitHunk(diff_mode),
+            )),
+            Expect(ExpectKind::ComponentsOrder(
+                [ComponentKind::SuggestiveEditor, ComponentKind::GlobalInfo].to_vec(),
+            )),
+            App(GetRepoGitHunks(diff_mode)),
+            Expect(ExpectKind::ComponentsOrder(
+                [
+                    ComponentKind::SuggestiveEditor,
+                    ComponentKind::QuickfixList,
+                    ComponentKind::GlobalInfo,
+                ]
+                .to_vec(),
             )),
         ])
     })

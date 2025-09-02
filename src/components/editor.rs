@@ -758,7 +758,7 @@ impl Editor {
             .into_iter()
             .flatten()
             .reduce(Info::join)
-            .map(Dispatch::ShowEditorInfo);
+            .map(Dispatch::ShowGlobalInfo);
         self.cursor_direction = Direction::Start;
         if store_history {
             self.buffer_mut()
@@ -3276,7 +3276,7 @@ impl Editor {
         let info = node
             .map(|node| node.to_sexp())
             .unwrap_or("[No node found]".to_string());
-        Ok(Dispatches::one(Dispatch::ShowEditorInfo(Info::new(
+        Ok(Dispatches::one(Dispatch::ShowGlobalInfo(Info::new(
             "Tree-sitter node S-expression".to_string(),
             info,
         ))))
