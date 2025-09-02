@@ -1,8 +1,8 @@
-import { fromMarkdown, Value } from "mdast-util-from-markdown";
+import { fromMarkdown, type Value } from "mdast-util-from-markdown";
 import { mdxFromMarkdown } from "mdast-util-mdx";
 import { mdx } from "micromark-extension-mdx";
-import { Node, Parent } from "mdast";
-import {
+import type { Node, Parent } from "mdast";
+import type {
     MdxJsxAttribute,
     MdxJsxFlowElement,
     MdxJsxTextElement,
@@ -73,8 +73,8 @@ module.exports = {
 
 if (require.main === module) {
     const glob = require("glob");
-    const path = require("path");
-    const fs = require("fs");
+    const path = require("node:path");
+    const fs = require("node:fs");
 
     const staticResources = glob.sync("static/**/*.json");
     const validResourceFilenames = staticResources.map((filePath: string) =>

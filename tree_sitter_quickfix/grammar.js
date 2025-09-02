@@ -1,16 +1,7 @@
-const makeQuote = (quote) => ($) =>
-    choice(
-        prec.left(seq(quote, quote)),
-        prec.left(seq(quote, $.expressions, quote)),
-    );
-
-const makeEnclose = (open, close) => ($) =>
-    choice(seq(open, close), seq(open, $.expressions, close));
-
 module.exports = grammar({
     name: "quickfix",
 
-    extras: ($) => [/ /, "\n"], // Ignore whitespace
+    extras: (_$) => [/ /, "\n"], // Ignore whitespace
 
     rules: {
         // The entry point of the grammar
@@ -30,6 +21,6 @@ module.exports = grammar({
         lastValue: ($) => seq("└", $.word),
 
         // A word is a sequence of non-whitespace characters
-        word: ($) => /[^\n]+/,
+        word: (_$) => /[^\n]+/,
     },
 });

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import useBaseUrl from "@docusaurus/useBaseUrl";
 
-import { useXTerm, UseXTermProps } from "react-xtermjs";
+import { useXTerm, type UseXTermProps } from "react-xtermjs";
 import * as z from "zod";
 
 const recipeSchema = z.object({
@@ -21,22 +21,20 @@ const recipeSchema = z.object({
 
 type Recipe = z.infer<typeof recipeSchema>;
 
+async function loadRecipes(url: string) {
+    const response = await fetch(url);
+    const recipesData = await response.json();
+    return z.array(recipeSchema).parse(recipesData.recipes_output);
+}
 export const Tutorial = (props: { filename: string }) => {
     const [recipes, setRecipes] = useState<Recipe[]>([]);
     const [error, setError] = useState<Error | null>(null);
     const url = useBaseUrl(`/recipes/${props.filename}.json`);
-    async function loadRecipes(url: string) {
-        try {
-            const response = await fetch(url);
-            const recipesData = await response.json();
-            return z.array(recipeSchema).parse(recipesData.recipes_output);
-        } catch (error) {
-            setError(error);
-        }
-    }
     useEffect(() => {
-        loadRecipes(url).then((recipes) => setRecipes(recipes ?? []));
-    }, []);
+        loadRecipes(url)
+            .then((recipes) => setRecipes(recipes ?? []))
+            .catch((error) => setError(error));
+    }, [url]);
     return (
         <div style={{ display: "grid", gap: 64 }}>
             <link
@@ -61,7 +59,7 @@ const Recipe = (props: { recipe: Recipe }) => {
                 rows: props.recipe.terminal_height,
             },
         }),
-        [],
+        [props.recipe.terminal_width, props.recipe.terminal_height],
     );
 
     const { instance, ref } = useXTerm(xtermOptions);
@@ -69,7 +67,7 @@ const Recipe = (props: { recipe: Recipe }) => {
     useEffect(() => {
         const step = props.recipe.steps[stepIndex];
         instance?.write(step.term_output);
-    }, [ref, instance, stepIndex]);
+    }, [instance, stepIndex, props.recipe.steps[stepIndex]]);
     const buffer_contents_entries = Object.entries(
         props.recipe.steps[stepIndex].buffer_contents_map,
     ).sort((a, b) => a[0].localeCompare(b[0]));
@@ -131,8 +129,9 @@ const Recipe = (props: { recipe: Recipe }) => {
                     }}
                 >
                     {buffer_contents_entries.map(
-                        ([file_name, buffer_content]) => (
+                        ([file_name, buffer_content], index) => (
                             <button
+                                key={index}
                                 className="kbc-button"
                                 onClick={() => {
                                     navigator.clipboard.writeText(
@@ -193,6 +192,7 @@ const Recipe = (props: { recipe: Recipe }) => {
                 >
                     {props.recipe.steps.map((step, index) => (
                         <button
+                            key={index}
                             onClick={() => setStepIndex(index)}
                             className={[
                                 "kbc-button",

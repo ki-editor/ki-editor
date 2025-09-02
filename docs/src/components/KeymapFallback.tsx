@@ -1,4 +1,3 @@
-import React from "react";
 import BrowserOnly from "@docusaurus/BrowserOnly";
 
 export const KeymapFallback = (props: { filename: string }) => {

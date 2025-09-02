@@ -58,27 +58,25 @@ const STORAGE_KEYS = {
     PANEL_LAYOUT: "panel-layout",
 } as const;
 
+async function loadKeymap(url: string) {
+    const response = await fetch(url);
+    const json = await response.json();
+    console.log(json);
+    return keymapSchema.parse(json);
+}
+
 export const Keymap = (props: { filename: string }) => {
     const [keymap, setKeymap] = useState<Keymap | null>(null);
     const [error, setError] = useState<Error | null>(null);
     const url = useBaseUrl(`/keymaps/${props.filename}.json`);
 
-    async function loadKeymap(url: string) {
-        try {
-            const response = await fetch(url);
-            const json = await response.json();
-            console.log(json);
-            return keymapSchema.parse(json);
-        } catch (error) {
-            setError(error);
-        }
-    }
-
     useEffect(() => {
-        loadKeymap(url).then((keymap) => {
-            setKeymap(keymap);
-        });
-    }, []);
+        loadKeymap(url)
+            .then((keymap) => {
+                setKeymap(keymap);
+            })
+            .catch((error) => setError(error));
+    }, [url]);
 
     return (
         <div style={{ display: "grid", gap: 64 }}>
