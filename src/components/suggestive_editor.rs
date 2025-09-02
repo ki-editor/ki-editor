@@ -99,6 +99,7 @@ impl Component for SuggestiveEditor {
             .chain(match event {
                 key!("esc") => [
                     Dispatch::CloseDropdown,
+                    Dispatch::CloseGlobalInfo,
                     Dispatch::CloseEditorInfo,
                     Dispatch::ToEditor(EnterNormalMode),
                 ]
@@ -300,6 +301,7 @@ mod test_suggestive_editor {
     use crate::lsp::documentation::Documentation;
     use crate::position::Position;
     use crate::selection::SelectionMode;
+    use crate::ui_tree::ComponentKind;
     use crate::{
         app::Dispatch,
         buffer::{Buffer, BufferOwner},
@@ -857,10 +859,18 @@ mod test_suggestive_editor {
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
                 App(ShowEditorInfo(Info::default())),
-                Expect(EditorInfoOpen(true)),
+                App(ShowGlobalInfo(Info::default())),
+                Expect(ComponentsOrder(
+                    [
+                        ComponentKind::SuggestiveEditor,
+                        ComponentKind::GlobalInfo,
+                        ComponentKind::EditorInfo,
+                    ]
+                    .to_vec(),
+                )),
                 Expect(CurrentPath(s.main_rs())),
                 App(HandleKeyEvent(key!("esc"))),
-                Expect(EditorInfoOpen(false)),
+                Expect(ComponentsOrder([ComponentKind::SuggestiveEditor].to_vec())),
             ])
         })
     }
