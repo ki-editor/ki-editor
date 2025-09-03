@@ -3,7 +3,7 @@ use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::CopiedTexts;
 use crate::components::editor::{DispatchEditor::*, Movement::*, PriorChange};
-use crate::context::{Context, LocalSearchConfigMode, Search};
+use crate::context::{Context, GlobalMode, LocalSearchConfigMode, Search};
 use crate::grid::IndexedHighlightGroup;
 use crate::list::grep::RegexConfig;
 use crate::lsp::process::LspNotification;
@@ -4770,6 +4770,34 @@ fn global_git_hunk_and_local_git_hunk_should_not_cause_multiple_info_windows_to_
                 ]
                 .to_vec(),
             )),
+        ])
+    })
+}
+
+#[test]
+fn escaping_quicfix_list_mode_should_not_change_selection() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("memento mori".to_string())),
+            Editor(Save),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectionMode(Line)),
+            Expect(CurrentSelectedTexts(&["memento mori"])),
+            App(OpenSearchPrompt {
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("m o r i enter").to_vec())),
+            Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
+            Expect(CurrentSelectedTexts(&["mori"])),
+            App(HandleKeyEvents(keys!("esc").to_vec())),
+            Expect(CurrentGlobalMode(None)),
+            Expect(CurrentSelectedTexts(&["mori"])),
         ])
     })
 }
