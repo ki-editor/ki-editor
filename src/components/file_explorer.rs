@@ -423,6 +423,7 @@ mod test_file_explorer {
  - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
+   - 📘  hello.ts
    - 🦀  main.rs
 "
                     .trim_matches('\n')
