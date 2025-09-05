@@ -44,6 +44,8 @@ use crate::{
 use event::event::Event;
 use itertools::{Either, Itertools};
 use name_variant::NamedVariant;
+#[cfg(test)]
+use shared::language::LanguageId;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     any::TypeId,
@@ -1314,14 +1316,19 @@ impl<T: Frontend> App<T> {
             }
             LspNotification::Initialized(language) => {
                 // Need to notify LSP that the file is opened
-                self.lsp_manager.initialized(
-                    language,
-                    self.layout
-                        .buffers()
-                        .into_iter()
-                        .filter_map(|buffer| buffer.borrow().path())
-                        .collect_vec(),
-                );
+                let opened_documents = self
+                    .layout
+                    .buffers()
+                    .into_iter()
+                    .filter_map(|buffer| {
+                        if buffer.borrow().language()? == language {
+                            buffer.borrow().path()
+                        } else {
+                            None
+                        }
+                    })
+                    .collect_vec();
+                self.lsp_manager.initialized(language, opened_documents);
                 Ok(())
             }
             LspNotification::PublishDiagnostics(params) => {
@@ -2855,6 +2862,13 @@ impl<T: Frontend> App<T> {
             .handle_prior_change(prior_change);
         self.open_search_prompt(scope, if_current_not_found)?;
         Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn lsp_server_initialized_args(
+        &self,
+    ) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
+        self.lsp_manager.lsp_server_initialized_args()
     }
 }
 

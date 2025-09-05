@@ -17,6 +17,10 @@ pub(crate) struct LspManager {
     /// We use HashMap instead of Vec because we only one to store the latest
     /// requests of the same kind
     history: HashMap</* request name */ &'static str, FromEditor>,
+
+    #[cfg(test)]
+    /// Used for testing the correctness of initialization
+    lsp_server_initialized_args_history: Vec<(LanguageId, Vec<CanonicalizedPath>)>,
 }
 
 impl Drop for LspManager {
@@ -36,6 +40,8 @@ impl LspManager {
             current_working_directory,
             #[cfg(test)]
             history: Default::default(),
+            #[cfg(test)]
+            lsp_server_initialized_args_history: Default::default(),
         }
     }
 
@@ -110,6 +116,11 @@ impl LspManager {
         let Some(language_id) = language.id() else {
             return;
         };
+
+        #[cfg(test)]
+        self.lsp_server_initialized_args_history
+            .push((language_id, opened_documents.clone()));
+
         self.lsp_server_process_channels
             .get_mut(&language_id)
             .map(|channel| {
@@ -129,5 +140,12 @@ impl LspManager {
     #[cfg(test)]
     pub(crate) fn lsp_request_sent(&self, from_editor: &FromEditor) -> bool {
         self.history.get(from_editor.variant()) == Some(from_editor)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn lsp_server_initialized_args(
+        &self,
+    ) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
+        self.lsp_server_initialized_args_history.last().cloned()
     }
 }

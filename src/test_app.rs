@@ -18,7 +18,10 @@ pub(crate) use DispatchEditor::*;
 pub(crate) use Movement::*;
 pub(crate) use SelectionMode::*;
 
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::{
+    canonicalized_path::CanonicalizedPath,
+    language::{self, LanguageId},
+};
 
 #[cfg(test)]
 use crate::layout::BufferContentsMap;
@@ -145,6 +148,7 @@ pub(crate) enum ExpectKind {
     CurrentSelectionMode(SelectionMode),
     CurrentGlobalMode(Option<GlobalMode>),
     LspRequestSent(FromEditor),
+    LspServerInitializedArgs(Option<(LanguageId, Vec<CanonicalizedPath>)>),
     CurrentCopiedTextHistoryOffset(isize),
     CurrentReveal(Option<Reveal>),
     CountHighlightedCells(StyleKey, usize),
@@ -443,6 +447,7 @@ impl ExpectKind {
                         app.current_component().borrow().editor().selection_set.mode(),
                     ),
             LspRequestSent(from_editor) => contextualize(true, app.lsp_request_sent(from_editor)),
+            LspServerInitializedArgs(expected) => contextualize(expected, &app.lsp_server_initialized_args()),
             CurrentCopiedTextHistoryOffset(expected) => contextualize(
                         expected,
                         &app.current_component()
@@ -496,6 +501,7 @@ pub(crate) struct State {
     temp_dir: CanonicalizedPath,
     main_rs: CanonicalizedPath,
     foo_rs: CanonicalizedPath,
+    hello_ts: CanonicalizedPath,
     git_ignore: CanonicalizedPath,
 }
 impl State {
@@ -505,6 +511,10 @@ impl State {
 
     pub(crate) fn foo_rs(&self) -> CanonicalizedPath {
         self.foo_rs.clone()
+    }
+
+    pub(crate) fn hello_ts(&self) -> CanonicalizedPath {
+        self.hello_ts.clone()
     }
 
     pub(crate) fn new_path(&self, path: &str) -> PathBuf {
@@ -562,6 +572,7 @@ fn execute_test_helper(
             callback(State {
                 main_rs: temp_dir.join("src/main.rs").unwrap(),
                 foo_rs: temp_dir.join("src/foo.rs").unwrap(),
+                hello_ts: temp_dir.join("src/hello.ts").unwrap(),
                 git_ignore: temp_dir.join(".gitignore").unwrap(),
                 temp_dir,
             })
@@ -3004,6 +3015,33 @@ fn surround_with_empty_xml_tag() -> anyhow::Result<()> {
             App(HandleKeyEvents(keys!("enter").to_vec())),
             Expect(CurrentComponentContent("<>hello</>")),
             Expect(CurrentSelectedTexts(&["<>hello</>"])),
+        ])
+    })
+}
+
+#[test]
+fn lsp_initialization_should_only_send_relevant_opened_documents() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(OpenFile {
+                path: s.hello_ts(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(HandleLspNotification(LspNotification::Initialized(
+                language::from_extension("ts").unwrap(),
+            ))),
+            Expect(LspServerInitializedArgs(Some((
+                LanguageId::new("typescript"),
+                // Expect only hello.ts is sent to the Typescript LSP server
+                // although main.rs is opened before
+                [s.hello_ts()].to_vec(),
+            )))),
         ])
     })
 }
