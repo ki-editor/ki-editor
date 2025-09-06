@@ -98,6 +98,9 @@ impl Step {
 
 #[derive(Debug, Clone)]
 pub(crate) enum ExpectKind {
+    // This is just a placeholder for ending a test case without actual assertions.
+    // Such test cases are those that just expect the series of actions to not result in failure.
+    NoError,
     FileExplorerContent(String),
     EditorInfoContents(&'static [&'static str]),
     GlobalInfoContents(&'static [&'static str]),
@@ -181,316 +184,317 @@ impl ExpectKind {
         let component = app.current_component();
         Ok(match self {
             CurrentComponentContent(expected_content) => contextualize(
-                        app.get_current_component_content(),
-                        expected_content.to_string(),
-                    ),
+                                app.get_current_component_content(),
+                                expected_content.to_string(),
+                            ),
             FileContent(path, expected_content) => {
-                        contextualize(app.get_file_content(path), expected_content.clone())
-                    }
+                                contextualize(app.get_file_content(path), expected_content.clone())
+                            }
             FileContentEqual(left, right) => {
-                        contextualize(app.get_file_content(left), app.get_file_content(right))
-                    }
+                                contextualize(app.get_file_content(left), app.get_file_content(right))
+                            }
             CurrentSelectedTexts(selected_texts) => {
-                        contextualize(app.get_current_selected_texts(), to_vec(selected_texts))
-                    }
+                                contextualize(app.get_current_selected_texts(), to_vec(selected_texts))
+                            }
             ComponentsLength(length) => contextualize(app.components().len(), *length),
             Quickfixes(expected_quickfixes) => contextualize(
-                        app.get_quickfix_list()
-                            .map(|q| {
-                                q.items()
-                                    .into_iter()
-                                    .map(|quickfix| {
-                                        let info = quickfix
-                                            .info()
-                                            .as_ref()
-                                            .map(|info| info.clone().set_decorations(Vec::new()));
-                                        quickfix.set_info(info)
+                                app.get_quickfix_list()
+                                    .map(|q| {
+                                        q.items()
+                                            .into_iter()
+                                            .map(|quickfix| {
+                                                let info = quickfix
+                                                    .info()
+                                                    .as_ref()
+                                                    .map(|info| info.clone().set_decorations(Vec::new()));
+                                                quickfix.set_info(info)
+                                            })
+                                            .collect_vec()
+                                            .into_boxed_slice()
                                     })
-                                    .collect_vec()
-                                    .into_boxed_slice()
-                            })
-                            .unwrap_or_default(),
-                        expected_quickfixes.clone(),
-                    ),
+                                    .unwrap_or_default(),
+                                expected_quickfixes.clone(),
+                            ),
             EditorGrid(grid) => contextualize(
-                        component
-                            .borrow()
-                            .editor()
-                            .get_grid(context, false)
-                            .to_string(),
-                        grid.to_string(),
-                    ),
+                                component
+                                    .borrow()
+                                    .editor()
+                                    .get_grid(context, false)
+                                    .to_string(),
+                                grid.to_string(),
+                            ),
             AppGrid(grid) => {
-                        let expected = grid.to_string().trim_matches('\n').to_string();
-                        let actual = app.get_screen()?.stringify().trim_matches('\n').to_string();
-                        log(format!("expected =\n{expected}"));
-                        log(format!("actual   =\n{actual}"));
-                        contextualize(actual, expected)
-                    }
+                                let expected = grid.to_string().trim_matches('\n').to_string();
+                                let actual = app.get_screen()?.stringify().trim_matches('\n').to_string();
+                                log(format!("expected =\n{expected}"));
+                                log(format!("actual   =\n{actual}"));
+                                contextualize(actual, expected)
+                            }
             CurrentPath(path) => contextualize(app.get_current_file_path().unwrap(), path.clone()),
             Not(expect_kind) => {
-                        let (result, context) = expect_kind.get_result(app)?;
-                        (!result, format!("NOT ({context})"))
-                    }
+                                let (result, context) = expect_kind.get_result(app)?;
+                                (!result, format!("NOT ({context})"))
+                            }
             EditorIsDirty() => contextualize(&component.borrow().editor().buffer().dirty(), &true),
             CurrentMode(mode) => contextualize(&component.borrow().editor().mode, mode),
             EditorCursorPosition(position) => contextualize(
-                        &component.borrow().editor().get_cursor_position().unwrap(),
-                        position,
-                    ),
+                                &component.borrow().editor().get_cursor_position().unwrap(),
+                                position,
+                            ),
             EditorGridCursorPosition(position) => contextualize(
-                        component
-                            .borrow()
-                            .editor()
-                            .get_grid(context, false)
-                            .cursor
-                            .unwrap()
-                            .position(),
-                        position,
-                    ),
+                                component
+                                    .borrow()
+                                    .editor()
+                                    .get_grid(context, false)
+                                    .cursor
+                                    .unwrap()
+                                    .position(),
+                                position,
+                            ),
             CurrentLine(line) => contextualize(
-                        component.borrow().editor().current_line().unwrap(),
-                        line.to_string(),
-                    ),
+                                component.borrow().editor().current_line().unwrap(),
+                                line.to_string(),
+                            ),
             JumpChars(chars) => {
-                        contextualize(
-                            component.borrow().editor().jump_chars().into_iter().sorted().collect_vec(),
-                            chars.iter().sorted().cloned().collect_vec()
-                        )
-                    }
-            CurrentViewAlignment(view_alignment) => contextualize(
-                        component.borrow().editor().current_view_alignment(),
-                        *view_alignment,
-                    ),
-            GridCellBackground(row_index, column_index, background_color) => contextualize(
-                        component
-                            .borrow()
-                            .editor()
-                            .get_grid(context, false)
-                            .grid
-                            .rows[*row_index][*column_index]
-                            .background_color,
-                        *background_color,
-                    ),
-            GridCellLine(row_index, column_index, underline_color) => contextualize(
-                        component
-                            .borrow()
-                            .editor()
-                            .get_grid(context, false)
-                            .grid
-                            .rows[*row_index][*column_index]
-                            .line
-                            .unwrap()
-                            .color,
-                        *underline_color,
-                    ),
-            GridCellStyleKey(position, style_key) => {
-                        println!(
-                            "ExpectKind::get_result grid styles = {:?}",
-                            component
-                                .borrow()
-                                .editor()
-                                .get_grid(context, false)
-                                .grid
-                                .rows
-                                .iter()
-                                .map(|row|row.iter().map(|cell| cell.source.clone()).collect_vec())
-                                .collect_vec()
-                        );
-                        contextualize(
-                            component
-                                .borrow()
-                                .editor()
-                                .get_grid(context, true)
-                                .grid
-                                .rows[position.line][position.column]
-                                .source
-                                .clone(),
-                            style_key.clone(),
-                        )
-                    },
-            GridCellsStyleKey(positions, style_key) => (
-                        positions.iter().all(|position| {
-                            let actual_style_key = &component
-                                .borrow()
-                                .editor()
-                                .get_grid(context, false)
-                                .grid
-                                .rows[position.line][position.column]
-                                .source;
-                            if actual_style_key!=style_key {
-                                log(format!("Expected {position:?} to be styled as {style_key:?}, but got {actual_style_key:?}"));
+                                contextualize(
+                                    component.borrow().editor().jump_chars().into_iter().sorted().collect_vec(),
+                                    chars.iter().sorted().cloned().collect_vec()
+                                )
                             }
-                            actual_style_key == style_key
-                        }),
-                        format!("Expected positions {positions:?} to be styled as {style_key:?}"),
-                    ),
+            CurrentViewAlignment(view_alignment) => contextualize(
+                                component.borrow().editor().current_view_alignment(),
+                                *view_alignment,
+                            ),
+            GridCellBackground(row_index, column_index, background_color) => contextualize(
+                                component
+                                    .borrow()
+                                    .editor()
+                                    .get_grid(context, false)
+                                    .grid
+                                    .rows[*row_index][*column_index]
+                                    .background_color,
+                                *background_color,
+                            ),
+            GridCellLine(row_index, column_index, underline_color) => contextualize(
+                                component
+                                    .borrow()
+                                    .editor()
+                                    .get_grid(context, false)
+                                    .grid
+                                    .rows[*row_index][*column_index]
+                                    .line
+                                    .unwrap()
+                                    .color,
+                                *underline_color,
+                            ),
+            GridCellStyleKey(position, style_key) => {
+                                println!(
+                                    "ExpectKind::get_result grid styles = {:?}",
+                                    component
+                                        .borrow()
+                                        .editor()
+                                        .get_grid(context, false)
+                                        .grid
+                                        .rows
+                                        .iter()
+                                        .map(|row|row.iter().map(|cell| cell.source.clone()).collect_vec())
+                                        .collect_vec()
+                                );
+                                contextualize(
+                                    component
+                                        .borrow()
+                                        .editor()
+                                        .get_grid(context, true)
+                                        .grid
+                                        .rows[position.line][position.column]
+                                        .source
+                                        .clone(),
+                                    style_key.clone(),
+                                )
+                            },
+            GridCellsStyleKey(positions, style_key) => (
+                                positions.iter().all(|position| {
+                                    let actual_style_key = &component
+                                        .borrow()
+                                        .editor()
+                                        .get_grid(context, false)
+                                        .grid
+                                        .rows[position.line][position.column]
+                                        .source;
+                                    if actual_style_key!=style_key {
+                                        log(format!("Expected {position:?} to be styled as {style_key:?}, but got {actual_style_key:?}"));
+                                    }
+                                    actual_style_key == style_key
+                                }),
+                                format!("Expected positions {positions:?} to be styled as {style_key:?}"),
+                            ),
             CompletionDropdownIsOpen(is_open) => {
-                        contextualize(app.completion_dropdown_is_open(), *is_open)
-                    }
+                                contextualize(app.completion_dropdown_is_open(), *is_open)
+                            }
             CompletionDropdownContent(content) => contextualize(
-                        app.current_completion_dropdown()
-                            .unwrap()
-                            .borrow()
-                            .content(),
-                        content.to_string(),
-                    ),
+                                app.current_completion_dropdown()
+                                    .unwrap()
+                                    .borrow()
+                                    .content(),
+                                content.to_string(),
+                            ),
             CompletionDropdownSelectedItem(item) => contextualize(
-                        app.current_completion_dropdown()
-                            .unwrap()
-                            .borrow()
-                            .editor()
-                            .get_selected_texts()[0]
-                            .trim(),
-                        item,
-                    ),
+                                app.current_completion_dropdown()
+                                    .unwrap()
+                                    .borrow()
+                                    .editor()
+                                    .get_selected_texts()[0]
+                                    .trim(),
+                                item,
+                            ),
             QuickfixListContent(content) => {
-                        let actual = app.get_quickfix_list().unwrap().render().content;
-                        let expected = content.to_string();
-                        log(format!("expected =\n{expected}"));
-                        log(format!("actual   =\n{actual}"));
-                        contextualize(expected, actual)
-                    }
+                                let actual = app.get_quickfix_list().unwrap().render().content;
+                                let expected = content.to_string();
+                                log(format!("expected =\n{expected}"));
+                                log(format!("actual   =\n{actual}"));
+                                contextualize(expected, actual)
+                            }
             DropdownInfosCount(expected) => {
-                        contextualize(app.get_dropdown_infos_count(), *expected)
-                    }
+                                contextualize(app.get_dropdown_infos_count(), *expected)
+                            }
             QuickfixListCurrentLine(expected) => {
-                        let component = app
-                            .get_component_by_kind(ComponentKind::QuickfixList)
-                            .unwrap();
-                        let actual = component.borrow().editor().current_line().unwrap();
-                        contextualize(actual, expected.to_string())
-                    }
+                                let component = app
+                                    .get_component_by_kind(ComponentKind::QuickfixList)
+                                    .unwrap();
+                                let actual = component.borrow().editor().current_line().unwrap();
+                                contextualize(actual, expected.to_string())
+                            }
             EditorInfoContents(expected) => {
-                        contextualize(
-                            app.editor_info_contents(),
-                            expected.iter().map(|s|s.to_string()).collect()
-                        )
-                    }
+                                contextualize(
+                                    app.editor_info_contents(),
+                                    expected.iter().map(|s|s.to_string()).collect()
+                                )
+                            }
             GlobalInfoContents(expected) => {
-                        contextualize(
-                            app.global_info_contents(),
-                            expected.iter().map(|s|s.to_string()).collect()
-                        )
-                    }
+                                contextualize(
+                                    app.global_info_contents(),
+                                    expected.iter().map(|s|s.to_string()).collect()
+                                )
+                            }
             AppGridContains(substring) => {
-                        let content = app.get_screen().unwrap().stringify();
-                        contextualize(content.contains(substring), true)
-                    }
+                                let content = app.get_screen().unwrap().stringify();
+                                contextualize(content.contains(substring), true)
+                            }
             FileExplorerContent(expected) => contextualize(expected, &app.file_explorer_content()),
             CurrentCursorDirection(expected) => contextualize(
-                        expected,
-                        &app.current_component().borrow().editor().cursor_direction,
-                    ),
+                                expected,
+                                &app.current_component().borrow().editor().cursor_direction,
+                            ),
             HighlightSpans(expected_range, expected_key) => contextualize(
-                        expected_key,
-                        &app.current_component()
-                            .borrow()
-                            .editor()
-                            .buffer()
-                            .highlighted_spans()
-                            .iter()
-                            .inspect(|&span| {
-                                // For debugging purposes
-                                log(format!("xx {span:?} {}", span.style_key.display()));
-                            })
-                            .collect_vec()
-                            .into_iter()
-                            .find(|span| &span.byte_range == expected_range)
-                            .unwrap()
-                            .style_key,
-                    ),
+                                expected_key,
+                                &app.current_component()
+                                    .borrow()
+                                    .editor()
+                                    .buffer()
+                                    .highlighted_spans()
+                                    .iter()
+                                    .inspect(|&span| {
+                                        // For debugging purposes
+                                        log(format!("xx {span:?} {}", span.style_key.display()));
+                                    })
+                                    .collect_vec()
+                                    .into_iter()
+                                    .find(|span| &span.byte_range == expected_range)
+                                    .unwrap()
+                                    .style_key,
+                            ),
             DiagnosticsRanges(expected) => contextualize(
-                        expected.to_vec(),
-                        app.current_component()
-                            .borrow()
-                            .editor()
-                            .buffer()
-                            .diagnostics()
-                            .into_iter()
-                            .map(|d| d.range)
-                            .collect_vec(),
-                    ),
+                                expected.to_vec(),
+                                app.current_component()
+                                    .borrow()
+                                    .editor()
+                                    .buffer()
+                                    .diagnostics()
+                                    .into_iter()
+                                    .map(|d| d.range)
+                                    .collect_vec(),
+                            ),
             BufferQuickfixListItems(expected) => contextualize(
-                        expected,
-                        &app.current_component()
-                            .borrow()
-                            .editor()
-                            .buffer()
-                            .quickfix_list_items()
-                            .into_iter()
-                            .map(|d| d.location().range.clone())
-                            .collect_vec(),
-                    ),
+                                expected,
+                                &app.current_component()
+                                    .borrow()
+                                    .editor()
+                                    .buffer()
+                                    .quickfix_list_items()
+                                    .into_iter()
+                                    .map(|d| d.location().range.clone())
+                                    .collect_vec(),
+                            ),
             ComponentCount(expected) => contextualize(expected, &app.components().len()),
             CurrentComponentPath(expected) => {
-                        contextualize(expected, &app.current_component().borrow().path())
-                    }
+                                contextualize(expected, &app.current_component().borrow().path())
+                            }
             OpenedFilesCount(expected) => contextualize(expected, &app.opened_files_count()),
             GlobalInfo(expected) => {
-                        contextualize(*expected, &app.global_info().unwrap())
-                    }
+                                contextualize(*expected, &app.global_info().unwrap())
+                            }
             ComponentsOrder(expected) => contextualize(expected, &app.components_order()),
             CurrentComponentTitle(expected) => {
-                        // Provide a minimal height and width
-                        // so that the tabline can be rendered properly,
-                        // so that we do not need keep adding Editor(SetRectangle(rectangle))
-                        // to test cases that are testing for CurrentComponentTitle.
-                        app.handle_dispatch(Dispatch::TerminalDimensionChanged(Dimension {
-                            height: 10,
-                            width: 30,
-                        }))?;
-                        contextualize(expected, &app.current_component().borrow().title(app.context()))
-                    }
+                                // Provide a minimal height and width
+                                // so that the tabline can be rendered properly,
+                                // so that we do not need keep adding Editor(SetRectangle(rectangle))
+                                // to test cases that are testing for CurrentComponentTitle.
+                                app.handle_dispatch(Dispatch::TerminalDimensionChanged(Dimension {
+                                    height: 10,
+                                    width: 30,
+                                }))?;
+                                contextualize(expected, &app.current_component().borrow().title(app.context()))
+                            }
             CurrentSelectionMode(expected) => contextualize(
-                        expected,
-                        app.current_component().borrow().editor().selection_set.mode(),
-                    ),
+                                expected,
+                                app.current_component().borrow().editor().selection_set.mode(),
+                            ),
             LspRequestSent(from_editor) => contextualize(true, app.lsp_request_sent(from_editor)),
             LspServerInitializedArgs(expected) => contextualize(expected, &app.lsp_server_initialized_args()),
             CurrentCopiedTextHistoryOffset(expected) => contextualize(
-                        expected,
-                        &app.current_component()
-                            .borrow()
-                            .editor()
-                            .copied_text_history_offset(),
-                    ),
+                                expected,
+                                &app.current_component()
+                                    .borrow()
+                                    .editor()
+                                    .copied_text_history_offset(),
+                            ),
             CurrentPrimarySelection(expected) => contextualize(
-                        *expected,
-                        &app.current_component()
-                            .borrow()
-                            .editor()
-                            .primary_selection()?,
-                    ),
+                                *expected,
+                                &app.current_component()
+                                    .borrow()
+                                    .editor()
+                                    .primary_selection()?,
+                            ),
             CurrentGlobalMode(expected) => contextualize(expected, &app.context().mode()),
             CurrentReveal(expected) => {
-                        contextualize(expected, &app.current_component().borrow().editor().reveal)
-                    }
+                                contextualize(expected, &app.current_component().borrow().editor().reveal)
+                            }
             CountHighlightedCells(style_key, expected_count) => contextualize(
-                        expected_count,
-                        &app.current_component()
-                            .borrow()
-                            .editor()
-                            .get_grid(context, false)
-                            .grid
-                            .rows
-                            .into_iter()
-                            .map(|row| {
-                                row.iter()
-                                    .filter(|cell| {
-                                        log(format!("style = {:?}", cell.source));
-                                        cell.source.as_ref() == Some(style_key)
+                                expected_count,
+                                &app.current_component()
+                                    .borrow()
+                                    .editor()
+                                    .get_grid(context, false)
+                                    .grid
+                                    .rows
+                                    .into_iter()
+                                    .map(|row| {
+                                        row.iter()
+                                            .filter(|cell| {
+                                                log(format!("style = {:?}", cell.source));
+                                                cell.source.as_ref() == Some(style_key)
+                                            })
+                                            .count()
                                     })
-                                    .count()
-                            })
-                            .sum::<usize>(),
-                    ),
+                                    .sum::<usize>(),
+                            ),
             SelectionExtensionEnabled(expected) => contextualize(expected, &app.current_component().borrow().editor().selection_extension_enabled()),
             CurrentSearch(scope,expected) => contextualize(*expected, &app.context().get_local_search_config(*scope).search()),
             PromptHistory(key, expected) => contextualize(
-                expected,
-                &app.context().get_prompt_history(*key)
-            ),
+                        expected,
+                        &app.context().get_prompt_history(*key)
+                    ),
+            NoError => (true, String::new()),
         })
     }
 }
@@ -3042,6 +3046,50 @@ fn lsp_initialization_should_only_send_relevant_opened_documents() -> anyhow::Re
                 // although main.rs is opened before
                 [s.hello_ts()].to_vec(),
             )))),
+        ])
+    })
+}
+
+#[test]
+fn navigate_back_should_skip_files_that_were_renamed_or_deleted() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(OpenFile {
+                path: s.hello_ts(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(DeletePath(s.main_rs())),
+            App(NavigateBack),
+            Expect(NoError),
+        ])
+    })
+}
+
+#[test]
+fn navigate_forward_should_skip_files_that_were_renamed_or_deleted() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(OpenFile {
+                path: s.hello_ts(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(NavigateBack),
+            Expect(CurrentPath(s.main_rs())),
+            App(DeletePath(s.hello_ts())),
+            App(NavigateForward),
+            Expect(NoError),
         ])
     })
 }
