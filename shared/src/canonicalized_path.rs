@@ -184,4 +184,8 @@ impl CanonicalizedPath {
     pub fn file_name(&self) -> Option<String> {
         Some(self.0.file_name()?.to_string_lossy().to_string())
     }
+
+    pub fn exists(&self) -> bool {
+        self.to_path_buf().exists()
+    }
 }
