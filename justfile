@@ -9,6 +9,7 @@ default:
     @just doc 
     
 install:
+    rm -r ~/.cache/ki/
     cargo install --locked --path .
 
 fmt-check:
