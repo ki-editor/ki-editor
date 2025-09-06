@@ -2644,17 +2644,22 @@ impl<T: Frontend> App<T> {
     }
 
     fn navigate_back(&mut self) -> anyhow::Result<()> {
-        if let Some(location) = self.context.location_previous() {
-            self.push_current_location_into_navigation_history(false)?;
-            self.go_to_location(&location, false)?
+        while let Some(location) = self.context.location_previous() {
+            if location.path.exists() {
+                self.push_current_location_into_navigation_history(false)?;
+                self.go_to_location(&location, false)?;
+                return Ok(());
+            }
         }
         Ok(())
     }
 
     fn navigate_forward(&mut self) -> anyhow::Result<()> {
-        if let Some(location) = self.context.location_next() {
-            self.push_current_location_into_navigation_history(true)?;
-            self.go_to_location(&location, false)?
+        while let Some(location) = self.context.location_next() {
+            if location.path.exists() {
+                self.push_current_location_into_navigation_history(true)?;
+                self.go_to_location(&location, false)?
+            }
         }
         Ok(())
     }
