@@ -7,9 +7,6 @@ use my_proc_macros::hex;
 use shared::download::cache_download;
 use zed_theme::*;
 
-const ZED_THEME_ANDROMEDA_URL: &str = "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/andromeda/andromeda.json";
-const ZED_THEME_ATELIER_URL: &str =
-    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/atelier/atelier.json";
 const ZED_THEME_AYU_URL: &str =
     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/ayu/ayu.json";
 const ZED_THEME_CATPPUCCIN_URL: &str =
@@ -17,6 +14,8 @@ const ZED_THEME_CATPPUCCIN_URL: &str =
 const ZED_THEME_DRACULA_URL: &str =
     "https://raw.githubusercontent.com/dracula/zed/refs/heads/main/themes/dracula.json";
 const ZED_THEME_GITHUB_URL: &str = "https://raw.githubusercontent.com/PyaeSoneAungRgn/github-zed-theme/refs/heads/main/themes/github_theme.json";
+const ZED_THEME_GRUBER_DARKER_URL: &str =
+    "https://raw.githubusercontent.com/mqual/themes/refs/heads/main/gruber_darker_zed.json";
 const ZED_THEME_GRUVBOX_URL: &str =
     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/gruvbox/gruvbox.json";
 const ZED_THEME_ONE_URL: &str =
@@ -26,12 +25,13 @@ const ZED_THEME_MONOKAI_ST3_URL: &str =
     "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai_st3.json";
 const ZED_THEME_MONOKAI_URL: &str =
     "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai.json";
+const ZED_THEME_MQUAL_BLUE_URL: &str =
+    "https://raw.githubusercontent.com/mqual/themes/main/mqual_blue_zed.json";
 const ZED_THEME_NORD_URL: &str =
     "https://raw.githubusercontent.com/mikasius/zed-nord-theme/refs/heads/master/themes/nord.json";
-const ZED_THEME_ROSE_PINE_URL: &str = "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/rose_pine/rose_pine.json";
-const ZED_THEME_SANDCASTLE_URL: &str = "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/sandcastle/sandcastle.json";
-const ZED_THEME_SOLARIZED_URL: &str = "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/solarized/solarized.json";
-const ZED_THEME_SUMMERCAMP_URL: &str = "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/summercamp/summercamp.json";
+const ZED_THEME_ROSE_PINE_URL: &str =
+    "https://raw.githubusercontent.com/rose-pine/zed/refs/heads/main/themes/rose-pine.json";
+const ZED_THEME_SOLARIZED_URL: &str = "https://raw.githubusercontent.com/harmtemolder/Solarized.zed/refs/heads/main/themes/solarized.json";
 const ZED_THEME_TOKYO_NIGHT_URL: &str = "https://raw.githubusercontent.com/ssaunderss/zed-tokyo-night/refs/heads/main/themes/tokyo-night.json";
 
 #[derive(serde::Deserialize)]
@@ -42,26 +42,6 @@ struct ZedThemeManiftest {
 /// Get all known Zed themes as a `ThemeDescriptor`.
 pub(crate) fn theme_descriptors() -> Vec<ThemeDescriptor> {
     [
-        ("Atelier Cave Dark", ZED_THEME_ATELIER_URL),
-        ("Atelier Cave Light", ZED_THEME_ATELIER_URL),
-        ("Atelier Dune Dark", ZED_THEME_ATELIER_URL),
-        ("Atelier Dune Light", ZED_THEME_ATELIER_URL),
-        ("Atelier Estuary Dark", ZED_THEME_ATELIER_URL),
-        ("Atelier Estuary Light", ZED_THEME_ATELIER_URL),
-        ("Atelier Forest Dark", ZED_THEME_ATELIER_URL),
-        ("Atelier Forest Light", ZED_THEME_ATELIER_URL),
-        ("Atelier Heath Dark", ZED_THEME_ATELIER_URL),
-        ("Atelier Heath Light", ZED_THEME_ATELIER_URL),
-        ("Atelier Lakeside Dark", ZED_THEME_ATELIER_URL),
-        ("Atelier Lakeside Light", ZED_THEME_ATELIER_URL),
-        ("Atelier Plateau Dark", ZED_THEME_ATELIER_URL),
-        ("Atelier Plateau Light", ZED_THEME_ATELIER_URL),
-        ("Atelier Savanna Dark", ZED_THEME_ATELIER_URL),
-        ("Atelier Savanna Light", ZED_THEME_ATELIER_URL),
-        ("Atelier Seaside Dark", ZED_THEME_ATELIER_URL),
-        ("Atelier Seaside Light", ZED_THEME_ATELIER_URL),
-        ("Atelier Sulphurpool Dark", ZED_THEME_ATELIER_URL),
-        ("Atelier Sulphurpool Light", ZED_THEME_ATELIER_URL),
         ("Ayu Dark", ZED_THEME_AYU_URL),
         ("Ayu Light", ZED_THEME_AYU_URL),
         ("Ayu Mirage", ZED_THEME_AYU_URL),
@@ -79,6 +59,7 @@ pub(crate) fn theme_descriptors() -> Vec<ThemeDescriptor> {
         ("Github Light High Contrast", ZED_THEME_GITHUB_URL),
         ("Github Light Tritanopia", ZED_THEME_GITHUB_URL),
         ("Github Light", ZED_THEME_GITHUB_URL),
+        ("Gruber Darker", ZED_THEME_GRUBER_DARKER_URL),
         ("Gruvbox Dark Hard", ZED_THEME_GRUVBOX_URL),
         ("Gruvbox Dark Soft", ZED_THEME_GRUVBOX_URL),
         ("Gruvbox Dark", ZED_THEME_GRUVBOX_URL),
@@ -91,6 +72,7 @@ pub(crate) fn theme_descriptors() -> Vec<ThemeDescriptor> {
         ("Modus Vivendi", ZED_THEME_MODUS_URL),
         ("Monokai", ZED_THEME_MONOKAI_URL),
         ("Monokai-ST3", ZED_THEME_MONOKAI_ST3_URL),
+        ("Mqual Blue", ZED_THEME_MQUAL_BLUE_URL),
         ("Nord", ZED_THEME_NORD_URL),
         ("Nord Light", ZED_THEME_NORD_URL),
         ("One Dark", ZED_THEME_ONE_URL),
@@ -98,14 +80,11 @@ pub(crate) fn theme_descriptors() -> Vec<ThemeDescriptor> {
         ("Rosé Pine Dawn", ZED_THEME_ROSE_PINE_URL),
         ("Rosé Pine Moon", ZED_THEME_ROSE_PINE_URL),
         ("Rosé Pine", ZED_THEME_ROSE_PINE_URL),
-        ("Sandcastle", ZED_THEME_SANDCASTLE_URL),
         ("Solarized Dark", ZED_THEME_SOLARIZED_URL),
         ("Solarized Light", ZED_THEME_SOLARIZED_URL),
-        ("Summercamp", ZED_THEME_SUMMERCAMP_URL),
         ("Tokyo Night Light", ZED_THEME_TOKYO_NIGHT_URL),
         ("Tokyo Night Storm", ZED_THEME_TOKYO_NIGHT_URL),
         ("Tokyo Night", ZED_THEME_TOKYO_NIGHT_URL),
-        ("Andromeda", ZED_THEME_ANDROMEDA_URL),
     ]
     .iter()
     .map(|(name, url)| ThemeDescriptor::ZedThemeURLMap(name, url))
