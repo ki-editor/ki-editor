@@ -476,22 +476,12 @@ impl Editor {
             )
             .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::DeltN),
+                context.keyboard_layout_kind().get_key(&Meaning::Delte),
                 Direction::End.format_action("Delete"),
                 Direction::End.format_action("Delete"),
-                Dispatch::ToEditor(Delete(Direction::End)),
+                Dispatch::ToEditor(Delete),
             )
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::DeltP),
-                Direction::Start.format_action("Delete"),
-                Direction::Start.format_action("Delete"),
-                Dispatch::ToEditor(Delete(Direction::Start)),
-            )
-            .override_keymap(
-                normal_mode_override.delete_backward.as_ref(),
-                none_if_no_override,
-            ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::InstP),
                 Direction::Start.format_action("Insert"),
@@ -963,7 +953,9 @@ impl Editor {
                 &self
                     .normal_mode_keymaps(
                         context,
-                        Some(multicursor_mode_normal_mode_override()),
+                        Some(multicursor_mode_normal_mode_override(
+                            self.cursor_direction.reverse(),
+                        )),
                         Some(PriorChange::EnterMultiCursorMode),
                     )
                     .into_iter()
@@ -1694,7 +1686,7 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
     }
 }
 
-pub(crate) fn multicursor_mode_normal_mode_override() -> NormalModeOverride {
+pub(crate) fn multicursor_mode_normal_mode_override(direction: Direction) -> NormalModeOverride {
     NormalModeOverride {
         insert: Some(KeymapOverride {
             description: "Keep Match",
@@ -1709,12 +1701,8 @@ pub(crate) fn multicursor_mode_normal_mode_override() -> NormalModeOverride {
             dispatch: Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
         }),
         delete: Some(KeymapOverride {
-            description: "Delete Curs →",
-            dispatch: Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
-        }),
-        delete_backward: Some(KeymapOverride {
-            description: "Delete Curs ←",
-            dispatch: Dispatch::ToEditor(DeleteCurrentCursor(Direction::Start)),
+            description: "Delete Curs",
+            dispatch: Dispatch::ToEditor(DeleteCurrentCursor(direction)),
         }),
         multicursor: Some(KeymapOverride {
             description: "Curs All",

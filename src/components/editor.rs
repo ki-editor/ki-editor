@@ -225,7 +225,7 @@ impl Component for Editor {
             EnableSelectionExtension => self.enable_selection_extension(),
             DisableSelectionExtension => self.disable_selection_extension(),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction, context),
-            Delete(direction) => return self.delete(direction, None, context),
+            Delete => return self.delete(None, context),
             Insert(string) => return self.insert(&string, context),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
@@ -926,7 +926,6 @@ impl Editor {
 
     pub(crate) fn delete(
         &mut self,
-        direction: Direction,
         use_system_clipboard: Option<bool>,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
@@ -935,6 +934,7 @@ impl Editor {
         } else {
             Default::default()
         };
+        let direction = self.cursor_direction.reverse();
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -3907,7 +3907,7 @@ pub(crate) enum DispatchEditor {
     ReplaceWithPattern,
     SelectLine(Movement),
     Backspace,
-    Delete(Direction),
+    Delete,
     Insert(String),
     MoveToLineStart,
     MoveToLineEnd,

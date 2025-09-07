@@ -575,7 +575,7 @@ foo
                     )),
                     Editor(MoveSelection(Movement::Last)),
                     Expect(CurrentSelectedTexts(&[""])),
-                    Editor(Delete(direction.clone())),
+                    Editor(Delete),
                     Expect(CurrentComponentContent("hello")),
                 ])
             })

@@ -55,9 +55,11 @@ Otherwise, it inserts a gap before/after the current selection, and then enter I
 
 <TutorialFallback filename="open"/>
 
-### `← Delete`/`Delete →`
+### `Delete`
 
-Delete until previous/next selection.
+Delete until next selection.
+
+To delete until the previous selection instead, make sure you have swapped the anchor first by using `/`.
 
 This deletes the current selection(s), however, if the current selection mode is
 [contiguous](../selection-modes/index.md#contiguity), it will delete until the
@@ -261,9 +263,8 @@ Replace Cut, swaps the current selection with the content in the clipboard.
 
 <TutorialFallback filename="replace-cut"/>
 
-
 ### `Change keyboard layout`
 
 Keybinding: `*`
 
-This has a special keybinding that is non-positional so that the keyboard layout can be switched easily. 
+This has a special keybinding that is non-positional so that the keyboard layout can be switched easily.
