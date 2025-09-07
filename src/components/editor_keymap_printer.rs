@@ -11,7 +11,7 @@ use super::{
 use crate::{
     app::Scope,
     components::{
-        editor::Editor,
+        editor::{Direction, Editor},
         editor_keymap::{shifted, KeyboardLayout},
     },
     context::Context,
@@ -316,7 +316,7 @@ impl KeymapPrintSections {
             KeymapPrintSection::from_keymaps(
                 "Multi-cursor".to_string(),
                 &Keymaps::new(&editor.keymap_overridable(
-                    &multicursor_mode_normal_mode_override(),
+                    &multicursor_mode_normal_mode_override(Direction::End),
                     true,
                     &context,
                 )),

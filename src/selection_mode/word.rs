@@ -483,7 +483,7 @@ mod test_word {
                     SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&["foo"])),
-                Editor(Delete(Direction::End)),
+                Editor(Delete),
                 Expect(CurrentSelectedTexts(&["."])),
             ])
         })

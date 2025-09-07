@@ -1061,7 +1061,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(Delete(Direction::End)),
+            Editor(Delete),
             // Insert a comment at the first line of foo.rs
             App(OpenFile {
                 path: s.foo_rs().clone(),
@@ -1208,7 +1208,7 @@ fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
             })),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SelectAll),
-            Editor(Delete(Direction::End)),
+            Editor(Delete),
             Editor(Insert(
                 "
 fn first () {
