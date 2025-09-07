@@ -1517,7 +1517,6 @@ pub(crate) struct NormalModeOverride {
     pub(crate) insert: Option<KeymapOverride>,
     pub(crate) append: Option<KeymapOverride>,
     pub(crate) open: Option<KeymapOverride>,
-    pub(crate) delete_backward: Option<KeymapOverride>,
     pub(crate) paste: Option<KeymapOverride>,
     pub(crate) replace: Option<KeymapOverride>,
     pub(crate) v: Option<KeymapOverride>,

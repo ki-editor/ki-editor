@@ -559,28 +559,47 @@ foo
     }
 
     #[test]
-    fn able_to_delete_last_line_which_is_empty() -> anyhow::Result<()> {
-        fn test(direction: Direction) -> anyhow::Result<()> {
-            execute_test(|s| {
-                Box::new([
-                    App(OpenFile {
-                        path: s.main_rs(),
-                        owner: BufferOwner::User,
-                        focus: true,
-                    }),
-                    Editor(SetContent("hello\n".to_string())),
-                    Editor(SetSelectionMode(
-                        IfCurrentNotFound::LookForward,
-                        SelectionMode::Line,
-                    )),
-                    Editor(MoveSelection(Movement::Last)),
-                    Expect(CurrentSelectedTexts(&[""])),
-                    Editor(Delete),
-                    Expect(CurrentComponentContent("hello")),
-                ])
-            })
-        }
-        test(Direction::End)?;
-        test(Direction::Start)
+    fn able_to_delete_forward_at_last_line_which_is_empty() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("hello\n".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(MoveSelection(Movement::Last)),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(Delete),
+                Expect(CurrentComponentContent("hello")),
+            ])
+        })
+    }
+
+    #[test]
+    fn able_to_delete_backward_at_last_line_which_is_empty() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("hello\n".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(MoveSelection(Movement::Last)),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(SwapCursor),
+                Editor(Delete),
+                Expect(CurrentComponentContent("hello")),
+            ])
+        })
     }
 }
