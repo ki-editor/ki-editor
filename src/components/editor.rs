@@ -291,6 +291,9 @@ impl Component for Editor {
             Paste {
                 use_system_clipboard,
             } => return self.paste(context, use_system_clipboard, true),
+            PasteNoGap {
+                use_system_clipboard,
+            } => return self.paste(context, use_system_clipboard, false),
             SwapCursor => self.swap_cursor(context),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
@@ -3943,6 +3946,9 @@ pub(crate) enum DispatchEditor {
     ReplaceCurrentSelectionWith(String),
     SelectLineAt(usize),
     Paste {
+        use_system_clipboard: bool,
+    },
+    PasteNoGap {
         use_system_clipboard: bool,
     },
     SwapCursor,

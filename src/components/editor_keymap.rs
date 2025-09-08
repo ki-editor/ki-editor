@@ -27,7 +27,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SrchP, Char_, _____, _____, Raise, /****/ MarkF, RplcP, Join_, RplcN, _____,
+        SrchP, Char_, _____, _____, Raise, /****/ MarkF, RplcP, Join_, RplcN, Pst0G,
     ],
     [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
@@ -562,6 +562,8 @@ pub(crate) enum Meaning {
     PRplc,
     /// Paste
     Paste,
+    /// Paste Zero Gap
+    Pst0G,
     /// Raise
     Raise,
     /// Redo
