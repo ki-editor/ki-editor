@@ -214,9 +214,11 @@ Copy behaves differently depending on the number of cursors.
 When there is more than one cursor, the selected texts of each cursor will be
 copied to the cursor-specific clipboard.
 
-### `Paste ←`/`Paste →`
+### `Paste`
 
-Paste before/after selection.
+Paste copied content after the current selection.
+
+Note: To paste _before_ the current selection, execute Swap Cursor (`/`) first.
 
 This action pastes the content from the clipboard (either the system clipboard or
 cursor-specific clipboard) after/before the current selection.

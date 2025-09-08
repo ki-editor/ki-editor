@@ -289,9 +289,8 @@ impl Component for Editor {
             Surround(open, close) => return self.surround(open, close, context),
             EnterReplaceMode => self.enter_replace_mode(),
             Paste {
-                direction,
                 use_system_clipboard,
-            } => return self.paste(direction, context, use_system_clipboard, true),
+            } => return self.paste(context, use_system_clipboard, true),
             SwapCursor => self.swap_cursor(context),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
@@ -1243,7 +1242,6 @@ impl Editor {
 
     pub(crate) fn paste(
         &mut self,
-        direction: Direction,
         context: &Context,
         use_system_clipboard: bool,
         with_gap: bool,
@@ -1251,6 +1249,8 @@ impl Editor {
         let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0)? else {
             return Ok(Default::default());
         };
+        let direction = self.cursor_direction.reverse();
+
         self.paste_text(direction, copied_texts, context, with_gap)
     }
 
@@ -3943,7 +3943,6 @@ pub(crate) enum DispatchEditor {
     ReplaceCurrentSelectionWith(String),
     SelectLineAt(usize),
     Paste {
-        direction: Direction,
         use_system_clipboard: bool,
     },
     SwapCursor,

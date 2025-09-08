@@ -374,6 +374,30 @@ foo(bar, 1 + 1, spam)
             filename: "paste",
             recipes: [
                 Recipe {
+                    description: "Paste forward",
+                    content: "foo bar spam"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("s l c j p"),
+                    expectations: Box::new([CurrentComponentContent("foo bar bar spam")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Paste backward",
+                    content: "foo bar spam"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("s l c j / p"),
+                    expectations: Box::new([CurrentComponentContent("bar foo bar spam")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
                     description: "Paste with automatic gap insertion (Line)",
                     content: "
 foo bar

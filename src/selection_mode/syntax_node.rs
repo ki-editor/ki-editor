@@ -263,7 +263,6 @@ pub(crate) fn get_node(
 #[cfg(test)]
 mod test_syntax_node {
     use crate::buffer::BufferOwner;
-    use crate::components::editor::Direction;
     use crate::selection::SelectionMode;
     use crate::test_app::*;
     use crate::{
@@ -394,34 +393,57 @@ fn main() {
     }
 
     #[test]
-    fn paste_gap() -> anyhow::Result<()> {
-        let run_test = |direction: Direction| {
-            execute_test(|s| {
-                Box::new([
-                    App(OpenFile {
-                        path: s.main_rs(),
-                        owner: BufferOwner::User,
-                        focus: true,
-                    }),
-                    Editor(SetContent("fn f(x: X, y: Y) {}".to_string())),
-                    Editor(MatchLiteral("x: X".to_string())),
-                    Editor(SetSelectionMode(
-                        IfCurrentNotFound::LookForward,
-                        SelectionMode::SyntaxNode,
-                    )),
-                    Editor(MoveSelection(Right)),
-                    Editor(Copy {
-                        use_system_clipboard: false,
-                    }),
-                    Editor(Paste {
-                        use_system_clipboard: false,
-                        direction: direction.clone(),
-                    }),
-                    Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
-                ])
-            })
-        };
-        run_test(Direction::End)?;
-        run_test(Direction::Start)
+    fn paste_forward_with_gap() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("fn f(x: X, y: Y) {}".to_string())),
+                Editor(MatchLiteral("x: X".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::SyntaxNode,
+                )),
+                Editor(MoveSelection(Right)),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
+                Editor(Paste {
+                    use_system_clipboard: false,
+                }),
+                Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
+            ])
+        })
+    }
+
+    #[test]
+    fn paste_backward_with_gap() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("fn f(x: X, y: Y) {}".to_string())),
+                Editor(MatchLiteral("x: X".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::SyntaxNode,
+                )),
+                Editor(MoveSelection(Right)),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
+                Editor(SwapCursor),
+                Editor(Paste {
+                    use_system_clipboard: false,
+                }),
+                Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
+            ])
+        })
     }
 }

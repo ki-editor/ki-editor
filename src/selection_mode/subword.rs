@@ -209,7 +209,7 @@ impl PositionBasedSelectionMode for Subword {
 mod test_subword {
     use super::*;
     use crate::buffer::BufferOwner;
-    use crate::components::editor::{Direction, PriorChange};
+    use crate::components::editor::PriorChange;
     use crate::selection::SelectionMode;
     use crate::test_app::*;
     use crate::{buffer::Buffer, selection::Selection, selection_mode::PositionBased};
@@ -315,35 +315,58 @@ mod test_subword {
     }
 
     #[test]
-    fn paste_gap() -> anyhow::Result<()> {
-        let run_test = |direction: Direction| {
-            execute_test(|s| {
-                Box::new([
-                    App(OpenFile {
-                        path: s.main_rs(),
-                        owner: BufferOwner::User,
-                        focus: true,
-                    }),
-                    Editor(SetContent("foo bar\nspam".to_string())),
-                    Editor(SetSelectionMode(
-                        IfCurrentNotFound::LookForward,
-                        SelectionMode::Subword,
-                    )),
-                    Editor(MoveSelection(Right)),
-                    Expect(CurrentSelectedTexts(&["bar"])),
-                    Editor(Copy {
-                        use_system_clipboard: false,
-                    }),
-                    Editor(Paste {
-                        use_system_clipboard: false,
-                        direction: direction.clone(),
-                    }),
-                    Expect(CurrentComponentContent("foo bar bar\nspam")),
-                ])
-            })
-        };
-        run_test(Direction::End)?;
-        run_test(Direction::Start)
+    fn paste_forward_with_gap() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo bar\nspam".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Subword,
+                )),
+                Editor(MoveSelection(Right)),
+                Expect(CurrentSelectedTexts(&["bar"])),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
+                Editor(Paste {
+                    use_system_clipboard: false,
+                }),
+                Expect(CurrentComponentContent("foo bar bar\nspam")),
+            ])
+        })
+    }
+
+    #[test]
+    fn paste_backward_with_gap() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo bar\nspam".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Subword,
+                )),
+                Editor(MoveSelection(Right)),
+                Expect(CurrentSelectedTexts(&["bar"])),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
+                Editor(SwapCursor),
+                Editor(Paste {
+                    use_system_clipboard: false,
+                }),
+                Expect(CurrentComponentContent("foo bar bar\nspam")),
+            ])
+        })
     }
 }
 
