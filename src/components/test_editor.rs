@@ -1151,6 +1151,28 @@ fn smart_paste_forward() -> anyhow::Result<()> {
 }
 
 #[test]
+fn paste_no_gap() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo\nbar".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
+            Editor(PasteNoGap {
+                use_system_clipboard: false,
+            }),
+            Expect(CurrentComponentContent("foofoo\nbar")),
+        ])
+    })
+}
+
+#[test]
 fn smart_paste_backward() -> anyhow::Result<()> {
     execute_test(move |s| {
         Box::new([

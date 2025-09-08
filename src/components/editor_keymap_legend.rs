@@ -559,6 +559,13 @@ impl Editor {
                     use_system_clipboard,
                 }),
             ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Pst0G),
+                "Paste 0 Gap".to_string(),
+                Dispatch::ToEditor(PasteNoGap {
+                    use_system_clipboard,
+                }),
+            ),
         ]
         .into_iter()
         .chain(self.keymap_clipboard_related_actions_overridable(
