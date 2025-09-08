@@ -949,7 +949,6 @@ fn multi_paste() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("Some(".to_owned())),
             Editor(Paste {
-                direction: Direction::End,
                 use_system_clipboard: false,
             }),
             Editor(Insert(")".to_owned())),
@@ -962,7 +961,6 @@ fn multi_paste() -> anyhow::Result<()> {
                 copied_texts: CopiedTexts::one(".hello".to_owned()),
             }),
             Editor(Paste {
-                direction: Direction::End,
                 use_system_clipboard: false,
             }),
             Expect(CurrentComponentContent(
@@ -2520,7 +2518,6 @@ c1 c2 c3"
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
                 Editor(Paste {
-                    direction: Direction::End,
                     use_system_clipboard: true,
                 }),
                 Expect(CurrentSelectedTexts(&[

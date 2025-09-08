@@ -15,7 +15,7 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchN, SWord, SrchC, MultC, Swap_, /****/ Mark_, Prev_, Up___, Next_, PsteN,
+        SrchN, SWord, SrchC, MultC, Swap_, /****/ Mark_, Prev_, Up___, Next_, Paste,
     ],
     [
         Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
@@ -27,7 +27,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SrchP, Char_, _____, _____, Raise, /****/ MarkF, RplcP, Join_, RplcN, PsteP,
+        SrchP, Char_, _____, _____, Raise, /****/ MarkF, RplcP, Join_, RplcN, _____,
     ],
     [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
@@ -560,10 +560,8 @@ pub(crate) enum Meaning {
     OpenP,
     /// Replace with pattern
     PRplc,
-    /// Paste end
-    PsteN,
-    /// Paste previous
-    PsteP,
+    /// Paste
+    Paste,
     /// Raise
     Raise,
     /// Redo

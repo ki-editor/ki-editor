@@ -549,15 +549,6 @@ impl Editor {
                 }),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::PsteP),
-                format!("{}{}", Direction::Start.format_action("Paste"), extra),
-                format!("{}{}", Direction::Start.format_action("Paste"), extra),
-                Dispatch::ToEditor(Paste {
-                    direction: Direction::Start,
-                    use_system_clipboard,
-                }),
-            ),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::RplcX),
                 format("Replace X"),
                 format!("{}{}", "Replace Cut", extra),
@@ -596,11 +587,10 @@ impl Editor {
         let format = |description: &str| format!("{extra}{description}");
         [
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::PsteN),
+                context.keyboard_layout_kind().get_key(&Meaning::Paste),
                 format("Paste →"),
                 format!("{}{}", Direction::End.format_action("Paste"), extra),
                 Dispatch::ToEditor(Paste {
-                    direction: Direction::End,
                     use_system_clipboard,
                 }),
             )
@@ -649,7 +639,6 @@ impl Editor {
                 "Paste →".to_string(),
                 "Paste".to_string(),
                 Dispatch::ToEditor(Paste {
-                    direction: Direction::End,
                     use_system_clipboard: false,
                 }),
             ),

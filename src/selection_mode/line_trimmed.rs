@@ -381,89 +381,140 @@ fn f() {
 
     #[test]
     fn paste_forward_use_larger_indent() -> anyhow::Result<()> {
-        let run_test = |direction: Direction, expected_result: &'static str| {
-            execute_test(|s| {
-                Box::new([
-                    App(OpenFile {
-                        path: s.main_rs(),
-                        owner: BufferOwner::User,
-                        focus: true,
-                    }),
-                    Editor(SetContent(
-                        "
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    "
 foo
   bar
     spam
 "
-                        .trim()
-                        .to_string(),
-                    )),
-                    Editor(MatchLiteral("bar".to_string())),
-                    Editor(SetSelectionMode(
-                        IfCurrentNotFound::LookForward,
-                        SelectionMode::Line,
-                    )),
-                    Editor(Copy {
-                        use_system_clipboard: false,
-                    }),
-                    Editor(Paste {
-                        use_system_clipboard: false,
-                        direction: direction.clone(),
-                    }),
-                    Expect(CurrentComponentContent(expected_result)),
-                ])
-            })
-        };
-        run_test(
-            Direction::End,
-            "
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("bar".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
+                Editor(Paste {
+                    use_system_clipboard: false,
+                }),
+                Expect(CurrentComponentContent(
+                    "
 foo
   bar
     bar
     spam
 "
-            .trim(),
-        )?;
-        run_test(
-            Direction::Start,
-            "
+                    .trim(),
+                )),
+            ])
+        })
+    }
+
+    #[test]
+    fn paste_backward_use_larger_indent() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    "
+foo
+  bar
+    spam
+"
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("bar".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
+                Editor(SwapCursor),
+                Editor(Paste {
+                    use_system_clipboard: false,
+                }),
+                Expect(CurrentComponentContent(
+                    "
 foo
   bar
   bar
     spam
 "
-            .trim(),
-        )
+                    .trim(),
+                )),
+            ])
+        })
     }
 
     #[test]
-    fn still_paste_to_newline_with_indent_despite_only_one_line_present() -> anyhow::Result<()> {
-        let run_test = |direction: Direction| {
-            execute_test(|s| {
-                Box::new([
-                    App(OpenFile {
-                        path: s.main_rs(),
-                        owner: BufferOwner::User,
-                        focus: true,
-                    }),
-                    Editor(SetContent("  foo".to_string())),
-                    Editor(SetSelectionMode(
-                        IfCurrentNotFound::LookForward,
-                        SelectionMode::Line,
-                    )),
-                    Editor(Copy {
-                        use_system_clipboard: false,
-                    }),
-                    Editor(Paste {
-                        use_system_clipboard: false,
-                        direction: direction.clone(),
-                    }),
-                    Expect(CurrentComponentContent("  foo\n  foo")),
-                ])
-            })
-        };
-        run_test(Direction::End)?;
-        run_test(Direction::Start)
+    fn still_paste_forward_with_newline_with_indent_despite_only_one_line_present(
+    ) -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("  foo".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
+                Editor(Paste {
+                    use_system_clipboard: false,
+                }),
+                Expect(CurrentComponentContent("  foo\n  foo")),
+            ])
+        })
+    }
+
+    #[test]
+    fn still_paste_backward_with_newline_with_indent_despite_only_one_line_present(
+    ) -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("  foo".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
+                Editor(SwapCursor),
+                Editor(Paste {
+                    use_system_clipboard: false,
+                }),
+                Expect(CurrentComponentContent("  foo\n  foo")),
+            ])
+        })
     }
 
     #[test]
@@ -485,9 +536,9 @@ foo
                 Editor(Copy {
                     use_system_clipboard: false,
                 }),
+                Editor(SwapCursor),
                 Editor(Paste {
                     use_system_clipboard: false,
-                    direction: Direction::Start,
                 }),
                 Expect(CurrentComponentContent("foo\nbar\nbar")),
             ])
@@ -495,39 +546,64 @@ foo
     }
 
     #[test]
-    fn copy_pasting_nothing_but_with_indentation() -> anyhow::Result<()> {
-        let run_test = |direction: Direction| {
-            execute_test(|s| {
-                Box::new([
-                    App(OpenFile {
-                        path: s.main_rs(),
-                        owner: BufferOwner::User,
-                        focus: true,
-                    }),
-                    Editor(SetContent(" ".to_string())),
-                    Editor(SetSelectionMode(
-                        IfCurrentNotFound::LookForward,
-                        SelectionMode::Line,
-                    )),
-                    Expect(CurrentSelectedTexts(&[""])),
-                    Editor(Copy {
-                        use_system_clipboard: false,
-                    }),
-                    Editor(Paste {
-                        use_system_clipboard: false,
-                        direction: direction.clone(),
-                    }),
-                    Expect(CurrentComponentContent(" \n ")),
-                    Editor(Paste {
-                        use_system_clipboard: false,
-                        direction: direction.clone(),
-                    }),
-                    Expect(CurrentComponentContent(" \n \n ")),
-                ])
-            })
-        };
-        run_test(Direction::End)?;
-        run_test(Direction::Start)
+    fn copy_pasting_backward_nothing_but_with_indentation() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(" ".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
+                Editor(SwapCursor),
+                Editor(Paste {
+                    use_system_clipboard: false,
+                }),
+                Expect(CurrentComponentContent(" \n ")),
+                Editor(Paste {
+                    use_system_clipboard: false,
+                }),
+                Expect(CurrentComponentContent(" \n \n ")),
+            ])
+        })
+    }
+
+    #[test]
+    fn copy_pasting_forward_nothing_but_with_indentation() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(" ".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
+                Editor(Paste {
+                    use_system_clipboard: false,
+                }),
+                Expect(CurrentComponentContent(" \n ")),
+                Editor(Paste {
+                    use_system_clipboard: false,
+                }),
+                Expect(CurrentComponentContent(" \n \n ")),
+            ])
+        })
     }
 
     #[test]
