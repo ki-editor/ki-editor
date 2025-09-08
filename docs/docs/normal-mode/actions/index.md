@@ -14,7 +14,7 @@ import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 ## Search
 
-### `← Search`/`Search →`
+### `Search`
 
 Open search prompt.
 
