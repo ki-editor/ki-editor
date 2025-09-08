@@ -299,7 +299,7 @@ impl Component for Editor {
                 self.selection_set
                     .move_right(&self.cursor_direction, len_chars)
             }
-            Open(direction) => return self.open(direction, context),
+            Open => return self.open(context),
             GoBack => self.go_back(context),
             GoForward => self.go_forward(context),
             SelectSurround { enclosure, kind } => {
@@ -2376,11 +2376,8 @@ impl Editor {
             .collect::<anyhow::Result<Vec<_>>>()
     }
 
-    fn open(
-        &mut self,
-        direction: Direction,
-        context: &Context,
-    ) -> Result<Dispatches, anyhow::Error> {
+    fn open(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        let direction = self.cursor_direction.reverse();
         let dispatches = if self.selection_set.mode().is_syntax_node() {
             Dispatches::default()
         } else {
@@ -3917,7 +3914,7 @@ pub(crate) enum DispatchEditor {
         enclosure: EnclosureKind,
         kind: SurroundKind,
     },
-    Open(Direction),
+    Open,
     ToggleMark,
     EnterNormalMode,
     EnterSwapMode,

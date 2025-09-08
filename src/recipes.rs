@@ -592,7 +592,7 @@ impl<C> Iterator for PostorderTraverse<C>
                     content: "def foo(bar: Bar, spam: Spam): pass",
                     file_extension: "py",
                     prepare_events: keys!("q s p a m enter"),
-                    events: keys!("d b x esc B y"),
+                    events: keys!("d b x esc / b y"),
                     expectations: Box::new([CurrentComponentContent("def foo(bar: Bar, spam: Spam, y, x): pass")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -628,7 +628,7 @@ fn foo() {
 }".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w b x esc B y"),
+                    events: keys!("w b x esc / b y"),
                     expectations: Box::new([CurrentComponentContent("fn foo() {
     y
     x

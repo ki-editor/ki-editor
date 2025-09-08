@@ -44,14 +44,14 @@ This is similar to [Yanking Earlier Kills](https://www.gnu.org/software/emacs/ma
 
 This is useful when you want to retrieve earlier copies.
 
-### `← Open`/`Open →`
+### `Open`
 
-Open before/after selection.
+Open next to selection's anchor.
 
-If the current selection mode is not Syntax Node,
-then Open inserts a newline with the respective indent after/before the current line.
+If the current selection mode is not Syntax Mode,
+then Open inserts a newline with the respective indent next to anchor of the current line.
 
-Otherwise, it inserts a gap before/after the current selection, and then enter Insert mode.
+Otherwise, it inserts a gap next to the current selection's anchor, and then enter Insert mode.
 
 <TutorialFallback filename="open"/>
 
