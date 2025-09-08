@@ -2377,6 +2377,7 @@ impl Editor {
     }
 
     fn open(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        let direction = self.cursor_direction.reverse();
         let dispatches = if self.selection_set.mode().is_syntax_node() {
             Dispatches::default()
         } else {
@@ -2387,7 +2388,6 @@ impl Editor {
                 None,
             )?
         };
-        let direction = self.cursor_direction.reverse();
         let edit_transaction = EditTransaction::from_action_groups(
             self.get_selection_set_with_gap(&direction, context)?
                 .into_iter()
