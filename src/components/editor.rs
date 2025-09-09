@@ -18,6 +18,7 @@ use crate::{
     rectangle::Rectangle,
     search::parse_search_config,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
+    soft_wrap::{self, WrappedLines},
 };
 use crate::{
     app::{Dispatches, RequestParams, Scope},
@@ -39,6 +40,7 @@ use ropey::Rope;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{
     cell::{Ref, RefCell, RefMut},
+    cmp::Ordering,
     ops::{Not, Range},
     rc::Rc,
 };
@@ -186,9 +188,9 @@ impl Component for Editor {
         let last_visible_line = self.last_visible_line(context);
         match dispatch {
             #[cfg(test)]
-            AlignViewTop => self.align_cursor_to_top(),
+            AlignViewTop => self.align_selection_to_top(),
             #[cfg(test)]
-            AlignViewBottom => self.align_cursor_to_bottom(context),
+            AlignViewBottom => self.align_selection_to_bottom(context),
             Transform(transformation) => return self.transform_selection(transformation, context),
             SetSelectionMode(if_current_not_found, selection_mode) => {
                 return self.set_selection_mode(
@@ -291,6 +293,9 @@ impl Component for Editor {
             Paste {
                 use_system_clipboard,
             } => return self.paste(context, use_system_clipboard, true),
+            PasteNoGap {
+                use_system_clipboard,
+            } => return self.paste(context, use_system_clipboard, false),
             SwapCursor => self.swap_cursor(context),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
@@ -788,15 +793,13 @@ impl Editor {
         Ok(SelectionSet::new(NonEmpty::new(primary)).set_mode(mode))
     }
 
-    fn cursor_row(&self) -> u16 {
-        self.get_cursor_char_index()
-            .to_position(&self.buffer.borrow())
-            .line as u16
-    }
-
+    /// Scroll offset recalculation is always based on the position of the cursor
     fn recalculate_scroll_offset(&mut self, context: &Context) {
         // Update scroll_offset if primary selection is out of view.
-        let cursor_row = self.cursor_row();
+        let cursor_row = self
+            .buffer()
+            .char_to_line(self.get_cursor_char_index())
+            .unwrap_or_default() as u16;
         let render_area = self.render_area(context);
         if cursor_row.saturating_sub(self.scroll_offset) > render_area.height.saturating_sub(1)
             || cursor_row < self.scroll_offset
@@ -806,28 +809,122 @@ impl Editor {
         }
     }
 
-    pub(crate) fn align_cursor_to_bottom(&mut self, context: &Context) {
-        self.scroll_offset = self.cursor_row().saturating_sub(
+    fn align_selection<F: Fn(u16) -> u16>(
+        &mut self,
+        context: &Context,
+        target_line_index: u16,
+        available_height_multiplier: F,
+    ) {
+        let hidden_parent_lines_count = self.hidden_parent_line_ranges().unwrap_or_default().len();
+
+        let available_height = available_height_multiplier(
             self.rectangle
                 .height
                 .saturating_sub(1)
+                .saturating_sub(hidden_parent_lines_count as u16)
                 .saturating_sub(self.window_title_height(context)),
+        );
+
+        let line_number_width = self.buffer().len_lines().to_string().chars().count();
+
+        // dbg!(line_number_width);
+        let separator_width = 1;
+        let width = self
+            .rectangle
+            .width
+            .saturating_sub((line_number_width + separator_width) as u16);
+
+        // dbg!(available_height, self.rectangle.width, width);
+
+        let max_number_of_lines_that_can_be_taken_to_stack_on_top_of_target_row = {
+            let mut accumulated_height = 0;
+            let mut line_index = target_line_index as usize;
+            while line_index > 0 {
+                let text = &self
+                    .buffer()
+                    .get_line_by_line_index(line_index)
+                    .map(|slice| slice.to_string())
+                    .unwrap_or_default();
+                let line_height: usize = soft_wrap::soft_wrap(text, width as usize)
+                    .lines()
+                    .iter()
+                    .map(|line| line.lines().len())
+                    .sum();
+
+                // println!("=====");
+                // dbg!(text, line_height, accumulated_height, line_index);
+
+                if accumulated_height + line_height > available_height as usize {
+                    break;
+                } else {
+                    accumulated_height += line_height;
+                    line_index -= 1;
+                }
+            }
+
+            let lines_count = (target_line_index - line_index as u16);
+            lines_count
+        };
+
+        // dbg!(&max_number_of_lines_that_can_be_taken_to_stack_on_top_of_cursor_row);
+        // dbg!(&selection_end_line_index);
+
+        self.scroll_offset = target_line_index.saturating_sub(
+            max_number_of_lines_that_can_be_taken_to_stack_on_top_of_target_row as u16,
         );
     }
 
-    pub(crate) fn align_cursor_to_top(&mut self) {
-        self.scroll_offset = self.cursor_row();
+    /// If the primary selection has multiple lines
+    /// then the last line will be used for bottom alignment
+    pub(crate) fn align_selection_to_bottom(&mut self, context: &Context) {
+        let selection_end_line_index = self
+            .buffer()
+            .char_to_line(self.selection_set.primary_selection().range().end)
+            .unwrap_or_default() as u16;
+
+        self.align_selection(context, selection_end_line_index, |height| height)
+    }
+
+    /// If the primary selection has multiple lines
+    /// then the first line will be used for top alignment
+    pub(crate) fn align_selection_to_top(&mut self) {
+        let selection_first_line = self
+            .buffer()
+            .char_to_line(self.selection_set.primary_selection().range().start)
+            .unwrap_or_default() as u16;
+        self.scroll_offset = selection_first_line;
+    }
+
+    /// If the primary selection has multiple lines
+    /// then the middle line will be used for center alignment
+    /// TODO: need to cater for wrapped lines
+    fn align_selection_to_center(&mut self, context: &Context) {
+        let line_range = self
+            .buffer()
+            .char_index_range_to_line_range(self.selection_set.primary_selection().range())
+            .unwrap_or_default();
+
+        let mid = line_range.start + ((line_range.end - line_range.start) / 2);
+        self.align_selection(context, mid as u16, |height| height / 2);
+    }
+
+    fn cursor_row(&self) -> usize {
+        self.buffer()
+            .char_to_line(self.get_cursor_char_index())
+            .unwrap_or_default()
     }
 
     fn align_cursor_to_center(&mut self, context: &Context) {
-        self.scroll_offset = self.cursor_row().saturating_sub(
+        let cursor_row = self.cursor_row();
+
+        self.scroll_offset = cursor_row.saturating_sub(
             (self
                 .rectangle
                 .height
                 .saturating_sub(self.window_title_height(context)) as f64
                 / 2.0)
-                .ceil() as u16,
-        );
+                .ceil() as usize,
+        ) as u16;
     }
 
     pub(crate) fn select(
@@ -2837,15 +2934,15 @@ impl Editor {
     pub(crate) fn switch_view_alignment(&mut self, context: &Context) {
         self.current_view_alignment = Some(match self.current_view_alignment {
             Some(ViewAlignment::Top) => {
-                self.align_cursor_to_center(context);
+                self.align_selection_to_center(context);
                 ViewAlignment::Center
             }
             Some(ViewAlignment::Center) => {
-                self.align_cursor_to_bottom(context);
+                self.align_selection_to_bottom(context);
                 ViewAlignment::Bottom
             }
             None | Some(ViewAlignment::Bottom) => {
-                self.align_cursor_to_top();
+                self.align_selection_to_top();
                 ViewAlignment::Top
             }
         })
@@ -3844,6 +3941,22 @@ impl Editor {
         });
         Ok(dispatches)
     }
+
+    fn max_wrapped_lines_above_cursor_row(&self, context: &Context) -> WrappedLines {
+        let height = self.render_area(context).height.into();
+        let cursor_row = self.cursor_row();
+
+        let content = self
+            .buffer()
+            .rope()
+            .lines()
+            .skip(cursor_row.saturating_sub(height))
+            .take(height)
+            .map(|slice| slice.to_string())
+            .collect_vec()
+            .join("");
+        soft_wrap::soft_wrap(&content, self.render_area(context).width as usize)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3943,6 +4056,9 @@ pub(crate) enum DispatchEditor {
     ReplaceCurrentSelectionWith(String),
     SelectLineAt(usize),
     Paste {
+        use_system_clipboard: bool,
+    },
+    PasteNoGap {
         use_system_clipboard: bool,
     },
     SwapCursor,

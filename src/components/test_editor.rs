@@ -1,4 +1,4 @@
-use crate::app::{LocalSearchConfigUpdate, Scope};
+use crate::app::{Dimension, LocalSearchConfigUpdate, Scope};
 use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::CopiedTexts;
@@ -1143,6 +1143,28 @@ fn smart_paste_forward() -> anyhow::Result<()> {
             }),
             Expect(CurrentComponentContent("fn main(a:A, c:C, b:B) {}")),
             Expect(CurrentSelectedTexts(&["c:C"])),
+        ])
+    })
+}
+
+#[test]
+fn paste_no_gap() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo\nbar".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
+            Editor(PasteNoGap {
+                use_system_clipboard: false,
+            }),
+            Expect(CurrentComponentContent("foofoo\nbar")),
         ])
     })
 }
@@ -4830,6 +4852,41 @@ fn escaping_quicfix_list_mode_should_not_change_selection() -> anyhow::Result<()
             App(HandleKeyEvents(keys!("esc").to_vec())),
             Expect(CurrentGlobalMode(None)),
             Expect(CurrentSelectedTexts(&["mori"])),
+        ])
+    })
+}
+
+#[test]
+fn last_line_of_selection_should_be_visible_when_aligning_bottom() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+// padding 1
+// padding 2
+// padding 3
+
+fn main() {
+  hello_worldly();
+  foo {
+    x: 2
+  }
+}"
+                .to_string(),
+            )),
+            App(TerminalDimensionChanged(Dimension {
+                height: 7,
+                width: 20,
+            })),
+            Editor(MatchLiteral("foo".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Editor(AlignViewBottom),
+            Expect(AppGrid("".to_string())),
         ])
     })
 }
