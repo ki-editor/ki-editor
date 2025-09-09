@@ -647,6 +647,10 @@ impl Selection {
             cursor_direction,
         };
 
+        println!(
+            "  !! get_selection_ movement applicandum and cursor direction {:#?} {:#?}",
+            movement, cursor_direction
+        );
         selection_mode.apply_movement(&params, *movement)
     }
     #[cfg(test)]

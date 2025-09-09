@@ -127,6 +127,7 @@ impl Component for SuggestiveEditor {
 
 impl SuggestiveEditor {
     pub(crate) fn from_buffer(buffer: Rc<RefCell<Buffer>>, filter: SuggestiveEditorFilter) -> Self {
+        println!("  ==> WAS HERE");
         Self {
             editor: Editor::from_buffer(buffer),
             completion_dropdown: Dropdown::new(DropdownConfig {

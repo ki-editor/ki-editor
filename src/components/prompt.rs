@@ -82,15 +82,18 @@ impl Prompt {
                 )
             }
         };
+        println!("  == WAS HERE");
         let mut editor = SuggestiveEditor::from_buffer(
             Rc::new(RefCell::new(Buffer::new(None, &text))),
             SuggestiveEditorFilter::CurrentLine,
         );
+        println!("  == WAS HERE");
         let dispatches = if config.leaves_current_line_empty {
             Dispatches::one(Dispatch::ToEditor(DispatchEditor::MoveToLastChar))
         } else {
             Dispatches::new(
                 [
+                    // Whaaaat???
                     Dispatch::ToEditor(DispatchEditor::SetSelectionMode(
                         super::editor::IfCurrentNotFound::LookForward,
                         SelectionMode::Line,
@@ -110,6 +113,8 @@ impl Prompt {
             trigger_characters: vec![" ".to_string()],
         });
         let dispatches = dispatches.chain(editor.render_completion_dropdown(true));
+        println!("  `Prompt::new` config.enter {:#?}", config.on_enter);
+        println!("  `Prompt::new` dispatches {:#?}", dispatches);
         (
             Prompt {
                 editor,

@@ -431,6 +431,10 @@ pub trait SelectionModeTrait {
             MovementApplicandum::Left => convert(self.left(params)),
             MovementApplicandum::Last => convert(self.last(params)),
             MovementApplicandum::Current(if_current_not_found) => {
+                println!(
+                    "  MovementApplicandum::Current variant ({:#?})",
+                    if_current_not_found
+                );
                 convert(self.current(params, if_current_not_found))
             }
             MovementApplicandum::First => convert(self.first(params)),

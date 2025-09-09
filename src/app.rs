@@ -958,6 +958,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn local_search(&mut self, if_current_not_found: IfCurrentNotFound) -> anyhow::Result<()> {
+        println!("    == == `local search` {:#?}", if_current_not_found);
         let config = self.context.local_search_config();
         let search = config.search();
         if !search.is_empty() {
@@ -1043,6 +1044,7 @@ impl<T: Frontend> App<T> {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<()> {
+        println!("`open_search_prompt` {:#?}", if_current_not_found);
         self.open_prompt(
             PromptConfig {
                 title: format!("{scope:?} search",),
@@ -1892,6 +1894,7 @@ impl<T: Frontend> App<T> {
         if_current_not_found: IfCurrentNotFound,
         run_search_after_config_updated: bool,
     ) -> Result<(), anyhow::Error> {
+        println!("           = = = Hello World {:#?}", if_current_not_found);
         self.context.update_local_search_config(update, scope);
         if run_search_after_config_updated {
             match scope {
@@ -2237,9 +2240,27 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     fn handle_key_events(&mut self, key_events: Vec<event::KeyEvent>) -> anyhow::Result<()> {
+        /* dbg!(
+            "DBG: Inside `handle_key_events` BEFORE handling event",
+            self.get_editor_by_file_path(&self.get_current_file_path().unwrap())
+                .unwrap()
+                .borrow()
+                .editor()
+                .cursor_direction
+                .clone() // Rc<RefCell<suggestive_editor::SuggestiveEditor>>
+        ); */
         for key_event in key_events.into_iter() {
             self.handle_event(Event::Key(key_event.to_owned()))?;
         }
+        /* dbg!(
+            "DBG: Inside `handle_key_events` AFTER handling event",
+            self.get_editor_by_file_path(&self.get_current_file_path().unwrap())
+                .unwrap()
+                .borrow()
+                .editor()
+                .cursor_direction
+                .clone() // Rc<RefCell<suggestive_editor::SuggestiveEditor>>
+        ); */
         Ok(())
     }
 
@@ -2295,6 +2316,7 @@ impl<T: Frontend> App<T> {
         if self.is_running_as_embedded() {
             self.open_prompt_embedded(prompt_config, current_line)
         } else {
+            println!("`open_prompt` {:#?}", prompt_config.on_enter);
             self.open_prompt_non_embedded(prompt_config, current_line)
         }
     }
@@ -2304,14 +2326,17 @@ impl<T: Frontend> App<T> {
         prompt_config: PromptConfig,
         current_line: Option<String>,
     ) -> anyhow::Result<()> {
+        println!("`open_prompt_non_embedded` {:#?}", prompt_config.on_enter);
         if let Some(line) = current_line {
             self.context
                 .push_history_prompt(prompt_config.prompt_history_key, line)
         }
         let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
+        println!("  WAS HERE");
         let (prompt, dispatches) = Prompt::new(prompt_config, history);
 
+        println!("  WAS HERE");
         self.layout.add_and_focus_prompt(
             ComponentKind::Prompt,
             Rc::new(RefCell::new(prompt)),
@@ -2362,6 +2387,7 @@ impl<T: Frontend> App<T> {
         let Some(prompt_config) = self.last_prompt_config.take() else {
             return Ok(());
         };
+        println!("           = = = = = Hello, World!");
         let dispatches = prompt_config.on_enter.to_dispatches(&entry)?;
         self.handle_dispatches(dispatches.append(Dispatch::PushPromptHistory {
             key: prompt_config.prompt_history_key,
@@ -2861,6 +2887,19 @@ impl<T: Frontend> App<T> {
         if_current_not_found: IfCurrentNotFound,
         prior_change: Option<PriorChange>,
     ) -> anyhow::Result<()> {
+        /* println!(
+            "`open_search_prompt_with_prior_change` {:#?}",
+            if_current_not_found
+        ) */
+        /* dbg!(
+            "`open_search_prompt_with_prior_change`::`handle_prior_change` {{{",
+            self.get_editor_by_file_path(&self.get_current_file_path().unwrap())
+                .unwrap()
+                .borrow()
+                .editor()
+                .cursor_direction
+                .clone()
+        ); */
         self.current_component()
             .borrow_mut()
             .editor_mut()
@@ -3316,6 +3355,7 @@ impl DispatchPrompt {
                 if_current_not_found,
                 run_search_after_config_updated,
             } => {
+                // Black magic must happen here
                 let dispatch = match parse_search_config(text) {
                     Ok(search_config) => match scope {
                         Scope::Local => Dispatch::UpdateLocalSearchConfig {
