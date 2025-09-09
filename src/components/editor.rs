@@ -689,6 +689,7 @@ impl Editor {
             reveal: None,
             visible_line_ranges: Default::default(),
         };
+
         // Select the first line of the file
         let _ = result.select(
             selection_mode,
@@ -2383,7 +2384,6 @@ impl Editor {
         let dispatches = if self.selection_set.mode().is_syntax_node() {
             Dispatches::default()
         } else {
-            // WHAAAT???
             self.set_selection_mode(
                 IfCurrentNotFound::LookForward,
                 SelectionMode::Line,
@@ -3412,6 +3412,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
+    #[cfg(test)]
     pub(crate) fn primary_selection(&self) -> anyhow::Result<String> {
         Ok(self
             .buffer()
