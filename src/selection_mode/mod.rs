@@ -1666,6 +1666,7 @@ pub(crate) trait IterBasedSelectionMode {
         let current_selection = params.current_selection;
         let buffer = params.buffer;
         let range = current_selection.range().trimmed(buffer)?;
+
         if let Some((_, best_intersecting_match)) = {
             let char_index = match params.cursor_direction {
                 Direction::Start => range.start,
