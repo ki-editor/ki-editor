@@ -380,12 +380,6 @@ impl Editor {
                 },
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::OpenP),
-                Direction::Start.format_action("Open"),
-                Direction::Start.format_action("Open"),
-                Dispatch::ToEditor(Open(Direction::Start)),
-            ),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Undo_),
                 "Undo".to_string(),
                 "Undo".to_string(),
@@ -497,10 +491,10 @@ impl Editor {
             )
             .override_keymap(normal_mode_override.append.as_ref(), none_if_no_override),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::OpenN),
+                context.keyboard_layout_kind().get_key(&Meaning::Open_),
                 Direction::End.format_action("Open"),
                 Direction::End.format_action("Open"),
-                Dispatch::ToEditor(Open(Direction::End)),
+                Dispatch::ToEditor(Open),
             )
             .override_keymap(normal_mode_override.open.as_ref(), none_if_no_override),
         ]
@@ -562,6 +556,13 @@ impl Editor {
                 format("Copy"),
                 format!("{}{}", "Copy", extra),
                 Dispatch::ToEditor(Copy {
+                    use_system_clipboard,
+                }),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Pst0G),
+                "Paste 0 Gap".to_string(),
+                Dispatch::ToEditor(PasteNoGap {
                     use_system_clipboard,
                 }),
             ),

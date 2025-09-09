@@ -797,14 +797,16 @@ fn open_before_selection() -> anyhow::Result<()> {
             Editor(SetContent("fn x(a:A, b:B){}".trim().to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(Open(Direction::Start)),
+            Editor(SwapCursor),
+            Editor(Open),
             Expect(CurrentMode(Mode::Insert)),
             Editor(Insert("c:C".to_string())),
             Expect(CurrentComponentContent("fn x(c:C, a:A, b:B){}".trim())),
             Editor(EnterNormalMode),
             Editor(MatchLiteral("b:B".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(Open(Direction::Start)),
+            Editor(SwapCursor),
+            Editor(Open),
             Editor(Insert("d:D".to_string())),
             Expect(CurrentComponentContent("fn x(c:C, a:A, d:D, b:B){}".trim())),
         ])
@@ -831,7 +833,8 @@ def main():
             )),
             Editor(MatchLiteral("hello".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(Open(Direction::Start)),
+            Editor(SwapCursor),
+            Editor(Open),
             Expect(CurrentComponentContent(
                 "
 def main():
@@ -857,7 +860,7 @@ fn open_after_selection() -> anyhow::Result<()> {
             Editor(SetContent("fn x(a:A, b:B){}".trim().to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(Open(Direction::End)),
+            Editor(Open),
             Expect(CurrentMode(Mode::Insert)),
             Editor(Insert("c:C".to_string())),
             Expect(CurrentComponentContent("fn x(a:A, c:C, b:B){}".trim())),
@@ -865,7 +868,7 @@ fn open_after_selection() -> anyhow::Result<()> {
             Editor(MatchLiteral("b:B".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["b:B"])),
-            Editor(Open(Direction::End)),
+            Editor(Open),
             Editor(Insert("d:D".to_string())),
             Expect(CurrentComponentContent("fn x(a:A, c:C, b:B, d:D){}".trim())),
         ])
@@ -893,7 +896,7 @@ fn main() {
             Editor(MatchLiteral("hello".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Expect(CurrentSelectedTexts(&["hello"])),
-            Editor(Open(Direction::End)),
+            Editor(Open),
             Editor(Insert("// world".to_string())),
             Expect(CurrentComponentContent(
                 "
