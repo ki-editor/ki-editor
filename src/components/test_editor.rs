@@ -2932,27 +2932,16 @@ fn search_backward() -> Result<(), anyhow::Error> {
                     owner: BufferOwner::User,
                     focus: true,
                 }),
-                Editor(SetContent(
-                    "
-.to_string(),
-)),
-Editor(MatchLiteral(amos.foo())),
-"
-                    .to_string(),
-                )),
-                Editor(MatchLiteral("Editor".to_string())),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+                Editor(SetContent("fo_b xxx FoB".to_string())),
+                Editor(MatchLiteral("xxx".to_string())),
                 App(HandleKeyEvents(keys!("/").to_vec())),
                 // Expect((IfCurrentNotFound::LookBackward)),
                 App(HandleKeyEvents(keys!("q").to_vec())),
-                App(HandleKeyEvents(keys!("(").to_vec())),
+                // Naming-convention agnostic search "n fo_b"
+                App(HandleKeyEvents(keys!("n space f o _ b").to_vec())),
                 App(HandleKeyEvents(keys!("enter").to_vec())),
                 // App(HandleKeyEvents(keys!("/ q ( enter").to_vec())),
-                Expect(CurrentSelectedTexts(&["("])),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-                Expect(CurrentSelectedTexts(&["("])),
-                Editor(MoveSelection(Left)),
-                Expect(CurrentSelectedTexts(&["to_string"])),
+                Expect(CurrentSelectedTexts(&["fo_b"])),
             ])
         }
     })

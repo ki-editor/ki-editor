@@ -123,7 +123,6 @@ pub(crate) struct DropdownConfig {
 
 impl Dropdown {
     pub(crate) fn new(config: DropdownConfig) -> Self {
-        println!("  ====> WAS HERE");
         Self {
             filter: String::new(),
             items: vec![],

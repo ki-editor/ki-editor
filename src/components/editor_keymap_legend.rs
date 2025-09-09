@@ -911,12 +911,7 @@ impl Editor {
             .clone()
             .or_else(|| self.normal_mode_override.clone())
             .unwrap_or_default();
-        /* dbg!(
-            "`normal_mode_keymaps`::`keymap_core_movements` {{{",
-            self.cursor_direction.clone()
-        ); */
-        let a = self
-            .keymap_core_movements(context, prior_change)
+        self.keymap_core_movements(context, prior_change)
             .into_iter()
             .chain(self.keymap_sub_modes(context))
             .chain(self.keymap_other_movements(context))
@@ -925,12 +920,7 @@ impl Editor {
             .chain(self.keymap_actions(&normal_mode_override, false, context, prior_change))
             .chain(self.keymap_others(context))
             .chain(self.keymap_universal(context))
-            .collect_vec();
-        /* dbg!(
-            "`normal_mode_keymaps`::`keymap_core_movements` }}}",
-            self.cursor_direction.clone()
-        ); */
-        a
+            .collect_vec()
     }
 
     pub(crate) fn multicursor_mode_keymap_legend_config(

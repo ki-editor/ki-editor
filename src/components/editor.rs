@@ -191,10 +191,6 @@ impl Component for Editor {
             AlignViewBottom => self.align_cursor_to_bottom(context),
             Transform(transformation) => return self.transform_selection(transformation, context),
             SetSelectionMode(if_current_not_found, selection_mode) => {
-                println!(
-                    "    == SetselectionMode variant in handle_dispatch_editor {:#?}",
-                    if_current_not_found
-                );
                 return self.set_selection_mode(
                     if_current_not_found,
                     selection_mode,
@@ -693,15 +689,12 @@ impl Editor {
             reveal: None,
             visible_line_ranges: Default::default(),
         };
-        println!("  ====> Editor::from_buffer WAS HERE");
-
         // Select the first line of the file
         let _ = result.select(
             selection_mode,
             Movement::Current(IfCurrentNotFound::LookForward),
             &Context::default(),
         );
-        println!("  ====> WAS HERE");
         result
     }
 
@@ -845,9 +838,7 @@ impl Editor {
         movement: Movement,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        println!("`Editor::select`, `arg:movement` {:#?}", movement);
         //  There are a few selection modes where Current make sense.
-        println!("  ====> Editor::select");
         if let Some(selection_set) = self.get_selection_set(&selection_mode, movement, context)? {
             Ok(self.update_selection_set(selection_set, true, context))
         } else {
@@ -1383,11 +1374,6 @@ impl Editor {
         movement: Movement,
         context: &Context,
     ) -> anyhow::Result<Option<SelectionSet>> {
-        println!(
-            "  !! get_selection_set movement and cursor {:#?} {:#?}",
-            movement,
-            self.cursor_direction.clone(),
-        );
         self.selection_set.generate(
             &self.buffer.borrow(),
             mode,
@@ -1585,7 +1571,6 @@ impl Editor {
         context: &Context,
         prior_change: Option<PriorChange>,
     ) -> anyhow::Result<Dispatches> {
-        println!("  `set_selection_mode` {:#?}", if_current_not_found);
         self.handle_prior_change(prior_change);
         if self.mode == Mode::MultiCursor {
             let selection_set = self.selection_set.clone().set_mode(selection_mode.clone());
@@ -1631,10 +1616,6 @@ impl Editor {
             {
                 self.reveal = None
             }
-            println!(
-                "  `set_selection_mode` inside else {:#?}",
-                if_current_not_found
-            );
             self.move_selection_with_selection_mode_without_global_mode(
                 Movement::Current(if_current_not_found),
                 selection_mode.clone(),
@@ -3431,7 +3412,6 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    #[cfg(test)]
     pub(crate) fn primary_selection(&self) -> anyhow::Result<String> {
         Ok(self
             .buffer()
