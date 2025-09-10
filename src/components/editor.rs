@@ -826,7 +826,7 @@ impl Editor {
         line_range_to_target: impl Fn(Range<usize>) -> usize,
         available_height_multiplier: F,
     ) {
-        let primary_selection_range = self.selection_set.primary_selection().range();
+        let primary_selection_range = self.selection_set.primary_selection().extended_range();
         let line_range = self
             .buffer()
             .char_index_range_to_line_range(primary_selection_range)
@@ -884,7 +884,12 @@ impl Editor {
     pub(crate) fn align_selection_to_top(&mut self) {
         let selection_first_line = self
             .buffer()
-            .char_to_line(self.selection_set.primary_selection().range().start)
+            .char_to_line(
+                self.selection_set
+                    .primary_selection()
+                    .extended_range()
+                    .start,
+            )
             .unwrap_or_default() as u16;
         self.scroll_offset = selection_first_line;
     }

@@ -2,7 +2,11 @@ use crate::app::{Dimension, LocalSearchConfigUpdate, Scope};
 use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::CopiedTexts;
-use crate::components::editor::{DispatchEditor::*, Movement::*, PriorChange};
+use crate::components::editor::{
+    DispatchEditor::{self, *},
+    Movement::*,
+    PriorChange,
+};
 use crate::context::{Context, GlobalMode, LocalSearchConfigMode, Search};
 use crate::grid::IndexedHighlightGroup;
 use crate::list::grep::RegexConfig;
@@ -5003,5 +5007,81 @@ fn main() {
  [Global Title]",
     )?;
 
+    Ok(())
+}
+
+#[test]
+fn align_view_should_work_for_extended_selection() -> anyhow::Result<()> {
+    fn run_test(dispatch: DispatchEditor, expected_output: &'static str) -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    "
+// padding 1
+// padding 2
+// padding 3
+
+xxx
+yyy
+zzz
+
+// padding 4
+// padding 5
+// padding 6"
+                        .to_string(),
+                )),
+                App(TerminalDimensionChanged(Dimension {
+                    height: 9,
+                    width: 300,
+                })),
+                Editor(MatchLiteral("xxx".to_string())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+                Editor(EnableSelectionExtension),
+                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Down)),
+                Expect(CurrentSelectedTexts(&["xxx\nyyy\nzzz"])),
+                Editor(dispatch.clone()),
+                Expect(AppGrid(expected_output.to_string())),
+            ])
+        })
+    }
+    run_test(
+        AlignViewTop,
+        " 🦀  main.rs [*]
+ 6│xxx
+ 7│yyy
+ 8│█zz
+ 9│
+10│// padding 4
+11│// padding 5
+12│// padding 6",
+    )?;
+    run_test(
+        AlignViewCenter,
+        " 🦀  main.rs [*]
+ 5│
+ 6│xxx
+ 7│yyy
+ 8│█zz
+ 9│
+10│// padding 4
+11│// padding 5",
+    )?;
+    run_test(
+        AlignViewBottom,
+        " 🦀  main.rs [*]
+ 2│// padding 1
+ 3│// padding 2
+ 4│// padding 3
+ 5│
+ 6│xxx
+ 7│yyy
+ 8│█zz",
+    )?;
     Ok(())
 }
