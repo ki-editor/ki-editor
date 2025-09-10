@@ -20,6 +20,7 @@ pub(crate) struct Grid {
 }
 
 const DEFAULT_TAB_SIZE: usize = 4;
+pub(crate) const LINE_NUMBER_VERTICAL_BORDER: &str = "│";
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub(crate) struct Cell {
@@ -161,7 +162,6 @@ impl Ord for PositionedCell {
         self.position.cmp(&other.position)
     }
 }
-#[cfg(test)]
 impl std::fmt::Display for Grid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -552,7 +552,7 @@ impl Grid {
                                 line_index,
                                 Some(max_line_number_len),
                                 Some(max_line_number_len + 1),
-                                "│",
+                                LINE_NUMBER_VERTICAL_BORDER,
                                 &theme.ui.border,
                             ))
                             .map(|cell_update| {

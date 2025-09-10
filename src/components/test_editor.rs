@@ -1,4 +1,4 @@
-use crate::app::{LocalSearchConfigUpdate, Scope};
+use crate::app::{Dimension, LocalSearchConfigUpdate, Scope};
 use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::CopiedTexts;
@@ -4851,4 +4851,157 @@ fn escaping_quicfix_list_mode_should_not_change_selection() -> anyhow::Result<()
             Expect(CurrentSelectedTexts(&["mori"])),
         ])
     })
+}
+
+#[test]
+fn last_line_of_multiline_selection_should_be_at_bottom_when_aligning_bottom() -> anyhow::Result<()>
+{
+    fn run_test(width: u16, height: u16, expected_output: &'static str) -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    "
+// padding 1
+// padding 2
+// padding 3
+
+fn main() {
+  this_is_a_long_line_for_testing_wrapping();
+  foo {
+    x: 2
+  } // this line should be at bottom
+}
+// padding 4
+// padding 5
+// padding 6"
+                        .to_string(),
+                )),
+                App(SetGlobalTitle("[Global Title]".to_string())),
+                App(TerminalDimensionChanged(Dimension { height, width })),
+                Editor(MatchLiteral("foo".to_string())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+                Editor(AlignViewBottom),
+                Expect(AppGrid(expected_output.to_string())),
+            ])
+        })
+    }
+
+    // Case 1: Nothing is wrapped
+
+    run_test(
+        300,
+        9,
+        " 🦀  main.rs [*]
+ 4│// padding 3
+ 5│
+ 6│fn main() {
+ 7│  this_is_a_long_line_for_testing_wrapping();
+ 8│  █oo {
+ 9│    x: 2
+10│  } // this line should be at bottom
+ [Global Title]",
+    )?;
+
+    // Case 2: The long line is wrapped
+    run_test(
+        30,
+        7,
+        " 🦀  main.rs [*]
+ 6│fn main() {
+ 8│  █oo {
+ 9│    x: 2
+10│  } // this line should be
+ ↪│ at bottom
+ [Global Title]",
+    )?;
+
+    Ok(())
+}
+
+#[test]
+fn middle_line_of_multiline_selection_should_be_centered_when_aligning_center() -> anyhow::Result<()>
+{
+    fn run_test(width: u16, height: u16, expected_output: &'static str) -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    "
+// padding 1
+// padding 2
+// padding 3
+
+fn main() {
+  this_is_a_long_line_for_testing_wrapping();
+  foo {
+    x: 2 // this line should be at center
+  }
+}
+// padding 4
+// padding 5
+// padding 6"
+                        .to_string(),
+                )),
+                App(SetGlobalTitle("[Global Title]".to_string())),
+                App(TerminalDimensionChanged(Dimension { height, width })),
+                Editor(MatchLiteral("foo".to_string())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+                Editor(AlignViewCenter),
+                Expect(AppGrid(expected_output.to_string())),
+            ])
+        })
+    }
+
+    // Case 1: Nothing is wrapped
+
+    run_test(
+        300,
+        9,
+        " 🦀  main.rs [*]
+ 6│fn main() {
+ 7│  this_is_a_long_line_for_testing_wrapping();
+ 8│  █oo {
+ 9│    x: 2 // this line should be at center
+10│  }
+11│}
+12│// padding 4
+ [Global Title]",
+    )?;
+
+    // Case 2: Some line is wrapped
+    run_test(
+        30,
+        7,
+        " 🦀  main.rs [*]
+ 6│fn main() {
+ 8│  █oo {
+ 9│    x: 2 // this line
+ ↪│should be at center
+10│  }
+ [Global Title]",
+    )?;
+
+    // Case 3: available height <= height of `foo` node (3 lines):
+    //     center the cursor instead of the middle line of the `foo` node
+
+    run_test(
+        300,
+        5,
+        " 🦀  main.rs [*]
+ 6│fn main() {
+ 8│  █oo {
+ 9│    x: 2 // this line should be at center
+ [Global Title]",
+    )?;
+
+    Ok(())
 }

@@ -17,6 +17,33 @@ pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
         syntax_node(),
         multicursors(),
         RecipeGroup {
+            filename: "align-view",
+            recipes: [
+                Recipe {
+                    description: "Align view",
+                    content: "
+fn main() {
+// padding top 1
+// padding top 2
+// padding top 3
+	foo {
+        bar: spam
+    }
+// padding bottom 4
+// padding bottom 5
+// padding bottom 6
+}".trim(),
+                    file_extension: "rs",
+                    prepare_events: keys!("q f o o enter d"),
+                    events: keys!("alt+; alt+; alt+;"),
+                    expectations: Box::new([CurrentSelectedTexts(&["foo {\n        bar: spam\n    }"])]),
+                    terminal_height: Some(9),
+                    similar_vim_combos: &[],
+                    only: false,
+                }
+            ].to_vec(),
+        },
+        RecipeGroup {
             filename: "jump",
             recipes: [
                 Recipe {

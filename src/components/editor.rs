@@ -6,6 +6,7 @@ use super::{
     render_editor::Source,
     suggestive_editor::{Decoration, Info},
 };
+use crate::grid::LINE_NUMBER_VERTICAL_BORDER;
 use crate::{
     app::{Dimension, Dispatch, ToHostApp},
     buffer::Buffer,
@@ -186,9 +187,11 @@ impl Component for Editor {
         let last_visible_line = self.last_visible_line(context);
         match dispatch {
             #[cfg(test)]
-            AlignViewTop => self.align_cursor_to_top(),
+            AlignViewTop => self.align_selection_to_top(),
             #[cfg(test)]
-            AlignViewBottom => self.align_cursor_to_bottom(context),
+            AlignViewBottom => self.align_selection_to_bottom(context),
+            #[cfg(test)]
+            AlignViewCenter => self.align_selection_to_center(context),
             Transform(transformation) => return self.transform_selection(transformation, context),
             SetSelectionMode(if_current_not_found, selection_mode) => {
                 return self.set_selection_mode(
@@ -791,15 +794,13 @@ impl Editor {
         Ok(SelectionSet::new(NonEmpty::new(primary)).set_mode(mode))
     }
 
-    fn cursor_row(&self) -> u16 {
-        self.get_cursor_char_index()
-            .to_position(&self.buffer.borrow())
-            .line as u16
-    }
-
+    /// Scroll offset recalculation is always based on the position of the cursor
     fn recalculate_scroll_offset(&mut self, context: &Context) {
         // Update scroll_offset if primary selection is out of view.
-        let cursor_row = self.cursor_row();
+        let cursor_row = self
+            .buffer()
+            .char_to_line(self.get_cursor_char_index())
+            .unwrap_or_default() as u16;
         let render_area = self.render_area(context);
         if cursor_row.saturating_sub(self.scroll_offset) > render_area.height.saturating_sub(1)
             || cursor_row < self.scroll_offset
@@ -809,28 +810,102 @@ impl Editor {
         }
     }
 
-    pub(crate) fn align_cursor_to_bottom(&mut self, context: &Context) {
-        self.scroll_offset = self.cursor_row().saturating_sub(
-            self.rectangle
-                .height
-                .saturating_sub(1)
-                .saturating_sub(self.window_title_height(context)),
+    /// Aligns the selection to show the target line within the available viewport.
+    ///
+    /// This function attempts to position the target line optimally within the visible area
+    /// by iteratively testing different scroll offsets. Due to the complex interaction between
+    /// hidden parent lines (contextual lines) and text wrapping, there's no deterministic way
+    /// to calculate the optimal scroll offset directly.
+    ///
+    /// The algorithm works backwards from the maximum possible offset, testing each position
+    /// until it finds one where the target line is visible in the rendered grid. This finds
+    /// the best alignment position for both center and bottom alignment scenarios.
+    fn align_selection<F: Fn(u16) -> u16>(
+        &mut self,
+        context: &Context,
+        line_range_to_target: impl Fn(Range<usize>) -> usize,
+        available_height_multiplier: F,
+    ) {
+        let primary_selection_range = self.selection_set.primary_selection().range();
+        let line_range = self
+            .buffer()
+            .char_index_range_to_line_range(primary_selection_range)
+            .unwrap_or_default();
+
+        let available_height = self
+            .rectangle
+            .height
+            .saturating_sub(self.window_title_height(context));
+
+        let target_line_index = if available_height <= line_range.len() as u16 {
+            // Use cursor row if there are not enough spaces to fit all lines of the selection
+            self.cursor_row() as u16
+        } else {
+            line_range_to_target(line_range.clone()) as u16
+        };
+        for i in (0..available_height_multiplier(available_height)).rev() {
+            let new_scroll_offset = target_line_index.saturating_sub(i);
+            let grid = self.get_grid_with_scroll_offset(context, false, new_scroll_offset);
+            let grid_string = grid.grid.to_string();
+            let grid_string_lines = grid_string.lines().collect_vec();
+            let target_line_number =
+                format!("{}{}", target_line_index + 1, LINE_NUMBER_VERTICAL_BORDER);
+            let target_line_index_in_range = grid_string_lines
+                .iter()
+                .any(|line| line.contains(&target_line_number));
+            if target_line_index_in_range {
+                self.scroll_offset = new_scroll_offset;
+                return;
+            }
+        }
+    }
+
+    pub(crate) fn align_selection_to_bottom(&mut self, context: &Context) {
+        self.align_selection(
+            context,
+            // We need to subtract line_range.end by one because it is exclusive
+            |line_range| line_range.end.saturating_sub(1),
+            |height| height,
+        )
+    }
+
+    /// If the primary selection has multiple lines
+    /// then the middle line will be used for center alignment
+    fn align_selection_to_center(&mut self, context: &Context) {
+        self.align_selection(
+            context,
+            |line_range| line_range.start + (line_range.len() as f32 / 2.0).floor() as usize,
+            |height| height / 2,
         );
     }
 
-    pub(crate) fn align_cursor_to_top(&mut self) {
-        self.scroll_offset = self.cursor_row();
+    /// If the primary selection has multiple lines
+    /// then the first line will be used for top alignment
+    pub(crate) fn align_selection_to_top(&mut self) {
+        let selection_first_line = self
+            .buffer()
+            .char_to_line(self.selection_set.primary_selection().range().start)
+            .unwrap_or_default() as u16;
+        self.scroll_offset = selection_first_line;
+    }
+
+    fn cursor_row(&self) -> usize {
+        self.buffer()
+            .char_to_line(self.get_cursor_char_index())
+            .unwrap_or_default()
     }
 
     fn align_cursor_to_center(&mut self, context: &Context) {
-        self.scroll_offset = self.cursor_row().saturating_sub(
+        let cursor_row = self.cursor_row();
+
+        self.scroll_offset = cursor_row.saturating_sub(
             (self
                 .rectangle
                 .height
                 .saturating_sub(self.window_title_height(context)) as f64
                 / 2.0)
-                .ceil() as u16,
-        );
+                .ceil() as usize,
+        ) as u16;
     }
 
     pub(crate) fn select(
@@ -2837,15 +2912,15 @@ impl Editor {
     pub(crate) fn switch_view_alignment(&mut self, context: &Context) {
         self.current_view_alignment = Some(match self.current_view_alignment {
             Some(ViewAlignment::Top) => {
-                self.align_cursor_to_center(context);
+                self.align_selection_to_center(context);
                 ViewAlignment::Center
             }
             Some(ViewAlignment::Center) => {
-                self.align_cursor_to_bottom(context);
+                self.align_selection_to_bottom(context);
                 ViewAlignment::Bottom
             }
             None | Some(ViewAlignment::Bottom) => {
-                self.align_cursor_to_top();
+                self.align_selection_to_top();
                 ViewAlignment::Top
             }
         })
@@ -3873,6 +3948,8 @@ pub(crate) enum DispatchEditor {
     AlignViewTop,
     #[cfg(test)]
     AlignViewBottom,
+    #[cfg(test)]
+    AlignViewCenter,
     Transform(Transformation),
     SetSelectionMode(IfCurrentNotFound, SelectionMode),
     SetSelectionModeWithPriorChange(IfCurrentNotFound, SelectionMode, Option<PriorChange>),

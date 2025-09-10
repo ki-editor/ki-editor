@@ -67,7 +67,7 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                                         Editor(SetRectangle(Rectangle {
                                             origin: Position::default(),
                                             width,
-                                            height: height as u16,
+                                            height: (height as u16).saturating_sub(1), // Minus one because of app global status bar,
                                         })),
                                         // Editor(ApplySyntaxHighlight),
                                         App(HandleKeyEvent(key!("esc"))),
