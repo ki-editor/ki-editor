@@ -40,6 +40,14 @@ pub(crate) fn markup_focused_tab(path: &str) -> String {
 
 impl Editor {
     pub(crate) fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
+        self.get_grid_with_scroll_offset(context, focused, self.scroll_offset())
+    }
+    pub(crate) fn get_grid_with_scroll_offset(
+        &self,
+        context: &Context,
+        focused: bool,
+        scroll_offset: u16,
+    ) -> GetGridResult {
         let title = self.title(context);
         let title_grid_height = title.lines().count() as u16;
         let render_area = {
@@ -53,7 +61,7 @@ impl Editor {
             None => self.get_grid_with_dimension(
                 context,
                 render_area,
-                self.scroll_offset(),
+                scroll_offset,
                 Some(self.selection_set.primary_selection().range()),
                 false,
                 true,

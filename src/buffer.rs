@@ -1028,23 +1028,30 @@ impl Buffer {
 
     pub(crate) fn line_range_to_full_char_index_range(
         &self,
-        range: Range<usize>,
+        line_range: Range<usize>,
     ) -> anyhow::Result<CharIndexRange> {
-        let end_line_char_start = self.line_to_char(range.end)?;
-        let line = self.get_line_by_line_index(range.end).ok_or_else(|| {
-            anyhow::anyhow!(
-                "Buffer::line_range_to_char_index_range: Unable to get line at index {}",
-                range.end
-            )
-        })?;
-        Ok((self.line_to_char(range.start)?..end_line_char_start + line.len_chars()).into())
+        let last_line_index = line_range.end.saturating_sub(1);
+        let end_line_char_start = self.line_to_char(last_line_index)?;
+        let line = self
+            .get_line_by_line_index(last_line_index)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Buffer::line_range_to_char_index_range: Unable to get line at index {}",
+                    line_range.end
+                )
+            })?;
+        Ok((self.line_to_char(line_range.start)?..end_line_char_start + line.len_chars()).into())
     }
 
     pub(crate) fn char_index_range_to_line_range(
         &self,
         range: CharIndexRange,
     ) -> anyhow::Result<Range<usize>> {
-        Ok(self.char_to_line(range.start)?..self.char_to_line(range.end)?)
+        let start = self.char_to_line(range.start)?;
+
+        // We need to minus range.end by 1 because range.end is exclusive
+        let end = self.char_to_line(range.end - 1)? + 1;
+        Ok(start..end)
     }
 
     pub(crate) fn push_selection_set_history(&mut self, selection_set: SelectionSet) {

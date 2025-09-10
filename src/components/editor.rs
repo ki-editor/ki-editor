@@ -6,6 +6,7 @@ use super::{
     render_editor::Source,
     suggestive_editor::{Decoration, Info},
 };
+use crate::grid::LINE_NUMBER_VERTICAL_BORDER;
 use crate::{
     app::{Dimension, Dispatch, ToHostApp},
     buffer::Buffer,
@@ -40,7 +41,6 @@ use ropey::Rope;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{
     cell::{Ref, RefCell, RefMut},
-    cmp::Ordering,
     ops::{Not, Range},
     rc::Rc,
 };
@@ -191,6 +191,8 @@ impl Component for Editor {
             AlignViewTop => self.align_selection_to_top(),
             #[cfg(test)]
             AlignViewBottom => self.align_selection_to_bottom(context),
+            #[cfg(test)]
+            AlignViewCenter => self.align_selection_to_center(context),
             Transform(transformation) => return self.transform_selection(transformation, context),
             SetSelectionMode(if_current_not_found, selection_mode) => {
                 return self.set_selection_mode(
@@ -809,80 +811,87 @@ impl Editor {
         }
     }
 
+    /// Aligns the selection to show the target line within the available viewport.
+    ///
+    /// This function attempts to position the target line optimally within the visible area
+    /// by iteratively testing different scroll offsets. Due to the complex interaction between
+    /// hidden parent lines (contextual lines) and text wrapping, there's no deterministic way
+    /// to calculate the optimal scroll offset directly.
+    ///
+    /// The algorithm works backwards from the maximum possible offset, testing each position
+    /// until it finds one where the target line is visible in the rendered grid. This finds
+    /// the best alignment position for both center and bottom alignment scenarios.
     fn align_selection<F: Fn(u16) -> u16>(
         &mut self,
         context: &Context,
-        target_line_index: u16,
+        line_range_to_target: impl Fn(Range<usize>) -> usize,
         available_height_multiplier: F,
     ) {
-        let hidden_parent_lines_count = self.hidden_parent_line_ranges().unwrap_or_default().len();
+        let primary_selection_range = self.selection_set.primary_selection().range();
+        dbg!(primary_selection_range);
+        let line_range = self
+            .buffer()
+            .char_index_range_to_line_range(primary_selection_range)
+            .unwrap_or_default();
 
-        let available_height = available_height_multiplier(
-            self.rectangle
-                .height
-                .saturating_sub(1)
-                .saturating_sub(hidden_parent_lines_count as u16)
-                .saturating_sub(self.window_title_height(context)),
-        );
-
-        let line_number_width = self.buffer().len_lines().to_string().chars().count();
-
-        // dbg!(line_number_width);
-        let separator_width = 1;
-        let width = self
+        let available_height = self
             .rectangle
-            .width
-            .saturating_sub((line_number_width + separator_width) as u16);
+            .height
+            .saturating_sub(self.window_title_height(context));
 
-        // dbg!(available_height, self.rectangle.width, width);
-
-        let max_number_of_lines_that_can_be_taken_to_stack_on_top_of_target_row = {
-            let mut accumulated_height = 0;
-            let mut line_index = target_line_index as usize;
-            while line_index > 0 {
-                let text = &self
-                    .buffer()
-                    .get_line_by_line_index(line_index)
-                    .map(|slice| slice.to_string())
-                    .unwrap_or_default();
-                let line_height: usize = soft_wrap::soft_wrap(text, width as usize)
-                    .lines()
-                    .iter()
-                    .map(|line| line.lines().len())
-                    .sum();
-
-                // println!("=====");
-                // dbg!(text, line_height, accumulated_height, line_index);
-
-                if accumulated_height + line_height > available_height as usize {
-                    break;
-                } else {
-                    accumulated_height += line_height;
-                    line_index -= 1;
-                }
-            }
-
-            let lines_count = (target_line_index - line_index as u16);
-            lines_count
+        let target_line_index = if available_height <= line_range.len() as u16 {
+            // Use cursor row if there are not enough spaces to fit all lines of the selection
+            self.cursor_row() as u16
+        } else {
+            line_range_to_target(line_range.clone()) as u16
         };
-
-        // dbg!(&max_number_of_lines_that_can_be_taken_to_stack_on_top_of_cursor_row);
-        // dbg!(&selection_end_line_index);
-
-        self.scroll_offset = target_line_index.saturating_sub(
-            max_number_of_lines_that_can_be_taken_to_stack_on_top_of_target_row as u16,
+        dbg!(
+            &line_range,
+            available_height,
+            line_range.len(),
+            available_height <= line_range.len() as u16,
+            target_line_index
         );
+
+        for i in (0..available_height_multiplier(available_height)).rev() {
+            println!("========");
+            let new_scroll_offset = target_line_index.saturating_sub(i);
+            dbg!(new_scroll_offset);
+            let grid = self.get_grid_with_scroll_offset(context, false, new_scroll_offset);
+            let grid_string = grid.grid.to_string();
+            println!("{}", grid_string);
+            let grid_string_lines = grid_string.lines().collect_vec();
+            let target_line_number =
+                format!("{}{}", target_line_index + 1, LINE_NUMBER_VERTICAL_BORDER);
+            dbg!(&target_line_number);
+            let target_line_index_in_range = grid_string_lines
+                .iter()
+                .any(|line| line.contains(&target_line_number));
+            dbg!(target_line_index_in_range);
+            if target_line_index_in_range {
+                self.scroll_offset = new_scroll_offset;
+                return;
+            }
+        }
+    }
+
+    pub(crate) fn align_selection_to_bottom(&mut self, context: &Context) {
+        self.align_selection(
+            context,
+            // We need to subtract line_range.end by one because it is exclusive
+            |line_range| line_range.end.saturating_sub(1),
+            |height| height,
+        )
     }
 
     /// If the primary selection has multiple lines
-    /// then the last line will be used for bottom alignment
-    pub(crate) fn align_selection_to_bottom(&mut self, context: &Context) {
-        let selection_end_line_index = self
-            .buffer()
-            .char_to_line(self.selection_set.primary_selection().range().end)
-            .unwrap_or_default() as u16;
-
-        self.align_selection(context, selection_end_line_index, |height| height)
+    /// then the middle line will be used for center alignment
+    fn align_selection_to_center(&mut self, context: &Context) {
+        self.align_selection(
+            context,
+            |line_range| line_range.start + (line_range.len() as f32 / 2.0).floor() as usize,
+            |height| height / 2,
+        );
     }
 
     /// If the primary selection has multiple lines
@@ -893,19 +902,6 @@ impl Editor {
             .char_to_line(self.selection_set.primary_selection().range().start)
             .unwrap_or_default() as u16;
         self.scroll_offset = selection_first_line;
-    }
-
-    /// If the primary selection has multiple lines
-    /// then the middle line will be used for center alignment
-    /// TODO: need to cater for wrapped lines
-    fn align_selection_to_center(&mut self, context: &Context) {
-        let line_range = self
-            .buffer()
-            .char_index_range_to_line_range(self.selection_set.primary_selection().range())
-            .unwrap_or_default();
-
-        let mid = line_range.start + ((line_range.end - line_range.start) / 2);
-        self.align_selection(context, mid as u16, |height| height / 2);
     }
 
     fn cursor_row(&self) -> usize {
@@ -3446,6 +3442,7 @@ impl Editor {
                     let linewise_range = self
                         .buffer()
                         .line_range_to_full_char_index_range(line_range.clone())?;
+                    dbg!(&linewise_range);
                     let content = self.buffer().slice(&linewise_range)?;
                     let get_remove_leading_char_count = |line: &str| {
                         let leading_indent_count =
@@ -3938,22 +3935,6 @@ impl Editor {
         });
         Ok(dispatches)
     }
-
-    fn max_wrapped_lines_above_cursor_row(&self, context: &Context) -> WrappedLines {
-        let height = self.render_area(context).height.into();
-        let cursor_row = self.cursor_row();
-
-        let content = self
-            .buffer()
-            .rope()
-            .lines()
-            .skip(cursor_row.saturating_sub(height))
-            .take(height)
-            .map(|slice| slice.to_string())
-            .collect_vec()
-            .join("");
-        soft_wrap::soft_wrap(&content, self.render_area(context).width as usize)
-    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3983,6 +3964,8 @@ pub(crate) enum DispatchEditor {
     AlignViewTop,
     #[cfg(test)]
     AlignViewBottom,
+    #[cfg(test)]
+    AlignViewCenter,
     Transform(Transformation),
     SetSelectionMode(IfCurrentNotFound, SelectionMode),
     SetSelectionModeWithPriorChange(IfCurrentNotFound, SelectionMode, Option<PriorChange>),
