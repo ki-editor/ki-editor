@@ -39,7 +39,7 @@ fn main() {
                     expectations: Box::new([CurrentSelectedTexts(&["foo {\n        bar: spam\n    }"])]),
                     terminal_height: Some(9),
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 }
             ].to_vec(),
         },
