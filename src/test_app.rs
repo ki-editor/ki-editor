@@ -226,8 +226,8 @@ impl ExpectKind {
             AppGrid(grid) => {
                                 let expected = grid.to_string().trim_matches('\n').to_string();
                                 let actual = app.get_screen()?.stringify().trim_matches('\n').to_string();
-                                println!("Expected=\n{}", expected);
-                                println!("Actual=\n{}", actual);
+                                println!("Expected=\n{expected}");
+                                println!("Actual=\n{actual}");
                                 contextualize(actual, expected)
                             }
             CurrentPath(path) => contextualize(app.get_current_file_path().unwrap(), path.clone()),

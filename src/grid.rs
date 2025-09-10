@@ -20,7 +20,7 @@ pub(crate) struct Grid {
 }
 
 const DEFAULT_TAB_SIZE: usize = 4;
-pub(crate) const LINE_NUMBER_VERTICAL_BORDER: &'static str = "│";
+pub(crate) const LINE_NUMBER_VERTICAL_BORDER: &str = "│";
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub(crate) struct Cell {

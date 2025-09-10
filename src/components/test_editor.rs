@@ -2,7 +2,6 @@ use crate::app::{Dimension, LocalSearchConfigUpdate, Scope};
 use crate::buffer::BufferOwner;
 use crate::char_index_range::CharIndexRange;
 use crate::clipboard::CopiedTexts;
-use crate::components::component::Component;
 use crate::components::editor::{DispatchEditor::*, Movement::*, PriorChange};
 use crate::context::{Context, GlobalMode, LocalSearchConfigMode, Search};
 use crate::grid::IndexedHighlightGroup;
@@ -26,7 +25,6 @@ use crate::{
 use itertools::Itertools;
 use my_proc_macros::{hex, key, keys};
 
-use quickcheck::{Arbitrary, TestResult};
 use SelectionMode::*;
 
 use super::editor::IfCurrentNotFound;

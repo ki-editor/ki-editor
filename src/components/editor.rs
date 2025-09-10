@@ -19,7 +19,6 @@ use crate::{
     rectangle::Rectangle,
     search::parse_search_config,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
-    soft_wrap::{self, WrappedLines},
 };
 use crate::{
     app::{Dispatches, RequestParams, Scope},
@@ -828,7 +827,6 @@ impl Editor {
         available_height_multiplier: F,
     ) {
         let primary_selection_range = self.selection_set.primary_selection().range();
-        dbg!(primary_selection_range);
         let line_range = self
             .buffer()
             .char_index_range_to_line_range(primary_selection_range)
@@ -845,29 +843,16 @@ impl Editor {
         } else {
             line_range_to_target(line_range.clone()) as u16
         };
-        dbg!(
-            &line_range,
-            available_height,
-            line_range.len(),
-            available_height <= line_range.len() as u16,
-            target_line_index
-        );
-
         for i in (0..available_height_multiplier(available_height)).rev() {
-            println!("========");
             let new_scroll_offset = target_line_index.saturating_sub(i);
-            dbg!(new_scroll_offset);
             let grid = self.get_grid_with_scroll_offset(context, false, new_scroll_offset);
             let grid_string = grid.grid.to_string();
-            println!("{}", grid_string);
             let grid_string_lines = grid_string.lines().collect_vec();
             let target_line_number =
                 format!("{}{}", target_line_index + 1, LINE_NUMBER_VERTICAL_BORDER);
-            dbg!(&target_line_number);
             let target_line_index_in_range = grid_string_lines
                 .iter()
                 .any(|line| line.contains(&target_line_number));
-            dbg!(target_line_index_in_range);
             if target_line_index_in_range {
                 self.scroll_offset = new_scroll_offset;
                 return;
@@ -3442,7 +3427,6 @@ impl Editor {
                     let linewise_range = self
                         .buffer()
                         .line_range_to_full_char_index_range(line_range.clone())?;
-                    dbg!(&linewise_range);
                     let content = self.buffer().slice(&linewise_range)?;
                     let get_remove_leading_char_count = |line: &str| {
                         let leading_indent_count =
