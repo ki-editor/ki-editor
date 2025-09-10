@@ -360,22 +360,12 @@ impl Editor {
                 Dispatch::ToggleFileMark,
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::SrchN),
-                Direction::End.format_action("Search"),
-                Direction::End.format_action("Search"),
-                Dispatch::OpenSearchPromptWithPriorChange {
-                    scope: Scope::Local,
-                    if_current_not_found: IfCurrentNotFound::LookForward,
-                    prior_change,
-                },
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::SrchP),
+                context.keyboard_layout_kind().get_key(&Meaning::SrchL),
                 Direction::Start.format_action("Search"),
                 Direction::Start.format_action("Search"),
                 Dispatch::OpenSearchPromptWithPriorChange {
                     scope: Scope::Local,
-                    if_current_not_found: IfCurrentNotFound::LookBackward,
+                    if_current_not_found: self.cursor_direction.reverse().to_if_current_not_found(),
                     prior_change,
                 },
             ),

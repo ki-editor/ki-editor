@@ -15,7 +15,7 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchN, SWord, SrchC, MultC, Swap_, /****/ Mark_, Prev_, Up___, Next_, Paste,
+        SrchL, SWord, SrchC, MultC, Swap_, /****/ Mark_, Prev_, Up___, Next_, Paste,
     ],
     [
         Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
@@ -27,7 +27,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SrchP, Char_, _____, _____, Raise, /****/ MarkF, RplcP, Join_, RplcN, Pst0G,
+        _____, Char_, _____, _____, Raise, /****/ MarkF, RplcP, Join_, RplcN, Pst0G,
     ],
     [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
@@ -584,10 +584,8 @@ pub(crate) enum Meaning {
     ScrlU,
     /// Search current selection
     SrchC,
-    /// Search (local) next
-    SrchN,
-    /// Search (local) previous
-    SrchP,
+    /// Search (local)
+    SrchL,
     /// Select Fine Syntax Node
     FStyx,
     /// Select Syntax Node
