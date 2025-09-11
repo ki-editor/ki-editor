@@ -5085,3 +5085,26 @@ zzz
     )?;
     Ok(())
 }
+
+#[test]
+fn copy_paste_special_character_in_word_selection_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("│".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Expect(CurrentSelectedTexts(&["│"])),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
+            Editor(Paste {
+                use_system_clipboard: false,
+            }),
+            Expect(CurrentComponentContent("││")),
+        ])
+    })
+}
