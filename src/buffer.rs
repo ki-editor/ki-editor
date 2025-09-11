@@ -846,7 +846,6 @@ impl Buffer {
         &self,
         range: &Range<usize>,
     ) -> anyhow::Result<CharIndexRange> {
-        dbg!(&range);
         Ok((self.byte_to_char(range.start)?
             ..(self.byte_to_char(range.end.saturating_sub(1))? + 1)
                 .min(CharIndex(self.len_chars())))
