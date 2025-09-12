@@ -50,6 +50,7 @@
           just
           alejandra
           fd
+          cargo-watch
         ];
 
         # Platform-aware buildInputs
