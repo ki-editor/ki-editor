@@ -42,18 +42,11 @@ Notice that the keybindings here are all located on the right side of the keyboa
 this is because all the secondary selection modes are placed on the left side of the
 keyboard, which allows for efficient execution via hand-alternation.
 
-There are 2 sets of keymap for secondary selection modes:
-
-1. Local
-2. Global
-
-They are almost identical except:
+The sets of keybinds under these, are almost identical except:
 
 1. `One` and `Int` are only applicable for the Local keymaps
 2. `Search` and `This` are only applicable for the Global keymap
-3. Position of `Repeat` is same in all 2 keymaps to enable easy combo:  
-   a. To repeat the last secondary selection locally, `n n`  
-   b. To repeat the last secondary selection globally, `N N`
+3. `Repeat` is in the Shift layer for Global keymap
 
 ### Local
 
@@ -152,6 +145,10 @@ In this case, we need t
 - Remove only 'date' from second line
 
 The `Repeat` command lets you reuse the last selection mode without manual reactivation, making these varied modifications more efficient.
+
+### `Repeat Search`
+
+Repeats the last search.
 
 ### `Quickfix`
 

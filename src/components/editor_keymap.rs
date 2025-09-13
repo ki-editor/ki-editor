@@ -57,13 +57,13 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
 /// are both located on the right-side.
 pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
     [
-        OneCh, CSrch, NtrlN, _____, Qkfix, /****/ Mark_, _____, _____, _____, _____,
+        OneCh, CSrch, NtrlN, RSrch, Qkfix, /****/ Mark_, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, _____, /****/ RSrch, _____, _____, _____, _____,
+        LImpl, LDefn, LType, LRfrE, _____, /****/ LRept, _____, _____, _____, _____,
     ],
 ];
 pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
@@ -81,7 +81,7 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// This keymap should be almost identical with that of Find Local
 pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
     [
-        Srch_, CSrch, SrchC, _____, Qkfix, /****/ Mark_, _____, _____, _____, _____,
+        Srch_, CSrch, SrchC, RSrch, Qkfix, /****/ Mark_, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
@@ -99,7 +99,7 @@ pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
         _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, LDecl, _____, LRfrI, _____, /****/ RSrch, _____, _____, _____, _____,
+        _____, LDecl, _____, LRfrI, _____, /****/ GRept, _____, _____, _____, _____,
     ],
 ];
 
@@ -616,6 +616,10 @@ pub(crate) enum Meaning {
     SSEnd,
     /// Search (directionless)
     Srch_,
+    /// Repeat Secondary Selection Mode (Local)
+    LRept,
+    /// Repeat Secondary Selection Mode (Global)
+    GRept,
     /// Repeat Search
     RSrch,
     /// Find (Local)

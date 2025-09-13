@@ -184,7 +184,7 @@ impl KeymapPrintSection {
 
         let content_width: u16 = table.column_max_content_widths().iter().sum();
         // column content, separators, padding & editor margins
-        if content_width + 12 + 22 + 2 > terminal_width {
+        if content_width + 12 + 22 + 2 < terminal_width {
             let exmatrix_keybindings = ["* Pick Keyboard"].join(&" ".repeat(4));
             format!("{table}\n{exmatrix_keybindings}")
         } else {

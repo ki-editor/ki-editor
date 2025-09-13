@@ -1214,18 +1214,35 @@ impl Editor {
         let search_keymaps = {
             [].into_iter()
                 .chain(
-                    [Keymap::new_extended(
-                        context
-                            .keyboard_layout_kind()
-                            .get_find_keymap(scope, &Meaning::CSrch),
-                        "Config".to_string(),
-                        "Configure Search".to_string(),
-                        Dispatch::ShowSearchConfig {
-                            scope,
-                            if_current_not_found,
-                            run_search_after_config_updated: true,
-                        },
-                    )]
+                    [
+                        Keymap::new_extended(
+                            context
+                                .keyboard_layout_kind()
+                                .get_find_keymap(scope, &Meaning::CSrch),
+                            "Config".to_string(),
+                            "Configure Search".to_string(),
+                            Dispatch::ShowSearchConfig {
+                                scope,
+                                if_current_not_found,
+                                run_search_after_config_updated: true,
+                            },
+                        ),
+                        Keymap::new(
+                            match (scope, if_current_not_found) {
+                                (Scope::Local, IfCurrentNotFound::LookForward) => context
+                                    .keyboard_layout_kind()
+                                    .get_find_keymap(scope, &Meaning::LRept),
+                                (Scope::Local, IfCurrentNotFound::LookBackward) => context
+                                    .keyboard_layout_kind()
+                                    .get_find_keymap(scope, &Meaning::LRept),
+                                (Scope::Global, _) => context
+                                    .keyboard_layout_kind()
+                                    .get_find_keymap(scope, &Meaning::GRept),
+                            },
+                            "Repeat".to_string(),
+                            Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
+                        ),
+                    ]
                     .to_vec(),
                 )
                 .collect_vec()
