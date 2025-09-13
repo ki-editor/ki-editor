@@ -3849,9 +3849,7 @@ fn background_editor_focused_not_in_buffer_list() -> anyhow::Result<()> {
 fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
     execute_test(|_| {
         Box::new([
-            App(HandleKeyEvents(
-                keys!("backslash q f o o : : f o o enter").to_vec(),
-            )),
+            App(HandleKeyEvents(keys!("N q f o o : : f o o enter").to_vec())),
             Expect(OpenedFilesCount(0)),
             Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
             Editor(EnterInsertMode(Direction::Start)),
