@@ -269,7 +269,7 @@ impl Editor {
         [
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::LSrch),
-                Direction::Start.format_action("Find"),
+                Direction::End.format_action("Local"),
                 "Find (Local)".to_string(),
                 Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
                     context,
@@ -1214,29 +1214,18 @@ impl Editor {
         let search_keymaps = {
             [].into_iter()
                 .chain(
-                    [
-                        Keymap::new_extended(
-                            context
-                                .keyboard_layout_kind()
-                                .get_find_keymap(scope, &Meaning::CSrch),
-                            "Config".to_string(),
-                            "Configure Search".to_string(),
-                            Dispatch::ShowSearchConfig {
-                                scope,
-                                if_current_not_found,
-                                run_search_after_config_updated: true,
-                            },
-                        ),
-                        Keymap::new(
-                            match (scope, if_current_not_found) {
-                                (Scope::Local, IfCurrentNotFound::LookForward) => "[",
-                                (Scope::Local, IfCurrentNotFound::LookBackward) => "]",
-                                (Scope::Global, _) => "\\",
-                            },
-                            "Repeat".to_string(),
-                            Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
-                        ),
-                    ]
+                    [Keymap::new_extended(
+                        context
+                            .keyboard_layout_kind()
+                            .get_find_keymap(scope, &Meaning::CSrch),
+                        "Config".to_string(),
+                        "Configure Search".to_string(),
+                        Dispatch::ShowSearchConfig {
+                            scope,
+                            if_current_not_found,
+                            run_search_after_config_updated: true,
+                        },
+                    )]
                     .to_vec(),
                 )
                 .collect_vec()

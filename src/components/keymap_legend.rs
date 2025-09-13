@@ -535,7 +535,7 @@ mod test_keymap_legend {
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
 │       ┆   ┆ Caterpillar ┆   ┆ Bomb ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ╰───────┴───┴─────────────┴───┴──────┴───┴───┴───┴───┴───┴───╯
-[] Local    \\ Global    * Pick Keyboard
+* Pick Keyboard
 "
         .trim_matches('\n');
         assert_eq!(actual, expected);
@@ -564,7 +564,7 @@ mod test_keymap_legend {
 │       ┆   ┆             ┆     ┆        ┆ ⇧ ┆   ┆   ┆   ┆   ┆   │
 │       ┆   ┆ Caterpillar ┆     ┆  Bomb  ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ╰───────┴───┴─────────────┴─────┴────────┴───┴───┴───┴───┴───┴───╯
-[] Local    \\ Global    * Pick Keyboard
+* Pick Keyboard
 "
         .trim_matches('\n');
         assert_eq!(actual, expected);
