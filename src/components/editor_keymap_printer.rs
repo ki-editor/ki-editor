@@ -243,24 +243,12 @@ impl KeymapPrintSections {
                 layout,
             ),
             KeymapPrintSection::from_keymaps(
-                "Secondary Selection Modes (Local Forward)".to_string(),
+                "Secondary Selection Modes (Local)".to_string(),
                 &editor
                     .secondary_selection_modes_keymap_legend_config(
                         &context,
                         Scope::Local,
                         IfCurrentNotFound::LookForward,
-                        None,
-                    )
-                    .keymaps(),
-                layout,
-            ),
-            KeymapPrintSection::from_keymaps(
-                "Secondary Selection Modes (Local Backward)".to_string(),
-                &editor
-                    .secondary_selection_modes_keymap_legend_config(
-                        &context,
-                        Scope::Local,
-                        IfCurrentNotFound::LookBackward,
                         None,
                     )
                     .keymaps(),
