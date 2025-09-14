@@ -257,24 +257,6 @@ impl Editor {
                     prior_change,
                 )),
             ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::RSrhF),
-                Direction::End.format_action("Repeat Search"),
-                Dispatch::ToEditor(DispatchEditor::RepeatSearch(
-                    Scope::Local,
-                    IfCurrentNotFound::LookForward,
-                    prior_change,
-                )),
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::RSrhB),
-                Direction::Start.format_action("Repeat Search"),
-                Dispatch::ToEditor(DispatchEditor::RepeatSearch(
-                    Scope::Local,
-                    IfCurrentNotFound::LookForward,
-                    prior_change,
-                )),
-            ),
         ]
         .to_vec()
     }
@@ -286,29 +268,18 @@ impl Editor {
     ) -> Vec<Keymap> {
         [
             Keymap::new_extended(
-                "[",
-                Direction::Start.format_action("Find"),
-                "Find (Local) - Backward".to_string(),
+                context.keyboard_layout_kind().get_key(&Meaning::LSrch),
+                Direction::End.format_action("Local"),
+                "Find (Local)".to_string(),
                 Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
                     context,
                     Scope::Local,
-                    IfCurrentNotFound::LookBackward,
+                    self.cursor_direction.reverse().to_if_current_not_found(),
                     prior_change,
                 )),
             ),
             Keymap::new_extended(
-                "]",
-                Direction::End.format_action("Find"),
-                "Find (Local) - Forward".to_string(),
-                Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
-                    context,
-                    Scope::Local,
-                    IfCurrentNotFound::LookForward,
-                    prior_change,
-                )),
-            ),
-            Keymap::new_extended(
-                "\\",
+                context.keyboard_layout_kind().get_key(&Meaning::GSrch),
                 "Global".to_string(),
                 "Find (Global)".to_string(),
                 Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
@@ -1258,9 +1229,15 @@ impl Editor {
                         ),
                         Keymap::new(
                             match (scope, if_current_not_found) {
-                                (Scope::Local, IfCurrentNotFound::LookForward) => "[",
-                                (Scope::Local, IfCurrentNotFound::LookBackward) => "]",
-                                (Scope::Global, _) => "\\",
+                                (Scope::Local, IfCurrentNotFound::LookForward) => context
+                                    .keyboard_layout_kind()
+                                    .get_find_keymap(scope, &Meaning::LRept),
+                                (Scope::Local, IfCurrentNotFound::LookBackward) => context
+                                    .keyboard_layout_kind()
+                                    .get_find_keymap(scope, &Meaning::LRept),
+                                (Scope::Global, _) => context
+                                    .keyboard_layout_kind()
+                                    .get_find_keymap(scope, &Meaning::GRept),
                             },
                             "Repeat".to_string(),
                             Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
@@ -1430,13 +1407,26 @@ impl Editor {
                 ));
                 Keymap::new(key, description.to_string(), dispatch)
             })
-            .chain([Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_find_keymap(scope, &Meaning::OneCh),
-                "One".to_string(),
-                Dispatch::ToEditor(FindOneChar(if_current_not_found)),
-            )])
+            .chain([
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_find_keymap(scope, &Meaning::OneCh),
+                    "One".to_string(),
+                    Dispatch::ToEditor(FindOneChar(if_current_not_found)),
+                ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_find_keymap(scope, &Meaning::RSrch),
+                    Direction::End.format_action("Repeat Search"),
+                    Dispatch::ToEditor(DispatchEditor::RepeatSearch(
+                        Scope::Local,
+                        self.cursor_direction.reverse().to_if_current_not_found(),
+                        prior_change,
+                    )),
+                ),
+            ])
             .collect_vec(),
             Scope::Global => [
                 Keymap::new_extended(
@@ -1451,7 +1441,9 @@ impl Editor {
                     },
                 ),
                 Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::RSrhF),
+                    context
+                        .keyboard_layout_kind()
+                        .get_find_keymap(scope, &Meaning::RSrch),
                     "Repeat Search".to_string(),
                     Dispatch::ToEditor(DispatchEditor::RepeatSearch(
                         Scope::Global,

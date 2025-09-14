@@ -887,7 +887,7 @@ fn main(foo: str) {
                     .trim(),
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("s l l e a d r n"),
+                    events: keys!("s l l e a d r n r"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["foo", "foo", "foo", "foo", "foo",]),
                     ]),
@@ -901,7 +901,7 @@ fn main(foo: str) {
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s y l l y a r ] y"),
+                    events: keys!("s y l l y a r n y"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["foo", "spam"]),
                     ]),
@@ -1584,7 +1584,7 @@ pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> 
                     file_extension: "rs",
                     prepare_events: &[],
                     events: keys!(
-                        "q y x enter d r r k l f g j esc u S o m e esc d k l k T r m"
+                        "q y x enter d r r k l g b j h S o m e esc d k l k T r f"
                     ),
                     expectations: Box::new([]),
                     terminal_height: None,

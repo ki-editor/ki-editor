@@ -21,7 +21,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
     ],
     [
-        Undo_, Rplc_, Copy_, Delte, Open_, /****/ RSrhF, Jump_, First, Last_, XAchr,
+        Undo_, Rplc_, Copy_, Delte, Open_, /****/ LSrch, Jump_, First, Last_, XAchr,
     ],
 ];
 
@@ -33,7 +33,7 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
     ],
     [
-        Redo_, PRplc, RplcX, _____, _____, /****/ RSrhB, ToIdx, _____, _____, SSEnd,
+        Redo_, PRplc, RplcX, _____, _____, /****/ GSrch, ToIdx, _____, _____, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -57,13 +57,13 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
 /// are both located on the right-side.
 pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
     [
-        OneCh, CSrch, NtrlN, _____, Qkfix, /****/ Mark_, _____, _____, _____, _____,
+        OneCh, CSrch, NtrlN, RSrch, Qkfix, /****/ Mark_, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, _____, /****/ _____, _____, _____, _____, _____,
+        LImpl, LDefn, LType, LRfrE, _____, /****/ LRept, _____, _____, _____, _____,
     ],
 ];
 pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
@@ -81,13 +81,13 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// This keymap should be almost identical with that of Find Local
 pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
     [
-        Srch_, CSrch, SrchC, _____, Qkfix, /****/ Mark_, _____, _____, _____, _____,
+        Srch_, CSrch, SrchC, RSrch, Qkfix, /****/ Mark_, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, _____, /****/ RSrhB, _____, _____, _____, _____,
+        LImpl, LDefn, LType, LRfrE, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
@@ -99,7 +99,7 @@ pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
         _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, LDecl, _____, LRfrI, _____, /****/ _____, _____, _____, _____, _____,
+        _____, LDecl, _____, LRfrI, _____, /****/ GRept, _____, _____, _____, _____,
     ],
 ];
 
@@ -616,10 +616,16 @@ pub(crate) enum Meaning {
     SSEnd,
     /// Search (directionless)
     Srch_,
-    /// Repeat Search (Backward)
-    RSrhB,
-    /// Repeat Search (Forward)
-    RSrhF,
+    /// Repeat Secondary Selection Mode (Local)
+    LRept,
+    /// Repeat Secondary Selection Mode (Global)
+    GRept,
+    /// Repeat Search
+    RSrch,
+    /// Find (Local)
+    LSrch,
+    /// Find (Global)
+    GSrch,
     /// Quickfix
     Qkfix,
     /// Git Hunk (against current branch)
