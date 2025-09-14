@@ -311,7 +311,7 @@ Why?
                     content: "hello world".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("a g b j"),
+                    events: keys!("a g y j"),
                     expectations: Box::new([CurrentComponentContent("(hello world)")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -322,7 +322,7 @@ Why?
                     content: "hello world".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s g b p x y enter"),
+                    events: keys!("s g y p x y enter"),
                     expectations: Box::new([
                         CurrentComponentContent("<xy>hello</xy> world"),
                         CurrentSelectedTexts(&["<xy>hello</xy>"]),
@@ -619,7 +619,7 @@ impl<C> Iterator for PostorderTraverse<C>
                     content: "def foo(bar: Bar, spam: Spam): pass",
                     file_extension: "py",
                     prepare_events: keys!("q s p a m enter"),
-                    events: keys!("d b x esc / b y"),
+                    events: keys!("d y x esc / y y"),
                     expectations: Box::new([CurrentComponentContent("def foo(bar: Bar, spam: Spam, y, x): pass")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -636,7 +636,7 @@ function foo() {
 ".trim(),
                     file_extension: "js",
                     prepare_events: keys!("q l e t space y enter"),
-                    events: keys!("d b l e t space z"),
+                    events: keys!("d y l e t space z"),
                     expectations: Box::new([CurrentComponentContent("function foo() {
   let x = hello();
   let y = hey()
@@ -655,7 +655,7 @@ fn foo() {
 }".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w b x esc / b y"),
+                    events: keys!("w y x esc / y y"),
                     expectations: Box::new([CurrentComponentContent("fn foo() {
     y
     x
@@ -901,7 +901,7 @@ fn main(foo: str) {
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s y l l y a r n y"),
+                    events: keys!("s b l l b a r n b"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["foo", "spam"]),
                     ]),
@@ -1375,7 +1375,7 @@ foo bar spam
             .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("space d m enter Y space d f enter Y space d g enter Y alt+l alt+l alt+j alt+j Y"),
+            events: keys!("space d m enter B space d f enter B space d g enter B alt+l alt+l alt+j alt+j B"),
             expectations: Box::new([CurrentComponentTitle("\u{200b} # 🦀 foo.rs \u{200b} # 🦀 main.rs ".to_string())]),
             terminal_height: Some(10),
             similar_vim_combos: &[],
@@ -1584,7 +1584,7 @@ pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> 
                     file_extension: "rs",
                     prepare_events: &[],
                     events: keys!(
-                        "q y x enter d r r k l g b j h S o m e esc d k l k T r f"
+                        "q y x enter d r r k l g y j h S o m e esc d k l k T r f"
                     ),
                     expectations: Box::new([]),
                     terminal_height: None,
@@ -1872,7 +1872,7 @@ fn reveal_marks() -> RecipeGroup {
                 .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("q f o o enter l y space o l j j"),
+            events: keys!("q f o o enter l b space o l j j"),
             expectations: Box::new([CurrentSelectedTexts(&["foo"])]),
             terminal_height: Some(9),
             similar_vim_combos: &[],
