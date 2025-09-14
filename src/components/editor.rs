@@ -797,15 +797,20 @@ impl Editor {
     /// Scroll offset recalculation is always based on the position of the cursor
     fn recalculate_scroll_offset(&mut self, context: &Context) {
         // Update scroll_offset if primary selection is out of view.
-        let cursor_row = self
+        let primary_selection_range = self.selection_set.primary_selection().extended_range();
+        let line_range = self
             .buffer()
-            .char_to_line(self.get_cursor_char_index())
-            .unwrap_or_default() as u16;
+            .char_index_range_to_line_range(primary_selection_range)
+            .unwrap_or_default();
         let render_area = self.render_area(context);
-        if cursor_row.saturating_sub(self.scroll_offset) > render_area.height.saturating_sub(1)
-            || cursor_row < self.scroll_offset
+        let out_of_viewport = |row: u16| {
+            row.saturating_sub(self.scroll_offset) > render_area.height.saturating_sub(1)
+                || row < self.scroll_offset
+        };
+        if out_of_viewport(line_range.start as u16)
+            || out_of_viewport(line_range.end.saturating_sub(1) as u16)
         {
-            self.align_cursor_to_center(context);
+            self.align_selection_to_center(context);
             self.current_view_alignment = None;
         }
     }
@@ -898,19 +903,6 @@ impl Editor {
         self.buffer()
             .char_to_line(self.get_cursor_char_index())
             .unwrap_or_default()
-    }
-
-    fn align_cursor_to_center(&mut self, context: &Context) {
-        let cursor_row = self.cursor_row();
-
-        self.scroll_offset = cursor_row.saturating_sub(
-            (self
-                .rectangle
-                .height
-                .saturating_sub(self.window_title_height(context)) as f64
-                / 2.0)
-                .ceil() as usize,
-        ) as u16;
     }
 
     pub(crate) fn select(

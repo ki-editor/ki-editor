@@ -4060,14 +4060,12 @@ fn foo() {
             )),
             Editor(MatchLiteral("yyy".to_string())),
             Expect(EditorGrid(
-                "
-🦀  main.rs [*]
+                "🦀  main.rs [*]
 1│fn foo() {
 2│  fn bar() {
-4│        xxx();
 5│        █yy();
-"
-                .trim(),
+6│    }"
+                    .trim(),
             )),
         ])
     })
@@ -4755,7 +4753,7 @@ fn primary_selection_anchor_overlap_with_hidden_parent_line() -> anyhow::Result<
                 focus: true,
             }),
             App(TerminalDimensionChanged(crate::app::Dimension {
-                height: 5,
+                height: 6,
                 // Set width longer than content so that there's no wrapping
                 width: 20,
             })),
@@ -4778,7 +4776,8 @@ fn main() {
                 " 🦀  main.rs [*]
 2│fn main() {
 5│  t();
-6│█"
+6│█
+7│"
                 .to_string(),
             )),
             Expect(GridCellsStyleKey(
@@ -5088,6 +5087,29 @@ zzz
 
 #[test]
 fn copy_paste_special_character_in_word_selection_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("│".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Expect(CurrentSelectedTexts(&["│"])),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
+            Editor(Paste {
+                use_system_clipboard: false,
+            }),
+            Expect(CurrentComponentContent("││")),
+        ])
+    })
+}
+
+#[test]
+fn recalculate_scroll_offset_consider_last_line_of_multiline_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
