@@ -80,13 +80,10 @@ zeta
             Editor(ToggleMark),
             Editor(MatchLiteral("zeta".to_string())),
             Expect(EditorGrid(
-                "
-🦀  main.rs [*]
-3│phi
+                "🦀  main.rs [*]
 4│mark-y
 5│█eta
-"
-                .trim(),
+",
             )),
             Editor(ToggleReveal(Reveal::Mark)),
             Expect(EditorGrid(

@@ -809,7 +809,8 @@ impl Buffer {
 
     pub(crate) fn line_to_byte_range(&self, line: usize) -> anyhow::Result<ByteRange> {
         let start = self.line_to_byte(line)?;
-        let end = self.line_to_byte(line + 1)?.saturating_sub(1);
+        let end = self.line_to_byte(line + 1)?.saturating_sub(1).max(start);
+        assert!(start <= end);
         Ok(ByteRange::new(start..end))
     }
 
@@ -1073,6 +1074,7 @@ impl Buffer {
         &self,
         visible_line_range: &Range<usize>,
     ) -> anyhow::Result<Range<usize>> {
+        assert!(visible_line_range.start <= visible_line_range.end);
         let start = self
             .line_to_byte_range(visible_line_range.start)?
             .range()
