@@ -5128,3 +5128,30 @@ fn recalculate_scroll_offset_consider_last_line_of_multiline_selection() -> anyh
         ])
     })
 }
+
+#[test]
+fn deleting_selection_extended_with_jump() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam chuck".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            // Jump to "spam"
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 20,
+                height: 5,
+            })),
+            Editor(EnableSelectionExtension),
+            App(HandleKeyEvents(keys!("m s").to_vec())),
+            Expect(CurrentSelectedTexts(&["foo bar spam"])),
+            Editor(Delete),
+            Expect(CurrentComponentContent("chuck")),
+        ])
+    })
+}
