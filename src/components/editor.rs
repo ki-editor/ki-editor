@@ -1523,10 +1523,8 @@ impl Editor {
                 match matching_jumps.split_first() {
                     None => Ok(Default::default()),
                     Some((jump, [])) => {
-                        let dispatches = self.handle_movement(
-                            context,
-                            Movement::Jump(jump.selection.extended_range()),
-                        )?;
+                        let dispatches =
+                            self.handle_movement(context, Movement::Jump(jump.selection.range()))?;
                         self.mode = Mode::Normal;
                         Ok(dispatches.append_some(if context.is_running_as_embedded() {
                             // We need to manually send a SelectionChanged dispatch here
