@@ -33,8 +33,8 @@ first layer due to their ubiquity.
 
 Local Find is directional, meaning that if the cursor position does not overlap
 with any selections of the chosen secondary selection mode, the cursor will
-jump to the nearest selection in the chosen direction. To change the direction
-of Local Find first swap cursors [`⇋ Curs`](../../other-movements#-curs).
+jump to the nearest selection in the chosen direction. `Local` initialisation
+is [directional (see footnotes of actions)](../../actions/index.md#user-content-fn-directionality).
 
 Global Find however is non-directional.
 
