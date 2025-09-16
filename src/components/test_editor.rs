@@ -2233,7 +2233,7 @@ fn surround() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
-            App(HandleKeyEvents(keys!("g b j").to_vec())),
+            App(HandleKeyEvents(keys!("g y j").to_vec())),
             Expect(CurrentComponentContent("fn main() { (x.y()) }")),
             Expect(SelectionExtensionEnabled(false)),
         ])
@@ -4082,7 +4082,7 @@ fn surround_extended_selection() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
-            App(HandleKeyEvents(keys!("g b j").to_vec())),
+            App(HandleKeyEvents(keys!("g y j").to_vec())),
             Expect(CurrentComponentContent("(foo bar)")),
         ])
     })
@@ -4855,6 +4855,81 @@ fn escaping_quicfix_list_mode_should_not_change_selection() -> anyhow::Result<()
 }
 
 #[test]
+fn first_line_of_multiline_selection_that_is_taller_than_viewport_should_be_at_top_when_aligning_top(
+) -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+// padding 1
+// padding 2
+// padding 3
+
+fn main() {
+  this_is_a_long_line_for_testing_wrapping();
+  // padding x
+  // padding y
+  // padding z
+  foo { // this line should be at top
+    x: 2
+    // padding x
+    // padding y
+    // padding z
+    // padding z
+    // padding z
+    // padding z
+    // padding z
+    // padding z
+    // padding z
+  }
+}
+// padding 4
+// padding 5
+// padding 6"
+                    .to_string(),
+            )),
+            App(SetGlobalTitle("[Global Title]".to_string())),
+            App(TerminalDimensionChanged(Dimension {
+                height: 9,
+                width: 300,
+            })),
+            Editor(MatchLiteral("foo".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+ 6│fn main() {
+ 9│  // padding y
+10│  // padding z
+11│  █oo { // this line should be at top
+12│    x: 2
+13│    // padding x
+14│    // padding y
+ [Global Title]"
+                    .to_string(),
+            )),
+            Editor(AlignViewTop),
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+ 6│fn main() {
+11│  █oo { // this line should be at top
+12│    x: 2
+13│    // padding x
+14│    // padding y
+15│    // padding z
+16│    // padding z
+ [Global Title]"
+                    .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
 fn last_line_of_multiline_selection_should_be_at_bottom_when_aligning_bottom() -> anyhow::Result<()>
 {
     fn run_test(width: u16, height: u16, expected_output: &'static str) -> anyhow::Result<()> {
@@ -5125,6 +5200,33 @@ fn recalculate_scroll_offset_consider_last_line_of_multiline_selection() -> anyh
                 use_system_clipboard: false,
             }),
             Expect(CurrentComponentContent("││")),
+        ])
+    })
+}
+
+#[test]
+fn deleting_selection_extended_with_jump() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam chuck".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            // Jump to "spam"
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 20,
+                height: 5,
+            })),
+            Editor(EnableSelectionExtension),
+            App(HandleKeyEvents(keys!("m s").to_vec())),
+            Expect(CurrentSelectedTexts(&["foo bar spam"])),
+            Editor(Delete),
+            Expect(CurrentComponentContent("chuck")),
         ])
     })
 }
