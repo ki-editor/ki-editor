@@ -3720,7 +3720,6 @@ impl Editor {
                         .set_search(search.to_string())
                         .clone(),
                     ),
-                    show_config_after_enter: false,
                     run_search_after_config_updated: true,
                 })
                 .append(Dispatch::PushPromptHistory {
@@ -3914,7 +3913,6 @@ impl Editor {
                     .set_search(search.search)
                     .clone(),
             ),
-            show_config_after_enter: false,
             run_search_after_config_updated: true,
         });
         Ok(dispatches)

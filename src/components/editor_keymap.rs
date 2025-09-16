@@ -42,7 +42,7 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// Meta also means Alt (Windows) or Option (Mac).
 pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
     [
-        KilLP, CSrch, LineU, _____, KilLN, /****/ NBack, _____, ScrlU, _____, NForw,
+        KilLP, _____, LineU, _____, KilLN, /****/ NBack, _____, ScrlU, _____, NForw,
     ],
     [
         _____, LineP, LineD, LineN, OpenM, /****/ DWrdP, MrkFP, ScrlD, MrkFN, SView,
@@ -57,7 +57,7 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
 /// are both located on the right-side.
 pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
     [
-        OneCh, CSrch, NtrlN, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
+        OneCh, _____, NtrlN, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
@@ -81,7 +81,7 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// This keymap should be almost identical with that of Find Local
 pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
     [
-        Srch_, CSrch, SrchC, RSrch, Qkfix, /****/ Mark_, _____, _____, _____, _____,
+        Srch_, _____, SrchC, RSrch, Qkfix, /****/ Mark_, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
@@ -133,18 +133,6 @@ pub(crate) const KEYMAP_SPACE_SHIFTED: KeyboardMeaningLayout = [
     ],
     [
         _____, _____, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
-    ],
-    [
-        _____, RplcA, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
-    ],
-];
-
-pub(crate) const KEYMAP_SEARCH_CONFIG: KeyboardMeaningLayout = [
-    [
-        Srch_, Rplcm, _____, _____, _____, /****/ _____, InFGb, _____, ExFGb, _____,
-    ],
-    [
-        ASTGp, NCAgn, Litrl, Regex, _____, /****/ _____, CaStv, Strct, Flexi, MaWWd,
     ],
     [
         _____, RplcA, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
@@ -234,7 +222,6 @@ struct KeySet {
     find_global: HashMap<Meaning, &'static str>,
     surround: HashMap<Meaning, &'static str>,
     space: HashMap<Meaning, &'static str>,
-    search_config: HashMap<Meaning, &'static str>,
     transform: HashMap<Meaning, &'static str>,
     yes_no: HashMap<Meaning, &'static str>,
 }
@@ -313,12 +300,6 @@ impl KeySet {
                             .flatten()
                             .zip(layout.into_iter().flatten().map(shifted)),
                     ),
-            ),
-            search_config: HashMap::from_iter(
-                KEYMAP_SEARCH_CONFIG
-                    .into_iter()
-                    .flatten()
-                    .zip(layout.into_iter().flatten()),
             ),
             transform: HashMap::from_iter(
                 KEYMAP_TRANSFORM
@@ -426,15 +407,6 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub(crate) fn get_search_config_keymap(&self, meaning: &Meaning) -> &'static str {
-        let keyset = self.get_keyset();
-        keyset
-            .search_config
-            .get(meaning)
-            .cloned()
-            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
-    }
-
     pub(crate) fn get_surround_keymap(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
@@ -488,8 +460,6 @@ pub(crate) enum Meaning {
     MrkFN,
     /// Move to previous marked file
     MrkFP,
-    /// Configure Search
-    CSrch,
     /// Select Character
     Char_,
     /// Change Cut
@@ -704,30 +674,8 @@ pub(crate) enum Meaning {
     LCdAc,
     /// Pick Buffers
     Buffr,
-    /// Set Replacement
-    Rplcm,
-    /// Include File Glob
-    InFGb,
-    /// Exclude File Glob
-    ExFGb,
-    /// AST Grep
-    ASTGp,
-    /// Naming Convention Agnostic
-    NCAgn,
-    /// Literal
-    Litrl,
-    /// Regex
-    Regex,
     /// Replace All
     RplcA,
-    /// Case-sensitive
-    CaStv,
-    /// Strict
-    Strct,
-    /// Flexible
-    Flexi,
-    /// Match Whole Word
-    MaWWd,
     /// UPPER_SNAKE_CASE
     USnke,
     /// PascalCase
