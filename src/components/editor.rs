@@ -111,8 +111,13 @@ impl Component for Editor {
     }
 
     fn set_rectangle(&mut self, rectangle: Rectangle, context: &Context) {
-        self.rectangle = rectangle;
-        self.recalculate_scroll_offset(context);
+        // Only update and recalculate scroll offset
+        // if the new rectangle is different from the current rectangle
+
+        if self.rectangle != rectangle {
+            self.rectangle = rectangle;
+            self.recalculate_scroll_offset(context);
+        }
     }
 
     fn rectangle(&self) -> &Rectangle {
