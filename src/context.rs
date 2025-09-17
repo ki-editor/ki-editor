@@ -8,7 +8,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 use strum::IntoEnumIterator;
 
 use crate::{
-    app::{GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate, Scope},
+    app::{GlobalSearchConfigUpdate, LocalSearchConfigUpdate, Scope},
     clipboard::{Clipboard, CopiedTexts},
     components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
@@ -193,22 +193,6 @@ impl Context {
         update: GlobalSearchConfigUpdate,
     ) -> anyhow::Result<()> {
         match update {
-            GlobalSearchConfigUpdate::SetGlob(which, glob) => {
-                match which {
-                    GlobalSearchFilterGlob::Include => {
-                        if !glob.is_empty() {
-                            self.global_search_config
-                                .set_include_glob(Glob::new(&glob)?)
-                        }
-                    }
-                    GlobalSearchFilterGlob::Exclude => {
-                        if !glob.is_empty() {
-                            self.global_search_config
-                                .set_exclude_glob(Glob::new(&glob)?)
-                        }
-                    }
-                };
-            }
             GlobalSearchConfigUpdate::Config(config) => self.global_search_config = config,
         };
         Ok(())
@@ -361,14 +345,6 @@ impl GlobalSearchConfig {
         &self.local_config
     }
 
-    fn set_exclude_glob(&mut self, glob: Glob) {
-        let _ = self.exclude_glob.insert(glob);
-    }
-
-    fn set_include_glob(&mut self, glob: Glob) {
-        let _ = self.include_glob.insert(glob);
-    }
-
     pub(crate) fn include_glob(&self) -> Option<Glob> {
         self.include_glob.clone()
     }
@@ -440,7 +416,9 @@ impl LocalSearchConfig {
 
     fn update(&mut self, update: LocalSearchConfigUpdate) {
         match update {
+            #[cfg(test)]
             LocalSearchConfigUpdate::Mode(mode) => self.mode = mode,
+            #[cfg(test)]
             LocalSearchConfigUpdate::Replacement(replacement) => {
                 self.set_replacment(replacement);
             }

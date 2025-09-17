@@ -19,11 +19,11 @@ use crate::{
 
 use super::{
     editor::{
-        Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Mode, Reveal,
+        Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Reveal,
         SurroundKind,
     },
     editor_keymap::*,
-    keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
+    keymap_legend::{Keymap, KeymapLegendConfig, Keymaps},
 };
 
 use DispatchEditor::*;
@@ -605,16 +605,6 @@ impl Editor {
                 }),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::CSrch),
-                "Config".to_string(),
-                "Configure Search".to_string(),
-                Dispatch::ShowSearchConfig {
-                    scope: Scope::Local,
-                    if_current_not_found: IfCurrentNotFound::LookForward,
-                    run_search_after_config_updated: self.mode != Mode::Insert,
-                },
-            ),
-            Keymap::new_extended(
                 context
                     .keyboard_layout_kind()
                     .get_insert_key(&Meaning::SHelp),
@@ -635,7 +625,7 @@ impl Editor {
     ) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Insert mode keymaps".to_string(),
-            body: KeymapLegendBody::Positional(Keymaps::new(
+            keymaps: Keymaps::new(
                 &[
                     Keymap::new_extended(
                         "left",
@@ -743,7 +733,7 @@ impl Editor {
                     Default::default()
                 })
                 .collect_vec(),
-            )),
+            ),
         }
     }
 
@@ -851,7 +841,7 @@ impl Editor {
     ) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Normal".to_string(),
-            body: KeymapLegendBody::Positional(Keymaps::new(
+            keymaps: Keymaps::new(
                 &self
                     .normal_mode_keymaps(context, normal_mode_override, prior_change)
                     .into_iter()
@@ -868,7 +858,7 @@ impl Editor {
                         Dispatch::ShowKeymapLegend(self.extend_mode_keymap_legend_config(context)),
                     )))
                     .collect_vec(),
-            )),
+            ),
         }
     }
 
@@ -900,7 +890,7 @@ impl Editor {
     ) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Multi-cursor".to_string(),
-            body: KeymapLegendBody::Positional(Keymaps::new(
+            keymaps: Keymaps::new(
                 &self
                     .normal_mode_keymaps(
                         context,
@@ -916,13 +906,13 @@ impl Editor {
                         Dispatch::ToEditor(CursorAddToAllSelections),
                     )))
                     .collect_vec(),
-            )),
+            ),
         }
     }
     pub(crate) fn extend_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Extend".to_string(),
-            body: KeymapLegendBody::Positional(Keymaps::new(
+            keymaps: Keymaps::new(
                 &self
                     .normal_mode_keymaps(
                         context,
@@ -936,7 +926,7 @@ impl Editor {
                         Dispatch::ToEditor(SelectAll),
                     )))
                     .collect_vec(),
-            )),
+            ),
         }
     }
     pub(crate) fn keymap_transform(&self, context: &Context) -> Vec<Keymap> {
@@ -986,7 +976,7 @@ impl Editor {
         KeymapLegendConfig {
             title: "Transform".to_string(),
 
-            body: KeymapLegendBody::Positional(Keymaps::new(&self.keymap_transform(context))),
+            keymaps: Keymaps::new(&self.keymap_transform(context)),
         }
     }
 
@@ -994,7 +984,7 @@ impl Editor {
         KeymapLegendConfig {
             title: "Space".to_string(),
 
-            body: KeymapLegendBody::Positional(Keymaps::new(
+            keymaps: Keymaps::new(
                 &[
                     (
                         context
@@ -1183,7 +1173,7 @@ impl Editor {
                     ),
                 ])
                 .collect_vec(),
-            )),
+            ),
         }
     }
 
@@ -1214,35 +1204,21 @@ impl Editor {
         let search_keymaps = {
             [].into_iter()
                 .chain(
-                    [
-                        Keymap::new_extended(
-                            context
+                    [Keymap::new(
+                        match (scope, if_current_not_found) {
+                            (Scope::Local, IfCurrentNotFound::LookForward) => context
                                 .keyboard_layout_kind()
-                                .get_find_keymap(scope, &Meaning::CSrch),
-                            "Config".to_string(),
-                            "Configure Search".to_string(),
-                            Dispatch::ShowSearchConfig {
-                                scope,
-                                if_current_not_found,
-                                run_search_after_config_updated: true,
-                            },
-                        ),
-                        Keymap::new(
-                            match (scope, if_current_not_found) {
-                                (Scope::Local, IfCurrentNotFound::LookForward) => context
-                                    .keyboard_layout_kind()
-                                    .get_find_keymap(scope, &Meaning::LRept),
-                                (Scope::Local, IfCurrentNotFound::LookBackward) => context
-                                    .keyboard_layout_kind()
-                                    .get_find_keymap(scope, &Meaning::LRept),
-                                (Scope::Global, _) => context
-                                    .keyboard_layout_kind()
-                                    .get_find_keymap(scope, &Meaning::GRept),
-                            },
-                            "Repeat".to_string(),
-                            Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
-                        ),
-                    ]
+                                .get_find_keymap(scope, &Meaning::LRept),
+                            (Scope::Local, IfCurrentNotFound::LookBackward) => context
+                                .keyboard_layout_kind()
+                                .get_find_keymap(scope, &Meaning::LRept),
+                            (Scope::Global, _) => context
+                                .keyboard_layout_kind()
+                                .get_find_keymap(scope, &Meaning::GRept),
+                        },
+                        "Repeat".to_string(),
+                        Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
+                    )]
                     .to_vec(),
                 )
                 .collect_vec()
@@ -1469,7 +1445,7 @@ impl Editor {
                 }
             ),
 
-            body: KeymapLegendBody::Positional(Keymaps::new(
+            keymaps: Keymaps::new(
                 &search_keymaps
                     .into_iter()
                     .chain(misc_keymaps)
@@ -1477,7 +1453,7 @@ impl Editor {
                     .chain(lsp_keymaps)
                     .chain(scope_specific_keymaps)
                     .collect_vec(),
-            )),
+            ),
         }
     }
 }
@@ -1536,7 +1512,7 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
         KeymapLegendConfig {
             title: format!("Select Surround ({kind:?})"),
 
-            body: KeymapLegendBody::Positional(generate_enclosures_keymaps(
+            keymaps: generate_enclosures_keymaps(
                 |enclosure| {
                     Dispatch::ToEditor(SelectSurround {
                         enclosure,
@@ -1544,7 +1520,7 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
                     })
                 },
                 context,
-            )),
+            ),
         }
     }
 
@@ -1552,10 +1528,10 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
         KeymapLegendConfig {
             title: "Delete Surround".to_string(),
 
-            body: KeymapLegendBody::Positional(generate_enclosures_keymaps(
+            keymaps: generate_enclosures_keymaps(
                 |enclosure| Dispatch::ToEditor(DeleteSurround(enclosure)),
                 context,
-            )),
+            ),
         }
     }
 
@@ -1563,7 +1539,7 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
         KeymapLegendConfig {
             title: "Surround".to_string(),
 
-            body: KeymapLegendBody::Positional(Keymaps::new(
+            keymaps: Keymaps::new(
                 &generate_enclosures_keymaps(
                     |enclosure| {
                         let (open, close) = enclosure.open_close_symbols_str();
@@ -1581,7 +1557,7 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
                     Dispatch::OpenSurroundXmlPrompt,
                 )))
                 .collect_vec(),
-            )),
+            ),
         }
     }
 
@@ -1591,14 +1567,14 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
         KeymapLegendConfig {
             title: "Change Surround from:".to_string(),
 
-            body: KeymapLegendBody::Positional(generate_enclosures_keymaps(
+            keymaps: generate_enclosures_keymaps(
                 |enclosure| {
                     Dispatch::ShowKeymapLegend(change_surround_to_keymap_legend_config(
                         enclosure, context,
                     ))
                 },
                 context,
-            )),
+            ),
         }
     }
 
@@ -1609,7 +1585,7 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
         KeymapLegendConfig {
             title: format!("Change Surround from {} to:", from.to_str()),
 
-            body: KeymapLegendBody::Positional(generate_enclosures_keymaps(
+            keymaps: generate_enclosures_keymaps(
                 |enclosure| {
                     Dispatch::ToEditor(ChangeSurround {
                         from,
@@ -1617,7 +1593,7 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
                     })
                 },
                 context,
-            )),
+            ),
         }
     }
     NormalModeOverride {

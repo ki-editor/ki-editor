@@ -1,6 +1,5 @@
 use event::{parse_key_event, KeyEvent};
 use regex::Regex;
-use unicode_width::UnicodeWidthStr;
 
 use itertools::Itertools;
 use my_proc_macros::key;
@@ -33,20 +32,15 @@ pub(crate) struct KeymapLegend {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct KeymapLegendConfig {
     pub(crate) title: String,
-    pub(crate) body: KeymapLegendBody,
+    pub(crate) keymaps: Keymaps,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) enum KeymapLegendBody {
-    Positional(Keymaps),
-    Mnemonic(Keymaps),
-}
 const BETWEEN_KEY_AND_DESCRIPTION: &str = " → ";
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymaps(Vec<Keymap>);
 impl Keymaps {
-    fn display_positional(
+    fn display(
         &self,
         keyboard_layout_kind: &KeyboardLayoutKind,
         terminal_width: u16,
@@ -59,58 +53,6 @@ impl Keymaps {
         )
         .display(terminal_width, option)
     }
-    fn display_mnemonic(&self, indent: usize, width: usize) -> String {
-        let width = width.saturating_sub(indent);
-        let max_key_width = self
-            .0
-            .iter()
-            .map(|keymap| keymap.key.len())
-            .max()
-            .unwrap_or(0);
-        let max_description_width = self
-            .0
-            .iter()
-            .map(|keymap| keymap.description.len())
-            .max()
-            .unwrap_or(0);
-        let key_description_gap = UnicodeWidthStr::width(BETWEEN_KEY_AND_DESCRIPTION);
-        let column_gap = key_description_gap * 2;
-        let column_width = max_key_width + key_description_gap + max_description_width + column_gap;
-        let column_count = width / column_width;
-
-        // Align the keys columns and the dispatch columns
-        let result = self
-            .0
-            .iter()
-            // .sorted_by_key(|keymap| keymap.key.to_lowercase())
-            .map(|keymap| {
-                let formatted = format!(
-                    "{: >width$}{}{}",
-                    keymap.key,
-                    BETWEEN_KEY_AND_DESCRIPTION,
-                    keymap.description,
-                    width = max_key_width
-                );
-                formatted
-            })
-            .chunks(column_count.max(1)) // At least 1, otherwise `chunks` will panic
-            .into_iter()
-            .map(|chunks| {
-                chunks
-                    .map(|chunk| {
-                        let second_formatted = format!("{chunk: <column_width$}");
-                        second_formatted
-                    })
-                    .join("")
-            })
-            .join("\n");
-        let result = dedent(&result);
-        result
-            .lines()
-            .map(|line| format!("{}{}", " ".repeat(indent), line.trim_end()))
-            .join("\n")
-    }
-
     pub(crate) fn new(keymaps: &[Keymap]) -> Self {
         Self(keymaps.to_vec())
     }
@@ -128,57 +70,6 @@ impl Keymaps {
     }
 }
 
-fn dedent(s: &str) -> String {
-    // Split the input string into lines
-    let lines: Vec<&str> = s.lines().collect();
-
-    // Find the minimum indentation (number of leading spaces)
-    let min_indent = lines
-        .iter()
-        .filter(|&&line| !line.trim().is_empty())
-        .map(|line| line.chars().take_while(|&c| c == ' ').count())
-        .min()
-        .unwrap_or(0);
-
-    // Remove the common indentation from each line
-    let dedented_lines: Vec<String> = lines
-        .iter()
-        .map(|&line| {
-            if line.len() >= min_indent {
-                line[min_indent..].to_string()
-            } else {
-                line.to_string()
-            }
-        })
-        .collect();
-
-    // Join the dedented lines back into a single string
-    dedented_lines.join("\n")
-}
-
-impl KeymapLegendBody {
-    fn display(
-        &self,
-        keyboard_layout_kind: &KeyboardLayoutKind,
-        width: u16,
-        option: &KeymapDisplayOption,
-    ) -> String {
-        match self {
-            KeymapLegendBody::Positional(keymaps) => {
-                keymaps.display_positional(keyboard_layout_kind, width, option)
-            }
-            KeymapLegendBody::Mnemonic(keymaps) => keymaps.display_mnemonic(0, width as usize),
-        }
-    }
-
-    fn keymaps(&self) -> Vec<&Keymap> {
-        match self {
-            KeymapLegendBody::Positional(keymaps) => keymaps.0.iter().collect_vec(),
-            KeymapLegendBody::Mnemonic(keymaps) => keymaps.0.iter().collect_vec(),
-        }
-    }
-}
-
 impl KeymapLegendConfig {
     pub(crate) fn display(
         &self,
@@ -186,11 +77,11 @@ impl KeymapLegendConfig {
         width: u16,
         option: &KeymapDisplayOption,
     ) -> String {
-        self.body.display(keyboard_layout_kind, width, option)
+        self.keymaps.display(keyboard_layout_kind, width, option)
     }
 
     pub(crate) fn keymaps(&self) -> Keymaps {
-        let keymaps = self.body.keymaps();
+        let keymaps = &self.keymaps;
         #[cfg(test)]
         {
             let conflicting_keymaps = keymaps
@@ -205,7 +96,7 @@ impl KeymapLegendConfig {
                 panic!("Conflicting keymaps detected:\n\n{conflicting_keymaps:#?}");
             }
         }
-        Keymaps::new(&keymaps.into_iter().cloned().collect_vec())
+        keymaps.clone()
     }
 
     fn get_regex_highlight_rules(&self) -> Vec<RegexHighlightRule> {
@@ -268,15 +159,6 @@ impl KeymapLegendConfig {
             })
             .flatten()
             .collect_vec()
-    }
-}
-
-impl From<KeymapLegendConfig> for Vec<Keymaps> {
-    fn from(keymap_legend_config: KeymapLegendConfig) -> Self {
-        match &keymap_legend_config.body {
-            KeymapLegendBody::Positional(keymaps) => vec![keymaps.clone()],
-            KeymapLegendBody::Mnemonic(keymaps) => vec![keymaps.clone()],
-        }
     }
 }
 
@@ -472,36 +354,13 @@ mod test_keymap_legend {
                 }),
                 App(ShowKeymapLegend(KeymapLegendConfig {
                     title: "".to_string(),
-                    body: KeymapLegendBody::Positional(Keymaps::new(&[])),
+                    keymaps: Keymaps::new(&[]),
                 })),
                 App(HandleKeyEvent(key!("esc"))),
                 App(HandleKeyEvent(key!("esc"))),
                 Expect(CurrentComponentPath(Some(s.main_rs()))),
             ])
         })
-    }
-
-    #[test]
-    fn test_display_mnemonic() {
-        let keymaps = Keymaps(
-            [
-                Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
-                Keymap::new("b", "Bomb".to_string(), Dispatch::Null),
-                Keymap::new("c", "Caterpillar".to_string(), Dispatch::Null),
-                Keymap::new("d", "D".to_string(), Dispatch::Null),
-                Keymap::new("e", "Elephant".to_string(), Dispatch::Null),
-                Keymap::new("space", "Gogagg".to_string(), Dispatch::Null),
-            ]
-            .to_vec(),
-        );
-        let width = 53;
-        let actual = keymaps.display_mnemonic(2, width).to_string();
-        let expected = "
-  a → Aloha                b → Bomb
-  c → Caterpillar          d → D
-  e → Elephant         space → Gogagg"
-            .trim_matches('\n');
-        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -518,7 +377,7 @@ mod test_keymap_legend {
         );
         let context = Context::default();
         let actual = keymaps
-            .display_positional(
+            .display(
                 context.keyboard_layout_kind(),
                 100,
                 &KeymapDisplayOption {
@@ -541,7 +400,7 @@ mod test_keymap_legend {
         assert_eq!(actual, expected);
 
         let actual = keymaps
-            .display_positional(
+            .display(
                 context.keyboard_layout_kind(),
                 100,
                 &KeymapDisplayOption {
@@ -575,11 +434,11 @@ mod test_keymap_legend {
         let mut keymap_legend = KeymapLegend::new(
             KeymapLegendConfig {
                 title: "Test".to_string(),
-                body: KeymapLegendBody::Positional(Keymaps::new(&[Keymap::new(
+                keymaps: Keymaps::new(&[Keymap::new(
                     "s",
                     "fifafofum".to_string(),
                     Dispatch::Custom("Spongebob".to_string()),
-                )])),
+                )]),
             },
             &Context::default(),
         );
@@ -612,7 +471,7 @@ mod test_keymap_legend {
         );
         let regexes = KeymapLegendConfig {
             title: "".to_string(),
-            body: KeymapLegendBody::Positional(keymaps),
+            keymaps,
         }
         .get_regex_highlight_rules()
         .into_iter()
