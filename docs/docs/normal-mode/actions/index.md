@@ -46,12 +46,12 @@ This is useful when you want to retrieve earlier copies.
 
 ### `Open`
 
-Open next to selection's anchor.
+Open next to current selection.
 
-If the current selection mode is not Syntax Mode,
-then Open inserts a newline with the respective indent next to anchor of the current line.
+`Open` is directional[^directionality].
 
-Otherwise, it inserts a gap next to the current selection's anchor, and then enter Insert mode.
+`Open` inserts a newline with the respective indent of the current line,
+In Syntax Mode, exceptionally, it inserts a gap next to the current selection.
 
 <TutorialFallback filename="open"/>
 
@@ -59,7 +59,7 @@ Otherwise, it inserts a gap next to the current selection's anchor, and then ent
 
 Delete until next selection.
 
-To delete until the previous selection instead, make sure you have swapped the anchor first by using `/`.
+`Delete` is directional[^directionality].
 
 This deletes the current selection(s), however, if the current selection mode is
 [contiguous](../selection-modes/index.md#contiguity), it will delete until the
@@ -216,12 +216,12 @@ copied to the cursor-specific clipboard.
 
 ### `Paste`
 
-Paste copied content after the current selection.
+Paste copied content next to current selection.
 
-Note: To paste _before_ the current selection, execute Swap Cursor (`/`) first.
+`Paste` is directional[^directionality].
 
 This action pastes the content from the clipboard (either the system clipboard or
-cursor-specific clipboard) after/before the current selection.
+cursor-specific clipboard) next to the current selection.
 
 Notes:
 
@@ -270,3 +270,5 @@ Replace Cut, swaps the current selection with the content in the clipboard.
 Keybinding: `*`
 
 This has a special keybinding that is non-positional so that the keyboard layout can be switched easily.
+
+[^directionality]: Actions can have Directionality which can be changed using [`⇋ Curs`](../../normal-mode/other-movements/#-curs). Directionality means, that the result of that action can be applied in two opposite directions. For example, deleting backward and deleting forward, both are the same action only directionally opposite. To change the direction of the action make sure to first swap the cursor using [`⇋ Curs`](../../normal-mode/other-movements/#-curs) before applying the action.
