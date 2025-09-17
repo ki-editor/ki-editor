@@ -81,13 +81,13 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// This keymap should be almost identical with that of Find Local
 pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
     [
-        Srch_, CSrch, SrchC, RSrch, Qkfix, /****/ Mark_, _____, _____, _____, _____,
+        Srch_, CSrch, SrchC, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, _____, /****/ _____, _____, _____, _____, _____,
+        LImpl, LDefn, LType, LRfrE, Mark_, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
