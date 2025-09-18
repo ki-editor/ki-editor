@@ -2703,21 +2703,18 @@ fn replace_with_pattern() -> Result<(), anyhow::Error> {
                     App(UpdateLocalSearchConfig {
                         update: LocalSearchConfigUpdate::Mode(mode),
                         scope: Scope::Local,
-                        show_config_after_enter: false,
                         if_current_not_found: IfCurrentNotFound::LookForward,
                         run_search_after_config_updated: true,
                     }),
                     App(UpdateLocalSearchConfig {
                         update: LocalSearchConfigUpdate::Search(search_pattern.to_string()),
                         scope: Scope::Local,
-                        show_config_after_enter: false,
                         if_current_not_found: IfCurrentNotFound::LookForward,
                         run_search_after_config_updated: true,
                     }),
                     App(UpdateLocalSearchConfig {
                         update: LocalSearchConfigUpdate::Replacement(replace_pattern.to_string()),
                         scope: Scope::Local,
-                        show_config_after_enter: false,
                         if_current_not_found: IfCurrentNotFound::LookForward,
                         run_search_after_config_updated: true,
                     }),

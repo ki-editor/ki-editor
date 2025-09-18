@@ -1326,7 +1326,6 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
             App(UpdateLocalSearchConfig {
                 update: LocalSearchConfigUpdate::Search("bar".to_string()),
                 scope: Scope::Global,
-                show_config_after_enter: false,
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
             }),
@@ -1482,7 +1481,6 @@ fn test_global_search_replace(
             UpdateLocalSearchConfig {
                 update,
                 scope: Scope::Global,
-                show_config_after_enter: true,
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
             }
@@ -1625,7 +1623,6 @@ fn quickfix_list() -> Result<(), anyhow::Error> {
             UpdateLocalSearchConfig {
                 update,
                 scope: Scope::Global,
-                show_config_after_enter: false,
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
             }
@@ -2343,7 +2340,6 @@ fn global_search_should_not_using_empty_pattern() -> anyhow::Result<()> {
             App(UpdateLocalSearchConfig {
                 update: LocalSearchConfigUpdate::Search("".to_string()),
                 scope: Scope::Global,
-                show_config_after_enter: true,
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
             }),
