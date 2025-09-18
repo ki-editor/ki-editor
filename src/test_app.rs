@@ -3086,3 +3086,47 @@ fn navigate_forward_should_skip_files_that_were_renamed_or_deleted() -> anyhow::
         ])
     })
 }
+
+#[test]
+fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.hello_ts(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            Expect(AppGrid(
+                r#" # 🙈  .gitignore  # 📘  hello.ts  # 🦀  main.rs
+1│█arget/
+2│"#
+                .to_string(),
+            )),
+            Expect(CurrentPath(s.gitignore())),
+            App(DeletePath(s.main_rs())),
+            App(CycleMarkedFile(Direction::Start)),
+            Expect(NoError),
+            Expect(CurrentPath(s.hello_ts())),
+            // Expect main.rs is removed from the tab
+            Expect(AppGrid(
+                r#" # 🙈  .gitignore  # 📘  hello.ts
+1│█onsole.log("hello");
+2│"#
+                .to_string(),
+            )),
+        ])
+    })
+}

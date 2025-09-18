@@ -1938,7 +1938,14 @@ impl<T: Frontend> App<T> {
                 .or_else(|| file_paths.first())
                 .cloned()
         } {
-            self.open_file(&next_file_path.clone(), BufferOwner::User, true, true)?;
+            if next_file_path.exists() {
+                self.open_file(&next_file_path.clone(), BufferOwner::User, true, true)?;
+            } else {
+                // If the file no longer exists, remove it from the list of marked files
+                // and then cycle to the next file
+                self.context.toggle_file_mark(next_file_path.clone());
+                self.cycle_marked_file(direction)?
+            }
         }
         Ok(())
     }
