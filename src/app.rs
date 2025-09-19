@@ -1673,7 +1673,11 @@ impl<T: Frontend> App<T> {
         self.layout
             .refresh_file_explorer(&self.working_directory, &self.context)?;
         let to = to.try_into()?;
+
+        self.context.rename_file_mark(&from, &to);
+
         self.reveal_path_in_explorer(&to)?;
+
         self.lsp_manager.send_message(
             from.clone(),
             FromEditor::WorkspaceDidRenameFiles {

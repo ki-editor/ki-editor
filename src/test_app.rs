@@ -3130,3 +3130,49 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
         ])
     })
 }
+
+#[test]
+fn renaming_marked_files_should_update_file_marks() -> anyhow::Result<()> {
+    execute_test(|s| {
+        let new_path = s.temp_dir.to_path_buf().join("new_name");
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.hello_ts(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            Expect(AppGrid(
+                r#" # 🙈  .gitignore  # 📘  hello.ts  # 🦀  main.rs
+1│█arget/
+2│"#
+                .to_string(),
+            )),
+            Expect(CurrentPath(s.gitignore())),
+            App(MoveFile {
+                from: s.gitignore(),
+                to: new_path.clone(),
+            }),
+            // Press enter to hide File Explorer and focus the renamed file
+            App(HandleKeyEvent(key!("enter"))),
+            Expect(AppGrid(
+                r#" # 📄  new_name  # 📘  hello.ts  # 🦀  main.rs
+1│█arget/
+2│"#
+                .to_string(),
+            )),
+        ])
+    })
+}
