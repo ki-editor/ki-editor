@@ -137,9 +137,9 @@ pub trait Component: Any + AnyComponent {
 
     fn handle_mouse_event(
         &mut self,
-        _event: crossterm::event::MouseEvent,
+        event: crossterm::event::MouseEvent,
     ) -> anyhow::Result<Dispatches> {
-        Ok(Default::default())
+        self.editor_mut().handle_mouse_event(event)
     }
 
     fn handle_key_event(

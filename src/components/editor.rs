@@ -136,7 +136,7 @@ impl Component for Editor {
         &mut self,
         mouse_event: crossterm::event::MouseEvent,
     ) -> anyhow::Result<Dispatches> {
-        const SCROLL_HEIGHT: usize = 1;
+        const SCROLL_HEIGHT: usize = 2;
         match mouse_event.kind {
             MouseEventKind::ScrollUp => {
                 self.apply_scroll(Direction::Start, SCROLL_HEIGHT);
