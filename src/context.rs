@@ -332,6 +332,11 @@ impl Context {
     pub(crate) fn is_running_as_embedded(&self) -> bool {
         self.is_running_as_embedded
     }
+
+    pub(crate) fn rename_file_mark(&mut self, from: &CanonicalizedPath, to: &CanonicalizedPath) {
+        self.marked_paths.shift_remove(from);
+        self.marked_paths.insert_sorted(to.clone());
+    }
 }
 
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
