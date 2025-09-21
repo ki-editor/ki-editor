@@ -523,9 +523,7 @@ impl Editor {
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Pst0G),
                 "Paste 0 Gap".to_string(),
-                Dispatch::ToEditor(PasteNoGap {
-                    use_system_clipboard,
-                }),
+                Dispatch::ToEditor(PasteNoGap),
             ),
         ]
         .into_iter()
@@ -552,9 +550,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::Paste),
                 format("Paste →"),
                 format!("{}{}", Direction::End.format_action("Paste"), extra),
-                Dispatch::ToEditor(Paste {
-                    use_system_clipboard,
-                }),
+                Dispatch::ToEditor(Paste),
             )
             .override_keymap(
                 normal_mode_override.paste.clone().as_ref(),
@@ -600,9 +596,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::UPstE),
                 "Paste →".to_string(),
                 "Paste".to_string(),
-                Dispatch::ToEditor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Dispatch::ToEditor(Paste),
             ),
             Keymap::new_extended(
                 context

@@ -296,12 +296,8 @@ impl Component for Editor {
             }
             Surround(open, close) => return self.surround(open, close, context),
             EnterReplaceMode => self.enter_replace_mode(),
-            Paste {
-                use_system_clipboard,
-            } => return self.paste(context, use_system_clipboard, true),
-            PasteNoGap {
-                use_system_clipboard,
-            } => return self.paste(context, use_system_clipboard, false),
+            Paste => return self.paste(context, true),
+            PasteNoGap => return self.paste(context, false),
             SwapCursor => self.swap_cursor(context),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
@@ -1323,9 +1319,9 @@ impl Editor {
     pub(crate) fn paste(
         &mut self,
         context: &Context,
-        use_system_clipboard: bool,
         with_gap: bool,
     ) -> anyhow::Result<Dispatches> {
+        let use_system_clipboard: bool = true;
         let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0)? else {
             return Ok(Default::default());
         };
@@ -4017,12 +4013,8 @@ pub(crate) enum DispatchEditor {
     ApplySyntaxHighlight,
     ReplaceCurrentSelectionWith(String),
     SelectLineAt(usize),
-    Paste {
-        use_system_clipboard: bool,
-    },
-    PasteNoGap {
-        use_system_clipboard: bool,
-    },
+    Paste,
+    PasteNoGap,
     SwapCursor,
     MoveCharacterBack,
     MoveCharacterForward,
