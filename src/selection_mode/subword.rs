@@ -333,9 +333,7 @@ mod test_subword {
                 Editor(Copy {
                     use_system_clipboard: false,
                 }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("foo bar bar\nspam")),
             ])
         })
@@ -361,9 +359,7 @@ mod test_subword {
                     use_system_clipboard: false,
                 }),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("foo bar bar\nspam")),
             ])
         })

@@ -220,12 +220,8 @@ mod test_line_full {
                 Editor(Copy {
                     use_system_clipboard: false,
                 }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
+                Editor(Paste),
                 Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
             ])
         })
@@ -249,12 +245,8 @@ mod test_line_full {
                     use_system_clipboard: false,
                 }),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
+                Editor(Paste),
                 Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
             ])
         })

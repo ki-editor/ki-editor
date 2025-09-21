@@ -405,9 +405,7 @@ foo
                 Editor(Copy {
                     use_system_clipboard: false,
                 }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent(
                     "
 foo
@@ -448,9 +446,7 @@ foo
                     use_system_clipboard: false,
                 }),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent(
                     "
 foo
@@ -482,9 +478,7 @@ foo
                 Editor(Copy {
                     use_system_clipboard: false,
                 }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("  foo\n  foo")),
             ])
         })
@@ -509,9 +503,7 @@ foo
                     use_system_clipboard: false,
                 }),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("  foo\n  foo")),
             ])
         })
@@ -537,9 +529,7 @@ foo
                     use_system_clipboard: false,
                 }),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("foo\nbar\nbar")),
             ])
         })
@@ -564,13 +554,9 @@ foo
                     use_system_clipboard: false,
                 }),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent(" \n ")),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent(" \n \n ")),
             ])
         })
@@ -594,13 +580,9 @@ foo
                 Editor(Copy {
                     use_system_clipboard: false,
                 }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent(" \n ")),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent(" \n \n ")),
             ])
         })

@@ -411,9 +411,7 @@ fn main() {
                 Editor(Copy {
                     use_system_clipboard: false,
                 }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
             ])
         })
@@ -439,9 +437,7 @@ fn main() {
                     use_system_clipboard: false,
                 }),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
             ])
         })

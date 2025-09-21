@@ -530,9 +530,7 @@ mod test_word {
                 Editor(Copy {
                     use_system_clipboard: false,
                 }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("fooFoo barBar barBar\nspamSpam")),
             ])
         })
@@ -558,9 +556,7 @@ mod test_word {
                     use_system_clipboard: false,
                 }),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("fooFoo barBar barBar\nspamSpam")),
             ])
         })

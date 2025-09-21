@@ -948,9 +948,7 @@ fn multi_paste() -> anyhow::Result<()> {
             }),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("Some(".to_owned())),
-            Editor(Paste {
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Editor(Insert(")".to_owned())),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }",
@@ -960,9 +958,7 @@ fn multi_paste() -> anyhow::Result<()> {
                 use_system_clipboard: false,
                 copied_texts: CopiedTexts::one(".hello".to_owned()),
             }),
-            Editor(Paste {
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants)).hello; let y = Some(S(b)); }",
             )),
@@ -2513,9 +2509,7 @@ c1 c2 c3"
                 Editor(MoveSelection(Right)),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
-                Editor(Paste {
-                    use_system_clipboard: true,
-                }),
+                Editor(Paste),
                 Expect(CurrentSelectedTexts(&[
                     "a1\nb1\nc1",
                     "a1\nb1\nc1",

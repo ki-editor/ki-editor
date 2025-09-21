@@ -1031,9 +1031,7 @@ fn paste_in_insert_mode_1() -> anyhow::Result<()> {
             }),
             Editor(MatchLiteral("bar".to_string())),
             Editor(EnterInsertMode(Direction::End)),
-            Editor(Paste {
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Expect(CurrentComponentContent("foo barhaha spam")),
             Editor(Insert("Hello".to_string())),
             Expect(CurrentComponentContent("foo barhahaHello spam")),
@@ -1057,9 +1055,7 @@ fn paste_in_insert_mode_2() -> anyhow::Result<()> {
                 use_system_clipboard: false,
             }),
             Editor(EnterInsertMode(Direction::End)),
-            Editor(Paste {
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Expect(CurrentComponentContent("fn main(a:Aa:A,b:B){}")),
             Editor(Insert("Hello".to_string())),
             Expect(CurrentComponentContent("fn main(a:Aa:AHello,b:B){}")),
@@ -1082,9 +1078,7 @@ fn paste_after() -> anyhow::Result<()> {
                 use_system_clipboard: false,
             }),
             Editor(MatchLiteral("bar".to_string())),
-            Editor(Paste {
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Expect(CurrentComponentContent("foo barhaha spam")),
             Expect(CurrentSelectedTexts(&["haha"])),
         ])
@@ -1114,9 +1108,7 @@ fn main() {
             Editor(Copy {
                 use_system_clipboard: false,
             }),
-            Editor(Paste {
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Expect(CurrentComponentContent(
                 "fn main() {
     foo();
@@ -1145,9 +1137,7 @@ fn smart_paste_forward() -> anyhow::Result<()> {
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["a:A"])),
-            Editor(Paste {
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Expect(CurrentComponentContent("fn main(a:A, c:C, b:B) {}")),
             Expect(CurrentSelectedTexts(&["c:C"])),
         ])
@@ -1168,9 +1158,7 @@ fn paste_no_gap() -> anyhow::Result<()> {
             Editor(Copy {
                 use_system_clipboard: false,
             }),
-            Editor(PasteNoGap {
-                use_system_clipboard: false,
-            }),
+            Editor(PasteNoGap),
             Expect(CurrentComponentContent("foofoo\nbar")),
         ])
     })
@@ -1194,9 +1182,7 @@ fn smart_paste_backward() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["a:A"])),
             Editor(SwapCursor),
-            Editor(Paste {
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Expect(CurrentComponentContent("fn main(c:C, a:A, b:B) {}")),
             Expect(CurrentSelectedTexts(&["c:C"])),
         ])
@@ -1219,9 +1205,7 @@ fn paste_before() -> anyhow::Result<()> {
             }),
             Editor(MatchLiteral("bar".to_string())),
             Editor(SwapCursor),
-            Editor(Paste {
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Expect(CurrentComponentContent("foo hahabar spam")),
             Expect(CurrentSelectedTexts(&["haha"])),
         ])
@@ -2520,9 +2504,7 @@ fn undo_till_empty_should_not_crash_in_insert_mode() -> anyhow::Result<()> {
                 use_system_clipboard: false,
             }),
             Editor(EnterInsertMode(Direction::Start)),
-            Editor(Paste {
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Expect(CurrentComponentContent("foo")),
             Editor(Undo),
             Expect(CurrentComponentContent("")),
@@ -2819,9 +2801,7 @@ c1 c2 c3"
                     use_system_clipboard: false,
                 }),
                 Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Editor(ReplaceWithPreviousCopiedText),
                 Expect(CurrentSelectedTexts(&["a2", "b2", "c2"])),
                 Expect(CurrentComponentContent(
@@ -3014,9 +2994,7 @@ fn yank_paste_extended_selection() -> Result<(), anyhow::Error> {
                 Editor(Copy {
                     use_system_clipboard: false,
                 }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("who lives who lives in a")),
                 Expect(CurrentSelectedTexts(&["who lives"])),
                 Editor(EnterInsertMode(Direction::End)),
@@ -4137,9 +4115,7 @@ fn undo_redo_should_clear_redo_stack_upon_new_edits() -> anyhow::Result<()> {
             Editor(Copy {
                 use_system_clipboard: false,
             }),
-            Editor(Paste {
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Expect(CurrentComponentContent("barbar")),
             Editor(Undo),
             Editor(Redo),
@@ -5170,9 +5146,7 @@ fn copy_paste_special_character_in_word_selection_mode() -> anyhow::Result<()> {
             Editor(Copy {
                 use_system_clipboard: false,
             }),
-            Editor(Paste {
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Expect(CurrentComponentContent("││")),
         ])
     })
@@ -5193,9 +5167,7 @@ fn recalculate_scroll_offset_consider_last_line_of_multiline_selection() -> anyh
             Editor(Copy {
                 use_system_clipboard: false,
             }),
-            Editor(Paste {
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Expect(CurrentComponentContent("││")),
         ])
     })
