@@ -516,9 +516,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::Copy_),
                 format("Copy"),
                 format!("{}{}", "Copy", extra),
-                Dispatch::ToEditor(Copy {
-                    use_system_clipboard,
-                }),
+                Dispatch::ToEditor(Copy),
             ),
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Pst0G),

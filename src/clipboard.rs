@@ -54,17 +54,11 @@ impl Clipboard {
         Ok(arboard::Clipboard::new()?.get_text()?)
     }
 
-    pub(crate) fn set(
-        &mut self,
-        copied_texts: CopiedTexts,
-        use_system_clipboard: bool,
-    ) -> anyhow::Result<()> {
+    pub(crate) fn set(&mut self, copied_texts: CopiedTexts) -> anyhow::Result<()> {
         self.history.add(copied_texts.clone());
-        if use_system_clipboard {
-            arboard::Clipboard::new()
-                .and_then(|mut clipboard| clipboard.set_text(copied_texts.join("\n")))
-                .or_else(|_| osc52::copy_to_clipboard(&copied_texts.join("\n")))?
-        }
+        arboard::Clipboard::new()
+            .and_then(|mut clipboard| clipboard.set_text(copied_texts.join("\n")))
+            .or_else(|_| osc52::copy_to_clipboard(&copied_texts.join("\n")))?;
         Ok(())
     }
 }

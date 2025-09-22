@@ -127,12 +127,8 @@ impl Context {
         })
     }
 
-    pub(crate) fn set_clipboard_content(
-        &mut self,
-        contents: CopiedTexts,
-        use_system_clipboard: bool,
-    ) -> anyhow::Result<()> {
-        self.clipboard.set(contents.clone(), use_system_clipboard)
+    pub(crate) fn set_clipboard_content(&mut self, contents: CopiedTexts) -> anyhow::Result<()> {
+        self.clipboard.set(contents.clone())
     }
     pub(crate) fn mode(&self) -> Option<GlobalMode> {
         self.mode.clone()

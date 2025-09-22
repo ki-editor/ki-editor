@@ -808,10 +808,7 @@ impl<T: Frontend> App<T> {
                 .refresh_file_explorer(&self.working_directory, &self.context)?,
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
-                use_system_clipboard,
-            } => self
-                .context
-                .set_clipboard_content(contents, use_system_clipboard)?,
+            } => self.context.set_clipboard_content(contents)?,
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
@@ -2763,7 +2760,6 @@ pub(crate) enum Dispatch {
     RefreshFileExplorer,
     SetClipboardContent {
         copied_texts: CopiedTexts,
-        use_system_clipboard: bool,
     },
     SetGlobalMode(Option<GlobalMode>),
     #[cfg(test)]

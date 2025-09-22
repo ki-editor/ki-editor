@@ -221,9 +221,7 @@ impl Component for Editor {
             MoveSelectionWithPriorChange(movement, prior_change) => {
                 return self.handle_movement_with_prior_change(context, movement, prior_change)
             }
-            Copy {
-                use_system_clipboard,
-            } => return self.copy(use_system_clipboard),
+            Copy => return self.copy(),
             ReplaceWithCopiedText {
                 cut,
                 use_system_clipboard,
@@ -1005,7 +1003,7 @@ impl Editor {
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let copy_dispatches = if let Some(use_system_clipboard) = use_system_clipboard {
-            self.copy(use_system_clipboard)?
+            self.copy()?
         } else {
             Default::default()
         };
@@ -1155,9 +1153,8 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    pub(crate) fn copy(&mut self, use_system_clipboard: bool) -> anyhow::Result<Dispatches> {
+    pub(crate) fn copy(&mut self) -> anyhow::Result<Dispatches> {
         Ok(Dispatches::one(Dispatch::SetClipboardContent {
-            use_system_clipboard,
             copied_texts: CopiedTexts::new(self.selection_set.map(|selection| {
                 self.buffer()
                     .slice(&selection.extended_range())
@@ -1343,7 +1340,7 @@ impl Editor {
         history_offset: isize,
     ) -> anyhow::Result<Dispatches> {
         let dispatches = if cut {
-            self.copy(use_system_clipboard)?
+            self.copy()?
         } else {
             Default::default()
         };
@@ -1588,9 +1585,7 @@ impl Editor {
         use_system_clipboard: bool,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        Ok(self
-            .copy(use_system_clipboard)?
-            .chain(self.change(context)?))
+        Ok(self.copy()?.chain(self.change(context)?))
     }
 
     pub(crate) fn insert(&mut self, s: &str, context: &Context) -> anyhow::Result<Dispatches> {
@@ -3954,9 +3949,7 @@ pub(crate) enum DispatchEditor {
     /// This is used for initiating modes such as Multicursor and Extend.
     MoveSelectionWithPriorChange(Movement, Option<PriorChange>),
     SwitchViewAlignment,
-    Copy {
-        use_system_clipboard: bool,
-    },
+    Copy,
     GoBack,
     GoForward,
     SelectAll,
