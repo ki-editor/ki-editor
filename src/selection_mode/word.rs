@@ -527,9 +527,7 @@ mod test_word {
                 )),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["barBar"])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(Paste),
                 Expect(CurrentComponentContent("fooFoo barBar barBar\nspamSpam")),
             ])
@@ -552,9 +550,7 @@ mod test_word {
                 )),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["barBar"])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
                 Editor(Paste),
                 Expect(CurrentComponentContent("fooFoo barBar barBar\nspamSpam")),

@@ -408,9 +408,7 @@ fn main() {
                     SelectionMode::SyntaxNode,
                 )),
                 Editor(MoveSelection(Right)),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(Paste),
                 Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
             ])
@@ -433,9 +431,7 @@ fn main() {
                     SelectionMode::SyntaxNode,
                 )),
                 Editor(MoveSelection(Right)),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
                 Editor(Paste),
                 Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),

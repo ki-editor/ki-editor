@@ -682,9 +682,7 @@ fn copy_replace_from_different_file() -> anyhow::Result<()> {
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SelectAll),
-            Editor(Copy {
-                use_system_clipboard: false,
-            }),
+            Editor(Copy),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
@@ -692,9 +690,7 @@ fn copy_replace_from_different_file() -> anyhow::Result<()> {
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SelectAll),
-            Editor(Copy {
-                use_system_clipboard: false,
-            }),
+            Editor(Copy),
             App(OpenFile {
                 path: s.main_rs(),
                 owner: BufferOwner::User,
@@ -729,9 +725,7 @@ fn replace_cut() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn foo() { call_foo() }".to_string())),
             Editor(MatchLiteral("call_foo()".to_string())),
-            Editor(Copy {
-                use_system_clipboard: false,
-            }),
+            Editor(Copy),
             App(OpenFile {
                 path: s.main_rs(),
                 owner: BufferOwner::User,
@@ -768,9 +762,7 @@ fn copy_replace() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(Copy {
-                use_system_clipboard: false,
-            }),
+            Editor(Copy),
             Editor(MoveSelection(Right)),
             Editor(ReplaceWithCopiedText {
                 use_system_clipboard: false,
@@ -866,9 +858,7 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
-            Editor(Copy {
-                use_system_clipboard: false,
-            }),
+            Editor(Copy),
             Editor(Reset),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["{"])),
@@ -901,9 +891,7 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(MoveSelection(Movement::Next)),
             Editor(MoveSelection(Movement::Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
-            Editor(Copy {
-                use_system_clipboard: false,
-            }),
+            Editor(Copy),
             Editor(Reset),
             Editor(MatchLiteral("{".to_string())),
             Editor(SetSelectionMode(
@@ -955,7 +943,6 @@ fn multi_paste() -> anyhow::Result<()> {
             )),
             Editor(CursorKeepPrimaryOnly),
             App(SetClipboardContent {
-                use_system_clipboard: false,
                 copied_texts: CopiedTexts::one(".hello".to_owned()),
             }),
             Editor(Paste),
@@ -2503,9 +2490,7 @@ c1 c2 c3"
                 Editor(CursorAddToAllSelections),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
-                Editor(Copy {
-                    use_system_clipboard: true,
-                }),
+                Editor(Copy),
                 Editor(MoveSelection(Right)),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
@@ -2551,9 +2536,7 @@ c1 c2 c3"
                 Editor(CursorAddToAllSelections),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
-                Editor(Copy {
-                    use_system_clipboard: true,
-                }),
+                Editor(Copy),
                 Editor(MoveSelection(Right)),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),

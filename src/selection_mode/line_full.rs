@@ -217,9 +217,7 @@ mod test_line_full {
                     IfCurrentNotFound::LookForward,
                     SelectionMode::LineFull,
                 )),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(Paste),
                 Editor(Paste),
                 Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
@@ -241,9 +239,7 @@ mod test_line_full {
                     IfCurrentNotFound::LookForward,
                     SelectionMode::LineFull,
                 )),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
                 Editor(Paste),
                 Editor(Paste),

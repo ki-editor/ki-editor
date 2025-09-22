@@ -402,9 +402,7 @@ foo
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Line,
                 )),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(Paste),
                 Expect(CurrentComponentContent(
                     "
@@ -442,9 +440,7 @@ foo
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Line,
                 )),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
                 Editor(Paste),
                 Expect(CurrentComponentContent(
@@ -475,9 +471,7 @@ foo
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Line,
                 )),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(Paste),
                 Expect(CurrentComponentContent("  foo\n  foo")),
             ])
@@ -499,9 +493,7 @@ foo
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Line,
                 )),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
                 Editor(Paste),
                 Expect(CurrentComponentContent("  foo\n  foo")),
@@ -525,9 +517,7 @@ foo
                     SelectionMode::Line,
                 )),
                 Expect(CurrentSelectedTexts(&["bar"])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
                 Editor(Paste),
                 Expect(CurrentComponentContent("foo\nbar\nbar")),
@@ -550,9 +540,7 @@ foo
                     SelectionMode::Line,
                 )),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
                 Editor(Paste),
                 Expect(CurrentComponentContent(" \n ")),
@@ -577,9 +565,7 @@ foo
                     SelectionMode::Line,
                 )),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(Paste),
                 Expect(CurrentComponentContent(" \n ")),
                 Editor(Paste),

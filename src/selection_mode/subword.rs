@@ -330,9 +330,7 @@ mod test_subword {
                 )),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["bar"])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(Paste),
                 Expect(CurrentComponentContent("foo bar bar\nspam")),
             ])
@@ -355,9 +353,7 @@ mod test_subword {
                 )),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["bar"])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
                 Editor(Paste),
                 Expect(CurrentComponentContent("foo bar bar\nspam")),
