@@ -41,32 +41,23 @@ pub(crate) enum SimpleHunkKind {
 
 impl Hunk {
     pub(crate) fn get_simple_hunks(old: &str, new: &str) -> Vec<SimpleHunk> {
-        let diff = TextDiff::from_lines(old, new);
-
-        diff.ops()
-            .into_iter()
-            .filter_map(|op| {
-                Some(match op {
-                    DiffOp::Equal { .. } => return None,
-                    DiffOp::Delete { new_index, .. } => SimpleHunk {
-                        new_line_range: *new_index..new_index + 1,
-                        kind: SimpleHunkKind::Delete,
-                    },
-                    DiffOp::Insert {
-                        new_index, new_len, ..
-                    } => SimpleHunk {
-                        new_line_range: *new_index..new_index + new_len,
-                        kind: SimpleHunkKind::Insert,
-                    },
-                    DiffOp::Replace {
-                        new_index, new_len, ..
-                    } => SimpleHunk {
-                        new_line_range: *new_index..new_index + new_len,
-                        kind: SimpleHunkKind::Replace,
-                    },
-                })
+        // We use imara_diff instead of `similar` because
+        // imara_diff is much more faster, and more suitable
+        // for computing git gutter.
+        let input = imara_diff::InternedInput::new(old, new);
+        let diff = imara_diff::Diff::compute(imara_diff::Algorithm::Histogram, &input);
+        diff.hunks()
+            .map(|hunk| SimpleHunk {
+                new_line_range: hunk.after.start as usize..hunk.after.end as usize,
+                kind: if hunk.is_pure_insertion() {
+                    SimpleHunkKind::Insert
+                } else if hunk.is_pure_removal() {
+                    SimpleHunkKind::Delete
+                } else {
+                    SimpleHunkKind::Replace
+                },
             })
-            .collect()
+            .collect_vec()
     }
 
     pub(crate) fn get_hunks(old: &str, new: &str) -> Vec<Hunk> {
