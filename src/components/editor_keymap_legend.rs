@@ -499,9 +499,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::ChngX),
                 format("Change X"),
                 format!("{}{}", "Change Cut", extra),
-                Dispatch::ToEditor(ChangeCut {
-                    use_system_clipboard,
-                }),
+                Dispatch::ToEditor(ChangeCut),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::RplcX),

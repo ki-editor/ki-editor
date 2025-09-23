@@ -780,6 +780,7 @@ fn copy_replace() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn cut_replace() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -791,9 +792,7 @@ fn cut_replace() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(ChangeCut {
-                use_system_clipboard: false,
-            }),
+            Editor(ChangeCut),
             Editor(EnterNormalMode),
             Expect(CurrentComponentContent(" main() { let x = 1; }")),
             Editor(MoveSelection(Current(IfCurrentNotFound::LookForward))),
@@ -807,6 +806,7 @@ fn cut_replace() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn highlight_mode_cut() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -825,9 +825,7 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
-            Editor(ChangeCut {
-                use_system_clipboard: false,
-            }),
+            Editor(ChangeCut),
             Expect(CurrentComponentContent("{ let x = S(a); let y = S(b); }")),
             Editor(ReplaceWithCopiedText {
                 use_system_clipboard: false,
@@ -933,9 +931,7 @@ fn multi_paste() -> anyhow::Result<()> {
             Editor(MoveSelection(Movement::Down)),
             Editor(MoveSelection(Movement::Right)),
             Expect(CurrentSelectedTexts(&["S(spongebob_squarepants)", "S(b)"])),
-            Editor(ChangeCut {
-                use_system_clipboard: false,
-            }),
+            Editor(ChangeCut),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("Some(".to_owned())),
             Editor(Paste),

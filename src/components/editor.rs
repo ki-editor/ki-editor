@@ -263,9 +263,7 @@ impl Component for Editor {
             SelectLine(movement) => return self.select_line(movement, context),
             Redo => return self.redo(context),
             Change => return self.change(context),
-            ChangeCut {
-                use_system_clipboard,
-            } => return self.change_cut(use_system_clipboard, context),
+            ChangeCut => return self.change_cut(context),
             #[cfg(test)]
             SetRectangle(rectangle) => self.set_rectangle(rectangle, context),
             ScrollPageDown => return self.scroll_page_down(context),
@@ -1580,11 +1578,7 @@ impl Editor {
             .chain(self.enter_insert_mode(Direction::Start, context)?))
     }
 
-    pub(crate) fn change_cut(
-        &mut self,
-        use_system_clipboard: bool,
-        context: &Context,
-    ) -> anyhow::Result<Dispatches> {
+    pub(crate) fn change_cut(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         Ok(self.copy()?.chain(self.change(context)?))
     }
 
@@ -3960,9 +3954,7 @@ pub(crate) enum DispatchEditor {
     EnableSelectionExtension,
     DisableSelectionExtension,
     Change,
-    ChangeCut {
-        use_system_clipboard: bool,
-    },
+    ChangeCut,
     EnterInsertMode(Direction),
     ReplaceWithCopiedText {
         cut: bool,
