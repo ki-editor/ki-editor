@@ -28,6 +28,7 @@ use crate::{
 
 use itertools::Itertools;
 use my_proc_macros::{hex, key, keys};
+use serial_test::serial;
 
 use SelectionMode::*;
 
@@ -1015,6 +1016,7 @@ fn multi_insert() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn paste_in_insert_mode_1() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -1038,6 +1040,7 @@ fn paste_in_insert_mode_1() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn paste_in_insert_mode_2() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -1060,6 +1063,7 @@ fn paste_in_insert_mode_2() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn paste_after() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -1081,6 +1085,7 @@ fn paste_after() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn paste_after_line() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -1114,6 +1119,7 @@ fn main() {
     })
 }
 
+#[serial]
 #[test]
 fn smart_paste_forward() -> anyhow::Result<()> {
     execute_test(move |s| {
@@ -1137,6 +1143,7 @@ fn smart_paste_forward() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn paste_no_gap() -> anyhow::Result<()> {
     execute_test(move |s| {
@@ -1155,6 +1162,7 @@ fn paste_no_gap() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn smart_paste_backward() -> anyhow::Result<()> {
     execute_test(move |s| {
@@ -1179,6 +1187,7 @@ fn smart_paste_backward() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn paste_before() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -1201,6 +1210,7 @@ fn paste_before() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn replace_from_clipboard() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -2477,6 +2487,7 @@ fn main() {
     )
 }
 
+#[serial]
 #[test]
 fn undo_till_empty_should_not_crash_in_insert_mode() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -2753,6 +2764,7 @@ fn move_left_right() -> Result<(), anyhow::Error> {
     })
 }
 
+#[serial]
 #[test]
 fn yank_ring() -> Result<(), anyhow::Error> {
     execute_test(|s| {
@@ -2957,6 +2969,7 @@ fn show_current_tree_sitter_node_sexp() -> Result<(), anyhow::Error> {
     })
 }
 
+#[serial]
 #[test]
 fn yank_paste_extended_selection() -> Result<(), anyhow::Error> {
     execute_test(|s| {
@@ -4074,6 +4087,7 @@ fn undo_redo_1() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn undo_redo_should_clear_redo_stack_upon_new_edits() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -4612,6 +4626,7 @@ fn toggle_block_comment() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> {
     fn run_test(
@@ -5108,6 +5123,7 @@ zzz
     Ok(())
 }
 
+#[serial]
 #[test]
 fn copy_paste_special_character_in_word_selection_mode() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -5127,6 +5143,7 @@ fn copy_paste_special_character_in_word_selection_mode() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn recalculate_scroll_offset_consider_last_line_of_multiline_selection() -> anyhow::Result<()> {
     execute_test(|s| {

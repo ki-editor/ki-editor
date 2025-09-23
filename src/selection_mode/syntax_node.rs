@@ -274,6 +274,8 @@ mod test_syntax_node {
 
     use super::*;
 
+    use serial_test::serial;
+
     #[test]
     fn case_1() {
         let buffer = Buffer::new(
@@ -392,6 +394,7 @@ fn main() {
         test(false, "let");
     }
 
+    #[serial]
     #[test]
     fn paste_forward_with_gap() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -415,6 +418,7 @@ fn main() {
         })
     }
 
+    #[serial]
     #[test]
     fn paste_backward_with_gap() -> anyhow::Result<()> {
         execute_test(|s| {

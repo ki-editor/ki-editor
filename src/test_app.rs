@@ -873,6 +873,7 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn highlight_mode_replace() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -908,6 +909,7 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn multi_paste() -> anyhow::Result<()> {
     execute_test(|s| {

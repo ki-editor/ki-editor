@@ -394,6 +394,8 @@ mod test_word {
 
     use super::*;
 
+    use serial_test::serial;
+
     #[test]
     fn current_no_skip_symbols() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -511,6 +513,7 @@ mod test_word {
         })
     }
 
+    #[serial]
     #[test]
     fn paste_forward_with_gap() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -534,6 +537,7 @@ mod test_word {
         })
     }
 
+    #[serial]
     #[test]
     fn paste_backward_with_gap() -> anyhow::Result<()> {
         execute_test(|s| {

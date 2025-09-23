@@ -302,6 +302,8 @@ mod test_line {
 
     use super::*;
 
+    use serial_test::serial;
+
     #[test]
     fn simple_case() {
         let buffer = Buffer::new(None, "a\n\nb");
@@ -379,6 +381,7 @@ fn f() {
         test(1, "fn f() {");
     }
 
+    #[serial]
     #[test]
     fn paste_forward_use_larger_indent() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -417,6 +420,7 @@ foo
         })
     }
 
+    #[serial]
     #[test]
     fn paste_backward_use_larger_indent() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -456,6 +460,7 @@ foo
         })
     }
 
+    #[serial]
     #[test]
     fn still_paste_forward_with_newline_with_indent_despite_only_one_line_present(
     ) -> anyhow::Result<()> {
@@ -478,6 +483,7 @@ foo
         })
     }
 
+    #[serial]
     #[test]
     fn still_paste_backward_with_newline_with_indent_despite_only_one_line_present(
     ) -> anyhow::Result<()> {
@@ -501,6 +507,7 @@ foo
         })
     }
 
+    #[serial]
     #[test]
     fn paste_previous_using_last_line() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -525,6 +532,7 @@ foo
         })
     }
 
+    #[serial]
     #[test]
     fn copy_pasting_backward_nothing_but_with_indentation() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -550,6 +558,7 @@ foo
         })
     }
 
+    #[serial]
     #[test]
     fn copy_pasting_forward_nothing_but_with_indentation() -> anyhow::Result<()> {
         execute_test(|s| {
