@@ -219,7 +219,7 @@ impl ExpectKind {
                                 component
                                     .borrow()
                                     .editor()
-                                    .get_grid(context, false)
+                                    .get_grid(context, false, Default::default())
                                     .to_string(),
                                 grid.to_string(),
                             ),
@@ -245,7 +245,7 @@ impl ExpectKind {
                                 component
                                     .borrow()
                                     .editor()
-                                    .get_grid(context, false)
+                                    .get_grid(context, false, Default::default())
                                     .cursor
                                     .unwrap()
                                     .position(),
@@ -269,7 +269,7 @@ impl ExpectKind {
                                 component
                                     .borrow()
                                     .editor()
-                                    .get_grid(context, false)
+                                    .get_grid(context, false, Default::default())
                                     .grid
                                     .rows[*row_index][*column_index]
                                     .background_color,
@@ -279,7 +279,7 @@ impl ExpectKind {
                                 component
                                     .borrow()
                                     .editor()
-                                    .get_grid(context, false)
+                                    .get_grid(context, false, Default::default())
                                     .grid
                                     .rows[*row_index][*column_index]
                                     .line
@@ -293,7 +293,7 @@ impl ExpectKind {
                                     component
                                         .borrow()
                                         .editor()
-                                        .get_grid(context, false)
+                                        .get_grid(context, false, Default::default())
                                         .grid
                                         .rows
                                         .iter()
@@ -304,7 +304,7 @@ impl ExpectKind {
                                     component
                                         .borrow()
                                         .editor()
-                                        .get_grid(context, true)
+                                        .get_grid(context, true, Default::default())
                                         .grid
                                         .rows[position.line][position.column]
                                         .source
@@ -317,7 +317,7 @@ impl ExpectKind {
                                     let actual_style_key = &component
                                         .borrow()
                                         .editor()
-                                        .get_grid(context, false)
+                                        .get_grid(context, false, Default::default())
                                         .grid
                                         .rows[position.line][position.column]
                                         .source;
@@ -474,7 +474,7 @@ impl ExpectKind {
                                 &app.current_component()
                                     .borrow()
                                     .editor()
-                                    .get_grid(context, false)
+                                    .get_grid(context, false, Default::default())
                                     .grid
                                     .rows
                                     .into_iter()

@@ -20,7 +20,7 @@ use crate::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
     frontend::Frontend,
-    git,
+    git::{self, hunk::SimpleHunk},
     grid::{Grid, LineUpdate},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
     layout::Layout,
@@ -358,10 +358,18 @@ impl<T: Frontend> App<T> {
                 let rectangle = component.component().borrow().rectangle().clone();
                 let focused_component_id = self.layout.focused_component_id();
                 let focused = component.component().borrow().id() == focused_component_id;
-                let GetGridResult { grid, cursor } = component
+                let hunks = component
                     .component()
-                    .borrow()
-                    .get_grid(&self.context, focused);
+                    .borrow_mut()
+                    .editor_mut()
+                    .buffer_mut()
+                    .simple_hunks(&self.context)
+                    .unwrap_or_default();
+                let GetGridResult { grid, cursor } =
+                    component
+                        .component()
+                        .borrow()
+                        .get_grid(&self.context, focused, &hunks);
                 let cursor_position = 'cursor_calc: {
                     if !focused {
                         break 'cursor_calc None;

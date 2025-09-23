@@ -15,6 +15,7 @@ use crate::{
     context::Context,
     divide_viewport::{calculate_window_position, divide_viewport},
     format_path_list::get_formatted_paths,
+    git::hunk::SimpleHunk,
     grid::{CellUpdate, Grid, RenderContentLineNumber, StyleKey},
     position::Position,
     selection::{CharIndex, Selection},
@@ -39,14 +40,20 @@ pub(crate) fn markup_focused_tab(path: &str) -> String {
 }
 
 impl Editor {
-    pub(crate) fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
-        self.get_grid_with_scroll_offset(context, focused, self.scroll_offset())
+    pub(crate) fn get_grid(
+        &self,
+        context: &Context,
+        focused: bool,
+        hunks: &[SimpleHunk],
+    ) -> GetGridResult {
+        self.get_grid_with_scroll_offset(context, focused, self.scroll_offset(), hunks)
     }
     pub(crate) fn get_grid_with_scroll_offset(
         &self,
         context: &Context,
         focused: bool,
         scroll_offset: u16,
+        hunks: &[SimpleHunk],
     ) -> GetGridResult {
         let title = self.title(context);
         let title_grid_height = title.lines().count() as u16;
@@ -66,8 +73,9 @@ impl Editor {
                 false,
                 true,
                 focused,
+                hunks,
             ),
-            Some(reveal) => self.get_splitted_grid(context, reveal, render_area, focused),
+            Some(reveal) => self.get_splitted_grid(context, reveal, render_area, focused, hunks),
         };
         let theme = context.theme();
         let window_title_style = if focused {
@@ -106,7 +114,8 @@ impl Editor {
             });
             // TODO: no need to call get_grid_with_dimension
             // Just render the lines
-            editor.get_grid_with_dimension(&context, dimension, 0, None, false, false, focused)
+            editor
+                .get_grid_with_dimension(&context, dimension, 0, None, false, false, focused, hunks)
         };
         let grid = title_grid.merge_vertical(grid);
         let cursor_position = grid.get_cursor_position();
@@ -162,6 +171,7 @@ impl Editor {
         reveal: &Reveal,
         render_area: Dimension,
         focused: bool,
+        hunks: &[SimpleHunk],
     ) -> crate::grid::Grid {
         let buffer = self.buffer();
         let ranges = match reveal {
@@ -240,6 +250,7 @@ impl Editor {
                     true,
                     true,
                     focused,
+                    hunks,
                 ))
             },
         )
@@ -258,6 +269,7 @@ impl Editor {
         borderize_first_line: bool,
         render_line_number: bool,
         focused: bool,
+        hunks: &[SimpleHunk],
     ) -> Grid {
         let editor = self;
         let cursor_position = self.get_cursor_position().unwrap_or_default();
@@ -271,8 +283,6 @@ impl Editor {
                 .char_to_line(protected_char_index)
                 .unwrap_or_default()
         });
-
-        let git_hunks = self.buffer().git_simple_hunks(context).unwrap_or_default();
 
         let len_lines = rope.len_lines().max(1) as u16;
         let (hidden_parent_lines, visible_parent_lines) = self
@@ -365,7 +375,7 @@ impl Editor {
                         Default::default(),
                         theme,
                         None,
-                        &git_hunks,
+                        &hunks,
                     ))
                 },
             );
@@ -431,7 +441,7 @@ impl Editor {
                 } else {
                     None
                 },
-                &git_hunks,
+                &hunks,
             );
             let protected_range = visible_lines_grid
                 .get_protected_range_start_position()
@@ -1171,7 +1181,7 @@ mod test_render_editor {
         let content = content.replace("\r", "");
         let mut editor = Editor::from_text(None, &content);
         editor.set_rectangle(rectangle.clone(), &Context::default());
-        let grid = editor.get_grid(&Context::default(), false);
+        let grid = editor.get_grid(&Context::default(), false, Default::default());
         let cells = grid.grid.to_positioned_cells();
         cells.into_iter().all(|cell| {
             cell.position.line < (rectangle.height as usize)

@@ -57,6 +57,15 @@ pub(crate) struct Buffer {
     pub(crate) undo_stack: Vec<EditHistory>,
     redo_stack: Vec<EditHistory>,
     batch_id: SyntaxHighlightRequestBatchId,
+
+    /// We need to cache this because its computation is expensive.
+    cached_hunks: Option<CachedHunks>,
+}
+
+#[derive(Debug, Clone)]
+struct CachedHunks {
+    hunks: Vec<SimpleHunk>,
+    file_content: Rope,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -99,6 +108,7 @@ impl Buffer {
             undo_stack: Default::default(),
             redo_stack: Default::default(),
             batch_id: Default::default(),
+            cached_hunks: Default::default(),
         }
     }
 
@@ -166,15 +176,29 @@ impl Buffer {
         self.path = Some(path);
     }
 
-    pub(crate) fn git_simple_hunks(&self, context: &Context) -> anyhow::Result<Vec<SimpleHunk>> {
-        let Some(path) = self.path() else {
-            return Ok(Default::default());
-        };
-        Ok(path.simple_hunks(
-            &self.content(),
-            &DiffMode::UnstagedAgainstCurrentBranch,
-            context.current_working_directory(),
-        )?)
+    pub(crate) fn simple_hunks(&mut self, context: &Context) -> anyhow::Result<Vec<SimpleHunk>> {
+        Ok(match &self.cached_hunks {
+            Some(cached_hunks) if cached_hunks.file_content == self.rope => {
+                cached_hunks.hunks.clone()
+            }
+            _ => {
+                if let Some(path) = self.path() {
+                    let hunks = path.simple_hunks(
+                        &self.content(),
+                        &DiffMode::UnstagedAgainstCurrentBranch,
+                        context.current_working_directory(),
+                    )?;
+                    let cached_hunks = CachedHunks {
+                        file_content: self.rope.clone(),
+                        hunks: hunks.clone(),
+                    };
+                    self.cached_hunks = Some(cached_hunks);
+                    hunks
+                } else {
+                    Default::default()
+                }
+            }
+        })
     }
 
     pub(crate) fn set_diagnostics(&mut self, diagnostics: Vec<lsp_types::Diagnostic>) {

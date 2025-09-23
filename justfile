@@ -9,7 +9,7 @@ default:
     @just doc 
     
 install:
-    rm -r ~/.cache/ki/
+    rm -r ~/.cache/ki/ || echo "ok" 
     cargo install --locked --path .
 
 fmt-check:
@@ -139,3 +139,5 @@ vscode-build-binaries:
     just vscode-build-binary-windows-x64
     ls -la ki-vscode/dist/bin/
     echo "Done!"
+
+
