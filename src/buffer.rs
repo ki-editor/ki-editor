@@ -1,3 +1,6 @@
+use crate::context::Context;
+use crate::git::hunk::{Hunk, SimpleHunk};
+use crate::git::{DiffMode, GitOperation};
 use crate::history::History;
 use crate::lsp::diagnostic::Diagnostic;
 use crate::quickfix_list::QuickfixListItem;
@@ -161,6 +164,17 @@ impl Buffer {
     #[cfg(test)]
     pub(crate) fn set_path(&mut self, path: CanonicalizedPath) {
         self.path = Some(path);
+    }
+
+    pub(crate) fn git_simple_hunks(&self, context: &Context) -> anyhow::Result<Vec<SimpleHunk>> {
+        let Some(path) = self.path() else {
+            return Ok(Default::default());
+        };
+        Ok(path.simple_hunks(
+            &self.content(),
+            &DiffMode::UnstagedAgainstCurrentBranch,
+            context.current_working_directory(),
+        )?)
     }
 
     pub(crate) fn set_diagnostics(&mut self, diagnostics: Vec<lsp_types::Diagnostic>) {

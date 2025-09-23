@@ -5227,3 +5227,24 @@ fn deleting_selection_extended_with_jump() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn git_hunk_gutter() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("a l p h a esc").to_vec())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(MoveSelection(Last)),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvents(keys!("o m e g a esc").to_vec())),
+            Expect(AppGrid("".to_string())),
+        ])
+    })
+}

@@ -1,5 +1,6 @@
 use crate::{
     app::Dimension,
+    git::hunk::SimpleHunkKind,
     position::Position,
     soft_wrap::{self},
     style::Style,
@@ -344,6 +345,7 @@ impl Grid {
         line_updates: Vec<LineUpdate>,
         theme: &Theme,
         cursor_position: Option<Position>,
+        git_hunks: &[crate::git::hunk::SimpleHunk],
     ) -> Grid {
         let Dimension { height, width } = self.dimension();
         let (line_index_start, max_line_number_len, line_number_separator_width) = match line_number
@@ -553,7 +555,32 @@ impl Grid {
                                 Some(max_line_number_len),
                                 Some(max_line_number_len + 1),
                                 LINE_NUMBER_VERTICAL_BORDER,
-                                &theme.ui.border,
+                                &{
+                                    if let Some(hunk) = git_hunks
+                                        .iter()
+                                        .find(|hunk| hunk.new_line_range.contains(&line_number))
+                                    {
+                                        match hunk.kind {
+                                            SimpleHunkKind::Delete => {
+                                                Style::same_background_foreground(
+                                                    theme.hunk.old_emphasized_background,
+                                                )
+                                            }
+                                            SimpleHunkKind::Insert => {
+                                                Style::same_background_foreground(
+                                                    theme.hunk.new_emphasized_background,
+                                                )
+                                            }
+                                            SimpleHunkKind::Replace => {
+                                                Style::same_background_foreground(
+                                                    theme.hunk.replaced,
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        theme.ui.border
+                                    }
+                                },
                             ))
                             .map(|cell_update| {
                                 CalibratableCellUpdate {
@@ -794,6 +821,7 @@ mod test_grid {
                 Vec::new(),
                 &Theme::default(),
                 None,
+                &[],
             )
             .to_string();
             assert_eq!(actual, "2│hello")
@@ -816,6 +844,7 @@ mod test_grid {
                 Vec::new(),
                 &Theme::default(),
                 None,
+                &[],
             )
             .to_string();
             assert_eq!(
@@ -845,6 +874,7 @@ mod test_grid {
                 Vec::new(),
                 &Theme::default(),
                 None,
+                &[],
             )
             .to_string();
             assert_eq!(
@@ -883,6 +913,7 @@ mod test_grid {
                 Vec::new(),
                 &Theme::default(),
                 None,
+                &[],
             )
             .to_string();
             // Expect a space is inserted between the crab emoji and 'c',
@@ -923,6 +954,7 @@ mod test_grid {
                 Vec::new(),
                 &Theme::default(),
                 None,
+                &[],
             )
             .to_string();
             assert_eq!(
@@ -954,6 +986,7 @@ mod test_grid {
                 Vec::new(),
                 &Theme::default(),
                 None,
+                &[],
             )
             .to_string();
             // Expect there's two extra spaces before '2'
@@ -983,6 +1016,7 @@ mod test_grid {
                 .to_vec(),
                 &Theme::default(),
                 None,
+                &[],
             );
             assert_eq!(
                 actual
@@ -1027,6 +1061,7 @@ mod test_grid {
                         ..Default::default()
                     },
                     None,
+                    &[],
                 )
                 .to_positioned_cells();
             assert_eq!(
@@ -1053,6 +1088,7 @@ mod test_grid {
                     Vec::new(),
                     &Default::default(),
                     None,
+                    &[],
                 )
                 .to_string();
             assert_eq!("hello", actual)
@@ -1073,6 +1109,7 @@ mod test_grid {
                     Vec::new(),
                     &Default::default(),
                     None,
+                    &[],
                 )
                 .to_positioned_cells()
                 .into_iter()
@@ -1107,6 +1144,7 @@ x
                     Vec::new(),
                     &Default::default(),
                     None,
+                    &[],
                 )
                 .to_string();
             assert_eq!(
@@ -1139,6 +1177,7 @@ x
                     .to_vec(),
                     &Default::default(),
                     None,
+                    &[],
                 )
                 .to_positioned_cells()
                 .into_iter()

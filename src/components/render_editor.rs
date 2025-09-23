@@ -272,6 +272,8 @@ impl Editor {
                 .unwrap_or_default()
         });
 
+        let git_hunks = self.buffer().git_simple_hunks(context).unwrap_or_default();
+
         let len_lines = rope.len_lines().max(1) as u16;
         let (hidden_parent_lines, visible_parent_lines) = self
             .get_parent_lines_given_line_index_and_scroll_offset(
@@ -363,6 +365,7 @@ impl Editor {
                         Default::default(),
                         theme,
                         None,
+                        &git_hunks,
                     ))
                 },
             );
@@ -428,6 +431,7 @@ impl Editor {
                 } else {
                     None
                 },
+                &git_hunks,
             );
             let protected_range = visible_lines_grid
                 .get_protected_range_start_position()

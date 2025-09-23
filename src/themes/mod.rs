@@ -28,6 +28,7 @@ pub(crate) struct HunkStyles {
     pub(crate) new_background: Color,
     pub(crate) old_emphasized_background: Color,
     pub(crate) new_emphasized_background: Color,
+    pub(crate) replaced: Color,
 }
 
 impl HunkStyles {
@@ -37,6 +38,7 @@ impl HunkStyles {
             old_background: hex!("#47221F"),
             old_emphasized_background: hex!("#682520"),
             new_emphasized_background: hex!("#4E5A32"),
+            replaced: hex!("#bdb76b"),
         }
     }
 
@@ -46,6 +48,7 @@ impl HunkStyles {
             old_background: hex!("#FCECEA"),
             old_emphasized_background: hex!("#F9D8D6"),
             new_emphasized_background: hex!("#BAF0C0"),
+            replaced: hex!("#f0e68c"),
         }
     }
 }
