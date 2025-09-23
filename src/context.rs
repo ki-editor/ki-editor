@@ -112,6 +112,16 @@ impl Context {
         }
     }
 
+    /// checks if the contents in both clipboards is same
+    pub(crate) fn clipboards_synced(&self) -> anyhow::Result<Option<bool>> {
+        let history_offset = 0;
+        let app_cb_content = self.clipboard.get(history_offset);
+        let sys_cb_content = Some(CopiedTexts::new(nonempty::NonEmpty::singleton(
+            self.clipboard.get_from_system_clipboard()?,
+        )));
+        Ok(Some(app_cb_content.clone() == sys_cb_content.clone()))
+    }
+
     /// Note: `history_offset` is ignored when `use_system_clipboard` is true.
     pub(crate) fn get_clipboard_content(
         &self,
