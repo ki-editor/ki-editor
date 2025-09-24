@@ -76,6 +76,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
     simple_logging::log_to_file(grammar::default_log_file(), LevelFilter::Info)?;
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
+
     let mut app = App::from_channel(
         Rc::new(Mutex::new(Crossterm::new()?)),
         config.working_directory.unwrap_or(".".try_into()?),
@@ -97,6 +98,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         true,
         false,
     )?;
+
     app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 
     let sender = app.sender();

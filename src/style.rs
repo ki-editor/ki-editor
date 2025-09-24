@@ -25,6 +25,15 @@ impl Style {
         }
     }
 
+    pub const fn same_background_foreground(color: Color) -> Style {
+        Style {
+            foreground_color: Some(color),
+            background_color: Some(color),
+            line: None,
+            is_bold: false,
+        }
+    }
+
     pub const fn foreground_color(self, color: Color) -> Style {
         Style {
             foreground_color: Some(color),

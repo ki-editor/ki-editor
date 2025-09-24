@@ -847,7 +847,12 @@ impl Editor {
         };
         for i in (0..available_height_multiplier(available_height)).rev() {
             let new_scroll_offset = target_line_index.saturating_sub(i);
-            let grid = self.get_grid_with_scroll_offset(context, false, new_scroll_offset);
+            let grid = self.get_grid_with_scroll_offset(
+                context,
+                false,
+                new_scroll_offset,
+                Default::default(),
+            );
             let grid_string = grid.grid.to_string();
             let grid_string_lines = grid_string.lines().collect_vec();
             let target_line_number =

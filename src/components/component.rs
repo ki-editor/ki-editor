@@ -93,8 +93,8 @@ pub trait Component: Any + AnyComponent {
 
     fn editor_mut(&mut self) -> &mut Editor;
 
-    fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
-        self.editor().get_grid(context, focused)
+    fn get_grid(&mut self, context: &Context, focused: bool) -> GetGridResult {
+        self.editor_mut().get_grid(context, focused)
     }
 
     fn path(&self) -> Option<CanonicalizedPath> {
