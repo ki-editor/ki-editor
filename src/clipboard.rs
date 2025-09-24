@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use nonempty::NonEmpty;
+use scraper::{Html, Selector};
 
 use crate::osc52;
 
@@ -37,6 +38,57 @@ impl CopiedTexts {
     pub(crate) fn one(string: String) -> CopiedTexts {
         CopiedTexts::new(NonEmpty::singleton(string))
     }
+
+    fn to_clipboard_format(&self) -> String {
+        if self.texts.tail().is_empty() {
+            // Only one element, return it as-is
+            self.texts.head.clone()
+        } else {
+            // Multiple elements (multi-cursor), wrap in HTML format
+            let mut html = String::from(r#"<div source="ki-editor">"#);
+            html.push('\n');
+
+            for text in &self.texts {
+                html.push_str("<div>");
+                html.push_str(text);
+                html.push_str("</div>");
+                html.push('\n');
+            }
+
+            html.push_str("</div>");
+            html
+        }
+    }
+}
+
+impl From<&str> for CopiedTexts {
+    fn from(text: &str) -> Self {
+        let html_doc = Html::parse_document(text);
+        let ki_selector = Selector::parse("div[source='ki-editor'] div");
+
+        match ki_selector {
+            Ok(ki_selector) => {
+                let texts: Vec<String> = html_doc
+                    .select(&ki_selector)
+                    .filter_map(|element| {
+                        let text = element.text().collect::<String>();
+                        let trimmed = text.trim();
+                        if trimmed.is_empty() {
+                            None
+                        } else {
+                            Some(trimmed.to_string())
+                        }
+                    })
+                    .collect();
+
+                CopiedTexts::new(
+                    NonEmpty::from_vec(texts)
+                        .unwrap_or_else(|| NonEmpty::singleton(text.to_string())),
+                )
+            }
+            Err(_) => CopiedTexts::new(NonEmpty::singleton(text.to_string())),
+        }
+    }
 }
 
 impl Clipboard {
@@ -57,8 +109,8 @@ impl Clipboard {
     pub(crate) fn set(&mut self, copied_texts: CopiedTexts) -> anyhow::Result<()> {
         self.history.add(copied_texts.clone());
         arboard::Clipboard::new()
-            .and_then(|mut clipboard| clipboard.set_text(copied_texts.join("\n")))
-            .or_else(|_| osc52::copy_to_clipboard(&copied_texts.join("\n")))?;
+            .and_then(|mut clipboard| clipboard.set_text(copied_texts.to_clipboard_format()))
+            .or_else(|_| osc52::copy_to_clipboard(&copied_texts.to_clipboard_format()))?;
         Ok(())
     }
 }

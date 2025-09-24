@@ -1316,7 +1316,7 @@ impl Editor {
         context: &Context,
         with_gap: bool,
     ) -> anyhow::Result<Dispatches> {
-        let use_system_clipboard: bool = !context.clipboards_synced().unwrap().unwrap();
+        let use_system_clipboard: bool = !context.clipboards_synced().unwrap();
         let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0)? else {
             return Ok(Default::default());
         };
