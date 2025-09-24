@@ -20,7 +20,7 @@ use crate::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
     frontend::Frontend,
-    git,
+    git::{self},
     grid::{Grid, LineUpdate},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
     layout::Layout,
@@ -360,7 +360,7 @@ impl<T: Frontend> App<T> {
                 let focused = component.component().borrow().id() == focused_component_id;
                 let GetGridResult { grid, cursor } = component
                     .component()
-                    .borrow()
+                    .borrow_mut()
                     .get_grid(&self.context, focused);
                 let cursor_position = 'cursor_calc: {
                     if !focused {
@@ -469,6 +469,7 @@ impl<T: Frontend> App<T> {
                 .to_vec(),
                 self.context.theme(),
                 None,
+                &[],
             );
             Window::new(
                 grid,

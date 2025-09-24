@@ -9,7 +9,7 @@ default:
     @just doc 
     
 install:
-    rm -r ~/.cache/ki/
+    rm -r ~/.cache/ki/ || echo "ok" 
     cargo install --locked --path .
 
 fmt-check:
@@ -40,7 +40,7 @@ vscode-lint:
     npm run lint
     
 lint-fix:
-	cargo clippy --workspace --tests --fix --allow-staged
+	cargo clippy --workspace --tests --fix --allow-staged --allow-dirty
 	@just vscode-lint-fix
 
 vscode-lint-fix:
@@ -139,3 +139,5 @@ vscode-build-binaries:
     just vscode-build-binary-windows-x64
     ls -la ki-vscode/dist/bin/
     echo "Done!"
+
+

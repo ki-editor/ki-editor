@@ -216,13 +216,13 @@ impl ExpectKind {
                                 expected_quickfixes.clone(),
                             ),
             EditorGrid(grid) => contextualize(
-                                component
-                                    .borrow()
-                                    .editor()
-                                    .get_grid(context, false)
-                                    .to_string(),
-                                grid.to_string(),
-                            ),
+                component
+                    .borrow_mut()
+                    .editor_mut()
+                    .get_grid(context, false)
+                    .to_string(),
+                grid.to_string(),
+            ),
             AppGrid(grid) => {
                                 let expected = grid.to_string().trim_matches('\n').to_string();
                                 let actual = app.get_screen()?.stringify().trim_matches('\n').to_string();
@@ -243,8 +243,8 @@ impl ExpectKind {
                             ),
             EditorGridCursorPosition(position) => contextualize(
                                 component
-                                    .borrow()
-                                    .editor()
+                                    .borrow_mut()
+                                    .editor_mut()
                                     .get_grid(context, false)
                                     .cursor
                                     .unwrap()
@@ -265,20 +265,23 @@ impl ExpectKind {
                                 component.borrow().editor().current_view_alignment(),
                                 *view_alignment,
                             ),
-            GridCellBackground(row_index, column_index, background_color) => contextualize(
-                                component
-                                    .borrow()
-                                    .editor()
-                                    .get_grid(context, false)
-                                    .grid
-                                    .rows[*row_index][*column_index]
-                                    .background_color,
-                                *background_color,
-                            ),
+            GridCellBackground(row_index, column_index, background_color) => {
+                let grid = component
+                        .borrow_mut()
+                        .editor_mut()
+                        .get_grid(context, false)
+                        .grid;
+                contextualize(
+                    grid
+                        .rows[*row_index][*column_index]
+                        .background_color,
+                    *background_color,
+                )
+            },
             GridCellLine(row_index, column_index, underline_color) => contextualize(
                                 component
-                                    .borrow()
-                                    .editor()
+                                    .borrow_mut()
+                                    .editor_mut()
                                     .get_grid(context, false)
                                     .grid
                                     .rows[*row_index][*column_index]
@@ -291,8 +294,8 @@ impl ExpectKind {
                                 println!(
                                     "ExpectKind::get_result grid styles = {:?}",
                                     component
-                                        .borrow()
-                                        .editor()
+                                        .borrow_mut()
+                                        .editor_mut()
                                         .get_grid(context, false)
                                         .grid
                                         .rows
@@ -302,8 +305,8 @@ impl ExpectKind {
                                 );
                                 contextualize(
                                     component
-                                        .borrow()
-                                        .editor()
+                                        .borrow_mut()
+                                        .editor_mut()
                                         .get_grid(context, true)
                                         .grid
                                         .rows[position.line][position.column]
@@ -315,8 +318,8 @@ impl ExpectKind {
             GridCellsStyleKey(positions, style_key) => (
                                 positions.iter().all(|position| {
                                     let actual_style_key = &component
-                                        .borrow()
-                                        .editor()
+                                        .borrow_mut()
+                                        .editor_mut()
                                         .get_grid(context, false)
                                         .grid
                                         .rows[position.line][position.column]
@@ -472,8 +475,8 @@ impl ExpectKind {
             CountHighlightedCells(style_key, expected_count) => contextualize(
                                 expected_count,
                                 &app.current_component()
-                                    .borrow()
-                                    .editor()
+                                    .borrow_mut()
+                                    .editor_mut()
                                     .get_grid(context, false)
                                     .grid
                                     .rows

@@ -21,8 +21,47 @@ pub(crate) struct Hunk {
     decorations: Vec<Decoration>,
 }
 
+#[derive(Debug, Clone)]
+/// Simple Hunk is used for Git Gutter,
+/// it is less expensive to compute as it needs less data
+/// than `Hunk`.
+pub(crate) struct SimpleHunk {
+    /// 0-based index
+    pub(crate) new_line_range: Range<usize>,
+
+    pub(crate) kind: SimpleHunkKind,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum SimpleHunkKind {
+    Delete,
+    Insert,
+    Replace,
+}
+
 impl Hunk {
-    pub(crate) fn get(old: &str, new: &str) -> Vec<Hunk> {
+    pub(crate) fn get_simple_hunks(old: &str, new: &str) -> Vec<SimpleHunk> {
+        // We use imara_diff instead of `similar` because
+        // imara_diff is much more faster, and more suitable
+        // for computing git gutter.
+        let input = imara_diff::InternedInput::new(old, new);
+        let diff = imara_diff::Diff::compute(imara_diff::Algorithm::Histogram, &input);
+        diff.hunks()
+            .map(|hunk| SimpleHunk {
+                new_line_range: hunk.after.start as usize
+                    ..hunk.after.end.max(hunk.after.start + 1) as usize,
+                kind: if hunk.is_pure_insertion() {
+                    SimpleHunkKind::Insert
+                } else if hunk.is_pure_removal() {
+                    SimpleHunkKind::Delete
+                } else {
+                    SimpleHunkKind::Replace
+                },
+            })
+            .collect_vec()
+    }
+
+    pub(crate) fn get_hunks(old: &str, new: &str) -> Vec<Hunk> {
         let diff = TextDiff::from_lines(old, new);
 
         let context_len = 0;
@@ -181,7 +220,7 @@ mod test_hunk {
     #[test]
     fn decorations() {
         // Note that both strings has leading spaces
-        let hunks = Hunk::get("  Hello(world)", "  Hello(bumi)");
+        let hunks = Hunk::get_hunks("  Hello(world)", "  Hello(bumi)");
         assert_eq!(hunks.len(), 1);
         let actual = hunks[0].decorations.clone();
         // The hunk should trim the common leading spaces
@@ -229,7 +268,7 @@ mod test_hunk {
     }
     #[test]
     fn to_info_insertion() {
-        let hunk = Hunk::get("a\nd", "a\nb\nc\nd")[0].clone();
+        let hunk = Hunk::get_hunks("a\nd", "a\nb\nc\nd")[0].clone();
         assert_eq!(hunk.content, "b\nc");
         assert_eq!(hunk.to_info().unwrap().content(), "b\nc")
     }
@@ -246,7 +285,7 @@ mod test_hunk {
         "
         );
         let test = |new_content: &str, expected_indents: &[&[usize]]| {
-            let hunks = Hunk::get(old, new_content);
+            let hunks = Hunk::get_hunks(old, new_content);
 
             let actual_indents = hunks
                 .into_iter()
