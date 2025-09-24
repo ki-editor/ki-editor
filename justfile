@@ -40,7 +40,7 @@ vscode-lint:
     npm run lint
     
 lint-fix:
-	cargo clippy --workspace --tests --fix --allow-staged
+	cargo clippy --workspace --tests --fix --allow-staged --allow-dirty
 	@just vscode-lint-fix
 
 vscode-lint-fix:

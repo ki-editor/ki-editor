@@ -1,7 +1,7 @@
 use super::{DiagnosticStyles, HighlightName, Theme, UiStyles};
 use crate::{
     style::{fg, Style},
-    themes::SyntaxStyles,
+    themes::{GitGutterStyles, SyntaxStyles},
 };
 use my_proc_macros::hex;
 
@@ -69,5 +69,6 @@ pub fn vscode_dark() -> Theme {
         },
         diagnostic: DiagnosticStyles::default(),
         hunk: super::HunkStyles::dark(),
+        git_gutter: GitGutterStyles::new(),
     }
 }

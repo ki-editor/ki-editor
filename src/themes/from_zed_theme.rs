@@ -1,7 +1,10 @@
 use super::{
     theme_descriptor::ThemeDescriptor, Color, DiagnosticStyles, HighlightName, Theme, UiStyles,
 };
-use crate::{style::Style, themes::SyntaxStyles};
+use crate::{
+    style::Style,
+    themes::{GitGutterStyles, SyntaxStyles},
+};
 use itertools::Itertools;
 use my_proc_macros::hex;
 use shared::download::cache_download;
@@ -274,6 +277,7 @@ fn from_theme_content(theme: ThemeContent) -> Theme {
         } else {
             super::HunkStyles::dark()
         },
+        git_gutter: GitGutterStyles::new(),
     }
 }
 

@@ -46,9 +46,9 @@ fn main() {
     // Clear the target directories if they exist, then recreate them
     for path in [&ts_output_path, &kotlin_output_path] {
         if path.exists() {
-            std::fs::remove_dir_all(path).expect(&format!(
-                "Failed to remove existing protocol directory: {path:?}"
-            ));
+            std::fs::remove_dir_all(path).unwrap_or_else(|_| {
+                panic!("Failed to remove existing protocol directory: {path:?}")
+            });
         }
         std::fs::create_dir(path).expect("Failed to create protocol directory");
     }

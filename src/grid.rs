@@ -337,6 +337,7 @@ impl Grid {
     /// Note:
     /// - `line_index_start` is 0-based.
     /// - If `max_line_number` is
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn render_content(
         self,
         content: &str,
@@ -563,17 +564,17 @@ impl Grid {
                                         match hunk.kind {
                                             SimpleHunkKind::Delete => {
                                                 Style::same_background_foreground(
-                                                    theme.hunk.old_emphasized_background,
+                                                    theme.git_gutter.deletion,
                                                 )
                                             }
                                             SimpleHunkKind::Insert => {
                                                 Style::same_background_foreground(
-                                                    theme.hunk.new_emphasized_background,
+                                                    theme.git_gutter.insertion,
                                                 )
                                             }
                                             SimpleHunkKind::Replace => {
                                                 Style::same_background_foreground(
-                                                    theme.hunk.replaced,
+                                                    theme.git_gutter.replacement,
                                                 )
                                             }
                                         }

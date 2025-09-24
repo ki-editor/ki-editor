@@ -1,4 +1,4 @@
-use similar::{ChangeTag, DiffOp, TextDiff};
+use similar::{ChangeTag, TextDiff};
 use std::ops::Range;
 
 use itertools::Itertools;
@@ -48,7 +48,8 @@ impl Hunk {
         let diff = imara_diff::Diff::compute(imara_diff::Algorithm::Histogram, &input);
         diff.hunks()
             .map(|hunk| SimpleHunk {
-                new_line_range: hunk.after.start as usize..hunk.after.end as usize,
+                new_line_range: hunk.after.start as usize
+                    ..hunk.after.end.max(hunk.after.start + 1) as usize,
                 kind: if hunk.is_pure_insertion() {
                     SimpleHunkKind::Insert
                 } else if hunk.is_pure_removal() {

@@ -17,6 +17,7 @@ use crate::selection::CharIndex;
 use crate::style::Style;
 use crate::test_app::*;
 
+use crate::themes::GitGutterStyles;
 use crate::ui_tree::ComponentKind;
 use crate::{
     components::editor::{Direction, Mode, ViewAlignment},
@@ -5238,13 +5239,34 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(EnterInsertMode(Direction::Start)),
+            Editor(Open),
+            // Insert one new line
             App(HandleKeyEvents(keys!("a l p h a esc").to_vec())),
+            // Modify one line
+            Editor(MatchLiteral("main".to_string())),
+            Editor(Delete),
+            // Delete one line
+            Editor(MatchLiteral("println".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(MoveSelection(Last)),
-            Editor(EnterInsertMode(Direction::End)),
-            App(HandleKeyEvents(keys!("o m e g a esc").to_vec())),
-            Expect(AppGrid("".to_string())),
+            Editor(SwapCursor),
+            Editor(Delete),
+            App(TerminalDimensionChanged(Dimension {
+                height: 9,
+                width: 20,
+            })),
+            Expect(EditorGrid(
+                r#"🦀  main.rs [*]
+1│mod foo;
+2│alpha
+3│
+4│fn () {
+5│    foo::foo()█
+6│}
+7│"#,
+            )),
+            Expect(GridCellBackground(2, 1, GitGutterStyles::new().insertion)),
+            Expect(GridCellBackground(4, 1, GitGutterStyles::new().replacement)),
+            Expect(GridCellBackground(6, 1, GitGutterStyles::new().deletion)),
         ])
     })
 }

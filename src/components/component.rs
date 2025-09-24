@@ -1,4 +1,4 @@
-use crate::{app::Dispatches, git::hunk::SimpleHunk};
+use crate::app::Dispatches;
 use std::any::Any;
 
 use event::event::Event;
@@ -93,8 +93,8 @@ pub trait Component: Any + AnyComponent {
 
     fn editor_mut(&mut self) -> &mut Editor;
 
-    fn get_grid(&self, context: &Context, focused: bool, hunks: &[SimpleHunk]) -> GetGridResult {
-        self.editor().get_grid(context, focused, hunks)
+    fn get_grid(&mut self, context: &Context, focused: bool) -> GetGridResult {
+        self.editor_mut().get_grid(context, focused)
     }
 
     fn path(&self) -> Option<CanonicalizedPath> {

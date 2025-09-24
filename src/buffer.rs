@@ -1,5 +1,5 @@
 use crate::context::Context;
-use crate::git::hunk::{Hunk, SimpleHunk};
+use crate::git::hunk::SimpleHunk;
 use crate::git::{DiffMode, GitOperation};
 use crate::history::History;
 use crate::lsp::diagnostic::Diagnostic;

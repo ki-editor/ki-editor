@@ -40,13 +40,9 @@ pub(crate) fn markup_focused_tab(path: &str) -> String {
 }
 
 impl Editor {
-    pub(crate) fn get_grid(
-        &self,
-        context: &Context,
-        focused: bool,
-        hunks: &[SimpleHunk],
-    ) -> GetGridResult {
-        self.get_grid_with_scroll_offset(context, focused, self.scroll_offset(), hunks)
+    pub(crate) fn get_grid(&mut self, context: &Context, focused: bool) -> GetGridResult {
+        let hunks = self.buffer_mut().simple_hunks(context).unwrap_or_default();
+        self.get_grid_with_scroll_offset(context, focused, self.scroll_offset(), &hunks)
     }
     pub(crate) fn get_grid_with_scroll_offset(
         &self,
@@ -375,7 +371,7 @@ impl Editor {
                         Default::default(),
                         theme,
                         None,
-                        &hunks,
+                        hunks,
                     ))
                 },
             );
@@ -441,7 +437,7 @@ impl Editor {
                 } else {
                     None
                 },
-                &hunks,
+                hunks,
             );
             let protected_range = visible_lines_grid
                 .get_protected_range_start_position()
@@ -1181,7 +1177,7 @@ mod test_render_editor {
         let content = content.replace("\r", "");
         let mut editor = Editor::from_text(None, &content);
         editor.set_rectangle(rectangle.clone(), &Context::default());
-        let grid = editor.get_grid(&Context::default(), false, Default::default());
+        let grid = editor.get_grid(&Context::default(), false);
         let cells = grid.grid.to_positioned_cells();
         cells.into_iter().all(|cell| {
             cell.position.line < (rectangle.height as usize)
