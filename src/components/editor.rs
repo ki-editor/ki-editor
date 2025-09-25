@@ -228,7 +228,7 @@ impl Component for Editor {
             EnableSelectionExtension => self.enable_selection_extension(),
             DisableSelectionExtension => self.disable_selection_extension(),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction, context),
-            Delete => return self.delete(None, context),
+            Delete => return self.delete(context),
             Insert(string) => return self.insert(&string, context),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
@@ -997,17 +997,9 @@ impl Editor {
         Ok(Dispatches::one(self.dispatch_jumps_changed()))
     }
 
-    pub(crate) fn delete(
-        &mut self,
-        use_system_clipboard: Option<bool>,
-        context: &Context,
-    ) -> anyhow::Result<Dispatches> {
-        // todo: fix warning here
-        let copy_dispatches = if let Some(use_system_clipboard) = use_system_clipboard {
-            self.copy()?
-        } else {
-            Default::default()
-        };
+    pub(crate) fn delete(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        // to copy deleted item to clipboard copy_dispatch should be self.copy()?
+        let copy_dispatches: Dispatches = Default::default();
         let direction = self.cursor_direction.reverse();
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
