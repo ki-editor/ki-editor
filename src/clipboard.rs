@@ -22,6 +22,7 @@ impl CopiedTexts {
         Self { texts }
     }
 
+    #[allow(dead_code)]
     fn join(&self, separator: &str) -> String {
         self.texts.clone().into_iter().join(separator)
     }
