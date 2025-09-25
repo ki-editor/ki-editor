@@ -1,4 +1,5 @@
 use crate::{
+    background_worker::{BackgroundTask, BackgroundTaskBody, BackgroundTaskResult, ListFileKind},
     buffer::{Buffer, BufferOwner},
     clipboard::CopiedTexts,
     components::{
@@ -57,6 +58,10 @@ use std::{
         Mutex,
     },
 };
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
@@ -92,6 +97,7 @@ pub(crate) struct App<T: Frontend> {
     frontend: Rc<Mutex<T>>,
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
+    background_task_sender: Option<Sender<BackgroundTask>>,
 
     status_line_components: Vec<StatusLineComponent>,
     last_action_description: Option<String>,
@@ -103,6 +109,8 @@ pub(crate) struct App<T: Frontend> {
     /// This is used for suspending events until the buffer content
     /// is synced between Ki and the host application.
     queued_events: Vec<Event>,
+
+    nucleo: nucleo::Nucleo<DropdownItem>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
@@ -131,8 +139,9 @@ impl<T: Frontend> App<T> {
         Self::from_channel(
             frontend,
             working_directory,
-            sender,
-            receiver,
+            (sender, receiver),
+            None, // No syntax highlight request sender
+            None, // No background task sender
             status_line_components,
             None, // No integration event sender
             false,
@@ -149,8 +158,9 @@ impl<T: Frontend> App<T> {
     pub(crate) fn from_channel(
         frontend: Rc<Mutex<T>>,
         working_directory: CanonicalizedPath,
-        sender: Sender<AppMessage>,
-        receiver: Receiver<AppMessage>,
+        (sender, receiver): (Sender<AppMessage>, Receiver<AppMessage>),
+        syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
+        background_task_sender: Option<Sender<BackgroundTask>>,
         status_line_components: Vec<StatusLineComponent>,
         integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
         enable_lsp: bool,
@@ -162,14 +172,15 @@ impl<T: Frontend> App<T> {
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             enable_lsp,
-            sender,
+            sender: sender.clone(),
             layout: Layout::new(
                 dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT),
                 &working_directory,
             )?,
             working_directory,
             frontend,
-            syntax_highlight_request_sender: None,
+            syntax_highlight_request_sender,
+            background_task_sender,
             global_title: None,
             status_line_components,
             last_action_description: None,
@@ -177,6 +188,14 @@ impl<T: Frontend> App<T> {
             integration_event_sender,
             last_prompt_config: None,
             queued_events: Vec::new(),
+            nucleo: nucleo::Nucleo::new(
+                nucleo::Config::DEFAULT,
+                Arc::new(move || {
+                    let _ = sender.send(AppMessage::NucleoUpdated);
+                }),
+                None,
+                2,
+            ),
         };
         Ok(app)
     }
@@ -213,6 +232,9 @@ impl<T: Frontend> App<T> {
             }
         }
 
+        const FRAME_DURATION: Duration = Duration::from_millis(1000 / 30); // ~33.33ms
+        let mut last_render = Instant::now();
+
         self.render()?;
 
         while let Ok(message) = self.receiver.recv() {
@@ -225,7 +247,11 @@ impl<T: Frontend> App<T> {
                 break;
             }
 
-            self.render()?;
+            // Only render if enough time has passed
+            if last_render.elapsed() >= FRAME_DURATION {
+                self.render()?;
+                last_render = Instant::now();
+            }
         }
 
         self.quit()
@@ -248,10 +274,21 @@ impl<T: Frontend> App<T> {
             } => self
                 .update_highlighted_spans(component_id, batch_id, highlighted_spans)
                 .map(|_| false),
-            // Handle the new ExternalDispatch variant
             AppMessage::ExternalDispatch(dispatch) => {
                 // Process the dispatch directly
                 self.handle_dispatch(dispatch)?;
+                Ok(false)
+            }
+            AppMessage::BackgroundTaskResult(response) => {
+                self.handle_background_task_result(response)?;
+                Ok(false)
+            }
+            AppMessage::ListFileEntries(path_bufs) => {
+                self.handle_list_file_entries(path_bufs);
+                Ok(false)
+            }
+            AppMessage::NucleoUpdated => {
+                self.handle_nucleo_updated();
                 Ok(false)
             }
         }
@@ -921,6 +958,7 @@ impl<T: Frontend> App<T> {
             Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
             Dispatch::OpenSurroundXmlPrompt => self.open_surround_xml_prompt()?,
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
+            Dispatch::DropdownFilterUpdated(filter) => self.handle_dropdown_filter_updated(filter),
         }
         Ok(())
     }
@@ -1148,62 +1186,62 @@ impl<T: Frontend> App<T> {
         )
     }
 
+    fn send_background_task(&mut self, background_task: BackgroundTask) -> anyhow::Result<()> {
+        if let Some(sender) = &self.background_task_sender {
+            sender.send(background_task)?;
+        }
+        Ok(())
+    }
+
     fn open_file_picker(&mut self, kind: FilePickerKind) -> anyhow::Result<()> {
         let working_directory = self.working_directory.clone();
         self.open_prompt(
             PromptConfig {
                 title: format!("Open file: {}", kind.display()),
-                on_enter: DispatchPrompt::OpenFile { working_directory },
-                items: {
-                    match kind {
-                        FilePickerKind::NonGitIgnored => {
-                            // Note: we should not use CanonicalizedPath here, as it is resource-intensive
-                            list::WalkBuilderConfig::non_git_ignored_files(
-                                self.working_directory.clone(),
-                            )?
-                        }
-                        FilePickerKind::GitStatus(diff_mode) => {
-                            git::GitRepo::try_from(&self.working_directory)?
-                                .diff_entries(diff_mode)?
-                                .into_iter()
-                                .map(|entry| entry.new_path().into_path_buf())
-                                .collect_vec()
-                        }
-                        FilePickerKind::Opened => self
-                            .layout
-                            .get_opened_files()
-                            .into_iter()
-                            .map(|path| path.into_path_buf())
-                            .collect_vec(),
-                    }
-                    .into_iter()
-                    .map(|path| {
-                        DropdownItem::new({
-                            let name = path
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                                .to_string();
-                            let icon = shared::canonicalized_path::get_path_icon(&path);
-                            format!("{icon} {name}")
-                        })
-                        .set_group(path.parent().map(|parent| {
-                            let relative = parent
-                                .strip_prefix(&self.working_directory)
-                                .map(|path| path.display().to_string())
-                                .unwrap_or_else(|_| parent.display().to_string());
-                            format!("{} {}", shared::icons::get_icon_config().folder, relative,)
-                        }))
-                        .set_dispatches(Dispatches::one(
-                            crate::app::Dispatch::OpenFileFromPathBuf {
-                                path,
-                                owner: BufferOwner::User,
-                                focus: true,
-                            },
-                        ))
-                    })
-                    .collect_vec()
+                on_enter: DispatchPrompt::OpenFile {
+                    working_directory: working_directory.clone(),
                 },
+                items: Default::default(),
+                enter_selects_first_matching_item: true,
+                leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::OpenFile,
+            },
+            None,
+        );
+        match kind {
+            FilePickerKind::NonGitIgnored => self.send_background_task(BackgroundTask::ListFile(
+                ListFileKind::GetNonGitIgnoredFiles { working_directory },
+            )),
+            FilePickerKind::GitStatus(diff_mode) => self.send_background_task(
+                BackgroundTask::ListFile(ListFileKind::GetGitStatusFiles {
+                    diff_mode,
+                    working_directory,
+                }),
+            ),
+            FilePickerKind::Opened => {
+                let paths = self
+                    .layout
+                    .get_opened_files()
+                    .into_iter()
+                    .map(|path| path.into_path_buf())
+                    .collect_vec();
+                self.show_file_picker("Opened".to_string(), paths)
+            }
+        }
+    }
+
+    fn show_file_picker(&mut self, title: String, paths: Vec<PathBuf>) -> anyhow::Result<()> {
+        let working_directory = self.working_directory.clone();
+        let items = paths
+            .into_iter()
+            .map(|path| DropdownItem::from_path_buf(&working_directory, path))
+            .collect_vec();
+        self.open_prompt(
+            PromptConfig {
+                title: format!("Open file: {title}"),
+                on_enter: DispatchPrompt::OpenFile { working_directory },
+                items,
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
@@ -1853,13 +1891,6 @@ impl<T: Frontend> App<T> {
     #[cfg(test)]
     fn set_global_title(&mut self, title: String) {
         self.global_title = Some(title)
-    }
-
-    pub(crate) fn set_syntax_highlight_request_sender(
-        &mut self,
-        sender: Sender<SyntaxHighlightRequest>,
-    ) {
-        self.syntax_highlight_request_sender = Some(sender);
     }
 
     pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
@@ -2605,6 +2636,58 @@ impl<T: Frontend> App<T> {
     ) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
         self.lsp_manager.lsp_server_initialized_args()
     }
+
+    fn handle_background_task_result(
+        &mut self,
+        response: BackgroundTaskResult,
+    ) -> anyhow::Result<()> {
+        match response {
+            BackgroundTaskResult::Ok(body) => match body {
+                BackgroundTaskBody::ListFiles { paths, kind } => {
+                    self.show_file_picker(kind.display(), paths)?
+                }
+            },
+            BackgroundTaskResult::Error { task, error } => self.show_global_info(Info::new(
+                "Background task result error".to_string(),
+                format!("Task:\n{task:#?}\n\n\n{error:#?}"),
+            )),
+        }
+        Ok(())
+    }
+
+    fn handle_list_file_entries(&self, path_bufs: Vec<PathBuf>) {
+        for path_buf in path_bufs {
+            let item =
+                DropdownItem::from_path_buf(self.context.current_working_directory(), path_buf);
+            self.nucleo.injector().push(item, |item, columns| {
+                columns[0] = item.group().clone().unwrap_or_default().into();
+                columns[1] = item.display().clone().into();
+            });
+        }
+    }
+
+    fn handle_nucleo_updated(&mut self) {
+        self.nucleo.tick(10);
+        let snapshot = self.nucleo.snapshot();
+        let scroll_offset = 0; // TODO: obtain scroll offset
+        let viewport_height = 10; // TODO: obtain viewport height
+        let items = snapshot
+            .matched_items(0..viewport_height.min(snapshot.matched_item_count()))
+            .map(|item| item.data.clone())
+            .collect_vec();
+        let component = self.layout.get_current_component();
+        let mut component_mut = component.borrow_mut();
+        if let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() {
+            prompt.update_items(items);
+        }
+    }
+
+    fn handle_dropdown_filter_updated(&mut self, filter: String) {
+        self.nucleo
+            .pattern
+            .reparse(1, &filter, Default::default(), Default::default(), false);
+        self.handle_nucleo_updated()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2840,6 +2923,7 @@ pub(crate) enum Dispatch {
     FromHostApp(FromHostApp),
     OpenSurroundXmlPrompt,
     ShowGlobalInfo(Info),
+    DropdownFilterUpdated(String),
 }
 
 /// Used to send notify host app about changes
@@ -2956,6 +3040,9 @@ pub(crate) enum AppMessage {
     },
     // New variant for external dispatches
     ExternalDispatch(Dispatch),
+    BackgroundTaskResult(BackgroundTaskResult),
+    ListFileEntries(Vec<PathBuf>),
+    NucleoUpdated,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

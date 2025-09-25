@@ -136,6 +136,10 @@ impl Prompt {
             self.editor_mut().handle_key_event(context, event)
         }
     }
+
+    pub(crate) fn update_items(&mut self, items: Vec<DropdownItem>) {
+        self.editor.update_items(items)
+    }
 }
 
 impl Component for Prompt {

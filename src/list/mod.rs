@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use crossbeam::channel::Sender;
 use globset::Glob;
 use ignore::{WalkBuilder, WalkState};
+use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{buffer::Buffer, quickfix_list::Location, selection_mode::ByteRange};
@@ -117,7 +118,65 @@ impl WalkBuilderConfig {
         Ok(receiver.into_iter().collect::<Vec<_>>())
     }
 
-    fn new(root: PathBuf) -> Self {
+    pub(crate) fn stream(self, sender: std::sync::mpsc::Sender<PathBuf>) -> anyhow::Result<()> {
+        let WalkBuilderConfig {
+            root,
+            include,
+            exclude,
+        } = self;
+        let build_matcher = |glob: Option<&Glob>| -> anyhow::Result<_> {
+            let pattern = if let Some(glob) = glob {
+                Some(Glob::new(&root.join(glob.glob()).to_string_lossy())?.compile_matcher())
+            } else {
+                None
+            };
+            Ok(Box::new(move |path: &str| {
+                pattern.as_ref().map(|pattern| pattern.is_match(path))
+            }))
+        };
+        let include_match = build_matcher(include.as_ref())?;
+        let exclude_match = build_matcher(exclude.as_ref())?;
+        WalkBuilder::new(root)
+            .filter_entry(move |entry| {
+                let path = entry.path().display().to_string();
+
+                entry
+                    .file_type()
+                    .map(|file_type| !file_type.is_file())
+                    .unwrap_or(false)
+                    || (include_match(&path).unwrap_or(true)
+                        && !exclude_match(&path).unwrap_or(false))
+            })
+            .hidden(false)
+            .build_parallel()
+            .run(|| {
+                Box::new(|path| {
+                    if let Ok(path) = path {
+                        if path
+                            .file_type()
+                            .is_some_and(|file_type| file_type.is_file())
+                        {
+                            let path = path.path().into();
+                            match sender.send(path) {
+                                Ok(_) => {}
+                                Err(err) => {
+                                    log::error!(
+                                        "WalkBuilderConfig: Failed to stream because of: {err:?}"
+                                    );
+                                    return WalkState::Quit;
+                                }
+                            }
+                        } else if path.path().ends_with(".git") {
+                            return WalkState::Skip;
+                        }
+                    }
+                    WalkState::Continue
+                })
+            });
+        Ok(())
+    }
+
+    pub(crate) fn new(root: PathBuf) -> Self {
         Self {
             root,
             include: None,

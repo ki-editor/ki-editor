@@ -242,7 +242,7 @@ impl SuggestiveEditor {
         self.completion_dropdown.set_filter(&filter);
 
         let render_completion_dropdown = self.render_completion_dropdown(false);
-        Ok(render_completion_dropdown)
+        Ok(render_completion_dropdown.append(Dispatch::DropdownFilterUpdated(filter)))
     }
 
     fn update_current_completion_item(&mut self, completion_item: CompletionItem) -> Dispatches {
@@ -280,6 +280,10 @@ impl SuggestiveEditor {
     ) -> anyhow::Result<Dispatches> {
         self.editor_mut().update_current_line(context, display)
     }
+
+    pub(crate) fn update_items(&mut self, items: Vec<DropdownItem>) {
+        self.completion_dropdown.set_items(items)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -314,6 +318,7 @@ mod test_suggestive_editor {
     use lsp_types::{CompletionItemKind, CompletionTextEdit, TextEdit};
     use my_proc_macros::{key, keys};
     use shared::canonicalized_path::CanonicalizedPath;
+    
     use std::{cell::RefCell, rc::Rc};
     use Dispatch::*;
 
