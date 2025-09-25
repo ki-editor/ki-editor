@@ -1231,10 +1231,7 @@ fn replace_from_clipboard() -> anyhow::Result<()> {
                 IfCurrentNotFound::LookForward,
                 SelectionMode::Word,
             )),
-            Editor(ReplaceWithCopiedText {
-                cut: false,
-                use_system_clipboard: false,
-            }),
+            Editor(ReplaceWithCopiedText { cut: false }),
             Expect(CurrentComponentContent(
                 "let z = S(c); f(){ let x = S(a); let y = S(b); }",
             )),

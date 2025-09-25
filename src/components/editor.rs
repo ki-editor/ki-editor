@@ -222,10 +222,7 @@ impl Component for Editor {
                 return self.handle_movement_with_prior_change(context, movement, prior_change)
             }
             Copy => return self.copy(),
-            ReplaceWithCopiedText {
-                cut,
-                use_system_clipboard,
-            } => return self.replace_with_copied_text(context, cut, use_system_clipboard, 0),
+            ReplaceWithCopiedText { cut } => return self.replace_with_copied_text(context, cut, 0),
             SelectAll => return self.select_all(context),
             SetContent(content) => self.set_content(&content, context)?,
             EnableSelectionExtension => self.enable_selection_extension(),
@@ -325,11 +322,11 @@ impl Component for Editor {
             }
             ReplaceWithPreviousCopiedText => {
                 let history_offset = self.copied_text_history_offset.decrement();
-                return self.replace_with_copied_text(context, false, false, history_offset);
+                return self.replace_with_copied_text(context, false, history_offset);
             }
             ReplaceWithNextCopiedText => {
                 let history_offset = self.copied_text_history_offset.increment();
-                return self.replace_with_copied_text(context, false, false, history_offset);
+                return self.replace_with_copied_text(context, false, history_offset);
             }
             MoveToLastChar => return Ok(self.move_to_last_char(context)),
             PipeToShell { command } => return self.pipe_to_shell(command, context),
@@ -1005,6 +1002,7 @@ impl Editor {
         use_system_clipboard: Option<bool>,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
+        // todo: fix warning here
         let copy_dispatches = if let Some(use_system_clipboard) = use_system_clipboard {
             self.copy()?
         } else {
@@ -1321,6 +1319,9 @@ impl Editor {
         context: &Context,
         with_gap: bool,
     ) -> anyhow::Result<Dispatches> {
+        // todo: think, paste on a out-of-sync clipboards
+        // should automatically add the latest paste to
+        // app clipboard history
         let use_system_clipboard: bool = !context.clipboards_synced().unwrap();
         let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0)? else {
             return Ok(Default::default());
@@ -1339,9 +1340,9 @@ impl Editor {
         &mut self,
         context: &Context,
         cut: bool,
-        use_system_clipboard: bool,
         history_offset: isize,
     ) -> anyhow::Result<Dispatches> {
+        let use_system_clipboard: bool = !context.clipboards_synced().unwrap();
         let dispatches = if cut {
             self.copy()?
         } else {
@@ -3963,7 +3964,6 @@ pub(crate) enum DispatchEditor {
     EnterInsertMode(Direction),
     ReplaceWithCopiedText {
         cut: bool,
-        use_system_clipboard: bool,
     },
     ReplaceWithPattern,
     SelectLine(Movement),

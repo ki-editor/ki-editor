@@ -505,10 +505,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::RplcX),
                 format("Replace X"),
                 format!("{}{}", "Replace Cut", extra),
-                Dispatch::ToEditor(ReplaceWithCopiedText {
-                    use_system_clipboard,
-                    cut: true,
-                }),
+                Dispatch::ToEditor(ReplaceWithCopiedText { cut: true }),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Copy_),
@@ -556,10 +553,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::Rplc_),
                 format("Replace"),
                 format!("{}{}", "Replace", extra),
-                Dispatch::ToEditor(ReplaceWithCopiedText {
-                    use_system_clipboard,
-                    cut: false,
-                }),
+                Dispatch::ToEditor(ReplaceWithCopiedText { cut: false }),
             )
             .override_keymap(normal_mode_override.replace.as_ref(), none_if_no_override),
         ]
