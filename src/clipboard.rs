@@ -73,11 +73,10 @@ impl From<&str> for CopiedTexts {
                     .select(&ki_selector)
                     .filter_map(|element| {
                         let text = element.text().collect::<String>();
-                        let trimmed = text.trim();
-                        if trimmed.is_empty() {
+                        if text.is_empty() {
                             None
                         } else {
-                            Some(trimmed.to_string())
+                            Some(text.to_string())
                         }
                     })
                     .collect();
@@ -103,8 +102,10 @@ impl Clipboard {
         self.history.get(history_offset)
     }
 
-    pub(crate) fn get_from_system_clipboard(&self) -> anyhow::Result<String> {
-        Ok(arboard::Clipboard::new()?.get_text()?)
+    pub(crate) fn get_from_system_clipboard(&self) -> anyhow::Result<CopiedTexts> {
+        Ok(CopiedTexts::from(
+            arboard::Clipboard::new()?.get_text()?.as_str(),
+        ))
     }
 
     pub(crate) fn set(&mut self, copied_texts: CopiedTexts) -> anyhow::Result<()> {
