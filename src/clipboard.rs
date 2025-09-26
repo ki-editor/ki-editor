@@ -115,6 +115,10 @@ impl Clipboard {
             .or_else(|_| osc52::copy_to_clipboard(&copied_texts.to_clipboard_format()))?;
         Ok(())
     }
+
+    pub(crate) fn add_clipboard_history(&mut self, copied_texts: CopiedTexts) {
+        self.history.add(copied_texts.clone());
+    }
 }
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default)]

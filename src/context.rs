@@ -120,6 +120,10 @@ impl Context {
         Ok(app_cb_content.clone() == Some(sys_cb_content.clone()))
     }
 
+    pub(crate) fn add_clipboard_history(&mut self, item: CopiedTexts) {
+        self.clipboard.add_clipboard_history(item)
+    }
+
     /// Note: `history_offset` is ignored when `use_system_clipboard` is true.
     pub(crate) fn get_clipboard_content(
         &self,

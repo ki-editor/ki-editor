@@ -1308,17 +1308,20 @@ impl Editor {
 
     pub(crate) fn paste(
         &mut self,
-        context: &Context,
+        context: &mut Context,
         with_gap: bool,
     ) -> anyhow::Result<Dispatches> {
-        // todo: think, paste on a out-of-sync clipboards
-        // should automatically add the latest paste to
-        // app clipboard history
-        let use_system_clipboard: bool = !context.clipboards_synced().unwrap();
+        let clipboards_differ: bool = !context.clipboards_synced().unwrap();
+        let use_system_clipboard = clipboards_differ;
+
         let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0)? else {
             return Ok(Default::default());
         };
         let direction = self.cursor_direction.reverse();
+        // out-of-sync paste should also add the content to clipboard history
+        if clipboards_differ {
+            context.add_clipboard_history(copied_texts.clone());
+        }
 
         self.paste_text(direction, copied_texts, context, with_gap)
     }
