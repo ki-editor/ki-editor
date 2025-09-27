@@ -20,6 +20,7 @@ use crate::{
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
+    debouncer::DebounceMessage,
     frontend::Frontend,
     git::{self},
     grid::{Grid, LineUpdate},
@@ -99,6 +100,7 @@ pub(crate) struct App<T: Frontend> {
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
     background_task_sender: Option<Sender<BackgroundTask>>,
+    debouncer_sender: Option<Sender<DebounceMessage>>,
 
     status_line_components: Vec<StatusLineComponent>,
     last_action_description: Option<String>,
@@ -146,6 +148,7 @@ impl<T: Frontend> App<T> {
             (sender, receiver),
             None, // No syntax highlight request sender
             None, // No background task sender
+            None, // No debouncer sender
             status_line_components,
             None, // No integration event sender
             false,
@@ -165,6 +168,7 @@ impl<T: Frontend> App<T> {
         (sender, receiver): (Sender<AppMessage>, Receiver<AppMessage>),
         syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
         background_task_sender: Option<Sender<BackgroundTask>>,
+        debouncer_sender: Option<Sender<DebounceMessage>>,
         status_line_components: Vec<StatusLineComponent>,
         integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
         enable_lsp: bool,
@@ -201,6 +205,7 @@ impl<T: Frontend> App<T> {
                 2,
             ),
             last_nucleo_tick: Instant::now(),
+            debouncer_sender,
         };
         Ok(app)
     }
@@ -292,7 +297,11 @@ impl<T: Frontend> App<T> {
                 Ok(false)
             }
             AppMessage::NucleoUpdated => {
-                self.handle_nucleo_updated();
+                self.handle_nucleo_updated()?;
+                Ok(false)
+            }
+            AppMessage::NucleoTickDebounced => {
+                self.handle_nucleo_debounced();
                 Ok(false)
             }
         }
@@ -850,10 +859,7 @@ impl<T: Frontend> App<T> {
                 .refresh_file_explorer(&self.working_directory, &self.context)?,
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
-                use_system_clipboard,
-            } => self
-                .context
-                .set_clipboard_content(contents, use_system_clipboard)?,
+            } => self.context.set_clipboard_content(contents)?,
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
@@ -963,6 +969,10 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenSurroundXmlPrompt => self.open_surround_xml_prompt()?,
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
             Dispatch::DropdownFilterUpdated(filter) => self.handle_dropdown_filter_updated(filter),
+            #[cfg(test)]
+            Dispatch::SetSystemClipboardHtml { html, alt_text } => {
+                self.set_system_clipboard_html(html, alt_text)?
+            }
         }
         Ok(())
     }
@@ -2670,7 +2680,7 @@ impl<T: Frontend> App<T> {
         }
     }
 
-    fn handle_nucleo_updated(&mut self) {
+    fn handle_nucleo_debounced(&mut self) {
         // This unblocks the UI thread, but still the latest tick should be ticked,
         // we need a debounced of some sort
         if self.last_nucleo_tick.elapsed() < FRAME_DURATION {
@@ -2697,7 +2707,18 @@ impl<T: Frontend> App<T> {
         self.nucleo
             .pattern
             .reparse(1, &filter, Default::default(), Default::default(), false);
-        self.handle_nucleo_updated()
+        self.handle_nucleo_debounced()
+    }
+    #[cfg(test)]
+    fn set_system_clipboard_html(&self, html: &str, alt_text: &str) -> anyhow::Result<()> {
+        Ok(arboard::Clipboard::new()?.set_html(html, Some(alt_text))?)
+    }
+
+    fn handle_nucleo_updated(&self) -> anyhow::Result<()> {
+        if let Some(sender) = &self.debouncer_sender {
+            sender.send(DebounceMessage::NucleoTick)?;
+        }
+        Ok(())
     }
 }
 
@@ -2858,7 +2879,6 @@ pub(crate) enum Dispatch {
     RefreshFileExplorer,
     SetClipboardContent {
         copied_texts: CopiedTexts,
-        use_system_clipboard: bool,
     },
     SetGlobalMode(Option<GlobalMode>),
     #[cfg(test)]
@@ -2935,6 +2955,11 @@ pub(crate) enum Dispatch {
     OpenSurroundXmlPrompt,
     ShowGlobalInfo(Info),
     DropdownFilterUpdated(String),
+    #[cfg(test)]
+    SetSystemClipboardHtml {
+        html: &'static str,
+        alt_text: &'static str,
+    },
 }
 
 /// Used to send notify host app about changes
@@ -3054,6 +3079,7 @@ pub(crate) enum AppMessage {
     BackgroundTaskResult(BackgroundTaskResult),
     ListFileEntries(Vec<PathBuf>),
     NucleoUpdated,
+    NucleoTickDebounced,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -394,6 +394,8 @@ mod test_word {
 
     use super::*;
 
+    use serial_test::serial;
+
     #[test]
     fn current_no_skip_symbols() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -511,6 +513,7 @@ mod test_word {
         })
     }
 
+    #[serial]
     #[test]
     fn paste_forward_with_gap() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -527,17 +530,14 @@ mod test_word {
                 )),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["barBar"])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
+                Editor(Paste),
                 Expect(CurrentComponentContent("fooFoo barBar barBar\nspamSpam")),
             ])
         })
     }
 
+    #[serial]
     #[test]
     fn paste_backward_with_gap() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -554,13 +554,9 @@ mod test_word {
                 )),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["barBar"])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("fooFoo barBar barBar\nspamSpam")),
             ])
         })

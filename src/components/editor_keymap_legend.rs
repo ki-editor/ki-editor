@@ -499,33 +499,24 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::ChngX),
                 format("Change X"),
                 format!("{}{}", "Change Cut", extra),
-                Dispatch::ToEditor(ChangeCut {
-                    use_system_clipboard,
-                }),
+                Dispatch::ToEditor(ChangeCut),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::RplcX),
                 format("Replace X"),
                 format!("{}{}", "Replace Cut", extra),
-                Dispatch::ToEditor(ReplaceWithCopiedText {
-                    use_system_clipboard,
-                    cut: true,
-                }),
+                Dispatch::ToEditor(ReplaceWithCopiedText { cut: true }),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Copy_),
                 format("Copy"),
                 format!("{}{}", "Copy", extra),
-                Dispatch::ToEditor(Copy {
-                    use_system_clipboard,
-                }),
+                Dispatch::ToEditor(Copy),
             ),
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Pst0G),
                 "Paste 0 Gap".to_string(),
-                Dispatch::ToEditor(PasteNoGap {
-                    use_system_clipboard,
-                }),
+                Dispatch::ToEditor(PasteNoGap),
             ),
         ]
         .into_iter()
@@ -552,9 +543,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::Paste),
                 format("Paste →"),
                 format!("{}{}", Direction::End.format_action("Paste"), extra),
-                Dispatch::ToEditor(Paste {
-                    use_system_clipboard,
-                }),
+                Dispatch::ToEditor(Paste),
             )
             .override_keymap(
                 normal_mode_override.paste.clone().as_ref(),
@@ -564,10 +553,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::Rplc_),
                 format("Replace"),
                 format!("{}{}", "Replace", extra),
-                Dispatch::ToEditor(ReplaceWithCopiedText {
-                    use_system_clipboard,
-                    cut: false,
-                }),
+                Dispatch::ToEditor(ReplaceWithCopiedText { cut: false }),
             )
             .override_keymap(normal_mode_override.replace.as_ref(), none_if_no_override),
         ]
@@ -600,9 +586,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::UPstE),
                 "Paste →".to_string(),
                 "Paste".to_string(),
-                Dispatch::ToEditor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Dispatch::ToEditor(Paste),
             ),
             Keymap::new_extended(
                 context
@@ -1050,7 +1034,6 @@ impl Editor {
                     "Help".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowHelp),
                 )))
-                .chain(self.keymap_clipboard_related_actions(true, Default::default(), context))
                 .chain([
                     Keymap::new(
                         context

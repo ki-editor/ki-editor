@@ -48,7 +48,8 @@ mod utils;
 mod embed;
 
 mod alternator;
-pub(crate) mod background_worker;
+mod background_worker;
+mod debouncer;
 mod divide_viewport;
 mod env;
 mod format_path_list;
@@ -79,12 +80,15 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
     let background_task_sender = crate::background_worker::start_thread(sender.clone());
 
+    let debouncer_sender = crate::debouncer::start_thread(sender.clone());
+
     let app = App::from_channel(
         Rc::new(Mutex::new(Crossterm::new()?)),
         config.working_directory.unwrap_or(".".try_into()?),
         (sender, receiver),
         Some(syntax_highlighter_sender),
         Some(background_task_sender),
+        Some(debouncer_sender),
         [
             StatusLineComponent::Mode,
             StatusLineComponent::SelectionMode,
