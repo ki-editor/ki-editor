@@ -185,13 +185,13 @@ After formatting, the [Current](../core-movements.md#current) movement will be e
 
 ## Clipboard
 
-The disntinction b/w two kinds of clipboards in other editors like vim or helix,
-are unified in ki's user interface:
+The usual disntinction between two kinds of (system and editor) clipboards,
+like in other editors like vim or helix, are unified in ki's user interface:
 
 For single cursor,
 
-- Copy copies to system clipboard and adds to editor clipboard history
-- Paste uses the system clipboard content but adds the pasted content is new.
+- Copy copies to system clipboard also adds to editor clipboard history
+- Paste uses the system clipboard content but adds the pasted content if it is new.
 
 For multiple cursors,
 
@@ -199,7 +199,7 @@ For multiple cursors,
 - Paste uses the system clipboard's html formatted text containing list of div tags.
 
 Note: Effectively, the user only interacts with the system clipboard, the editor
-clipboard only provides a in-editor clipboard history.
+clipboard provides clipboard history.
 
 ### `Copy`
 

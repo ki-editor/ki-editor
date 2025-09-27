@@ -1034,7 +1034,6 @@ impl Editor {
                     "Help".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowHelp),
                 )))
-                .chain(self.keymap_clipboard_related_actions(true, Default::default(), context))
                 .chain([
                     Keymap::new(
                         context
