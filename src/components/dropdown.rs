@@ -74,6 +74,37 @@ impl DropdownItem {
     pub(crate) fn resolved(&self) -> bool {
         self.resolved
     }
+
+    pub(crate) fn from_path_buf(
+        working_directory: &CanonicalizedPath,
+        path: std::path::PathBuf,
+    ) -> DropdownItem {
+        DropdownItem::new({
+            let name = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let icon = shared::canonicalized_path::get_path_icon(&path);
+            format!("{icon} {name}")
+        })
+        .set_group(path.parent().map(|parent| {
+            let relative = parent
+                .strip_prefix(working_directory)
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|_| parent.display().to_string());
+            format!("{} {}", shared::icons::get_icon_config().folder, relative,)
+        }))
+        .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFileFromPathBuf {
+            path,
+            owner: BufferOwner::User,
+            focus: true,
+        }))
+    }
+
+    pub(crate) fn group(&self) -> &Option<String> {
+        &self.group
+    }
 }
 
 impl From<CanonicalizedPath> for DropdownItem {
