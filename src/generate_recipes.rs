@@ -1,6 +1,5 @@
 use itertools::{Either, Itertools};
 use my_proc_macros::key;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::collections::HashMap;
 
 // TODO:
@@ -20,14 +19,14 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
         })
     });
     recipe_groups
-        .into_par_iter()
+        .into_iter()
         .filter(|recipe_group| {
             !contains_only_recipes || recipe_group.recipes.iter().any(|recipe| recipe.only)
         })
         .map(|recipe_group| -> anyhow::Result<_> {
             let recipes = recipe_group.recipes;
             let (errors, recipes_output): (Vec<_>, Vec<_>) = recipes
-                .into_par_iter()
+                .into_iter()
                 .filter(|recipe| !contains_only_recipes || recipe.only)
                 .map(|recipe| -> Result<RecipeOutput, String> {
                     let run = || {

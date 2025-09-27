@@ -75,11 +75,6 @@ these files will not be included in the buffer list unless you edit them.
 
 [^1]: This is an obscure feature, although it is functional, it is hardly useful, because the undo history is too granular (character-by-character), see [undo/redo](../universal-keybindings.md#undoredo).
 
-## System Clipboard Actions
-
-These actions are the same as the actions [here](./actions/index.md#clipboard), except
-that they uses the system clipboard instead of the editor clipboard, and their labels prefixed by `+`.
-
 ## Reveal
 
 Reveal is a powerful viewport management feature that provides a bird's-eye view of your code or text. It automatically divides your viewport horizontally to show all relevant selections simultaneously, eliminating the need for scrolling (unless selections exceed the viewport height).

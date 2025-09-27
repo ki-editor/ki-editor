@@ -302,6 +302,8 @@ mod test_line {
 
     use super::*;
 
+    use serial_test::serial;
+
     #[test]
     fn simple_case() {
         let buffer = Buffer::new(None, "a\n\nb");
@@ -379,6 +381,7 @@ fn f() {
         test(1, "fn f() {");
     }
 
+    #[serial]
     #[test]
     fn paste_forward_use_larger_indent() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -402,12 +405,8 @@ foo
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Line,
                 )),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
+                Editor(Paste),
                 Expect(CurrentComponentContent(
                     "
 foo
@@ -421,6 +420,7 @@ foo
         })
     }
 
+    #[serial]
     #[test]
     fn paste_backward_use_larger_indent() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -444,13 +444,9 @@ foo
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Line,
                 )),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent(
                     "
 foo
@@ -464,6 +460,7 @@ foo
         })
     }
 
+    #[serial]
     #[test]
     fn still_paste_forward_with_newline_with_indent_despite_only_one_line_present(
     ) -> anyhow::Result<()> {
@@ -479,17 +476,14 @@ foo
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Line,
                 )),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
+                Editor(Paste),
                 Expect(CurrentComponentContent("  foo\n  foo")),
             ])
         })
     }
 
+    #[serial]
     #[test]
     fn still_paste_backward_with_newline_with_indent_despite_only_one_line_present(
     ) -> anyhow::Result<()> {
@@ -505,18 +499,15 @@ foo
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Line,
                 )),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("  foo\n  foo")),
             ])
         })
     }
 
+    #[serial]
     #[test]
     fn paste_previous_using_last_line() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -533,18 +524,15 @@ foo
                     SelectionMode::Line,
                 )),
                 Expect(CurrentSelectedTexts(&["bar"])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("foo\nbar\nbar")),
             ])
         })
     }
 
+    #[serial]
     #[test]
     fn copy_pasting_backward_nothing_but_with_indentation() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -560,22 +548,17 @@ foo
                     SelectionMode::Line,
                 )),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent(" \n ")),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent(" \n \n ")),
             ])
         })
     }
 
+    #[serial]
     #[test]
     fn copy_pasting_forward_nothing_but_with_indentation() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -591,16 +574,10 @@ foo
                     SelectionMode::Line,
                 )),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
+                Editor(Paste),
                 Expect(CurrentComponentContent(" \n ")),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent(" \n \n ")),
             ])
         })

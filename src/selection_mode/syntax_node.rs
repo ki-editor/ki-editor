@@ -274,6 +274,8 @@ mod test_syntax_node {
 
     use super::*;
 
+    use serial_test::serial;
+
     #[test]
     fn case_1() {
         let buffer = Buffer::new(
@@ -392,6 +394,7 @@ fn main() {
         test(false, "let");
     }
 
+    #[serial]
     #[test]
     fn paste_forward_with_gap() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -408,17 +411,14 @@ fn main() {
                     SelectionMode::SyntaxNode,
                 )),
                 Editor(MoveSelection(Right)),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
+                Editor(Paste),
                 Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
             ])
         })
     }
 
+    #[serial]
     #[test]
     fn paste_backward_with_gap() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -435,13 +435,9 @@ fn main() {
                     SelectionMode::SyntaxNode,
                 )),
                 Editor(MoveSelection(Right)),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
             ])
         })

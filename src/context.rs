@@ -112,6 +112,24 @@ impl Context {
         }
     }
 
+    /// Checks if the contents in both the system clipboard and the app clipboard is the same
+    pub(crate) fn clipboards_synced(&self) -> bool {
+        let history_offset = 0;
+        let Some(app_clipboard_content) = self.clipboard.get(history_offset) else {
+            return false;
+        };
+
+        let Some(system_clipboard_content) = self.clipboard.get_from_system_clipboard().ok() else {
+            return false;
+        };
+
+        app_clipboard_content == system_clipboard_content
+    }
+
+    pub(crate) fn add_clipboard_history(&mut self, item: CopiedTexts) {
+        self.clipboard.add_clipboard_history(item)
+    }
+
     /// Note: `history_offset` is ignored when `use_system_clipboard` is true.
     pub(crate) fn get_clipboard_content(
         &self,
@@ -119,20 +137,14 @@ impl Context {
         history_offset: isize,
     ) -> anyhow::Result<Option<CopiedTexts>> {
         Ok(if use_system_clipboard {
-            Some(CopiedTexts::new(nonempty::NonEmpty::singleton(
-                self.clipboard.get_from_system_clipboard()?,
-            )))
+            Some(self.clipboard.get_from_system_clipboard()?)
         } else {
             self.clipboard.get(history_offset)
         })
     }
 
-    pub(crate) fn set_clipboard_content(
-        &mut self,
-        contents: CopiedTexts,
-        use_system_clipboard: bool,
-    ) -> anyhow::Result<()> {
-        self.clipboard.set(contents.clone(), use_system_clipboard)
+    pub(crate) fn set_clipboard_content(&mut self, contents: CopiedTexts) -> anyhow::Result<()> {
+        self.clipboard.set(contents.clone())
     }
     pub(crate) fn mode(&self) -> Option<GlobalMode> {
         self.mode.clone()

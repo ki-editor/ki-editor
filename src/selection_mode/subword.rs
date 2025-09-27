@@ -214,6 +214,8 @@ mod test_subword {
     use crate::test_app::*;
     use crate::{buffer::Buffer, selection::Selection, selection_mode::PositionBased};
 
+    use serial_test::serial;
+
     #[test]
     fn simple_case() {
         let buffer = Buffer::new(None, "snake Case camel");
@@ -314,6 +316,7 @@ mod test_subword {
         })
     }
 
+    #[serial]
     #[test]
     fn paste_forward_with_gap() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -330,17 +333,14 @@ mod test_subword {
                 )),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["bar"])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
+                Editor(Paste),
                 Expect(CurrentComponentContent("foo bar bar\nspam")),
             ])
         })
     }
 
+    #[serial]
     #[test]
     fn paste_backward_with_gap() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -357,13 +357,9 @@ mod test_subword {
                 )),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["bar"])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
                 Expect(CurrentComponentContent("foo bar bar\nspam")),
             ])
         })

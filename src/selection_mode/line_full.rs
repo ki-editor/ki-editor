@@ -174,6 +174,8 @@ mod test_line_full {
         selection_mode::{PositionBased, SelectionModeTrait as _},
     };
 
+    use serial_test::serial;
+
     #[test]
     fn case_1() {
         let buffer = Buffer::new(None, "a\n\n\nb\nc\n  hello");
@@ -203,6 +205,7 @@ mod test_line_full {
         );
     }
 
+    #[serial]
     #[test]
     fn still_paste_forward_to_newline_despite_only_one_line_present() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -217,20 +220,15 @@ mod test_line_full {
                     IfCurrentNotFound::LookForward,
                     SelectionMode::LineFull,
                 )),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
+                Editor(Paste),
+                Editor(Paste),
                 Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
             ])
         })
     }
 
+    #[serial]
     #[test]
     fn still_paste_backward_to_newline_despite_only_one_line_present() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -245,16 +243,10 @@ mod test_line_full {
                     IfCurrentNotFound::LookForward,
                     SelectionMode::LineFull,
                 )),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
+                Editor(Copy),
                 Editor(SwapCursor),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                }),
+                Editor(Paste),
+                Editor(Paste),
                 Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
             ])
         })

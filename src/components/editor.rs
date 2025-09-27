@@ -221,19 +221,14 @@ impl Component for Editor {
             MoveSelectionWithPriorChange(movement, prior_change) => {
                 return self.handle_movement_with_prior_change(context, movement, prior_change)
             }
-            Copy {
-                use_system_clipboard,
-            } => return self.copy(use_system_clipboard),
-            ReplaceWithCopiedText {
-                cut,
-                use_system_clipboard,
-            } => return self.replace_with_copied_text(context, cut, use_system_clipboard, 0),
+            Copy => return self.copy(),
+            ReplaceWithCopiedText { cut } => return self.replace_with_copied_text(context, cut, 0),
             SelectAll => return self.select_all(context),
             SetContent(content) => self.set_content(&content, context)?,
             EnableSelectionExtension => self.enable_selection_extension(),
             DisableSelectionExtension => self.disable_selection_extension(),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction, context),
-            Delete => return self.delete(None, context),
+            Delete => return self.delete(context),
             Insert(string) => return self.insert(&string, context),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
@@ -265,9 +260,7 @@ impl Component for Editor {
             SelectLine(movement) => return self.select_line(movement, context),
             Redo => return self.redo(context),
             Change => return self.change(context),
-            ChangeCut {
-                use_system_clipboard,
-            } => return self.change_cut(use_system_clipboard, context),
+            ChangeCut => return self.change_cut(context),
             #[cfg(test)]
             SetRectangle(rectangle) => self.set_rectangle(rectangle, context),
             ScrollPageDown => return self.scroll_page_down(context),
@@ -296,12 +289,8 @@ impl Component for Editor {
             }
             Surround(open, close) => return self.surround(open, close, context),
             EnterReplaceMode => self.enter_replace_mode(),
-            Paste {
-                use_system_clipboard,
-            } => return self.paste(context, use_system_clipboard, true),
-            PasteNoGap {
-                use_system_clipboard,
-            } => return self.paste(context, use_system_clipboard, false),
+            Paste => return self.paste(context, true),
+            PasteNoGap => return self.paste(context, false),
             SwapCursor => self.swap_cursor(context),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
@@ -333,11 +322,11 @@ impl Component for Editor {
             }
             ReplaceWithPreviousCopiedText => {
                 let history_offset = self.copied_text_history_offset.decrement();
-                return self.replace_with_copied_text(context, false, false, history_offset);
+                return self.replace_with_copied_text(context, false, history_offset);
             }
             ReplaceWithNextCopiedText => {
                 let history_offset = self.copied_text_history_offset.increment();
-                return self.replace_with_copied_text(context, false, false, history_offset);
+                return self.replace_with_copied_text(context, false, history_offset);
             }
             MoveToLastChar => return Ok(self.move_to_last_char(context)),
             PipeToShell { command } => return self.pipe_to_shell(command, context),
@@ -1008,16 +997,9 @@ impl Editor {
         Ok(Dispatches::one(self.dispatch_jumps_changed()))
     }
 
-    pub(crate) fn delete(
-        &mut self,
-        use_system_clipboard: Option<bool>,
-        context: &Context,
-    ) -> anyhow::Result<Dispatches> {
-        let copy_dispatches = if let Some(use_system_clipboard) = use_system_clipboard {
-            self.copy(use_system_clipboard)?
-        } else {
-            Default::default()
-        };
+    pub(crate) fn delete(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        // to copy deleted item to clipboard copy_dispatch should be self.copy()?
+        let copy_dispatches: Dispatches = Default::default();
         let direction = self.cursor_direction.reverse();
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
@@ -1164,9 +1146,8 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    pub(crate) fn copy(&mut self, use_system_clipboard: bool) -> anyhow::Result<Dispatches> {
+    pub(crate) fn copy(&mut self) -> anyhow::Result<Dispatches> {
         Ok(Dispatches::one(Dispatch::SetClipboardContent {
-            use_system_clipboard,
             copied_texts: CopiedTexts::new(self.selection_set.map(|selection| {
                 self.buffer()
                     .slice(&selection.extended_range())
@@ -1327,14 +1308,20 @@ impl Editor {
 
     pub(crate) fn paste(
         &mut self,
-        context: &Context,
-        use_system_clipboard: bool,
+        context: &mut Context,
         with_gap: bool,
     ) -> anyhow::Result<Dispatches> {
+        let clipboards_differ: bool = !context.clipboards_synced();
+        let use_system_clipboard = clipboards_differ;
+
         let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0)? else {
             return Ok(Default::default());
         };
         let direction = self.cursor_direction.reverse();
+        // out-of-sync paste should also add the content to clipboard history
+        if clipboards_differ {
+            context.add_clipboard_history(copied_texts.clone());
+        }
 
         self.paste_text(direction, copied_texts, context, with_gap)
     }
@@ -1348,11 +1335,13 @@ impl Editor {
         &mut self,
         context: &Context,
         cut: bool,
-        use_system_clipboard: bool,
         history_offset: isize,
     ) -> anyhow::Result<Dispatches> {
+        // Always use the system clipboard if the content of the system clipboard is no longer the same
+        // with the content of the app clipboard
+        let use_system_clipboard: bool = !context.clipboards_synced();
         let dispatches = if cut {
-            self.copy(use_system_clipboard)?
+            self.copy()?
         } else {
             Default::default()
         };
@@ -1592,14 +1581,8 @@ impl Editor {
             .chain(self.enter_insert_mode(Direction::Start, context)?))
     }
 
-    pub(crate) fn change_cut(
-        &mut self,
-        use_system_clipboard: bool,
-        context: &Context,
-    ) -> anyhow::Result<Dispatches> {
-        Ok(self
-            .copy(use_system_clipboard)?
-            .chain(self.change(context)?))
+    pub(crate) fn change_cut(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        Ok(self.copy()?.chain(self.change(context)?))
     }
 
     pub(crate) fn insert(&mut self, s: &str, context: &Context) -> anyhow::Result<Dispatches> {
@@ -3963,9 +3946,7 @@ pub(crate) enum DispatchEditor {
     /// This is used for initiating modes such as Multicursor and Extend.
     MoveSelectionWithPriorChange(Movement, Option<PriorChange>),
     SwitchViewAlignment,
-    Copy {
-        use_system_clipboard: bool,
-    },
+    Copy,
     GoBack,
     GoForward,
     SelectAll,
@@ -3976,13 +3957,10 @@ pub(crate) enum DispatchEditor {
     EnableSelectionExtension,
     DisableSelectionExtension,
     Change,
-    ChangeCut {
-        use_system_clipboard: bool,
-    },
+    ChangeCut,
     EnterInsertMode(Direction),
     ReplaceWithCopiedText {
         cut: bool,
-        use_system_clipboard: bool,
     },
     ReplaceWithPattern,
     SelectLine(Movement),
@@ -4022,12 +4000,8 @@ pub(crate) enum DispatchEditor {
     ApplySyntaxHighlight,
     ReplaceCurrentSelectionWith(String),
     SelectLineAt(usize),
-    Paste {
-        use_system_clipboard: bool,
-    },
-    PasteNoGap {
-        use_system_clipboard: bool,
-    },
+    Paste,
+    PasteNoGap,
     SwapCursor,
     MoveCharacterBack,
     MoveCharacterForward,

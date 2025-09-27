@@ -809,10 +809,7 @@ impl<T: Frontend> App<T> {
                 .refresh_file_explorer(&self.working_directory, &self.context)?,
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
-                use_system_clipboard,
-            } => self
-                .context
-                .set_clipboard_content(contents, use_system_clipboard)?,
+            } => self.context.set_clipboard_content(contents)?,
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
@@ -921,6 +918,10 @@ impl<T: Frontend> App<T> {
             Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
             Dispatch::OpenSurroundXmlPrompt => self.open_surround_xml_prompt()?,
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
+            #[cfg(test)]
+            Dispatch::SetSystemClipboardHtml { html, alt_text } => {
+                self.set_system_clipboard_html(html, alt_text)?
+            }
         }
         Ok(())
     }
@@ -2605,6 +2606,11 @@ impl<T: Frontend> App<T> {
     ) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
         self.lsp_manager.lsp_server_initialized_args()
     }
+
+    #[cfg(test)]
+    fn set_system_clipboard_html(&self, html: &str, alt_text: &str) -> anyhow::Result<()> {
+        Ok(arboard::Clipboard::new()?.set_html(html, Some(alt_text))?)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2764,7 +2770,6 @@ pub(crate) enum Dispatch {
     RefreshFileExplorer,
     SetClipboardContent {
         copied_texts: CopiedTexts,
-        use_system_clipboard: bool,
     },
     SetGlobalMode(Option<GlobalMode>),
     #[cfg(test)]
@@ -2840,6 +2845,11 @@ pub(crate) enum Dispatch {
     FromHostApp(FromHostApp),
     OpenSurroundXmlPrompt,
     ShowGlobalInfo(Info),
+    #[cfg(test)]
+    SetSystemClipboardHtml {
+        html: &'static str,
+        alt_text: &'static str,
+    },
 }
 
 /// Used to send notify host app about changes
