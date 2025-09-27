@@ -1,3 +1,4 @@
+use anyhow::Context;
 use itertools::Itertools;
 use nonempty::NonEmpty;
 use scraper::{Html, Selector};
@@ -22,7 +23,6 @@ impl CopiedTexts {
         Self { texts }
     }
 
-    #[allow(dead_code)]
     fn join(&self, separator: &str) -> String {
         self.texts.clone().into_iter().join(separator)
     }
@@ -40,54 +40,104 @@ impl CopiedTexts {
         CopiedTexts::new(NonEmpty::singleton(string))
     }
 
-    fn to_clipboard_format(&self) -> String {
-        if self.texts.tail().is_empty() {
-            // Only one element, return it as-is
-            self.texts.head.clone()
-        } else {
-            // Multiple elements (multi-cursor), wrap in HTML format
-            let mut html = String::from(r#"<div source="ki-editor">"#);
-            html.push('\n');
+    fn to_text(&self) -> String {
+        return self.join("\n");
+    }
 
-            for text in &self.texts {
-                html.push_str("<div>");
-                html.push_str(text);
-                html.push_str("</div>");
-                html.push('\n');
+    fn to_html(&self) -> String {
+        // Multiple elements (multi-cursor), wrap in HTML format
+        let html = Xml::Node {
+            tag: "div",
+            attributes: vec![XmlAttribute {
+                key: "source",
+                value: "ki-editor".to_string(),
+            }],
+            children: self
+                .texts
+                .iter()
+                .map(|text| Xml::Node {
+                    tag: "div",
+                    attributes: vec![],
+                    children: vec![Xml::Text(text.clone())],
+                })
+                .collect(),
+        };
+        html.stringify()
+    }
+}
+
+enum Xml {
+    Node {
+        tag: &'static str,
+        attributes: Vec<XmlAttribute>,
+        children: Vec<Xml>,
+    },
+    Text(String),
+}
+impl Xml {
+    fn stringify(&self) -> String {
+        match self {
+            Xml::Node {
+                tag,
+                attributes,
+                children,
+            } => {
+                let attributes = attributes
+                    .iter()
+                    .map(|attribute| attribute.stringify())
+                    .join(" ");
+                let children = children.iter().map(|child| child.stringify()).join("\n");
+                format!("<{tag} {attributes}>{children}</{tag}>",)
             }
-
-            html.push_str("</div>");
-            html
+            Xml::Text(text) => escape_xml_text(text),
         }
     }
 }
 
-impl From<&str> for CopiedTexts {
-    fn from(text: &str) -> Self {
-        let html_doc = Html::parse_document(text);
-        let ki_selector = Selector::parse("div[source='ki-editor'] div");
+struct XmlAttribute {
+    key: &'static str,
+    value: String,
+}
+impl XmlAttribute {
+    fn stringify(&self) -> String {
+        format!("{}=\"{}\"", self.key, escape_xml_attr(&self.value))
+    }
+}
 
-        match ki_selector {
-            Ok(ki_selector) => {
-                let texts: Vec<String> = html_doc
-                    .select(&ki_selector)
-                    .filter_map(|element| {
-                        let text = element.text().collect::<String>();
-                        if text.is_empty() {
-                            None
-                        } else {
-                            Some(text.to_string())
-                        }
-                    })
-                    .collect();
+fn escape_xml_text(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
 
-                CopiedTexts::new(
-                    NonEmpty::from_vec(texts)
-                        .unwrap_or_else(|| NonEmpty::singleton(text.to_string())),
-                )
-            }
-            Err(_) => CopiedTexts::new(NonEmpty::singleton(text.to_string())),
-        }
+fn escape_xml_attr(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+impl CopiedTexts {
+    fn from_html(html: &str) -> anyhow::Result<Self> {
+        let html_doc = Html::parse_document(html);
+        let ki_selector = Selector::parse("div[source='ki-editor'] div")
+            .map_err(|err| anyhow::anyhow!("{err}"))?;
+
+        let texts: Vec<String> = html_doc
+            .select(&ki_selector)
+            .filter_map(|element| {
+                let text = element.text().collect::<String>();
+                if text.is_empty() {
+                    None
+                } else {
+                    Some(text.to_string())
+                }
+            })
+            .collect();
+
+        Ok(CopiedTexts::new(NonEmpty::from_vec(texts).ok_or(
+            anyhow::anyhow!("CopiedTexts::from_html: texts is empty"),
+        )?))
     }
 }
 
@@ -103,16 +153,27 @@ impl Clipboard {
     }
 
     pub(crate) fn get_from_system_clipboard(&self) -> anyhow::Result<CopiedTexts> {
-        Ok(CopiedTexts::from(
-            arboard::Clipboard::new()?.get_text()?.as_str(),
-        ))
+        // Try to parse the HTML as a Ki-injected HTML
+        let mut clipboard = arboard::Clipboard::new()?;
+        clipboard
+            .get()
+            .html()
+            .map_err(|err| anyhow::anyhow!("{err}"))
+            .and_then(|html| CopiedTexts::from_html(html.as_str()))
+            .or_else(|_| {
+                Ok(CopiedTexts::new(NonEmpty::new(
+                    clipboard.get().text().context("arboard::Get::text")?,
+                )))
+            })
     }
 
     pub(crate) fn set(&mut self, copied_texts: CopiedTexts) -> anyhow::Result<()> {
         self.history.add(copied_texts.clone());
         arboard::Clipboard::new()
-            .and_then(|mut clipboard| clipboard.set_text(copied_texts.to_clipboard_format()))
-            .or_else(|_| osc52::copy_to_clipboard(&copied_texts.to_clipboard_format()))?;
+            .and_then(|mut clipboard| {
+                clipboard.set_html(copied_texts.to_html(), Some(copied_texts.to_text()))
+            })
+            .or_else(|_| osc52::copy_to_clipboard(&copied_texts.to_text()))?;
         Ok(())
     }
 

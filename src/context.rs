@@ -112,12 +112,18 @@ impl Context {
         }
     }
 
-    /// checks if the contents in both clipboards is same
-    pub(crate) fn clipboards_synced(&self) -> anyhow::Result<bool> {
+    /// Checks if the contents in both the system clipboard and the app clipboard is the same
+    pub(crate) fn clipboards_synced(&self) -> bool {
         let history_offset = 0;
-        let app_cb_content = self.clipboard.get(history_offset);
-        let sys_cb_content = self.clipboard.get_from_system_clipboard()?;
-        Ok(app_cb_content.clone() == Some(sys_cb_content.clone()))
+        let Some(app_clipboard_content) = self.clipboard.get(history_offset) else {
+            return false;
+        };
+
+        let Some(system_clipboard_content) = self.clipboard.get_from_system_clipboard().ok() else {
+            return false;
+        };
+
+        app_clipboard_content == system_clipboard_content
     }
 
     pub(crate) fn add_clipboard_history(&mut self, item: CopiedTexts) {

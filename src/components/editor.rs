@@ -1311,7 +1311,7 @@ impl Editor {
         context: &mut Context,
         with_gap: bool,
     ) -> anyhow::Result<Dispatches> {
-        let clipboards_differ: bool = !context.clipboards_synced().unwrap();
+        let clipboards_differ: bool = !context.clipboards_synced();
         let use_system_clipboard = clipboards_differ;
 
         let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0)? else {
@@ -1337,7 +1337,9 @@ impl Editor {
         cut: bool,
         history_offset: isize,
     ) -> anyhow::Result<Dispatches> {
-        let use_system_clipboard: bool = !context.clipboards_synced().unwrap();
+        // Always use the system clipboard if the content of the system clipboard is no longer the same
+        // with the content of the app clipboard
+        let use_system_clipboard: bool = !context.clipboards_synced();
         let dispatches = if cut {
             self.copy()?
         } else {

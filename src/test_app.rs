@@ -2487,6 +2487,29 @@ c1 c2 c3 c1
     })
 }
 
+#[test]
+fn pasting_when_clipboard_html_is_set_by_other_app() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                App(Dispatch::SetSystemClipboardHtml {
+                    html: "<div source=\"from Microsoft Word\">hello</div>",
+                    alt_text: "hello",
+                }),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
+                Editor(SetContent("".to_string())),
+                Editor(Paste),
+                Expect(CurrentComponentContent("hello")),
+            ])
+        }
+    })
+}
+
 #[serial]
 #[test]
 fn multi_replace() -> Result<(), anyhow::Error> {
