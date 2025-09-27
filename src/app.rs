@@ -42,6 +42,7 @@ use crate::{
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
     ui_tree::{ComponentKind, KindedComponent},
 };
+use debounce::EventDebouncer;
 use event::event::Event;
 use itertools::{Either, Itertools};
 use name_variant::NamedVariant;
@@ -111,6 +112,7 @@ pub(crate) struct App<T: Frontend> {
     queued_events: Vec<Event>,
 
     nucleo: nucleo::Nucleo<DropdownItem>,
+    last_nucleo_tick: Instant,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
@@ -127,6 +129,8 @@ pub(crate) enum StatusLineComponent {
     KeyboardLayout,
     Reveal,
 }
+
+const FRAME_DURATION: Duration = Duration::from_millis(1000 / 30); // ~33.33ms
 
 impl<T: Frontend> App<T> {
     #[cfg(test)]
@@ -196,6 +200,7 @@ impl<T: Frontend> App<T> {
                 None,
                 2,
             ),
+            last_nucleo_tick: Instant::now(),
         };
         Ok(app)
     }
@@ -232,7 +237,6 @@ impl<T: Frontend> App<T> {
             }
         }
 
-        const FRAME_DURATION: Duration = Duration::from_millis(1000 / 30); // ~33.33ms
         let mut last_render = Instant::now();
 
         self.render()?;
@@ -2667,6 +2671,13 @@ impl<T: Frontend> App<T> {
     }
 
     fn handle_nucleo_updated(&mut self) {
+        // This unblocks the UI thread, but still the latest tick should be ticked,
+        // we need a debounced of some sort
+        if self.last_nucleo_tick.elapsed() < FRAME_DURATION {
+            return;
+        }
+        self.last_nucleo_tick = Instant::now();
+
         self.nucleo.tick(10);
         let snapshot = self.nucleo.snapshot();
         let scroll_offset = 0; // TODO: obtain scroll offset
