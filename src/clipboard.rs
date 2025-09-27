@@ -41,7 +41,7 @@ impl CopiedTexts {
     }
 
     fn to_text(&self) -> String {
-        return self.join("\n");
+        self.join("\n")
     }
 
     fn to_html(&self) -> String {
