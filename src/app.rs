@@ -2078,14 +2078,17 @@ impl<T: Frontend> App<T> {
         }
         if let PromptItems::BackgroundTask(task) = &prompt_config.items {
             match task {
-                    PromptItemsBackgroundTask::NonGitIgnoredFiles => {
-                        self.send_background_task(BackgroundTask::ListFile(ListFileKind::NonGitIgnoredFiles{working_directory:self.context.current_working_directory().clone()}))?
-                    },
-                }
+                PromptItemsBackgroundTask::NonGitIgnoredFiles => self.send_background_task(
+                    BackgroundTask::ListFile(ListFileKind::NonGitIgnoredFiles {
+                        working_directory: self.context.current_working_directory().clone(),
+                    }),
+                )?,
+            }
         }
         let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
-        let (prompt, dispatches) = Prompt::new(prompt_config, history, self.app_message_sender.clone());
+        let (prompt, dispatches) =
+            Prompt::new(prompt_config, history, self.app_message_sender.clone());
 
         self.layout.add_and_focus_prompt(
             ComponentKind::Prompt,
@@ -2215,10 +2218,12 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 on_enter: DispatchPrompt::Null,
-                items: PromptItems::Precomputed(code_actions
-                    .into_iter()
-                    .map(move |code_action| code_action.into())
-                    .collect()),
+                items: PromptItems::Precomputed(
+                    code_actions
+                        .into_iter()
+                        .map(move |code_action| code_action.into())
+                        .collect(),
+                ),
                 title: "Code Actions".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -2678,8 +2683,12 @@ impl<T: Frontend> App<T> {
     fn handle_list_file_entries(&self, path_bufs: Vec<PathBuf>) {
         let component = self.layout.get_current_component();
         let mut component_mut = component.borrow_mut();
-        let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {return};
-        let Some(nucleo) = prompt.nucleo() else {return};
+        let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
+            return;
+        };
+        let Some(nucleo) = prompt.nucleo() else {
+            return;
+        };
         for path_buf in path_bufs {
             let item =
                 DropdownItem::from_path_buf(self.context.current_working_directory(), path_buf);
@@ -2695,9 +2704,13 @@ impl<T: Frontend> App<T> {
         // we need a debounced of some sort
         let component = self.layout.get_current_component();
         let mut component_mut = component.borrow_mut();
-        let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {return};
-        let Some(nucleo) = prompt.nucleo() else {return};
-        
+        let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
+            return;
+        };
+        let Some(nucleo) = prompt.nucleo() else {
+            return;
+        };
+
         nucleo.tick(10);
         let snapshot = nucleo.snapshot();
         let scroll_offset = 0; // TODO: obtain scroll offset
@@ -2708,16 +2721,20 @@ impl<T: Frontend> App<T> {
             .collect_vec();
         prompt.update_items(items);
     }
-    
+
     fn handle_dropdown_filter_updated(&mut self, filter: String) {
         {
-        let component = self.layout.get_current_component();
-        let mut component_mut = component.borrow_mut();
-        let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {return};
-        let Some(nucleo) = prompt.nucleo() else {return};
-        nucleo
-            .pattern
-            .reparse(1, &filter, Default::default(), Default::default(), false);
+            let component = self.layout.get_current_component();
+            let mut component_mut = component.borrow_mut();
+            let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
+                return;
+            };
+            let Some(nucleo) = prompt.nucleo() else {
+                return;
+            };
+            nucleo
+                .pattern
+                .reparse(0, &filter, Default::default(), Default::default(), false);
         }
         self.handle_nucleo_debounced()
     }
