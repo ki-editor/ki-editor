@@ -12,7 +12,7 @@ use crate::{
         editor_keymap_printer::KeymapDisplayOption,
         file_explorer::FileExplorer,
         keymap_legend::{Keymap, KeymapLegendConfig, Keymaps},
-        prompt::{Prompt, PromptConfig, PromptHistoryKey},
+        prompt::{Prompt, PromptConfig, PromptHistoryKey, PromptItems, PromptItemsBackgroundTask},
         suggestive_editor::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
         },
@@ -113,8 +113,7 @@ pub(crate) struct App<T: Frontend> {
     /// is synced between Ki and the host application.
     queued_events: Vec<Event>,
 
-    nucleo: nucleo::Nucleo<DropdownItem>,
-    last_nucleo_tick: Instant,
+    app_message_sender: Sender<AppMessage>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
@@ -196,16 +195,8 @@ impl<T: Frontend> App<T> {
             integration_event_sender,
             last_prompt_config: None,
             queued_events: Vec::new(),
-            nucleo: nucleo::Nucleo::new(
-                nucleo::Config::DEFAULT,
-                Arc::new(move || {
-                    let _ = sender.send(AppMessage::NucleoUpdated);
-                }),
-                None,
-                2,
-            ),
-            last_nucleo_tick: Instant::now(),
             debouncer_sender,
+            app_message_sender: sender,
         };
         Ok(app)
     }
@@ -1037,7 +1028,7 @@ impl<T: Frontend> App<T> {
             PromptConfig {
                 title: "Move to index".to_string(),
                 on_enter: DispatchPrompt::MoveSelectionByIndex,
-                items: vec![],
+                items: PromptItems::None,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
@@ -1052,7 +1043,7 @@ impl<T: Frontend> App<T> {
             PromptConfig {
                 title: "Rename Symbol".to_string(),
                 on_enter: DispatchPrompt::RenameSymbol,
-                items: vec![],
+                items: PromptItems::None,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
@@ -1068,7 +1059,7 @@ impl<T: Frontend> App<T> {
                 title: "Surround selection with XML tag (can be empty for React Fragment)"
                     .to_string(),
                 on_enter: DispatchPrompt::SurroundXmlTag,
-                items: vec![],
+                items: PromptItems::None,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
@@ -1086,7 +1077,7 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 title: format!("{scope:?} search",),
-                items: self.words(),
+                items: PromptItems::Precomputed(self.words()),
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                     scope,
                     if_current_not_found,
@@ -1127,7 +1118,7 @@ impl<T: Frontend> App<T> {
                 PromptConfig {
                     title: "Add path".to_string(),
                     on_enter: DispatchPrompt::AddPath,
-                    items: Vec::new(),
+                    items: PromptItems::None,
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
@@ -1147,7 +1138,7 @@ impl<T: Frontend> App<T> {
                 PromptConfig {
                     title: "Move path".to_string(),
                     on_enter: DispatchPrompt::MovePath { from: path.clone() },
-                    items: Vec::new(),
+                    items: PromptItems::None,
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
@@ -1167,7 +1158,7 @@ impl<T: Frontend> App<T> {
                 PromptConfig {
                     title: format!("Duplicate '{}' to", path.display_absolute()),
                     on_enter: DispatchPrompt::CopyFile { from: path.clone() },
-                    items: Vec::new(),
+                    items: PromptItems::None,
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
@@ -1184,12 +1175,14 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 title: "Symbols".to_string(),
-                items: symbols
-                    .symbols
-                    .clone()
-                    .into_iter()
-                    .map(|symbol| symbol.into())
-                    .collect_vec(),
+                items: PromptItems::Precomputed(
+                    symbols
+                        .symbols
+                        .clone()
+                        .into_iter()
+                        .map(|symbol| symbol.into())
+                        .collect_vec(),
+                ),
                 on_enter: DispatchPrompt::SelectSymbol { symbols },
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -1215,17 +1208,17 @@ impl<T: Frontend> App<T> {
                 on_enter: DispatchPrompt::OpenFile {
                     working_directory: working_directory.clone(),
                 },
-                items: Default::default(),
+                items: PromptItems::BackgroundTask(PromptItemsBackgroundTask::NonGitIgnoredFiles),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
                 prompt_history_key: PromptHistoryKey::OpenFile,
             },
             None,
-        );
+        )?;
         match kind {
             FilePickerKind::NonGitIgnored => self.send_background_task(BackgroundTask::ListFile(
-                ListFileKind::GetNonGitIgnoredFiles { working_directory },
+                ListFileKind::NonGitIgnoredFiles { working_directory },
             )),
             FilePickerKind::GitStatus(diff_mode) => self.send_background_task(
                 BackgroundTask::ListFile(ListFileKind::GetGitStatusFiles {
@@ -1255,7 +1248,7 @@ impl<T: Frontend> App<T> {
             PromptConfig {
                 title: format!("Open file: {title}"),
                 on_enter: DispatchPrompt::OpenFile { working_directory },
-                items,
+                items: PromptItems::Precomputed(items),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
@@ -2083,9 +2076,16 @@ impl<T: Frontend> App<T> {
             self.context
                 .push_history_prompt(prompt_config.prompt_history_key, line)
         }
+        if let PromptItems::BackgroundTask(task) = &prompt_config.items {
+            match task {
+                    PromptItemsBackgroundTask::NonGitIgnoredFiles => {
+                        self.send_background_task(BackgroundTask::ListFile(ListFileKind::NonGitIgnoredFiles{working_directory:self.context.current_working_directory().clone()}))?
+                    },
+                }
+        }
         let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
-        let (prompt, dispatches) = Prompt::new(prompt_config, history);
+        let (prompt, dispatches) = Prompt::new(prompt_config, history, self.app_message_sender.clone());
 
         self.layout.add_and_focus_prompt(
             ComponentKind::Prompt,
@@ -2105,7 +2105,7 @@ impl<T: Frontend> App<T> {
         let history = self.context.get_prompt_history(key);
 
         let items = prompt_config
-            .items
+            .items()
             .iter()
             .map(|item| ki_protocol_types::PromptItem {
                 label: item.display(),
@@ -2215,10 +2215,10 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 on_enter: DispatchPrompt::Null,
-                items: code_actions
+                items: PromptItems::Precomputed(code_actions
                     .into_iter()
                     .map(move |code_action| code_action.into())
-                    .collect(),
+                    .collect()),
                 title: "Code Actions".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -2291,17 +2291,19 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 on_enter: DispatchPrompt::Null,
-                items: crate::themes::theme_descriptor::all()
-                    .into_iter()
-                    .enumerate()
-                    .map(|(index, theme_descriptor)| {
-                        DropdownItem::new(theme_descriptor.name().to_string())
-                            .set_rank(Some(Box::from([index].to_vec())))
-                            .set_dispatches(Dispatches::one(Dispatch::SetThemeFromDescriptor(
-                                theme_descriptor,
-                            )))
-                    })
-                    .collect_vec(),
+                items: PromptItems::Precomputed(
+                    crate::themes::theme_descriptor::all()
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, theme_descriptor)| {
+                            DropdownItem::new(theme_descriptor.name().to_string())
+                                .set_rank(Some(Box::from([index].to_vec())))
+                                .set_dispatches(Dispatches::one(Dispatch::SetThemeFromDescriptor(
+                                    theme_descriptor,
+                                )))
+                        })
+                        .collect_vec(),
+                ),
                 title: "Theme".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -2323,17 +2325,21 @@ impl<T: Frontend> App<T> {
                 } else {
                     DispatchPrompt::Null
                 },
-                items: KeyboardLayoutKind::iter()
-                    .map(|keyboard_layout| {
-                        DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
-                            if embedded {
-                                Dispatches::default()
-                            } else {
-                                Dispatches::one(Dispatch::SetKeyboardLayoutKind(keyboard_layout))
-                            },
-                        )
-                    })
-                    .collect_vec(),
+                items: PromptItems::Precomputed(
+                    KeyboardLayoutKind::iter()
+                        .map(|keyboard_layout| {
+                            DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
+                                if embedded {
+                                    Dispatches::default()
+                                } else {
+                                    Dispatches::one(Dispatch::SetKeyboardLayoutKind(
+                                        keyboard_layout,
+                                    ))
+                                },
+                            )
+                        })
+                        .collect_vec(),
+                ),
                 title: "Keyboard Layout".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -2362,7 +2368,7 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 title: "Pipe to shell".to_string(),
-                items: Default::default(),
+                items: PromptItems::None,
                 on_enter: DispatchPrompt::PipeToShell,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
@@ -2408,7 +2414,7 @@ impl<T: Frontend> App<T> {
                     mode.display()
                 ),
                 on_enter: DispatchPrompt::FilterSelectionMatchingSearch { maintain },
-                items: Vec::new(),
+                items: PromptItems::None,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
@@ -2670,10 +2676,14 @@ impl<T: Frontend> App<T> {
     }
 
     fn handle_list_file_entries(&self, path_bufs: Vec<PathBuf>) {
+        let component = self.layout.get_current_component();
+        let mut component_mut = component.borrow_mut();
+        let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {return};
+        let Some(nucleo) = prompt.nucleo() else {return};
         for path_buf in path_bufs {
             let item =
                 DropdownItem::from_path_buf(self.context.current_working_directory(), path_buf);
-            self.nucleo.injector().push(item, |item, columns| {
+            nucleo.injector().push(item, |item, columns| {
                 columns[0] = item.group().clone().unwrap_or_default().into();
                 columns[1] = item.display().clone().into();
             });
@@ -2683,30 +2693,32 @@ impl<T: Frontend> App<T> {
     fn handle_nucleo_debounced(&mut self) {
         // This unblocks the UI thread, but still the latest tick should be ticked,
         // we need a debounced of some sort
-        if self.last_nucleo_tick.elapsed() < FRAME_DURATION {
-            return;
-        }
-        self.last_nucleo_tick = Instant::now();
-
-        self.nucleo.tick(10);
-        let snapshot = self.nucleo.snapshot();
+        let component = self.layout.get_current_component();
+        let mut component_mut = component.borrow_mut();
+        let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {return};
+        let Some(nucleo) = prompt.nucleo() else {return};
+        
+        nucleo.tick(10);
+        let snapshot = nucleo.snapshot();
         let scroll_offset = 0; // TODO: obtain scroll offset
         let viewport_height = 10; // TODO: obtain viewport height
         let items = snapshot
             .matched_items(0..viewport_height.min(snapshot.matched_item_count()))
             .map(|item| item.data.clone())
             .collect_vec();
+        prompt.update_items(items);
+    }
+    
+    fn handle_dropdown_filter_updated(&mut self, filter: String) {
+        {
         let component = self.layout.get_current_component();
         let mut component_mut = component.borrow_mut();
-        if let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() {
-            prompt.update_items(items);
-        }
-    }
-
-    fn handle_dropdown_filter_updated(&mut self, filter: String) {
-        self.nucleo
+        let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {return};
+        let Some(nucleo) = prompt.nucleo() else {return};
+        nucleo
             .pattern
             .reparse(1, &filter, Default::default(), Default::default(), false);
+        }
         self.handle_nucleo_debounced()
     }
     #[cfg(test)]

@@ -13,7 +13,7 @@ pub(crate) enum BackgroundTask {
 
 #[derive(Debug, Clone)]
 pub(crate) enum ListFileKind {
-    GetNonGitIgnoredFiles {
+    NonGitIgnoredFiles {
         working_directory: CanonicalizedPath,
     },
     GetGitStatusFiles {
@@ -24,7 +24,7 @@ pub(crate) enum ListFileKind {
 impl ListFileKind {
     pub(crate) fn display(&self) -> String {
         match self {
-            ListFileKind::GetNonGitIgnoredFiles { .. } => "Not Git Ignored".to_string(),
+            ListFileKind::NonGitIgnoredFiles { .. } => "Not Git Ignored".to_string(),
             ListFileKind::GetGitStatusFiles { diff_mode, .. } => {
                 format!("Git Status ({})", diff_mode.display())
             }
@@ -84,7 +84,7 @@ pub(crate) fn start_thread(app_message_sender: Sender<AppMessage>) -> Sender<Bac
             match task {
                 BackgroundTask::ListFile(list_file_kind) => {
                     match list_file_kind {
-                        ListFileKind::GetNonGitIgnoredFiles { working_directory } => {
+                        ListFileKind::NonGitIgnoredFiles { working_directory } => {
                             let (path_sender, path_receiver) = std::sync::mpsc::channel();
                             let app_message_sender = app_message_sender.clone();
                             std::thread::spawn(move || {
@@ -128,7 +128,7 @@ fn handle_background_task(task: &BackgroundTask) -> anyhow::Result<BackgroundTas
     match task {
         BackgroundTask::ListFile(kind) => {
             let paths = match kind {
-                ListFileKind::GetNonGitIgnoredFiles { working_directory } => {
+                ListFileKind::NonGitIgnoredFiles { working_directory } => {
                     list::WalkBuilderConfig::non_git_ignored_files(working_directory.clone())?
                 }
                 ListFileKind::GetGitStatusFiles {

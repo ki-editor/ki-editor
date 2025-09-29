@@ -1,9 +1,9 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, sync::mpsc::Sender};
 
 use my_proc_macros::key;
 
 use crate::{
-    app::{Dispatch, DispatchPrompt, Dispatches},
+    app::{AppMessage, Dispatch, DispatchPrompt, Dispatches},
     buffer::Buffer,
     components::editor::DispatchEditor,
     context::Context,
@@ -26,12 +26,13 @@ pub(crate) struct Prompt {
     enter_selects_first_matching_item: bool,
     prompt_history_key: PromptHistoryKey,
     fire_dispatches_on_change: Option<Dispatches>,
+    nucleo: Option<nucleo::Nucleo<DropdownItem>>
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PromptConfig {
     pub(crate) on_enter: DispatchPrompt,
-    pub(crate) items: Vec<DropdownItem>,
+    pub(crate) items: PromptItems,
     pub(crate) title: String,
     pub(crate) enter_selects_first_matching_item: bool,
     pub(crate) leaves_current_line_empty: bool,
@@ -39,6 +40,27 @@ pub(crate) struct PromptConfig {
     /// If defined, the `Dispatches` here is used for undoing the dispatches fired on change.
     pub(crate) fire_dispatches_on_change: Option<Dispatches>,
     pub(crate) prompt_history_key: PromptHistoryKey,
+}
+impl PromptConfig {
+    pub(crate) fn items(&self) -> Vec<DropdownItem> {
+        match &self.items{
+            PromptItems::None => Default::default(),
+            PromptItems::Precomputed(dropdown_items) => dropdown_items.clone(),
+            PromptItems::BackgroundTask{..} => Default::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum PromptItems {
+    None,
+    Precomputed(Vec<DropdownItem>),
+    BackgroundTask(PromptItemsBackgroundTask),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum PromptItemsBackgroundTask {
+    NonGitIgnoredFiles,
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
@@ -64,7 +86,7 @@ pub(crate) enum PromptHistoryKey {
 }
 
 impl Prompt {
-    pub(crate) fn new(config: PromptConfig, history: Vec<String>) -> (Self, Dispatches) {
+    pub(crate) fn new(config: PromptConfig, history: Vec<String>,sender: Sender<AppMessage>) -> (Self, Dispatches) {
         let text = {
             if history.is_empty() {
                 "".to_string()
@@ -102,9 +124,9 @@ impl Prompt {
             )
         };
         // TODO: set cursor to last line
-        editor.set_title(config.title);
+        editor.set_title(config.title.clone());
         editor.set_completion(Completion {
-            items: config.items,
+            items: config.items(),
             trigger_characters: vec![" ".to_string()],
         });
         let dispatches = dispatches.chain(editor.render_completion_dropdown(true));
@@ -114,7 +136,20 @@ impl Prompt {
                 on_enter: config.on_enter,
                 enter_selects_first_matching_item: config.enter_selects_first_matching_item,
                 prompt_history_key: config.prompt_history_key,
-                fire_dispatches_on_change: config.fire_dispatches_on_change,
+                fire_dispatches_on_change:config.fire_dispatches_on_change,
+                nucleo:if let PromptItems::BackgroundTask(_)= config.items
+                {
+                let sender = sender.clone();
+                Some(nucleo::Nucleo::new(
+                    nucleo::Config::DEFAULT,
+                    std::sync::Arc::new(move || {
+                        let _ = sender.send(crate::app::AppMessage::NucleoUpdated);
+                    }),
+                    None,
+                    2,
+                ))
+            }else{None}
+                ,
             },
             dispatches,
         )
@@ -139,6 +174,11 @@ impl Prompt {
 
     pub(crate) fn update_items(&mut self, items: Vec<DropdownItem>) {
         self.editor.update_items(items)
+    }
+
+    pub(crate) fn nucleo(&mut self) -> Option<&mut nucleo::Nucleo<DropdownItem>> {
+        self.nucleo.as_mut()
+        
     }
 }
 
@@ -268,7 +308,7 @@ mod test_prompt {
                         current_line: Some("hello\nworld".to_string()),
                         config: PromptConfig {
                             on_enter: DispatchPrompt::Null,
-                            items: Default::default(),
+                            items: PromptItems::None,
                             title: "".to_string(),
                             enter_selects_first_matching_item: true,
                             leaves_current_line_empty,
@@ -293,7 +333,7 @@ mod test_prompt {
                 current_line: None,
                 config: PromptConfig {
                     on_enter: DispatchPrompt::Null,
-                    items: Default::default(),
+                    items: PromptItems::None,
                     title: "".to_string(),
                     enter_selects_first_matching_item: true,
                     leaves_current_line_empty: true,
@@ -344,7 +384,7 @@ mod test_prompt {
                     current_line: Some("spongebob squarepants".to_string()),
                     config: PromptConfig {
                         on_enter: DispatchPrompt::Null,
-                        items: Default::default(),
+                        items: PromptItems::None,
                         title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
@@ -374,7 +414,7 @@ mod test_prompt {
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::SetContent,
-                        items: Default::default(),
+                        items: PromptItems::None,
                         title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
@@ -405,13 +445,13 @@ mod test_prompt {
                         current_line: None,
                         config: super::PromptConfig {
                             on_enter: DispatchPrompt::SetContent,
-                            items: ["foo".to_string(), "bar".to_string()]
+                            items: PromptItems::Precomputed(["foo".to_string(), "bar".to_string()]
                                 .into_iter()
                                 .map(|str| {
                                     let item: DropdownItem = str.clone().into();
                                     item.set_dispatches(Dispatches::one(ToEditor(SetContent(str))))
                                 })
-                                .collect(),
+                                .collect()),
 
                             title: "".to_string(),
                             enter_selects_first_matching_item,
@@ -444,10 +484,10 @@ mod test_prompt {
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::SetContent,
-                        items: ["foo_bar".to_string()]
+                        items: PromptItems::Precomputed(["foo_bar".to_string()]
                             .into_iter()
                             .map(|item| item.into())
-                            .collect(),
+                            .collect()),
 
                         title: "".to_string(),
                         enter_selects_first_matching_item: true,
@@ -471,7 +511,7 @@ mod test_prompt {
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::Null,
-                        items: [
+                        items: PromptItems::Precomputed([
                             "foo_bar".to_string(),
                             "zazam".to_string(),
                             "boque".to_string(),
@@ -484,7 +524,7 @@ mod test_prompt {
                                 Info::new("".to_string(), content),
                             )))
                         })
-                        .collect(),
+                        .collect()),
 
                         title: "".to_string(),
                         enter_selects_first_matching_item: true,
@@ -515,12 +555,12 @@ mod test_prompt {
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::SetContent,
-                        items: [CompletionItem::from_label(
+                        items: PromptItems::Precomputed([CompletionItem::from_label(
                             "spongebob squarepants".to_string(),
                         )]
                         .into_iter()
                         .map(|item| item.into())
-                        .collect(),
+                        .collect()),
 
                         title: "".to_string(),
                         enter_selects_first_matching_item: true,
@@ -555,10 +595,10 @@ mod test_prompt {
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::SetContent,
-                        items: ["Patrick", "Spongebob", "Squidward"]
+                        items: PromptItems::Precomputed(["Patrick", "Spongebob", "Squidward"]
                             .into_iter()
                             .map(|item| item.to_string().into())
-                            .collect(),
+                            .collect()),
 
                         title: "".to_string(),
                         enter_selects_first_matching_item: true,
