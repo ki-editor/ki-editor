@@ -16,7 +16,7 @@ pub(crate) enum ListFileKind {
     NonGitIgnoredFiles {
         working_directory: CanonicalizedPath,
     },
-    GetGitStatusFiles {
+    GitStatusFiles {
         diff_mode: git::DiffMode,
         working_directory: CanonicalizedPath,
     },
@@ -25,7 +25,7 @@ impl ListFileKind {
     pub(crate) fn display(&self) -> String {
         match self {
             ListFileKind::NonGitIgnoredFiles { .. } => "Not Git Ignored".to_string(),
-            ListFileKind::GetGitStatusFiles { diff_mode, .. } => {
+            ListFileKind::GitStatusFiles { diff_mode, .. } => {
                 format!("Git Status ({})", diff_mode.display())
             }
         }
@@ -88,30 +88,19 @@ pub(crate) fn start_thread(app_message_sender: Sender<AppMessage>) -> Sender<Bac
                             let (path_sender, path_receiver) = std::sync::mpsc::channel();
                             let app_message_sender = app_message_sender.clone();
                             std::thread::spawn(move || {
-                                let mut paths: Vec<PathBuf> = Default::default();
                                 while let Ok(path) = path_receiver.recv() {
-                                    if paths.len() < 100 {
-                                        paths.push(path)
-                                    } else {
-                                        let paths = std::mem::take(&mut paths);
-                                        if app_message_sender
-                                            .send(AppMessage::ListFileEntries(paths))
-                                            .is_err()
-                                        {
-                                            break; // Callback receiver dropped
-                                        }
+                                    if app_message_sender
+                                        .send(AppMessage::ListFileEntry(path))
+                                        .is_err()
+                                    {
+                                        break; // Callback receiver dropped
                                     }
-                                }
-                                // Send any remaining paths
-                                if !paths.is_empty() {
-                                    let _ =
-                                        app_message_sender.send(AppMessage::ListFileEntries(paths));
                                 }
                             });
                             list::WalkBuilderConfig::new(working_directory.to_path_buf().clone())
                                 .stream(path_sender.clone());
                         }
-                        ListFileKind::GetGitStatusFiles {
+                        ListFileKind::GitStatusFiles {
                             diff_mode,
                             working_directory,
                         } => {}
@@ -131,7 +120,7 @@ fn handle_background_task(task: &BackgroundTask) -> anyhow::Result<BackgroundTas
                 ListFileKind::NonGitIgnoredFiles { working_directory } => {
                     list::WalkBuilderConfig::non_git_ignored_files(working_directory.clone())?
                 }
-                ListFileKind::GetGitStatusFiles {
+                ListFileKind::GitStatusFiles {
                     diff_mode,
                     working_directory,
                 } => git::GitRepo::try_from(working_directory)?

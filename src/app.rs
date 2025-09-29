@@ -219,6 +219,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
+    /// This is the main event loop.
     pub(crate) fn run(
         mut self,
         entry_path: Option<CanonicalizedPath>,
@@ -233,11 +234,10 @@ impl<T: Frontend> App<T> {
             }
         }
 
-        let mut last_render = Instant::now();
-
         self.render()?;
 
         while let Ok(message) = self.receiver.recv() {
+            let should_rerender = message.should_trigger_rerender();
             self.process_message(message).unwrap_or_else(|e| {
                 self.show_global_info(Info::new("ERROR".to_string(), e.to_string()));
                 false
@@ -247,10 +247,8 @@ impl<T: Frontend> App<T> {
                 break;
             }
 
-            // Only render if enough time has passed
-            if last_render.elapsed() >= FRAME_DURATION {
+            if should_rerender {
                 self.render()?;
-                last_render = Instant::now();
             }
         }
 
@@ -283,8 +281,8 @@ impl<T: Frontend> App<T> {
                 self.handle_background_task_result(response)?;
                 Ok(false)
             }
-            AppMessage::ListFileEntries(path_bufs) => {
-                self.handle_list_file_entries(path_bufs);
+            AppMessage::ListFileEntry(path_buf) => {
+                self.handle_list_file_entry(path_buf);
                 Ok(false)
             }
             AppMessage::NucleoUpdated => {
@@ -1208,34 +1206,35 @@ impl<T: Frontend> App<T> {
                 on_enter: DispatchPrompt::OpenFile {
                     working_directory: working_directory.clone(),
                 },
-                items: PromptItems::BackgroundTask(PromptItemsBackgroundTask::NonGitIgnoredFiles),
+                items: match kind {
+                    FilePickerKind::NonGitIgnored => {
+                        PromptItems::BackgroundTask(PromptItemsBackgroundTask::NonGitIgnoredFiles)
+                    }
+                    FilePickerKind::GitStatus(diff_mode) => PromptItems::BackgroundTask(
+                        PromptItemsBackgroundTask::GitStatusFiles(diff_mode),
+                    ),
+                    FilePickerKind::Opened => {
+                        let paths = self
+                            .layout
+                            .get_opened_files()
+                            .into_iter()
+                            .map(|path| {
+                                DropdownItem::from_path_buf(
+                                    &working_directory,
+                                    path.into_path_buf(),
+                                )
+                            })
+                            .collect_vec();
+                        PromptItems::Precomputed(paths)
+                    }
+                },
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
                 prompt_history_key: PromptHistoryKey::OpenFile,
             },
             None,
-        )?;
-        match kind {
-            FilePickerKind::NonGitIgnored => self.send_background_task(BackgroundTask::ListFile(
-                ListFileKind::NonGitIgnoredFiles { working_directory },
-            )),
-            FilePickerKind::GitStatus(diff_mode) => self.send_background_task(
-                BackgroundTask::ListFile(ListFileKind::GetGitStatusFiles {
-                    diff_mode,
-                    working_directory,
-                }),
-            ),
-            FilePickerKind::Opened => {
-                let paths = self
-                    .layout
-                    .get_opened_files()
-                    .into_iter()
-                    .map(|path| path.into_path_buf())
-                    .collect_vec();
-                self.show_file_picker("Opened".to_string(), paths)
-            }
-        }
+        )
     }
 
     fn show_file_picker(&mut self, title: String, paths: Vec<PathBuf>) -> anyhow::Result<()> {
@@ -2077,13 +2076,20 @@ impl<T: Frontend> App<T> {
                 .push_history_prompt(prompt_config.prompt_history_key, line)
         }
         if let PromptItems::BackgroundTask(task) = &prompt_config.items {
-            match task {
-                PromptItemsBackgroundTask::NonGitIgnoredFiles => self.send_background_task(
+            let background_task = match task {
+                PromptItemsBackgroundTask::NonGitIgnoredFiles => {
                     BackgroundTask::ListFile(ListFileKind::NonGitIgnoredFiles {
                         working_directory: self.context.current_working_directory().clone(),
-                    }),
-                )?,
-            }
+                    })
+                }
+                PromptItemsBackgroundTask::GitStatusFiles(diff_mode) => {
+                    BackgroundTask::ListFile(ListFileKind::GitStatusFiles {
+                        diff_mode: diff_mode.clone(),
+                        working_directory: self.context.current_working_directory().clone(),
+                    })
+                }
+            };
+            self.send_background_task(background_task)?
         }
         let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
@@ -2680,7 +2686,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn handle_list_file_entries(&self, path_bufs: Vec<PathBuf>) {
+    fn handle_list_file_entry(&self, path_buf: PathBuf) {
         let component = self.layout.get_current_component();
         let mut component_mut = component.borrow_mut();
         let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
@@ -2689,14 +2695,12 @@ impl<T: Frontend> App<T> {
         let Some(nucleo) = prompt.nucleo() else {
             return;
         };
-        for path_buf in path_bufs {
-            let item =
-                DropdownItem::from_path_buf(self.context.current_working_directory(), path_buf);
-            nucleo.injector().push(item, |item, columns| {
-                columns[0] = item.group().clone().unwrap_or_default().into();
-                columns[1] = item.display().clone().into();
-            });
-        }
+        let item = DropdownItem::from_path_buf(self.context.current_working_directory(), path_buf);
+        nucleo.injector().push(item, |item, columns| {
+            let group = item.group().clone().unwrap_or_default();
+            let display = item.display().clone();
+            columns[0] = format!("{group} {display}").into();
+        });
     }
 
     fn handle_nucleo_debounced(&mut self) {
@@ -3106,9 +3110,21 @@ pub(crate) enum AppMessage {
     // New variant for external dispatches
     ExternalDispatch(Dispatch),
     BackgroundTaskResult(BackgroundTaskResult),
-    ListFileEntries(Vec<PathBuf>),
+    ListFileEntry(PathBuf),
     NucleoUpdated,
     NucleoTickDebounced,
+}
+impl AppMessage {
+    /// These are AppMessages that are
+    /// 1. Do not need to rerender the app
+    /// 2. Fired at an unholy rate
+    fn should_trigger_rerender(&self) -> bool {
+        match self {
+            AppMessage::NucleoUpdated => false,
+            AppMessage::ListFileEntry(_) => false,
+            _ => true,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
