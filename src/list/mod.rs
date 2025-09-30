@@ -3,7 +3,6 @@ use std::{path::PathBuf, sync::Arc};
 use crossbeam::channel::Sender;
 use globset::Glob;
 use ignore::{WalkBuilder, WalkState};
-use itertools::Itertools;
 
 use crate::{buffer::Buffer, quickfix_list::Location, selection_mode::ByteRange};
 

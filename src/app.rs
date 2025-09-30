@@ -2004,7 +2004,6 @@ impl<T: Frontend> App<T> {
         self.layout.completion_dropdown_is_open()
     }
 
-    #[cfg(test)]
     pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout.current_completion_dropdown()
     }
@@ -2041,8 +2040,9 @@ impl<T: Frontend> App<T> {
         if let PromptItems::BackgroundTask(task) = &prompt_config.items {
             match task {
                 PromptItemsBackgroundTask::NonGitIgnoredFiles => {
-                    let nucleo = prompt.nucleo().unwrap();
-                    self.get_non_git_ignored_files(nucleo.injector());
+                    if let Some(nucleo) = prompt.nucleo() {
+                        self.get_non_git_ignored_files(nucleo.injector())
+                    }
                 }
             };
         }
@@ -2643,16 +2643,27 @@ impl<T: Frontend> App<T> {
             let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
                 return Ok(());
             };
+
+            let viewport_height: u32 = self
+                .layout
+                .current_completion_dropdown()
+                .map(|component| component.borrow().rectangle().height)
+                .unwrap_or(10)
+                .into();
+
             let Some(nucleo) = prompt.nucleo() else {
                 return Ok(());
             };
 
             nucleo.tick(10);
             let snapshot = nucleo.snapshot();
-            let scroll_offset = 0; // TODO: obtain scroll offset
-            let viewport_height = 10; // TODO: obtain viewport height
+
+            // TODO: we should pass in the scroll_offset of the completion menu
+            //   we'll leave it as 0 for now since it is already working well
+            let scroll_offset = 0;
+
             let items = snapshot
-                .matched_items(0..viewport_height.min(snapshot.matched_item_count()))
+                .matched_items(scroll_offset..viewport_height.min(snapshot.matched_item_count()))
                 .map(|item| item.data.clone())
                 .collect_vec();
 
