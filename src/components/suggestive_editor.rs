@@ -318,7 +318,7 @@ mod test_suggestive_editor {
     use lsp_types::{CompletionItemKind, CompletionTextEdit, TextEdit};
     use my_proc_macros::{key, keys};
     use shared::canonicalized_path::CanonicalizedPath;
-    
+
     use std::{cell::RefCell, rc::Rc};
     use Dispatch::*;
 

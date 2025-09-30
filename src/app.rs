@@ -2645,7 +2645,6 @@ impl<T: Frontend> App<T> {
             };
 
             let viewport_height: u32 = self
-                .layout
                 .current_completion_dropdown()
                 .map(|component| component.borrow().rectangle().height)
                 .unwrap_or(10)
