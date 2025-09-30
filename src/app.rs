@@ -1,5 +1,5 @@
 use crate::{
-    background_worker::{BackgroundTask, ListFileKind},
+    background_worker::BackgroundTask,
     buffer::{Buffer, BufferOwner},
     clipboard::CopiedTexts,
     components::{
@@ -59,7 +59,7 @@ use std::{
         Mutex,
     },
 };
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
@@ -947,7 +947,9 @@ impl<T: Frontend> App<T> {
             Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
             Dispatch::OpenSurroundXmlPrompt => self.open_surround_xml_prompt()?,
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
-            Dispatch::DropdownFilterUpdated(filter) => self.handle_dropdown_filter_updated(filter),
+            Dispatch::DropdownFilterUpdated(filter) => {
+                self.handle_dropdown_filter_updated(filter)?
+            }
             #[cfg(test)]
             Dispatch::SetSystemClipboardHtml { html, alt_text } => {
                 self.set_system_clipboard_html(html, alt_text)?
@@ -2074,7 +2076,7 @@ impl<T: Frontend> App<T> {
         );
 
         if let PromptItems::BackgroundTask(task) = &prompt_config.items {
-            let background_task = match task {
+            match task {
                 PromptItemsBackgroundTask::NonGitIgnoredFiles => {
                     let nucleo = prompt.nucleo().unwrap();
                     self.search_file(nucleo.injector())?;
@@ -2691,38 +2693,41 @@ impl<T: Frontend> App<T> {
         });
     }
 
-    fn handle_nucleo_debounced(&mut self) {
-        // This unblocks the UI thread, but still the latest tick should be ticked,
-        // we need a debounced of some sort
-        let component = self.layout.get_current_component();
-        let mut component_mut = component.borrow_mut();
-        let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
-            return;
-        };
-        let Some(nucleo) = prompt.nucleo() else {
-            return;
-        };
+    fn handle_nucleo_debounced(&mut self) -> Result<(), anyhow::Error> {
+        let dispatches = {
+            let component = self.layout.get_current_component();
+            let mut component_mut = component.borrow_mut();
+            let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
+                return Ok(());
+            };
+            let Some(nucleo) = prompt.nucleo() else {
+                return Ok(());
+            };
 
-        nucleo.tick(10);
-        let snapshot = nucleo.snapshot();
-        let scroll_offset = 0; // TODO: obtain scroll offset
-        let viewport_height = 10; // TODO: obtain viewport height
-        let items = snapshot
-            .matched_items(0..viewport_height.min(snapshot.matched_item_count()))
-            .map(|item| item.data.clone())
-            .collect_vec();
-        prompt.update_items(items);
+            nucleo.tick(10);
+            let snapshot = nucleo.snapshot();
+            let scroll_offset = 0; // TODO: obtain scroll offset
+            let viewport_height = 10; // TODO: obtain viewport height
+            let items = snapshot
+                .matched_items(0..viewport_height.min(snapshot.matched_item_count()))
+                .map(|item| item.data.clone())
+                .collect_vec();
+
+            prompt.update_items(items);
+            prompt.render_completion_dropdown()
+        };
+        self.handle_dispatches(dispatches)
     }
 
-    fn handle_dropdown_filter_updated(&mut self, filter: String) {
+    fn handle_dropdown_filter_updated(&mut self, filter: String) -> anyhow::Result<()> {
         {
             let component = self.layout.get_current_component();
             let mut component_mut = component.borrow_mut();
             let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
-                return;
+                return Ok(());
             };
             let Some(nucleo) = prompt.nucleo() else {
-                return;
+                return Ok(());
             };
             nucleo
                 .pattern

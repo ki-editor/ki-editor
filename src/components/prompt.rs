@@ -182,6 +182,10 @@ impl Prompt {
         self.editor.update_items(items)
     }
 
+    pub(crate) fn render_completion_dropdown(&self) -> Dispatches {
+        self.editor.render_completion_dropdown(true)
+    }
+
     pub(crate) fn nucleo(&mut self) -> Option<&mut nucleo::Nucleo<DropdownItem>> {
         self.nucleo.as_mut()
     }

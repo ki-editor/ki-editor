@@ -1,7 +1,6 @@
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 
-use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{app::AppMessage, git, list};
