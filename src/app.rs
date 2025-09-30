@@ -2031,8 +2031,7 @@ impl<T: Frontend> App<T> {
         }
         let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
-
-        let (prompt, dispatches) = Prompt::new(prompt_config.clone(), history);
+        let (prompt, dispatches) = Prompt::new(prompt_config, history);
 
         self.layout.add_and_focus_prompt(
             ComponentKind::Prompt,
