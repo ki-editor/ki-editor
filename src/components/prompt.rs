@@ -134,10 +134,6 @@ impl Prompt {
             trigger_characters: vec![" ".to_string()],
         });
         let dispatches = dispatches.chain(editor.render_completion_dropdown(true));
-        let debounce = crate::debouncer::start_thread(
-            on_nucleo_tick_debounced,
-            Duration::from_millis(1000 / 30), // 30 FPS
-        );
         (
             Prompt {
                 editor,
@@ -146,6 +142,10 @@ impl Prompt {
                 prompt_history_key: config.prompt_history_key,
                 fire_dispatches_on_change: config.fire_dispatches_on_change,
                 nucleo: if let PromptItems::BackgroundTask(_) = config.items {
+                    let debounce = crate::debouncer::start_thread(
+                        on_nucleo_tick_debounced,
+                        Duration::from_millis(1000 / 30), // 30 FPS
+                    );
                     Some(nucleo::Nucleo::new(
                         nucleo::Config::DEFAULT,
                         debounce,
