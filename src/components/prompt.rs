@@ -3,11 +3,11 @@ use std::{cell::RefCell, rc::Rc, sync::mpsc::Sender};
 use my_proc_macros::key;
 
 use crate::{
-    app::{AppMessage, Dispatch, DispatchPrompt, Dispatches},
+    app::{Dispatch, DispatchPrompt, Dispatches},
     buffer::Buffer,
     components::editor::DispatchEditor,
     context::Context,
-    git::DiffMode,
+    debouncer::DebounceMessage,
     lsp::completion::Completion,
     selection::SelectionMode,
 };
@@ -62,7 +62,6 @@ pub(crate) enum PromptItems {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum PromptItemsBackgroundTask {
     NonGitIgnoredFiles,
-    GitStatusFiles(DiffMode),
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
@@ -91,7 +90,7 @@ impl Prompt {
     pub(crate) fn new(
         config: PromptConfig,
         history: Vec<String>,
-        sender: Sender<AppMessage>,
+        sender: Sender<DebounceMessage>,
     ) -> (Self, Dispatches) {
         let text = {
             if history.is_empty() {
@@ -148,10 +147,10 @@ impl Prompt {
                     Some(nucleo::Nucleo::new(
                         nucleo::Config::DEFAULT,
                         std::sync::Arc::new(move || {
-                            let _ = sender.send(crate::app::AppMessage::NucleoUpdated);
+                            let _ = sender.send(DebounceMessage::NucleoTick);
                         }),
                         None,
-                        2,
+                        1,
                     ))
                 } else {
                     None

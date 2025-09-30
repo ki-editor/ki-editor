@@ -54,16 +54,14 @@ impl EmbeddedApp {
         let (integration_event_sender, integration_event_receiver) =
             mpsc::channel::<crate::integration_event::IntegrationEvent>();
 
-        let background_task_sender =
-            crate::background_worker::start_thread(real_app_sender.clone());
+        let debounce_sender = crate::debouncer::start_thread(real_app_sender.clone());
 
         let core_app = App::from_channel(
             frontend.clone(),
             resolved_wd,
             (real_app_sender.clone(), mpsc::channel().1),
             None,
-            Some(background_task_sender),
-            None,
+            debounce_sender,
             status_line_components.clone(),
             Some(integration_event_sender),
             false,
