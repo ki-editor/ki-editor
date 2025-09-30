@@ -81,7 +81,8 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
     let app = App::from_channel(
         Rc::new(Mutex::new(Crossterm::new()?)),
         config.working_directory.unwrap_or(".".try_into()?),
-        (sender, receiver),
+        sender,
+        receiver,
         Some(syntax_highlighter_sender),
         [
             StatusLineComponent::Mode,

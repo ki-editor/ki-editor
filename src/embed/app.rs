@@ -57,7 +57,8 @@ impl EmbeddedApp {
         let core_app = App::from_channel(
             frontend.clone(),
             resolved_wd,
-            (real_app_sender.clone(), mpsc::channel().1),
+            real_app_sender.clone(),
+            mpsc::channel().1,
             None,
             status_line_components.clone(),
             Some(integration_event_sender),

@@ -131,7 +131,8 @@ impl<T: Frontend> App<T> {
         Self::from_channel(
             frontend,
             working_directory,
-            (sender, receiver),
+            sender,
+            receiver,
             None, // No syntax highlight request sender
             status_line_components,
             None, // No integration event sender
@@ -149,7 +150,8 @@ impl<T: Frontend> App<T> {
     pub(crate) fn from_channel(
         frontend: Rc<Mutex<T>>,
         working_directory: CanonicalizedPath,
-        (sender, receiver): (Sender<AppMessage>, Receiver<AppMessage>),
+        sender: Sender<AppMessage>,
+        receiver: Receiver<AppMessage>,
         syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
         status_line_components: Vec<StatusLineComponent>,
         integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
@@ -162,7 +164,7 @@ impl<T: Frontend> App<T> {
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             enable_lsp,
-            sender: sender.clone(),
+            sender,
             layout: Layout::new(
                 dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT),
                 &working_directory,
@@ -1167,9 +1169,15 @@ impl<T: Frontend> App<T> {
                     working_directory: working_directory.clone(),
                 },
                 items: match kind {
-                    FilePickerKind::NonGitIgnored => {
-                        PromptItems::BackgroundTask(PromptItemsBackgroundTask::NonGitIgnoredFiles)
-                    }
+                    FilePickerKind::NonGitIgnored => PromptItems::BackgroundTask {
+                        task: PromptItemsBackgroundTask::NonGitIgnoredFiles { working_directory },
+                        on_nucleo_tick_debounced: {
+                            let sender = self.sender.clone();
+                            Arc::new(move || {
+                                let _ = sender.send(AppMessage::NucleoTickDebounced);
+                            })
+                        },
+                    },
                     FilePickerKind::GitStatus(diff_mode) => PromptItems::Precomputed(
                         git::GitRepo::try_from(&self.working_directory)?
                             .diff_entries(diff_mode)?
@@ -2023,22 +2031,8 @@ impl<T: Frontend> App<T> {
         }
         let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
-        let (mut prompt, dispatches) = Prompt::new(prompt_config.clone(), history, {
-            let sender = self.sender.clone();
-            Arc::new(move || {
-                let _ = sender.send(AppMessage::NucleoTickDebounced);
-            })
-        });
 
-        if let PromptItems::BackgroundTask(task) = &prompt_config.items {
-            match task {
-                PromptItemsBackgroundTask::NonGitIgnoredFiles => {
-                    if let Some(nucleo) = prompt.nucleo() {
-                        self.get_non_git_ignored_files(nucleo.injector())
-                    }
-                }
-            };
-        }
+        let (prompt, dispatches) = Prompt::new(prompt_config.clone(), history);
 
         self.layout.add_and_focus_prompt(
             ComponentKind::Prompt,
@@ -2046,23 +2040,6 @@ impl<T: Frontend> App<T> {
             &self.context,
         );
         self.handle_dispatches(dispatches)
-    }
-
-    fn get_non_git_ignored_files(&self, injector: nucleo::Injector<DropdownItem>) {
-        let working_directory = self.context.current_working_directory().clone();
-        std::thread::spawn(|| {
-            list::WalkBuilderConfig::get_non_git_ignored_files(
-                working_directory.to_path_buf().clone(),
-                Arc::new(move |path_buf| {
-                    let item = DropdownItem::from_path_buf(&working_directory, path_buf);
-                    injector.push(item, |item, columns| {
-                        let group = item.group().clone().unwrap_or_default();
-                        let display = item.display().clone();
-                        columns[0] = format!("{group} {display}").into();
-                    });
-                }),
-            )
-        });
     }
 
     fn open_prompt_embedded(
@@ -2643,24 +2620,7 @@ impl<T: Frontend> App<T> {
                 .unwrap_or(10)
                 .into();
 
-            let Some(nucleo) = prompt.nucleo() else {
-                return Ok(());
-            };
-
-            nucleo.tick(10);
-            let snapshot = nucleo.snapshot();
-
-            // TODO: we should pass in the scroll_offset of the completion menu
-            //   we'll leave it as 0 for now since it is already working well
-            let scroll_offset = 0;
-
-            let items = snapshot
-                .matched_items(scroll_offset..viewport_height.min(snapshot.matched_item_count()))
-                .map(|item| item.data.clone())
-                .collect_vec();
-
-            prompt.update_items(items);
-            prompt.render_completion_dropdown()
+            prompt.handle_nucleo_updated(viewport_height)
         };
         self.handle_dispatches(dispatches)
     }
@@ -2672,15 +2632,11 @@ impl<T: Frontend> App<T> {
             let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
                 return Ok(());
             };
-            let Some(nucleo) = prompt.nucleo() else {
-                return Ok(());
-            };
-            nucleo
-                .pattern
-                .reparse(0, &filter, Default::default(), Default::default(), false);
+            prompt.reparse_pattern(&filter);
         }
         self.handle_nucleo_debounced()
     }
+
     #[cfg(test)]
     fn set_system_clipboard_html(&self, html: &str, alt_text: &str) -> anyhow::Result<()> {
         Ok(arboard::Clipboard::new()?.set_html(html, Some(alt_text))?)
