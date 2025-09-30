@@ -1,5 +1,5 @@
+use std::sync::mpsc;
 use std::sync::mpsc::Sender;
-use std::{path::PathBuf, sync::mpsc};
 
 use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
@@ -32,50 +32,6 @@ impl ListFileKind {
     }
 }
 
-#[derive(Debug)]
-pub(crate) enum BackgroundTaskResult {
-    Error {
-        task: BackgroundTask,
-        error: anyhow::Error,
-    },
-    Ok(BackgroundTaskBody),
-}
-
-#[derive(Debug)]
-pub(crate) enum BackgroundTaskBody {
-    ListFiles {
-        paths: Vec<std::path::PathBuf>,
-        kind: ListFileKind,
-    },
-}
-
-pub(crate) fn start_thread_old(callback: Sender<AppMessage>) -> Sender<BackgroundTask> {
-    let (sender, receiver) = mpsc::channel::<BackgroundTask>();
-    std::thread::spawn(move || {
-        while let Ok(task) = receiver.recv() {
-            let result = handle_background_task(&task);
-            match result {
-                Ok(body) => {
-                    let _ = callback
-                        .send(AppMessage::BackgroundTaskResult(BackgroundTaskResult::Ok(
-                            body,
-                        )))
-                        .map(|err| log::error!("background_worker::start_thread::Ok: {err:?}"));
-                }
-                Err(error) => {
-                    let _ = callback
-                        .send(AppMessage::BackgroundTaskResult(
-                            BackgroundTaskResult::Error { task, error },
-                        ))
-                        .map(|err| log::error!("background_worker::start_thread::Err: {err:?}"));
-                }
-            };
-        }
-    });
-
-    sender
-}
-
 pub(crate) fn start_thread(app_message_sender: Sender<AppMessage>) -> Sender<BackgroundTask> {
     let (sender, receiver) = mpsc::channel::<BackgroundTask>();
 
@@ -103,7 +59,7 @@ pub(crate) fn start_thread(app_message_sender: Sender<AppMessage>) -> Sender<Bac
                         ListFileKind::GitStatusFiles {
                             diff_mode,
                             working_directory,
-                        } => {}
+                        } => (),
                     };
                 }
             }
@@ -111,28 +67,4 @@ pub(crate) fn start_thread(app_message_sender: Sender<AppMessage>) -> Sender<Bac
     });
 
     sender
-}
-
-fn handle_background_task(task: &BackgroundTask) -> anyhow::Result<BackgroundTaskBody> {
-    match task {
-        BackgroundTask::ListFile(kind) => {
-            let paths = match kind {
-                ListFileKind::NonGitIgnoredFiles { working_directory } => {
-                    list::WalkBuilderConfig::non_git_ignored_files(working_directory.clone())?
-                }
-                ListFileKind::GitStatusFiles {
-                    diff_mode,
-                    working_directory,
-                } => git::GitRepo::try_from(working_directory)?
-                    .diff_entries(*diff_mode)?
-                    .into_iter()
-                    .map(|entry| entry.new_path().into_path_buf())
-                    .collect_vec(),
-            };
-            Ok(BackgroundTaskBody::ListFiles {
-                paths,
-                kind: kind.clone(),
-            })
-        }
-    }
 }

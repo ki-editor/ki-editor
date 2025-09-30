@@ -1,5 +1,5 @@
 use crate::{
-    background_worker::{BackgroundTask, BackgroundTaskBody, BackgroundTaskResult, ListFileKind},
+    background_worker::{BackgroundTask, ListFileKind},
     buffer::{Buffer, BufferOwner},
     clipboard::CopiedTexts,
     components::{
@@ -43,7 +43,6 @@ use crate::{
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
     ui_tree::{ComponentKind, KindedComponent},
 };
-use debounce::EventDebouncer;
 use event::event::Event;
 use itertools::{Either, Itertools};
 use name_variant::NamedVariant;
@@ -60,10 +59,7 @@ use std::{
         Mutex,
     },
 };
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
@@ -130,8 +126,6 @@ pub(crate) enum StatusLineComponent {
     KeyboardLayout,
     Reveal,
 }
-
-const FRAME_DURATION: Duration = Duration::from_millis(1000 / 30); // ~33.33ms
 
 impl<T: Frontend> App<T> {
     #[cfg(test)]
@@ -275,10 +269,6 @@ impl<T: Frontend> App<T> {
             AppMessage::ExternalDispatch(dispatch) => {
                 // Process the dispatch directly
                 self.handle_dispatch(dispatch)?;
-                Ok(false)
-            }
-            AppMessage::BackgroundTaskResult(response) => {
-                self.handle_background_task_result(response)?;
                 Ok(false)
             }
             AppMessage::ListFileEntry(path_buf) => {
@@ -2075,26 +2065,24 @@ impl<T: Frontend> App<T> {
             self.context
                 .push_history_prompt(prompt_config.prompt_history_key, line)
         }
+        let key = prompt_config.prompt_history_key;
+        let history = self.context.get_prompt_history(key);
+        let (mut prompt, dispatches) = Prompt::new(
+            prompt_config.clone(),
+            history,
+            self.app_message_sender.clone(),
+        );
+
         if let PromptItems::BackgroundTask(task) = &prompt_config.items {
             let background_task = match task {
                 PromptItemsBackgroundTask::NonGitIgnoredFiles => {
-                    BackgroundTask::ListFile(ListFileKind::NonGitIgnoredFiles {
-                        working_directory: self.context.current_working_directory().clone(),
-                    })
+                    let nucleo = prompt.nucleo().unwrap();
+                    self.search_file(nucleo.injector())?;
                 }
-                PromptItemsBackgroundTask::GitStatusFiles(diff_mode) => {
-                    BackgroundTask::ListFile(ListFileKind::GitStatusFiles {
-                        diff_mode: diff_mode.clone(),
-                        working_directory: self.context.current_working_directory().clone(),
-                    })
-                }
+                PromptItemsBackgroundTask::GitStatusFiles(diff_mode) => (),
             };
-            self.send_background_task(background_task)?
+            // self.send_background_task(background_task)?
         }
-        let key = prompt_config.prompt_history_key;
-        let history = self.context.get_prompt_history(key);
-        let (prompt, dispatches) =
-            Prompt::new(prompt_config, history, self.app_message_sender.clone());
 
         self.layout.add_and_focus_prompt(
             ComponentKind::Prompt,
@@ -2102,6 +2090,24 @@ impl<T: Frontend> App<T> {
             &self.context,
         );
         self.handle_dispatches(dispatches)
+    }
+
+    fn search_file(&self, injector: nucleo::Injector<DropdownItem>) -> anyhow::Result<()> {
+        let working_directory = self.context.current_working_directory().clone();
+        std::thread::spawn(|| {
+            list::WalkBuilderConfig::new(working_directory.to_path_buf().clone()).stream_new(
+                Arc::new(move |path_buf| {
+                    let item = DropdownItem::from_path_buf(&working_directory, path_buf);
+                    injector.push(item, |item, columns| {
+                        let group = item.group().clone().unwrap_or_default();
+                        let display = item.display().clone();
+                        columns[0] = format!("{group} {display}").into();
+                    });
+                    Ok(())
+                }),
+            )
+        });
+        Ok(())
     }
 
     fn open_prompt_embedded(
@@ -2668,24 +2674,6 @@ impl<T: Frontend> App<T> {
         self.lsp_manager.lsp_server_initialized_args()
     }
 
-    fn handle_background_task_result(
-        &mut self,
-        response: BackgroundTaskResult,
-    ) -> anyhow::Result<()> {
-        match response {
-            BackgroundTaskResult::Ok(body) => match body {
-                BackgroundTaskBody::ListFiles { paths, kind } => {
-                    self.show_file_picker(kind.display(), paths)?
-                }
-            },
-            BackgroundTaskResult::Error { task, error } => self.show_global_info(Info::new(
-                "Background task result error".to_string(),
-                format!("Task:\n{task:#?}\n\n\n{error:#?}"),
-            )),
-        }
-        Ok(())
-    }
-
     fn handle_list_file_entry(&self, path_buf: PathBuf) {
         let component = self.layout.get_current_component();
         let mut component_mut = component.borrow_mut();
@@ -3109,7 +3097,6 @@ pub(crate) enum AppMessage {
     },
     // New variant for external dispatches
     ExternalDispatch(Dispatch),
-    BackgroundTaskResult(BackgroundTaskResult),
     ListFileEntry(PathBuf),
     NucleoUpdated,
     NucleoTickDebounced,
