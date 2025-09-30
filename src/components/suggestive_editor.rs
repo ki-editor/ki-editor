@@ -242,7 +242,7 @@ impl SuggestiveEditor {
         self.completion_dropdown.set_filter(&filter);
 
         let render_completion_dropdown = self.render_completion_dropdown(false);
-        Ok(render_completion_dropdown)
+        Ok(render_completion_dropdown.append(Dispatch::DropdownFilterUpdated(filter)))
     }
 
     fn update_current_completion_item(&mut self, completion_item: CompletionItem) -> Dispatches {
@@ -279,6 +279,10 @@ impl SuggestiveEditor {
         display: &str,
     ) -> anyhow::Result<Dispatches> {
         self.editor_mut().update_current_line(context, display)
+    }
+
+    pub(crate) fn update_items(&mut self, items: Vec<DropdownItem>) {
+        self.completion_dropdown.set_items(items)
     }
 }
 

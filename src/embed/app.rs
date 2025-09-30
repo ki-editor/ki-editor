@@ -59,6 +59,7 @@ impl EmbeddedApp {
             resolved_wd,
             real_app_sender.clone(),
             mpsc::channel().1,
+            None,
             status_line_components.clone(),
             Some(integration_event_sender),
             false,

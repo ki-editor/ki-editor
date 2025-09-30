@@ -1,9 +1,8 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use crossbeam::channel::Sender;
 use globset::Glob;
 use ignore::{WalkBuilder, WalkState};
-use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{buffer::Buffer, quickfix_list::Location, selection_mode::ByteRange};
 
@@ -117,20 +116,32 @@ impl WalkBuilderConfig {
         Ok(receiver.into_iter().collect::<Vec<_>>())
     }
 
-    fn new(root: PathBuf) -> Self {
-        Self {
-            root,
-            include: None,
-            exclude: None,
-        }
-    }
-
-    /// This method returns `PathBuf` instead of `CanonicalizedPath`
+    /// `on_entry` takes `PathBuf` instead of `CanonicalizedPath`
     /// because constructing `CanonicalizedPath` is expensive.
     /// For reference: read https://blobfolio.com/2021/faster-path-canonicalization-rust/
-    pub(crate) fn non_git_ignored_files(root: CanonicalizedPath) -> anyhow::Result<Vec<PathBuf>> {
-        WalkBuilderConfig::new(root.to_path_buf().clone())
-            .run(Box::new(|path, sender| Ok(sender.send(path)?)))
+    pub(crate) fn get_non_git_ignored_files(
+        root: PathBuf,
+        on_entry: Arc<dyn Fn(PathBuf) + Send + Sync>,
+    ) {
+        WalkBuilder::new(root)
+            .hidden(false)
+            .build_parallel()
+            .run(|| {
+                Box::new(|path| {
+                    if let Ok(path) = path {
+                        if path
+                            .file_type()
+                            .is_some_and(|file_type| file_type.is_file())
+                        {
+                            let path: PathBuf = path.path().into();
+                            on_entry(path)
+                        } else if path.path().ends_with(".git") {
+                            return WalkState::Skip;
+                        }
+                    }
+                    WalkState::Continue
+                })
+            });
     }
 }
 

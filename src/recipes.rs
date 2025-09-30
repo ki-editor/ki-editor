@@ -1375,7 +1375,7 @@ foo bar spam
             .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("space d m enter B space d f enter B space d g enter B alt+l alt+l alt+j alt+j B"),
+            events: keys!("space e q s r c enter enter q m a enter enter B space e q f o enter enter B space e q g i t enter enter B alt+l alt+l alt+j alt+j B"),
             expectations: Box::new([CurrentComponentTitle("\u{200b} # 🦀 foo.rs \u{200b} # 🦀 main.rs ".to_string())]),
             terminal_height: Some(10),
             similar_vim_combos: &[],

@@ -11,7 +11,7 @@ use crate::{
         editor_keymap_printer::KeymapDisplayOption,
         file_explorer::FileExplorer,
         keymap_legend::{Keymap, KeymapLegendConfig, Keymaps},
-        prompt::{Prompt, PromptConfig, PromptHistoryKey},
+        prompt::{Prompt, PromptConfig, PromptHistoryKey, PromptItems, PromptItemsBackgroundTask},
         suggestive_editor::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
         },
@@ -47,6 +47,7 @@ use name_variant::NamedVariant;
 #[cfg(test)]
 use shared::language::LanguageId;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
+use std::sync::Arc;
 use std::{
     any::TypeId,
     cell::RefCell,
@@ -92,7 +93,6 @@ pub(crate) struct App<T: Frontend> {
     frontend: Rc<Mutex<T>>,
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
-
     status_line_components: Vec<StatusLineComponent>,
     last_action_description: Option<String>,
     last_action_short_description: Option<String>,
@@ -133,6 +133,7 @@ impl<T: Frontend> App<T> {
             working_directory,
             sender,
             receiver,
+            None, // No syntax highlight request sender
             status_line_components,
             None, // No integration event sender
             false,
@@ -151,6 +152,7 @@ impl<T: Frontend> App<T> {
         working_directory: CanonicalizedPath,
         sender: Sender<AppMessage>,
         receiver: Receiver<AppMessage>,
+        syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
         status_line_components: Vec<StatusLineComponent>,
         integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
         enable_lsp: bool,
@@ -169,7 +171,7 @@ impl<T: Frontend> App<T> {
             )?,
             working_directory,
             frontend,
-            syntax_highlight_request_sender: None,
+            syntax_highlight_request_sender,
             global_title: None,
             status_line_components,
             last_action_description: None,
@@ -199,6 +201,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
+    /// This is the main event loop.
     pub(crate) fn run(
         mut self,
         entry_path: Option<CanonicalizedPath>,
@@ -248,10 +251,13 @@ impl<T: Frontend> App<T> {
             } => self
                 .update_highlighted_spans(component_id, batch_id, highlighted_spans)
                 .map(|_| false),
-            // Handle the new ExternalDispatch variant
             AppMessage::ExternalDispatch(dispatch) => {
                 // Process the dispatch directly
                 self.handle_dispatch(dispatch)?;
+                Ok(false)
+            }
+            AppMessage::NucleoTickDebounced => {
+                self.handle_nucleo_debounced()?;
                 Ok(false)
             }
         }
@@ -918,6 +924,9 @@ impl<T: Frontend> App<T> {
             Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
             Dispatch::OpenSurroundXmlPrompt => self.open_surround_xml_prompt()?,
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
+            Dispatch::DropdownFilterUpdated(filter) => {
+                self.handle_dropdown_filter_updated(filter)?
+            }
             #[cfg(test)]
             Dispatch::SetSystemClipboardHtml { html, alt_text } => {
                 self.set_system_clipboard_html(html, alt_text)?
@@ -986,7 +995,7 @@ impl<T: Frontend> App<T> {
             PromptConfig {
                 title: "Move to index".to_string(),
                 on_enter: DispatchPrompt::MoveSelectionByIndex,
-                items: vec![],
+                items: PromptItems::None,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
@@ -1001,7 +1010,7 @@ impl<T: Frontend> App<T> {
             PromptConfig {
                 title: "Rename Symbol".to_string(),
                 on_enter: DispatchPrompt::RenameSymbol,
-                items: vec![],
+                items: PromptItems::None,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
@@ -1017,7 +1026,7 @@ impl<T: Frontend> App<T> {
                 title: "Surround selection with XML tag (can be empty for React Fragment)"
                     .to_string(),
                 on_enter: DispatchPrompt::SurroundXmlTag,
-                items: vec![],
+                items: PromptItems::None,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
@@ -1035,7 +1044,7 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 title: format!("{scope:?} search",),
-                items: self.words(),
+                items: PromptItems::Precomputed(self.words()),
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                     scope,
                     if_current_not_found,
@@ -1076,7 +1085,7 @@ impl<T: Frontend> App<T> {
                 PromptConfig {
                     title: "Add path".to_string(),
                     on_enter: DispatchPrompt::AddPath,
-                    items: Vec::new(),
+                    items: PromptItems::None,
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
@@ -1096,7 +1105,7 @@ impl<T: Frontend> App<T> {
                 PromptConfig {
                     title: "Move path".to_string(),
                     on_enter: DispatchPrompt::MovePath { from: path.clone() },
-                    items: Vec::new(),
+                    items: PromptItems::None,
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
@@ -1116,7 +1125,7 @@ impl<T: Frontend> App<T> {
                 PromptConfig {
                     title: format!("Duplicate '{}' to", path.display_absolute()),
                     on_enter: DispatchPrompt::CopyFile { from: path.clone() },
-                    items: Vec::new(),
+                    items: PromptItems::None,
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
@@ -1133,12 +1142,14 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 title: "Symbols".to_string(),
-                items: symbols
-                    .symbols
-                    .clone()
-                    .into_iter()
-                    .map(|symbol| symbol.into())
-                    .collect_vec(),
+                items: PromptItems::Precomputed(
+                    symbols
+                        .symbols
+                        .clone()
+                        .into_iter()
+                        .map(|symbol| symbol.into())
+                        .collect_vec(),
+                ),
                 on_enter: DispatchPrompt::SelectSymbol { symbols },
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -1154,56 +1165,43 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 title: format!("Open file: {}", kind.display()),
-                on_enter: DispatchPrompt::OpenFile { working_directory },
-                items: {
-                    match kind {
-                        FilePickerKind::NonGitIgnored => {
-                            // Note: we should not use CanonicalizedPath here, as it is resource-intensive
-                            list::WalkBuilderConfig::non_git_ignored_files(
-                                self.working_directory.clone(),
-                            )?
-                        }
-                        FilePickerKind::GitStatus(diff_mode) => {
-                            git::GitRepo::try_from(&self.working_directory)?
-                                .diff_entries(diff_mode)?
-                                .into_iter()
-                                .map(|entry| entry.new_path().into_path_buf())
-                                .collect_vec()
-                        }
-                        FilePickerKind::Opened => self
-                            .layout
+                on_enter: DispatchPrompt::OpenFile {
+                    working_directory: working_directory.clone(),
+                },
+                items: match kind {
+                    FilePickerKind::NonGitIgnored => PromptItems::BackgroundTask {
+                        task: PromptItemsBackgroundTask::NonGitIgnoredFiles { working_directory },
+                        on_nucleo_tick_debounced: {
+                            let sender = self.sender.clone();
+                            Arc::new(move || {
+                                let _ = sender.send(AppMessage::NucleoTickDebounced);
+                            })
+                        },
+                    },
+                    FilePickerKind::GitStatus(diff_mode) => PromptItems::Precomputed(
+                        git::GitRepo::try_from(&self.working_directory)?
+                            .diff_entries(diff_mode)?
+                            .into_iter()
+                            .map(|entry| {
+                                DropdownItem::from_path_buf(
+                                    &working_directory,
+                                    entry.new_path().into_path_buf(),
+                                )
+                            })
+                            .collect_vec(),
+                    ),
+                    FilePickerKind::Opened => PromptItems::Precomputed(
+                        self.layout
                             .get_opened_files()
                             .into_iter()
-                            .map(|path| path.into_path_buf())
+                            .map(|path| {
+                                DropdownItem::from_path_buf(
+                                    &working_directory,
+                                    path.into_path_buf(),
+                                )
+                            })
                             .collect_vec(),
-                    }
-                    .into_iter()
-                    .map(|path| {
-                        DropdownItem::new({
-                            let name = path
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                                .to_string();
-                            let icon = shared::canonicalized_path::get_path_icon(&path);
-                            format!("{icon} {name}")
-                        })
-                        .set_group(path.parent().map(|parent| {
-                            let relative = parent
-                                .strip_prefix(&self.working_directory)
-                                .map(|path| path.display().to_string())
-                                .unwrap_or_else(|_| parent.display().to_string());
-                            format!("{} {}", shared::icons::get_icon_config().folder, relative,)
-                        }))
-                        .set_dispatches(Dispatches::one(
-                            crate::app::Dispatch::OpenFileFromPathBuf {
-                                path,
-                                owner: BufferOwner::User,
-                                focus: true,
-                            },
-                        ))
-                    })
-                    .collect_vec()
+                    ),
                 },
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -1856,13 +1854,6 @@ impl<T: Frontend> App<T> {
         self.global_title = Some(title)
     }
 
-    pub(crate) fn set_syntax_highlight_request_sender(
-        &mut self,
-        sender: Sender<SyntaxHighlightRequest>,
-    ) {
-        self.syntax_highlight_request_sender = Some(sender);
-    }
-
     pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
         self.current_component().borrow().path()
     }
@@ -2013,7 +2004,6 @@ impl<T: Frontend> App<T> {
         self.layout.completion_dropdown_is_open()
     }
 
-    #[cfg(test)]
     pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout.current_completion_dropdown()
     }
@@ -2061,7 +2051,7 @@ impl<T: Frontend> App<T> {
         let history = self.context.get_prompt_history(key);
 
         let items = prompt_config
-            .items
+            .items()
             .iter()
             .map(|item| ki_protocol_types::PromptItem {
                 label: item.display(),
@@ -2171,10 +2161,12 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 on_enter: DispatchPrompt::Null,
-                items: code_actions
-                    .into_iter()
-                    .map(move |code_action| code_action.into())
-                    .collect(),
+                items: PromptItems::Precomputed(
+                    code_actions
+                        .into_iter()
+                        .map(move |code_action| code_action.into())
+                        .collect(),
+                ),
                 title: "Code Actions".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -2247,17 +2239,19 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 on_enter: DispatchPrompt::Null,
-                items: crate::themes::theme_descriptor::all()
-                    .into_iter()
-                    .enumerate()
-                    .map(|(index, theme_descriptor)| {
-                        DropdownItem::new(theme_descriptor.name().to_string())
-                            .set_rank(Some(Box::from([index].to_vec())))
-                            .set_dispatches(Dispatches::one(Dispatch::SetThemeFromDescriptor(
-                                theme_descriptor,
-                            )))
-                    })
-                    .collect_vec(),
+                items: PromptItems::Precomputed(
+                    crate::themes::theme_descriptor::all()
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, theme_descriptor)| {
+                            DropdownItem::new(theme_descriptor.name().to_string())
+                                .set_rank(Some(Box::from([index].to_vec())))
+                                .set_dispatches(Dispatches::one(Dispatch::SetThemeFromDescriptor(
+                                    theme_descriptor,
+                                )))
+                        })
+                        .collect_vec(),
+                ),
                 title: "Theme".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -2279,17 +2273,21 @@ impl<T: Frontend> App<T> {
                 } else {
                     DispatchPrompt::Null
                 },
-                items: KeyboardLayoutKind::iter()
-                    .map(|keyboard_layout| {
-                        DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
-                            if embedded {
-                                Dispatches::default()
-                            } else {
-                                Dispatches::one(Dispatch::SetKeyboardLayoutKind(keyboard_layout))
-                            },
-                        )
-                    })
-                    .collect_vec(),
+                items: PromptItems::Precomputed(
+                    KeyboardLayoutKind::iter()
+                        .map(|keyboard_layout| {
+                            DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
+                                if embedded {
+                                    Dispatches::default()
+                                } else {
+                                    Dispatches::one(Dispatch::SetKeyboardLayoutKind(
+                                        keyboard_layout,
+                                    ))
+                                },
+                            )
+                        })
+                        .collect_vec(),
+                ),
                 title: "Keyboard Layout".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -2318,7 +2316,7 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 title: "Pipe to shell".to_string(),
-                items: Default::default(),
+                items: PromptItems::None,
                 on_enter: DispatchPrompt::PipeToShell,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
@@ -2364,7 +2362,7 @@ impl<T: Frontend> App<T> {
                     mode.display()
                 ),
                 on_enter: DispatchPrompt::FilterSelectionMatchingSearch { maintain },
-                items: Vec::new(),
+                items: PromptItems::None,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
@@ -2607,6 +2605,37 @@ impl<T: Frontend> App<T> {
         self.lsp_manager.lsp_server_initialized_args()
     }
 
+    fn handle_nucleo_debounced(&mut self) -> Result<(), anyhow::Error> {
+        let dispatches = {
+            let component = self.layout.get_current_component();
+            let mut component_mut = component.borrow_mut();
+            let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
+                return Ok(());
+            };
+
+            let viewport_height: u32 = self
+                .current_completion_dropdown()
+                .map(|component| component.borrow().rectangle().height)
+                .unwrap_or(10)
+                .into();
+
+            prompt.handle_nucleo_updated(viewport_height)
+        };
+        self.handle_dispatches(dispatches)
+    }
+
+    fn handle_dropdown_filter_updated(&mut self, filter: String) -> anyhow::Result<()> {
+        {
+            let component = self.layout.get_current_component();
+            let mut component_mut = component.borrow_mut();
+            let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
+                return Ok(());
+            };
+            prompt.reparse_pattern(&filter);
+        }
+        self.handle_nucleo_debounced()
+    }
+
     #[cfg(test)]
     fn set_system_clipboard_html(&self, html: &str, alt_text: &str) -> anyhow::Result<()> {
         Ok(arboard::Clipboard::new()?.set_html(html, Some(alt_text))?)
@@ -2845,6 +2874,7 @@ pub(crate) enum Dispatch {
     FromHostApp(FromHostApp),
     OpenSurroundXmlPrompt,
     ShowGlobalInfo(Info),
+    DropdownFilterUpdated(String),
     #[cfg(test)]
     SetSystemClipboardHtml {
         html: &'static str,
@@ -2966,8 +2996,8 @@ pub(crate) enum AppMessage {
     },
     // New variant for external dispatches
     ExternalDispatch(Dispatch),
+    NucleoTickDebounced,
 }
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum DispatchPrompt {
     MoveSelectionByIndex,

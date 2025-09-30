@@ -11,7 +11,12 @@ use serde::Serialize;
 use serial_test::serial;
 use strum::IntoEnumIterator;
 
-use std::{ops::Range, path::PathBuf, rc::Rc, sync::Mutex};
+use std::{
+    ops::Range,
+    path::PathBuf,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 pub(crate) use Dispatch::*;
 pub(crate) use DispatchEditor::*;
 
@@ -1092,8 +1097,15 @@ pub(crate) fn non_git_ignored_files() -> Result<(), anyhow::Error> {
             // Add a new Rust file
             App(AddPath(s.new_path("src/rust.rs").display().to_string())),
             ExpectCustom(Box::new(move || {
-                let paths = crate::list::WalkBuilderConfig::non_git_ignored_files(temp_dir.clone())
-                    .unwrap();
+                let (sender, receiver) = std::sync::mpsc::channel();
+                crate::list::WalkBuilderConfig::get_non_git_ignored_files(
+                    temp_dir.clone().to_path_buf().clone(),
+                    Arc::new(move |path| {
+                        let _ = sender.send(path);
+                    }),
+                );
+
+                let paths = receiver.into_iter().collect_vec();
 
                 // Expect all the paths are files, not directory for example
                 assert!(paths.iter().all(|file| file.is_file()));
