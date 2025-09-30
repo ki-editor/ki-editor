@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc, sync::mpsc::Sender};
+use std::{cell::RefCell, rc::Rc, sync::Arc, time::Duration};
 
 use my_proc_macros::key;
 
@@ -7,7 +7,6 @@ use crate::{
     buffer::Buffer,
     components::editor::DispatchEditor,
     context::Context,
-    debouncer::DebounceMessage,
     lsp::completion::Completion,
     selection::SelectionMode,
 };
@@ -90,7 +89,7 @@ impl Prompt {
     pub(crate) fn new(
         config: PromptConfig,
         history: Vec<String>,
-        sender: Sender<DebounceMessage>,
+        on_nucleo_tick_debounced: Arc<dyn Fn() + Send + Sync>,
     ) -> (Self, Dispatches) {
         let text = {
             if history.is_empty() {
@@ -135,6 +134,10 @@ impl Prompt {
             trigger_characters: vec![" ".to_string()],
         });
         let dispatches = dispatches.chain(editor.render_completion_dropdown(true));
+        let debounce = crate::debouncer::start_thread(
+            on_nucleo_tick_debounced,
+            Duration::from_millis(1000 / 30), // 30 FPS
+        );
         (
             Prompt {
                 editor,
@@ -143,12 +146,9 @@ impl Prompt {
                 prompt_history_key: config.prompt_history_key,
                 fire_dispatches_on_change: config.fire_dispatches_on_change,
                 nucleo: if let PromptItems::BackgroundTask(_) = config.items {
-                    let sender = sender.clone();
                     Some(nucleo::Nucleo::new(
                         nucleo::Config::DEFAULT,
-                        std::sync::Arc::new(move || {
-                            let _ = sender.send(DebounceMessage::NucleoTick);
-                        }),
+                        debounce,
                         None,
                         1,
                     ))

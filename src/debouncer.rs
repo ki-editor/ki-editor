@@ -1,32 +1,22 @@
-use std::sync::mpsc::Sender;
+use std::sync::Arc;
 use std::time::Duration;
 
-use crate::app::AppMessage;
-
-#[derive(Debug, PartialEq, Clone)]
-pub(crate) enum DebounceMessage {
-    NucleoTick,
-}
-
-pub(crate) fn start_thread(callback: Sender<AppMessage>) -> Sender<DebounceMessage> {
-    let (sender, receiver) = std::sync::mpsc::channel::<DebounceMessage>();
+pub(crate) fn start_thread(
+    callback: Arc<dyn Fn() + Send + Sync>,
+    duration: Duration,
+) -> Arc<dyn Fn() + Send + Sync> {
+    let (sender, receiver) = std::sync::mpsc::channel::<()>();
     use debounce::EventDebouncer;
 
     std::thread::spawn(move || {
-        let debounce = EventDebouncer::new(
-            Duration::from_millis(1000 / 30), // 30 FPS
-            move |request: DebounceMessage| {
-                let app_message = match request {
-                    DebounceMessage::NucleoTick => AppMessage::NucleoTickDebounced,
-                };
-                let _ = callback.send(app_message);
-            },
-        );
+        let debounce = EventDebouncer::new(duration, move |_| callback());
 
-        while let Ok(request) = receiver.recv() {
-            debounce.put(request)
+        while let Ok(()) = receiver.recv() {
+            debounce.put(())
         }
     });
 
-    sender
+    Arc::new(move || {
+        let _ = sender.send(());
+    })
 }

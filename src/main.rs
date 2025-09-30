@@ -77,14 +77,12 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
     simple_logging::log_to_file(grammar::default_log_file(), LevelFilter::Info)?;
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
-    let debouncer_sender = crate::debouncer::start_thread(sender.clone());
 
     let app = App::from_channel(
         Rc::new(Mutex::new(Crossterm::new()?)),
         config.working_directory.unwrap_or(".".try_into()?),
         (sender, receiver),
         Some(syntax_highlighter_sender),
-        debouncer_sender,
         [
             StatusLineComponent::Mode,
             StatusLineComponent::SelectionMode,

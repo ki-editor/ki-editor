@@ -19,7 +19,6 @@ use crate::{
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
-    debouncer::DebounceMessage,
     frontend::Frontend,
     git::{self},
     grid::{Grid, LineUpdate},
@@ -94,8 +93,6 @@ pub(crate) struct App<T: Frontend> {
     frontend: Rc<Mutex<T>>,
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
-    debouncer_sender: Sender<DebounceMessage>,
-
     status_line_components: Vec<StatusLineComponent>,
     last_action_description: Option<String>,
     last_action_short_description: Option<String>,
@@ -131,14 +128,11 @@ impl<T: Frontend> App<T> {
         status_line_components: Vec<StatusLineComponent>,
     ) -> anyhow::Result<App<T>> {
         let (sender, receiver) = std::sync::mpsc::channel();
-        let debounce_sender = crate::debouncer::start_thread(sender.clone());
         Self::from_channel(
             frontend,
             working_directory,
             (sender, receiver),
             None, // No syntax highlight request sender
-            // No background task sender
-            debounce_sender,
             status_line_components,
             None, // No integration event sender
             false,
@@ -157,7 +151,6 @@ impl<T: Frontend> App<T> {
         working_directory: CanonicalizedPath,
         (sender, receiver): (Sender<AppMessage>, Receiver<AppMessage>),
         syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
-        debouncer_sender: Sender<DebounceMessage>,
         status_line_components: Vec<StatusLineComponent>,
         integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
         enable_lsp: bool,
@@ -184,7 +177,6 @@ impl<T: Frontend> App<T> {
             integration_event_sender,
             last_prompt_config: None,
             queued_events: Vec::new(),
-            debouncer_sender,
         };
         Ok(app)
     }
@@ -2031,11 +2023,12 @@ impl<T: Frontend> App<T> {
         }
         let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
-        let (mut prompt, dispatches) = Prompt::new(
-            prompt_config.clone(),
-            history,
-            self.debouncer_sender.clone(),
-        );
+        let (mut prompt, dispatches) = Prompt::new(prompt_config.clone(), history, {
+            let sender = self.sender.clone();
+            Arc::new(move || {
+                let _ = sender.send(AppMessage::NucleoTickDebounced);
+            })
+        });
 
         if let PromptItems::BackgroundTask(task) = &prompt_config.items {
             match task {
