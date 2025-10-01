@@ -120,19 +120,75 @@ impl KeymapPrintSection {
 
     /// Returns None if the terminal width is too small
     pub(crate) fn display(&self, terminal_width: u16, option: &KeymapDisplayOption) -> String {
-        let max_column_width = terminal_width / 11;
+        let table = self.display_full(terminal_width, option);
+
+        fn get_content_width(table: &Table) -> u16 {
+            let content_width: u16 = table.column_max_content_widths().iter().sum();
+            // column content, separators, padding & editor margins
+            content_width + 12 + 22 + 2
+        }
+
+        let exmatrix_keybindings = ["* Pick Keyboard"].join(&" ".repeat(4));
+        if get_content_width(&table) < terminal_width {
+            format!("{table}\n{exmatrix_keybindings}")
+        } else {
+            let (left, right) = self.display_stacked(terminal_width, option);
+            let content_width = get_content_width(&left).min(get_content_width(&right));
+            if content_width < terminal_width {
+                format!("{left}\n{right}\n{exmatrix_keybindings}")
+            } else {
+                "Window is too small to display keymap legend :(".to_string()
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    #[cfg(test)]
+    pub(crate) fn keys(&self) -> &Vec<Vec<Key>> {
+        &self.keys
+    }
+
+    fn display_full(&self, terminal_width: u16, option: &KeymapDisplayOption) -> Table {
+        self.display_one_side(terminal_width, option, 0, 10, 5)
+    }
+
+    fn display_stacked(&self, terminal_width: u16, option: &KeymapDisplayOption) -> (Table, Table) {
+        let left = self.display_one_side(terminal_width, option, 0, 5, 5);
+        let right = self.display_one_side(terminal_width, option, 5, 5, 0);
+        (left, right)
+    }
+
+    fn display_one_side(
+        &self,
+        terminal_width: u16,
+        option: &KeymapDisplayOption,
+        skip: usize,
+        take: usize,
+        modifiers_column_index: usize,
+    ) -> Table {
+        let columns_count = take;
+        let max_column_width = terminal_width / columns_count as u16;
         let mut table = Table::new();
         let table_rows = self.keys.iter().map(|row| {
-            let mut cols: Vec<Cell> = row
-                .iter()
+            let cells = row.iter().skip(skip).take(take);
+            // Only show alt/shift row if the row contains any alt/shift keybinding
+            let option = KeymapDisplayOption {
+                show_alt: option.show_alt && cells.clone().any(|cell| cell.alted.is_some()),
+                show_shift: option.show_shift && cells.clone().any(|cell| cell.shifted.is_some()),
+            };
+            let mut cols: Vec<Cell> = cells
                 .map(|key| {
-                    let display = key.display(option);
+                    let display = key.display(&option);
                     Cell::new(display).set_alignment(CellAlignment::Center)
                 })
                 .collect();
 
             cols.insert(
-                5,
+                modifiers_column_index,
                 Cell::new(
                     [
                         if option.show_alt { "⌥\n" } else { "" },
@@ -150,6 +206,8 @@ impl KeymapPrintSection {
             let min_width = self
                 .keys
                 .iter()
+                .skip(skip)
+                .take(take)
                 .filter_map(|row| row.get(column_index))
                 .map(|key| {
                     key.display(option)
@@ -165,41 +223,15 @@ impl KeymapPrintSection {
 
         table
             .add_rows(table_rows)
-            .set_constraints(vec![
-                get_column_constraint(0),
-                get_column_constraint(1),
-                get_column_constraint(2),
-                get_column_constraint(3),
-                get_column_constraint(4),
-                Absolute(Fixed(1)),
-                get_column_constraint(5),
-                get_column_constraint(6),
-                get_column_constraint(7),
-                get_column_constraint(8),
-                get_column_constraint(9),
-            ])
+            .set_constraints({
+                let mut columns = (0..columns_count).map(get_column_constraint).collect_vec();
+                columns.insert(modifiers_column_index, Absolute(Fixed(1)));
+                columns
+            })
             .set_width(terminal_width)
             .load_preset(comfy_table::presets::UTF8_FULL)
             .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
-
-        let content_width: u16 = table.column_max_content_widths().iter().sum();
-        // column content, separators, padding & editor margins
-        if content_width + 12 + 22 + 2 < terminal_width {
-            let exmatrix_keybindings = ["* Pick Keyboard"].join(&" ".repeat(4));
-            format!("{table}\n{exmatrix_keybindings}")
-        } else {
-            "Window is too small to display keymap legend :(".to_string()
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn name(&self) -> &str {
-        &self.name
-    }
-
-    #[cfg(test)]
-    pub(crate) fn keys(&self) -> &Vec<Vec<Key>> {
-        &self.keys
+        table
     }
 }
 
