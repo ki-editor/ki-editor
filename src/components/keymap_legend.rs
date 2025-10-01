@@ -364,7 +364,7 @@ mod test_keymap_legend {
     }
 
     #[test]
-    fn test_display_positional() {
+    fn test_display_positional_full() {
         let keymaps = Keymaps(
             [
                 Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
@@ -408,24 +408,96 @@ mod test_keymap_legend {
                     show_shift: true,
                 },
             )
+            .to_string()
+            .trim_matches('\n')
             .to_string();
         let expected = "
 ╭───────┬───┬─────────────┬─────┬────────┬───┬───┬───┬───┬───┬───╮
-│       ┆   ┆             ┆     ┆        ┆ ⌥ ┆   ┆   ┆   ┆   ┆   │
-│       ┆   ┆             ┆     ┆        ┆ ⇧ ┆   ┆   ┆   ┆   ┆   │
 │       ┆   ┆             ┆     ┆        ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
 │       ┆   ┆             ┆     ┆ Gogagg ┆ ⌥ ┆   ┆   ┆   ┆   ┆   │
 │       ┆   ┆             ┆ Foo ┆        ┆ ⇧ ┆   ┆   ┆   ┆   ┆   │
 │ Aloha ┆   ┆             ┆     ┆        ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
-│       ┆   ┆             ┆     ┆        ┆ ⌥ ┆   ┆   ┆   ┆   ┆   │
-│       ┆   ┆             ┆     ┆        ┆ ⇧ ┆   ┆   ┆   ┆   ┆   │
 │       ┆   ┆ Caterpillar ┆     ┆  Bomb  ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ╰───────┴───┴─────────────┴─────┴────────┴───┴───┴───┴───┴───┴───╯
-* Pick Keyboard
-"
-        .trim_matches('\n');
+* Pick Keyboard"
+            .trim_matches('\n');
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_display_positional_stacked() {
+        let keymaps = Keymaps(
+            [
+                Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
+                Keymap::new("b", "Bomb".to_string(), Dispatch::Null),
+                Keymap::new("F", "Foo".to_string(), Dispatch::Null),
+                Keymap::new("c", "Caterpillar".to_string(), Dispatch::Null),
+                Keymap::new("alt+g", "Gogagg".to_string(), Dispatch::Null),
+                Keymap::new("alt+l", "Lamp".to_string(), Dispatch::Null),
+            ]
+            .to_vec(),
+        );
+        let context = Context::default();
+        let actual = keymaps
+            .display(
+                context.keyboard_layout_kind(),
+                50,
+                &KeymapDisplayOption {
+                    show_alt: true,
+                    show_shift: true,
+                },
+            )
+            .to_string();
+        let expected = "
+╭───────┬───┬─────────────┬─────┬────────┬───╮
+│       ┆   ┆             ┆     ┆        ┆ ∅ │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┤
+│       ┆   ┆             ┆     ┆ Gogagg ┆ ⌥ │
+│       ┆   ┆             ┆ Foo ┆        ┆ ⇧ │
+│ Aloha ┆   ┆             ┆     ┆        ┆ ∅ │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┤
+│       ┆   ┆ Caterpillar ┆     ┆  Bomb  ┆ ∅ │
+╰───────┴───┴─────────────┴─────┴────────┴───╯
+╭───┬───┬───┬───┬──────┬───╮
+│ ∅ ┆   ┆   ┆   ┆      ┆   │
+├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┤
+│ ⌥ ┆   ┆   ┆   ┆ Lamp ┆   │
+│ ∅ ┆   ┆   ┆   ┆      ┆   │
+├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┤
+│ ∅ ┆   ┆   ┆   ┆      ┆   │
+╰───┴───┴───┴───┴──────┴───╯
+* Pick Keyboard"
+            .trim();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_display_positional_too_small() {
+        let keymaps = Keymaps(
+            [
+                Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
+                Keymap::new("b", "Bomb".to_string(), Dispatch::Null),
+                Keymap::new("F", "Foo".to_string(), Dispatch::Null),
+                Keymap::new("c", "Caterpillar".to_string(), Dispatch::Null),
+                Keymap::new("alt+g", "Gogagg".to_string(), Dispatch::Null),
+                Keymap::new("alt+l", "Lamp".to_string(), Dispatch::Null),
+            ]
+            .to_vec(),
+        );
+        let context = Context::default();
+        let actual = keymaps
+            .display(
+                context.keyboard_layout_kind(),
+                10,
+                &KeymapDisplayOption {
+                    show_alt: true,
+                    show_shift: true,
+                },
+            )
+            .to_string();
+        let expected = "Window is too small to display keymap legend :(";
         assert_eq!(actual, expected);
     }
 

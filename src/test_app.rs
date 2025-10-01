@@ -2500,6 +2500,7 @@ c1 c2 c3 c1
 }
 
 #[test]
+#[serial]
 fn pasting_when_clipboard_html_is_set_by_other_app() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         {
