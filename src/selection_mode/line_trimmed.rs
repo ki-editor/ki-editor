@@ -17,29 +17,58 @@ impl PositionBasedSelectionMode for LineTrimmed {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
-        _: crate::components::editor::IfCurrentNotFound,
+        if_current_not_found: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
         let max_cursor_char_index = CharIndex(buffer.len_chars());
         if cursor_char_index > max_cursor_char_index {
             return Ok(None);
         }
 
-        let line_index = buffer.char_to_line(cursor_char_index)?;
-        let Some(line) = buffer.get_line_by_line_index(line_index) else {
+        let is_target = |line: ropey::RopeSlice| !line.chars().all(|char| char.is_whitespace());
+
+        let current_line_index = {
+            let mut current_line_index = buffer.char_to_line(cursor_char_index)?;
+            loop {
+                if (CharIndex(0)..=max_cursor_char_index)
+                    .contains(&buffer.line_to_char(current_line_index)?)
+                {
+                    let Some(current_line) = buffer.get_line_by_line_index(current_line_index)
+                    else {
+                        return Ok(None);
+                    };
+                    if is_target(current_line) {
+                        break current_line_index;
+                    } else {
+                        match if_current_not_found {
+                            IfCurrentNotFound::LookForward
+                                if current_line_index
+                                    < buffer.char_to_line(max_cursor_char_index)? =>
+                            {
+                                current_line_index = current_line_index + 1
+                            }
+                            IfCurrentNotFound::LookBackward
+                                if current_line_index > buffer.char_to_line(CharIndex(0))? =>
+                            {
+                                current_line_index = current_line_index - 1
+                            }
+                            _ => break current_line_index,
+                        }
+                    }
+                } else {
+                    return Ok(None);
+                }
+            }
+        };
+
+        let Some(line) = buffer.get_line_by_line_index(current_line_index) else {
             return Ok(None);
         };
-        let line_start_char_index = buffer.line_to_char(line_index)?;
+        let line_start_char_index = buffer.line_to_char(current_line_index)?;
         let leading_whitespace_count = line
             .chars()
             .take_while(|c| c.is_whitespace() && c != &'\n')
             .count();
-        if line.chars().all(|c| c.is_whitespace()) {
-            let line_start_byte_index =
-                buffer.char_to_byte(line_start_char_index + leading_whitespace_count - 0)?;
-            return Ok(Some(ByteRange::new(
-                line_start_byte_index..line_start_byte_index,
-            )));
-        }
+        debug_assert!(!line.chars().all(|c| c.is_whitespace()));
 
         let trailing_whitespace_count = if line.len_chars() == 0 {
             0
@@ -74,46 +103,6 @@ impl PositionBasedSelectionMode for LineTrimmed {
     ) -> anyhow::Result<CharIndex> {
         let line_index = params.buffer.char_to_line(range.start)?;
         params.buffer.line_to_char(line_index - 1)
-    }
-
-    fn left(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let SelectionModeParams {
-            buffer,
-            current_selection,
-            cursor_direction,
-            ..
-        } = params;
-        let current_line = buffer.char_to_line(current_selection.extended_range().start)?;
-        Ok(buffer
-            .get_parent_lines(current_line)?
-            .into_iter()
-            .filter(|line| line.line < current_line)
-            .next_back()
-            .map(|line| {
-                let byte_range = buffer.line_to_byte_range(line.line)?;
-                let start = trim_leading_spaces(byte_range.range.start, &line.content);
-                let char_index_range =
-                    buffer.byte_range_to_char_index_range(&(start..start + 1))?;
-                PositionBased(self.clone()).current(
-                    &SelectionModeParams {
-                        buffer,
-                        cursor_direction,
-                        current_selection: &(**current_selection)
-                            .clone()
-                            .set_range(char_index_range),
-                    },
-                    IfCurrentNotFound::LookForward,
-                )
-            })
-            .transpose()?
-            .flatten())
-    }
-
-    fn right(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        Ok(self.down(params, None)?.map(|result| result.selection))
     }
 
     fn next(
@@ -278,6 +267,7 @@ pub(crate) fn process_paste_gap(
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn trim_leading_spaces(byte_start: usize, line: &str) -> usize {
     if line == "\n" {
         byte_start
