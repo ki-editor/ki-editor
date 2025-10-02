@@ -23,6 +23,7 @@ use comfy_table::{
     Width::{self, Fixed},
 };
 use itertools::Itertools;
+use shared::canonicalized_path::CanonicalizedPath;
 
 #[derive(Debug, Clone)]
 pub(crate) struct KeymapPrintSection {
@@ -243,10 +244,9 @@ pub(crate) struct KeymapPrintSections {
 
 impl KeymapPrintSections {
     pub(crate) fn new() -> Self {
-        let context = Context::default();
+        let context = Context::new(CanonicalizedPath::try_from(".").unwrap(), false, false);
         let layout = context.keyboard_layout_kind().get_keyboard_layout();
         let editor = Editor::from_text(Option::None, "");
-        let context = Context::default();
         let sections: Vec<KeymapPrintSection> = [
             KeymapPrintSection::from_keymaps(
                 "Insert".to_string(),
@@ -309,9 +309,7 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymaps(
                 "Space".to_string(),
-                &editor
-                    .space_keymap_legend_config(&Default::default())
-                    .keymaps(),
+                &editor.space_keymap_legend_config(&context).keymaps(),
                 layout,
             ),
             KeymapPrintSection::from_keymaps(

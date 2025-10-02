@@ -37,6 +37,10 @@ pub(crate) struct Context {
 
     /// This is true, for example, when Ki is running as a VS Code's extension
     is_running_as_embedded: bool,
+
+    /// If this is true, construction of this object will read from a file,
+    /// and destruction of this object will write to a file.
+    sync_with_persistence: bool,
 }
 
 pub(crate) struct QuickfixListState {
@@ -69,15 +73,28 @@ pub(crate) struct Search {
     pub(crate) search: String,
 }
 
-impl Default for Context {
-    fn default() -> Self {
+impl Context {
+    // TODO: remove the usage of unnecessary Context
+    #[cfg(test)]
+
+    pub(crate) fn default() -> Self {
+        Self::new(CanonicalizedPath::try_from(".").unwrap(), false, false)
+    }
+}
+
+impl Context {
+    pub(crate) fn new(
+        current_working_directory: CanonicalizedPath,
+        is_running_as_embedded: bool,
+        sync_with_persistence: bool,
+    ) -> Self {
         Self {
             clipboard: Clipboard::new(),
             theme: Theme::default(),
             mode: None,
             #[cfg(test)]
             highlight_configs: crate::syntax_highlight::HighlightConfigs::new(),
-            current_working_directory: CanonicalizedPath::try_from(".").unwrap(),
+            current_working_directory,
             local_search_config: LocalSearchConfig::default(),
             global_search_config: GlobalSearchConfig::default(),
             quickfix_list_state: Default::default(),
@@ -95,20 +112,8 @@ impl Default for Context {
             location_history_backward: Vec::new(),
             location_history_forward: Vec::new(),
             marked_paths: Default::default(),
-            is_running_as_embedded: false,
-        }
-    }
-}
-
-impl Context {
-    pub(crate) fn new(
-        current_working_directory: CanonicalizedPath,
-        is_running_as_embedded: bool,
-    ) -> Self {
-        Self {
-            current_working_directory,
             is_running_as_embedded,
-            ..Self::default()
+            sync_with_persistence,
         }
     }
 
@@ -160,8 +165,8 @@ impl Context {
         &self.theme
     }
 
-    pub(crate) fn set_theme(self, theme: Theme) -> Self {
-        Self { theme, ..self }
+    pub(crate) fn set_theme(&mut self, theme: Theme) {
+        self.theme = theme
     }
 
     #[cfg(test)]
@@ -345,7 +350,7 @@ impl Context {
         self.is_running_as_embedded
     }
 
-    pub(crate) fn rename_file_mark(&mut self, from: &CanonicalizedPath, to: &CanonicalizedPath) {
+    pub(crate) fn rename_path_mark(&mut self, from: &CanonicalizedPath, to: &CanonicalizedPath) {
         self.marked_paths.shift_remove(from);
         self.marked_paths.insert_sorted(to.clone());
     }

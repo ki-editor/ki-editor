@@ -160,7 +160,7 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let app = App {
-            context: Context::new(working_directory.clone(), is_running_as_embedded),
+            context: Context::new(working_directory.clone(), is_running_as_embedded, true),
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             enable_lsp,
@@ -860,12 +860,10 @@ impl<T: Frontend> App<T> {
                 self.handle_lsp_notification(notification)?
             }
             Dispatch::SetTheme(theme) => {
-                let context = std::mem::take(&mut self.context);
-                self.context = context.set_theme(theme.clone());
+                self.context.set_theme(theme.clone());
             }
             Dispatch::SetThemeFromDescriptor(theme_descriptor) => {
-                let context = std::mem::take(&mut self.context);
-                self.context = context.set_theme(theme_descriptor.to_theme());
+                self.context.set_theme(theme_descriptor.to_theme());
             }
             #[cfg(test)]
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
@@ -1674,7 +1672,7 @@ impl<T: Frontend> App<T> {
             .refresh_file_explorer(&self.working_directory, &self.context)?;
         let to = to.try_into()?;
 
-        self.context.rename_file_mark(&from, &to);
+        self.context.rename_path_mark(&from, &to);
 
         self.reveal_path_in_explorer(&to)?;
 
@@ -1862,7 +1860,6 @@ impl<T: Frontend> App<T> {
         self.context.set_mode(mode);
     }
 
-    #[cfg(test)]
     pub(crate) fn context(&self) -> &Context {
         &self.context
     }

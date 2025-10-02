@@ -1,6 +1,7 @@
 use crate::cli::get_version;
 use crate::components::component::ComponentId;
 use crate::components::editor::Mode;
+use crate::context::Context;
 use std::rc::Rc;
 use std::sync::mpsc::{self, TryRecvError};
 use std::sync::Mutex;
@@ -28,6 +29,7 @@ pub(crate) struct EmbeddedApp {
         mpsc::Receiver<crate::integration_event::IntegrationEvent>,
     pub(crate) app_message_receiver: mpsc::Receiver<AppMessage>,
     pub(crate) ipc_handler: WebSocketIpc,
+    pub(crate) context: Context,
 }
 
 impl EmbeddedApp {
@@ -75,6 +77,7 @@ impl EmbeddedApp {
             app_message_receiver: real_app_receiver,
             integration_event_receiver,
             ipc_handler,
+            context: Context::new(CanonicalizedPath::try_from(".")?, true, true),
         })
     }
 

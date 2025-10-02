@@ -48,10 +48,12 @@ mod utils;
 mod embed;
 
 mod alternator;
+pub(crate) mod db;
 mod debouncer;
 mod divide_viewport;
 mod env;
 mod format_path_list;
+pub(crate) mod persistence;
 use std::{rc::Rc, sync::Mutex};
 
 use anyhow::Context;
