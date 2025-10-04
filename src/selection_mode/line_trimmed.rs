@@ -59,32 +59,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
                 }
             }
         };
-
-        // trim range
-        let Some(line) = buffer.get_line_by_line_index(current_line_index) else {
-            return Ok(None);
-        };
-        let line_start_char_index = buffer.line_to_char(current_line_index)?;
-        let leading_whitespace_count = line
-            .chars()
-            .take_while(|c| c.is_whitespace() && c != &'\n')
-            .count();
-        debug_assert!(!line.chars().all(|c| c.is_whitespace()));
-
-        let trailing_whitespace_count = if line.len_chars() == 0 {
-            0
-        } else {
-            (0..line.len_chars())
-                .rev()
-                .take_while(|index| line.char(*index).is_whitespace())
-                .count()
-        };
-        let range = buffer.char_index_range_to_byte_range(
-            (line_start_char_index + leading_whitespace_count
-                ..line_start_char_index + line.len_chars() - trailing_whitespace_count)
-                .into(),
-        )?;
-        Ok(Some(ByteRange::new(range)))
+        trimmed_range(buffer, current_line_index)
     }
 
     fn get_current_selection_by_cursor(
@@ -97,39 +72,8 @@ impl PositionBasedSelectionMode for LineTrimmed {
         if cursor_char_index > max_cursor_char_index {
             return Ok(None);
         }
-
-        // trim range
         let line_index = buffer.char_to_line(cursor_char_index)?;
-        let Some(line) = buffer.get_line_by_line_index(line_index) else {
-            return Ok(None);
-        };
-        let line_start_char_index = buffer.line_to_char(line_index)?;
-        let leading_whitespace_count = line
-            .chars()
-            .take_while(|c| c.is_whitespace() && c != &'\n')
-            .count();
-        if line.chars().all(|c| c.is_whitespace()) {
-            let line_start_byte_index =
-                buffer.char_to_byte(line_start_char_index + leading_whitespace_count - 0)?;
-            return Ok(Some(ByteRange::new(
-                line_start_byte_index..line_start_byte_index,
-            )));
-        }
-
-        let trailing_whitespace_count = if line.len_chars() == 0 {
-            0
-        } else {
-            (0..line.len_chars())
-                .rev()
-                .take_while(|index| line.char(*index).is_whitespace())
-                .count()
-        };
-        let range = buffer.char_index_range_to_byte_range(
-            (line_start_char_index + leading_whitespace_count
-                ..line_start_char_index + line.len_chars() - trailing_whitespace_count)
-                .into(),
-        )?;
-        Ok(Some(ByteRange::new(range)))
+        trimmed_range(buffer, line_index)
     }
 
     fn left(
@@ -137,7 +81,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         Ok(self
-            .vertical_movement(params, true, None)?
+            .vertical_movement_meaningful(params, true, None)?
             .map(|result| result.selection))
     }
 
@@ -146,7 +90,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         Ok(self
-            .vertical_movement(params, false, None)?
+            .vertical_movement_meaningful(params, false, None)?
             .map(|result| result.selection))
     }
 
@@ -295,6 +239,51 @@ impl PositionBasedSelectionMode for LineTrimmed {
     ) -> String {
         process_paste_gap(params, prev_gap, next_gap, direction)
     }
+}
+
+fn trimmed_range(
+    buffer: &crate::buffer::Buffer,
+    line_index: usize,
+) -> anyhow::Result<Option<super::ByteRange>> {
+    let Some(line) = buffer.get_line_by_line_index(line_index) else {
+        return Ok(None);
+    };
+    let line_start_char_index = buffer.line_to_char(line_index)?;
+
+    /*
+    let leading_whitespace_count = line
+        .chars()
+        .take_while(|c| c.is_whitespace() && c != &'\n')
+        .count();
+    if line.chars().all(|c| c.is_whitespace()) {
+        let line_start_byte_index =
+            buffer.char_to_byte(line_start_char_index + leading_whitespace_count - 0)?;
+        return Ok(Some(ByteRange::new(
+            line_start_byte_index..line_start_byte_index,
+        )));
+    }
+
+    let trailing_whitespace_count = if line.len_chars() == 0 {
+        0
+    } else {
+        (0..line.len_chars())
+            .rev()
+            .take_while(|index| line.char(*index).is_whitespace())
+            .count()
+    };
+
+    let range = buffer.char_index_range_to_byte_range(
+        (line_start_char_index + leading_whitespace_count
+            ..line_start_char_index + line.len_chars() - trailing_whitespace_count)
+            .into(),
+    )?;
+    */
+
+    let range = buffer.char_index_range_to_byte_range(
+        (line_start_char_index..line_start_char_index + line.len_chars()).into(),
+    )?;
+
+    Ok(Some(ByteRange::new(range)))
 }
 
 pub(crate) fn process_paste_gap(
