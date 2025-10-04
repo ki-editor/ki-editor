@@ -149,13 +149,13 @@ mod test_format_path_list {
         let cwd = CanonicalizedPath::try_from(temp_dir.path())?;
 
         // Create marked paths from indices
-        let marked_paths = marked_indices.iter().map(|&i| &paths[i]).collect_vec();
+        let marked_files = marked_indices.iter().map(|&i| &paths[i]).collect_vec();
 
         // Get current path
         let current_path = &paths[current_index];
 
         // Test the function
-        let result = format_path_list(&marked_paths, current_path, &cwd, dirty);
+        let result = format_path_list(&marked_files, current_path, &cwd, dirty);
 
         // Assert result
         assert_eq!(result, expected);

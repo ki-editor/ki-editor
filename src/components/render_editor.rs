@@ -142,7 +142,7 @@ impl Editor {
         } else {
             let wrapped_items = wrap_items(
                 &get_formatted_paths(
-                    &context.get_marked_paths(),
+                    &context.get_marked_files(),
                     &self.path()?,
                     context.current_working_directory(),
                     self.buffer().dirty(),

@@ -7,31 +7,26 @@
 //! 1. Create a new version file.
 //! 2. Update the `migrate_to_current` method of the last version file.  
 //! 3. Each version file should expose a struct call `Root`
-//!    and implement the `MigrateToCurrent` trait.  
-//! 4. Update the `LatestRoot` of this file.  
-use std::collections::HashMap;
+//!    and implement the `Migration` trait.  
+//! 4. Update the `Root` of this file.  
+use std::path::PathBuf;
 
-use itertools::Itertools;
-use once_cell::unsync::Lazy;
-use serde_json;
-use shared::canonicalized_path::CanonicalizedPath;
-
-pub(crate) mod v1;
-pub(crate) mod v2;
+pub(crate) mod _00001;
+pub(crate) mod _00002;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct Version(pub(crate) u8);
 
-type LatestRoot = v2::Root;
+pub(crate) type Root = _00002::Root;
 
-#[derive(Default)]
 pub(crate) struct Persistence {
-    root: LatestRoot,
+    path: PathBuf,
+    root: Root,
 }
 
 impl Persistence {
-    fn load(path: &CanonicalizedPath) -> anyhow::Result<Self> {
-        let content = path.read()?;
+    fn load(path: PathBuf) -> anyhow::Result<Self> {
+        let content = std::fs::read_to_string(path.clone())?;
         let value: serde_json::Value = serde_json::from_str(&content)?;
 
         let version = value
@@ -43,16 +38,15 @@ impl Persistence {
             .ok_or_else(|| anyhow::anyhow!("Unable to obtain version from:\n\n{content}"))?;
 
         let root = Self::load_from_version(version, content)?;
-        Ok(Self { root })
+        Ok(Self { path, root })
     }
 
-    fn get_parser(version: &str) -> Option<VersionParser> {
-        [v1::Root::as_version_parser(), v2::Root::as_version_parser()]
-            .into_iter()
-            .find(|parser| parser.version == version)
+    fn get_parser(version: &str) -> Option<Parser> {
+        let parser = Root::as_parser();
+        parser.get_matching_version(version)
     }
 
-    fn load_from_version(version: &str, content: String) -> anyhow::Result<LatestRoot> {
+    fn load_from_version(version: &str, content: String) -> anyhow::Result<Root> {
         let Some(parser) = Self::get_parser(version) else {
             return Err(anyhow::anyhow!("Unknown version: {version}"));
         };
@@ -60,34 +54,98 @@ impl Persistence {
         (parser.parse)(content)
     }
 
-    pub(crate) fn load_or_default(path: &CanonicalizedPath) -> Self {
-        Persistence::load(path)
-            .map_err(|err| log::error!("Unable to load persisted data due to {err:?}"))
-            .unwrap_or_default()
+    pub(crate) fn load_or_default(path: PathBuf) -> Self {
+        Persistence::load(path.clone())
+            .map_err(|err| {
+                #[cfg(test)]
+                dbg!("Persistence::load_or_default error: {err}");
+
+                log::error!("Unable to load persisted data due to {err:?}")
+            })
+            .unwrap_or_else(|_| Self {
+                path,
+                root: Default::default(),
+            })
+    }
+
+    pub(crate) fn write(&self) -> anyhow::Result<()> {
+        std::fs::write(self.path.clone(), serde_json::to_string_pretty(&self.root)?)?;
+        Ok(())
+    }
+
+    pub(crate) fn set_workspace_session(
+        &mut self,
+        working_directory: PathBuf,
+        marked_files: Vec<PathBuf>,
+    ) {
+        if let Some(workspace_session) = self.root.workspace_sessions.get_mut(&working_directory) {
+            workspace_session.marked_files = marked_files
+        } else {
+            self.root
+                .workspace_sessions
+                .insert(working_directory, _00002::WorkspaceSession { marked_files });
+        }
+    }
+
+    pub(crate) fn get_marked_files(&self, workding_directory: PathBuf) -> Option<Vec<PathBuf>> {
+        self.root
+            .workspace_sessions
+            .get(&workding_directory)
+            .map(|session| session.marked_files.clone())
     }
 }
 
-pub(crate) trait MigrateToCurrent:
+pub(crate) trait Migration:
     Default + serde::de::DeserializeOwned + serde::Serialize
 {
-    fn migrate_to_current(self) -> anyhow::Result<LatestRoot>;
+    type PreviousVersion: Migration;
 
     /// The implementation of this method should be always `file!()`;
     fn version() -> &'static str;
 
-    fn try_parse(content: String) -> anyhow::Result<LatestRoot> {
+    /// For the latest migration, this should be `self`,
+    /// otherwise, this should be `self.to_next_version().migrate_to_current()`.
+    fn migrate_to_current(self) -> anyhow::Result<Root>;
+
+    fn from_previous_version(value: Self::PreviousVersion) -> Self;
+
+    fn try_parse(content: String) -> anyhow::Result<Root> {
         serde_json::from_str::<Self>(&content)?.migrate_to_current()
     }
+}
 
-    fn as_version_parser() -> VersionParser {
-        VersionParser {
+trait AsParser {
+    fn as_parser() -> Parser;
+}
+
+impl<T: Migration> AsParser for T {
+    fn as_parser() -> Parser {
+        Parser {
             version: Self::version(),
             parse: Box::new(|content| Self::try_parse(content)),
+            previous_version: if Self::version() == T::PreviousVersion::version() {
+                None
+            } else {
+                Some(Box::new(T::PreviousVersion::as_parser()))
+            },
         }
     }
 }
 
-struct VersionParser {
+struct Parser {
     version: &'static str,
-    parse: Box<fn(String) -> anyhow::Result<LatestRoot>>,
+    parse: Box<fn(String) -> anyhow::Result<Root>>,
+    previous_version: Option<Box<Parser>>,
+}
+
+impl Parser {
+    fn get_matching_version(self, version: &str) -> Option<Parser> {
+        if self.version == version {
+            Some(self)
+        } else if let Some(parser) = self.previous_version {
+            parser.get_matching_version(version)
+        } else {
+            None
+        }
+    }
 }

@@ -66,6 +66,7 @@ impl EmbeddedApp {
             Some(integration_event_sender),
             false,
             true,
+            None,
         )?;
 
         let (ipc_handler, _port) = WebSocketIpc::new()?;
@@ -77,7 +78,7 @@ impl EmbeddedApp {
             app_message_receiver: real_app_receiver,
             integration_event_receiver,
             ipc_handler,
-            context: Context::new(CanonicalizedPath::try_from(".")?, true, true),
+            context: Context::new(CanonicalizedPath::try_from(".")?, true, None),
         })
     }
 

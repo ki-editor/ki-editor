@@ -48,7 +48,6 @@ mod utils;
 mod embed;
 
 mod alternator;
-pub(crate) mod db;
 mod debouncer;
 mod divide_viewport;
 mod env;
@@ -63,7 +62,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 use app::{App, StatusLineComponent};
 
-use crate::app::AppMessage;
+use crate::{app::AppMessage, persistence::Persistence};
 
 fn main() {
     cli::cli().unwrap();
@@ -101,6 +100,9 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         None, // No integration event sender
         true,
         false,
+        Some(Persistence::load_or_default(
+            grammar::cache_dir().join("data.json"),
+        )),
     )?;
 
     let sender = app.sender();

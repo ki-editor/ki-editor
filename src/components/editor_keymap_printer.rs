@@ -244,7 +244,7 @@ pub(crate) struct KeymapPrintSections {
 
 impl KeymapPrintSections {
     pub(crate) fn new() -> Self {
-        let context = Context::new(CanonicalizedPath::try_from(".").unwrap(), false, false);
+        let context = Context::new(CanonicalizedPath::try_from(".").unwrap(), false, None);
         let layout = context.keyboard_layout_kind().get_keyboard_layout();
         let editor = Editor::from_text(Option::None, "");
         let sections: Vec<KeymapPrintSection> = [

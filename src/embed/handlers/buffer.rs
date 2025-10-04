@@ -4,7 +4,6 @@ use super::prelude::*;
 use crate::{
     app::Dispatch,
     buffer::BufferOwner,
-    context::Context,
     edit::{Action, ActionGroup, Edit, EditTransaction},
     embed::{
         app::EmbeddedApp,
