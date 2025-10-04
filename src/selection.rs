@@ -208,7 +208,12 @@ impl SelectionSet {
             .map(|selection| {
                 let object = self
                     .mode()
-                    .to_selection_mode_trait_object(buffer, selection, cursor_direction, context)
+                    .to_selection_mode_trait_object(
+                        buffer,
+                        selection,
+                        cursor_direction,
+                        context.current_working_directory(),
+                    )
                     .ok()?;
 
                 let iter = object
@@ -494,7 +499,7 @@ impl SelectionMode {
         buffer: &Buffer,
         current_selection: &Selection,
         cursor_direction: &Direction,
-        context: &Context,
+        working_directory: &shared::canonicalized_path::CanonicalizedPath,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         let params = SelectionModeParams {
             buffer,
@@ -531,7 +536,9 @@ impl SelectionMode {
                 selection_mode::Diagnostic::new(*severity, params),
             )),
             SelectionMode::GitHunk(diff_mode) => Box::new(IterBased(selection_mode::GitHunk::new(
-                diff_mode, buffer, context,
+                diff_mode,
+                buffer,
+                working_directory,
             )?)),
             SelectionMode::Mark => Box::new(IterBased(selection_mode::Mark)),
             SelectionMode::LocalQuickfix { .. } => {
@@ -638,7 +645,7 @@ impl Selection {
             buffer,
             current_selection,
             cursor_direction,
-            context,
+            context.current_working_directory(),
         )?;
 
         let params = SelectionModeParams {

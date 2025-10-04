@@ -7,7 +7,9 @@ use url::Url;
 ///
 /// However, the construction of a `CanonicalizedPath` is slow,
 /// because `std::path::Path::canonicalize` is expensive.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Deserialize, serde::Serialize,
+)]
 pub struct CanonicalizedPath(PathBuf);
 
 impl AsRef<Path> for CanonicalizedPath {

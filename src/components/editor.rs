@@ -6,7 +6,6 @@ use super::{
     render_editor::Source,
     suggestive_editor::{Decoration, Info},
 };
-use crate::grid::LINE_NUMBER_VERTICAL_BORDER;
 use crate::{
     app::{Dimension, Dispatch, ToHostApp},
     buffer::Buffer,
@@ -31,6 +30,7 @@ use crate::{
     surround::EnclosureKind,
     transformation::{MyRegex, Transformation},
 };
+use crate::{grid::LINE_NUMBER_VERTICAL_BORDER, selection_mode::PositionBasedSelectionMode};
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use event::KeyEvent;
 use itertools::{Either, Itertools};
@@ -667,9 +667,32 @@ impl Editor {
     }
 
     pub(crate) fn from_buffer(buffer: Rc<RefCell<Buffer>>) -> Self {
-        let selection_set = SelectionSet::default();
-        let selection_mode = selection_set.mode().clone();
-        let mut result = Self {
+        // Select the first line of the file
+
+        let first_line_range = selection_mode::LineTrimmed
+            .get_current_selection_by_cursor(
+                &buffer.borrow(),
+                CharIndex(0),
+                IfCurrentNotFound::LookForward,
+            )
+            .unwrap_or_default()
+            .and_then(|byte_range| {
+                buffer
+                    .borrow()
+                    .byte_range_to_char_index_range(byte_range.range())
+                    .ok()
+            })
+            .unwrap_or_default();
+
+        let selection = Selection {
+            range: first_line_range,
+            initial_range: None,
+            info: None,
+        };
+
+        let selection_set = SelectionSet::default().set_selections(NonEmpty::new(selection));
+
+        Self {
             selection_set,
             jumps: None,
             mode: Mode::Normal,
@@ -685,15 +708,7 @@ impl Editor {
             normal_mode_override: None,
             reveal: None,
             visible_line_ranges: Default::default(),
-        };
-
-        // Select the first line of the file
-        let _ = result.select(
-            selection_mode,
-            Movement::Current(IfCurrentNotFound::LookForward),
-            &Context::default(),
-        );
-        result
+        }
     }
 
     /// The returned value includes leading whitespaces but elides trailing newline character
@@ -934,7 +949,7 @@ impl Editor {
         &self,
         selection: &Selection,
         use_current_selection_mode: bool,
-        context: &Context,
+        working_directory: &shared::canonicalized_path::CanonicalizedPath,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         if use_current_selection_mode {
             self.selection_set.mode().clone()
@@ -945,7 +960,7 @@ impl Editor {
             &self.buffer(),
             selection,
             &self.cursor_direction,
-            context,
+            working_directory,
         )
     }
 
@@ -957,8 +972,11 @@ impl Editor {
     ) -> anyhow::Result<()> {
         let chars = Self::jump_characters(context);
 
-        let object =
-            self.get_selection_mode_trait_object(selection, use_current_selection_mode, context)?;
+        let object = self.get_selection_mode_trait_object(
+            selection,
+            use_current_selection_mode,
+            context.current_working_directory(),
+        )?;
 
         let line_ranges = if let Some(ranges) = &self.visible_line_ranges {
             ranges.clone()
@@ -2071,7 +2089,7 @@ impl Editor {
                                 &buffer,
                                 current_selection,
                                 &self.cursor_direction,
-                                context,
+                                context.current_working_directory(),
                             )
                             .ok()?;
 
@@ -2119,7 +2137,7 @@ impl Editor {
                                 &buffer,
                                 current_selection,
                                 &self.cursor_direction,
-                                context,
+                                context.current_working_directory(),
                             )
                             .ok()?;
                         let params = selection_mode::SelectionModeParams {
@@ -2426,7 +2444,11 @@ impl Editor {
     ) -> anyhow::Result<Vec<(Selection, Rope)>> {
         self.selection_set
             .map(|selection| {
-                let object = self.get_selection_mode_trait_object(selection, true, context)?;
+                let object = self.get_selection_mode_trait_object(
+                    selection,
+                    true,
+                    context.current_working_directory(),
+                )?;
                 let buffer = self.buffer.borrow();
                 let gap = object.get_paste_gap(
                     &selection_mode::SelectionModeParams {
