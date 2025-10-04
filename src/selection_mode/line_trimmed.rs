@@ -86,6 +86,24 @@ impl PositionBasedSelectionMode for LineTrimmed {
         Ok(Some(ByteRange::new(range)))
     }
 
+    fn left(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        Ok(self
+            .vertical_movement(params, true, None)?
+            .map(|result| result.selection))
+    }
+
+    fn right(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        Ok(self
+            .vertical_movement(params, false, None)?
+            .map(|result| result.selection))
+    }
+
     fn next_char_index(
         &self,
         params: &SelectionModeParams,
@@ -105,10 +123,11 @@ impl PositionBasedSelectionMode for LineTrimmed {
         params.buffer.line_to_char(line_index - 1)
     }
 
-    fn next(
+    fn down(
         &self,
         params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
         let buffer = params.buffer;
         let start_char_index = {
             let cursor_char_index = params.cursor_char_index();
@@ -139,7 +158,10 @@ impl PositionBasedSelectionMode for LineTrimmed {
         while line_index < buffer.len_lines() {
             if let Some(slice) = buffer.get_line_by_line_index(line_index) {
                 if slice.chars().all(|char| char.is_whitespace()) {
-                    return self.to_index(params, line_index);
+                    return Ok(Some(super::ApplyMovementResult {
+                        selection: self.to_index(params, line_index)?.unwrap(),
+                        sticky_column_index,
+                    }));
                 } else {
                     line_index += 1
                 }
@@ -150,10 +172,11 @@ impl PositionBasedSelectionMode for LineTrimmed {
         Ok(None)
     }
 
-    fn previous(
+    fn up(
         &self,
         params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
         let buffer = params.buffer;
         let start_char_index = {
             let cursor_char_index = params.cursor_char_index();
@@ -184,7 +207,10 @@ impl PositionBasedSelectionMode for LineTrimmed {
         let mut line_index = buffer.char_to_line(start_char_index)?;
         while let Some(slice) = buffer.get_line_by_line_index(line_index) {
             if slice.chars().all(|char| char.is_whitespace()) {
-                return self.to_index(params, line_index);
+                return Ok(Some(super::ApplyMovementResult {
+                    selection: self.to_index(params, line_index)?.unwrap(),
+                    sticky_column_index,
+                }));
             } else if line_index == 0 {
                 break;
             } else {
