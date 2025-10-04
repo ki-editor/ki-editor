@@ -188,7 +188,7 @@ impl<T: Frontend> App<T> {
             queued_events: Vec::new(),
         };
 
-        app.setup();
+        app.restore_session();
 
         Ok(app)
     }
@@ -2193,7 +2193,6 @@ impl<T: Frontend> App<T> {
             .emit_event(IntegrationEvent::ShowInfo { info: None });
     }
 
-    #[cfg(test)]
     pub(crate) fn opened_files_count(&self) -> usize {
         self.layout.get_opened_files().len()
     }
@@ -2650,9 +2649,13 @@ impl<T: Frontend> App<T> {
         Ok(arboard::Clipboard::new()?.set_html(html, Some(alt_text))?)
     }
 
-    fn setup(&mut self) {
-        // Try to go to a marked file, if there are loaded marked file from the persistence
-        let _ = self.cycle_marked_file(Direction::End);
+    fn restore_session(&mut self) {
+        // This condition is necessary, because user might have opened a file by passing
+        // a path argument to the Ki CLI
+        if self.opened_files_count() == 0 {
+            // Try to go to a marked file, if there are loaded marked file from the persistence
+            let _ = self.cycle_marked_file(Direction::End);
+        }
     }
 }
 
