@@ -965,25 +965,6 @@ pub trait PositionBasedSelectionMode {
         is_up: bool,
         sticky_column_index: Option<usize>,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.vertical_movement_conditional(false, params, is_up, sticky_column_index)
-    }
-
-    fn vertical_movement_meaningful(
-        &self,
-        params: &SelectionModeParams,
-        is_up: bool,
-        sticky_column_index: Option<usize>,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.vertical_movement_conditional(true, params, is_up, sticky_column_index)
-    }
-
-    fn vertical_movement_conditional(
-        &self,
-        meaningful: bool,
-        params: &SelectionModeParams,
-        is_up: bool,
-        sticky_column_index: Option<usize>,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
         let cursor_char_index = params.cursor_char_index();
         let SelectionModeParams {
             buffer,
@@ -1037,14 +1018,8 @@ pub trait PositionBasedSelectionMode {
             )
         };
         loop {
-            let get_current_selection_conditional = if meaningful {
-                Self::get_current_meaningful_selection_by_cursor
-            } else {
-                Self::get_current_selection_by_cursor
-            };
-
             if let Some(result) =
-                get_current_selection_conditional(self, buffer, new_cursor_char_index, first_look)?
+                self.get_current_selection_by_cursor(buffer, new_cursor_char_index, first_look)?
             {
                 if buffer.byte_to_line(result.range.start)? == new_position.line {
                     let selection = (*current_selection)
@@ -1058,7 +1033,7 @@ pub trait PositionBasedSelectionMode {
                 }
             }
             if let Some(result) =
-                get_current_selection_conditional(self, buffer, new_cursor_char_index, second_look)?
+                self.get_current_selection_by_cursor(buffer, new_cursor_char_index, second_look)?
             {
                 if buffer.byte_to_line(result.range.start)? == new_position.line {
                     let selection = (*current_selection)
