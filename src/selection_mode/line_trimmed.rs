@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use crate::{
     components::editor::{Direction, IfCurrentNotFound},
-    selection::CharIndex,
+    selection::{CharIndex, Selection},
 };
 
 use super::{
@@ -27,24 +27,6 @@ impl PositionBasedSelectionMode for LineTrimmed {
         trimmed_range(buffer, line_index)
     }
 
-    fn left(
-        &self,
-        params: &SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        Ok(LineNonEmpty
-            .vertical_movement(params, true, None)?
-            .map(|result| result.selection))
-    }
-
-    fn right(
-        &self,
-        params: &SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        Ok(LineNonEmpty
-            .vertical_movement(params, false, None)?
-            .map(|result| result.selection))
-    }
-
     fn next_char_index(
         &self,
         params: &SelectionModeParams,
@@ -62,6 +44,21 @@ impl PositionBasedSelectionMode for LineTrimmed {
     ) -> anyhow::Result<CharIndex> {
         let line_index = params.buffer.char_to_line(range.start)?;
         params.buffer.line_to_char(line_index - 1)
+    }
+
+    fn left(
+        &self,
+        params: &super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        Ok(LineNonEmpty
+            .up(params, None)?
+            .map(|result| result.selection))
+    }
+
+    fn right(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        Ok(LineNonEmpty
+            .down(params, None)?
+            .map(|result| result.selection))
     }
 
     fn down(
@@ -99,9 +96,8 @@ impl PositionBasedSelectionMode for LineTrimmed {
         while line_index < buffer.len_lines() {
             if let Some(slice) = buffer.get_line_by_line_index(line_index) {
                 if slice.chars().all(|char| char.is_whitespace()) {
-                    let range = buffer.line_to_char_range(line_index)?;
                     return Ok(Some(super::ApplyMovementResult {
-                        selection: params.current_selection.clone().set_range(range),
+                        selection: self.to_index(params, line_index)?.unwrap(),
                         sticky_column_index,
                     }));
                 } else {
@@ -149,9 +145,8 @@ impl PositionBasedSelectionMode for LineTrimmed {
         let mut line_index = buffer.char_to_line(start_char_index)?;
         while let Some(slice) = buffer.get_line_by_line_index(line_index) {
             if slice.chars().all(|char| char.is_whitespace()) {
-                let range = buffer.line_to_char_range(line_index)?;
                 return Ok(Some(super::ApplyMovementResult {
-                    selection: params.current_selection.clone().set_range(range),
+                    selection: self.to_index(params, line_index)?.unwrap(),
                     sticky_column_index,
                 }));
             } else if line_index == 0 {
@@ -168,8 +163,8 @@ impl PositionBasedSelectionMode for LineTrimmed {
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         Ok(PositionBased(self.clone())
-            .down(params, None)?
-            .map(|result| result.selection))
+            .right(params)?
+            .map(|result| result))
     }
 
     fn delete_backward(
@@ -177,8 +172,8 @@ impl PositionBasedSelectionMode for LineTrimmed {
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         Ok(PositionBased(self.clone())
-            .up(params, None)?
-            .map(|result| result.selection))
+            .left(params)?
+            .map(|result| result))
     }
 
     fn process_paste_gap(
