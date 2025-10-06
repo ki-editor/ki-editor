@@ -1,4 +1,4 @@
-use super::{ByteRange, PositionBasedSelectionMode, SelectionModeTrait, Word};
+use super::{ByteRange, PositionBasedSelectionMode, Word};
 use crate::{buffer::Buffer, components::editor::IfCurrentNotFound, selection::CharIndex};
 
 pub struct Subword;
