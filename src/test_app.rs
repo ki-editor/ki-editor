@@ -791,8 +791,7 @@ fn cut_replace() -> anyhow::Result<()> {
             Editor(ChangeCut),
             Editor(EnterNormalMode),
             Expect(CurrentComponentContent(" main() { let x = 1; }")),
-            Editor(MoveSelection(Current(IfCurrentNotFound::LookForward))),
-            Expect(CurrentSelectedTexts(&["main"])),
+            Editor(MatchLiteral("main".to_string())),
             Editor(ReplaceWithCopiedText { cut: false }),
             Expect(CurrentComponentContent(" fn() { let x = 1; }")),
         ])

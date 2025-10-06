@@ -2,7 +2,7 @@ use ropey::Rope;
 
 use crate::{components::editor::IfCurrentNotFound, selection::CharIndex};
 
-use super::{ApplyMovementResult, ByteRange, PositionBasedSelectionMode, SelectionModeTrait};
+use super::{ByteRange, PositionBasedSelectionMode};
 
 pub struct Word;
 
@@ -39,7 +39,7 @@ fn find_whitespace_start(rope: &Rope, current: CharIndex) -> CharIndex {
     // Create a reverse range from current.0 down to 1 (not including 0)
     for i in (1..=current.0).rev() {
         let prev_char = rope.char(i - 1);
-        if !prev_char.is_whitespace() {
+        if !prev_char.is_whitespace() || prev_char == '\n' {
             return CharIndex(i);
         }
     }
@@ -51,7 +51,7 @@ fn find_whitespace_end(rope: &Rope, current: CharIndex, last_char_index: CharInd
     // Create a range from current.0+1 to last_char_index.0
     for i in (current.0 + 1)..=last_char_index.0 {
         let char = rope.char(i);
-        if !char.is_whitespace() {
+        if !char.is_whitespace() || char == '\n' {
             return CharIndex(i - 1);
         }
     }
@@ -59,102 +59,23 @@ fn find_whitespace_end(rope: &Rope, current: CharIndex, last_char_index: CharInd
     last_char_index
 }
 
-impl SelectionModeTrait for Word {
-    fn left(
+impl PositionBasedSelectionMode for Word {
+    fn get_current_meaningful_selection_by_cursor(
         &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        WordSkipSymbol.left(params)
-    }
-
-    fn right(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        WordSkipSymbol.right(params)
-    }
-
-    fn delete_backward(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        WordNoSkipSymbol.left(params)
-    }
-
-    fn delete_forward(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        WordNoSkipSymbol.right(params)
-    }
-
-    fn current(
-        &self,
-        params: &super::SelectionModeParams,
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        WordNoSkipSymbol.current(params, if_current_not_found)
+    ) -> anyhow::Result<Option<ByteRange>> {
+        get_current_word_by_cursor(true, buffer, cursor_char_index, if_current_not_found)
     }
 
-    #[cfg(test)]
-    fn all_selections_gathered_inversely<'a>(
-        &'a self,
-        params: &super::SelectionModeParams<'a>,
-    ) -> anyhow::Result<Vec<ByteRange>> {
-        WordIncludeWhitespace.all_selections_gathered_inversely(params)
-    }
-
-    fn expand(
+    fn get_current_selection_by_cursor(
         &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
-        params.expand()
-    }
-
-    fn up(
-        &self,
-        params: &super::SelectionModeParams,
-        sticky_column_index: Option<usize>,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        WordNoSkipSymbol.up(params, sticky_column_index)
-    }
-
-    fn down(
-        &self,
-        params: &super::SelectionModeParams,
-        sticky_column_index: Option<usize>,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        WordNoSkipSymbol.down(params, sticky_column_index)
-    }
-
-    fn selections_in_line_number_ranges(
-        &self,
-        params: &super::SelectionModeParams,
-        line_number_ranges: Vec<std::ops::Range<usize>>,
-    ) -> anyhow::Result<Vec<ByteRange>> {
-        WordNoSkipSymbol.selections_in_line_number_ranges(params, line_number_ranges)
-    }
-
-    fn to_index(
-        &self,
-        params: &super::SelectionModeParams,
-        index: usize,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        WordIncludeWhitespace.to_index(params, index)
-    }
-
-    fn next(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        WordIncludeWhitespace.right(params)
-    }
-
-    fn previous(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        WordIncludeWhitespace.left(params)
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: CharIndex,
+        _: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<ByteRange>> {
+        get_current_word_or_whitespace_by_cursor(buffer, cursor_char_index)
     }
 
     fn process_paste_gap(
@@ -165,20 +86,6 @@ impl SelectionModeTrait for Word {
         _: &crate::components::editor::Direction,
     ) -> String {
         process_paste_gap(prev_gap, next_gap)
-    }
-
-    fn first(
-        &self,
-        _: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        Ok(None)
-    }
-
-    fn last(
-        &self,
-        _: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        Ok(None)
     }
 }
 
@@ -200,45 +107,6 @@ pub(crate) fn process_paste_gap(prev_gap: Option<String>, next_gap: Option<Strin
                 next_gap
             }
         }
-    }
-}
-
-struct WordNoSkipSymbol;
-
-impl PositionBasedSelectionMode for WordNoSkipSymbol {
-    fn get_current_meaningful_selection_by_cursor(
-        &self,
-        buffer: &crate::buffer::Buffer,
-        cursor_char_index: CharIndex,
-        if_current_not_found: IfCurrentNotFound,
-    ) -> anyhow::Result<Option<ByteRange>> {
-        get_current_word_by_cursor(false, buffer, cursor_char_index, if_current_not_found)
-    }
-}
-
-struct WordSkipSymbol;
-
-impl PositionBasedSelectionMode for WordSkipSymbol {
-    fn get_current_meaningful_selection_by_cursor(
-        &self,
-        buffer: &crate::buffer::Buffer,
-        cursor_char_index: CharIndex,
-        if_current_not_found: IfCurrentNotFound,
-    ) -> anyhow::Result<Option<ByteRange>> {
-        get_current_word_by_cursor(true, buffer, cursor_char_index, if_current_not_found)
-    }
-}
-
-struct WordIncludeWhitespace;
-
-impl PositionBasedSelectionMode for WordIncludeWhitespace {
-    fn get_current_meaningful_selection_by_cursor(
-        &self,
-        buffer: &crate::buffer::Buffer,
-        cursor_char_index: CharIndex,
-        if_current_not_found: IfCurrentNotFound,
-    ) -> anyhow::Result<Option<ByteRange>> {
-        get_current_word_or_whitespace_by_cursor(buffer, cursor_char_index, if_current_not_found)
     }
 }
 
@@ -321,7 +189,6 @@ fn get_current_word_by_cursor(
 fn get_current_word_or_whitespace_by_cursor(
     buffer: &crate::buffer::Buffer,
     cursor_char_index: crate::selection::CharIndex,
-    if_current_not_found: IfCurrentNotFound,
 ) -> anyhow::Result<Option<super::ByteRange>> {
     let Some(last_char_index) = buffer.last_char_index() else {
         return Ok(None);
@@ -330,35 +197,14 @@ fn get_current_word_or_whitespace_by_cursor(
     let cursor_char_index = cursor_char_index.min(last_char_index);
     let rope = buffer.rope();
 
-    let is_target = |char: char| is_word(char) || is_symbol(char) || char.is_whitespace();
-
-    let current = {
-        let mut current = cursor_char_index;
-        loop {
-            if (CharIndex(0)..=last_char_index).contains(&current) {
-                if is_target(buffer.char(current)?) {
-                    break current;
-                } else {
-                    match if_current_not_found {
-                        IfCurrentNotFound::LookForward if current < last_char_index => {
-                            current = current + 1
-                        }
-                        IfCurrentNotFound::LookBackward if current > CharIndex(0) => {
-                            current = current - 1
-                        }
-                        _ => break current,
-                    }
-                }
-            } else {
-                return Ok(None);
-            }
-        }
-    };
+    let current = cursor_char_index;
 
     let current_char = rope.char(current.0);
 
-    if !is_target(current_char) {
-        return Ok(None);
+    // Handle single symbol case or newline char case
+    if current_char == '\n' || is_symbol(current_char) {
+        let current_byte = rope.try_char_to_byte(current.0)?;
+        return Ok(Some(ByteRange::new(current_byte..current_byte + 1)));
     }
 
     // Handle whitespace
@@ -369,12 +215,6 @@ fn get_current_word_or_whitespace_by_cursor(
         return Ok(Some(ByteRange::new(
             rope.try_char_to_byte(start.0)?..rope.try_char_to_byte(end.0)?,
         )));
-    }
-
-    // Handle single symbol case
-    if is_symbol(current_char) {
-        let current_byte = rope.try_char_to_byte(current.0)?;
-        return Ok(Some(ByteRange::new(current_byte..current_byte + 1)));
     }
 
     // Handle words
@@ -451,7 +291,7 @@ mod test_word {
                     owner: BufferOwner::User,
                     focus: true,
                 }),
-                Editor(SetContent("foo ? bar : spam".to_string())),
+                Editor(SetContent("foo ?bar:spam".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Word,
@@ -464,13 +304,57 @@ mod test_word {
                     use_current_selection_mode: true,
                     prior_change: None,
                 }),
-                Expect(JumpChars(&['f', '?', 'b', ':', 's'])),
+                Expect(JumpChars(&[' ', 'f', '?', 'b', ':', 's'])),
             ])
         })
     }
 
     #[test]
-    fn delete_no_skip_symbols() -> anyhow::Result<()> {
+    fn newline_character_is_counted_as_one_word() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("  \n   ".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Word,
+                )),
+                Expect(CurrentSelectedTexts(&["  "])),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["\n"])),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["   "])),
+            ])
+        })
+    }
+
+    #[test]
+    fn gapless_delete_no_skip_symbols() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo.bar.spam".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Word,
+                )),
+                Expect(CurrentSelectedTexts(&["foo"])),
+                Editor(DeleteNoGap),
+                Expect(CurrentSelectedTexts(&["."])),
+            ])
+        })
+    }
+
+    #[test]
+    fn delete_skip_symbols() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -485,7 +369,8 @@ mod test_word {
                 )),
                 Expect(CurrentSelectedTexts(&["foo"])),
                 Editor(Delete),
-                Expect(CurrentSelectedTexts(&["."])),
+                Expect(CurrentSelectedTexts(&["bar"])),
+                Expect(CurrentComponentContent("bar.spam")),
             ])
         })
     }

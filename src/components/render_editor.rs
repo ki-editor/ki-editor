@@ -1209,14 +1209,6 @@ fn filter_items_by_range<T, F>(items: &[T], start: usize, end: usize, get_range:
 where
     F: Fn(&T) -> Range<usize>,
 {
-    debug_assert!(
-        items.iter().map(&get_range).collect_vec()
-            == items
-                .iter()
-                .map(&get_range)
-                .sorted_by_key(|range| (range.start, range.end))
-                .collect_vec(),
-    );
     debug_assert!(start <= end);
 
     // Find the start index

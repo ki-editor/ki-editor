@@ -228,7 +228,8 @@ impl Component for Editor {
             EnableSelectionExtension => self.enable_selection_extension(),
             DisableSelectionExtension => self.disable_selection_extension(),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction, context),
-            Delete => return self.delete(context),
+            Delete => return self.delete(context, true),
+            DeleteNoGap => return self.delete(context, false),
             Insert(string) => return self.insert(&string, context),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
@@ -1015,7 +1016,11 @@ impl Editor {
         Ok(Dispatches::one(self.dispatch_jumps_changed()))
     }
 
-    pub(crate) fn delete(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+    pub(crate) fn delete(
+        &mut self,
+        context: &Context,
+        with_gap: bool,
+    ) -> anyhow::Result<Dispatches> {
         // to copy deleted item to clipboard copy_dispatch should be self.copy()?
         let copy_dispatches: Dispatches = Default::default();
         let direction = self.cursor_direction.reverse();
@@ -1035,9 +1040,11 @@ impl Editor {
                         // will not be found
                         let start_selection =
                             &selection.clone().collapsed_to_anchor_range(direction);
-                        let movement = match direction {
-                            Direction::Start => Movement::DeleteBackward,
-                            Direction::End => Movement::DeleteForward,
+                        let movement = match (direction, with_gap) {
+                            (Direction::Start, true) => Movement::DeleteBackward,
+                            (Direction::End, true) => Movement::DeleteForward,
+                            (Direction::Start, false) => Movement::Previous,
+                            (Direction::End, false) => Movement::Next,
                         };
                         let result_selection = Selection::get_selection_(
                             &buffer,
@@ -3988,6 +3995,7 @@ pub(crate) enum DispatchEditor {
     SelectLine(Movement),
     Backspace,
     Delete,
+    DeleteNoGap,
     Insert(String),
     MoveToLineStart,
     MoveToLineEnd,

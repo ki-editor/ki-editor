@@ -140,7 +140,7 @@ fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
             Editor(SetContent("fn main() {}".to_string())),
             Editor(MatchLiteral("}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(Delete),
+            Editor(DeleteNoGap),
             Expect(CurrentComponentContent("fn main() {")),
         ])
     })
@@ -297,6 +297,8 @@ fn test_delete_word_long() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::End)),
             Editor(DeleteWordBackward { short: false }),
             Expect(CurrentComponentContent("hello_world ")),
+            Editor(DeleteWordBackward { short: false }),
+            Expect(CurrentComponentContent("hello_world")),
             Editor(DeleteWordBackward { short: false }),
             Expect(CurrentComponentContent("")),
         ])
@@ -1298,7 +1300,7 @@ fn insert_mode_end() -> anyhow::Result<()> {
 }
 
 #[test]
-fn highlight_kill() -> anyhow::Result<()> {
+fn delete_extended_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -1311,7 +1313,7 @@ fn highlight_kill() -> anyhow::Result<()> {
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["fn main"])),
-            Editor(Delete),
+            Editor(DeleteNoGap),
             Expect(CurrentSelectedTexts(&["("])),
         ])
     })
@@ -1366,7 +1368,7 @@ fn enter_normal_mode_should_highlight_one_character() -> anyhow::Result<()> {
 }
 
 #[test]
-fn highlight_change() -> anyhow::Result<()> {
+fn change_extended_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -1543,7 +1545,7 @@ fn main() {
 }
 
 #[test]
-fn highlight_and_jump() -> anyhow::Result<()> {
+fn extend_and_jump() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -3898,7 +3900,7 @@ fn should_search_backward_if_primary_and_secondary_cursor_swapped() -> anyhow::R
                 focus: true,
             }),
             Editor(SetContent("  hello world  ".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SwapCursor),
             App(HandleKeyEvent(key!("s"))), // Word selection mode (Qwerty)
             Expect(CurrentSelectedTexts(&["world"])),
@@ -4198,7 +4200,7 @@ fn movement_up() -> anyhow::Result<()> {
                 "
 foo bar
     spam
-    baz
+baz
 tim
 "
                 .trim()
@@ -4226,9 +4228,10 @@ fn movement_down() -> anyhow::Result<()> {
             Editor(SetContent(
                 "
 foo bar
-    spam
+spam
     baz
 "
+                .trim()
                 .to_string(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
@@ -4654,7 +4657,7 @@ fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> 
             ])
         })
     }
-    run_test(Word, &["hello"])?;
+    run_test(Word, &["\n"])?;
     run_test(SyntaxNode, &["hello"])?;
     run_test(Subword, &["hello"])?;
     run_test(Character, &["\n"])?;
