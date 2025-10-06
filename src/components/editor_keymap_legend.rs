@@ -400,6 +400,11 @@ impl Editor {
                 Dispatch::ToEditor(Dedent),
             ),
             Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Del0G),
+                "Delete 0 Gap".to_string(),
+                Dispatch::ToEditor(DeleteNoGap),
+            ),
+            Keymap::new(
                 "*",
                 "Keyboard".to_string(),
                 Dispatch::OpenKeyboardLayoutPrompt,

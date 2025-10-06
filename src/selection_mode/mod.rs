@@ -852,11 +852,11 @@ pub trait PositionBasedSelectionMode {
     }
 
     fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.next(params)
+        self.right(params)
     }
 
     fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.previous(params)
+        self.left(params)
     }
 
     fn revealed_selections<'a>(

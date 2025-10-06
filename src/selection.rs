@@ -508,7 +508,7 @@ impl SelectionMode {
         };
         Ok(match self {
             SelectionMode::Subword => Box::new(PositionBased(selection_mode::Subword::new())),
-            SelectionMode::Word => Box::new(selection_mode::Word),
+            SelectionMode::Word => Box::new(PositionBased(selection_mode::Word)),
             SelectionMode::Line => Box::new(PositionBased(selection_mode::LineTrimmed)),
             SelectionMode::LineFull => Box::new(PositionBased(selection_mode::LineFull::new())),
             SelectionMode::Character => Box::new(PositionBased(selection_mode::Character)),
