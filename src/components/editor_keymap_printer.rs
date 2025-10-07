@@ -313,6 +313,21 @@ impl KeymapPrintSections {
                 layout,
             ),
             KeymapPrintSection::from_keymaps(
+                "Space LSP".to_string(),
+                &editor.space_lsp_keymap_legend_config(&context).keymaps(),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Space Editor".to_string(),
+                &editor.space_editor_keymap_legend_config(&context).keymaps(),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Space Pick".to_string(),
+                &editor.space_pick_keymap_legend_config(&context).keymaps(),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
                 "File Explorer Actions".to_string(),
                 &Keymaps::new(&editor.keymap_overridable(
                     &file_explorer_normal_mode_override(),

@@ -957,7 +957,7 @@ impl Editor {
         }
     }
 
-    fn space_picker_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub(crate) fn space_pick_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Pick".to_string(),
 
@@ -1180,7 +1180,7 @@ impl Editor {
                             .keyboard_layout_kind()
                             .get_space_keymap(&Meaning::SpPck),
                         "Pick".to_string(),
-                        Dispatch::ShowKeymapLegend(self.space_picker_keymap_legend_config(context)),
+                        Dispatch::ShowKeymapLegend(self.space_pick_keymap_legend_config(context)),
                     ),
                     Keymap::new(
                         context
