@@ -37,6 +37,7 @@ pub const LANGUAGES: &[&Language] = &[
     &nix(),
     &ocaml(),
     &ocaml_interface(),
+    &dune(),
     &python(),
     &rescript(),
     &roc(),
@@ -670,6 +671,22 @@ const fn ocaml_interface() -> Language {
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::OCamlInterface),
         block_comment_affixes: Some(("(*", "*)")),
+        ..Language::new()
+    }
+}
+
+const fn dune() -> Language {
+    Language {
+        extensions: &["dune-project", "dune"],
+        formatter_command: Some(Command("dune", &["format-dune-file"])),
+        lsp_language_id: Some(LanguageId::new("dune")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "dune",
+            url: "https://github.com/6cdh/tree-sitter-scheme",
+            commit: "main",
+            subpath: None,
+        }),
+        line_comment_prefix: Some(";"),
         ..Language::new()
     }
 }
