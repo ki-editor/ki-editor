@@ -266,32 +266,20 @@ impl Editor {
         context: &Context,
         prior_change: Option<PriorChange>,
     ) -> Vec<Keymap> {
-        [
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::LSrch),
-                Direction::End.format_action("Local"),
-                "Find (Local)".to_string(),
-                Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
-                    context,
-                    Scope::Local,
-                    self.cursor_direction.reverse().to_if_current_not_found(),
-                    prior_change,
-                )),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::GSrch),
-                "Global".to_string(),
-                "Find (Global)".to_string(),
-                Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
-                    context,
-                    Scope::Global,
-                    IfCurrentNotFound::LookForward,
-                    None,
-                )),
-            ),
-        ]
+        [Keymap::new_extended(
+            context.keyboard_layout_kind().get_key(&Meaning::LSrch),
+            Direction::End.format_action("Local"),
+            "Find (Local)".to_string(),
+            Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
+                context,
+                Scope::Local,
+                self.cursor_direction.reverse().to_if_current_not_found(),
+                prior_change,
+            )),
+        )]
         .to_vec()
     }
+
     pub(crate) fn keymap_actions(
         &self,
         normal_mode_override: &NormalModeOverride,
@@ -969,23 +957,23 @@ impl Editor {
         }
     }
 
-    pub(crate) fn space_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    fn space_picker_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "Space".to_string(),
+            title: "Pick".to_string(),
 
             keymaps: Keymaps::new(
                 &[
                     (
                         context
                             .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::Buffr),
+                            .get_space_picker_keymap(&Meaning::Buffr),
                         "Buffer",
                         FilePickerKind::Opened,
                     ),
                     (
                         context
                             .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::File_),
+                            .get_space_picker_keymap(&Meaning::File_),
                         "File",
                         FilePickerKind::NonGitIgnored,
                     ),
@@ -999,13 +987,13 @@ impl Editor {
                         (
                             context
                                 .keyboard_layout_kind()
-                                .get_space_keymap(&Meaning::GitFC),
+                                .get_space_picker_keymap(&Meaning::GitFC),
                             DiffMode::UnstagedAgainstCurrentBranch,
                         ),
                         (
                             context
                                 .keyboard_layout_kind()
-                                .get_space_keymap(&Meaning::GitFM),
+                                .get_space_picker_keymap(&Meaning::GitFM),
                             DiffMode::UnstagedAgainstMainBranch,
                         ),
                     ]
@@ -1021,121 +1009,135 @@ impl Editor {
                 .chain(Some(Keymap::new(
                     context
                         .keyboard_layout_kind()
-                        .get_space_keymap(&Meaning::Symbl),
+                        .get_space_picker_keymap(&Meaning::Symbl),
                     "Symbol".to_string(),
                     Dispatch::RequestDocumentSymbols,
                 )))
                 .chain(Some(Keymap::new(
                     context
                         .keyboard_layout_kind()
-                        .get_space_keymap(&Meaning::Theme),
+                        .get_space_picker_keymap(&Meaning::Theme),
                     "Theme".to_string(),
                     Dispatch::OpenThemePrompt,
                 )))
-                .chain(Some(Keymap::new(
+                .collect_vec(),
+            ),
+        }
+    }
+
+    pub(crate) fn space_lsp_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "LSP".to_string(),
+
+            keymaps: Keymaps::new(&[
+                Keymap::new(
                     context
                         .keyboard_layout_kind()
-                        .get_space_keymap(&Meaning::SHelp),
-                    "Help".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::ShowHelp),
-                )))
-                .chain([
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::RplcA),
-                        "Replace all".to_string(),
-                        Dispatch::Replace {
-                            scope: Scope::Global,
-                        },
-                    ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::Explr),
-                        "Explorer".to_string(),
-                        Dispatch::RevealInExplorer(
-                            self.path()
-                                .unwrap_or_else(|| context.current_working_directory().clone()),
-                        ),
-                    ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::TSNSx),
-                        "TS Node Sexp".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
-                    ),
-                    Keymap::new(
-                        "enter",
-                        "Force Save".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::ForceSave),
-                    ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::SaveA),
-                        "Save All".to_string(),
-                        Dispatch::SaveAll,
-                    ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::QSave),
-                        "Save All Quit".to_string(),
-                        Dispatch::SaveQuitAll,
-                    ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::QNSav),
-                        "Quit No Save".to_string(),
-                        Dispatch::QuitAll,
-                    ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::Pipe_),
-                        "Pipe".to_string(),
-                        Dispatch::OpenPipeToShellPrompt,
-                    ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::LCdAc),
-                        "Code Actions".to_string(),
-                        {
-                            let cursor_char_index = self.get_cursor_char_index();
-                            Dispatch::RequestCodeAction {
-                                diagnostics: self
-                                    .buffer()
-                                    .diagnostics()
-                                    .into_iter()
-                                    .filter_map(|diagnostic| {
-                                        if diagnostic.range.contains(&cursor_char_index) {
-                                            diagnostic.original_value.clone()
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                    .collect_vec(),
-                            }
-                        },
-                    ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::LHovr),
-                        "Hover".to_string(),
-                        Dispatch::RequestHover,
-                    ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::LRnme),
-                        "Rename".to_string(),
-                        Dispatch::PrepareRename,
-                    ),
+                        .get_space_lsp_keymap(&Meaning::LCdAc),
+                    "Code Actions".to_string(),
+                    {
+                        let cursor_char_index = self.get_cursor_char_index();
+                        Dispatch::RequestCodeAction {
+                            diagnostics: self
+                                .buffer()
+                                .diagnostics()
+                                .into_iter()
+                                .filter_map(|diagnostic| {
+                                    if diagnostic.range.contains(&cursor_char_index) {
+                                        diagnostic.original_value.clone()
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect_vec(),
+                        }
+                    },
+                ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_lsp_keymap(&Meaning::LHovr),
+                    "Hover".to_string(),
+                    Dispatch::RequestHover,
+                ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_lsp_keymap(&Meaning::LRnme),
+                    "Rename".to_string(),
+                    Dispatch::PrepareRename,
+                ),
+            ]),
+        }
+    }
+
+    pub(crate) fn space_editor_keymap_legend_config(
+        &self,
+        context: &Context,
+    ) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Editor".to_string(),
+
+            keymaps: Keymaps::new(&[
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_editor_keymap(&Meaning::RplcA),
+                    "Replace all".to_string(),
+                    Dispatch::Replace {
+                        scope: Scope::Global,
+                    },
+                ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_editor_keymap(&Meaning::TSNSx),
+                    "TS Node Sexp".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
+                ),
+                Keymap::new(
+                    "enter",
+                    "Force Save".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::ForceSave),
+                ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_editor_keymap(&Meaning::SaveA),
+                    "Save All".to_string(),
+                    Dispatch::SaveAll,
+                ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_editor_keymap(&Meaning::QSave),
+                    "Save All Quit".to_string(),
+                    Dispatch::SaveQuitAll,
+                ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_editor_keymap(&Meaning::QNSav),
+                    "Quit No Save".to_string(),
+                    Dispatch::QuitAll,
+                ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_editor_keymap(&Meaning::Pipe_),
+                    "Pipe".to_string(),
+                    Dispatch::OpenPipeToShellPrompt,
+                ),
+            ]),
+        }
+    }
+
+    pub(crate) fn space_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Space".to_string(),
+
+            keymaps: Keymaps::new(
+                &[
                     Keymap::new(
                         context
                             .keyboard_layout_kind()
@@ -1159,7 +1161,56 @@ impl Editor {
                         "÷ Mark".to_string(),
                         Dispatch::ToEditor(DispatchEditor::ToggleReveal(Reveal::Mark)),
                     ),
-                ])
+                    Keymap::new(
+                        context
+                            .keyboard_layout_kind()
+                            .get_space_keymap(&Meaning::SpEdt),
+                        "Editor".to_string(),
+                        Dispatch::ShowKeymapLegend(self.space_editor_keymap_legend_config(context)),
+                    ),
+                    Keymap::new(
+                        context
+                            .keyboard_layout_kind()
+                            .get_space_keymap(&Meaning::SpLsp),
+                        "LSP".to_string(),
+                        Dispatch::ShowKeymapLegend(self.space_lsp_keymap_legend_config(context)),
+                    ),
+                    Keymap::new(
+                        context
+                            .keyboard_layout_kind()
+                            .get_space_keymap(&Meaning::SpPck),
+                        "Pick".to_string(),
+                        Dispatch::ShowKeymapLegend(self.space_picker_keymap_legend_config(context)),
+                    ),
+                    Keymap::new(
+                        context
+                            .keyboard_layout_kind()
+                            .get_space_keymap(&Meaning::SHelp),
+                        "Help".to_string(),
+                        Dispatch::ToEditor(DispatchEditor::ShowHelp),
+                    ),
+                    Keymap::new(
+                        context
+                            .keyboard_layout_kind()
+                            .get_space_keymap(&Meaning::Explr),
+                        "Explorer".to_string(),
+                        Dispatch::RevealInExplorer(
+                            self.path()
+                                .unwrap_or_else(|| context.current_working_directory().clone()),
+                        ),
+                    ),
+                ]
+                .into_iter()
+                .chain(
+                    self.secondary_selection_modes_keymap_legend_config(
+                        context,
+                        Scope::Global,
+                        IfCurrentNotFound::LookForward,
+                        None,
+                    )
+                    .keymaps
+                    .into_vec(),
+                )
                 .collect_vec(),
             ),
         }
