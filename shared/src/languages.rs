@@ -35,6 +35,9 @@ pub const LANGUAGES: &[&Language] = &[
     &lua(),
     &markdown(),
     &nix(),
+    &ocaml(),
+    &ocaml_interface(),
+    &dune(),
     &python(),
     &rescript(),
     &roc(),
@@ -626,6 +629,64 @@ const fn nix() -> Language {
         language_fallback: Some(CargoLinkedTreesitterLanguage::Nix),
         line_comment_prefix: Some("#"),
         block_comment_affixes: Some(("/*", "*/")),
+        ..Language::new()
+    }
+}
+
+const fn ocaml() -> Language {
+    Language {
+        extensions: &["ml"],
+        formatter_command: Some(Command("ocamlformat", &["-", "--impl"])),
+        lsp_command: Some(LspCommand {
+            command: Command("ocamllsp", &["--stdio"]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("ocaml")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "ocaml",
+            url: "https://github.com/tree-sitter/tree-sitter-ocaml",
+            commit: "master",
+            subpath: Some("grammars/ocaml"),
+        }),
+        language_fallback: Some(CargoLinkedTreesitterLanguage::OCaml),
+        block_comment_affixes: Some(("(*", "*)")),
+        ..Language::new()
+    }
+}
+
+const fn ocaml_interface() -> Language {
+    Language {
+        extensions: &["mli"],
+        formatter_command: Some(Command("ocamlformat", &["-", "--intf"])),
+        lsp_command: Some(LspCommand {
+            command: Command("ocamllsp", &["--stdio"]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("ocaml")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "ocaml_interface",
+            url: "https://github.com/tree-sitter/tree-sitter-ocaml",
+            commit: "master",
+            subpath: Some("grammars/interface"),
+        }),
+        language_fallback: Some(CargoLinkedTreesitterLanguage::OCamlInterface),
+        block_comment_affixes: Some(("(*", "*)")),
+        ..Language::new()
+    }
+}
+
+const fn dune() -> Language {
+    Language {
+        extensions: &["dune-project", "dune"],
+        formatter_command: Some(Command("dune", &["format-dune-file"])),
+        lsp_language_id: Some(LanguageId::new("dune")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "dune",
+            url: "https://github.com/6cdh/tree-sitter-scheme",
+            commit: "main",
+            subpath: None,
+        }),
+        line_comment_prefix: Some(";"),
         ..Language::new()
     }
 }
