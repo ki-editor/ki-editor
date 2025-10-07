@@ -116,25 +116,13 @@ impl WalkBuilderConfig {
         Ok(receiver.into_iter().collect::<Vec<_>>())
     }
 
-    pub(crate) fn run_async(self, f: Arc<dyn Fn(PathBuf) + Send + Sync>) -> anyhow::Result<()> {
-        let WalkBuilderConfig {
-            root,
-            include,
-            exclude,
-        } = self;
-        let build_matcher = |glob: Option<&Glob>| -> anyhow::Result<_> {
-            let pattern = if let Some(glob) = glob {
-                Some(Glob::new(&root.join(glob.glob()).to_string_lossy())?.compile_matcher())
-            } else {
-                None
-            };
-            Ok(Box::new(move |path: &str| {
-                pattern.as_ref().map(|pattern| pattern.is_match(path))
-            }))
-        };
-        let include_match = build_matcher(include.as_ref())?;
-        let exclude_match = build_matcher(exclude.as_ref())?;
-        WalkBuilder::new(root)
+    pub(crate) fn run_async(
+        self,
+        include_match: Arc<dyn Fn(&str) -> Option<bool> + Send + Sync>,
+        exclude_match: Arc<dyn Fn(&str) -> Option<bool> + Send + Sync>,
+        f: Arc<dyn Fn(PathBuf) + Send + Sync>,
+    ) {
+        WalkBuilder::new(self.root)
             .filter_entry(move |entry| {
                 let path = entry.path().display().to_string();
 
@@ -163,7 +151,6 @@ impl WalkBuilderConfig {
                     WalkState::Continue
                 })
             });
-        Ok(())
     }
 
     /// `on_entry` takes `PathBuf` instead of `CanonicalizedPath`

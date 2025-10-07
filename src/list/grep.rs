@@ -1,5 +1,6 @@
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::sync::Arc;
 
+use globset::Glob;
 use grep_regex::RegexMatcher;
 use grep_searcher::{sinks, SearcherBuilder};
 
@@ -152,35 +153,54 @@ pub(crate) fn run_async(
     let regex = Regex::new(&pattern)?;
 
     let send = crate::thread::batch(send_locations, 30);
+    let build_matcher = |glob: Option<&Glob>| -> anyhow::Result<_> {
+        let pattern = if let Some(glob) = glob {
+            Some(
+                Glob::new(&walk_builder_config.root.join(glob.glob()).to_string_lossy())?
+                    .compile_matcher(),
+            )
+        } else {
+            None
+        };
+        Ok(Box::new(move |path: &str| {
+            pattern.as_ref().map(|pattern| pattern.is_match(path))
+        }))
+    };
+    let include_match = Arc::new(build_matcher(walk_builder_config.include.as_ref())?);
+    let exclude_match = Arc::new(build_matcher(walk_builder_config.exclude.as_ref())?);
     std::thread::spawn(|| {
-        walk_builder_config.run_async(Arc::new(move |path| {
-            let Ok(path) = path.try_into() else { return };
-            let Ok(buffer) = Buffer::from_path(&path, false) else {
-                return;
-            };
-            // Tree-sitter should be disabled whenever possible during
-            // global search, because it will slow down the operation tremendously
-            debug_assert!(buffer.tree().is_none());
-            let mut searcher = SearcherBuilder::new().build();
-            let _ = searcher.search_path(
-                &matcher,
-                path.clone(),
-                sinks::UTF8(|line_number, line| {
-                    if let Ok(locations) = to_locations(
-                        &buffer,
-                        path.clone(),
-                        line_number as usize,
-                        line,
-                        regex.clone(),
-                    ) {
-                        for location in locations {
-                            send(location)
+        walk_builder_config.run_async(
+            include_match,
+            exclude_match,
+            Arc::new(move |path| {
+                let Ok(path) = path.try_into() else { return };
+                let Ok(buffer) = Buffer::from_path(&path, false) else {
+                    return;
+                };
+                // Tree-sitter should be disabled whenever possible during
+                // global search, because it will slow down the operation tremendously
+                debug_assert!(buffer.tree().is_none());
+                let mut searcher = SearcherBuilder::new().build();
+                let _ = searcher.search_path(
+                    &matcher,
+                    path.clone(),
+                    sinks::UTF8(|line_number, line| {
+                        if let Ok(locations) = to_locations(
+                            &buffer,
+                            path.clone(),
+                            line_number as usize,
+                            line,
+                            regex.clone(),
+                        ) {
+                            for location in locations {
+                                send(location)
+                            }
                         }
-                    }
-                    Ok(true)
-                }),
-            );
-        }));
+                        Ok(true)
+                    }),
+                );
+            }),
+        );
     });
 
     Ok(())
