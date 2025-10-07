@@ -220,7 +220,7 @@ impl Prompt {
             on_nucleo_tick_debounced,
         } = config.items
         {
-            let debounce = crate::debouncer::start_thread(
+            let debounce = crate::thread::debounce(
                 on_nucleo_tick_debounced,
                 Duration::from_millis(1000 / 30), // 30 FPS
             );

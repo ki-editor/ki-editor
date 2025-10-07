@@ -97,6 +97,10 @@ impl QuickfixList {
         }
     }
 
+    pub(crate) fn is_empty(&self) -> bool {
+        self.dropdown.is_empty()
+    }
+
     #[cfg(test)]
     pub(crate) fn items(&self) -> Vec<QuickfixListItem> {
         self.items.clone()

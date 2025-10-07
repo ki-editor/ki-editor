@@ -133,6 +133,10 @@ impl Buffer {
         self.quickfix_list_items = quickfix_list_items
     }
 
+    pub(crate) fn add_quickfix_list_items(&mut self, quickfix_list_items: Vec<QuickfixListItem>) {
+        self.quickfix_list_items.extend(quickfix_list_items)
+    }
+
     pub(crate) fn reload(&mut self) -> anyhow::Result<()> {
         if let Some(path) = self.path() {
             let updated_content = path.read()?;

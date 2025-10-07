@@ -609,6 +609,10 @@ impl Dropdown {
         }
         self.compute_filtered_items()
     }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
 }
 
 #[cfg(test)]

@@ -940,6 +940,9 @@ impl<T: Frontend> App<T> {
             Dispatch::SetSystemClipboardHtml { html, alt_text } => {
                 self.set_system_clipboard_html(html, alt_text)?
             }
+            Dispatch::AddQuickfixListEntries(locations) => {
+                self.add_quickfix_list_entries(locations)?
+            }
         }
         Ok(())
     }
@@ -1606,7 +1609,18 @@ impl<T: Frontend> App<T> {
         }
         let locations = match config.mode {
             LocalSearchConfigMode::Regex(regex) => {
-                list::grep::run(&config.search(), walk_builder_config, regex)
+                let sender = self.sender.clone();
+                list::grep::run_async(
+                    &config.search(),
+                    walk_builder_config,
+                    regex,
+                    Arc::new(move |locations| {
+                        let _ = sender.send(AppMessage::ExternalDispatch(
+                            Dispatch::AddQuickfixListEntries(locations),
+                        ));
+                    }),
+                )?;
+                Ok(Default::default())
             }
             LocalSearchConfigMode::AstGrep => {
                 list::ast_grep::run(config.search().clone(), walk_builder_config)
@@ -2657,6 +2671,33 @@ impl<T: Frontend> App<T> {
             let _ = self.cycle_marked_file(Direction::End);
         }
     }
+
+    fn add_quickfix_list_entries(&mut self, locations: Vec<Location>) -> anyhow::Result<()> {
+        let mut go_to_quickfix_item = false;
+        if let Some(quickfix_list) = self.get_quickfix_list() {
+            if quickfix_list.is_empty() {
+                go_to_quickfix_item = true
+            }
+        }
+        {
+            let component = self.current_component();
+            let mut component_mut = component.borrow_mut();
+            let mut buffer = component_mut.editor_mut().buffer_mut();
+            buffer.add_quickfix_list_items(
+                locations
+                    .into_iter()
+                    .map(|location| QuickfixListItem::new(location, None))
+                    .collect(),
+            );
+        }
+        if go_to_quickfix_item {
+            self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
+        }
+        if let Some(quickfix_list) = self.get_quickfix_list() {
+            self.render_quickfix_list(quickfix_list)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2897,6 +2938,7 @@ pub(crate) enum Dispatch {
         html: &'static str,
         alt_text: &'static str,
     },
+    AddQuickfixListEntries(Vec<Location>),
 }
 
 /// Used to send notify host app about changes

@@ -1,3 +1,5 @@
+use std::{path::PathBuf, sync::Arc, time::Duration};
+
 use grep_regex::RegexMatcher;
 use grep_searcher::{sinks, SearcherBuilder};
 
@@ -118,7 +120,7 @@ pub(crate) fn run(
                 &matcher,
                 path.clone(),
                 sinks::UTF8(|line_number, line| {
-                    if let Ok(location) = to_location(
+                    if let Ok(location) = to_locations(
                         &buffer,
                         path.clone(),
                         line_number as usize,
@@ -139,7 +141,52 @@ pub(crate) fn run(
         .collect())
 }
 
-fn to_location(
+pub(crate) fn run_async(
+    pattern: &str,
+    walk_builder_config: WalkBuilderConfig,
+    grep_config: RegexConfig,
+    send_locations: Arc<dyn Fn(Vec<Location>) + Send + Sync>,
+) -> anyhow::Result<()> {
+    let pattern = get_regex(pattern, grep_config)?.as_str().to_string();
+    let matcher = RegexMatcher::new_line_matcher(&pattern)?;
+    let regex = Regex::new(&pattern)?;
+
+    let send = crate::thread::batch(send_locations, 30);
+    std::thread::spawn(|| {
+        walk_builder_config.run_async(Arc::new(move |path| {
+            let Ok(path) = path.try_into() else { return };
+            let Ok(buffer) = Buffer::from_path(&path, false) else {
+                return;
+            };
+            // Tree-sitter should be disabled whenever possible during
+            // global search, because it will slow down the operation tremendously
+            debug_assert!(buffer.tree().is_none());
+            let mut searcher = SearcherBuilder::new().build();
+            let _ = searcher.search_path(
+                &matcher,
+                path.clone(),
+                sinks::UTF8(|line_number, line| {
+                    if let Ok(locations) = to_locations(
+                        &buffer,
+                        path.clone(),
+                        line_number as usize,
+                        line,
+                        regex.clone(),
+                    ) {
+                        for location in locations {
+                            send(location)
+                        }
+                    }
+                    Ok(true)
+                }),
+            );
+        }));
+    });
+
+    Ok(())
+}
+
+fn to_locations(
     buffer: &Buffer,
     path: CanonicalizedPath,
     line_number: usize,
