@@ -458,6 +458,7 @@ impl LspServerProcess {
                 match Self::read_response(&mut stdout_reader, &sender) {
                     Ok(()) => error_tracker.handle_success(),
                     Err(error) => {
+                        log::error!("[LspServerProcess] read_response error = {error:?}");
                         if !error_tracker.handle_error(error, &mut stderr_reader, &sender) {
                             let error = format!(
                             "LspServerProcess::listen: Too many consecutive errors ({}).\n\nStopping LSP command:\n\n`{}`",
@@ -563,12 +564,17 @@ impl LspServerProcess {
             .parse::<usize>()
             .with_context(|| "Parsing Content-Length: Failed to parse number.")?;
 
-        // According to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#headerPart
-        //
-        // ... this means that TWO '\r\n' sequences always immediately precede the content part of a message.
-        reader
-            .read_line(&mut line)
-            .with_context(|| "Failed to read content.")?;
+        // According to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#headerPart,
+        // we need to loop until we encounter an empty line, because the JSON comes after the empty line.
+        loop {
+            line.clear();
+            reader
+                .read_line(&mut line)
+                .with_context(|| "Failed to read content.")?;
+            if line == "\r\n" {
+                break;
+            }
+        }
 
         let mut buffer = vec![0; content_length];
         reader
@@ -578,8 +584,11 @@ impl LspServerProcess {
         let reply = String::from_utf8(buffer)
             .with_context(|| "Failed to convert content buffer into String.")?;
 
-        let reply: serde_json::Value = serde_json::from_str(&reply)
-            .with_context(|| "Failed to convert content string into JSON value")?;
+        let reply: serde_json::Value = serde_json::from_str(&reply).map_err(|err| {
+            anyhow::anyhow!(
+                "Failed to convert content string into JSON value due to error: {err:?}. Content is {reply:?}"
+            )
+        })?;
 
         sender
             .send(LspServerProcessMessage::FromLspServer(reply))
