@@ -1424,9 +1424,10 @@ impl<T: Frontend> App<T> {
                 self.render_quickfix_list(
                     quickfix_list.set_current_item_index(current_item_index),
                 )?;
+            } else {
+                log::info!("No current item found")
             }
         }
-
         Ok(())
     }
 
@@ -1489,14 +1490,16 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         let title = context.description.unwrap_or_default();
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
-        match r#type {
+        let go_to_first_quickfix = match r#type {
             QuickfixListType::Diagnostic(severity_range) => {
                 self.context.set_quickfix_list_source(
                     title.clone(),
                     QuickfixListSource::Diagnostic(severity_range),
                 );
+                true
             }
             QuickfixListType::Items(items) => {
+                let is_empty = items.is_empty();
                 self.layout.clear_quickfix_list_items();
                 items
                     .into_iter()
@@ -1516,15 +1519,21 @@ impl<T: Frontend> App<T> {
                     .collect::<anyhow::Result<Vec<_>>>()?;
                 self.context
                     .set_quickfix_list_source(title.clone(), QuickfixListSource::Custom);
+                !is_empty
             }
             QuickfixListType::Mark => {
                 self.context
                     .set_quickfix_list_source(title.clone(), QuickfixListSource::Mark);
+                true
             }
-        }
+        };
         match context.scope {
             None | Some(Scope::Global) => {
-                self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
+                if go_to_first_quickfix {
+                    self.goto_quickfix_list_item(Movement::Current(
+                        IfCurrentNotFound::LookForward,
+                    ))?;
+                }
                 Ok(())
             }
             Some(Scope::Local) => self.handle_dispatch(Dispatch::ToEditor(SetSelectionMode(
@@ -2675,16 +2684,19 @@ impl<T: Frontend> App<T> {
     }
 
     fn add_quickfix_list_entries(&mut self, matches: Vec<Match>) -> anyhow::Result<()> {
-        let mut go_to_quickfix_item = false;
-        if let Some(quickfix_list) = self.get_quickfix_list() {
-            if quickfix_list.is_empty() {
-                go_to_quickfix_item = true
-            }
-        }
+        let go_to_quickfix_item = self
+            .get_quickfix_list()
+            .as_ref()
+            .map(|list| list.is_empty())
+            .unwrap_or(true);
+
+        log::info!("go_to_quickix_item = {go_to_quickfix_item}");
+
         {
             let component = self.current_component();
             let mut component_mut = component.borrow_mut();
             let mut buffer = component_mut.editor_mut().buffer_mut();
+            // TODO: we shouldn't store quickfix list inside buffer
             buffer.add_quickfix_list_items(
                 matches
                     .into_iter()
@@ -2692,11 +2704,18 @@ impl<T: Frontend> App<T> {
                     .collect(),
             );
         }
+
+        let quickfix_list = self.get_quickfix_list();
+        debug_assert!(quickfix_list.is_some());
+        debug_assert!(!quickfix_list
+            .as_ref()
+            .map(|list| list.is_empty())
+            .unwrap_or(true));
+        if let Some(quickfix_list) = quickfix_list {
+            self.render_quickfix_list(quickfix_list)?;
+        }
         if go_to_quickfix_item {
             self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
-        }
-        if let Some(quickfix_list) = self.get_quickfix_list() {
-            self.render_quickfix_list(quickfix_list)?;
         }
         Ok(())
     }

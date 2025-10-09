@@ -43,6 +43,7 @@ pub(crate) struct Context {
     is_running_as_embedded: bool,
 
     persistence: Option<Persistence>,
+    // quickfix_list_items: HashMap<CanonicalizedPath, Vec<QuickfixListItem>>,
 }
 
 pub(crate) struct QuickfixListState {
@@ -144,6 +145,7 @@ impl Context {
             marked_files,
             is_running_as_embedded,
             persistence,
+            // quickfix_list_items: Default::default(),
         }
     }
 
