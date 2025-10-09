@@ -118,8 +118,8 @@ impl WalkBuilderConfig {
 
     pub(crate) fn run_async(
         self,
-        include_match: Arc<dyn Fn(&str) -> Option<bool> + Send + Sync>,
-        exclude_match: Arc<dyn Fn(&str) -> Option<bool> + Send + Sync>,
+        include_match: MatchFn,
+        exclude_match: MatchFn,
         f: Arc<dyn Fn(PathBuf) + Send + Sync>,
     ) {
         WalkBuilder::new(self.root)
@@ -181,6 +181,8 @@ impl WalkBuilderConfig {
             });
     }
 }
+
+type MatchFn = Arc<dyn Fn(&str) -> Option<bool> + Send + Sync>;
 
 #[cfg(test)]
 mod test_walk_builder_config {

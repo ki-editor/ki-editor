@@ -436,8 +436,9 @@ impl Layout {
                 "",
             )))
         });
-        self.tree
-            .replace_root_node_child(ComponentKind::QuickfixList, editor.clone(), false);
+        let node_id =
+            self.tree
+                .replace_root_node_child(ComponentKind::QuickfixList, editor.clone(), false);
         let dispatches = {
             let mut editor = editor.borrow_mut();
             editor.set_content(&render.content, context)?;
@@ -445,6 +446,15 @@ impl Layout {
             editor.set_title("Quickfix list".to_string());
             editor.select_line_at(render.highlight_line_index, context)?
         };
+
+        // If the QuickfixList is the only component in the layout,
+        // then it needs to be focused.
+        // This can happen when, say, the user executed a global search
+        // when no files have been opened yet.
+        if self.tree.components().len() == 1 {
+            self.tree.set_focus_component_id(node_id)
+        }
+
         if let Some(info) = render.info {
             self.show_info_on(
                 self.tree.root_id(),
