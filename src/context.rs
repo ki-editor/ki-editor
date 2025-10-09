@@ -175,8 +175,11 @@ impl Context {
         history_offset: isize,
     ) -> Option<CopiedTexts> {
         if use_system_clipboard {
-            if let Ok(copied_texts) = self.clipboard.get_from_system_clipboard() {
-                return Some(copied_texts);
+            match self.clipboard.get_from_system_clipboard() {
+                Ok(copied_texts) => return Some(copied_texts),
+                Err(err) => {
+                    log::error!("Context::get_clipboard_content: cannot access system clipboard due to {err:?}")
+                }
             }
         }
 
