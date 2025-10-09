@@ -1339,7 +1339,7 @@ impl Editor {
         let clipboards_differ: bool = !context.clipboards_synced();
         let use_system_clipboard = clipboards_differ;
 
-        let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0)? else {
+        let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0) else {
             return Ok(Default::default());
         };
         let direction = self.cursor_direction.reverse();
@@ -1372,7 +1372,7 @@ impl Editor {
         };
 
         let Some(copied_texts) =
-            context.get_clipboard_content(use_system_clipboard, history_offset)?
+            context.get_clipboard_content(use_system_clipboard, history_offset)
         else {
             return Ok(Default::default());
         };
