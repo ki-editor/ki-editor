@@ -1,3 +1,4 @@
+use std::sync::mpsc::SendError;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -21,10 +22,29 @@ pub(crate) fn debounce(
     })
 }
 
+pub(crate) enum SendResult {
+    Succeeed,
+    ReceiverDisconnected,
+}
+impl SendResult {
+    pub(crate) fn is_receiver_disconnected(&self) -> bool {
+        matches!(self, SendResult::ReceiverDisconnected)
+    }
+}
+
+impl<T> From<Result<(), SendError<T>>> for SendResult {
+    fn from(value: Result<(), SendError<T>>) -> Self {
+        match value {
+            Ok(_) => SendResult::Succeeed,
+            Err(_) => SendResult::ReceiverDisconnected,
+        }
+    }
+}
+
 pub(crate) fn batch<T: Send + Sync + 'static>(
-    callback: Arc<dyn Fn(Vec<T>) + Send + Sync>,
+    callback: Arc<dyn Fn(Vec<T>) -> SendResult + Send + Sync>,
     fps: u32,
-) -> Arc<dyn Fn(T) + Send + Sync> {
+) -> Arc<dyn Fn(T) -> SendResult + Send + Sync> {
     let (sender, receiver) = std::sync::mpsc::channel::<T>();
 
     std::thread::spawn(move || {
@@ -40,7 +60,5 @@ pub(crate) fn batch<T: Send + Sync + 'static>(
         callback(std::mem::take(&mut batch))
     });
 
-    Arc::new(move |item| {
-        let _ = sender.send(item);
-    })
+    Arc::new(move |item| SendResult::from(sender.send(item)))
 }

@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    io::Write as _,
+    sync::{mpsc::SendError, Arc},
+};
 
 use globset::Glob;
 use grep_regex::RegexMatcher;
@@ -8,7 +11,7 @@ use fancy_regex::Regex;
 
 use crate::{
     buffer::Buffer, context::LocalSearchConfig, quickfix_list::Location,
-    selection_mode::regex::get_regex,
+    selection_mode::regex::get_regex, thread::SendResult,
 };
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -142,17 +145,23 @@ pub(crate) fn run(
         .collect())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Match {
+    pub(crate) location: Location,
+    pub(crate) line: String,
+}
+
 pub(crate) fn run_async(
     pattern: &str,
     walk_builder_config: WalkBuilderConfig,
     grep_config: RegexConfig,
-    send_locations: Arc<dyn Fn(Vec<Location>) + Send + Sync>,
+    send_matches: Arc<dyn Fn(Vec<Match>) -> SendResult + Send + Sync>,
 ) -> anyhow::Result<()> {
     let pattern = get_regex(pattern, grep_config)?.as_str().to_string();
     let matcher = RegexMatcher::new_line_matcher(&pattern)?;
     let regex = Regex::new(&pattern)?;
 
-    let send = crate::thread::batch(send_locations, 30);
+    let send = crate::thread::batch(send_matches, 30);
     let build_matcher = |glob: Option<&Glob>| -> anyhow::Result<_> {
         let pattern = if let Some(glob) = glob {
             Some(
@@ -193,7 +202,14 @@ pub(crate) fn run_async(
                             regex.clone(),
                         ) {
                             for location in locations {
-                                send(location)
+                                let m = Match {
+                                    location,
+                                    line: line.trim_end_matches(&['\n', '\r']).to_string(),
+                                };
+                                if send(m).is_receiver_disconnected() {
+                                    // Stop search
+                                    return Ok(false);
+                                }
                             }
                         }
                         Ok(true)

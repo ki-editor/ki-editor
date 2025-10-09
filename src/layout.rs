@@ -534,6 +534,7 @@ impl Layout {
                                     "Diagnostics".to_string(),
                                     diagnostic.message.clone(),
                                 )),
+                                None,
                             ))
                         })
                         .collect_vec(),
@@ -548,6 +549,7 @@ impl Layout {
                                     path: buffer.path()?,
                                     range: position_range,
                                 },
+                                None,
                                 None,
                             ))
                         })

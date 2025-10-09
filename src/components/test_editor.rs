@@ -1893,6 +1893,7 @@ fn main() {
                             range: Position { line: 1, column: 2 }..Position { line: 1, column: 5 },
                         },
                         None,
+                        None,
                     )]
                     .to_vec(),
                 ),

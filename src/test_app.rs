@@ -1049,6 +1049,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                             range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
                         },
                         strs_to_strings(&["[This file is untracked or renamed]"]),
+                        None,
                     ),
                     QuickfixListItem::new(
                         Location {
@@ -1059,6 +1060,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                             "pub(crate) struct Foo {",
                             "// Hellopub(crate) struct Foo {",
                         ]),
+                        None,
                     ),
                     QuickfixListItem::new(
                         Location {
@@ -1066,6 +1068,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                             range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
                         },
                         strs_to_strings(&["mod foo;"]),
+                        None,
                     ),
                 ]))
             })),
@@ -1264,12 +1267,14 @@ fn global_marks() -> Result<(), anyhow::Error> {
                         range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
                     },
                     None,
+                    None,
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
                         range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
                     },
+                    None,
                     None,
                 ),
             ]))),
@@ -1309,12 +1314,14 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                         range: Position::new(0, 4)..Position::new(0, 7),
                     },
                     None,
+                    None,
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
                         range: Position::new(0, 12)..Position::new(0, 15),
                     },
+                    None,
                     None,
                 ),
                 QuickfixListItem::new(
@@ -1323,12 +1330,14 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                         range: Position::new(0, 4)..Position::new(0, 7),
                     },
                     None,
+                    None,
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
                         range: Position::new(0, 12)..Position::new(0, 15),
                     },
+                    None,
                     None,
                 ),
             ]))),
@@ -1421,6 +1430,7 @@ fn global_diagnostics() -> Result<(), anyhow::Error> {
                         "Diagnostics".to_string(),
                         "To err is normal, but to err again is not.".to_string(),
                     )),
+                    None,
                 ),
                 QuickfixListItem::new(
                     Location {
@@ -1431,6 +1441,7 @@ fn global_diagnostics() -> Result<(), anyhow::Error> {
                         "Diagnostics".to_string(),
                         "To err is normal, but to err again is not.".to_string(),
                     )),
+                    None,
                 ),
             ]))),
         ])
@@ -1698,6 +1709,7 @@ fn main() {
                             "Hello world".to_string(),
                             "This is fine".to_string(),
                         )),
+                        None,
                     )]
                     .to_vec(),
                 ),

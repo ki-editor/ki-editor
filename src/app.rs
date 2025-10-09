@@ -24,7 +24,7 @@ use crate::{
     grid::{Grid, LineUpdate},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
     layout::Layout,
-    list::{self, WalkBuilderConfig},
+    list::{self, grep::Match, WalkBuilderConfig},
     lsp::{
         completion::CompletionItem,
         goto_definition_response::GotoDefinitionResponse,
@@ -40,6 +40,7 @@ use crate::{
     search::parse_search_config,
     selection::{CharIndex, SelectionMode},
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
+    thread::SendResult,
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
@@ -1610,14 +1611,15 @@ impl<T: Frontend> App<T> {
         let locations = match config.mode {
             LocalSearchConfigMode::Regex(regex) => {
                 let sender = self.sender.clone();
+                // TODO: we need to create a new sender for each global search, so that it can be cancelled, but when?
                 list::grep::run_async(
                     &config.search(),
                     walk_builder_config,
                     regex,
                     Arc::new(move |locations| {
-                        let _ = sender.send(AppMessage::ExternalDispatch(
+                        SendResult::from(sender.send(AppMessage::ExternalDispatch(
                             Dispatch::AddQuickfixListEntries(locations),
-                        ));
+                        )))
                     }),
                 )?;
                 Ok(Default::default())
@@ -1634,7 +1636,7 @@ impl<T: Frontend> App<T> {
             QuickfixListType::Items(
                 locations
                     .into_iter()
-                    .map(|location| QuickfixListItem::new(location, None))
+                    .map(|location| QuickfixListItem::new(location, None, None))
                     .collect_vec(),
             ),
         )?;
@@ -1863,7 +1865,7 @@ impl<T: Frontend> App<T> {
                                         column: 0,
                                     },
                                 };
-                                QuickfixListItem::new(location, hunk.to_info())
+                                QuickfixListItem::new(location, hunk.to_info(), None)
                             })
                             .collect_vec()
                     })
@@ -2672,7 +2674,7 @@ impl<T: Frontend> App<T> {
         }
     }
 
-    fn add_quickfix_list_entries(&mut self, locations: Vec<Location>) -> anyhow::Result<()> {
+    fn add_quickfix_list_entries(&mut self, matches: Vec<Match>) -> anyhow::Result<()> {
         let mut go_to_quickfix_item = false;
         if let Some(quickfix_list) = self.get_quickfix_list() {
             if quickfix_list.is_empty() {
@@ -2684,9 +2686,9 @@ impl<T: Frontend> App<T> {
             let mut component_mut = component.borrow_mut();
             let mut buffer = component_mut.editor_mut().buffer_mut();
             buffer.add_quickfix_list_items(
-                locations
+                matches
                     .into_iter()
-                    .map(|location| QuickfixListItem::new(location, None))
+                    .map(|m| QuickfixListItem::new(m.location, None, Some(m.line)))
                     .collect(),
             );
         }
@@ -2938,7 +2940,7 @@ pub(crate) enum Dispatch {
         html: &'static str,
         alt_text: &'static str,
     },
-    AddQuickfixListEntries(Vec<Location>),
+    AddQuickfixListEntries(Vec<Match>),
 }
 
 /// Used to send notify host app about changes

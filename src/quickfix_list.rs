@@ -17,26 +17,28 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 impl QuickfixListItem {
     fn into_dropdown_item(self: QuickfixListItem, buffers: &[Rc<RefCell<Buffer>>]) -> DropdownItem {
-        let location = self.location();
+        let location = self.location;
         let Position { line, column } = location.range.start;
         DropdownItem::new({
-            let content = location
-                .read_from_buffers(buffers)
-                .unwrap_or_else(|| "[Failed to read file]".to_string())
-                .trim_matches(|c: char| c.is_whitespace())
-                .to_string();
+            let content = self.line.unwrap_or_else(|| {
+                location
+                    .read_from_buffers(buffers)
+                    .unwrap_or_else(|| "[Failed to read file]".to_string())
+                    .trim_matches(|c: char| c.is_whitespace())
+                    .to_string()
+            });
             format!("{}:{}  {}", line + 1, column + 1, content)
         })
         .set_info(self.info.clone())
         .set_group({
-            let path = self.location().path.clone();
+            let path = location.path.clone();
             Some(
                 path.display_relative()
                     .unwrap_or_else(|_| path.display_absolute()),
             )
         })
         .set_dispatches(Dispatches::one(crate::app::Dispatch::GotoLocation(
-            self.location().to_owned(),
+            location.to_owned(),
         )))
         .set_rank(Some(Box::new([line, column])))
     }
@@ -45,9 +47,11 @@ impl QuickfixListItem {
         let QuickfixListItem {
             location: Location { path, .. },
             info,
+            line,
         } = self;
         QuickfixListItem {
             info,
+            line,
             location: Location { path, range },
         }
     }
@@ -72,11 +76,12 @@ impl QuickfixList {
         let items = items
             .into_iter()
             // Sort the items by location
-            .sorted_by_key(|item| item.location.clone())
-            .chunk_by(|item| item.location.clone())
+            .sorted_by_key(|item| (item.location.clone()))
+            .chunk_by(|item| (item.location.clone(), item.line.clone()))
             .into_iter()
-            .map(|(location, items)| QuickfixListItem {
+            .map(|((location, line), items)| QuickfixListItem {
                 location,
+                line,
                 info: items
                     .into_iter()
                     .flat_map(|item| item.info)
@@ -127,6 +132,14 @@ impl QuickfixList {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct QuickfixListItem {
+    /// This field is for performance optimization,
+    /// if it exists, then we do not need to query the filesystem
+    /// for the contain of this line (specified by `self.location.range.start.line`).
+    ///
+    /// This is actually not merely for performance optimization,
+    /// it also avoid an issues where sometimes the location of a file   
+    /// cannot be query, which happens frequently when we made global search async.   
+    line: Option<String>,
     location: Location,
     info: Option<Info>,
 }
@@ -148,13 +161,22 @@ impl From<Location> for QuickfixListItem {
         QuickfixListItem {
             location: value,
             info: None,
+            line: None,
         }
     }
 }
 
 impl QuickfixListItem {
-    pub(crate) fn new(location: Location, info: Option<Info>) -> QuickfixListItem {
-        QuickfixListItem { location, info }
+    pub(crate) fn new(
+        location: Location,
+        info: Option<Info>,
+        line: Option<String>,
+    ) -> QuickfixListItem {
+        QuickfixListItem {
+            location,
+            info,
+            line,
+        }
     }
 
     pub(crate) fn location(&self) -> &Location {
@@ -285,6 +307,7 @@ mod test_quickfix_list {
                 range: Position { line: 1, column: 2 }..Position { line: 1, column: 3 },
             },
             info: None,
+            line: None,
         };
         let bar = QuickfixListItem {
             location: Location {
@@ -292,6 +315,7 @@ mod test_quickfix_list {
                 range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
             },
             info: None,
+            line: None,
         };
         let spam = QuickfixListItem {
             location: Location {
@@ -299,6 +323,7 @@ mod test_quickfix_list {
                 range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
             },
             info: None,
+            line: None,
         };
         let quickfix_list = QuickfixList::new(
             "".to_string(),
@@ -317,6 +342,7 @@ mod test_quickfix_list {
                     range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
                 },
                 info: Some(Info::new("Title 1".to_string(), "spongebob".to_string())),
+                line: None,
             },
             QuickfixListItem {
                 location: Location {
@@ -324,6 +350,7 @@ mod test_quickfix_list {
                     range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
                 },
                 info: Some(Info::new("Title 2".to_string(), "squarepants".to_string())),
+                line: None,
             },
         ]
         .to_vec();
@@ -340,7 +367,8 @@ mod test_quickfix_list {
                 info: Some(Info::new(
                     "Title 1".to_string(),
                     ["spongebob", "squarepants"].join("\n==========\n")
-                ))
+                )),
+                line: None
             }]
         )
     }
