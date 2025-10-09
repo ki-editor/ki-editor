@@ -30,6 +30,7 @@ pub const LANGUAGES: &[&Language] = &[
     &idris(),
     &javascript(),
     &javascript_react(),
+    &svelte(),
     &json(),
     &just(),
     &lua(),
@@ -533,6 +534,27 @@ const fn javascript_react() -> Language {
             subpath: None,
         }),
         language_fallback: Some(CargoLinkedTreesitterLanguage::JSX),
+        line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("/*", "*/")),
+        ..Language::new()
+    }
+}
+
+const fn svelte() -> Language {
+    Language {
+        extensions: &["svelte"],
+        lsp_command: Some(LspCommand {
+            command: Command("svelteserver", &["--stdio"]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("svelte")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "svelte",
+            url: "https://github.com/tree-sitter-grammars/tree-sitter-svelte",
+            commit: "master",
+            subpath: None,
+        }),
+        language_fallback: Some(CargoLinkedTreesitterLanguage::Svelte),
         line_comment_prefix: Some("//"),
         block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()

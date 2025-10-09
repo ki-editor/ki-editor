@@ -168,16 +168,24 @@ impl Context {
     }
 
     /// Note: `history_offset` is ignored when `use_system_clipboard` is true.
+    ///
+    /// This method should never fail, if `use_system_clipboard` is true but
+    /// the system clipboard is inaccessible, the app clipboard will be used.
     pub(crate) fn get_clipboard_content(
         &self,
         use_system_clipboard: bool,
         history_offset: isize,
-    ) -> anyhow::Result<Option<CopiedTexts>> {
-        Ok(if use_system_clipboard {
-            Some(self.clipboard.get_from_system_clipboard()?)
-        } else {
-            self.clipboard.get(history_offset)
-        })
+    ) -> Option<CopiedTexts> {
+        if use_system_clipboard {
+            match self.clipboard.get_from_system_clipboard() {
+                Ok(copied_texts) => return Some(copied_texts),
+                Err(err) => {
+                    log::error!("Context::get_clipboard_content: cannot access system clipboard due to {err:?}")
+                }
+            }
+        }
+
+        self.clipboard.get(history_offset)
     }
 
     pub(crate) fn set_clipboard_content(&mut self, contents: CopiedTexts) -> anyhow::Result<()> {
