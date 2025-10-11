@@ -49,7 +49,6 @@ pub(crate) struct Buffer {
     highlighted_spans: HighlightedSpans,
     marks: Vec<CharIndexRange>,
     diagnostics: Vec<Diagnostic>,
-    quickfix_list_items: Vec<QuickfixListItem>,
     decorations: Vec<Decoration>,
     selection_set_history: History<SelectionSet>,
     dirty: bool,
@@ -101,7 +100,6 @@ impl Buffer {
             marks: Vec::new(),
             decorations: Vec::new(),
             diagnostics: Vec::new(),
-            quickfix_list_items: Vec::new(),
             selection_set_history: History::new(),
             dirty: false,
             owner: BufferOwner::System,
@@ -120,21 +118,6 @@ impl Buffer {
     /// Refer `BufferOwner`
     pub(crate) fn owner(&self) -> BufferOwner {
         self.owner
-    }
-
-    pub(crate) fn clear_quickfix_list_items(&mut self) {
-        self.quickfix_list_items.clear()
-    }
-
-    pub(crate) fn update_quickfix_list_items(
-        &mut self,
-        quickfix_list_items: Vec<QuickfixListItem>,
-    ) {
-        self.quickfix_list_items = quickfix_list_items
-    }
-
-    pub(crate) fn add_quickfix_list_items(&mut self, quickfix_list_items: Vec<QuickfixListItem>) {
-        self.quickfix_list_items.extend(quickfix_list_items)
     }
 
     pub(crate) fn reload(&mut self) -> anyhow::Result<()> {
@@ -549,6 +532,8 @@ impl Buffer {
     }
 
     /// Returns the new selection set and the edit transaction
+    ///
+    /// This method returns the range-updated quickfix list items.
     pub(crate) fn apply_edit_transaction(
         &mut self,
         edit_transaction: &EditTransaction,
@@ -556,7 +541,7 @@ impl Buffer {
         reparse_tree: bool,
         update_undo_stack: bool,
         last_visible_line: u16,
-    ) -> Result<(SelectionSet, Vec<ki_protocol_types::DiffEdit>), anyhow::Error> {
+    ) -> Result<(SelectionSet, Vec<Edit>, Vec<ki_protocol_types::DiffEdit>), anyhow::Error> {
         let new_selection_set = edit_transaction
             .non_empty_selections()
             .map(|selections| current_selection_set.clone().set_selections(selections))
@@ -575,7 +560,7 @@ impl Buffer {
             .map(|edit| edit.to_vscode_diff_edit(self))
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-        edit_transaction
+        let range_updated_quickfix_list_items = edit_transaction
             .edits()
             .into_iter()
             .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
@@ -612,7 +597,15 @@ impl Buffer {
         self.batch_id.increment();
 
         // Return both the new selection set and a clone of the edit transaction
-        Ok((new_selection_set, applied_vscode_edits))
+        Ok((
+            new_selection_set,
+            edit_transaction
+                .edits()
+                .into_iter()
+                .map(|edit| edit.clone())
+                .collect_vec(),
+            applied_vscode_edits,
+        ))
     }
 
     // Add these methods for undo/redo
@@ -636,17 +629,7 @@ impl Buffer {
             );
         }
 
-        let quickfix_list_items_with_char_index_range =
-            std::mem::take(&mut self.quickfix_list_items)
-                .into_iter()
-                .filter_map(|item| {
-                    Some((
-                        self.position_range_to_char_index_range(&item.location().range)
-                            .ok()?,
-                        item,
-                    ))
-                })
-                .collect_vec();
+        // let quickfix_list_items_with_char_index_range = quickfix_list_items .into_iter() .filter_map(|item| { Some(( self.position_range_to_char_index_range(&item.location().range) .ok()?, item, )) }) .collect_vec();
 
         // Update the content
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
@@ -657,15 +640,7 @@ impl Buffer {
         self.owner = BufferOwner::User;
 
         // Update all the positional spans (by using the char index ranges computed before the content is updated
-        self.quickfix_list_items = quickfix_list_items_with_char_index_range
-            .into_iter()
-            .filter_map(|(char_index_range, item)| {
-                let position_range = self
-                    .char_index_range_to_position_range(char_index_range.apply_edit(edit)?)
-                    .ok()?;
-                Some(item.set_location_range(position_range))
-            })
-            .collect_vec();
+        // let quickfix_list_items = quickfix_list_items_with_char_index_range .into_iter() .filter_map(|(char_index_range, item)| { let position_range = self .char_index_range_to_position_range(char_index_range.apply_edit(edit)?) .ok()?; Some(item.set_location_range(position_range)) }) .collect_vec();
 
         // Update all the non-positional spans
         self.marks.retain_mut(|mark| {
@@ -998,7 +973,12 @@ impl Buffer {
         config: LocalSearchConfig,
         current_selection_set: SelectionSet,
         last_visible_line: u16,
-    ) -> anyhow::Result<(bool, SelectionSet, Vec<ki_protocol_types::DiffEdit>)> {
+    ) -> anyhow::Result<(
+        bool,
+        SelectionSet,
+        Vec<Edit>,
+        Vec<ki_protocol_types::DiffEdit>,
+    )> {
         let before = self.rope.to_string();
         let edit_transaction = match config.mode {
             LocalSearchConfigMode::NamingConventionAgnostic => {
@@ -1042,7 +1022,7 @@ impl Buffer {
                 )
             }
         };
-        let (selection_set, edits) = self.apply_edit_transaction(
+        let (selection_set, edits, diff_edits) = self.apply_edit_transaction(
             &edit_transaction,
             current_selection_set,
             true,
@@ -1051,7 +1031,7 @@ impl Buffer {
         )?;
         let after = self.content();
         let modified = before != after;
-        Ok((modified, selection_set, edits))
+        Ok((modified, selection_set, edits, diff_edits))
     }
 
     pub(crate) fn char_index_range_to_byte_range(
@@ -1062,7 +1042,8 @@ impl Buffer {
     }
 
     pub(crate) fn quickfix_list_items(&self) -> Vec<QuickfixListItem> {
-        self.quickfix_list_items.clone()
+        Default::default()
+        // self.quickfix_list_items.clone()
     }
 
     pub(crate) fn line_range_to_char_index_range(

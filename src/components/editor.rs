@@ -240,7 +240,7 @@ impl Component for Editor {
             EnterSwapMode => self.enter_swap_mode(),
             ReplacePattern { config } => {
                 let selection_set = self.selection_set.clone();
-                let (_, selection_set, _) =
+                let (_, selection_set, _, _) =
                     self.buffer_mut()
                         .replace(config, selection_set, last_visible_line)?;
                 return Ok(self
@@ -1392,13 +1392,14 @@ impl Editor {
     ) -> anyhow::Result<Dispatches> {
         // Apply the transaction to the buffer
         let last_visible_line = self.last_visible_line(context);
-        let (new_selection_set, edits) = self.buffer.borrow_mut().apply_edit_transaction(
-            &edit_transaction,
-            self.selection_set.clone(),
-            self.mode != Mode::Insert,
-            true,
-            last_visible_line,
-        )?;
+        let (new_selection_set, edits, diff_edits) =
+            self.buffer.borrow_mut().apply_edit_transaction(
+                &edit_transaction,
+                self.selection_set.clone(),
+                self.mode != Mode::Insert,
+                true,
+                last_visible_line,
+            )?;
 
         // Create a BufferEditTransaction dispatch for external integrations
         let buffer_edit_dispatch = if context.is_running_as_embedded() {
@@ -1412,7 +1413,7 @@ impl Editor {
                         // Create a dispatch to send buffer edit transaction to external integrations
                         Dispatches::one(Dispatch::ToHostApp(ToHostApp::BufferEditTransaction {
                             path,
-                            edits,
+                            edits: diff_edits,
                         }))
                     })
                 })
@@ -1431,7 +1432,8 @@ impl Editor {
         // Add the buffer edit transaction dispatch
         let dispatches = self
             .get_document_did_change_dispatch()
-            .chain(buffer_edit_dispatch);
+            .chain(buffer_edit_dispatch)
+            .append(Dispatch::AppliedEdits(edits));
 
         Ok(dispatches)
     }

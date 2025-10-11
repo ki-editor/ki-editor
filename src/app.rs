@@ -19,6 +19,7 @@ use crate::{
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
+    edit::Edit,
     frontend::Frontend,
     git::{self},
     grid::{Grid, LineUpdate},
@@ -944,6 +945,7 @@ impl<T: Frontend> App<T> {
             Dispatch::AddQuickfixListEntries(locations) => {
                 self.add_quickfix_list_entries(locations)?
             }
+            Dispatch::AppliedEdits(edits) => self.handle_applied_edits(edits),
         }
         Ok(())
     }
@@ -1500,25 +1502,8 @@ impl<T: Frontend> App<T> {
             }
             QuickfixListType::Items(items) => {
                 let is_empty = items.is_empty();
-                self.layout.clear_quickfix_list_items();
-                items
-                    .into_iter()
-                    .chunk_by(|item| item.location().path.clone())
-                    .into_iter()
-                    .sorted_by_key(|(path, _)| path.clone())
-                    .map(|(path, items)| -> anyhow::Result<()> {
-                        let items = items.collect_vec();
-                        let editor = self.open_file(&path, BufferOwner::System, false, false)?;
-                        editor
-                            .borrow_mut()
-                            .editor_mut()
-                            .buffer_mut()
-                            .update_quickfix_list_items(items);
-                        Ok(())
-                    })
-                    .collect::<anyhow::Result<Vec<_>>>()?;
                 self.context
-                    .set_quickfix_list_source(title.clone(), QuickfixListSource::Custom);
+                    .set_quickfix_list_source(title.clone(), QuickfixListSource::Custom(items));
                 !is_empty
             }
             QuickfixListType::Mark => {
@@ -2692,25 +2677,14 @@ impl<T: Frontend> App<T> {
 
         log::info!("go_to_quickix_item = {go_to_quickfix_item}");
 
-        {
-            let component = self.current_component();
-            let mut component_mut = component.borrow_mut();
-            let mut buffer = component_mut.editor_mut().buffer_mut();
-            // TODO: we shouldn't store quickfix list inside buffer
-            buffer.add_quickfix_list_items(
-                matches
-                    .into_iter()
-                    .map(|m| QuickfixListItem::new(m.location, None, Some(m.line)))
-                    .collect(),
-            );
-        }
+        self.context.extend_quickfix_list_items(
+            matches
+                .into_iter()
+                .map(|m| QuickfixListItem::new(m.location, None, Some(m.line)))
+                .collect_vec(),
+        );
 
         let quickfix_list = self.get_quickfix_list();
-        debug_assert!(quickfix_list.is_some());
-        debug_assert!(!quickfix_list
-            .as_ref()
-            .map(|list| list.is_empty())
-            .unwrap_or(true));
         if let Some(quickfix_list) = quickfix_list {
             self.render_quickfix_list(quickfix_list)?;
         }
@@ -2718,6 +2692,10 @@ impl<T: Frontend> App<T> {
             self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
         }
         Ok(())
+    }
+
+    fn handle_applied_edits(&self, edits: Vec<Edit>) {
+        // self.context.handle_applied_edits(edits)
     }
 }
 
@@ -2960,6 +2938,7 @@ pub(crate) enum Dispatch {
         alt_text: &'static str,
     },
     AddQuickfixListEntries(Vec<Match>),
+    AppliedEdits(Vec<Edit>),
 }
 
 /// Used to send notify host app about changes

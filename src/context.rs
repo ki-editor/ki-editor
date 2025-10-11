@@ -13,7 +13,7 @@ use crate::{
     components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
     persistence::Persistence,
-    quickfix_list::{DiagnosticSeverityRange, Location},
+    quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
     selection::SelectionMode,
     themes::Theme,
 };
@@ -43,7 +43,6 @@ pub(crate) struct Context {
     is_running_as_embedded: bool,
 
     persistence: Option<Persistence>,
-    // quickfix_list_items: HashMap<CanonicalizedPath, Vec<QuickfixListItem>>,
 }
 
 pub(crate) struct QuickfixListState {
@@ -55,7 +54,7 @@ pub(crate) struct QuickfixListState {
 pub(crate) enum QuickfixListSource {
     Diagnostic(DiagnosticSeverityRange),
     Mark,
-    Custom,
+    Custom(Vec<QuickfixListItem>),
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -96,6 +95,29 @@ impl Context {
             if let Err(error) = persistence.write() {
                 log::error!("Failed to write persistence due to {error:?}")
             }
+        }
+    }
+
+    pub(crate) fn extend_quickfix_list_items(&mut self, new_items: Vec<QuickfixListItem>) {
+        if let Some(QuickfixListState {
+            source: QuickfixListSource::Custom(items),
+            ..
+        }) = self.quickfix_list_state.as_mut()
+        {
+            items.extend(new_items)
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn quickfix_list_items(&self) -> Vec<QuickfixListItem> {
+        if let Some(QuickfixListState {
+            source: QuickfixListSource::Custom(items),
+            ..
+        }) = &self.quickfix_list_state
+        {
+            items.clone()
+        } else {
+            Default::default()
         }
     }
 }
@@ -145,7 +167,6 @@ impl Context {
             marked_files,
             is_running_as_embedded,
             persistence,
-            // quickfix_list_items: Default::default(),
         }
     }
 

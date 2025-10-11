@@ -519,12 +519,13 @@ impl Layout {
         &self,
         source: &QuickfixListSource,
     ) -> Vec<QuickfixListItem> {
-        self.buffers()
-            .into_iter()
-            .flat_map(|buffer| {
-                let buffer = buffer.borrow();
-                match source {
-                    QuickfixListSource::Diagnostic(severity_range) => buffer
+        match source {
+            QuickfixListSource::Diagnostic(severity_range) => self
+                .buffers()
+                .into_iter()
+                .flat_map(|buffer| {
+                    let buffer = buffer.borrow();
+                    buffer
                         .diagnostics()
                         .into_iter()
                         .filter_map(|diagnostic| {
@@ -547,8 +548,15 @@ impl Layout {
                                 None,
                             ))
                         })
-                        .collect_vec(),
-                    QuickfixListSource::Mark => buffer
+                        .collect_vec()
+                })
+                .collect_vec(),
+            QuickfixListSource::Mark => self
+                .buffers()
+                .into_iter()
+                .flat_map(|buffer| {
+                    let buffer = buffer.borrow();
+                    buffer
                         .marks()
                         .into_iter()
                         .filter_map(|mark| {
@@ -563,16 +571,11 @@ impl Layout {
                                 None,
                             ))
                         })
-                        .collect_vec(),
-                    QuickfixListSource::Custom => buffer.quickfix_list_items(),
-                }
-            })
-            .collect_vec()
-    }
-
-    pub(crate) fn clear_quickfix_list_items(&mut self) {
-        for buffer in self.buffers() {
-            buffer.borrow_mut().clear_quickfix_list_items()
+                        .collect_vec()
+                })
+                .collect_vec(),
+            // TODO: we probably should not clone this thing
+            QuickfixListSource::Custom(items) => items.iter().cloned().collect_vec(),
         }
     }
 

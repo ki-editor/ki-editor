@@ -424,10 +424,7 @@ impl ExpectKind {
                             ),
             BufferQuickfixListItems(expected) => contextualize(
                                 expected,
-                                &app.current_component()
-                                    .borrow()
-                                    .editor()
-                                    .buffer()
+                                &app.context()
                                     .quickfix_list_items()
                                     .into_iter()
                                     .map(|d| d.location().range.clone())
