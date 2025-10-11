@@ -28,13 +28,44 @@
 
         <postStartupActivity implementation="com.kieditor.KiProjectActivity"/>
 
+        <!-- TODO i18n -->
         <notificationGroup id="Custom Notification Group" displayType="BALLOON"/>
 
+        <!-- TODO editorTypedHandler is deprecated but it is exactly what we need -->
+        <!-- TODO order ideally should be "after com.intellij.codeInsight.editorActions.TypedHandler" but it doesn't have id -->
+        <editorTypedHandler implementationClass="com.kieditor.KiTypedActionHandler" order="first"/>
+
+        <statusBarWidgetFactory id="KiMode"
+                                implementation="com.kieditor.KiModeStatusBarFactory"
+                                order="last, before Memory"/>
+
+        <editorFactoryListener implementation="com.kieditor.KiEditorFactoryListener"/>
+
+        <editorActionHandler action="EditorEnter" implementationClass="com.kieditor.KiEnterEditorActionHandler" id="ki-enter"/>
+        <editorActionHandler action="EditorEscape" implementationClass="com.kieditor.KiEscEditorActionHandler" id="ki-esc"/>
+        <editorActionHandler action="EditorUp" implementationClass="com.kieditor.KiUpEditorActionHandler" id="ki-up"/>
+        <editorActionHandler action="EditorDown" implementationClass="com.kieditor.KiDownEditorActionHandler" id="ki-down"/>
+        <editorActionHandler action="EditorLeft" implementationClass="com.kieditor.KiLeftEditorActionHandler" id="ki-left"/>
+        <editorActionHandler action="EditorRight" implementationClass="com.kieditor.KiRightEditorActionHandler" id="ki-right"/>
+        <editorActionHandler action="EditorBackSpace" implementationClass="com.kieditor.KiBackspaceEditorActionHandler" id="ki-backspace"/>
+        <editorActionHandler action="EditorDelete" implementationClass="com.kieditor.KiDeleteEditorActionHandler" id="ki-delete"/>
+        <editorActionHandler action="EditorTab" implementationClass="com.kieditor.KiTabEditorActionHandler" id="ki-tab"/>
+        <editorActionHandler action="EditorLineStart" implementationClass="com.kieditor.KiHomeEditorActionHandler" id="ki-home"/>
+        <editorActionHandler action="EditorLineEnd" implementationClass="com.kieditor.KiEndEditorActionHandler" id="ki-end"/>
+        <editorActionHandler action="EditorPageUp" implementationClass="com.kieditor.KiPageUpEditorActionHandler" id="ki-pageup"/>
+        <editorActionHandler action="EditorPageDown" implementationClass="com.kieditor.KiPageDownEditorActionHandler" id="ki-pagedown"/>
     </extensions>
     <actions>
+        <!-- TODO i18n -->
         <action id="com.kieditor.actions.KiEditorPingAction"
                 class="com.kieditor.actions.KiEditorPingAction"
                 text="Ki Editor | Ping"
                 description="Send ping to Ki Editor"/>
     </actions>
+
+    <projectListeners>
+        <listener
+                class="com.kieditor.KiFileDocumentManagerListener"
+                topic="com.intellij.openapi.fileEditor.FileDocumentManagerListener"/>
+    </projectListeners>
 </idea-plugin>

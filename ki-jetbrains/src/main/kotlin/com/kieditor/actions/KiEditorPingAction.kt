@@ -17,7 +17,6 @@ class KiEditorPingAction : AnAction() {
 
         val message = InputMessage.Ping("intellij")
 
-        @Suppress("UnstableApiUsage")
         currentThreadCoroutineScope().launch {
             val response = project.service<KiEditor>()
                 .sendRequest(message)

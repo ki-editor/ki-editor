@@ -17,7 +17,6 @@ import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.*
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -138,19 +137,19 @@ class KiEditor(val project: Project, val scope: CoroutineScope) : Disposable {
         when (message) {
             // system
             is OutputMessage.Ping -> throw MessageRequestOnlyException()
-            is OutputMessage.Error -> throw MessageRequestOnlyException()
+            is OutputMessage.Error -> throw OutputMessageException(message.params)
 
             // buffer
-            is OutputMessage.BufferDiff -> project.serviceAsync<KiBufferManager>().handleBufferDiff(message)
+            is OutputMessage.BufferDiff -> project.serviceAsync<KiStateManager>().handleBufferDiff(message)
             is OutputMessage.BufferOpen -> throw MessageNeverUsedException()
-            is OutputMessage.BufferSave -> project.serviceAsync<KiBufferManager>().handleBufferSave(message)
+            is OutputMessage.BufferSave -> project.serviceAsync<KiStateManager>().handleBufferSave(message)
 
             // selection
-            is OutputMessage.SelectionUpdate -> TODO()
+            is OutputMessage.SelectionUpdate -> project.serviceAsync<KiStateManager>().handleSelectionUpdate(message)
 
             // mode
-            is OutputMessage.ModeChange -> TODO()
-            is OutputMessage.SelectionModeChange -> TODO()
+            is OutputMessage.ModeChange -> project.serviceAsync<KiStateManager>().handleModeChange(message)
+            is OutputMessage.SelectionModeChange -> project.serviceAsync<KiStateManager>().handleSelectionModeChange(message)
 
             // viewport
             is OutputMessage.ViewportChange -> throw MessageNeverUsedException()
@@ -170,14 +169,19 @@ class KiEditor(val project: Project, val scope: CoroutineScope) : Disposable {
             is OutputMessage.PromptOpened -> TODO()
 
             // editor
-            is OutputMessage.ShowInfo -> TODO()
-            is OutputMessage.JumpsChanged -> TODO()
-            is OutputMessage.MarksChanged -> TODO()
-            is OutputMessage.KeyboardLayoutChanged -> TODO()
-            is OutputMessage.SyncBufferRequest -> {
-                project.serviceAsync<KiBufferManager>().handleSyncBufferRequest(message)
+            is OutputMessage.ShowInfo -> {
+                // todo handle this
+            }
+            is OutputMessage.JumpsChanged -> project.serviceAsync<KiStateManager>().handleJumpsChanged(message)
+            is OutputMessage.MarksChanged -> project.serviceAsync<KiStateManager>().handleMarksChanged(message)
+
+            is OutputMessage.KeyboardLayoutChanged -> {
+                project.serviceAsync<KiStateManager>().handleKeyboardLayoutChange(message)
             }
 
+            is OutputMessage.SyncBufferRequest -> {
+                project.serviceAsync<KiStateManager>().handleSyncBufferRequest(message)
+            }
         }
     }
 
@@ -214,7 +218,19 @@ class KiEditor(val project: Project, val scope: CoroutineScope) : Disposable {
         return sendRequestInternal(message) as OutputMessage.Ping
     }
 
-    suspend fun sendNotification(message: InputMessage.BufferOpen) {
+    suspend fun sendRequest(message: InputMessage.BufferOpen) {
+        // TODO even though it is a request because it can return error,
+        //      in a happy path no response is sent, so use notification for now
+        return sendNotificationInternal(message)
+    }
+
+    suspend fun sendRequest(message: InputMessage.DiagnosticsChange) {
+        // TODO same as above
+        return sendNotificationInternal(message)
+    }
+
+    suspend fun sendRequest(message: InputMessage.KeyboardInput) {
+        // TODO same as above
         return sendNotificationInternal(message)
     }
 
@@ -234,15 +250,7 @@ class KiEditor(val project: Project, val scope: CoroutineScope) : Disposable {
         return sendNotificationInternal(message)
     }
 
-    suspend fun sendNotification(message: InputMessage.KeyboardInput) {
-        return sendNotificationInternal(message)
-    }
-
     suspend fun sendNotification(message: InputMessage.ViewportChange) {
-        return sendNotificationInternal(message)
-    }
-
-    suspend fun sendNotification(message: InputMessage.DiagnosticsChange) {
         return sendNotificationInternal(message)
     }
 

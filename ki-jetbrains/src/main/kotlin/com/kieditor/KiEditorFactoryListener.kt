@@ -1,0 +1,46 @@
+package com.kieditor
+
+import com.intellij.openapi.components.service
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.event.EditorFactoryEvent
+import com.intellij.openapi.editor.event.EditorFactoryListener
+import com.intellij.openapi.editor.ex.EditorEx
+import com.intellij.openapi.editor.ex.FocusChangeListener
+import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.wm.WindowManager
+import com.kieditor.protocol.BufferParams
+import com.kieditor.protocol.InputMessage
+import kotlinx.coroutines.runBlocking
+
+class KiEditorFactoryListener : EditorFactoryListener {
+    override fun editorCreated(event: EditorFactoryEvent) {
+        val editor = event.editor as? EditorEx
+            ?: return
+
+        val file = FileDocumentManager.getInstance().getFile(editor.document)
+            ?: return
+
+        editor.kiEditorUri = extractKiUri(file)
+
+        editor.addFocusListener(object : FocusChangeListener {
+            override fun focusGained(editor: Editor) {
+
+                val project = editor.project
+                    ?: return
+
+                val uri = editor.kiEditorUri
+                    ?: return // todo in-memory buffers
+
+                WindowManager.getInstance().getStatusBar(project).updateWidget(KiModeStatusBarFactory.ID)
+
+                val message = InputMessage.BufferActive(BufferParams(uri))
+
+                // todo blocking
+                runBlocking {
+                    project.service<KiEditor>().sendNotification(message)
+                }
+            }
+        })
+
+    }
+}
