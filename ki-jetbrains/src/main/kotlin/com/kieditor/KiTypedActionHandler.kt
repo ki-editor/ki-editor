@@ -10,7 +10,7 @@ import com.intellij.openapi.editor.actionSystem.TypedActionHandlerEx
 import com.kieditor.protocol.EditorMode
 import com.kieditor.protocol.InputMessage
 import com.kieditor.protocol.KeyboardParams
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 
 class KiTypedActionHandler(val originalHandler: TypedActionHandler) : TypedActionHandlerEx {
 
@@ -44,8 +44,8 @@ class KiTypedActionHandler(val originalHandler: TypedActionHandler) : TypedActio
             )
         )
 
-        // TODO is blocking ok?
-        runBlocking {
+        val service = project.service<KiEditor>()
+        service.scope.launch {
             project.service<KiEditor>().sendRequest(message)
         }
     }

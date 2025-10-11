@@ -8,7 +8,7 @@ import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.actionSystem.EditorActionHandler
 import com.kieditor.protocol.InputMessage
 import com.kieditor.protocol.KeyboardParams
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 
 // todo do we need to add warning if shortcuts for these handlers were changed?
 class KiEscEditorActionHandler(nextHandler: EditorActionHandler?) : KiEditorActionHandler(nextHandler, "Escape")
@@ -52,9 +52,9 @@ open class KiEditorActionHandler(private val nextHandler: EditorActionHandler?, 
             )
         )
 
-        // todo blocking
-        runBlocking {
-            project.service<KiEditor>().sendRequest(message)
+        val service = project.service<KiEditor>()
+        service.scope.launch {
+            service.sendRequest(message)
         }
     }
 }

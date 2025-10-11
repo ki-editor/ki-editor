@@ -10,7 +10,7 @@ import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.wm.WindowManager
 import com.kieditor.protocol.BufferParams
 import com.kieditor.protocol.InputMessage
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 
 class KiEditorFactoryListener : EditorFactoryListener {
     override fun editorCreated(event: EditorFactoryEvent) {
@@ -35,9 +35,9 @@ class KiEditorFactoryListener : EditorFactoryListener {
 
                 val message = InputMessage.BufferActive(BufferParams(uri))
 
-                // todo blocking
-                runBlocking {
-                    project.service<KiEditor>().sendNotification(message)
+                val service = project.service<KiEditor>()
+                service.scope.launch {
+                    service.sendNotification(message)
                 }
             }
         })

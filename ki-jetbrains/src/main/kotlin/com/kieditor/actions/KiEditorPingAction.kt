@@ -5,7 +5,6 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.components.service
-import com.intellij.openapi.progress.currentThreadCoroutineScope
 import com.kieditor.KiEditor
 import com.kieditor.protocol.InputMessage
 import kotlinx.coroutines.launch
@@ -17,9 +16,9 @@ class KiEditorPingAction : AnAction() {
 
         val message = InputMessage.Ping("intellij")
 
-        currentThreadCoroutineScope().launch {
-            val response = project.service<KiEditor>()
-                .sendRequest(message)
+        val service = project.service<KiEditor>()
+        service.scope.launch {
+            val response = service.sendRequest(message)
 
             NotificationGroupManager.getInstance()
                 .getNotificationGroup("Custom Notification Group")

@@ -8,7 +8,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.kieditor.protocol.BufferOpenParams
 import com.kieditor.protocol.InputMessage
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 
 class KiFileDocumentManagerListener(private val project: Project): FileDocumentManagerListener {
     override fun fileContentLoaded(file: VirtualFile, document: Document) {
@@ -23,9 +23,9 @@ class KiFileDocumentManagerListener(private val project: Project): FileDocumentM
 
         val message = InputMessage.BufferOpen(BufferOpenParams(uri, listOf(), content))
 
-        // todo is this block ok? move into the service
-        runBlocking {
-            project.service<KiEditor>().sendRequest(message)
+        val service = project.service<KiEditor>()
+        service.scope.launch {
+            service.sendRequest(message)
         }
     }
 }
