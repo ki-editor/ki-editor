@@ -7,6 +7,9 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.editor.CaretState
+import com.intellij.openapi.editor.CaretVisualAttributes
+import com.intellij.openapi.editor.CaretVisualAttributes.Shape
+import com.intellij.openapi.editor.CaretVisualAttributes.Weight
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.LogicalPosition
@@ -100,7 +103,7 @@ class KiStateManager(val project: Project) {
         project.service<KiEditor>().sendNotification(message)
     }
 
-    fun handleModeChange(message: OutputMessage.ModeChange) {
+    suspend fun handleModeChange(message: OutputMessage.ModeChange) {
         val bufferId = message.params.buffer_id
             ?: return // todo when is this null
 
@@ -111,13 +114,31 @@ class KiStateManager(val project: Project) {
             .find { it.kiEditorUri == uri }
             ?: return
 
-        editor.kiEditorMode = message.params.mode
+        val mode = message.params.mode
+
+        editor.kiEditorMode = mode
+
+        edtWriteAction {
+            for (caret in editor.caretModel.allCarets) {
+
+                val shape = when (mode) {
+                    EditorMode.Normal -> Shape.BLOCK
+                    EditorMode.Insert -> Shape.BAR
+                    EditorMode.MultiCursor -> Shape.BLOCK
+                    EditorMode.FindOneChar -> Shape.BLOCK
+                    EditorMode.Swap -> Shape.BLOCK
+                    EditorMode.Replace -> Shape.UNDERSCORE
+                }
+
+                caret.visualAttributes = CaretVisualAttributes(null, Weight.NORMAL, shape, 1.0f)
+            }
+        }
 
         WindowManager.getInstance().getStatusBar(project).updateWidget(KiModeStatusBarFactory.ID)
     }
 
     fun handleSelectionModeChange(message: OutputMessage.SelectionModeChange) {
-         val bufferId = message.params.buffer_id
+        val bufferId = message.params.buffer_id
             ?: return // todo when is this null
 
         val uri = bufferIdToUri(bufferId)
