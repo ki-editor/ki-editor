@@ -21,7 +21,7 @@ import com.intellij.openapi.wm.WindowManager
 import com.kieditor.protocol.*
 
 @Service(Service.Level.PROJECT)
-class KiStateManager(val project: Project) {
+class KiNotificationHandler(val project: Project) {
 
     suspend fun handleBufferDiff(message: OutputMessage.BufferDiff) {
         // todo why buffer id is not a uri?
@@ -120,7 +120,6 @@ class KiStateManager(val project: Project) {
 
         edtWriteAction {
             for (caret in editor.caretModel.allCarets) {
-
                 val shape = when (mode) {
                     EditorMode.Normal -> Shape.BLOCK
                     EditorMode.Insert -> Shape.BAR
@@ -130,7 +129,9 @@ class KiStateManager(val project: Project) {
                     EditorMode.Replace -> Shape.UNDERSCORE
                 }
 
-                caret.visualAttributes = CaretVisualAttributes(null, Weight.NORMAL, shape, 1.0f)
+                // todo there is a noticeable lag when changing mode until the cursor is updated
+                // todo test thickness for replace mode
+                caret.visualAttributes = CaretVisualAttributes(null, Weight.NORMAL, shape, 0.25f)
             }
         }
 
@@ -173,8 +174,6 @@ class KiStateManager(val project: Project) {
             .find { it.kiEditorUri == uri }
             ?: return
 
-        val caretModel = editor.caretModel
-
         val caretStates = message.params.selections.map {
             val caretPosition = LogicalPosition(it.active.line.toInt(), it.active.character.toInt())
             val oppositeEnd = LogicalPosition(it.anchor.line.toInt(), it.anchor.character.toInt())
@@ -183,7 +182,7 @@ class KiStateManager(val project: Project) {
         }
 
         edtWriteAction {
-            caretModel.caretsAndSelections = caretStates
+            editor.caretModel.caretsAndSelections = caretStates
         }
     }
 }

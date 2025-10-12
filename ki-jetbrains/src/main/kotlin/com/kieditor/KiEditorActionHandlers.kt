@@ -25,6 +25,9 @@ class KiEndEditorActionHandler(nextHandler: EditorActionHandler?) : KiEditorActi
 class KiPageUpEditorActionHandler(nextHandler: EditorActionHandler?) : KiEditorActionHandler(nextHandler, "PageDown")
 class KiPageDownEditorActionHandler(nextHandler: EditorActionHandler?) : KiEditorActionHandler(nextHandler, "PageDown")
 
+// todo this breaks text field in find all dialog
+// todo this seems to also break escape when doing inline rename
+
 open class KiEditorActionHandler(private val nextHandler: EditorActionHandler?, val key: String): EditorActionHandler() {
     override fun doExecute(editor: Editor, caret: Caret?, dataContext: DataContext?) {
         val project = editor.project

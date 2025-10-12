@@ -72,7 +72,11 @@ class KiEditor(val project: Project, val scope: CoroutineScope) : Disposable {
 
                 logger.info("Ki Editor: $line")
 
-                if (!deferredPort.isCompleted && line.matches(portRegex)) {
+                if (deferredPort.isCompleted) {
+                    break
+                }
+
+                if (line.matches(portRegex)) {
                     val (port) = portRegex.matchEntire(line)!!.destructured
                     deferredPort.complete(port.toInt())
                 }
@@ -121,9 +125,11 @@ class KiEditor(val project: Project, val scope: CoroutineScope) : Disposable {
 
     }
 
-    private suspend fun handleOutputMessage(wrapper: OutputMessageWrapper) {
+    private fun handleOutputMessage(wrapper: OutputMessageWrapper) {
         if (wrapper.id == 0u) {
-            handleNotification(wrapper.message)
+            scope.launch {
+                handleNotification(wrapper.message)
+            }
             return
         }
 
@@ -140,30 +146,36 @@ class KiEditor(val project: Project, val scope: CoroutineScope) : Disposable {
             is OutputMessage.Error -> throw OutputMessageException(message.params)
 
             // buffer
-            is OutputMessage.BufferDiff -> project.serviceAsync<KiStateManager>().handleBufferDiff(message)
+            is OutputMessage.BufferDiff -> project.serviceAsync<KiNotificationHandler>().handleBufferDiff(message)
             is OutputMessage.BufferOpen -> throw MessageNeverUsedException()
-            is OutputMessage.BufferSave -> project.serviceAsync<KiStateManager>().handleBufferSave(message)
+            is OutputMessage.BufferSave -> project.serviceAsync<KiNotificationHandler>().handleBufferSave(message)
 
             // selection
-            is OutputMessage.SelectionUpdate -> project.serviceAsync<KiStateManager>().handleSelectionUpdate(message)
+            is OutputMessage.SelectionUpdate -> {
+                project.serviceAsync<KiNotificationHandler>()
+                    .handleSelectionUpdate(message)
+            }
 
             // mode
-            is OutputMessage.ModeChange -> project.serviceAsync<KiStateManager>().handleModeChange(message)
-            is OutputMessage.SelectionModeChange -> project.serviceAsync<KiStateManager>().handleSelectionModeChange(message)
+            is OutputMessage.ModeChange -> project.serviceAsync<KiNotificationHandler>().handleModeChange(message)
+            is OutputMessage.SelectionModeChange -> {
+                project.serviceAsync<KiNotificationHandler>()
+                    .handleSelectionModeChange(message)
+            }
 
             // viewport
             is OutputMessage.ViewportChange -> throw MessageNeverUsedException()
 
             // lsp
-            is OutputMessage.RequestLspCodeAction -> TODO()
-            is OutputMessage.RequestLspDeclaration -> TODO()
-            is OutputMessage.RequestLspDefinition -> TODO()
-            is OutputMessage.RequestLspDocumentSymbols -> TODO()
-            is OutputMessage.RequestLspHover -> TODO()
-            is OutputMessage.RequestLspImplementation -> TODO()
-            is OutputMessage.RequestLspReferences -> TODO()
-            is OutputMessage.RequestLspRename -> TODO()
-            is OutputMessage.RequestLspTypeDefinition -> TODO()
+            is OutputMessage.RequestLspCodeAction -> project.serviceAsync<KiEditorLspBridge>().handleLspCodeAction()
+            is OutputMessage.RequestLspDeclaration -> project.serviceAsync<KiEditorLspBridge>().handleLspDeclaration()
+            is OutputMessage.RequestLspDefinition -> project.serviceAsync<KiEditorLspBridge>().handleLspDefinition()
+            is OutputMessage.RequestLspDocumentSymbols -> project.serviceAsync<KiEditorLspBridge>().handleLspDocumentSymbols()
+            is OutputMessage.RequestLspHover -> project.serviceAsync<KiEditorLspBridge>().handleLspHover()
+            is OutputMessage.RequestLspImplementation -> project.serviceAsync<KiEditorLspBridge>().handleLspImplementation()
+            is OutputMessage.RequestLspReferences -> project.serviceAsync<KiEditorLspBridge>().handleLspReferences()
+            is OutputMessage.RequestLspRename -> project.serviceAsync<KiEditorLspBridge>().handleLspRename()
+            is OutputMessage.RequestLspTypeDefinition -> project.serviceAsync<KiEditorLspBridge>().handleLspTypeDefinition()
 
             // prompt
             is OutputMessage.PromptOpened -> TODO()
@@ -172,15 +184,16 @@ class KiEditor(val project: Project, val scope: CoroutineScope) : Disposable {
             is OutputMessage.ShowInfo -> {
                 // todo handle this
             }
-            is OutputMessage.JumpsChanged -> project.serviceAsync<KiStateManager>().handleJumpsChanged(message)
-            is OutputMessage.MarksChanged -> project.serviceAsync<KiStateManager>().handleMarksChanged(message)
+
+            is OutputMessage.JumpsChanged -> project.serviceAsync<KiNotificationHandler>().handleJumpsChanged(message)
+            is OutputMessage.MarksChanged -> project.serviceAsync<KiNotificationHandler>().handleMarksChanged(message)
 
             is OutputMessage.KeyboardLayoutChanged -> {
-                project.serviceAsync<KiStateManager>().handleKeyboardLayoutChange(message)
+                project.serviceAsync<KiNotificationHandler>().handleKeyboardLayoutChange(message)
             }
 
             is OutputMessage.SyncBufferRequest -> {
-                project.serviceAsync<KiStateManager>().handleSyncBufferRequest(message)
+                project.serviceAsync<KiNotificationHandler>().handleSyncBufferRequest(message)
             }
         }
     }
