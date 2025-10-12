@@ -11,7 +11,7 @@ import com.kieditor.protocol.Position
 import com.kieditor.protocol.Range
 import kotlinx.coroutines.launch
 
-class KiEditorFactoryDocumentListener() : DocumentListener {
+class KiDocumentListener() : DocumentListener {
     override fun documentChanged(event: DocumentEvent) {
         val editor = EditorFactory.getInstance().editorList
             .find { it.document == event.document }
