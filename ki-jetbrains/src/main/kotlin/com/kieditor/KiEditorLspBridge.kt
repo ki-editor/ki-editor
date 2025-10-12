@@ -56,7 +56,7 @@ class KiEditorLspBridge(val project: Project) {
 
 private fun executeAction(actionId: String, project: Project) {
     invokeLater {
-        val editor = FileEditorManager.getInstance(project).selectedTextEditor // todo this should be passed from Ki
+        val editor = FileEditorManager.getInstance(project).selectedTextEditor
             ?: return@invokeLater
 
         val action = ActionManagerEx.getInstanceEx().getAction(actionId)
@@ -69,5 +69,4 @@ private fun executeAction(actionId: String, project: Project) {
             true
         )
     }
-
 }

@@ -152,33 +152,59 @@ class KiEditor(val project: Project, val scope: CoroutineScope) : Disposable {
 
             // selection
             is OutputMessage.SelectionUpdate -> {
-                project.serviceAsync<KiNotificationHandler>()
-                    .handleSelectionUpdate(message)
+                project.serviceAsync<KiNotificationHandler>().handleSelectionUpdate(message)
             }
 
             // mode
             is OutputMessage.ModeChange -> project.serviceAsync<KiNotificationHandler>().handleModeChange(message)
             is OutputMessage.SelectionModeChange -> {
-                project.serviceAsync<KiNotificationHandler>()
-                    .handleSelectionModeChange(message)
+                project.serviceAsync<KiNotificationHandler>().handleSelectionModeChange(message)
             }
 
             // viewport
             is OutputMessage.ViewportChange -> throw MessageNeverUsedException()
 
             // lsp
-            is OutputMessage.RequestLspCodeAction -> project.serviceAsync<KiEditorLspBridge>().handleLspCodeAction()
-            is OutputMessage.RequestLspDeclaration -> project.serviceAsync<KiEditorLspBridge>().handleLspDeclaration()
-            is OutputMessage.RequestLspDefinition -> project.serviceAsync<KiEditorLspBridge>().handleLspDefinition()
-            is OutputMessage.RequestLspDocumentSymbols -> project.serviceAsync<KiEditorLspBridge>().handleLspDocumentSymbols()
-            is OutputMessage.RequestLspHover -> project.serviceAsync<KiEditorLspBridge>().handleLspHover()
-            is OutputMessage.RequestLspImplementation -> project.serviceAsync<KiEditorLspBridge>().handleLspImplementation()
-            is OutputMessage.RequestLspReferences -> project.serviceAsync<KiEditorLspBridge>().handleLspReferences()
-            is OutputMessage.RequestLspRename -> project.serviceAsync<KiEditorLspBridge>().handleLspRename()
-            is OutputMessage.RequestLspTypeDefinition -> project.serviceAsync<KiEditorLspBridge>().handleLspTypeDefinition()
+            is OutputMessage.RequestLspCodeAction -> {
+                project.serviceAsync<KiEditorLspBridge>().handleLspCodeAction()
+            }
+
+            is OutputMessage.RequestLspDeclaration -> {
+                project.serviceAsync<KiEditorLspBridge>().handleLspDeclaration()
+            }
+
+            is OutputMessage.RequestLspDefinition -> {
+                project.serviceAsync<KiEditorLspBridge>().handleLspDefinition()
+            }
+
+            is OutputMessage.RequestLspDocumentSymbols -> {
+                project.serviceAsync<KiEditorLspBridge>().handleLspDocumentSymbols()
+            }
+
+            is OutputMessage.RequestLspHover -> {
+                project.serviceAsync<KiEditorLspBridge>().handleLspHover()
+            }
+
+            is OutputMessage.RequestLspImplementation -> {
+                project.serviceAsync<KiEditorLspBridge>().handleLspImplementation()
+            }
+
+            is OutputMessage.RequestLspReferences -> {
+                project.serviceAsync<KiEditorLspBridge>().handleLspReferences()
+            }
+
+            is OutputMessage.RequestLspRename -> {
+                project.serviceAsync<KiEditorLspBridge>().handleLspRename()
+            }
+
+            is OutputMessage.RequestLspTypeDefinition -> {
+                project.serviceAsync<KiEditorLspBridge>().handleLspTypeDefinition()
+            }
 
             // prompt
-            is OutputMessage.PromptOpened -> TODO()
+            is OutputMessage.PromptOpened -> {
+                // todo handle this
+            }
 
             // editor
             is OutputMessage.ShowInfo -> {

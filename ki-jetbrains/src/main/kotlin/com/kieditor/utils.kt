@@ -20,3 +20,10 @@ fun bufferIdToUri(bufferId: String): String? {
 
     return uri
 }
+
+fun uriToBufferId(uri: String): String? {
+    val file = VirtualFileManager.getInstance().findFileByUrl(uri)
+        ?: return null
+
+    return file.path
+}

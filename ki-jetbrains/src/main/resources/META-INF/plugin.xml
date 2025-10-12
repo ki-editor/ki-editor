@@ -41,6 +41,8 @@
 
         <editorFactoryListener implementation="com.kieditor.KiEditorFactoryListener"/>
 
+        <editorFactoryDocumentListener implementation="com.kieditor.KiEditorFactoryDocumentListener"/>
+
         <editorActionHandler action="EditorEnter" implementationClass="com.kieditor.KiEnterEditorActionHandler" id="ki-enter"/>
         <editorActionHandler action="EditorEscape" implementationClass="com.kieditor.KiEscEditorActionHandler" id="ki-esc"/>
         <editorActionHandler action="EditorUp" implementationClass="com.kieditor.KiUpEditorActionHandler" id="ki-up"/>
