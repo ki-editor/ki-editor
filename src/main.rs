@@ -52,6 +52,7 @@ mod debouncer;
 mod divide_viewport;
 mod env;
 mod format_path_list;
+pub(crate) mod persistence;
 use std::{rc::Rc, sync::Mutex};
 
 use anyhow::Context;
@@ -61,7 +62,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 use app::{App, StatusLineComponent};
 
-use crate::app::AppMessage;
+use crate::{app::AppMessage, persistence::Persistence};
 
 fn main() {
     cli::cli().unwrap();
@@ -99,6 +100,9 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         None, // No integration event sender
         true,
         false,
+        Some(Persistence::load_or_default(
+            grammar::cache_dir().join("data.json"),
+        )),
     )?;
 
     let sender = app.sender();

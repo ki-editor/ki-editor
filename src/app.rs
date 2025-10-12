@@ -33,6 +33,7 @@ use crate::{
         symbols::Symbols,
         workspace_edit::WorkspaceEdit,
     },
+    persistence::Persistence,
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     screen::{Screen, Window},
@@ -138,6 +139,7 @@ impl<T: Frontend> App<T> {
             None, // No integration event sender
             false,
             false,
+            None,
         )
     }
 
@@ -157,10 +159,15 @@ impl<T: Frontend> App<T> {
         integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
         enable_lsp: bool,
         is_running_as_embedded: bool,
+        persistence: Option<Persistence>,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
-        let app = App {
-            context: Context::new(working_directory.clone(), is_running_as_embedded),
+        let mut app = App {
+            context: Context::new(
+                working_directory.clone(),
+                is_running_as_embedded,
+                persistence,
+            ),
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             enable_lsp,
@@ -180,6 +187,9 @@ impl<T: Frontend> App<T> {
             last_prompt_config: None,
             queued_events: Vec::new(),
         };
+
+        app.restore_session();
+
         Ok(app)
     }
 
@@ -268,6 +278,7 @@ impl<T: Frontend> App<T> {
         frontend.leave_alternate_screen()?;
         frontend.disable_raw_mode()?;
         frontend.disable_mouse_capture()?;
+        self.context.persist_data();
         Ok(())
     }
 
@@ -860,12 +871,10 @@ impl<T: Frontend> App<T> {
                 self.handle_lsp_notification(notification)?
             }
             Dispatch::SetTheme(theme) => {
-                let context = std::mem::take(&mut self.context);
-                self.context = context.set_theme(theme.clone());
+                self.context.set_theme(theme.clone());
             }
             Dispatch::SetThemeFromDescriptor(theme_descriptor) => {
-                let context = std::mem::take(&mut self.context);
-                self.context = context.set_theme(theme_descriptor.to_theme());
+                self.context.set_theme(theme_descriptor.to_theme());
             }
             #[cfg(test)]
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
@@ -1674,7 +1683,7 @@ impl<T: Frontend> App<T> {
             .refresh_file_explorer(&self.working_directory, &self.context)?;
         let to = to.try_into()?;
 
-        self.context.rename_file_mark(&from, &to);
+        self.context.rename_path_mark(&from, &to);
 
         self.reveal_path_in_explorer(&to)?;
 
@@ -1913,7 +1922,7 @@ impl<T: Frontend> App<T> {
 
     fn cycle_marked_file(&mut self, direction: Direction) -> anyhow::Result<()> {
         if let Some(next_file_path) = {
-            let file_paths = self.context.get_marked_paths();
+            let file_paths = self.context.get_marked_files();
             self.get_current_file_path()
                 .and_then(|current_file_path| {
                     if let Some(current_index) = file_paths
@@ -1940,7 +1949,7 @@ impl<T: Frontend> App<T> {
             } else {
                 // If the file no longer exists, remove it from the list of marked files
                 // and then cycle to the next file
-                self.context.toggle_file_mark(next_file_path.clone());
+                self.context.toggle_path_mark(next_file_path.clone());
                 self.cycle_marked_file(direction)?
             }
         }
@@ -2184,7 +2193,6 @@ impl<T: Frontend> App<T> {
             .emit_event(IntegrationEvent::ShowInfo { info: None });
     }
 
-    #[cfg(test)]
     pub(crate) fn opened_files_count(&self) -> usize {
         self.layout.get_opened_files().len()
     }
@@ -2413,7 +2421,7 @@ impl<T: Frontend> App<T> {
 
     fn toggle_file_mark(&mut self) -> anyhow::Result<()> {
         if let Some(path) = self.get_current_file_path() {
-            if let Some(new_path) = self.context.toggle_file_mark(path).cloned() {
+            if let Some(new_path) = self.context.toggle_path_mark(path).cloned() {
                 self.open_file(&new_path, BufferOwner::User, true, true)?;
             }
         }
@@ -2639,6 +2647,15 @@ impl<T: Frontend> App<T> {
     #[cfg(test)]
     fn set_system_clipboard_html(&self, html: &str, alt_text: &str) -> anyhow::Result<()> {
         Ok(arboard::Clipboard::new()?.set_html(html, Some(alt_text))?)
+    }
+
+    fn restore_session(&mut self) {
+        // This condition is necessary, because user might have opened a file by passing
+        // a path argument to the Ki CLI
+        if self.opened_files_count() == 0 {
+            // Try to go to a marked file, if there are loaded marked file from the persistence
+            let _ = self.cycle_marked_file(Direction::End);
+        }
     }
 }
 

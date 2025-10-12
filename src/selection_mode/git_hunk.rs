@@ -1,4 +1,4 @@
-use crate::{buffer::Buffer, context::Context, git::GitOperation};
+use crate::{buffer::Buffer, git::GitOperation};
 use itertools::Itertools;
 
 use super::{ByteRange, IterBasedSelectionMode};
@@ -11,16 +11,12 @@ impl GitHunk {
     pub(crate) fn new(
         diff_mode: &crate::git::DiffMode,
         buffer: &Buffer,
-        context: &Context,
+        working_directory: &shared::canonicalized_path::CanonicalizedPath,
     ) -> anyhow::Result<GitHunk> {
         let Some(path) = buffer.path() else {
             return Ok(GitHunk { ranges: Vec::new() });
         };
-        let binding = path.file_diff(
-            &buffer.content(),
-            diff_mode,
-            context.current_working_directory(),
-        )?;
+        let binding = path.file_diff(&buffer.content(), diff_mode, working_directory)?;
         let hunks = binding.hunks();
         let ranges = hunks
             .iter()

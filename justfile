@@ -9,7 +9,7 @@ default:
     @just doc 
     
 install:
-    rm -r ~/.cache/ki/ || echo "ok" 
+    rm -r ~/.cache/ki/zed-themes || echo "ok" 
     cargo install --locked --path .
 
 fmt-check:

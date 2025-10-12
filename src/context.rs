@@ -12,6 +12,7 @@ use crate::{
     clipboard::{Clipboard, CopiedTexts},
     components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
+    persistence::Persistence,
     quickfix_list::{DiagnosticSeverityRange, Location},
     selection::SelectionMode,
     themes::Theme,
@@ -33,10 +34,15 @@ pub(crate) struct Context {
     keyboard_layout_kind: KeyboardLayoutKind,
     location_history_backward: Vec<Location>,
     location_history_forward: Vec<Location>,
-    marked_paths: IndexSet<CanonicalizedPath>,
+    // We use CanonicalizedPath instead of CanonicalizedPath because these paths
+    // may be deleted during program execution, and CanonicalizedPath
+    // requires the path to exist on the filesystem.
+    marked_files: IndexSet<CanonicalizedPath>,
 
     /// This is true, for example, when Ki is running as a VS Code's extension
     is_running_as_embedded: bool,
+
+    persistence: Option<Persistence>,
 }
 
 pub(crate) struct QuickfixListState {
@@ -69,15 +75,56 @@ pub(crate) struct Search {
     pub(crate) search: String,
 }
 
-impl Default for Context {
-    fn default() -> Self {
+impl Context {
+    #[cfg(test)]
+    pub(crate) fn default() -> Self {
+        Self::new(CanonicalizedPath::try_from(".").unwrap(), false, None)
+    }
+
+    pub(crate) fn persist_data(&mut self) {
+        if let Some(persistence) = self.persistence.as_mut() {
+            let current_working_directory = self.current_working_directory.to_path_buf();
+            persistence.set_workspace_session(
+                current_working_directory.clone(),
+                self.marked_files
+                    .iter()
+                    .map(|path| path.to_path_buf().clone())
+                    .collect_vec(),
+            );
+
+            if let Err(error) = persistence.write() {
+                log::error!("Failed to write persistence due to {error:?}")
+            }
+        }
+    }
+}
+
+impl Context {
+    pub(crate) fn new(
+        current_working_directory: CanonicalizedPath,
+        is_running_as_embedded: bool,
+        persistence: Option<Persistence>,
+    ) -> Self {
+        let marked_files = persistence
+            .as_ref()
+            .and_then(|persistence| {
+                Some(
+                    persistence
+                        .get_marked_files(current_working_directory.to_path_buf().clone())?
+                        .into_iter()
+                        .filter_map(|path| CanonicalizedPath::try_from(path).ok())
+                        .collect(),
+                )
+            })
+            .unwrap_or_default();
+        log::info!("Marked paths is {marked_files:?}");
         Self {
             clipboard: Clipboard::new(),
             theme: Theme::default(),
             mode: None,
             #[cfg(test)]
             highlight_configs: crate::syntax_highlight::HighlightConfigs::new(),
-            current_working_directory: CanonicalizedPath::try_from(".").unwrap(),
+            current_working_directory,
             local_search_config: LocalSearchConfig::default(),
             global_search_config: GlobalSearchConfig::default(),
             quickfix_list_state: Default::default(),
@@ -94,21 +141,9 @@ impl Default for Context {
             },
             location_history_backward: Vec::new(),
             location_history_forward: Vec::new(),
-            marked_paths: Default::default(),
-            is_running_as_embedded: false,
-        }
-    }
-}
-
-impl Context {
-    pub(crate) fn new(
-        current_working_directory: CanonicalizedPath,
-        is_running_as_embedded: bool,
-    ) -> Self {
-        Self {
-            current_working_directory,
+            marked_files,
             is_running_as_embedded,
-            ..Self::default()
+            persistence,
         }
     }
 
@@ -131,16 +166,24 @@ impl Context {
     }
 
     /// Note: `history_offset` is ignored when `use_system_clipboard` is true.
+    ///
+    /// This method should never fail, if `use_system_clipboard` is true but
+    /// the system clipboard is inaccessible, the app clipboard will be used.
     pub(crate) fn get_clipboard_content(
         &self,
         use_system_clipboard: bool,
         history_offset: isize,
-    ) -> anyhow::Result<Option<CopiedTexts>> {
-        Ok(if use_system_clipboard {
-            Some(self.clipboard.get_from_system_clipboard()?)
-        } else {
-            self.clipboard.get(history_offset)
-        })
+    ) -> Option<CopiedTexts> {
+        if use_system_clipboard {
+            match self.clipboard.get_from_system_clipboard() {
+                Ok(copied_texts) => return Some(copied_texts),
+                Err(err) => {
+                    log::error!("Context::get_clipboard_content: cannot access system clipboard due to {err:?}")
+                }
+            }
+        }
+
+        self.clipboard.get(history_offset)
     }
 
     pub(crate) fn set_clipboard_content(&mut self, contents: CopiedTexts) -> anyhow::Result<()> {
@@ -160,8 +203,8 @@ impl Context {
         &self.theme
     }
 
-    pub(crate) fn set_theme(self, theme: Theme) -> Self {
-        Self { theme, ..self }
+    pub(crate) fn set_theme(&mut self, theme: Theme) {
+        self.theme = theme
     }
 
     #[cfg(test)]
@@ -299,28 +342,28 @@ impl Context {
         self.location_history_forward.pop()
     }
 
-    pub(crate) fn get_marked_paths(&self) -> Vec<&CanonicalizedPath> {
-        self.marked_paths.iter().collect()
+    pub(crate) fn get_marked_files(&self) -> Vec<&CanonicalizedPath> {
+        self.marked_files.iter().collect()
     }
 
     /// Returns some path if we should focus another file.
     /// If the action is to unmark a file, and the file is not the only marked file left,
     /// then we return the nearest neighbor.
-    pub(crate) fn toggle_file_mark(
+    pub(crate) fn toggle_path_mark(
         &mut self,
         path: CanonicalizedPath,
     ) -> Option<&CanonicalizedPath> {
-        if let Some(index) = self.marked_paths.get_index_of(&path) {
+        if let Some(index) = self.marked_files.get_index_of(&path) {
             self.unmark_path_impl(index, path)
         } else {
-            let _ = self.marked_paths.insert_sorted(path);
+            let _ = self.marked_files.insert_sorted(path);
             None
         }
     }
 
     /// Returns true if the path to be removed is in the list
     pub(crate) fn unmark_path(&mut self, path: CanonicalizedPath) -> Option<&CanonicalizedPath> {
-        if let Some(index) = self.marked_paths.get_index_of(&path) {
+        if let Some(index) = self.marked_files.get_index_of(&path) {
             self.unmark_path_impl(index, path)
         } else {
             None
@@ -332,9 +375,9 @@ impl Context {
         index: usize,
         path: CanonicalizedPath,
     ) -> Option<&CanonicalizedPath> {
-        let _ = self.marked_paths.shift_remove(&path);
-        self.marked_paths
-            .get_index(if index == self.marked_paths.len() {
+        let _ = self.marked_files.shift_remove(&path);
+        self.marked_files
+            .get_index(if index == self.marked_files.len() {
                 index.saturating_sub(1)
             } else {
                 index
@@ -345,9 +388,9 @@ impl Context {
         self.is_running_as_embedded
     }
 
-    pub(crate) fn rename_file_mark(&mut self, from: &CanonicalizedPath, to: &CanonicalizedPath) {
-        self.marked_paths.shift_remove(from);
-        self.marked_paths.insert_sorted(to.clone());
+    pub(crate) fn rename_path_mark(&mut self, from: &CanonicalizedPath, to: &CanonicalizedPath) {
+        self.marked_files.shift_remove(from);
+        self.marked_files.insert_sorted(to.clone());
     }
 }
 
@@ -474,5 +517,50 @@ impl LocalSearchConfig {
 
     pub(crate) fn require_tree_sitter(&self) -> bool {
         self.mode == LocalSearchConfigMode::AstGrep
+    }
+}
+
+#[cfg(test)]
+mod test_context {
+    use itertools::Itertools;
+    use shared::canonicalized_path::CanonicalizedPath;
+
+    use crate::{context::Context, persistence::Persistence};
+
+    #[test]
+    fn test_persistence() -> anyhow::Result<()> {
+        let temp_data_file = tempfile::NamedTempFile::new()?.path().to_path_buf();
+        std::fs::write(temp_data_file.clone(), "")?;
+
+        let temp_cwd = tempfile::tempdir()?.path().to_path_buf();
+        std::fs::create_dir_all(temp_cwd.clone())?;
+
+        let random_file = tempfile::NamedTempFile::new()?.path().to_path_buf();
+        std::fs::write(random_file.clone(), "")?;
+
+        // Save data
+        {
+            let persistence = Persistence::load_or_default(temp_data_file.clone());
+            let mut context = Context::new(temp_cwd.clone().try_into()?, false, Some(persistence));
+            context.toggle_path_mark(random_file.clone().try_into()?);
+            context.persist_data()
+        }
+
+        // Load data
+        {
+            let persistence = Persistence::load_or_default(temp_data_file);
+            let context = Context::new(temp_cwd.try_into()?, false, Some(persistence));
+            let actual_marked_files = context
+                .get_marked_files()
+                .into_iter()
+                .cloned()
+                .collect_vec();
+
+            let expected_marked_files = vec![CanonicalizedPath::try_from(random_file)?];
+
+            assert_eq!(actual_marked_files, expected_marked_files)
+        }
+
+        Ok(())
     }
 }

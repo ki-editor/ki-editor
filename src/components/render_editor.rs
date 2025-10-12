@@ -3,6 +3,7 @@ use std::ops::{Not, Range};
 use itertools::Itertools;
 use lazy_regex::Lazy;
 use lsp_types::DiagnosticSeverity;
+use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
     app::Dimension,
@@ -62,7 +63,8 @@ impl Editor {
         };
         let grid = match &self.reveal {
             None => self.get_grid_with_dimension(
-                context,
+                context.theme(),
+                context.current_working_directory(),
                 render_area,
                 scroll_offset,
                 Some(self.selection_set.primary_selection().range()),
@@ -99,19 +101,26 @@ impl Editor {
                 height: title_grid_height,
                 width: self.dimension().width,
             };
-            // TODO: fix this weird code that needs to clone the context
-            let context = Context::default().set_theme(Theme {
+            let theme = Theme {
                 ui: UiStyles {
                     background_color: window_title_style.background_color.unwrap_or_default(),
                     text_foreground: window_title_style.foreground_color.unwrap_or_default(),
                     ..theme.ui
                 },
                 ..context.theme().clone()
-            });
-            // TODO: no need to call get_grid_with_dimension
-            // Just render the lines
-            editor
-                .get_grid_with_dimension(&context, dimension, 0, None, false, false, focused, hunks)
+            };
+
+            editor.get_grid_with_dimension(
+                &theme,
+                context.current_working_directory(),
+                dimension,
+                0,
+                None,
+                false,
+                false,
+                focused,
+                hunks,
+            )
         };
         let grid = title_grid.merge_vertical(grid);
         let cursor_position = grid.get_cursor_position();
@@ -133,7 +142,7 @@ impl Editor {
         } else {
             let wrapped_items = wrap_items(
                 &get_formatted_paths(
-                    &context.get_marked_paths(),
+                    &context.get_marked_files(),
                     &self.path()?,
                     context.current_working_directory(),
                     self.buffer().dirty(),
@@ -172,7 +181,10 @@ impl Editor {
         let buffer = self.buffer();
         let ranges = match reveal {
             Reveal::CurrentSelectionMode => self
-                .revealed_selections(self.selection_set.primary_selection(), context)
+                .revealed_selections(
+                    self.selection_set.primary_selection(),
+                    context.current_working_directory(),
+                )
                 .unwrap_or_default()
                 .into_iter()
                 .map(|byte_range| byte_range.range().clone())
@@ -236,7 +248,8 @@ impl Editor {
                     .byte_range_to_char_index_range(&range)
                     .unwrap_or_default();
                 grid.merge_vertical(self.get_grid_with_dimension(
-                    context,
+                    context.theme(),
+                    context.current_working_directory(),
                     Dimension {
                         height: viewport_section.height() as u16,
                         width: self.dimension().width,
@@ -258,7 +271,8 @@ impl Editor {
     #[allow(clippy::too_many_arguments)]
     fn get_grid_with_dimension(
         &self,
-        context: &Context,
+        theme: &Theme,
+        working_directory: &CanonicalizedPath,
         dimension: Dimension,
         scroll_offset: u16,
         protected_range: Option<CharIndexRange>,
@@ -301,8 +315,6 @@ impl Editor {
         // If the buffer selection is updated less recently than the window's scroll offset,
         // use the window's scroll offset.
 
-        let theme = context.theme();
-
         let hidden_parent_line_ranges = hidden_parent_lines
             .iter()
             .map(|line| line.line..line.line + 1)
@@ -312,7 +324,8 @@ impl Editor {
         let primary_cursor_char_index = primary_selection.to_char_index(&self.cursor_direction);
         let (hidden_parent_lines_grid, remaining_highlight_spans) = {
             let highlight_spans = self.get_highlight_spans(
-                context,
+                theme,
+                working_directory,
                 &visible_line_range,
                 &hidden_parent_line_ranges,
                 &visible_parent_lines,
@@ -503,14 +516,14 @@ impl Editor {
 
     fn get_highlight_spans(
         &self,
-        context: &Context,
+        theme: &Theme,
+        working_directory: &CanonicalizedPath,
         visible_line_range: &Range<usize>,
         hidden_parent_line_ranges: &[Range<usize>],
         visible_parent_lines: &[Line],
         protected_range: Option<CharIndexRange>,
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
-        let theme = context.theme();
         let buffer = self.buffer();
         let possible_selections =
             if self.selection_set.mode().is_contiguous() && self.reveal.is_none() {
@@ -526,7 +539,7 @@ impl Editor {
             } else {
                 self.possible_selections_in_line_number_range(
                     self.selection_set.primary_selection(),
-                    context,
+                    working_directory,
                     visible_line_range,
                 )
                 .unwrap_or_default()
@@ -855,10 +868,10 @@ impl Editor {
     pub(crate) fn possible_selections_in_line_number_range(
         &self,
         selection: &Selection,
-        context: &Context,
+        working_directory: &CanonicalizedPath,
         line_number_range: &Range<usize>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        let object = self.get_selection_mode_trait_object(selection, true, context)?;
+        let object = self.get_selection_mode_trait_object(selection, true, working_directory)?;
         if self.selection_set.mode().is_contiguous() {
             return Ok(Vec::new());
         }
@@ -876,9 +889,9 @@ impl Editor {
     pub(crate) fn revealed_selections(
         &self,
         selection: &Selection,
-        context: &Context,
+        working_directory: &CanonicalizedPath,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        self.get_selection_mode_trait_object(selection, true, context)?
+        self.get_selection_mode_trait_object(selection, true, working_directory)?
             .revealed_selections(&selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
                 current_selection: selection,
@@ -1196,14 +1209,6 @@ fn filter_items_by_range<T, F>(items: &[T], start: usize, end: usize, get_range:
 where
     F: Fn(&T) -> Range<usize>,
 {
-    debug_assert!(
-        items.iter().map(&get_range).collect_vec()
-            == items
-                .iter()
-                .map(&get_range)
-                .sorted_by_key(|range| (range.start, range.end))
-                .collect_vec(),
-    );
     debug_assert!(start <= end);
 
     // Find the start index

@@ -73,7 +73,7 @@ impl EmbeddedApp {
             }
         }
 
-        editor.set_selection_set(selection_set, &Context::default());
+        editor.set_selection_set(selection_set, &self.context);
 
         Ok(())
     }
