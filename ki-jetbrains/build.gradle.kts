@@ -40,7 +40,7 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "251"
+            sinceBuild = "252"
         }
 
         changeNotes = """
@@ -62,5 +62,6 @@ tasks {
     }
     runIde {
         systemProperty("idea.log.debug.categories", "com.kieditor")
+        systemProperty("ki.binary", projectDir.parentFile.resolve("target").resolve("debug").resolve("ki"))
     }
 }

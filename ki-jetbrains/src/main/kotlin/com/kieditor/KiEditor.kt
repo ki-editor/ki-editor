@@ -18,7 +18,6 @@ import io.ktor.client.plugins.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
-import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
@@ -55,9 +54,10 @@ class KiEditor(val project: Project, val scope: CoroutineScope) : Disposable {
     }
 
     private fun startKi(): Int {
-        // todo
-        val process = ProcessBuilder("./target/debug/ki", "@", "embed", ".")
-            .directory(File("/home/exidex/IdeaProjects/ki-editor"))
+        val kiBinary = System.getProperty("ki.binary")
+            ?: "ki"
+
+        val process = ProcessBuilder(kiBinary, "@", "embed", ".")
             .redirectErrorStream(true)
             .start()
 
