@@ -46,7 +46,7 @@ class KiTypedActionHandler(val originalHandler: TypedActionHandler) : TypedActio
 
         val service = project.service<KiEditor>()
         service.scope.launch {
-            project.service<KiEditor>().sendRequest(message)
+            service.sendRequest(message)
         }
     }
 }

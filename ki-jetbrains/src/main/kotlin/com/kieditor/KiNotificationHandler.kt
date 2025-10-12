@@ -13,6 +13,7 @@ import com.intellij.openapi.editor.CaretVisualAttributes.Weight
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.LogicalPosition
+import com.intellij.openapi.editor.ScrollType
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
@@ -183,6 +184,7 @@ class KiNotificationHandler(val project: Project) {
 
         edtWriteAction {
             editor.caretModel.caretsAndSelections = caretStates
+            editor.scrollingModel.scrollToCaret(ScrollType.RELATIVE)
         }
     }
 }

@@ -10,6 +10,8 @@ import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.wm.WindowManager
 import com.kieditor.protocol.BufferParams
 import com.kieditor.protocol.InputMessage
+import com.kieditor.protocol.LineRange
+import com.kieditor.protocol.ViewportParams
 import kotlinx.coroutines.launch
 
 class KiEditorFactoryListener : EditorFactoryListener {
@@ -21,6 +23,34 @@ class KiEditorFactoryListener : EditorFactoryListener {
             ?: return
 
         editor.kiEditorUri = extractKiUri(file)
+
+        editor.scrollingModel.addVisibleAreaListener { event ->
+            val project = editor.project
+                ?: return@addVisibleAreaListener
+
+            val uri = editor.kiEditorUri
+                ?: return@addVisibleAreaListener
+
+            val bufferId = uriToBufferId(uri)
+                ?: return@addVisibleAreaListener
+
+            val message = InputMessage.ViewportChange(
+                ViewportParams(
+                    bufferId,
+                    listOf(
+                        LineRange(
+                            event.newRectangle.y.toUInt(),
+                            event.newRectangle.y.toUInt() + event.newRectangle.height.toUInt(),
+                        )
+                    )
+                )
+            )
+
+            val service = project.service<KiEditor>()
+            service.scope.launch {
+                service.sendNotification(message)
+            }
+        }
 
         editor.addFocusListener(object : FocusChangeListener {
             override fun focusGained(editor: Editor) {

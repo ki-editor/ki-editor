@@ -45,8 +45,9 @@ class KiEditorFactoryDocumentListener() : DocumentListener {
             )
         )
 
-        project.service<KiEditor>().scope.launch {
-            project.service<KiEditor>().sendNotification(message)
+        val service = project.service<KiEditor>()
+        service.scope.launch {
+            service.sendNotification(message)
         }
     }
 }
