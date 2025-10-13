@@ -87,7 +87,7 @@ pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ _____, _____, _____, _____, _____,
+        LImpl, LDefn, LType, LRfrE, Mark_, /****/ GRept, _____, _____, _____, _____,
     ],
 ];
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
@@ -99,7 +99,7 @@ pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
         _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, LDecl, _____, LRfrI, _____, /****/ GRept, _____, _____, _____, _____,
+        _____, LDecl, _____, LRfrI, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
