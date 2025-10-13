@@ -108,14 +108,13 @@ impl Context {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn quickfix_list_items(&self) -> Vec<QuickfixListItem> {
+    pub(crate) fn quickfix_list_items(&self) -> Vec<&QuickfixListItem> {
         if let Some(QuickfixListState {
             source: QuickfixListSource::Custom(items),
             ..
         }) = &self.quickfix_list_state
         {
-            items.clone()
+            items.iter().collect()
         } else {
             Default::default()
         }

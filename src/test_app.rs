@@ -1051,7 +1051,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                     QuickfixListItem::new(
                         Location {
                             path: s.foo_rs(),
-                            range: (CharIndex(0)..CharIndex(0)).into(),
+                            range: (CharIndex(0)..CharIndex(32)).into(),
                         },
                         strs_to_strings(&[
                             "pub(crate) struct Foo {",

@@ -43,6 +43,7 @@ use crate::{
         suggestive_editor::Info,
     },
     position::Position,
+    quickfix_list::QuickfixListItem,
     selection::{CharIndex, Selection},
     surround::EnclosureKind,
 };

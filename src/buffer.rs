@@ -1049,11 +1049,6 @@ impl Buffer {
         Ok(self.char_to_byte(range.start)?..self.char_to_byte(range.end)?)
     }
 
-    pub(crate) fn quickfix_list_items(&self) -> Vec<QuickfixListItem> {
-        Default::default()
-        // self.quickfix_list_items.clone()
-    }
-
     pub(crate) fn line_range_to_char_index_range(
         &self,
         range: &Range<usize>,

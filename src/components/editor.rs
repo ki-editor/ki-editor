@@ -15,6 +15,7 @@ use crate::{
     list::grep::RegexConfig,
     lsp::completion::PositionalEdit,
     position::Position,
+    quickfix_list::QuickfixListItem,
     rectangle::Rectangle,
     search::parse_search_config,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
@@ -947,6 +948,7 @@ impl Editor {
         selection: &Selection,
         use_current_selection_mode: bool,
         working_directory: &shared::canonicalized_path::CanonicalizedPath,
+        quickfix_list_items: Vec<&QuickfixListItem>,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         if use_current_selection_mode {
             self.selection_set.mode().clone()
@@ -958,6 +960,7 @@ impl Editor {
             selection,
             &self.cursor_direction,
             working_directory,
+            quickfix_list_items,
         )
     }
 
@@ -973,6 +976,7 @@ impl Editor {
             selection,
             use_current_selection_mode,
             context.current_working_directory(),
+            context.quickfix_list_items(),
         )?;
 
         let line_ranges = if let Some(ranges) = &self.visible_line_ranges {
@@ -2095,6 +2099,7 @@ impl Editor {
                                 current_selection,
                                 &self.cursor_direction,
                                 context.current_working_directory(),
+                                context.quickfix_list_items(),
                             )
                             .ok()?;
 
@@ -2143,6 +2148,7 @@ impl Editor {
                                 current_selection,
                                 &self.cursor_direction,
                                 context.current_working_directory(),
+                                context.quickfix_list_items(),
                             )
                             .ok()?;
                         let params = selection_mode::SelectionModeParams {
@@ -2453,6 +2459,7 @@ impl Editor {
                     selection,
                     true,
                     context.current_working_directory(),
+                    context.quickfix_list_items(),
                 )?;
                 let buffer = self.buffer.borrow();
                 let gap = object.get_paste_gap(
