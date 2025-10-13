@@ -33,9 +33,10 @@ impl PositionBasedSelectionMode for LineTrimmed {
         let padding = get_padding_whitespace(line);
         let line_start = buffer.line_to_char(line_index)?;
         let line_end = line_start + line.len_chars();
-        let column_char_index = cursor_char_index.0 - line_start.0;
-        if column_char_index < padding.leading
-            || column_char_index >= (line_end - padding.trailing + 1).0
+        let char_index_relative_to_line_start = cursor_char_index.0 - line_start.0;
+        if char_index_relative_to_line_start < padding.leading
+            || char_index_relative_to_line_start + 1
+                > (line_end - line_start.0 - padding.trailing).0
         {
             expanded_range(buffer, cursor_char_index)
         } else {
@@ -279,7 +280,7 @@ fn expanded_range(
     }
 
     loop {
-        if is_target_non_whitespace(buffer.char(rightmost_whitespace)?) {
+        if is_target_non_whitespace(buffer.char(rightmost_whitespace + 1)?) {
             break;
         } else {
             rightmost_whitespace = rightmost_whitespace + 1;
@@ -287,7 +288,7 @@ fn expanded_range(
     }
 
     let range = buffer
-        .char_index_range_to_byte_range((leftmost_whitespace..rightmost_whitespace).into())?;
+        .char_index_range_to_byte_range((leftmost_whitespace..rightmost_whitespace + 1).into())?;
     Ok(Some(ByteRange::new(range)))
 }
 
