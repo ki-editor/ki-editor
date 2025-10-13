@@ -17,9 +17,38 @@ impl PositionBasedSelectionMode for LineTrimmed {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
-        _: crate::components::editor::IfCurrentNotFound,
+        if_current_not_found: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
         let max_cursor_char_index = CharIndex(buffer.len_chars());
+        if cursor_char_index > max_cursor_char_index {
+            return Ok(None);
+        }
+
+        let line_index = buffer.char_to_line(cursor_char_index)?;
+        let Some(line) = buffer.get_line_by_line_index(line_index) else {
+            return Ok(None);
+        };
+        let padding = get_padding_whitespace(line);
+
+        // hack: to skip the trimming
+        let char_at_cursor = buffer.char(cursor_char_index)?;
+        let cursor_char_index = if char_at_cursor == '\n' {
+            match if_current_not_found {
+                IfCurrentNotFound::LookForward => cursor_char_index + padding.trailing + 1,
+                IfCurrentNotFound::LookBackward => cursor_char_index - padding.leading - 1,
+            }
+        } else if char_at_cursor.is_whitespace() {
+            match if_current_not_found {
+                IfCurrentNotFound::LookForward => cursor_char_index + padding.trailing + 1,
+                IfCurrentNotFound::LookBackward => cursor_char_index - padding.leading - 1,
+            }
+        // } else if get_padding_whitespace(next_line).leading.all(|char| char.is_whitespace())...
+        // many cases, also updating in get_current_meaning_selection_by_cursor has unwanted
+        // sideeffects for left/right
+        } else {
+            cursor_char_index
+        };
+
         if cursor_char_index > max_cursor_char_index {
             return Ok(None);
         }
@@ -240,28 +269,18 @@ impl PositionBasedSelectionMode for LineNonEmpty {
     }
 }
 
-fn trimmed_range(
-    buffer: &crate::buffer::Buffer,
-    line_index: usize,
-) -> anyhow::Result<Option<super::ByteRange>> {
-    let Some(line) = buffer.get_line_by_line_index(line_index) else {
-        return Ok(None);
-    };
-    let line_start_char_index = buffer.line_to_char(line_index)?;
+struct PaddingWhitespace {
+    leading: usize,
+    trailing: usize,
+}
 
-    let leading_whitespace_count = line
+fn get_padding_whitespace(line: ropey::RopeSlice) -> PaddingWhitespace {
+    let leading = line
         .chars()
         .take_while(|c| c.is_whitespace() && c != &'\n')
         .count();
-    if line.chars().all(|c| c.is_whitespace()) {
-        let line_start_byte_index =
-            buffer.char_to_byte(line_start_char_index + leading_whitespace_count - 0)?;
-        return Ok(Some(ByteRange::new(
-            line_start_byte_index..line_start_byte_index,
-        )));
-    }
 
-    let trailing_whitespace_count = if line.len_chars() == 0 {
+    let trailing = if line.len_chars() == 0 {
         0
     } else {
         (0..line.len_chars())
@@ -270,18 +289,25 @@ fn trimmed_range(
             .count()
     };
 
-    let range = buffer.char_index_range_to_byte_range(
-        (line_start_char_index + leading_whitespace_count
-            ..line_start_char_index + line.len_chars() - trailing_whitespace_count)
-            .into(),
-    )?;
+    PaddingWhitespace { leading, trailing }
+}
 
-    /*
+fn trimmed_range(
+    buffer: &crate::buffer::Buffer,
+    line_index: usize,
+) -> anyhow::Result<Option<super::ByteRange>> {
+    let Some(line) = buffer.get_line_by_line_index(line_index) else {
+        return Ok(None);
+    };
+    let padding = get_padding_whitespace(line);
+    let line_start = buffer.line_to_char(line_index)?;
+    if line.chars().all(|c| c.is_whitespace()) {
+        let line_start = buffer.char_to_byte(line_start + padding.leading - 0)?;
+        return Ok(Some(ByteRange::new(line_start..line_start)));
+    }
     let range = buffer.char_index_range_to_byte_range(
-        (line_start_char_index..line_start_char_index + line.len_chars()).into(),
+        (line_start + padding.leading..line_start + line.len_chars() - padding.trailing).into(),
     )?;
-    */
-
     Ok(Some(ByteRange::new(range)))
 }
 
