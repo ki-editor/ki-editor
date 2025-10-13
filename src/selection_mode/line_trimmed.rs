@@ -17,6 +17,77 @@ impl PositionBasedSelectionMode for LineTrimmed {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
+        if_current_not_found: crate::components::editor::IfCurrentNotFound,
+    ) -> anyhow::Result<Option<super::ByteRange>> {
+        let max_cursor_char_index = CharIndex(buffer.len_chars());
+        if cursor_char_index > max_cursor_char_index {
+            return Ok(None);
+        }
+
+        let is_target_non_empty = |line: ropey::RopeSlice| {
+            let whitespace = get_padding_whitespace(line);
+            whitespace.leading + whitespace.trailing != line.len_chars()
+        };
+
+        let mut current_line_index = cursor_char_index.to_line(buffer)?;
+
+        let Some(line) = buffer.get_line_by_line_index(current_line_index) else {
+            return Ok(None);
+        };
+        let padding = get_padding_whitespace(line);
+        let line_start = buffer.line_to_char(current_line_index)?;
+        let line_end = line_start + line.len_chars();
+        let char_index_relative_to_line_start = cursor_char_index.0 - line_start.0;
+        // padding contains char_index
+        if char_index_relative_to_line_start < padding.leading {
+            match if_current_not_found {
+                IfCurrentNotFound::LookForward => {}
+                IfCurrentNotFound::LookBackward => {
+                    current_line_index = current_line_index - 1;
+                }
+            }
+        } else if char_index_relative_to_line_start + 1
+            > (line_end - line_start.0 - padding.trailing).0
+        {
+            match if_current_not_found {
+                IfCurrentNotFound::LookForward => {
+                    current_line_index = current_line_index + 1;
+                }
+                IfCurrentNotFound::LookBackward => {}
+            }
+        }
+
+        match if_current_not_found {
+            IfCurrentNotFound::LookForward => loop {
+                let Some(current_line) = buffer.get_line_by_line_index(current_line_index) else {
+                    return Ok(None);
+                };
+
+                if is_target_non_empty(current_line) {
+                    break;
+                } else {
+                    current_line_index = current_line_index + 1;
+                }
+            },
+            IfCurrentNotFound::LookBackward => loop {
+                let Some(current_line) = buffer.get_line_by_line_index(current_line_index) else {
+                    return Ok(None);
+                };
+                if is_target_non_empty(current_line) {
+                    break;
+                } else {
+                    current_line_index = current_line_index - 1;
+                }
+            },
+        }
+
+        trimmed_range(buffer, current_line_index)
+    }
+
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &crate::buffer::Buffer,
+        cursor_char_index: crate::selection::CharIndex,
         _: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
         let max_cursor_char_index = CharIndex(buffer.len_chars());
@@ -25,14 +96,15 @@ impl PositionBasedSelectionMode for LineTrimmed {
             return Ok(None);
         }
         let line_index = cursor_char_index.to_line(buffer)?;
+
         let Some(line) = buffer.get_line_by_line_index(line_index) else {
             return Ok(None);
         };
-
         let padding = get_padding_whitespace(line);
         let line_start = buffer.line_to_char(line_index)?;
         let line_end = line_start + line.len_chars();
         let char_index_relative_to_line_start = cursor_char_index.0 - line_start.0;
+        // padding contains char_index
         if char_index_relative_to_line_start < padding.leading
             || char_index_relative_to_line_start + 1
                 > (line_end - line_start.0 - padding.trailing).0
@@ -41,21 +113,6 @@ impl PositionBasedSelectionMode for LineTrimmed {
         } else {
             trimmed_range(buffer, line_index)
         }
-    }
-
-    fn left(
-        &self,
-        params: &super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        Ok(LineNonEmpty
-            .up(params, None)?
-            .map(|result| result.selection))
-    }
-
-    fn right(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        Ok(LineNonEmpty
-            .down(params, None)?
-            .map(|result| result.selection))
     }
 
     fn down(
@@ -205,60 +262,6 @@ impl PositionBasedSelectionMode for LineTrimmed {
     }
 }
 
-struct LineNonEmpty;
-
-impl PositionBasedSelectionMode for LineNonEmpty {
-    fn get_current_meaningful_selection_by_cursor(
-        &self,
-        buffer: &crate::buffer::Buffer,
-        cursor_char_index: crate::selection::CharIndex,
-        if_current_not_found: crate::components::editor::IfCurrentNotFound,
-    ) -> anyhow::Result<Option<super::ByteRange>> {
-        let max_cursor_char_index = CharIndex(buffer.len_chars());
-        if cursor_char_index > max_cursor_char_index {
-            return Ok(None);
-        }
-
-        let is_target_non_empty =
-            |line: ropey::RopeSlice| !line.chars().all(|char| char.is_whitespace());
-
-        let current_line_index = {
-            let mut current_line_index = buffer.char_to_line(cursor_char_index)?;
-            loop {
-                if (CharIndex(0)..=max_cursor_char_index)
-                    .contains(&buffer.line_to_char(current_line_index)?)
-                {
-                    let Some(current_line) = buffer.get_line_by_line_index(current_line_index)
-                    else {
-                        return Ok(None);
-                    };
-                    if is_target_non_empty(current_line) {
-                        break current_line_index;
-                    } else {
-                        match if_current_not_found {
-                            IfCurrentNotFound::LookForward
-                                if current_line_index
-                                    < buffer.char_to_line(max_cursor_char_index)? =>
-                            {
-                                current_line_index = current_line_index + 1
-                            }
-                            IfCurrentNotFound::LookBackward
-                                if current_line_index > buffer.char_to_line(CharIndex(0))? =>
-                            {
-                                current_line_index = current_line_index - 1
-                            }
-                            _ => break current_line_index,
-                        }
-                    }
-                } else {
-                    return Ok(None);
-                }
-            }
-        };
-        trimmed_range(buffer, current_line_index)
-    }
-}
-
 struct PaddingWhitespace {
     leading: usize,
     trailing: usize,
@@ -287,6 +290,7 @@ fn expanded_range(
 ) -> anyhow::Result<Option<super::ByteRange>> {
     let mut leftmost_whitespace = char_index;
     let mut rightmost_whitespace = char_index;
+
     let is_target_non_whitespace = |char: char| !char.is_whitespace();
 
     loop {
