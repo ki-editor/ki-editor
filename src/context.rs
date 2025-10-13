@@ -120,6 +120,33 @@ impl Context {
             Default::default()
         }
     }
+
+    pub(crate) fn handle_applied_edits(
+        &mut self,
+        path: CanonicalizedPath,
+        edits: Vec<crate::edit::Edit>,
+    ) {
+        if let Some(QuickfixListState {
+            source: QuickfixListSource::Custom(items),
+            ..
+        }) = &mut self.quickfix_list_state
+        {
+            *items = std::mem::take(items)
+                .into_iter()
+                .filter_map(|item| {
+                    if item.location().path == path {
+                        edits
+                            .iter()
+                            .try_fold(item, |item, edit| item.apply_edit(edit))
+                    } else {
+                        Some(item)
+                    }
+                })
+                .collect_vec();
+        } else {
+            Default::default()
+        }
+    }
 }
 
 impl Context {

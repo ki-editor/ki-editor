@@ -6,6 +6,7 @@ use lsp_types::DiagnosticSeverity;
 use crate::{
     app::Dispatches,
     buffer::Buffer,
+    char_index_range::CharIndexRange,
     components::{
         dropdown::{Dropdown, DropdownConfig, DropdownItem},
         editor::Movement,
@@ -17,11 +18,31 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 impl QuickfixListItem {
     fn into_dropdown_item(self: QuickfixListItem, buffers: &[Rc<RefCell<Buffer>>]) -> DropdownItem {
-        let location = self.location;
-        let Position { line, column } = location.range.start;
+        let Position { line, column } = buffers
+            .iter()
+            .find(|buffer| {
+                if let Some(path) = buffer.borrow().path() {
+                    path == self.location.path
+                } else {
+                    false
+                }
+            })
+            .and_then(|buffer| {
+                buffer
+                    .borrow()
+                    .char_to_position(self.location.range.start.clone())
+                    .ok()
+            })
+            .or_else(|| {
+                Buffer::from_path(&self.location.path, false)
+                    .ok()?
+                    .char_to_position(self.location.range.start.clone())
+                    .ok()
+            })
+            .unwrap_or_default();
         DropdownItem::new({
             let content = self.line.unwrap_or_else(|| {
-                location
+                self.location
                     .read_from_buffers(buffers)
                     .unwrap_or_else(|| "[Failed to read file]".to_string())
                     .trim_matches(|c: char| c.is_whitespace())
@@ -31,19 +52,19 @@ impl QuickfixListItem {
         })
         .set_info(self.info.clone())
         .set_group({
-            let path = location.path.clone();
+            let path = self.location.path.clone();
             Some(
                 path.display_relative()
                     .unwrap_or_else(|_| path.display_absolute()),
             )
         })
         .set_dispatches(Dispatches::one(crate::app::Dispatch::GotoLocation(
-            location.to_owned(),
+            self.location.to_owned(),
         )))
         .set_rank(Some(Box::new([line, column])))
     }
 
-    pub(crate) fn set_location_range(self, range: Range<Position>) -> QuickfixListItem {
+    pub(crate) fn set_location_range(self, range: CharIndexRange) -> QuickfixListItem {
         let QuickfixListItem {
             location: Location { path, .. },
             info,
@@ -54,6 +75,13 @@ impl QuickfixListItem {
             line,
             location: Location { path, range },
         }
+    }
+
+    pub(crate) fn apply_edit(self, edit: &crate::edit::Edit) -> Option<Self> {
+        Some(Self {
+            location: self.location.apply_edit(edit)?,
+            ..self
+        })
     }
 }
 
@@ -196,7 +224,7 @@ impl QuickfixListItem {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct Location {
     pub(crate) path: CanonicalizedPath,
-    pub(crate) range: Range<Position>,
+    pub(crate) range: CharIndexRange,
 }
 
 impl Location {
@@ -214,10 +242,18 @@ impl Location {
                 Some(
                     buffer
                         .borrow()
-                        .get_line_by_line_index(self.range.start.line)?
+                        .get_line_by_char_index(self.range.start)
+                        .ok()?
                         .to_string(),
                 )
             })
+    }
+
+    fn apply_edit(self, edit: &crate::edit::Edit) -> Option<Location> {
+        Some(Self {
+            range: self.range.apply_edit(edit)?,
+            ..self
+        })
     }
 }
 
@@ -225,14 +261,16 @@ impl TryFrom<lsp_types::Location> for Location {
     type Error = anyhow::Error;
 
     fn try_from(value: lsp_types::Location) -> Result<Self, Self::Error> {
-        Ok(Location {
-            path: value
-                .uri
-                .to_file_path()
-                .map_err(|_| anyhow::anyhow!("Failed to convert uri to file path"))?
-                .try_into()?,
-            range: value.range.start.into()..value.range.end.into(),
-        })
+        let path = value
+            .uri
+            .to_file_path()
+            .map_err(|_| anyhow::anyhow!("Failed to convert uri to file path"))?
+            .try_into()?;
+        let buffer = Buffer::from_path(&path, false)?;
+        let range = buffer.position_range_to_char_index_range(
+            &(value.range.start.into()..value.range.end.into()),
+        )?;
+        Ok(Location { path, range })
     }
 }
 
@@ -244,10 +282,10 @@ impl PartialOrd for Location {
 
 impl Ord for Location {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        (&self.path, self.range.start.line, self.range.start.column).cmp(&(
+        (&self.path, self.range.start, self.range.start).cmp(&(
             &other.path,
-            other.range.start.line,
-            other.range.start.column,
+            other.range.start,
+            other.range.start,
         ))
     }
 }
@@ -294,7 +332,7 @@ impl DiagnosticSeverityRange {
 
 #[cfg(test)]
 mod test_quickfix_list {
-    use crate::{components::suggestive_editor::Info, position::Position};
+    use crate::{components::suggestive_editor::Info, position::Position, selection::CharIndex};
 
     use super::{Location, QuickfixList, QuickfixListItem};
     use pretty_assertions::assert_eq;
@@ -304,7 +342,7 @@ mod test_quickfix_list {
         let foo = QuickfixListItem {
             location: Location {
                 path: ".gitignore".try_into().unwrap(),
-                range: Position { line: 1, column: 2 }..Position { line: 1, column: 3 },
+                range: (CharIndex(2)..CharIndex(3)).into(),
             },
             info: None,
             line: None,
@@ -312,7 +350,7 @@ mod test_quickfix_list {
         let bar = QuickfixListItem {
             location: Location {
                 path: "readme.md".try_into().unwrap(),
-                range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
+                range: (CharIndex(1)..CharIndex(2)).into(),
             },
             info: None,
             line: None,
@@ -320,7 +358,7 @@ mod test_quickfix_list {
         let spam = QuickfixListItem {
             location: Location {
                 path: ".gitignore".try_into().unwrap(),
-                range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
+                range: (CharIndex(1)..CharIndex(2)).into(),
             },
             info: None,
             line: None,
@@ -339,7 +377,7 @@ mod test_quickfix_list {
             QuickfixListItem {
                 location: Location {
                     path: "readme.md".try_into().unwrap(),
-                    range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
+                    range: (CharIndex(1)..CharIndex(2)).into(),
                 },
                 info: Some(Info::new("Title 1".to_string(), "spongebob".to_string())),
                 line: None,
@@ -347,7 +385,7 @@ mod test_quickfix_list {
             QuickfixListItem {
                 location: Location {
                     path: "readme.md".try_into().unwrap(),
-                    range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
+                    range: (CharIndex(1)..CharIndex(2)).into(),
                 },
                 info: Some(Info::new("Title 2".to_string(), "squarepants".to_string())),
                 line: None,
@@ -362,7 +400,7 @@ mod test_quickfix_list {
             vec![QuickfixListItem {
                 location: Location {
                     path: "readme.md".try_into().unwrap(),
-                    range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
+                    range: (CharIndex(1)..CharIndex(2)).into(),
                 },
                 info: Some(Info::new(
                     "Title 1".to_string(),

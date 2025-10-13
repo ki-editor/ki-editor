@@ -1,3 +1,4 @@
+use crate::app::{Dispatch, Dispatches};
 use crate::context::Context;
 use crate::git::hunk::SimpleHunk;
 use crate::git::{DiffMode, GitOperation};
@@ -120,13 +121,14 @@ impl Buffer {
         self.owner
     }
 
-    pub(crate) fn reload(&mut self) -> anyhow::Result<()> {
+    pub(crate) fn reload(&mut self) -> anyhow::Result<Dispatches> {
         if let Some(path) = self.path() {
             let updated_content = path.read()?;
-            self.update_content(&updated_content, SelectionSet::default(), 0)?;
             self.dirty = false;
+            self.update_content(&updated_content, SelectionSet::default(), 0)
+        } else {
+            Ok(Default::default())
         }
-        Ok(())
     }
 
     pub(crate) fn content(&self) -> String {
@@ -534,14 +536,14 @@ impl Buffer {
     /// Returns the new selection set and the edit transaction
     ///
     /// This method returns the range-updated quickfix list items.
+    #[must_use]
     pub(crate) fn apply_edit_transaction(
         &mut self,
         edit_transaction: &EditTransaction,
         current_selection_set: SelectionSet,
         reparse_tree: bool,
         update_undo_stack: bool,
-        last_visible_line: u16,
-    ) -> Result<(SelectionSet, Vec<Edit>, Vec<ki_protocol_types::DiffEdit>), anyhow::Error> {
+    ) -> Result<(SelectionSet, Dispatches, Vec<ki_protocol_types::DiffEdit>), anyhow::Error> {
         let new_selection_set = edit_transaction
             .non_empty_selections()
             .map(|selections| current_selection_set.clone().set_selections(selections))
@@ -560,10 +562,7 @@ impl Buffer {
             .map(|edit| edit.to_vscode_diff_edit(self))
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-        let range_updated_quickfix_list_items = edit_transaction
-            .edits()
-            .into_iter()
-            .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
+        // let range_updated_quickfix_list_items = edit_transaction.edits().into_iter().try_fold( quickfix_list_items, |quickfix_list_items, edit| { self.apply_edit(edit, last_visible_line, quickfix_list_items) }, )?;
 
         // NOTE: the inverted VS Code edits should be computed AFTER applying the edits
         let inverted_unnormalized_edits = inverted_edit_transaction.unnormalized_edits();
@@ -596,16 +595,20 @@ impl Buffer {
 
         self.batch_id.increment();
 
+        let edits = edit_transaction
+            .edits()
+            .into_iter()
+            .map(|edit| edit.clone())
+            .collect_vec();
+
+        let dispatches = self
+            .path
+            .clone()
+            .map(|path| Dispatches::one(Dispatch::AppliedEdits { edits, path }))
+            .unwrap_or_default();
+
         // Return both the new selection set and a clone of the edit transaction
-        Ok((
-            new_selection_set,
-            edit_transaction
-                .edits()
-                .into_iter()
-                .map(|edit| edit.clone())
-                .collect_vec(),
-            applied_vscode_edits,
-        ))
+        Ok((new_selection_set, dispatches, applied_vscode_edits))
     }
 
     // Add these methods for undo/redo
@@ -774,16 +777,11 @@ impl Buffer {
         new_content: &str,
         current_selection_set: SelectionSet,
         last_visible_line: u16,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Dispatches> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
-        self.apply_edit_transaction(
-            &edit_transaction,
-            current_selection_set,
-            true,
-            true,
-            last_visible_line,
-        )?;
-        Ok(())
+        let (_, dispatches, _) =
+            self.apply_edit_transaction(&edit_transaction, current_selection_set, true, true)?;
+        Ok(dispatches)
     }
 
     /// The resulting spans must be sorted by range
@@ -976,7 +974,7 @@ impl Buffer {
     ) -> anyhow::Result<(
         bool,
         SelectionSet,
-        Vec<Edit>,
+        Dispatches,
         Vec<ki_protocol_types::DiffEdit>,
     )> {
         let before = self.rope.to_string();
@@ -1022,16 +1020,11 @@ impl Buffer {
                 )
             }
         };
-        let (selection_set, edits, diff_edits) = self.apply_edit_transaction(
-            &edit_transaction,
-            current_selection_set,
-            true,
-            true,
-            last_visible_line,
-        )?;
+        let (selection_set, dispatches, diff_edits) =
+            self.apply_edit_transaction(&edit_transaction, current_selection_set, true, true)?;
         let after = self.content();
         let modified = before != after;
-        Ok((modified, selection_set, edits, diff_edits))
+        Ok((modified, selection_set, dispatches, diff_edits))
     }
 
     pub(crate) fn char_index_range_to_byte_range(
@@ -1048,7 +1041,7 @@ impl Buffer {
 
     pub(crate) fn line_range_to_char_index_range(
         &self,
-        range: Range<usize>,
+        range: &Range<usize>,
     ) -> anyhow::Result<CharIndexRange> {
         Ok((self.line_to_char(range.start)?..self.line_to_char(range.end)?).into())
     }
@@ -1482,7 +1475,6 @@ fn f(
                 SelectionSet::default(),
                 true,
                 true,
-                0,
             )?;
 
             // Expect the content to be the same as the 2nd files

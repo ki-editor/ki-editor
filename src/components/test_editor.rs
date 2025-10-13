@@ -1890,7 +1890,7 @@ fn main() {
                     [QuickfixListItem::new(
                         Location {
                             path: s.main_rs(),
-                            range: Position { line: 1, column: 2 }..Position { line: 1, column: 5 },
+                            range: (CharIndex(2)..CharIndex(5)).into(),
                         },
                         None,
                         None,
@@ -1899,28 +1899,15 @@ fn main() {
                 ),
             )),
             Expect(ExpectKind::BufferQuickfixListItems(
-                [Position { line: 1, column: 2 }..Position { line: 1, column: 5 }].to_vec(),
+                [(CharIndex(2)..CharIndex(5)).into()].to_vec(),
             )),
-            // 1. Testing edit that does not affect the line of the quickfix item
+            // Testing edit that affects the line of the quickfix item
             Editor(MatchLiteral("fn".to_string())),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("hello".to_string())),
-            // 1a. The position range should remain the same
+            // The position range should be updated
             Expect(ExpectKind::BufferQuickfixListItems(
-                [Position { line: 1, column: 2 }..Position { line: 1, column: 5 }].to_vec(),
-            )),
-            Editor(EnterNormalMode),
-            // 2. Testing edit that affects the line of the quickfix item
-            Editor(MatchLiteral("let".to_string())),
-            Editor(EnterInsertMode(Direction::Start)),
-            Editor(Insert("hello".to_string())),
-            // 2a. The position range should be updated
-            Expect(ExpectKind::BufferQuickfixListItems(
-                [Position { line: 1, column: 7 }..Position {
-                    line: 1,
-                    column: 10,
-                }]
-                .to_vec(),
+                [(CharIndex(7)..CharIndex(10)).into()].to_vec(),
             )),
         ])
     })

@@ -191,10 +191,10 @@ fn to_locations(
         .find_iter(line)
         .flat_map(|match_| -> anyhow::Result<Location> {
             let range = match_?.range();
-            let start = buffer.byte_to_position(range.start + start_byte)?;
-            let end = buffer.byte_to_position(range.end + start_byte)?;
+            let start = buffer.byte_to_char(range.start + start_byte)?;
+            let end = buffer.byte_to_char(range.end + start_byte)?;
             Ok(Location {
-                range: start..end,
+                range: (start..end).into(),
                 path: path.clone(),
             })
         })

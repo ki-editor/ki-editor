@@ -783,14 +783,10 @@ impl Editor {
         Dispatches::default().append_some(show_info)
     }
 
-    pub(crate) fn position_range_to_selection_set(
+    pub(crate) fn char_index_range_to_selection_set(
         &self,
-        range: Range<Position>,
+        range: CharIndexRange,
     ) -> anyhow::Result<SelectionSet> {
-        let range = (self.buffer().position_to_char(range.start)?
-            ..self.buffer().position_to_char(range.end)?)
-            .into();
-
         let mode = if self.buffer().given_range_is_node(&range) {
             SelectionMode::SyntaxNode
         } else {
@@ -1392,13 +1388,12 @@ impl Editor {
     ) -> anyhow::Result<Dispatches> {
         // Apply the transaction to the buffer
         let last_visible_line = self.last_visible_line(context);
-        let (new_selection_set, edits, diff_edits) =
+        let (new_selection_set, dispatches, diff_edits) =
             self.buffer.borrow_mut().apply_edit_transaction(
                 &edit_transaction,
                 self.selection_set.clone(),
                 self.mode != Mode::Insert,
                 true,
-                last_visible_line,
             )?;
 
         // Create a BufferEditTransaction dispatch for external integrations
@@ -1433,7 +1428,7 @@ impl Editor {
         let dispatches = self
             .get_document_did_change_dispatch()
             .chain(buffer_edit_dispatch)
-            .append(Dispatch::AppliedEdits(edits));
+            .chain(dispatches);
 
         Ok(dispatches)
     }
@@ -1925,7 +1920,6 @@ impl Editor {
                         self.selection_set.clone(),
                         true,
                         true,
-                        self.last_visible_line(context),
                     )
                     .is_err()
                 {
@@ -3130,12 +3124,12 @@ impl Editor {
         self.recalculate_scroll_offset(context)
     }
 
-    pub(crate) fn set_position_range(
+    pub(crate) fn set_char_index_range(
         &mut self,
-        range: Range<Position>,
+        range: CharIndexRange,
         context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
-        let selection_set = self.position_range_to_selection_set(range)?;
+        let selection_set = self.char_index_range_to_selection_set(range)?;
         Ok(self.update_selection_set(selection_set, true, context))
     }
 
@@ -3751,10 +3745,8 @@ impl Editor {
         dispatches
     }
 
-    pub(crate) fn current_selection_range(&self) -> anyhow::Result<Range<Position>> {
-        self.buffer().char_index_range_to_position_range(
-            self.selection_set.primary_selection().extended_range(),
-        )
+    pub(crate) fn current_selection_range(&self) -> CharIndexRange {
+        self.selection_set.primary_selection().extended_range()
     }
 
     pub(crate) fn window_title_height(&self, context: &Context) -> u16 {
@@ -3865,7 +3857,7 @@ impl Editor {
         &mut self,
         new_content: &str,
         context: &Context,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Dispatches> {
         let current_selection_set = self.selection_set.clone();
         let last_visible_line = self.last_visible_line(context);
         self.buffer_mut()

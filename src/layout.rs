@@ -533,13 +533,10 @@ impl Layout {
                                 return None;
                             }
 
-                            let position_range = buffer
-                                .char_index_range_to_position_range(diagnostic.range)
-                                .ok()?;
                             Some(QuickfixListItem::new(
                                 Location {
                                     path: buffer.path()?,
-                                    range: position_range,
+                                    range: diagnostic.range,
                                 },
                                 Some(Info::new(
                                     "Diagnostics".to_string(),
@@ -560,12 +557,10 @@ impl Layout {
                         .marks()
                         .into_iter()
                         .filter_map(|mark| {
-                            let position_range =
-                                buffer.char_index_range_to_position_range(mark).ok()?;
                             Some(QuickfixListItem::new(
                                 Location {
                                     path: buffer.path()?,
-                                    range: position_range,
+                                    range: mark,
                                 },
                                 None,
                                 None,

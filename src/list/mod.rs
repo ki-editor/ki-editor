@@ -36,13 +36,13 @@ impl WalkBuilderConfig {
                 .into_iter()
                 .flat_map(move |node_match| -> anyhow::Result<_> {
                     let range = node_match.range();
-                    let range = buffer.byte_to_position(range.start)?
-                        ..buffer.byte_to_position(range.end)?;
+                    let range =
+                        buffer.byte_to_char(range.start)?..buffer.byte_to_char(range.end)?;
 
                     let _ = sender
                         .send(Location {
                             path: path.clone(),
-                            range,
+                            range: range.into(),
                         })
                         .map_err(|error| {
                             log::error!("sender.send {error:?}");

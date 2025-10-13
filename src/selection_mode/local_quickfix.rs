@@ -15,7 +15,7 @@ impl LocalQuickfix {
                 Some(
                     super::ByteRange::new(
                         buffer
-                            .position_range_to_byte_range(&item.location().range)
+                            .char_index_range_to_byte_range(item.location().range)
                             .ok()?,
                     )
                     .set_info(item.info().clone()),

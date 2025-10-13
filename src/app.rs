@@ -945,7 +945,7 @@ impl<T: Frontend> App<T> {
             Dispatch::AddQuickfixListEntries(locations) => {
                 self.add_quickfix_list_entries(locations)?
             }
-            Dispatch::AppliedEdits(edits) => self.handle_applied_edits(edits),
+            Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
         }
         Ok(())
     }
@@ -1235,7 +1235,7 @@ impl<T: Frontend> App<T> {
         focus: bool,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
         if store_history {
-            self.push_current_location_into_navigation_history(true)?;
+            self.push_current_location_into_navigation_history(true);
         }
 
         // Check if the file is opened before so that we won't notify the LSP twice
@@ -1464,23 +1464,22 @@ impl<T: Frontend> App<T> {
             // We'll let the editor.set_position_range call below handle the actual selection
             // Just emit a simple empty selection at the start position for now
             let buffer = component_ref.editor().buffer();
-            if let Ok(char_index) = location.range.start.to_char_index(&buffer) {
-                let selection = crate::selection::Selection::new((char_index..char_index).into());
+            let char_index = location.range.start;
+            let selection = crate::selection::Selection::new((char_index..char_index).into());
 
-                // Emit a selection changed event
-                self.integration_event_sender.emit_event(
-                    crate::integration_event::IntegrationEvent::SelectionChanged {
-                        component_id,
-                        selections: vec![selection],
-                    },
-                );
-            }
+            // Emit a selection changed event
+            self.integration_event_sender.emit_event(
+                crate::integration_event::IntegrationEvent::SelectionChanged {
+                    component_id,
+                    selections: vec![selection],
+                },
+            );
         }
 
         let dispatches = component
             .borrow_mut()
             .editor_mut()
-            .set_position_range(location.range.clone(), &self.context)?;
+            .set_char_index_range(location.range.clone(), &self.context)?;
         self.handle_dispatches(dispatches)?;
         Ok(())
     }
@@ -1847,19 +1846,16 @@ impl<T: Frontend> App<T> {
                         file_diff
                             .hunks()
                             .iter()
-                            .map(|hunk| {
+                            .filter_map(|hunk| {
+                                let buffer = Buffer::from_path(file_diff.path(), false).ok()?;
                                 let line_range = hunk.line_range();
                                 let location = Location {
                                     path: file_diff.path().clone(),
-                                    range: Position {
-                                        line: line_range.start,
-                                        column: 0,
-                                    }..Position {
-                                        line: line_range.end,
-                                        column: 0,
-                                    },
+                                    range: buffer
+                                        .line_range_to_char_index_range(line_range)
+                                        .ok()?,
                                 };
-                                QuickfixListItem::new(location, hunk.to_info(), None)
+                                Some(QuickfixListItem::new(location, hunk.to_info(), None))
                             })
                             .collect_vec()
                     })
@@ -2393,7 +2389,7 @@ impl<T: Frontend> App<T> {
     fn navigate_back(&mut self) -> anyhow::Result<()> {
         while let Some(location) = self.context.location_previous() {
             if location.path.exists() {
-                self.push_current_location_into_navigation_history(false)?;
+                self.push_current_location_into_navigation_history(false);
                 self.go_to_location(&location, false)?;
                 return Ok(());
             }
@@ -2404,17 +2400,14 @@ impl<T: Frontend> App<T> {
     fn navigate_forward(&mut self) -> anyhow::Result<()> {
         while let Some(location) = self.context.location_next() {
             if location.path.exists() {
-                self.push_current_location_into_navigation_history(true)?;
+                self.push_current_location_into_navigation_history(true);
                 self.go_to_location(&location, false)?
             }
         }
         Ok(())
     }
 
-    fn push_current_location_into_navigation_history(
-        &mut self,
-        backward: bool,
-    ) -> anyhow::Result<()> {
+    fn push_current_location_into_navigation_history(&mut self, backward: bool) {
         // TODO: should include scroll offset as well
         // so that when the user navigates back, it really feels the same
         if let Some(path) = self.current_component().borrow().editor().path() {
@@ -2422,11 +2415,10 @@ impl<T: Frontend> App<T> {
                 .current_component()
                 .borrow()
                 .editor()
-                .current_selection_range()?;
+                .current_selection_range();
             let location = Location { path, range };
             self.context.push_location_history(location, backward)
         }
-        Ok(())
     }
 
     fn toggle_file_mark(&mut self) -> anyhow::Result<()> {
@@ -2694,8 +2686,8 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn handle_applied_edits(&self, edits: Vec<Edit>) {
-        // self.context.handle_applied_edits(edits)
+    fn handle_applied_edits(&mut self, path: CanonicalizedPath, edits: Vec<Edit>) {
+        self.context.handle_applied_edits(path, edits)
     }
 }
 
@@ -2938,7 +2930,10 @@ pub(crate) enum Dispatch {
         alt_text: &'static str,
     },
     AddQuickfixListEntries(Vec<Match>),
-    AppliedEdits(Vec<Edit>),
+    AppliedEdits {
+        edits: Vec<Edit>,
+        path: CanonicalizedPath,
+    },
 }
 
 /// Used to send notify host app about changes

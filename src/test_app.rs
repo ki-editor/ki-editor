@@ -67,7 +67,7 @@ use crate::{
     position::Position,
     quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
     rectangle::Rectangle,
-    selection::SelectionMode,
+    selection::{CharIndex, SelectionMode},
     style::Style,
     themes::Theme,
     ui_tree::ComponentKind,
@@ -146,7 +146,7 @@ pub(crate) enum ExpectKind {
     GridCellsStyleKey(Vec<Position>, Option<StyleKey>),
     HighlightSpans(std::ops::Range<usize>, StyleKey),
     DiagnosticsRanges(Vec<CharIndexRange>),
-    BufferQuickfixListItems(Vec<Range<Position>>),
+    BufferQuickfixListItems(Vec<CharIndexRange>),
     ComponentCount(usize),
     CurrentComponentPath(Option<CanonicalizedPath>),
     OpenedFilesCount(usize),
@@ -1043,7 +1043,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                     QuickfixListItem::new(
                         Location {
                             path: path_new_file.clone().try_into().unwrap(),
-                            range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
+                            range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&["[This file is untracked or renamed]"]),
                         None,
@@ -1051,7 +1051,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                     QuickfixListItem::new(
                         Location {
                             path: s.foo_rs(),
-                            range: Position { line: 0, column: 0 }..Position { line: 1, column: 0 },
+                            range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&[
                             "pub(crate) struct Foo {",
@@ -1062,7 +1062,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                     QuickfixListItem::new(
                         Location {
                             path: s.main_rs(),
-                            range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
+                            range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&["mod foo;"]),
                         None,
@@ -1261,7 +1261,7 @@ fn global_marks() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
                     None,
                     None,
@@ -1269,7 +1269,7 @@ fn global_marks() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
                     None,
                     None,
@@ -1308,7 +1308,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position::new(0, 4)..Position::new(0, 7),
+                        range: (CharIndex(4)..CharIndex(7)).into(),
                     },
                     None,
                     None,
@@ -1316,7 +1316,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position::new(0, 12)..Position::new(0, 15),
+                        range: (CharIndex(12)..CharIndex(15)).into(),
                     },
                     None,
                     None,
@@ -1324,7 +1324,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position::new(0, 4)..Position::new(0, 7),
+                        range: (CharIndex(4)..CharIndex(7)).into(),
                     },
                     None,
                     None,
@@ -1332,7 +1332,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position::new(0, 12)..Position::new(0, 15),
+                        range: (CharIndex(12)..CharIndex(15)).into(),
                     },
                     None,
                     None,
@@ -1367,11 +1367,11 @@ fn local_lsp_references() -> anyhow::Result<()> {
                 [
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 2 },
+                        range: (CharIndex(0)..CharIndex(2)).into(),
                     },
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 3 }..Position { line: 0, column: 4 },
+                        range: (CharIndex(3)..CharIndex(4)).into(),
                     },
                 ]
                 .to_vec(),
@@ -1421,7 +1421,7 @@ fn global_diagnostics() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
                     Some(Info::new(
                         "Diagnostics".to_string(),
@@ -1432,7 +1432,7 @@ fn global_diagnostics() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
                     Some(Info::new(
                         "Diagnostics".to_string(),
@@ -1700,7 +1700,7 @@ fn main() {
                     [QuickfixListItem::new(
                         Location {
                             path: s.main_rs(),
-                            range: Position { line: 1, column: 2 }..Position { line: 1, column: 5 },
+                            range: (CharIndex(2)..CharIndex(5)).into(),
                         },
                         Some(Info::new(
                             "Hello world".to_string(),
@@ -2645,11 +2645,11 @@ fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
                     [
                         Location {
                             path: s.foo_rs(),
-                            range: Position::new(0, 0)..Position::new(0, 1),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
                         },
                         Location {
                             path: s.foo_rs(),
-                            range: Position::new(1, 0)..Position::new(1, 1),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
                         },
                     ]
                     .to_vec(),

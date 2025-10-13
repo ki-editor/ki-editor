@@ -1024,7 +1024,7 @@ impl HighlightSpan {
                     .unwrap_or_default()
             }
             HighlightSpanRange::Line(line) => buffer
-                .line_range_to_char_index_range(*line..line + 1)
+                .line_range_to_char_index_range(&(*line..line + 1))
                 .map(|char_range| {
                     (char_range.start.0..char_range.end.0)
                         .filter_map(|char_index| {
