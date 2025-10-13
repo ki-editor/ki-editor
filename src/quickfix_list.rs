@@ -17,8 +17,12 @@ use crate::{
 use shared::canonicalized_path::CanonicalizedPath;
 
 impl QuickfixListItem {
-    fn into_dropdown_item(self: QuickfixListItem, buffers: &[Rc<RefCell<Buffer>>]) -> DropdownItem {
-        let Position { line, column } = buffers
+    fn into_dropdown_item(
+        self: QuickfixListItem,
+        buffers: &[Rc<RefCell<Buffer>>],
+        current_working_directory: &CanonicalizedPath,
+    ) -> DropdownItem {
+        let buffer = buffers
             .iter()
             .find(|buffer| {
                 if let Some(path) = buffer.borrow().path() {
@@ -27,18 +31,13 @@ impl QuickfixListItem {
                     false
                 }
             })
-            .and_then(|buffer| {
-                buffer
-                    .borrow()
-                    .char_to_position(self.location.range.start.clone())
-                    .ok()
-            })
-            .or_else(|| {
-                Buffer::from_path(&self.location.path, false)
-                    .ok()?
-                    .char_to_position(self.location.range.start.clone())
-                    .ok()
-            })
+            .expect(
+                "The unique buffers of all quickfix list items should be preloaded beforehand.",
+            );
+        let Position { line, column } = buffer
+            .borrow()
+            .char_to_position(self.location.range.start.clone())
+            .ok()
             .unwrap_or_default();
         DropdownItem::new({
             let content = self.line.unwrap_or_else(|| {
@@ -54,7 +53,7 @@ impl QuickfixListItem {
         .set_group({
             let path = self.location.path.clone();
             Some(
-                path.display_relative()
+                path.display_relative_to(current_working_directory)
                     .unwrap_or_else(|_| path.display_absolute()),
             )
         })
@@ -96,6 +95,7 @@ impl QuickfixList {
         title: String,
         items: Vec<QuickfixListItem>,
         buffers: Vec<Rc<RefCell<Buffer>>>,
+        current_working_directory: &CanonicalizedPath,
     ) -> QuickfixList {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: title.clone(),
@@ -119,7 +119,10 @@ impl QuickfixList {
         dropdown.set_items(
             items
                 .iter()
-                .map(|item| item.to_owned().into_dropdown_item(&buffers))
+                .map(|item| {
+                    item.to_owned()
+                        .into_dropdown_item(&buffers, current_working_directory)
+                })
                 .collect(),
         );
 
@@ -332,7 +335,10 @@ impl DiagnosticSeverityRange {
 
 #[cfg(test)]
 mod test_quickfix_list {
-    use crate::{components::suggestive_editor::Info, position::Position, selection::CharIndex};
+    use crate::{
+        components::suggestive_editor::Info, context::Context, position::Position,
+        selection::CharIndex,
+    };
 
     use super::{Location, QuickfixList, QuickfixListItem};
     use pretty_assertions::assert_eq;
@@ -367,6 +373,7 @@ mod test_quickfix_list {
             "".to_string(),
             vec![foo.clone(), bar.clone(), spam.clone()],
             Vec::new(),
+            &std::env::current_dir().unwrap().try_into().unwrap(),
         );
         assert_eq!(quickfix_list.items(), vec![spam, foo, bar])
     }
@@ -393,7 +400,12 @@ mod test_quickfix_list {
         ]
         .to_vec();
 
-        let quickfix_list = QuickfixList::new("".to_string(), items, Vec::new());
+        let quickfix_list = QuickfixList::new(
+            "".to_string(),
+            items,
+            Vec::new(),
+            &std::env::current_dir().unwrap().try_into().unwrap(),
+        );
 
         assert_eq!(
             quickfix_list.items(),

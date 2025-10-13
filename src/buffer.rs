@@ -543,6 +543,7 @@ impl Buffer {
         current_selection_set: SelectionSet,
         reparse_tree: bool,
         update_undo_stack: bool,
+        last_visible_line: u16,
     ) -> Result<(SelectionSet, Dispatches, Vec<ki_protocol_types::DiffEdit>), anyhow::Error> {
         let new_selection_set = edit_transaction
             .non_empty_selections()
@@ -563,6 +564,10 @@ impl Buffer {
             .collect::<anyhow::Result<Vec<_>>>()?;
 
         // let range_updated_quickfix_list_items = edit_transaction.edits().into_iter().try_fold( quickfix_list_items, |quickfix_list_items, edit| { self.apply_edit(edit, last_visible_line, quickfix_list_items) }, )?;
+        edit_transaction
+            .edits()
+            .into_iter()
+            .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
 
         // NOTE: the inverted VS Code edits should be computed AFTER applying the edits
         let inverted_unnormalized_edits = inverted_edit_transaction.unnormalized_edits();
@@ -779,8 +784,13 @@ impl Buffer {
         last_visible_line: u16,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
-        let (_, dispatches, _) =
-            self.apply_edit_transaction(&edit_transaction, current_selection_set, true, true)?;
+        let (_, dispatches, _) = self.apply_edit_transaction(
+            &edit_transaction,
+            current_selection_set,
+            true,
+            true,
+            last_visible_line,
+        )?;
         Ok(dispatches)
     }
 
@@ -1020,8 +1030,13 @@ impl Buffer {
                 )
             }
         };
-        let (selection_set, dispatches, diff_edits) =
-            self.apply_edit_transaction(&edit_transaction, current_selection_set, true, true)?;
+        let (selection_set, dispatches, diff_edits) = self.apply_edit_transaction(
+            &edit_transaction,
+            current_selection_set,
+            true,
+            true,
+            last_visible_line,
+        )?;
         let after = self.content();
         let modified = before != after;
         Ok((modified, selection_set, dispatches, diff_edits))
@@ -1475,6 +1490,7 @@ fn f(
                 SelectionSet::default(),
                 true,
                 true,
+                0,
             )?;
 
             // Expect the content to be the same as the 2nd files

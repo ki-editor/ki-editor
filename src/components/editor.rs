@@ -1394,6 +1394,7 @@ impl Editor {
                 self.selection_set.clone(),
                 self.mode != Mode::Insert,
                 true,
+                last_visible_line,
             )?;
 
         // Create a BufferEditTransaction dispatch for external integrations
@@ -1920,6 +1921,7 @@ impl Editor {
                         self.selection_set.clone(),
                         true,
                         true,
+                        self.last_visible_line(context),
                     )
                     .is_err()
                 {

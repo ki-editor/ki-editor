@@ -1408,10 +1408,22 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn get_quickfix_list(&self) -> Option<QuickfixList> {
         self.context.quickfix_list_state().as_ref().map(|state| {
+            let items = self.layout.get_quickfix_list_items(&state.source);
+            // Preload the buffers to avoid unnecessarily rereading the files
+            let buffers = items
+                .iter()
+                .map(|item| &item.location().path)
+                .unique()
+                .into_iter()
+                .filter_map(|path| {
+                    Some(Rc::new(RefCell::new(Buffer::from_path(path, false).ok()?)))
+                })
+                .collect_vec();
             QuickfixList::new(
                 state.title.clone(),
-                self.layout.get_quickfix_list_items(&state.source),
-                self.layout.buffers(),
+                items,
+                buffers,
+                self.context.current_working_directory(),
             )
             .set_current_item_index(state.current_item_index)
         })
