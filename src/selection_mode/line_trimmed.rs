@@ -268,20 +268,21 @@ struct PaddingWhitespace {
 }
 
 fn get_padding_whitespace(line: ropey::RopeSlice) -> PaddingWhitespace {
-    PaddingWhitespace {
-        leading: line
-            .chars()
-            .take_while(|c| c.is_whitespace() && c != &'\n')
-            .count(),
-        trailing: if line.len_chars() == 0 {
-            0
-        } else {
-            (0..line.len_chars())
-                .rev()
-                .take_while(|index| line.char(*index).is_whitespace())
-                .count()
-        },
-    }
+    let leading = line
+        .chars()
+        .take_while(|c| c.is_whitespace() && c != &'\n')
+        .count();
+    let trailing = if line.len_chars() == 0 {
+        0
+    } else if line.chars().all(|char| char.is_whitespace()) {
+        line.len_chars() - leading
+    } else {
+        (0..line.len_chars())
+            .rev()
+            .take_while(|index| line.char(*index).is_whitespace())
+            .count()
+    };
+    PaddingWhitespace { leading, trailing }
 }
 
 fn expanded_range(
@@ -293,19 +294,33 @@ fn expanded_range(
 
     let is_target_non_whitespace = |char: char| !char.is_whitespace();
 
+    let Some(last_char_index) = buffer.last_char_index() else {
+        return Ok(None);
+    };
     loop {
-        if is_target_non_whitespace(buffer.char(leftmost_whitespace - 1)?) {
+        // skipping boundary check here
+        let next_left = leftmost_whitespace - 1;
+        if is_target_non_whitespace(buffer.char(next_left)?) {
             break;
         } else {
-            leftmost_whitespace = leftmost_whitespace - 1;
+            leftmost_whitespace = next_left;
+            // boundary check
+            if leftmost_whitespace == CharIndex(0) {
+                break;
+            }
         };
     }
 
     loop {
-        if is_target_non_whitespace(buffer.char(rightmost_whitespace + 1)?) {
+        let next_right = rightmost_whitespace + 1;
+        if is_target_non_whitespace(buffer.char(next_right)?) {
             break;
         } else {
-            rightmost_whitespace = rightmost_whitespace + 1;
+            // boundary check
+            rightmost_whitespace = next_right;
+            if rightmost_whitespace == last_char_index {
+                break;
+            }
         };
     }
 
