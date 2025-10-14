@@ -160,11 +160,11 @@ class KiNotificationHandler(val project: Project) {
     }
 
     fun handleJumpsChanged(message: OutputMessage.JumpsChanged) {
-
+        // todo
     }
 
     fun handleMarksChanged(message: OutputMessage.MarksChanged) {
-
+        // todo
     }
 
     suspend fun handleSelectionUpdate(message: OutputMessage.SelectionUpdate) {
