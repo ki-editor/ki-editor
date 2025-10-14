@@ -43,7 +43,7 @@ impl<T> From<Result<(), SendError<T>>> for SendResult {
 
 pub(crate) fn batch<T: Send + Sync + 'static>(
     callback: Arc<dyn Fn(Vec<T>) -> SendResult + Send + Sync>,
-    fps: u32,
+    interval: Duration,
 ) -> Arc<dyn Fn(T) -> SendResult + Send + Sync> {
     let (sender, receiver) = std::sync::mpsc::channel::<T>();
 
@@ -52,7 +52,7 @@ pub(crate) fn batch<T: Send + Sync + 'static>(
         let mut last_sent = Instant::now();
         while let Ok(item) = receiver.recv() {
             batch.push(item);
-            if Instant::now() - last_sent > (Duration::from_secs(1) / fps) {
+            if Instant::now() - last_sent > interval {
                 callback(std::mem::take(&mut batch));
                 last_sent = Instant::now();
             }

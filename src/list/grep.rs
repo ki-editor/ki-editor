@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
-use globset::Glob;
 use grep_regex::RegexMatcher;
 use grep_searcher::{sinks, SearcherBuilder};
 
 use fancy_regex::Regex;
 
 use crate::{
-    buffer::Buffer, context::LocalSearchConfig, quickfix_list::Location,
+    buffer::Buffer, context::LocalSearchConfig, list::Match, quickfix_list::Location,
     selection_mode::regex::get_regex, thread::SendResult,
 };
 use shared::canonicalized_path::CanonicalizedPath;
@@ -101,82 +100,47 @@ pub(crate) fn replace(
         .collect())
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Match {
-    pub(crate) location: Location,
-    pub(crate) line: String,
-}
-
-pub(crate) fn run_async(
+pub(crate) fn run(
     pattern: &str,
     walk_builder_config: WalkBuilderConfig,
     grep_config: RegexConfig,
-    send_matches: Arc<dyn Fn(Vec<Match>) -> SendResult + Send + Sync>,
+    send_match: Arc<dyn Fn(Match) -> SendResult + Send + Sync>,
 ) -> anyhow::Result<()> {
     let pattern = get_regex(pattern, grep_config)?.as_str().to_string();
     let matcher = RegexMatcher::new_line_matcher(&pattern)?;
     let regex = Regex::new(&pattern)?;
 
-    let send = crate::thread::batch(send_matches, 30);
-    let build_matcher = |glob: Option<&Glob>| -> anyhow::Result<_> {
-        let pattern = if let Some(glob) = glob {
-            Some(
-                Glob::new(&walk_builder_config.root.join(glob.glob()).to_string_lossy())?
-                    .compile_matcher(),
-            )
-        } else {
-            None
-        };
-        Ok(Box::new(move |path: &str| {
-            pattern.as_ref().map(|pattern| pattern.is_match(path))
-        }))
-    };
-    let include_match = Arc::new(build_matcher(walk_builder_config.include.as_ref())?);
-    let exclude_match = Arc::new(build_matcher(walk_builder_config.exclude.as_ref())?);
-
-    std::thread::spawn(|| {
-        walk_builder_config.run_async(
-            include_match,
-            exclude_match,
-            Arc::new(move |path| {
-                let Ok(path) = path.try_into() else { return };
-                // Tree-sitter should be disabled whenever possible during
-                // global search, because it will slow down the operation tremendously
-                let Ok(buffer) = Buffer::from_path(&path, false) else {
-                    return;
-                };
-                debug_assert!(buffer.tree().is_none());
-                let mut searcher = SearcherBuilder::new().build();
-                let _ = searcher.search_path(
-                    &matcher,
-                    path.clone(),
-                    sinks::UTF8(|line_number, line| {
-                        if let Ok(locations) = to_locations(
-                            &buffer,
-                            path.clone(),
-                            line_number as usize,
-                            line,
-                            regex.clone(),
-                        ) {
-                            for location in locations {
-                                let m = Match {
-                                    location,
-                                    line: line.trim_end_matches(['\n', '\r']).to_string(),
-                                };
-                                if send(m).is_receiver_disconnected() {
-                                    // Stop search
-                                    return Ok(false);
-                                }
+    walk_builder_config.run_async(
+        false,
+        Arc::new(move |path, buffer| {
+            let mut searcher = SearcherBuilder::new().build();
+            let _ = searcher.search_path(
+                &matcher,
+                path.clone(),
+                sinks::UTF8(|line_number, line| {
+                    if let Ok(locations) = to_locations(
+                        &buffer,
+                        path.clone(),
+                        line_number as usize,
+                        line,
+                        regex.clone(),
+                    ) {
+                        for location in locations {
+                            let m = Match {
+                                location,
+                                line: line.to_string(),
+                            };
+                            if send_match(m).is_receiver_disconnected() {
+                                // Stop search
+                                return Ok(false);
                             }
                         }
-                        Ok(true)
-                    }),
-                );
-            }),
-        );
-    });
-
-    Ok(())
+                    }
+                    Ok(true)
+                }),
+            );
+        }),
+    )
 }
 
 fn to_locations(

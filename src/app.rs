@@ -25,7 +25,7 @@ use crate::{
     grid::{Grid, LineUpdate},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
     layout::Layout,
-    list::{self, grep::Match, WalkBuilderConfig},
+    list::{self, Match, WalkBuilderConfig},
     lsp::{
         completion::CompletionItem,
         goto_definition_response::GotoDefinitionResponse,
@@ -50,7 +50,6 @@ use name_variant::NamedVariant;
 #[cfg(test)]
 use shared::language::LanguageId;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
-use std::sync::Arc;
 use std::{
     any::TypeId,
     cell::RefCell,
@@ -61,6 +60,7 @@ use std::{
         Mutex,
     },
 };
+use std::{sync::Arc, time::Duration};
 use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
@@ -1611,37 +1611,36 @@ impl<T: Frontend> App<T> {
         if config.search().is_empty() {
             return Ok(());
         }
-        let locations = match config.mode {
+        let sender = self.sender.clone();
+        let send_matches = Arc::new(move |matches: Vec<Match>| {
+            SendResult::from(sender.send(AppMessage::ExternalDispatch(
+                Dispatch::AddQuickfixListEntries(matches),
+            )))
+        });
+        let send_match = crate::thread::batch(send_matches, Duration::from_millis(16)); // Around 30 ticks per second
+
+        // TODO: we need to create a new sender for each global search, so that it can be cancelled, but when?
+        // Is it when the quickfix list is closed?
+        match config.mode {
             LocalSearchConfigMode::Regex(regex) => {
-                let sender = self.sender.clone();
-                // TODO: we need to create a new sender for each global search, so that it can be cancelled, but when?
-                list::grep::run_async(
-                    &config.search(),
-                    walk_builder_config,
-                    regex,
-                    Arc::new(move |locations| {
-                        SendResult::from(sender.send(AppMessage::ExternalDispatch(
-                            Dispatch::AddQuickfixListEntries(locations),
-                        )))
-                    }),
-                )?;
-                Ok(Default::default())
+                list::grep::run(&config.search(), walk_builder_config, regex, send_match)?;
             }
             LocalSearchConfigMode::AstGrep => {
-                list::ast_grep::run(config.search().clone(), walk_builder_config)
+                list::ast_grep::run(config.search().clone(), walk_builder_config, send_match)?;
             }
             LocalSearchConfigMode::NamingConventionAgnostic => {
-                list::naming_convention_agnostic::run(config.search().clone(), walk_builder_config)
+                list::naming_convention_agnostic::run(
+                    config.search().clone(),
+                    walk_builder_config,
+                    send_match,
+                )?;
             }
-        }?;
+        };
         self.set_quickfix_list_type(
             ResponseContext::default().set_description("Global search"),
-            QuickfixListType::Items(
-                locations
-                    .into_iter()
-                    .map(|location| QuickfixListItem::new(location, None, None))
-                    .collect_vec(),
-            ),
+            // We start with an empty quickfix list, as the result will come later
+            // due to the asynchronity
+            QuickfixListType::Items(Vec::new()),
         )?;
         Ok(())
     }

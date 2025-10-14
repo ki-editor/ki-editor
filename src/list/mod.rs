@@ -1,10 +1,11 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{ops::Range, path::PathBuf, sync::Arc};
 
 use crossbeam::channel::Sender;
 use globset::Glob;
 use ignore::{WalkBuilder, WalkState};
+use shared::canonicalized_path::CanonicalizedPath;
 
-use crate::{buffer::Buffer, quickfix_list::Location, selection_mode::ByteRange};
+use crate::{buffer::Buffer, quickfix_list::Location, thread::SendResult};
 
 pub(crate) mod ast_grep;
 
@@ -17,42 +18,34 @@ pub(crate) struct WalkBuilderConfig {
     pub(crate) exclude: Option<Glob>,
 }
 
-type SearchFn = dyn Fn(&Buffer) -> anyhow::Result<Vec<ByteRange>> + Send + Sync;
 impl WalkBuilderConfig {
     pub(crate) fn run_with_search(
         self,
         enable_tree_sitter: bool,
-        f: Box<SearchFn>,
-    ) -> anyhow::Result<Vec<Location>> {
-        self.run(Box::new(move |path, sender| {
-            let path = path.try_into()?;
-            let buffer = Buffer::from_path(&path, enable_tree_sitter)?;
-            // Tree-sitter should be disabled whenever possible during
-            // global search, because it will slow down the operation tremendously
-            if !enable_tree_sitter {
-                debug_assert!(buffer.tree().is_none())
-            }
-            let _ = f(&buffer)?
-                .into_iter()
-                .flat_map(move |node_match| -> anyhow::Result<_> {
-                    let range = node_match.range();
-                    let range =
-                        buffer.byte_to_char(range.start)?..buffer.byte_to_char(range.end)?;
-
-                    let _ = sender
-                        .send(Location {
-                            path: path.clone(),
-                            range: range.into(),
-                        })
-                        .map_err(|error| {
-                            log::error!("sender.send {error:?}");
-                        });
-
-                    Ok(())
-                })
-                .collect::<Vec<_>>();
-            Ok(())
-        }))
+        send_match: Arc<dyn Fn(Match) -> SendResult + Send + Sync>,
+        get_ranges: Arc<dyn Fn(&Buffer) -> Vec<Range<usize>> + Send + Sync>,
+    ) -> anyhow::Result<()> {
+        self.run_async(
+            enable_tree_sitter,
+            Arc::new(move |path, buffer| {
+                for range in get_ranges(&buffer) {
+                    if let Ok(range) = buffer.byte_range_to_char_index_range(&range) {
+                        if let Ok(line) = buffer.get_line_by_char_index(range.start) {
+                            let send_result = send_match(Match {
+                                location: Location {
+                                    path: path.clone(),
+                                    range,
+                                },
+                                line: line.to_string(),
+                            });
+                            if send_result.is_receiver_disconnected() {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }),
+        )
     }
     pub(crate) fn run<T: Send>(
         self,
@@ -118,39 +111,63 @@ impl WalkBuilderConfig {
 
     pub(crate) fn run_async(
         self,
-        include_match: MatchFn,
-        exclude_match: MatchFn,
-        f: Arc<dyn Fn(PathBuf) + Send + Sync>,
-    ) {
-        WalkBuilder::new(self.root)
-            .filter_entry(move |entry| {
-                let path = entry.path().display().to_string();
+        enable_tree_sitter: bool,
+        on_visit_buffer: Arc<dyn Fn(CanonicalizedPath, Buffer) + Send + Sync>,
+    ) -> anyhow::Result<()> {
+        let build_matcher = |glob: Option<&Glob>| -> anyhow::Result<_> {
+            let pattern = if let Some(glob) = glob {
+                Some(Glob::new(&self.root.join(glob.glob()).to_string_lossy())?.compile_matcher())
+            } else {
+                None
+            };
+            Ok(Box::new(move |path: &str| {
+                pattern.as_ref().map(|pattern| pattern.is_match(path))
+            }))
+        };
+        let include_match = Arc::new(build_matcher(self.include.as_ref())?);
+        let exclude_match = Arc::new(build_matcher(self.exclude.as_ref())?);
+        std::thread::spawn(move || {
+            WalkBuilder::new(self.root)
+                .filter_entry(move |entry| {
+                    let path = entry.path().display().to_string();
 
-                entry
-                    .file_type()
-                    .map(|file_type| !file_type.is_file())
-                    .unwrap_or(false)
-                    || (include_match(&path).unwrap_or(true)
-                        && !exclude_match(&path).unwrap_or(false))
-            })
-            .hidden(false)
-            .build_parallel()
-            .run(|| {
-                Box::new(|path| {
-                    if let Ok(path) = path {
-                        if path
-                            .file_type()
-                            .is_some_and(|file_type| file_type.is_file())
-                        {
-                            let path = path.path().into();
-                            f(path)
-                        } else if path.path().ends_with(".git") {
-                            return WalkState::Skip;
-                        }
-                    }
-                    WalkState::Continue
+                    entry
+                        .file_type()
+                        .map(|file_type| !file_type.is_file())
+                        .unwrap_or(false)
+                        || (include_match(&path).unwrap_or(true)
+                            && !exclude_match(&path).unwrap_or(false))
                 })
-            });
+                .hidden(false)
+                .build_parallel()
+                .run(|| {
+                    Box::new(|path| {
+                        if let Ok(path) = path {
+                            if path
+                                .file_type()
+                                .is_some_and(|file_type| file_type.is_file())
+                            {
+                                let path: PathBuf = path.path().into();
+                                if let Ok(path) = path.try_into() {
+                                    // Tree-sitter should be disabled whenever possible during
+                                    // global search, because it will slow down the operation tremendously
+                                    if let Ok(buffer) = Buffer::from_path(&path, enable_tree_sitter)
+                                    {
+                                        if !enable_tree_sitter {
+                                            debug_assert!(buffer.tree().is_none());
+                                        }
+                                        on_visit_buffer(path, buffer);
+                                    }
+                                };
+                            } else if path.path().ends_with(".git") {
+                                return WalkState::Skip;
+                            }
+                        }
+                        WalkState::Continue
+                    })
+                });
+        });
+        Ok(())
     }
 
     /// `on_entry` takes `PathBuf` instead of `CanonicalizedPath`
@@ -182,7 +199,11 @@ impl WalkBuilderConfig {
     }
 }
 
-type MatchFn = Arc<dyn Fn(&str) -> Option<bool> + Send + Sync>;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Match {
+    pub(crate) location: Location,
+    pub(crate) line: String,
+}
 
 #[cfg(test)]
 mod test_walk_builder_config {

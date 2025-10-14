@@ -39,13 +39,16 @@ impl QuickfixListItem {
             .ok()
             .unwrap_or_default();
         DropdownItem::new({
-            let content = self.line.unwrap_or_else(|| {
-                self.location
-                    .read_from_buffers(buffers)
-                    .unwrap_or_else(|| "[Failed to read file]".to_string())
-                    .trim_matches(|c: char| c.is_whitespace())
-                    .to_string()
-            });
+            let content = self
+                .line
+                .map(|line| line.trim_end_matches(['\n', '\r']).to_string())
+                .unwrap_or_else(|| {
+                    self.location
+                        .read_from_buffers(buffers)
+                        .unwrap_or_else(|| "[Failed to read file]".to_string())
+                        .trim_matches(|c: char| c.is_whitespace())
+                        .to_string()
+                });
             format!("{}:{}  {}", line + 1, column + 1, content)
         })
         .set_info(self.info.clone())
