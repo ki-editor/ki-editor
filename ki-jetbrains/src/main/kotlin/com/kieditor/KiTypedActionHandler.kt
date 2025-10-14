@@ -23,7 +23,7 @@ class KiTypedActionHandler(val originalHandler: TypedActionHandler) : TypedActio
     }
 
     override fun execute(editor: Editor, charTyped: Char, dataContext: DataContext) {
-        thisLogger().info("testing: $charTyped")
+        thisLogger().debug("testing: $charTyped")
 
         val project = editor.project // TODO what are the cases this is null? ki should also work in those cases
             ?: return

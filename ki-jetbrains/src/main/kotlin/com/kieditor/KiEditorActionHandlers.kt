@@ -37,7 +37,7 @@ open class KiEditorActionHandler(private val nextHandler: EditorActionHandler?, 
             return
         }
 
-        thisLogger().info("Ki Ide: $key pressed")
+        thisLogger().debug("Ki Ide: $key pressed")
 
 //        if (project.service<KiStateManager>().currentMode == EditorMode.Insert) {
 //            nextHandler.execute(editor, charTyped, dataContext)

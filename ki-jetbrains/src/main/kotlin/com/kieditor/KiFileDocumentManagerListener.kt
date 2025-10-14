@@ -1,7 +1,6 @@
 package com.kieditor
 
 import com.intellij.openapi.components.service
-import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.fileEditor.FileDocumentManagerListener
 import com.intellij.openapi.project.Project
@@ -10,10 +9,8 @@ import com.kieditor.protocol.BufferOpenParams
 import com.kieditor.protocol.InputMessage
 import kotlinx.coroutines.launch
 
-class KiFileDocumentManagerListener(private val project: Project): FileDocumentManagerListener {
+class KiFileDocumentManagerListener(private val project: Project) : FileDocumentManagerListener {
     override fun fileContentLoaded(file: VirtualFile, document: Document) {
-        thisLogger().info("fileContentLoaded: ${file.canonicalPath}")
-
         val uri = extractKiUri(file)
             ?: return
 

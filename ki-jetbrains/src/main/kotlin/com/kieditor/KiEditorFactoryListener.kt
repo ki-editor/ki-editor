@@ -3,7 +3,6 @@ package com.kieditor
 import com.intellij.codeInsight.daemon.impl.HighlightInfo
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.components.service
-import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.event.EditorFactoryEvent
 import com.intellij.openapi.editor.event.EditorFactoryListener
@@ -126,8 +125,6 @@ private fun collectDiagnostics(project: Project, editor: Editor, bufferId: Strin
         }
         true
     }
-
-    project.thisLogger().info("info $highlights")
 
     val diagnostics = highlights.map {
         val start = editor.offsetToLogicalPosition(it.startOffset)

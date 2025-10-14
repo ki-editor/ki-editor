@@ -156,7 +156,7 @@ class KiNotificationHandler(val project: Project) {
     }
 
     fun handleKeyboardLayoutChange(message: OutputMessage.KeyboardLayoutChanged) {
-        thisLogger().info("Ki: Keyboard layout changed: ${message.params}")
+        thisLogger().debug("Ki: Keyboard layout changed: ${message.params}")
     }
 
     fun handleJumpsChanged(message: OutputMessage.JumpsChanged) {
