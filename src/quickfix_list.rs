@@ -28,11 +28,14 @@ impl QuickfixListItem {
                 if let Some(path) = buffer.borrow().path() {
                     path == self.location.path
                 } else {
-                    false
+                   false
                 }
             })
             .expect(
-                "The unique buffers of all quickfix list items should be preloaded beforehand.",
+                &format!(
+                    "The unique buffers of all quickfix list items should be preloaded beforehand, but the buffer for {:?} is not loaded.",
+                    self.location.path
+                ),
             );
         let Position { line, column } = buffer
             .borrow()
@@ -335,19 +338,25 @@ impl DiagnosticSeverityRange {
 
 #[cfg(test)]
 mod test_quickfix_list {
+    use std::{cell::RefCell, rc::Rc};
+
     use crate::{
-        components::suggestive_editor::Info, context::Context, position::Position,
+        buffer::Buffer, components::suggestive_editor::Info, context::Context, position::Position,
         selection::CharIndex,
     };
 
     use super::{Location, QuickfixList, QuickfixListItem};
+    use itertools::Itertools;
     use pretty_assertions::assert_eq;
+    use shared::canonicalized_path::CanonicalizedPath;
 
     #[test]
     fn should_sort_items() {
+        let git_ignore_path: CanonicalizedPath = ".gitignore".try_into().unwrap();
+        let readme_path: CanonicalizedPath = "readme.md".try_into().unwrap();
         let foo = QuickfixListItem {
             location: Location {
-                path: ".gitignore".try_into().unwrap(),
+                path: git_ignore_path.clone(),
                 range: (CharIndex(2)..CharIndex(3)).into(),
             },
             info: None,
@@ -355,7 +364,7 @@ mod test_quickfix_list {
         };
         let bar = QuickfixListItem {
             location: Location {
-                path: "readme.md".try_into().unwrap(),
+                path: readme_path.clone(),
                 range: (CharIndex(1)..CharIndex(2)).into(),
             },
             info: None,
@@ -363,7 +372,7 @@ mod test_quickfix_list {
         };
         let spam = QuickfixListItem {
             location: Location {
-                path: ".gitignore".try_into().unwrap(),
+                path: git_ignore_path.clone(),
                 range: (CharIndex(1)..CharIndex(2)).into(),
             },
             info: None,
@@ -372,7 +381,10 @@ mod test_quickfix_list {
         let quickfix_list = QuickfixList::new(
             "".to_string(),
             vec![foo.clone(), bar.clone(), spam.clone()],
-            Vec::new(),
+            [readme_path, git_ignore_path]
+                .into_iter()
+                .map(|path| Rc::new(RefCell::new(Buffer::from_path(&path, false).unwrap())))
+                .collect_vec(),
             &std::env::current_dir().unwrap().try_into().unwrap(),
         );
         assert_eq!(quickfix_list.items(), vec![spam, foo, bar])
@@ -380,10 +392,11 @@ mod test_quickfix_list {
 
     #[test]
     fn should_merge_items_of_same_location() {
+        let readme_path: CanonicalizedPath = "readme.md".try_into().unwrap();
         let items = [
             QuickfixListItem {
                 location: Location {
-                    path: "readme.md".try_into().unwrap(),
+                    path: readme_path.clone(),
                     range: (CharIndex(1)..CharIndex(2)).into(),
                 },
                 info: Some(Info::new("Title 1".to_string(), "spongebob".to_string())),
@@ -391,7 +404,7 @@ mod test_quickfix_list {
             },
             QuickfixListItem {
                 location: Location {
-                    path: "readme.md".try_into().unwrap(),
+                    path: readme_path.clone(),
                     range: (CharIndex(1)..CharIndex(2)).into(),
                 },
                 info: Some(Info::new("Title 2".to_string(), "squarepants".to_string())),
@@ -403,7 +416,10 @@ mod test_quickfix_list {
         let quickfix_list = QuickfixList::new(
             "".to_string(),
             items,
-            Vec::new(),
+            [readme_path]
+                .into_iter()
+                .map(|path| Rc::new(RefCell::new(Buffer::from_path(&path, false).unwrap())))
+                .collect_vec(),
             &std::env::current_dir().unwrap().try_into().unwrap(),
         );
 

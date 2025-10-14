@@ -50,7 +50,6 @@ use name_variant::NamedVariant;
 #[cfg(test)]
 use shared::language::LanguageId;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
-use std::sync::Arc;
 use std::{
     any::TypeId,
     cell::RefCell,
@@ -61,6 +60,7 @@ use std::{
         Mutex,
     },
 };
+use std::{sync::Arc, time::Duration};
 use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
@@ -2673,11 +2673,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn add_quickfix_list_entries(&mut self, matches: Vec<Match>) -> anyhow::Result<()> {
-        let go_to_quickfix_item = self
-            .get_quickfix_list()
-            .as_ref()
-            .map(|list| list.is_empty())
-            .unwrap_or(true);
+        let go_to_quickfix_item = self.context.quickfix_list_items().is_empty();
 
         log::info!("go_to_quickix_item = {go_to_quickfix_item}");
 
@@ -2700,6 +2696,17 @@ impl<T: Frontend> App<T> {
 
     fn handle_applied_edits(&mut self, path: CanonicalizedPath, edits: Vec<Edit>) {
         self.context.handle_applied_edits(path, edits)
+    }
+
+    pub(crate) fn handle_next_app_message(&mut self) -> anyhow::Result<()> {
+        std::thread::sleep(Duration::from_secs(1));
+        match self.receiver.try_recv() {
+            Ok(app_message) => {
+                self.process_message(app_message)?;
+            }
+            Err(err) => eprintln!("App::handle_next_app_message: {err:?}"),
+        }
+        Ok(())
     }
 }
 

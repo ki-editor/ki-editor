@@ -84,6 +84,9 @@ pub(crate) enum Step {
     SuggestiveEditor(DispatchSuggestiveEditor),
     ExpectLater(Box<dyn Fn() -> ExpectKind>),
     ExpectCustom(Box<dyn Fn()>),
+    /// This is to simulate the main event loop,
+    /// necessary for testing async features like Global Search
+    StimulateEventLoopTick,
 }
 
 impl Step {
@@ -97,6 +100,7 @@ impl Step {
             SuggestiveEditor(editor) => format!("SuggestiveEditor({editor:?})"),
             ExpectLater(_) => "ExpectLater(_)".to_string(),
             ExpectCustom(_) => "ExpectCustom(_)".to_string(),
+            StimulateEventLoopTick => "Tick".to_string(),
         }
     }
 }
@@ -358,8 +362,8 @@ impl ExpectKind {
             QuickfixListContent(content) => {
                                 let actual = app.get_quickfix_list().unwrap().render().content;
                                 let expected = content.to_string();
-                                log(format!("expected =\n{expected}"));
-                                log(format!("actual   =\n{actual}"));
+                                println!("Expected =\n{expected}");
+                                println!("Actual =\n{actual}");
                                 contextualize(expected, actual)
                             }
             DropdownInfosCount(expected) => {
@@ -608,6 +612,7 @@ fn execute_test_helper(
 
         for step in steps.iter() {
             match step.to_owned() {
+                Step::StimulateEventLoopTick => app.handle_next_app_message()?,
                 Step::App(dispatch) => {
                     log(dispatch);
                     app.handle_dispatch(dispatch.to_owned())?
@@ -1303,6 +1308,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
             }),
+            StimulateEventLoopTick,
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
             Expect(Quickfixes(Box::new([
                 QuickfixListItem::new(
@@ -1311,7 +1317,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                         range: (CharIndex(4)..CharIndex(7)).into(),
                     },
                     None,
-                    None,
+                    Some("foo bar foo bar".to_string()),
                 ),
                 QuickfixListItem::new(
                     Location {
@@ -1319,7 +1325,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                         range: (CharIndex(12)..CharIndex(15)).into(),
                     },
                     None,
-                    None,
+                    Some("foo bar foo bar".to_string()),
                 ),
                 QuickfixListItem::new(
                     Location {
@@ -1327,7 +1333,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                         range: (CharIndex(4)..CharIndex(7)).into(),
                     },
                     None,
-                    None,
+                    Some("foo bar foo bar".to_string()),
                 ),
                 QuickfixListItem::new(
                     Location {
@@ -1335,7 +1341,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                         range: (CharIndex(12)..CharIndex(15)).into(),
                     },
                     None,
-                    None,
+                    Some("foo bar foo bar".to_string()),
                 ),
             ]))),
             App(HandleKeyEvent(key!("esc"))),
@@ -1537,6 +1543,7 @@ fn test_global_repeat_search() -> anyhow::Result<()> {
                 IfCurrentNotFound::LookForward,
                 None,
             )),
+            StimulateEventLoopTick,
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
         ])
     })
@@ -1597,7 +1604,7 @@ fn global_search_replace_naming_convention_agnostic() -> Result<(), anyhow::Erro
 }
 
 #[test]
-fn quickfix_list() -> Result<(), anyhow::Error> {
+fn quickfix_list_basic() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
             UpdateLocalSearchConfig {
@@ -1631,20 +1638,19 @@ foo a // Line 10
             App(new_dispatch(LocalSearchConfigUpdate::Search(
                 "foo".to_string(),
             ))),
+            StimulateEventLoopTick,
             Expect(QuickfixListContent(
                 // Line 10 should be placed below Line 2 (sorted numerically, not lexicograhically)
                 format!(
                     "
-■┬ {}
+■┬ src/foo.rs
  ├─ 2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
  └─ 10:1  foo a // Line 10
 
-■┬ {}
+■┬ src/main.rs
  ├─ 1:1  foo d
- └─ 2:1  foo c",
-                    s.foo_rs().display_absolute(),
-                    s.main_rs().display_absolute()
-                )
+ └─ 2:1  foo c
+                ")
                 .trim()
                 .to_string(),
             )),

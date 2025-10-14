@@ -140,11 +140,11 @@ pub(crate) fn run_async(
             exclude_match,
             Arc::new(move |path| {
                 let Ok(path) = path.try_into() else { return };
+                // Tree-sitter should be disabled whenever possible during
+                // global search, because it will slow down the operation tremendously
                 let Ok(buffer) = Buffer::from_path(&path, false) else {
                     return;
                 };
-                // Tree-sitter should be disabled whenever possible during
-                // global search, because it will slow down the operation tremendously
                 debug_assert!(buffer.tree().is_none());
                 let mut searcher = SearcherBuilder::new().build();
                 let _ = searcher.search_path(
