@@ -533,8 +533,6 @@ impl Buffer {
     }
 
     /// Returns the new selection set and the edit transaction
-    ///
-    /// This method returns the range-updated quickfix list items.
     pub(crate) fn apply_edit_transaction(
         &mut self,
         edit_transaction: &EditTransaction,
@@ -561,7 +559,6 @@ impl Buffer {
             .map(|edit| edit.to_vscode_diff_edit(self))
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-        // let range_updated_quickfix_list_items = edit_transaction.edits().into_iter().try_fold( quickfix_list_items, |quickfix_list_items, edit| { self.apply_edit(edit, last_visible_line, quickfix_list_items) }, )?;
         edit_transaction
             .edits()
             .into_iter()
@@ -631,8 +628,6 @@ impl Buffer {
             );
         }
 
-        // let quickfix_list_items_with_char_index_range = quickfix_list_items .into_iter() .filter_map(|item| { Some(( self.position_range_to_char_index_range(&item.location().range) .ok()?, item, )) }) .collect_vec();
-
         // Update the content
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
@@ -640,9 +635,6 @@ impl Buffer {
         self.dirty = true;
 
         self.owner = BufferOwner::User;
-
-        // Update all the positional spans (by using the char index ranges computed before the content is updated
-        // let quickfix_list_items = quickfix_list_items_with_char_index_range .into_iter() .filter_map(|(char_index_range, item)| { let position_range = self .char_index_range_to_position_range(char_index_range.apply_edit(edit)?) .ok()?; Some(item.set_location_range(position_range)) }) .collect_vec();
 
         // Update all the non-positional spans
         self.marks.retain_mut(|mark| {
