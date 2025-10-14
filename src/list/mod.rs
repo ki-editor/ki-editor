@@ -17,13 +17,14 @@ pub(crate) struct WalkBuilderConfig {
     pub(crate) include: Option<Glob>,
     pub(crate) exclude: Option<Glob>,
 }
+type GetRange = dyn Fn(&Buffer) -> Vec<Range<usize>> + Send + Sync;
 
 impl WalkBuilderConfig {
     pub(crate) fn run_with_search(
         self,
         enable_tree_sitter: bool,
         send_match: Arc<dyn Fn(Match) -> SendResult + Send + Sync>,
-        get_ranges: Arc<dyn Fn(&Buffer) -> Vec<Range<usize>> + Send + Sync>,
+        get_ranges: Arc<GetRange>,
     ) -> anyhow::Result<()> {
         self.run_async(
             enable_tree_sitter,
