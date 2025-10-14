@@ -93,7 +93,7 @@ impl QuickfixList {
         let items = items
             .into_iter()
             // Sort the items by location
-            .sorted_by_key(|item| (item.location.clone()))
+            .sorted_by_key(|item| item.location.clone())
             .chunk_by(|item| (item.location.clone(), item.line.clone()))
             .into_iter()
             .map(|((location, line), items)| QuickfixListItem {
