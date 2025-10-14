@@ -2672,8 +2672,6 @@ impl<T: Frontend> App<T> {
     fn add_quickfix_list_entries(&mut self, matches: Vec<Match>) -> anyhow::Result<()> {
         let go_to_quickfix_item = self.context.quickfix_list_items().is_empty();
 
-        log::info!("go_to_quickix_item = {go_to_quickfix_item}");
-
         self.context.extend_quickfix_list_items(
             matches
                 .into_iter()
