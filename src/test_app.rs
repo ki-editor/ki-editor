@@ -12,7 +12,6 @@ use serial_test::serial;
 use strum::IntoEnumIterator;
 
 use std::{
-    ops::Range,
     path::PathBuf,
     rc::Rc,
     sync::{Arc, Mutex},
@@ -431,7 +430,7 @@ impl ExpectKind {
                                 &app.context()
                                     .quickfix_list_items()
                                     .into_iter()
-                                    .map(|d| d.location().range.clone())
+                                    .map(|d| d.location().range)
                                     .collect_vec(),
                             ),
             ComponentCount(expected) => contextualize(expected, &app.components().len()),
@@ -1641,8 +1640,7 @@ foo a // Line 10
             StimulateEventLoopTick,
             Expect(QuickfixListContent(
                 // Line 10 should be placed below Line 2 (sorted numerically, not lexicograhically)
-                format!(
-                    "
+                "
 ■┬ src/foo.rs
  ├─ 2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
  └─ 10:1  foo a // Line 10
@@ -1650,7 +1648,7 @@ foo a // Line 10
 ■┬ src/main.rs
  ├─ 1:1  foo d
  └─ 2:1  foo c
-                ")
+                ".to_string()
                 .trim()
                 .to_string(),
             )),

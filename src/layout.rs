@@ -343,19 +343,21 @@ impl Layout {
     pub(crate) fn reload_buffers(
         &self,
         affected_paths: Vec<CanonicalizedPath>,
-    ) -> anyhow::Result<()> {
-        for buffer in self.buffers() {
-            let mut buffer = buffer.borrow_mut();
-            if let Some(path) = buffer.path() {
-                if affected_paths
-                    .iter()
-                    .any(|affected_path| affected_path == &path)
-                {
-                    buffer.reload()?;
+    ) -> anyhow::Result<Dispatches> {
+        self.buffers()
+            .into_iter()
+            .try_fold(Dispatches::default(), |dispatches, buffer| {
+                let mut buffer = buffer.borrow_mut();
+                if let Some(path) = buffer.path() {
+                    if affected_paths
+                        .iter()
+                        .any(|affected_path| affected_path == &path)
+                    {
+                        return Ok(dispatches.chain(buffer.reload()?));
+                    }
                 }
-            }
-        }
-        Ok(())
+                Ok(dispatches)
+            })
     }
 
     #[cfg(test)]

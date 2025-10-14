@@ -2568,8 +2568,8 @@ impl Editor {
     fn do_save(&mut self, force: bool, context: &Context) -> anyhow::Result<Dispatches> {
         let last_visible_line = self.last_visible_line(context);
 
-        let path = if context.is_running_as_embedded() {
-            self.path()
+        let (dispatches, path) = if context.is_running_as_embedded() {
+            (Dispatches::default(), self.path())
         } else {
             self.buffer
                 .borrow_mut()
@@ -2587,6 +2587,7 @@ impl Editor {
             .append(Dispatch::DocumentDidSave { path })
             .chain(self.get_document_did_change_dispatch())
             .append(Dispatch::RemainOnlyCurrentComponent)
+            .chain(dispatches)
             .append_some(if self.selection_set.mode().is_contiguous() {
                 Some(Dispatch::ToEditor(MoveSelection(Movement::Current(
                     IfCurrentNotFound::LookForward,

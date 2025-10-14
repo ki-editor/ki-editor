@@ -4,7 +4,6 @@ use crate::git::hunk::SimpleHunk;
 use crate::git::{DiffMode, GitOperation};
 use crate::history::History;
 use crate::lsp::diagnostic::Diagnostic;
-use crate::quickfix_list::QuickfixListItem;
 use crate::selection::Selection;
 use crate::selection_mode::naming_convention_agnostic::NamingConventionAgnostic;
 use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
@@ -536,7 +535,6 @@ impl Buffer {
     /// Returns the new selection set and the edit transaction
     ///
     /// This method returns the range-updated quickfix list items.
-    #[must_use]
     pub(crate) fn apply_edit_transaction(
         &mut self,
         edit_transaction: &EditTransaction,
@@ -600,11 +598,7 @@ impl Buffer {
 
         self.batch_id.increment();
 
-        let edits = edit_transaction
-            .edits()
-            .into_iter()
-            .map(|edit| edit.clone())
-            .collect_vec();
+        let edits = edit_transaction.edits().into_iter().cloned().collect_vec();
 
         let dispatches = self
             .path
@@ -767,14 +761,19 @@ impl Buffer {
         current_selection_set: SelectionSet,
         force: bool,
         last_visible_line: u16,
-    ) -> anyhow::Result<Option<CanonicalizedPath>> {
+    ) -> anyhow::Result<(Dispatches, Option<CanonicalizedPath>)> {
         if force || self.dirty {
             if let Some(formatted_content) = self.get_formatted_content() {
-                self.update_content(&formatted_content, current_selection_set, last_visible_line)?;
+                let dispatches = self.update_content(
+                    &formatted_content,
+                    current_selection_set,
+                    last_visible_line,
+                )?;
+                return Ok((dispatches, self.save_without_formatting(force)?));
             }
         }
 
-        self.save_without_formatting(force)
+        Ok((Default::default(), self.save_without_formatting(force)?))
     }
 
     pub(crate) fn update_content(
@@ -827,11 +826,6 @@ impl Buffer {
         Ok(self.rope.try_line_to_byte(line_index)?)
     }
 
-    pub(crate) fn position_to_byte(&self, start: Position) -> anyhow::Result<usize> {
-        let start = self.position_to_char(start)?;
-        self.char_to_byte(start)
-    }
-
     pub(crate) fn line_to_byte_range(&self, line: usize) -> anyhow::Result<ByteRange> {
         let start = self.line_to_byte(line)?;
         let end = self.line_to_byte(line + 1)?.saturating_sub(1).max(start);
@@ -859,13 +853,6 @@ impl Buffer {
 
     pub(crate) fn get_line_by_line_index(&self, line_index: usize) -> Option<ropey::RopeSlice<'_>> {
         self.rope.get_line(line_index)
-    }
-
-    pub(crate) fn position_range_to_byte_range(
-        &self,
-        range: &Range<Position>,
-    ) -> anyhow::Result<Range<usize>> {
-        Ok(self.position_to_byte(range.start)?..self.position_to_byte(range.end)?)
     }
 
     pub(crate) fn byte_range_to_char_index_range(
@@ -1283,7 +1270,7 @@ fn f(
                     .tree_sitter_language(),
                 input,
             );
-            buffer.replace(config, SelectionSet::default(), 0)?;
+            let _ = buffer.replace(config, SelectionSet::default(), 0)?;
             assert_eq!(buffer.content(), expected);
             Ok(())
         }
@@ -1361,7 +1348,7 @@ fn f(
                 buffer.update(" fn main\n() {}");
 
                 // Save the buffer
-                buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the output is formatted
                 let saved_content = path.read().unwrap();
@@ -1389,7 +1376,7 @@ fn f(
                 let original = " fn main\n() {}";
                 buffer.update(original);
 
-                buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the buffer is formatted
                 assert_ne!(buffer.rope.to_string(), original);
@@ -1411,7 +1398,7 @@ fn f(
                 buffer.update("fn main() {");
 
                 // Save the buffer
-                buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the buffer remain unchanged,
                 // because the syntax node is invalid
@@ -1434,7 +1421,7 @@ fn f(
                 // but not to the formatter
                 assert!(!buffer.tree.as_ref().unwrap().root_node().has_error());
 
-                buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the buffer remain unchanged
                 assert_eq!(buffer.rope.to_string(), code);
@@ -1450,7 +1437,7 @@ fn f(
             let initial_spans = buffer.highlighted_spans().clone();
 
             // Update the buffer, this should cause the batch ID to be changed
-            buffer
+            let _ = buffer
                 .update_content("testing", Default::default(), 1)
                 .unwrap();
 
@@ -1480,7 +1467,7 @@ fn f(
             let edit_transaction = buffer.get_edit_transaction(new)?;
 
             // Apply the edit transaction
-            buffer.apply_edit_transaction(
+            let _ = buffer.apply_edit_transaction(
                 &edit_transaction,
                 SelectionSet::default(),
                 true,

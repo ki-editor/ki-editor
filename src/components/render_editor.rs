@@ -521,6 +521,7 @@ impl Editor {
         grid
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn get_highlight_spans(
         &self,
         theme: &Theme,

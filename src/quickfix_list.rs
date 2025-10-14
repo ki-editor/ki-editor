@@ -1,4 +1,4 @@
-use std::{cell::RefCell, ops::Range, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
@@ -31,15 +31,11 @@ impl QuickfixListItem {
                    false
                 }
             })
-            .expect(
-                &format!(
-                    "The unique buffers of all quickfix list items should be preloaded beforehand, but the buffer for {:?} is not loaded.",
-                    self.location.path
-                ),
-            );
+            .unwrap_or_else(|| panic!("The unique buffers of all quickfix list items should be preloaded beforehand, but the buffer for {:?} is not loaded.",
+                    self.location.path));
         let Position { line, column } = buffer
             .borrow()
-            .char_to_position(self.location.range.start.clone())
+            .char_to_position(self.location.range.start)
             .ok()
             .unwrap_or_default();
         DropdownItem::new({
@@ -64,19 +60,6 @@ impl QuickfixListItem {
             self.location.to_owned(),
         )))
         .set_rank(Some(Box::new([line, column])))
-    }
-
-    pub(crate) fn set_location_range(self, range: CharIndexRange) -> QuickfixListItem {
-        let QuickfixListItem {
-            location: Location { path, .. },
-            info,
-            line,
-        } = self;
-        QuickfixListItem {
-            info,
-            line,
-            location: Location { path, range },
-        }
     }
 
     pub(crate) fn apply_edit(self, edit: &crate::edit::Edit) -> Option<Self> {
@@ -134,10 +117,6 @@ impl QuickfixList {
             items,
             dropdown,
         }
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.dropdown.is_empty()
     }
 
     #[cfg(test)]
@@ -340,10 +319,7 @@ impl DiagnosticSeverityRange {
 mod test_quickfix_list {
     use std::{cell::RefCell, rc::Rc};
 
-    use crate::{
-        buffer::Buffer, components::suggestive_editor::Info, context::Context, position::Position,
-        selection::CharIndex,
-    };
+    use crate::{buffer::Buffer, components::suggestive_editor::Info, selection::CharIndex};
 
     use super::{Location, QuickfixList, QuickfixListItem};
     use itertools::Itertools;

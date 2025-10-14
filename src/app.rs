@@ -50,6 +50,7 @@ use name_variant::NamedVariant;
 #[cfg(test)]
 use shared::language::LanguageId;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
+use std::sync::Arc;
 use std::{
     any::TypeId,
     cell::RefCell,
@@ -60,7 +61,6 @@ use std::{
         Mutex,
     },
 };
-use std::{sync::Arc, time::Duration};
 use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
@@ -1414,7 +1414,6 @@ impl<T: Frontend> App<T> {
                 .iter()
                 .map(|item| &item.location().path)
                 .unique()
-                .into_iter()
                 .filter_map(|path| {
                     Some(Rc::new(RefCell::new(Buffer::from_path(path, false).ok()?)))
                 })
@@ -1475,9 +1474,7 @@ impl<T: Frontend> App<T> {
             // Create a selection at the location position
             // We'll let the editor.set_position_range call below handle the actual selection
             // Just emit a simple empty selection at the start position for now
-            let buffer = component_ref.editor().buffer();
-            let char_index = location.range.start;
-            let selection = crate::selection::Selection::new((char_index..char_index).into());
+            let selection = crate::selection::Selection::new(location.range);
 
             // Emit a selection changed event
             self.integration_event_sender.emit_event(
@@ -1491,7 +1488,7 @@ impl<T: Frontend> App<T> {
         let dispatches = component
             .borrow_mut()
             .editor_mut()
-            .set_char_index_range(location.range.clone(), &self.context)?;
+            .set_char_index_range(location.range, &self.context)?;
         self.handle_dispatches(dispatches)?;
         Ok(())
     }
@@ -1597,7 +1594,8 @@ impl<T: Frontend> App<T> {
         };
         let config = self.context.global_search_config().local_config();
         let affected_paths = list::grep::replace(walk_builder_config, config.clone())?;
-        self.layout.reload_buffers(affected_paths)
+        let dispatches = self.layout.reload_buffers(affected_paths)?;
+        self.handle_dispatches(dispatches)
     }
 
     fn global_search(&mut self) -> anyhow::Result<()> {
@@ -2698,7 +2696,10 @@ impl<T: Frontend> App<T> {
         self.context.handle_applied_edits(path, edits)
     }
 
+    #[cfg(test)]
     pub(crate) fn handle_next_app_message(&mut self) -> anyhow::Result<()> {
+        use std::time::Duration;
+
         std::thread::sleep(Duration::from_secs(1));
         match self.receiver.try_recv() {
             Ok(app_message) => {
