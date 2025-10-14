@@ -125,25 +125,29 @@ impl Context {
         path: CanonicalizedPath,
         edits: Vec<crate::edit::Edit>,
     ) {
-        if let Some(QuickfixListState {
-            source: QuickfixListSource::Custom(items),
-            ..
-        }) = &mut self.quickfix_list_state
-        {
-            *items = std::mem::take(items)
-                .into_iter()
-                .filter_map(|item| {
-                    if item.location().path == path {
-                        edits
-                            .iter()
-                            .try_fold(item, |item, edit| item.apply_edit(edit))
-                    } else {
-                        Some(item)
+        if let Some(state) = self.quickfix_list_state.take() {
+            self.quickfix_list_state = Some(match state.source {
+                QuickfixListSource::Diagnostic(_) => state,
+                QuickfixListSource::Mark => state,
+                QuickfixListSource::Custom(quickfix_list_items) => {
+                    let items = quickfix_list_items
+                        .into_iter()
+                        .filter_map(|item| {
+                            if item.location().path == path {
+                                edits
+                                    .iter()
+                                    .try_fold(item, |item, edit| item.apply_edit(edit))
+                            } else {
+                                Some(item)
+                            }
+                        })
+                        .collect_vec();
+                    QuickfixListState {
+                        source: QuickfixListSource::Custom(items),
+                        ..state
                     }
-                })
-                .collect_vec();
-        } else {
-            Default::default()
+                }
+            })
         }
     }
 }
