@@ -13,7 +13,7 @@ use crate::{
     context::{Context, LocalSearchConfigMode, Search},
     non_empty_extensions::{NonEmptyTryCollectOption, NonEmptyTryCollectResult},
     position::Position,
-    quickfix_list::DiagnosticSeverityRange,
+    quickfix_list::{DiagnosticSeverityRange, QuickfixListItem},
     selection_mode::{self, ApplyMovementResult, IterBased, PositionBased, SelectionModeParams},
 };
 
@@ -213,6 +213,7 @@ impl SelectionSet {
                         selection,
                         cursor_direction,
                         context.current_working_directory(),
+                        context.quickfix_list_items(),
                     )
                     .ok()?;
 
@@ -500,6 +501,7 @@ impl SelectionMode {
         current_selection: &Selection,
         cursor_direction: &Direction,
         working_directory: &shared::canonicalized_path::CanonicalizedPath,
+        quickfix_list_items: Vec<&QuickfixListItem>,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         let params = SelectionModeParams {
             buffer,
@@ -541,9 +543,9 @@ impl SelectionMode {
                 working_directory,
             )?)),
             SelectionMode::Mark => Box::new(IterBased(selection_mode::Mark)),
-            SelectionMode::LocalQuickfix { .. } => {
-                Box::new(IterBased(selection_mode::LocalQuickfix::new(params)))
-            }
+            SelectionMode::LocalQuickfix { .. } => Box::new(IterBased(
+                selection_mode::LocalQuickfix::new(params, quickfix_list_items),
+            )),
         })
     }
 
@@ -646,6 +648,7 @@ impl Selection {
             current_selection,
             cursor_direction,
             context.current_working_directory(),
+            context.quickfix_list_items(),
         )?;
 
         let params = SelectionModeParams {

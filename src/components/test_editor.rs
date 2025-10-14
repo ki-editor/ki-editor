@@ -1890,36 +1890,24 @@ fn main() {
                     [QuickfixListItem::new(
                         Location {
                             path: s.main_rs(),
-                            range: Position { line: 1, column: 2 }..Position { line: 1, column: 5 },
+                            range: (CharIndex(2)..CharIndex(5)).into(),
                         },
+                        None,
                         None,
                     )]
                     .to_vec(),
                 ),
             )),
             Expect(ExpectKind::BufferQuickfixListItems(
-                [Position { line: 1, column: 2 }..Position { line: 1, column: 5 }].to_vec(),
+                [(CharIndex(2)..CharIndex(5)).into()].to_vec(),
             )),
-            // 1. Testing edit that does not affect the line of the quickfix item
+            // Testing edit that affects the line of the quickfix item
             Editor(MatchLiteral("fn".to_string())),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("hello".to_string())),
-            // 1a. The position range should remain the same
+            // The position range should be updated
             Expect(ExpectKind::BufferQuickfixListItems(
-                [Position { line: 1, column: 2 }..Position { line: 1, column: 5 }].to_vec(),
-            )),
-            Editor(EnterNormalMode),
-            // 2. Testing edit that affects the line of the quickfix item
-            Editor(MatchLiteral("let".to_string())),
-            Editor(EnterInsertMode(Direction::Start)),
-            Editor(Insert("hello".to_string())),
-            // 2a. The position range should be updated
-            Expect(ExpectKind::BufferQuickfixListItems(
-                [Position { line: 1, column: 7 }..Position {
-                    line: 1,
-                    column: 10,
-                }]
-                .to_vec(),
+                [(CharIndex(7)..CharIndex(10)).into()].to_vec(),
             )),
         ])
     })
@@ -3820,6 +3808,7 @@ fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
                 keys!("space q f o o : : f o o enter").to_vec(),
             )),
             Expect(OpenedFilesCount(0)),
+            StimulateEventLoopTick,
             Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
@@ -3850,6 +3839,7 @@ fn background_editor_closing_no_system_buffer() -> anyhow::Result<()> {
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            StimulateEventLoopTick,
             Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 foo.rs "))),
             Expect(OpenedFilesCount(0)),
             App(CloseCurrentWindow),
@@ -4813,6 +4803,7 @@ fn escaping_quicfix_list_mode_should_not_change_selection() -> anyhow::Result<()
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             App(HandleKeyEvents(keys!("m o r i enter").to_vec())),
+            StimulateEventLoopTick,
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
             Expect(CurrentSelectedTexts(&["mori"])),
             App(HandleKeyEvents(keys!("esc").to_vec())),

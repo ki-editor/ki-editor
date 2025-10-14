@@ -1,11 +1,13 @@
+use std::sync::Arc;
+
 use grep_regex::RegexMatcher;
 use grep_searcher::{sinks, SearcherBuilder};
 
 use fancy_regex::Regex;
 
 use crate::{
-    buffer::Buffer, context::LocalSearchConfig, quickfix_list::Location,
-    selection_mode::regex::get_regex,
+    buffer::Buffer, context::LocalSearchConfig, list::Match, quickfix_list::Location,
+    selection_mode::regex::get_regex, thread::SendResult,
 };
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -17,6 +19,7 @@ pub(crate) struct RegexConfig {
     pub(crate) case_sensitive: bool,
     pub(crate) match_whole_word: bool,
 }
+
 impl RegexConfig {
     pub(crate) fn to_regex(self, pattern: &str) -> Result<Regex, anyhow::Error> {
         get_regex(pattern, self)
@@ -82,7 +85,7 @@ pub(crate) fn replace(
         .run(Box::new(move |path, sender| {
             let path = path.try_into()?;
             let mut buffer = Buffer::from_path(&path, local_search_config.require_tree_sitter())?;
-            let (modified, _, _) =
+            let (modified, _, _, _) =
                 buffer.replace(local_search_config.clone(), Default::default(), 0)?;
             if modified {
                 buffer.save_without_formatting(false)?;
@@ -101,45 +104,46 @@ pub(crate) fn run(
     pattern: &str,
     walk_builder_config: WalkBuilderConfig,
     grep_config: RegexConfig,
-) -> anyhow::Result<Vec<Location>> {
+    send_match: Arc<dyn Fn(Match) -> SendResult + Send + Sync>,
+) -> anyhow::Result<()> {
     let pattern = get_regex(pattern, grep_config)?.as_str().to_string();
     let matcher = RegexMatcher::new_line_matcher(&pattern)?;
     let regex = Regex::new(&pattern)?;
 
-    Ok(walk_builder_config
-        .run(Box::new(move |path, sender| {
-            let path = path.try_into()?;
-            let buffer = Buffer::from_path(&path, false)?;
-            // Tree-sitter should be disabled whenever possible during
-            // global search, because it will slow down the operation tremendously
-            debug_assert!(buffer.tree().is_none());
+    walk_builder_config.run_async(
+        false,
+        Arc::new(move |path, buffer| {
             let mut searcher = SearcherBuilder::new().build();
-            searcher.search_path(
+            let _ = searcher.search_path(
                 &matcher,
                 path.clone(),
                 sinks::UTF8(|line_number, line| {
-                    if let Ok(location) = to_location(
+                    if let Ok(locations) = to_locations(
                         &buffer,
                         path.clone(),
                         line_number as usize,
                         line,
                         regex.clone(),
                     ) {
-                        let _ = sender.send(location).map_err(|error| {
-                            log::error!("sender.send {error:?}");
-                        });
+                        for location in locations {
+                            let m = Match {
+                                location,
+                                line: line.to_string(),
+                            };
+                            if send_match(m).is_receiver_disconnected() {
+                                // Stop search
+                                return Ok(false);
+                            }
+                        }
                     }
                     Ok(true)
                 }),
-            )?;
-            Ok(())
-        }))?
-        .into_iter()
-        .flatten()
-        .collect())
+            );
+        }),
+    )
 }
 
-fn to_location(
+fn to_locations(
     buffer: &Buffer,
     path: CanonicalizedPath,
     line_number: usize,
@@ -151,10 +155,10 @@ fn to_location(
         .find_iter(line)
         .flat_map(|match_| -> anyhow::Result<Location> {
             let range = match_?.range();
-            let start = buffer.byte_to_position(range.start + start_byte)?;
-            let end = buffer.byte_to_position(range.end + start_byte)?;
+            let start = buffer.byte_to_char(range.start + start_byte)?;
+            let end = buffer.byte_to_char(range.end + start_byte)?;
             Ok(Location {
-                range: start..end,
+                range: (start..end).into(),
                 path: path.clone(),
             })
         })

@@ -1,9 +1,9 @@
+use crate::app::{Dispatch, Dispatches};
 use crate::context::Context;
 use crate::git::hunk::SimpleHunk;
 use crate::git::{DiffMode, GitOperation};
 use crate::history::History;
 use crate::lsp::diagnostic::Diagnostic;
-use crate::quickfix_list::QuickfixListItem;
 use crate::selection::Selection;
 use crate::selection_mode::naming_convention_agnostic::NamingConventionAgnostic;
 use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
@@ -49,7 +49,6 @@ pub(crate) struct Buffer {
     highlighted_spans: HighlightedSpans,
     marks: Vec<CharIndexRange>,
     diagnostics: Vec<Diagnostic>,
-    quickfix_list_items: Vec<QuickfixListItem>,
     decorations: Vec<Decoration>,
     selection_set_history: History<SelectionSet>,
     dirty: bool,
@@ -101,7 +100,6 @@ impl Buffer {
             marks: Vec::new(),
             decorations: Vec::new(),
             diagnostics: Vec::new(),
-            quickfix_list_items: Vec::new(),
             selection_set_history: History::new(),
             dirty: false,
             owner: BufferOwner::System,
@@ -122,24 +120,14 @@ impl Buffer {
         self.owner
     }
 
-    pub(crate) fn clear_quickfix_list_items(&mut self) {
-        self.quickfix_list_items.clear()
-    }
-
-    pub(crate) fn update_quickfix_list_items(
-        &mut self,
-        quickfix_list_items: Vec<QuickfixListItem>,
-    ) {
-        self.quickfix_list_items = quickfix_list_items
-    }
-
-    pub(crate) fn reload(&mut self) -> anyhow::Result<()> {
+    pub(crate) fn reload(&mut self) -> anyhow::Result<Dispatches> {
         if let Some(path) = self.path() {
             let updated_content = path.read()?;
-            self.update_content(&updated_content, SelectionSet::default(), 0)?;
             self.dirty = false;
+            self.update_content(&updated_content, SelectionSet::default(), 0)
+        } else {
+            Ok(Default::default())
         }
-        Ok(())
     }
 
     pub(crate) fn content(&self) -> String {
@@ -552,7 +540,7 @@ impl Buffer {
         reparse_tree: bool,
         update_undo_stack: bool,
         last_visible_line: u16,
-    ) -> Result<(SelectionSet, Vec<ki_protocol_types::DiffEdit>), anyhow::Error> {
+    ) -> Result<(SelectionSet, Dispatches, Vec<ki_protocol_types::DiffEdit>), anyhow::Error> {
         let new_selection_set = edit_transaction
             .non_empty_selections()
             .map(|selections| current_selection_set.clone().set_selections(selections))
@@ -607,8 +595,16 @@ impl Buffer {
 
         self.batch_id.increment();
 
+        let edits = edit_transaction.edits().into_iter().cloned().collect_vec();
+
+        let dispatches = self
+            .path
+            .clone()
+            .map(|path| Dispatches::one(Dispatch::AppliedEdits { edits, path }))
+            .unwrap_or_default();
+
         // Return both the new selection set and a clone of the edit transaction
-        Ok((new_selection_set, applied_vscode_edits))
+        Ok((new_selection_set, dispatches, applied_vscode_edits))
     }
 
     // Add these methods for undo/redo
@@ -632,18 +628,6 @@ impl Buffer {
             );
         }
 
-        let quickfix_list_items_with_char_index_range =
-            std::mem::take(&mut self.quickfix_list_items)
-                .into_iter()
-                .filter_map(|item| {
-                    Some((
-                        self.position_range_to_char_index_range(&item.location().range)
-                            .ok()?,
-                        item,
-                    ))
-                })
-                .collect_vec();
-
         // Update the content
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
@@ -651,17 +635,6 @@ impl Buffer {
         self.dirty = true;
 
         self.owner = BufferOwner::User;
-
-        // Update all the positional spans (by using the char index ranges computed before the content is updated
-        self.quickfix_list_items = quickfix_list_items_with_char_index_range
-            .into_iter()
-            .filter_map(|(char_index_range, item)| {
-                let position_range = self
-                    .char_index_range_to_position_range(char_index_range.apply_edit(edit)?)
-                    .ok()?;
-                Some(item.set_location_range(position_range))
-            })
-            .collect_vec();
 
         // Update all the non-positional spans
         self.marks.retain_mut(|mark| {
@@ -780,14 +753,19 @@ impl Buffer {
         current_selection_set: SelectionSet,
         force: bool,
         last_visible_line: u16,
-    ) -> anyhow::Result<Option<CanonicalizedPath>> {
+    ) -> anyhow::Result<(Dispatches, Option<CanonicalizedPath>)> {
         if force || self.dirty {
             if let Some(formatted_content) = self.get_formatted_content() {
-                self.update_content(&formatted_content, current_selection_set, last_visible_line)?;
+                let dispatches = self.update_content(
+                    &formatted_content,
+                    current_selection_set,
+                    last_visible_line,
+                )?;
+                return Ok((dispatches, self.save_without_formatting(force)?));
             }
         }
 
-        self.save_without_formatting(force)
+        Ok((Default::default(), self.save_without_formatting(force)?))
     }
 
     pub(crate) fn update_content(
@@ -795,16 +773,16 @@ impl Buffer {
         new_content: &str,
         current_selection_set: SelectionSet,
         last_visible_line: u16,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Dispatches> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
-        self.apply_edit_transaction(
+        let (_, dispatches, _) = self.apply_edit_transaction(
             &edit_transaction,
             current_selection_set,
             true,
             true,
             last_visible_line,
         )?;
-        Ok(())
+        Ok(dispatches)
     }
 
     /// The resulting spans must be sorted by range
@@ -840,11 +818,6 @@ impl Buffer {
         Ok(self.rope.try_line_to_byte(line_index)?)
     }
 
-    pub(crate) fn position_to_byte(&self, start: Position) -> anyhow::Result<usize> {
-        let start = self.position_to_char(start)?;
-        self.char_to_byte(start)
-    }
-
     pub(crate) fn line_to_byte_range(&self, line: usize) -> anyhow::Result<ByteRange> {
         let start = self.line_to_byte(line)?;
         let end = self.line_to_byte(line + 1)?.saturating_sub(1).max(start);
@@ -872,13 +845,6 @@ impl Buffer {
 
     pub(crate) fn get_line_by_line_index(&self, line_index: usize) -> Option<ropey::RopeSlice<'_>> {
         self.rope.get_line(line_index)
-    }
-
-    pub(crate) fn position_range_to_byte_range(
-        &self,
-        range: &Range<Position>,
-    ) -> anyhow::Result<Range<usize>> {
-        Ok(self.position_to_byte(range.start)?..self.position_to_byte(range.end)?)
     }
 
     pub(crate) fn byte_range_to_char_index_range(
@@ -994,7 +960,12 @@ impl Buffer {
         config: LocalSearchConfig,
         current_selection_set: SelectionSet,
         last_visible_line: u16,
-    ) -> anyhow::Result<(bool, SelectionSet, Vec<ki_protocol_types::DiffEdit>)> {
+    ) -> anyhow::Result<(
+        bool,
+        SelectionSet,
+        Dispatches,
+        Vec<ki_protocol_types::DiffEdit>,
+    )> {
         let before = self.rope.to_string();
         let edit_transaction = match config.mode {
             LocalSearchConfigMode::NamingConventionAgnostic => {
@@ -1038,7 +1009,7 @@ impl Buffer {
                 )
             }
         };
-        let (selection_set, edits) = self.apply_edit_transaction(
+        let (selection_set, dispatches, diff_edits) = self.apply_edit_transaction(
             &edit_transaction,
             current_selection_set,
             true,
@@ -1047,7 +1018,7 @@ impl Buffer {
         )?;
         let after = self.content();
         let modified = before != after;
-        Ok((modified, selection_set, edits))
+        Ok((modified, selection_set, dispatches, diff_edits))
     }
 
     pub(crate) fn char_index_range_to_byte_range(
@@ -1057,13 +1028,9 @@ impl Buffer {
         Ok(self.char_to_byte(range.start)?..self.char_to_byte(range.end)?)
     }
 
-    pub(crate) fn quickfix_list_items(&self) -> Vec<QuickfixListItem> {
-        self.quickfix_list_items.clone()
-    }
-
     pub(crate) fn line_range_to_char_index_range(
         &self,
-        range: Range<usize>,
+        range: &Range<usize>,
     ) -> anyhow::Result<CharIndexRange> {
         Ok((self.line_to_char(range.start)?..self.line_to_char(range.end)?).into())
     }
@@ -1295,7 +1262,7 @@ fn f(
                     .tree_sitter_language(),
                 input,
             );
-            buffer.replace(config, SelectionSet::default(), 0)?;
+            let _ = buffer.replace(config, SelectionSet::default(), 0)?;
             assert_eq!(buffer.content(), expected);
             Ok(())
         }
@@ -1373,7 +1340,7 @@ fn f(
                 buffer.update(" fn main\n() {}");
 
                 // Save the buffer
-                buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the output is formatted
                 let saved_content = path.read().unwrap();
@@ -1401,7 +1368,7 @@ fn f(
                 let original = " fn main\n() {}";
                 buffer.update(original);
 
-                buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the buffer is formatted
                 assert_ne!(buffer.rope.to_string(), original);
@@ -1423,7 +1390,7 @@ fn f(
                 buffer.update("fn main() {");
 
                 // Save the buffer
-                buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the buffer remain unchanged,
                 // because the syntax node is invalid
@@ -1446,7 +1413,7 @@ fn f(
                 // but not to the formatter
                 assert!(!buffer.tree.as_ref().unwrap().root_node().has_error());
 
-                buffer.save(SelectionSet::default(), false, 0).unwrap();
+                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the buffer remain unchanged
                 assert_eq!(buffer.rope.to_string(), code);
@@ -1462,7 +1429,7 @@ fn f(
             let initial_spans = buffer.highlighted_spans().clone();
 
             // Update the buffer, this should cause the batch ID to be changed
-            buffer
+            let _ = buffer
                 .update_content("testing", Default::default(), 1)
                 .unwrap();
 
@@ -1492,7 +1459,7 @@ fn f(
             let edit_transaction = buffer.get_edit_transaction(new)?;
 
             // Apply the edit transaction
-            buffer.apply_edit_transaction(
+            let _ = buffer.apply_edit_transaction(
                 &edit_transaction,
                 SelectionSet::default(),
                 true,

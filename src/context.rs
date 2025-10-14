@@ -13,7 +13,7 @@ use crate::{
     components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
     persistence::Persistence,
-    quickfix_list::{DiagnosticSeverityRange, Location},
+    quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
     selection::SelectionMode,
     themes::Theme,
 };
@@ -54,7 +54,7 @@ pub(crate) struct QuickfixListState {
 pub(crate) enum QuickfixListSource {
     Diagnostic(DiagnosticSeverityRange),
     Mark,
-    Custom,
+    Custom(Vec<QuickfixListItem>),
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -95,6 +95,59 @@ impl Context {
             if let Err(error) = persistence.write() {
                 log::error!("Failed to write persistence due to {error:?}")
             }
+        }
+    }
+
+    pub(crate) fn extend_quickfix_list_items(&mut self, new_items: Vec<QuickfixListItem>) {
+        if let Some(QuickfixListState {
+            source: QuickfixListSource::Custom(items),
+            ..
+        }) = self.quickfix_list_state.as_mut()
+        {
+            items.extend(new_items)
+        }
+    }
+
+    pub(crate) fn quickfix_list_items(&self) -> Vec<&QuickfixListItem> {
+        if let Some(QuickfixListState {
+            source: QuickfixListSource::Custom(items),
+            ..
+        }) = &self.quickfix_list_state
+        {
+            items.iter().collect()
+        } else {
+            Default::default()
+        }
+    }
+
+    pub(crate) fn handle_applied_edits(
+        &mut self,
+        path: CanonicalizedPath,
+        edits: Vec<crate::edit::Edit>,
+    ) {
+        if let Some(state) = self.quickfix_list_state.take() {
+            self.quickfix_list_state = Some(match state.source {
+                QuickfixListSource::Diagnostic(_) => state,
+                QuickfixListSource::Mark => state,
+                QuickfixListSource::Custom(quickfix_list_items) => {
+                    let items = quickfix_list_items
+                        .into_iter()
+                        .filter_map(|item| {
+                            if item.location().path == path {
+                                edits
+                                    .iter()
+                                    .try_fold(item, |item, edit| item.apply_edit(edit))
+                            } else {
+                                Some(item)
+                            }
+                        })
+                        .collect_vec();
+                    QuickfixListState {
+                        source: QuickfixListSource::Custom(items),
+                        ..state
+                    }
+                }
+            })
         }
     }
 }
