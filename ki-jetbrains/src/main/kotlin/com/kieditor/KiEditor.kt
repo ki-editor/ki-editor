@@ -70,13 +70,9 @@ class KiEditor(val project: Project, val scope: CoroutineScope) : Disposable {
             while (true) {
                 val line = withContext(Dispatchers.IO) { reader.readLine() }
 
-                logger.info("Ki Editor: $line")
+                logger.debug("Ki Editor: $line")
 
-                if (deferredPort.isCompleted) {
-                    break
-                }
-
-                if (line.matches(portRegex)) {
+                if (!deferredPort.isCompleted && line.matches(portRegex)) {
                     val (port) = portRegex.matchEntire(line)!!.destructured
                     deferredPort.complete(port.toInt())
                 }
@@ -109,7 +105,7 @@ class KiEditor(val project: Project, val scope: CoroutineScope) : Disposable {
                     val messageString = message.readText()
                     val messageWrapper = KiJson.decodeFromString<OutputMessageWrapper>(messageString)
 
-                    logger.info("Received text from ws connection: $messageWrapper")
+                    logger.debug("Received text from ws connection: $messageWrapper")
 
                     handleOutputMessage(messageWrapper)
                 }
