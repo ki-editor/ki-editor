@@ -1,10 +1,10 @@
 use super::prelude::*;
 use crate::{components::component::Component, embed::EmbeddedApp};
-use ki_protocol_types::SelectionSet;
+use ki_protocol_types::SelectionSetParams;
 
 impl EmbeddedApp {
     /// Handle selection.set notification from Host
-    pub(crate) fn handle_selection_set_notification(&mut self, params: SelectionSet) -> Result<()> {
+    pub(crate) fn handle_selection_set_notification(&mut self, params: SelectionSetParams) -> Result<()> {
         let Some(uri) = params.uri else {
             log::info!("EmbeddedApp::handle_selection_set_notification: params.uri is None");
             return Ok(());
@@ -78,7 +78,7 @@ impl EmbeddedApp {
         Ok(())
     }
 
-    pub(crate) fn handle_selection_set_request(&mut self, params: SelectionSet) -> Result<()> {
+    pub(crate) fn handle_selection_set_request(&mut self, params: SelectionSetParams) -> Result<()> {
         self.handle_selection_set_notification(params)
     }
 }
