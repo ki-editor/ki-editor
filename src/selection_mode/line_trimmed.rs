@@ -298,34 +298,27 @@ fn expanded_range(
         return Ok(None);
     };
     loop {
-        // skipping boundary check here
-        let next_left = leftmost_whitespace - 1;
-        if is_target_non_whitespace(buffer.char(next_left)?) {
+        if leftmost_whitespace == CharIndex(0)
+            || is_target_non_whitespace(buffer.char(leftmost_whitespace - 1)?)
+        {
             break;
         } else {
-            leftmost_whitespace = next_left;
-            // boundary check
-            if leftmost_whitespace == CharIndex(0) {
-                break;
-            }
+            leftmost_whitespace = leftmost_whitespace - 1;
         };
     }
 
     loop {
-        let next_right = rightmost_whitespace + 1;
-        if is_target_non_whitespace(buffer.char(next_right)?) {
+        if rightmost_whitespace == last_char_index + 1
+            || is_target_non_whitespace(buffer.char(rightmost_whitespace)?)
+        {
             break;
         } else {
-            // boundary check
-            rightmost_whitespace = next_right;
-            if rightmost_whitespace == last_char_index {
-                break;
-            }
+            rightmost_whitespace = rightmost_whitespace + 1;
         };
     }
 
     let range = buffer
-        .char_index_range_to_byte_range((leftmost_whitespace..rightmost_whitespace + 1).into())?;
+        .char_index_range_to_byte_range((leftmost_whitespace..rightmost_whitespace).into())?;
     Ok(Some(ByteRange::new(range)))
 }
 
