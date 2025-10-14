@@ -571,7 +571,6 @@ impl Layout {
                         .collect_vec()
                 })
                 .collect_vec(),
-            // TODO: we probably should not clone this thing
             QuickfixListSource::Custom(items) => items.iter().cloned().collect_vec(),
         }
     }
