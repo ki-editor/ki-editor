@@ -241,12 +241,13 @@ impl Component for Editor {
             EnterSwapMode => self.enter_swap_mode(),
             ReplacePattern { config } => {
                 let selection_set = self.selection_set.clone();
-                let (_, selection_set, _, _) =
+                let (_, selection_set, dispatches, _) =
                     self.buffer_mut()
                         .replace(config, selection_set, last_visible_line)?;
                 return Ok(self
                     .update_selection_set(selection_set, false, context)
-                    .chain(self.get_document_did_change_dispatch()));
+                    .chain(self.get_document_did_change_dispatch())
+                    .chain(dispatches));
             }
             Undo => {
                 let dispatches = self.undo(context);
