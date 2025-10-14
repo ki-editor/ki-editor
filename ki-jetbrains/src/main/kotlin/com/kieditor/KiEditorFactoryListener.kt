@@ -2,6 +2,7 @@ package com.kieditor
 
 import com.intellij.codeInsight.daemon.impl.HighlightInfo
 import com.intellij.lang.annotation.HighlightSeverity
+import com.intellij.openapi.application.invokeLater
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.event.EditorFactoryEvent
@@ -91,15 +92,21 @@ class KiEditorFactoryListener : EditorFactoryListener {
         val model = DocumentMarkupModel.forDocument(editor.document, project, true) as MarkupModelEx
         model.addMarkupModelListener(listenerDisposable, object : MarkupModelListener {
             override fun afterAdded(highlighter: RangeHighlighterEx) {
-                collectDiagnostics(project, editor, bufferId, model)
+                invokeLater {
+                    collectDiagnostics(project, editor, bufferId, model)
+                }
             }
 
             override fun beforeRemoved(highlighter: RangeHighlighterEx) {
-                collectDiagnostics(project, editor, bufferId, model)
+                invokeLater {
+                    collectDiagnostics(project, editor, bufferId, model)
+                }
             }
 
             override fun afterRemoved(highlighter: RangeHighlighterEx) {
-                collectDiagnostics(project, editor, bufferId, model)
+                invokeLater {
+                    collectDiagnostics(project, editor, bufferId, model)
+                }
             }
 
             override fun attributesChanged(
@@ -108,7 +115,9 @@ class KiEditorFactoryListener : EditorFactoryListener {
                 fontStyleChanged: Boolean,
                 foregroundColorChanged: Boolean
             ) {
-                collectDiagnostics(project, editor, bufferId, model)
+                invokeLater {
+                    collectDiagnostics(project, editor, bufferId, model)
+                }
             }
         })
 

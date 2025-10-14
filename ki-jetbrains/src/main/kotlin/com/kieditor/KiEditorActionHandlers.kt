@@ -9,6 +9,7 @@ import com.intellij.openapi.editor.actionSystem.EditorActionHandler
 import com.kieditor.protocol.InputMessage
 import com.kieditor.protocol.KeyboardParams
 import kotlinx.coroutines.launch
+import java.util.zip.CRC32
 
 // todo do we need to add warning if shortcuts for these handlers were changed?
 class KiEscEditorActionHandler(nextHandler: EditorActionHandler?) : KiEditorActionHandler(nextHandler, "Escape")
@@ -47,11 +48,15 @@ open class KiEditorActionHandler(private val nextHandler: EditorActionHandler?, 
         val uri = editor.kiEditorUri
             ?: return
 
+        val crc32 = CRC32()
+        crc32.update(editor.document.text.toByteArray())
+        val checksum = crc32.value
+
         val message = InputMessage.KeyboardInput(
             KeyboardParams(
                 key,
                 uri,
-                0u // todo hash
+                checksum.toUInt() // TODO is this safe
             )
         )
 

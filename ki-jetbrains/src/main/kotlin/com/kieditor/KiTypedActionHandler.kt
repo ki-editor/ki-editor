@@ -11,6 +11,7 @@ import com.kieditor.protocol.EditorMode
 import com.kieditor.protocol.InputMessage
 import com.kieditor.protocol.KeyboardParams
 import kotlinx.coroutines.launch
+import java.util.zip.CRC32
 
 class KiTypedActionHandler(val originalHandler: TypedActionHandler) : TypedActionHandlerEx {
 
@@ -36,11 +37,15 @@ class KiTypedActionHandler(val originalHandler: TypedActionHandler) : TypedActio
         val uri = editor.kiEditorUri
             ?: return
 
+        val crc32 = CRC32()
+        crc32.update(editor.document.text.toByteArray())
+        val checksum = crc32.value
+
         val message = InputMessage.KeyboardInput(
             KeyboardParams(
                 charTyped.toString(),
                 uri,
-                0u // todo zlib.crc32(editor.document.getText()),
+                checksum.toUInt() // todo is this safe
             )
         )
 
