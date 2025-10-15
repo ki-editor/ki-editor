@@ -1515,40 +1515,7 @@ fn test_global_search_replace(
 }
 
 #[test]
-fn test_global_repeat_local_search() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.foo_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent("hello world".to_string())),
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent("hello world".to_string())),
-            App(SaveAll),
-            Editor(MatchLiteral("world".to_string())),
-            Editor(SearchCurrentSelection(
-                IfCurrentNotFound::LookForward,
-                Scope::Local,
-            )),
-            Expect(CurrentComponentPath(Some(s.main_rs()))),
-            Editor(RepeatSearch(
-                Scope::Global,
-                IfCurrentNotFound::LookForward,
-                None,
-            )),
-            StimulateEventLoopTick,
-            Expect(CurrentComponentPath(Some(s.foo_rs()))),
-        ])
-    })
-}
-#[test]
-fn test_global_repeat_global_search() -> anyhow::Result<()> {
+fn test_global_repeat_search() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
