@@ -35,7 +35,7 @@ impl EmbeddedApp {
         };
         self.app.lock().unwrap().handle_dispatch(dispatch)?;
 
-        self.handle_selection_set_notification(ki_protocol_types::SelectionSet {
+        self.handle_selection_set_notification(ki_protocol_types::SelectionSetParams {
             uri: Some(uri.to_string()),
             selections,
         })?;

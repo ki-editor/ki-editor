@@ -278,7 +278,6 @@ impl EmbeddedApp {
             error: Some(ResponseError {
                 code: -32000,
                 message: error_message.to_string(),
-                data: None,
             }),
         };
         self.send_message_to_host(error_response)
@@ -423,7 +422,7 @@ impl EmbeddedApp {
             })
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-        let selection_set = ki_protocol_types::SelectionSet {
+        let selection_set = ki_protocol_types::SelectionSetParams {
             uri: buffer.path().map(|path| path_to_uri(&path)),
             selections: host_selections,
         };
