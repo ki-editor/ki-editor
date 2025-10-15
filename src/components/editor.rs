@@ -3269,7 +3269,7 @@ impl Editor {
     }
 
     fn replace_with_pattern(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let config = context.local_search_config();
+        let config = context.local_search_config(Scope::Local);
         match config.mode {
             LocalSearchConfigMode::AstGrep => {
                 let edits = if let Some(language) = self.buffer().treesitter_language() {
@@ -3923,7 +3923,7 @@ impl Editor {
         if_current_not_found: IfCurrentNotFound,
         prior_change: Option<PriorChange>,
     ) -> anyhow::Result<Dispatches> {
-        let Some(search) = context.local_search_config().last_search() else {
+        let Some(search) = context.local_search_config(scope).last_search() else {
             return Ok(Dispatches::default());
         };
         self.handle_prior_change(prior_change);

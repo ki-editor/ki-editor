@@ -864,7 +864,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::Replace { scope } => match scope {
                 Scope::Local => self.handle_dispatch_editor(ReplacePattern {
-                    config: self.context.local_search_config().clone(),
+                    config: self.context.local_search_config(Scope::Local).clone(),
                 })?,
                 Scope::Global => self.global_replace()?,
             },
@@ -971,7 +971,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn local_search(&mut self, if_current_not_found: IfCurrentNotFound) -> anyhow::Result<()> {
-        let config = self.context.local_search_config();
+        let config = self.context.local_search_config(Scope::Local);
         let search = config.search();
         if !search.is_empty() {
             self.handle_dispatch_editor_custom(
@@ -2375,7 +2375,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_filter_selections_prompt(&mut self, maintain: bool) -> anyhow::Result<()> {
-        let config = self.context.get_local_search_config(Scope::Local);
+        let config = self.context.local_search_config(Scope::Local);
         let mode = config.mode;
         self.open_prompt(
             PromptConfig {
