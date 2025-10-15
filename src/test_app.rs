@@ -1553,38 +1553,38 @@ fn test_global_repeat_search() -> anyhow::Result<()> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetContent("hello world".to_string())),
+            Editor(SetContent("bye world".to_string())),
             App(OpenFile {
                 path: s.main_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetContent("hello world".to_string())),
+            Editor(SetContent("bye world".to_string())),
             App(SaveAll),
             // Local search "world"
             Editor(MatchLiteral("world".to_string())),
-            // Global search "hello"
+            // Global search "bye"
             App(UpdateLocalSearchConfig {
-                update: LocalSearchConfigUpdate::Search("hello".to_string()),
+                update: LocalSearchConfigUpdate::Search("bye".to_string()),
                 scope: Scope::Global,
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
             }),
             StimulateEventLoopTick,
-            Expect(CurrentSelectedTexts(&["hello"])),
+            Expect(CurrentSelectedTexts(&["bye"])),
             // Change the selection mode
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
                 SelectionMode::Line,
             )),
-            Expect(CurrentSelectedTexts(&["hello world"])),
+            Expect(CurrentSelectedTexts(&["bye world"])),
             Editor(RepeatSearch(
                 Scope::Global,
                 IfCurrentNotFound::LookForward,
                 None,
             )),
             StimulateEventLoopTick,
-            Expect(CurrentSelectedTexts(&["hello"])),
+            Expect(CurrentSelectedTexts(&["bye"])),
         ])
     })
 }
@@ -1772,6 +1772,7 @@ fn main() {
     })
 }
 
+#[serial] // This test has to be run in serial otherwise it will fail
 #[test]
 fn quickfix_list_header_should_be_highlighted_as_keyword() -> anyhow::Result<()> {
     execute_test(|s| {
