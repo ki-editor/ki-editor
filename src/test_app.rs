@@ -497,7 +497,7 @@ impl ExpectKind {
                                     .sum::<usize>(),
                             ),
             SelectionExtensionEnabled(expected) => contextualize(expected, &app.current_component().borrow().editor().selection_extension_enabled()),
-            CurrentSearch(scope,expected) => contextualize(*expected, &app.context().get_local_search_config(*scope).search()),
+            CurrentSearch(scope,expected) => contextualize(*expected, &app.context().local_search_config(*scope).search()),
             PromptHistory(key, expected) => contextualize(
                         expected,
                         &app.context().get_prompt_history(*key)
@@ -1531,19 +1531,30 @@ fn test_global_repeat_search() -> anyhow::Result<()> {
             }),
             Editor(SetContent("hello world".to_string())),
             App(SaveAll),
+            // Local search "world"
             Editor(MatchLiteral("world".to_string())),
-            Editor(SearchCurrentSelection(
+            // Global search "hello"
+            App(UpdateLocalSearchConfig {
+                update: LocalSearchConfigUpdate::Search("hello".to_string()),
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
+            }),
+            StimulateEventLoopTick,
+            Expect(CurrentSelectedTexts(&["hello"])),
+            // Change the selection mode
+            Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                Scope::Local,
+                SelectionMode::Line,
             )),
-            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            Expect(CurrentSelectedTexts(&["hello world"])),
             Editor(RepeatSearch(
                 Scope::Global,
                 IfCurrentNotFound::LookForward,
                 None,
             )),
             StimulateEventLoopTick,
-            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            Expect(CurrentSelectedTexts(&["hello"])),
         ])
     })
 }
