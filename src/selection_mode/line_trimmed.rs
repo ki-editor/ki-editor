@@ -24,10 +24,12 @@ impl PositionBasedSelectionMode for LineTrimmed {
             return Ok(None);
         }
 
-        let is_target_non_empty = |line: ropey::RopeSlice| {
+        /* let is_target_non_empty = |line: ropey::RopeSlice| {
             let whitespace = get_padding_whitespace(line);
             whitespace.leading + whitespace.trailing != line.len_chars()
-        };
+        }; */
+
+        let is_target_non_empty = |_: ropey::RopeSlice| true;
 
         let mut current_line_index = cursor_char_index.to_line(buffer)?;
 
@@ -105,11 +107,18 @@ impl PositionBasedSelectionMode for LineTrimmed {
         let line_end = line_start + line.len_chars();
         let char_index_relative_to_line_start = cursor_char_index.0 - line_start.0;
         // padding contains char_index
-        if char_index_relative_to_line_start < padding.leading
-            || char_index_relative_to_line_start + 1
-                > (line_end - line_start.0 - padding.trailing).0
+        if char_index_relative_to_line_start < padding.leading {
+            let range = buffer.char_index_range_to_byte_range(
+                (line_start..line_start + padding.leading).into(),
+            )?;
+            Ok(Some(ByteRange::new(range)))
+        } else if char_index_relative_to_line_start + 1
+            > (line_end - line_start.0 - padding.trailing).0
         {
-            expanded_range(buffer, cursor_char_index)
+            // expanded_range(buffer, cursor_char_index)
+            let range = buffer
+                .char_index_range_to_byte_range((line_end - padding.trailing..line_end).into())?;
+            Ok(Some(ByteRange::new(range)))
         } else {
             trimmed_range(buffer, line_index)
         }
