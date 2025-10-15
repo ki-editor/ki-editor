@@ -140,7 +140,7 @@ fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
             Editor(SetContent("fn main() {}".to_string())),
             Editor(MatchLiteral("}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(Delete),
+            Editor(DeleteNoGap),
             Expect(CurrentComponentContent("fn main() {")),
         ])
     })
@@ -297,6 +297,8 @@ fn test_delete_word_long() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::End)),
             Editor(DeleteWordBackward { short: false }),
             Expect(CurrentComponentContent("hello_world ")),
+            Editor(DeleteWordBackward { short: false }),
+            Expect(CurrentComponentContent("hello_world")),
             Editor(DeleteWordBackward { short: false }),
             Expect(CurrentComponentContent("")),
         ])
@@ -1298,7 +1300,7 @@ fn insert_mode_end() -> anyhow::Result<()> {
 }
 
 #[test]
-fn highlight_kill() -> anyhow::Result<()> {
+fn delete_extended_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -1311,7 +1313,7 @@ fn highlight_kill() -> anyhow::Result<()> {
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["fn main"])),
-            Editor(Delete),
+            Editor(DeleteNoGap),
             Expect(CurrentSelectedTexts(&["("])),
         ])
     })
@@ -1366,7 +1368,7 @@ fn enter_normal_mode_should_highlight_one_character() -> anyhow::Result<()> {
 }
 
 #[test]
-fn highlight_change() -> anyhow::Result<()> {
+fn change_extended_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -1543,7 +1545,7 @@ fn main() {
 }
 
 #[test]
-fn highlight_and_jump() -> anyhow::Result<()> {
+fn extend_and_jump() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -1888,36 +1890,24 @@ fn main() {
                     [QuickfixListItem::new(
                         Location {
                             path: s.main_rs(),
-                            range: Position { line: 1, column: 2 }..Position { line: 1, column: 5 },
+                            range: (CharIndex(2)..CharIndex(5)).into(),
                         },
+                        None,
                         None,
                     )]
                     .to_vec(),
                 ),
             )),
             Expect(ExpectKind::BufferQuickfixListItems(
-                [Position { line: 1, column: 2 }..Position { line: 1, column: 5 }].to_vec(),
+                [(CharIndex(2)..CharIndex(5)).into()].to_vec(),
             )),
-            // 1. Testing edit that does not affect the line of the quickfix item
+            // Testing edit that affects the line of the quickfix item
             Editor(MatchLiteral("fn".to_string())),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("hello".to_string())),
-            // 1a. The position range should remain the same
+            // The position range should be updated
             Expect(ExpectKind::BufferQuickfixListItems(
-                [Position { line: 1, column: 2 }..Position { line: 1, column: 5 }].to_vec(),
-            )),
-            Editor(EnterNormalMode),
-            // 2. Testing edit that affects the line of the quickfix item
-            Editor(MatchLiteral("let".to_string())),
-            Editor(EnterInsertMode(Direction::Start)),
-            Editor(Insert("hello".to_string())),
-            // 2a. The position range should be updated
-            Expect(ExpectKind::BufferQuickfixListItems(
-                [Position { line: 1, column: 7 }..Position {
-                    line: 1,
-                    column: 10,
-                }]
-                .to_vec(),
+                [(CharIndex(7)..CharIndex(10)).into()].to_vec(),
             )),
         ])
     })
@@ -3814,8 +3804,11 @@ fn background_editor_focused_not_in_buffer_list() -> anyhow::Result<()> {
 fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
     execute_test(|_| {
         Box::new([
-            App(HandleKeyEvents(keys!("N q f o o : : f o o enter").to_vec())),
+            App(HandleKeyEvents(
+                keys!("space q f o o : : f o o enter").to_vec(),
+            )),
             Expect(OpenedFilesCount(0)),
+            StimulateEventLoopTick,
             Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
@@ -3829,7 +3822,7 @@ fn background_editor_user_from_explorer() -> anyhow::Result<()> {
     execute_test(|_| {
         Box::new([
             App(HandleKeyEvents(
-                keys!("space d m a i n . r s enter").to_vec(),
+                keys!("space ; q s r c enter enter q m a i n . r s enter enter").to_vec(),
             )),
             Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
             Expect(OpenedFilesCount(1)),
@@ -3846,6 +3839,7 @@ fn background_editor_closing_no_system_buffer() -> anyhow::Result<()> {
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
+            StimulateEventLoopTick,
             Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 foo.rs "))),
             Expect(OpenedFilesCount(0)),
             App(CloseCurrentWindow),
@@ -3898,7 +3892,7 @@ fn should_search_backward_if_primary_and_secondary_cursor_swapped() -> anyhow::R
                 focus: true,
             }),
             Editor(SetContent("  hello world  ".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SwapCursor),
             App(HandleKeyEvent(key!("s"))), // Word selection mode (Qwerty)
             Expect(CurrentSelectedTexts(&["world"])),
@@ -4198,7 +4192,7 @@ fn movement_up() -> anyhow::Result<()> {
                 "
 foo bar
     spam
-    baz
+baz
 tim
 "
                 .trim()
@@ -4226,9 +4220,10 @@ fn movement_down() -> anyhow::Result<()> {
             Editor(SetContent(
                 "
 foo bar
-    spam
+spam
     baz
 "
+                .trim()
                 .to_string(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
@@ -4654,7 +4649,7 @@ fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> 
             ])
         })
     }
-    run_test(Word, &["hello"])?;
+    run_test(Word, &["\n"])?;
     run_test(SyntaxNode, &["hello"])?;
     run_test(Subword, &["hello"])?;
     run_test(Character, &["\n"])?;
@@ -4808,6 +4803,7 @@ fn escaping_quicfix_list_mode_should_not_change_selection() -> anyhow::Result<()
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             App(HandleKeyEvents(keys!("m o r i enter").to_vec())),
+            StimulateEventLoopTick,
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
             Expect(CurrentSelectedTexts(&["mori"])),
             App(HandleKeyEvents(keys!("esc").to_vec())),

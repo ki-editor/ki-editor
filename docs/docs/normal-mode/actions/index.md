@@ -57,7 +57,7 @@ In Syntax Mode, exceptionally, it inserts a gap next to the current selection.
 
 ### `Delete`
 
-Delete until next selection.
+Delete until the left/right selection.
 
 `Delete` is directional[^directionality].
 
@@ -81,6 +81,16 @@ hello(y);
 ```
 
 <TutorialFallback filename="delete"/>
+
+### `Delete 0 Gap`
+
+Delete until the previous/next selection.
+
+This is similar to `Delete`, but it doesn't delete the meaningless gaps between selections.
+
+Meaningless gaps are usually whitespaces, or insignificant nodes like comma or semicolon in the Syntax Node selection mode.
+
+<TutorialFallback filename="delete-0-gap"/>
 
 ### `Change`
 

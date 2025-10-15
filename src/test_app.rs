@@ -12,7 +12,6 @@ use serial_test::serial;
 use strum::IntoEnumIterator;
 
 use std::{
-    ops::Range,
     path::PathBuf,
     rc::Rc,
     sync::{Arc, Mutex},
@@ -67,7 +66,7 @@ use crate::{
     position::Position,
     quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
     rectangle::Rectangle,
-    selection::SelectionMode,
+    selection::{CharIndex, SelectionMode},
     style::Style,
     themes::Theme,
     ui_tree::ComponentKind,
@@ -84,6 +83,9 @@ pub(crate) enum Step {
     SuggestiveEditor(DispatchSuggestiveEditor),
     ExpectLater(Box<dyn Fn() -> ExpectKind>),
     ExpectCustom(Box<dyn Fn()>),
+    /// This is to simulate the main event loop,
+    /// necessary for testing async features like Global Search
+    StimulateEventLoopTick,
 }
 
 impl Step {
@@ -97,6 +99,7 @@ impl Step {
             SuggestiveEditor(editor) => format!("SuggestiveEditor({editor:?})"),
             ExpectLater(_) => "ExpectLater(_)".to_string(),
             ExpectCustom(_) => "ExpectCustom(_)".to_string(),
+            StimulateEventLoopTick => "Tick".to_string(),
         }
     }
 }
@@ -146,7 +149,7 @@ pub(crate) enum ExpectKind {
     GridCellsStyleKey(Vec<Position>, Option<StyleKey>),
     HighlightSpans(std::ops::Range<usize>, StyleKey),
     DiagnosticsRanges(Vec<CharIndexRange>),
-    BufferQuickfixListItems(Vec<Range<Position>>),
+    BufferQuickfixListItems(Vec<CharIndexRange>),
     ComponentCount(usize),
     CurrentComponentPath(Option<CanonicalizedPath>),
     OpenedFilesCount(usize),
@@ -358,8 +361,8 @@ impl ExpectKind {
             QuickfixListContent(content) => {
                                 let actual = app.get_quickfix_list().unwrap().render().content;
                                 let expected = content.to_string();
-                                log(format!("expected =\n{expected}"));
-                                log(format!("actual   =\n{actual}"));
+                                println!("Expected =\n{expected}");
+                                println!("Actual =\n{actual}");
                                 contextualize(expected, actual)
                             }
             DropdownInfosCount(expected) => {
@@ -424,13 +427,10 @@ impl ExpectKind {
                             ),
             BufferQuickfixListItems(expected) => contextualize(
                                 expected,
-                                &app.current_component()
-                                    .borrow()
-                                    .editor()
-                                    .buffer()
+                                &app.context()
                                     .quickfix_list_items()
                                     .into_iter()
-                                    .map(|d| d.location().range.clone())
+                                    .map(|d| d.location().range)
                                     .collect_vec(),
                             ),
             ComponentCount(expected) => contextualize(expected, &app.components().len()),
@@ -611,6 +611,7 @@ fn execute_test_helper(
 
         for step in steps.iter() {
             match step.to_owned() {
+                Step::StimulateEventLoopTick => app.handle_next_app_message()?,
                 Step::App(dispatch) => {
                     log(dispatch);
                     app.handle_dispatch(dispatch.to_owned())?
@@ -791,8 +792,7 @@ fn cut_replace() -> anyhow::Result<()> {
             Editor(ChangeCut),
             Editor(EnterNormalMode),
             Expect(CurrentComponentContent(" main() { let x = 1; }")),
-            Editor(MoveSelection(Current(IfCurrentNotFound::LookForward))),
-            Expect(CurrentSelectedTexts(&["main"])),
+            Editor(MatchLiteral("main".to_string())),
             Editor(ReplaceWithCopiedText { cut: false }),
             Expect(CurrentComponentContent(" fn() { let x = 1; }")),
         ])
@@ -1047,26 +1047,29 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                     QuickfixListItem::new(
                         Location {
                             path: path_new_file.clone().try_into().unwrap(),
-                            range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
+                            range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&["[This file is untracked or renamed]"]),
+                        None,
                     ),
                     QuickfixListItem::new(
                         Location {
                             path: s.foo_rs(),
-                            range: Position { line: 0, column: 0 }..Position { line: 1, column: 0 },
+                            range: (CharIndex(0)..CharIndex(32)).into(),
                         },
                         strs_to_strings(&[
                             "pub(crate) struct Foo {",
                             "// Hellopub(crate) struct Foo {",
                         ]),
+                        None,
                     ),
                     QuickfixListItem::new(
                         Location {
                             path: s.main_rs(),
-                            range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
+                            range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&["mod foo;"]),
+                        None,
                     ),
                 ]))
             })),
@@ -1262,15 +1265,17 @@ fn global_marks() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
+                    None,
                     None,
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
+                    None,
                     None,
                 ),
             ]))),
@@ -1302,35 +1307,40 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
             }),
+            StimulateEventLoopTick,
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
             Expect(Quickfixes(Box::new([
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position::new(0, 4)..Position::new(0, 7),
+                        range: (CharIndex(4)..CharIndex(7)).into(),
                     },
                     None,
+                    Some("foo bar foo bar".to_string()),
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position::new(0, 12)..Position::new(0, 15),
+                        range: (CharIndex(12)..CharIndex(15)).into(),
                     },
                     None,
+                    Some("foo bar foo bar".to_string()),
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position::new(0, 4)..Position::new(0, 7),
+                        range: (CharIndex(4)..CharIndex(7)).into(),
                     },
                     None,
+                    Some("foo bar foo bar".to_string()),
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position::new(0, 12)..Position::new(0, 15),
+                        range: (CharIndex(12)..CharIndex(15)).into(),
                     },
                     None,
+                    Some("foo bar foo bar".to_string()),
                 ),
             ]))),
             App(HandleKeyEvent(key!("esc"))),
@@ -1362,11 +1372,11 @@ fn local_lsp_references() -> anyhow::Result<()> {
                 [
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 2 },
+                        range: (CharIndex(0)..CharIndex(2)).into(),
                     },
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 3 }..Position { line: 0, column: 4 },
+                        range: (CharIndex(3)..CharIndex(4)).into(),
                     },
                 ]
                 .to_vec(),
@@ -1416,22 +1426,24 @@ fn global_diagnostics() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
                     Some(Info::new(
                         "Diagnostics".to_string(),
                         "To err is normal, but to err again is not.".to_string(),
                     )),
+                    None,
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
                     Some(Info::new(
                         "Diagnostics".to_string(),
                         "To err is normal, but to err again is not.".to_string(),
                     )),
+                    None,
                 ),
             ]))),
         ])
@@ -1530,6 +1542,7 @@ fn test_global_repeat_search() -> anyhow::Result<()> {
                 IfCurrentNotFound::LookForward,
                 None,
             )),
+            StimulateEventLoopTick,
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
         ])
     })
@@ -1590,7 +1603,7 @@ fn global_search_replace_naming_convention_agnostic() -> Result<(), anyhow::Erro
 }
 
 #[test]
-fn quickfix_list() -> Result<(), anyhow::Error> {
+fn quickfix_list_basic() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
             UpdateLocalSearchConfig {
@@ -1624,20 +1637,18 @@ foo a // Line 10
             App(new_dispatch(LocalSearchConfigUpdate::Search(
                 "foo".to_string(),
             ))),
+            StimulateEventLoopTick,
             Expect(QuickfixListContent(
                 // Line 10 should be placed below Line 2 (sorted numerically, not lexicograhically)
-                format!(
-                    "
-■┬ {}
+                "
+■┬ src/foo.rs
  ├─ 2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
  └─ 10:1  foo a // Line 10
 
-■┬ {}
+■┬ src/main.rs
  ├─ 1:1  foo d
- └─ 2:1  foo c",
-                    s.foo_rs().display_absolute(),
-                    s.main_rs().display_absolute()
-                )
+ └─ 2:1  foo c
+                ".to_string()
                 .trim()
                 .to_string(),
             )),
@@ -1693,12 +1704,13 @@ fn main() {
                     [QuickfixListItem::new(
                         Location {
                             path: s.main_rs(),
-                            range: Position { line: 1, column: 2 }..Position { line: 1, column: 5 },
+                            range: (CharIndex(2)..CharIndex(5)).into(),
                         },
                         Some(Info::new(
                             "Hello world".to_string(),
                             "This is fine".to_string(),
                         )),
+                        None,
                     )]
                     .to_vec(),
                 ),
@@ -2637,11 +2649,11 @@ fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
                     [
                         Location {
                             path: s.foo_rs(),
-                            range: Position::new(0, 0)..Position::new(0, 1),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
                         },
                         Location {
                             path: s.foo_rs(),
-                            range: Position::new(1, 0)..Position::new(1, 1),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
                         },
                     ]
                     .to_vec(),

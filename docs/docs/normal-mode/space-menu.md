@@ -3,7 +3,14 @@ import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # Space Menu
 
-The space menu is a handy shortcut for (not restricted to):
+The space menu contains two major keymaps:
+
+1. Left
+2. Right
+
+The Left side contains the keymap of [Global secondary selection modes](docs/normal-mode/selection-modes/secondary/index.md).
+
+The right side is a handy shortcut for (not restricted to):
 
 - Contextual actions
 - File and quit actions
@@ -19,25 +26,19 @@ The space menu can be brought up by pressing `space`.
 
 ## LSP Actions (only applicable in the main editor):
 
+<KeymapFallback filename="Space LSP"/>
+
 | Label          | Action                |
 | -------------- | --------------------- |
 | `Code Actions` | Request code actions  |
 | `Hover`        | Request hover info    |
 | `Rename`       | Rename current symbol |
 
-## Pickers
+## `Pick`
 
-| Label          | Object                                   |
-| -------------- | ---------------------------------------- |
-| `Buffer`       | Buffers (opened files)                   |
-| `File`         | Files (Not git ignored)                  |
-| `Git status @` | Git status (against current branch) [^1] |
-| `Git status ^` | Git status (against main branch) [^2]    |
-| `Symbol`       | LSP Symbols                              |
-| `Theme`        | [Themes](../themes.md)                   |
+<KeymapFallback filename="Space Pick"/>
 
-[^1]: See more at [Git hunk](./selection-modes/secondary/index.md#hunkhunk)
-[^2]: This is very useful when you want to get the modified/added files commited into the current branch that you are working on.
+### Searching behavior
 
 Searching is powered by [Helix's Nucleo](https://github.com/helix-editor/nucleo), and some [fzf](https://github.com/junegunn/fzf?tab=readme-ov-file#search-syntax)-esque search syntax works here:
 
@@ -66,26 +67,79 @@ will be shown when navigating diagnostic messages. However, unless you edit `fil
 added to the buffer list. Similarly, if you search your project and view results in multiple files,
 these files will not be included in the buffer list unless you edit them.
 
-## Other components
+### `Theme`
 
-| Label       | Action                               |
-| ----------- | ------------------------------------ |
-| `Explorer`  | Reveal current file in file explorer |
-| `Undo Tree` | Opens the Undo Tree [^1]             |
+[Themes](../themes.md)
 
-[^1]: This is an obscure feature, although it is functional, it is hardly useful, because the undo history is too granular (character-by-character), see [undo/redo](../universal-keybindings.md#undoredo).
+### `Symbol`
+
+LSP Symbols
+
+### `File`
+
+Files (Not git ignored)
+
+### `Buffer`
+
+Buffers (opened files)
+
+### `Git status @`
+
+Git status (against current branch) [^1]
+
+### `Git status ^`
+
+Git status (against main branch) [^2]
+[^1]: See more at [Git hunk](./selection-modes/secondary/index.md#hunkhunk)
+[^2]: This is very useful when you want to get the modified/added files commited into the current branch that you are working on.
+
+## `Editor`
+
+<KeymapFallback filename="Space Editor"/>
+
+### `Quit No Save`
+
+Quit Ki without saving any unsaved files.
+
+### `Save All Quit`
+
+Save all files and quit Ki.
+
+### `Save All`
+
+Save all files.
+
+### `Pipe`
+
+Open a prompt which takes a shell command that treats the current selections as STDIN, and replace the current selections with the STDOUT of the command.
+
+### `Replace all`
+
+Replace all matches across all files of the current working directory with the specified replacement.
+
+For example, if the search query is `l hello_world bye_moon`, it will replaces all `hello_world` across all files with `bye_moon`.
+
+See more at [Search in Ki](docs/normal-mode/search-config.md).
+
+### `TS Node Sexp`
+
+Show the Tree-sitter node S-expression of the current selection.
+
+## `Explorer`
+
+Reveal current file in file explorer.
+
+## `Help`
+
+Shows the Normal mode keymap.
 
 ## Reveal
 
 Reveal is a powerful viewport management feature that provides a bird's-eye view of your code or text. It automatically divides your viewport horizontally to show all relevant selections simultaneously, eliminating the need for scrolling (unless selections exceed the viewport height).
 
-There are 3 kinds of Reveal:
+There are 3 kinds of Reveals:
 
-1. `÷ Selection` (Reveal selections)
-2. `÷ Cursor` (Reveal Cursors)
-3. `÷ Mark` (Reveal Marks)
-
-### Reveal Selections
+### `÷ Selection` (Reveal Selections)
 
 Reveal Selections dynamically creates viewports based on the selections of the current selection mode. This is particularly powerful for non-contiguous (secondary) selections created through Search, LSP Diagnostics, Git Hunks, and other multi-selection modes.
 
@@ -98,21 +152,14 @@ When used with Syntax Node selection mode, it can effectively emulate Code Foldi
 
 <TutorialFallback filename="reveal-selections"/>
 
-### Reveal Cursors
+### `÷ Cursor` (Reveal Cursors)
 
 Reveal Cursors is not just useful, but essential when working with multiple cursors. It provides visual confirmation and confidence that your editing operations will be correctly applied across all cursor positions. This is particularly valuable for bulk editing operations where precision is crucial.
 
 <TutorialFallback filename="reveal-cursors"/>
 
-### Reveal Marks
+### `÷ Mark` (Reveal Marks)
 
 Reveal Mark offers a modern alternative to traditional window splitting. Rather than manually managing multiple editor windows, you can mark and instantly view important sections simultaneously. You can think of it as automated window splitting.
 
 <TutorialFallback filename="reveal-marks"/>
-
-## Misc
-
-| Label          | Meaning                                                                                         |
-| -------------- | ----------------------------------------------------------------------------------------------- |
-| `Pipe`         | Pipe current selection(s) to a shell command, replace the current selection(s) with the STDOUT. |
-| `TS Node Sexp` | Show the Tree-sitter node S-expression of the current selection.                                |

@@ -1,4 +1,4 @@
-use super::{ByteRange, PositionBasedSelectionMode, SelectionModeTrait, Word};
+use super::{ByteRange, PositionBasedSelectionMode, Word};
 use crate::{buffer::Buffer, components::editor::IfCurrentNotFound, selection::CharIndex};
 
 pub struct Subword;
@@ -211,6 +211,7 @@ mod test_subword {
     use crate::buffer::BufferOwner;
     use crate::components::editor::PriorChange;
     use crate::selection::SelectionMode;
+    use crate::selection_mode::SelectionModeTrait as _;
     use crate::test_app::*;
     use crate::{buffer::Buffer, selection::Selection, selection_mode::PositionBased};
 

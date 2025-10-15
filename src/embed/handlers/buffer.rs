@@ -147,9 +147,10 @@ impl EmbeddedApp {
         // Scope the mutable borrow to avoid borrow checker issues
         {
             let mut comp_ref = comp.borrow_mut();
-            comp_ref
+            let dispatches = comp_ref
                 .editor_mut()
                 .update_content(&content, &self.context)?;
+            app_guard.handle_dispatches(dispatches)?;
         };
 
         for event in app_guard.take_queued_events() {

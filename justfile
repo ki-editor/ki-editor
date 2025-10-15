@@ -9,7 +9,7 @@ default:
     @just doc 
     
 install:
-    rm -r ~/.cache/ki/ || echo "ok" 
+    rm -r ~/.cache/ki/zed-themes || echo "ok" 
     cargo install --locked --path .
 
 fmt-check:
@@ -140,4 +140,6 @@ vscode-build-binaries:
     ls -la ki-vscode/dist/bin/
     echo "Done!"
 
-
+profile:
+    cargo build --release
+    samply record ./target/release/ki

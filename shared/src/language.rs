@@ -54,10 +54,13 @@ pub enum CargoLinkedTreesitterLanguage {
     Typescript,
     TSX,
     Python,
+    OCaml,
+    OCamlInterface,
     Rust,
     Graphql,
     Javascript,
     JSX,
+    Svelte,
     JSON,
     YAML,
     HTML,
@@ -89,10 +92,15 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::TSX => tree_sitter_typescript::LANGUAGE_TSX.into(),
             CargoLinkedTreesitterLanguage::Python => tree_sitter_python::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::OCaml => tree_sitter_ocaml::LANGUAGE_OCAML.into(),
+            CargoLinkedTreesitterLanguage::OCamlInterface => {
+                tree_sitter_ocaml::LANGUAGE_OCAML_INTERFACE.into()
+            }
             CargoLinkedTreesitterLanguage::Rust => tree_sitter_rust::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Graphql => tree_sitter_graphql::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Javascript => tree_sitter_javascript::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::JSX => tree_sitter_javascript::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Svelte => tree_sitter_svelte_ng::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::JSON => tree_sitter_json::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::YAML => tree_sitter_yaml::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::HTML => tree_sitter_html::LANGUAGE.into(),
