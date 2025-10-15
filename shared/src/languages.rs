@@ -33,6 +33,7 @@ pub const LANGUAGES: &[&Language] = &[
     &svelte(),
     &json(),
     &just(),
+    &ki_quickfix(),
     &lua(),
     &markdown(),
     &nix(),
@@ -586,6 +587,21 @@ const fn just() -> Language {
             subpath: None,
         }),
         line_comment_prefix: Some("#"),
+        ..Language::new()
+    }
+}
+
+const fn ki_quickfix() -> Language {
+    Language {
+        extensions: &["ki_quickfix"],
+        lsp_language_id: Some(LanguageId::new("ki_quickfix")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "ki_quickfix",
+            url: "https://github.com/ki-editor/tree_sitter_quickfix",
+            commit: "master",
+            subpath: None,
+        }),
+        language_fallback: Some(CargoLinkedTreesitterLanguage::KiQuickfix),
         ..Language::new()
     }
 }

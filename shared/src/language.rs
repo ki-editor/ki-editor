@@ -82,6 +82,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Swift,
     Heex,
     Toml,
+    KiQuickfix,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -122,6 +123,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Swift => tree_sitter_swift::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Heex => tree_sitter_heex::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Toml => tree_sitter_toml_ng::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::KiQuickfix => tree_sitter_quickfix::language(),
         }
     }
 }

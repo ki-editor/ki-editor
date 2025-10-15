@@ -4736,14 +4736,8 @@ fn main() {
 7│"
                 .to_string(),
             )),
-            Expect(GridCellsStyleKey(
-                [
-                    Position::new(2, 4),
-                    Position::new(2, 5),
-                    Position::new(2, 6),
-                    Position::new(2, 7),
-                ]
-                .to_vec(),
+            Expect(RangeStyleKey(
+                "t();",
                 Some(StyleKey::UiPrimarySelectionAnchors),
             )),
         ])
