@@ -1515,7 +1515,7 @@ fn test_global_search_replace(
 }
 
 #[test]
-fn test_global_repeat_search() -> anyhow::Result<()> {
+fn test_global_repeat_local_search() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -1544,6 +1544,50 @@ fn test_global_repeat_search() -> anyhow::Result<()> {
             )),
             StimulateEventLoopTick,
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
+        ])
+    })
+}
+#[test]
+fn test_global_repeat_global_search() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello world".to_string())),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello world".to_string())),
+            App(SaveAll),
+            // Local search "world"
+            Editor(MatchLiteral("world".to_string())),
+            // Global search "hello"
+            App(UpdateLocalSearchConfig {
+                update: LocalSearchConfigUpdate::Search("hello".to_string()),
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
+            }),
+            StimulateEventLoopTick,
+            Expect(CurrentSelectedTexts(&["hello"])),
+            // Change the selection mode
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Expect(CurrentSelectedTexts(&["hello world"])),
+            Editor(RepeatSearch(
+                Scope::Global,
+                IfCurrentNotFound::LookForward,
+                None,
+            )),
+            StimulateEventLoopTick,
+            Expect(CurrentSelectedTexts(&["hello"])),
         ])
     })
 }

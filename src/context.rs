@@ -276,10 +276,6 @@ impl Context {
         &self.current_working_directory
     }
 
-    pub(crate) fn local_search_config(&self) -> &LocalSearchConfig {
-        &self.local_search_config
-    }
-
     pub(crate) fn global_search_config(&self) -> &GlobalSearchConfig {
         &self.global_search_config
     }
@@ -306,7 +302,7 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn get_local_search_config(&self, scope: Scope) -> &LocalSearchConfig {
+    pub(crate) fn local_search_config(&self, scope: Scope) -> &LocalSearchConfig {
         match scope {
             Scope::Local => &self.local_search_config,
             Scope::Global => &self.global_search_config.local_config,
