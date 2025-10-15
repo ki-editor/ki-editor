@@ -497,7 +497,7 @@ impl ExpectKind {
                                     .sum::<usize>(),
                             ),
             SelectionExtensionEnabled(expected) => contextualize(expected, &app.current_component().borrow().editor().selection_extension_enabled()),
-            CurrentSearch(scope,expected) => contextualize(*expected, &app.context().get_local_search_config(*scope).search()),
+            CurrentSearch(scope,expected) => contextualize(*expected, &app.context().local_search_config(*scope).search()),
             PromptHistory(key, expected) => contextualize(
                         expected,
                         &app.context().get_prompt_history(*key)
