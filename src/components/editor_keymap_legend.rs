@@ -1030,7 +1030,7 @@ impl Editor {
         context: &Context,
     ) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "LSP".to_string(),
+            title: "Context".to_string(),
 
             keymaps: Keymaps::new(&[
                 Keymap::new(
@@ -1198,8 +1198,8 @@ impl Editor {
                     Keymap::new(
                         context
                             .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::SpLsp),
-                        "LSP".to_string(),
+                            .get_space_keymap(&Meaning::SpCtx),
+                        "Context".to_string(),
                         Dispatch::ShowKeymapLegend(
                             self.space_context_keymap_legend_config(context),
                         ),

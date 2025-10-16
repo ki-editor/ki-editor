@@ -120,7 +120,7 @@ pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
         _____, _____, _____, _____, _____, /****/ _____, RevlS, RevlC, RevlM, _____,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ _____, SpEdt, SpPck, SpLsp, Explr,
+        _____, _____, _____, _____, _____, /****/ _____, SpEdt, SpPck, SpCtx, Explr,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, SHelp,
@@ -808,8 +808,8 @@ pub(crate) enum Meaning {
     SpEdt,
     /// Space Pick
     SpPck,
-    /// Space LSP
-    SpLsp,
+    /// Space Context
+    SpCtx,
     /// Revert hunk (to main branch)
     RvHkM,
     /// Revert hunk (to current branch)
