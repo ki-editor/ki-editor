@@ -28,6 +28,7 @@ pub(crate) struct Hunk {
 pub(crate) struct SimpleHunk {
     /// 0-based index
     pub(crate) new_line_range: Range<usize>,
+    pub(crate) old_content: String,
 
     pub(crate) kind: SimpleHunkKind,
 }
@@ -48,6 +49,13 @@ impl Hunk {
         let diff = imara_diff::Diff::compute(imara_diff::Algorithm::Histogram, &input);
         diff.hunks()
             .map(|hunk| SimpleHunk {
+                old_content: format!(
+                    "{}\n",
+                    old.lines()
+                        .skip(hunk.before.start as usize)
+                        .take((hunk.before.end - hunk.before.start) as usize)
+                        .join("\n")
+                ),
                 new_line_range: hunk.after.start as usize
                     ..hunk.after.end.max(hunk.after.start + 1) as usize,
                 kind: if hunk.is_pure_insertion() {

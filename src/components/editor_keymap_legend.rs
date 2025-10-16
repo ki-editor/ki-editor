@@ -1025,7 +1025,10 @@ impl Editor {
         }
     }
 
-    pub(crate) fn space_lsp_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub(crate) fn space_context_keymap_legend_config(
+        &self,
+        context: &Context,
+    ) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "LSP".to_string(),
 
@@ -1033,7 +1036,7 @@ impl Editor {
                 Keymap::new(
                     context
                         .keyboard_layout_kind()
-                        .get_space_lsp_keymap(&Meaning::LCdAc),
+                        .get_space_context_keymap(&Meaning::LCdAc),
                     "Code Actions".to_string(),
                     {
                         let cursor_char_index = self.get_cursor_char_index();
@@ -1056,16 +1059,40 @@ impl Editor {
                 Keymap::new(
                     context
                         .keyboard_layout_kind()
-                        .get_space_lsp_keymap(&Meaning::LHovr),
+                        .get_space_context_keymap(&Meaning::LHovr),
                     "Hover".to_string(),
                     Dispatch::RequestHover,
                 ),
                 Keymap::new(
                     context
                         .keyboard_layout_kind()
-                        .get_space_lsp_keymap(&Meaning::LRnme),
+                        .get_space_context_keymap(&Meaning::LRnme),
                     "Rename".to_string(),
                     Dispatch::PrepareRename,
+                ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_context_keymap(&Meaning::RvHkC),
+                    format!(
+                        "Revert Hunk{}",
+                        DiffMode::UnstagedAgainstCurrentBranch.display()
+                    ),
+                    Dispatch::ToEditor(DispatchEditor::RevertHunk(
+                        DiffMode::UnstagedAgainstCurrentBranch,
+                    )),
+                ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_context_keymap(&Meaning::RvHkM),
+                    format!(
+                        "Revert Hunk{}",
+                        DiffMode::UnstagedAgainstMainBranch.display()
+                    ),
+                    Dispatch::ToEditor(DispatchEditor::RevertHunk(
+                        DiffMode::UnstagedAgainstMainBranch,
+                    )),
                 ),
             ]),
         }
@@ -1173,7 +1200,9 @@ impl Editor {
                             .keyboard_layout_kind()
                             .get_space_keymap(&Meaning::SpLsp),
                         "LSP".to_string(),
-                        Dispatch::ShowKeymapLegend(self.space_lsp_keymap_legend_config(context)),
+                        Dispatch::ShowKeymapLegend(
+                            self.space_context_keymap_legend_config(context),
+                        ),
                     ),
                     Keymap::new(
                         context
