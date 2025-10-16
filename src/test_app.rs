@@ -4,6 +4,7 @@
 #[cfg(test)]
 use itertools::Itertools;
 
+use lazy_regex::regex;
 use lsp_types::Url;
 use my_proc_macros::{hex, key, keys};
 
@@ -85,7 +86,7 @@ pub(crate) enum Step {
     ExpectCustom(Box<dyn Fn()>),
     /// This is to simulate the main event loop,
     /// necessary for testing async features like Global Search
-    StimulateEventLoopTick,
+    WaitForAppMessage(&'static lazy_regex::Lazy<regex::Regex>),
 }
 
 impl Step {
@@ -99,7 +100,7 @@ impl Step {
             SuggestiveEditor(editor) => format!("SuggestiveEditor({editor:?})"),
             ExpectLater(_) => "ExpectLater(_)".to_string(),
             ExpectCustom(_) => "ExpectCustom(_)".to_string(),
-            StimulateEventLoopTick => "Tick".to_string(),
+            WaitForAppMessage(regex) => format!("WaitForAppMessage({regex:?})"),
         }
     }
 }
@@ -641,7 +642,7 @@ fn execute_test_helper(
 
         for step in steps.iter() {
             match step.to_owned() {
-                Step::StimulateEventLoopTick => app.handle_next_app_messages()?,
+                Step::WaitForAppMessage(regex) => app.handle_next_app_messages(regex)?,
                 Step::App(dispatch) => {
                     log(dispatch);
                     app.handle_dispatch(dispatch.to_owned())?
@@ -1337,7 +1338,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
             }),
-            StimulateEventLoopTick,
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
             Expect(Quickfixes(Box::new([
                 QuickfixListItem::new(
@@ -1570,7 +1571,7 @@ fn test_global_repeat_search() -> anyhow::Result<()> {
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
             }),
-            StimulateEventLoopTick,
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
             Expect(CurrentSelectedTexts(&["bye"])),
             // Change the selection mode
             Editor(SetSelectionMode(
@@ -1583,7 +1584,7 @@ fn test_global_repeat_search() -> anyhow::Result<()> {
                 IfCurrentNotFound::LookForward,
                 None,
             )),
-            StimulateEventLoopTick,
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
             Expect(CurrentSelectedTexts(&["bye"])),
         ])
     })
@@ -1678,7 +1679,7 @@ foo a // Line 10
             App(new_dispatch(LocalSearchConfigUpdate::Search(
                 "foo".to_string(),
             ))),
-            StimulateEventLoopTick,
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
             Expect(QuickfixListContent(
                 // Line 10 should be placed below Line 2 (sorted numerically, not lexicograhically)
                 "
@@ -1798,7 +1799,10 @@ src/main.rs
 "
                 .trim(),
             )),
-            StimulateEventLoopTick,
+            // We wait for 2 SyntaxHighlightResponse here because one is for main.rs,
+            // and the other one is for the quickfix list
+            WaitForAppMessage(regex!("SyntaxHighlightResponse")),
+            WaitForAppMessage(regex!("SyntaxHighlightResponse")),
             App(TerminalDimensionChanged(Dimension {
                 height: 20,
                 width: 50,

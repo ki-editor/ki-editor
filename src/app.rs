@@ -2706,13 +2706,16 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn handle_next_app_messages(&mut self) -> anyhow::Result<()> {
-        // Wait for 2 seconds
-        std::thread::sleep(Duration::from_secs(2));
-
-        // Then, proceed to process rest of the queued messages (if any)
-        while let Ok(app_message) = self.receiver.try_recv() {
+    pub(crate) fn handle_next_app_messages(
+        &mut self,
+        app_message_matcher: &lazy_regex::Lazy<regex::Regex>,
+    ) -> anyhow::Result<()> {
+        while let Ok(app_message) = self.receiver.recv() {
+            let string = format!("{app_message:?}");
             self.process_message(app_message)?;
+            if app_message_matcher.is_match(&string) {
+                break;
+            }
         }
         Ok(())
     }

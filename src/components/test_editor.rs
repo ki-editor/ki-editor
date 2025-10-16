@@ -28,6 +28,7 @@ use crate::{
 };
 
 use itertools::Itertools;
+use lazy_regex::regex;
 use my_proc_macros::{hex, key, keys};
 use serial_test::serial;
 
@@ -3808,7 +3809,7 @@ fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
                 keys!("space q f o o : : f o o enter").to_vec(),
             )),
             Expect(OpenedFilesCount(0)),
-            StimulateEventLoopTick,
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
             Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
             Editor(EnterInsertMode(Direction::Start)),
             App(HandleKeyEvents(keys!("a a esc").to_vec())),
@@ -3839,7 +3840,7 @@ fn background_editor_closing_no_system_buffer() -> anyhow::Result<()> {
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
-            StimulateEventLoopTick,
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
             Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 foo.rs "))),
             Expect(OpenedFilesCount(0)),
             App(CloseCurrentWindow),
@@ -4797,7 +4798,7 @@ fn escaping_quicfix_list_mode_should_not_change_selection() -> anyhow::Result<()
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             App(HandleKeyEvents(keys!("m o r i enter").to_vec())),
-            StimulateEventLoopTick,
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
             Expect(CurrentSelectedTexts(&["mori"])),
             App(HandleKeyEvents(keys!("esc").to_vec())),
