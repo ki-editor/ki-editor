@@ -1109,6 +1109,53 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+pub(crate) fn revert_git_hunk() -> Result<(), anyhow::Error> {
+    let original_content = "pub(crate) struct Foo {
+    a: (),
+    b: (),
+}
+
+pub(crate) fn foo() -> Foo {
+    Foo { a: (), b: () }
+}
+";
+    execute_test(|s| {
+        Box::new([
+            // Insert a comment at the first line of foo.rs
+            App(OpenFile {
+                path: s.foo_rs().clone(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentComponentContent(original_content)),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("/ / space H e l l o").to_vec())),
+            Expect(CurrentComponentContent(
+                "// Hellopub(crate) struct Foo {
+    a: (),
+    b: (),
+}
+
+pub(crate) fn foo() -> Foo {
+    Foo { a: (), b: () }
+}
+",
+            )),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                GitHunk(crate::git::DiffMode::UnstagedAgainstMainBranch),
+            )),
+            Expect(CurrentSelectedTexts(&["// Hellopub(crate) struct Foo {\n"])),
+            Editor(RevertHunk(
+                crate::git::DiffMode::UnstagedAgainstCurrentBranch,
+            )),
+            Expect(CurrentComponentContent(original_content)),
+            Expect(CurrentSelectedTexts(&["pub(crate) struct Foo {\n"])),
+        ])
+    })
+}
+
+#[test]
 pub(crate) fn non_git_ignored_files() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let temp_dir = s.temp_dir();

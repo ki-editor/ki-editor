@@ -9,9 +9,11 @@ use super::{
 use crate::{
     app::{Dimension, Dispatch, ToHostApp},
     buffer::Buffer,
+    char_index_range::range_intersects,
     components::component::Component,
     context::LocalSearchConfig,
     edit::{Action, ActionGroup, Edit, EditTransaction},
+    git::{DiffMode, GitOperation as _},
     list::grep::RegexConfig,
     lsp::completion::PositionalEdit,
     position::Position,
@@ -374,6 +376,7 @@ impl Component for Editor {
             RepeatSearch(scope, if_current_not_found, prior_change) => {
                 return self.repeat_search(context, scope, if_current_not_found, prior_change)
             }
+            RevertHunk(diff_mode) => return self.revert_hunk(context, diff_mode),
         }
         Ok(Default::default())
     }
@@ -3939,6 +3942,56 @@ impl Editor {
         });
         Ok(dispatches)
     }
+
+    fn revert_hunk(
+        &mut self,
+        context: &Context,
+        diff_mode: DiffMode,
+    ) -> anyhow::Result<Dispatches> {
+        let Some(path) = self.buffer().path() else {
+            return Ok(Default::default());
+        };
+        let hunks = path.simple_hunks(
+            &self.buffer().content(),
+            &diff_mode,
+            context.current_working_directory(),
+        )?;
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let buffer = self.buffer();
+                    let line_range = buffer.char_index_range_to_line_range(selection.range())?;
+                    let Some(matching_hunk) = hunks
+                        .iter()
+                        .find(|hunk| range_intersects(&hunk.new_line_range, &line_range))
+                    else {
+                        // Do nothing if this selection does not intersect with any hunks
+                        return Ok(ActionGroup::new(
+                            [Action::Select(selection.clone())].to_vec(),
+                        ));
+                    };
+
+                    let edit_range =
+                        buffer.line_range_to_char_index_range(&matching_hunk.new_line_range)?;
+                    let replacement: Rope = matching_hunk.old_content.clone().into();
+                    let select_range = {
+                        let start = buffer.line_to_char(matching_hunk.new_line_range.start)?;
+                        (start..start + replacement.len_chars()).into()
+                    };
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(self.buffer().rope(), edit_range, replacement)),
+                            Action::Select(selection.clone().set_range(select_range)),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
+        self.apply_edit_transaction(edit_transaction, context)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4077,6 +4130,7 @@ pub(crate) enum DispatchEditor {
     ToggleBlockComment,
     ShowKeymapLegendExtend,
     RepeatSearch(Scope, IfCurrentNotFound, Option<PriorChange>),
+    RevertHunk(DiffMode),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
