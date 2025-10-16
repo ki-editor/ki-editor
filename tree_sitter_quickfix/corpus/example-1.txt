@@ -1,40 +1,27 @@
 ==========
 Example 1
 ==========
-■┬ event/src/lib.rs
- ├ 5: pub(crate) use crate::event::{KeyEvent, KeyModifiers};
- └ 97: use crate::{KeyEvent, KeyModifiers};
- 
-■┬ shared/src/formatter.rs
- └ 3: use crate::language::ProcessCommand;
- 
-■┬ shared/src/language.rs
- ├ 4: pub(crate) use crate::process_command::ProcessCommand;
- ├ 5: use crate::{canonicalized_path::CanonicalizedPath, formatter::Formatter};
- └ 7: pub(crate) use crate::languages::LANGUAGES;
+event/src/lib.rs
+    hello
+    hello world
+
+event/src/lib.rs
+    hello
+
 ---
-  (source_file
-      (section
-        (header
-          (word))
-        (values
-          (value
-            (word))
-          (lastValue
-            (word))))
-      (section
-        (header
-          (word))
-        (values
-          (lastValue
-            (word))))
-      (section
-        (header
-          (word))
-        (values
-          (value
-            (word))
-          (value
-            (word))
-          (lastValue
-            (word)))))
+
+(source_file
+  (section
+    (header
+      (word))
+    (values
+      (value
+        (word))
+      (value
+        (word))))
+  (section
+    (header
+      (word))
+    (values
+      (value
+        (word)))))

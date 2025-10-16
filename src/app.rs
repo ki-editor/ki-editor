@@ -131,12 +131,13 @@ impl<T: Frontend> App<T> {
         status_line_components: Vec<StatusLineComponent>,
     ) -> anyhow::Result<App<T>> {
         let (sender, receiver) = std::sync::mpsc::channel();
+        let syntax_highlight_request_sender = crate::syntax_highlight::start_thread(sender.clone());
         Self::from_channel(
             frontend,
             working_directory,
             sender,
             receiver,
-            None, // No syntax highlight request sender
+            Some(syntax_highlight_request_sender), // No syntax highlight request sender
             status_line_components,
             None, // No integration event sender
             false,
@@ -2141,9 +2142,20 @@ impl<T: Frontend> App<T> {
         &mut self,
         quickfix_list: QuickfixList,
     ) -> anyhow::Result<()> {
-        let dispatches = self
+        let (editor, dispatches) = self
             .layout
             .show_quickfix_list(quickfix_list, &self.context)?;
+
+        let editor = editor.borrow();
+        let buffer = editor.buffer();
+        if let Some(language) = buffer.language() {
+            self.request_syntax_highlight(
+                editor.id(),
+                buffer.batch_id().clone(),
+                language,
+                buffer.content(),
+            )?;
+        };
         self.handle_dispatches(dispatches)
     }
 
@@ -2694,15 +2706,16 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn handle_next_app_message(&mut self) -> anyhow::Result<()> {
-        use std::time::Duration;
-
-        std::thread::sleep(Duration::from_secs(1));
-        match self.receiver.try_recv() {
-            Ok(app_message) => {
-                self.process_message(app_message)?;
+    pub(crate) fn handle_next_app_messages(
+        &mut self,
+        app_message_matcher: &lazy_regex::Lazy<regex::Regex>,
+    ) -> anyhow::Result<()> {
+        while let Ok(app_message) = self.receiver.recv() {
+            let string = format!("{app_message:?}");
+            self.process_message(app_message)?;
+            if app_message_matcher.is_match(&string) {
+                break;
             }
-            Err(err) => eprintln!("App::handle_next_app_message: {err:?}"),
         }
         Ok(())
     }

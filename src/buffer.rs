@@ -795,7 +795,6 @@ impl Buffer {
         self.language.clone()
     }
 
-    #[cfg(test)]
     pub(crate) fn set_language(&mut self, language: Language) -> anyhow::Result<()> {
         self.language = Some(language);
         self.reparse_tree()

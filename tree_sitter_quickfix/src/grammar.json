@@ -2,7 +2,7 @@
     "name": "quickfix",
     "rules": {
         "source_file": {
-            "type": "REPEAT",
+            "type": "REPEAT1",
             "content": {
                 "type": "SYMBOL",
                 "name": "section"
@@ -16,67 +16,48 @@
                     "name": "header"
                 },
                 {
+                    "type": "STRING",
+                    "value": "\n"
+                },
+                {
                     "type": "SYMBOL",
                     "name": "values"
                 }
             ]
         },
         "header": {
-            "type": "SEQ",
-            "members": [
-                {
-                    "type": "STRING",
-                    "value": "■┬"
-                },
-                {
-                    "type": "SYMBOL",
-                    "name": "word"
-                }
-            ]
+            "type": "SYMBOL",
+            "name": "word"
         },
         "values": {
-            "type": "SEQ",
-            "members": [
-                {
-                    "type": "REPEAT",
-                    "content": {
-                        "type": "SYMBOL",
-                        "name": "value"
-                    }
-                },
-                {
-                    "type": "SYMBOL",
-                    "name": "lastValue"
-                }
-            ]
+            "type": "REPEAT1",
+            "content": {
+                "type": "SYMBOL",
+                "name": "value"
+            }
         },
         "value": {
             "type": "SEQ",
             "members": [
                 {
                     "type": "STRING",
-                    "value": "├"
+                    "value": "    "
                 },
                 {
                     "type": "SYMBOL",
                     "name": "word"
                 },
                 {
-                    "type": "STRING",
-                    "value": "\n"
-                }
-            ]
-        },
-        "lastValue": {
-            "type": "SEQ",
-            "members": [
-                {
-                    "type": "STRING",
-                    "value": "└"
-                },
-                {
-                    "type": "SYMBOL",
-                    "name": "word"
+                    "type": "CHOICE",
+                    "members": [
+                        {
+                            "type": "STRING",
+                            "value": "\n"
+                        },
+                        {
+                            "type": "BLANK"
+                        }
+                    ]
                 }
             ]
         },

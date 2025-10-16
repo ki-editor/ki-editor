@@ -22,6 +22,7 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use nary_tree::NodeId;
 use shared::canonicalized_path::CanonicalizedPath;
+use shared::language::from_extension;
 use std::{cell::RefCell, rc::Rc};
 
 #[cfg(test)]
@@ -317,12 +318,17 @@ impl Layout {
         batch_id: SyntaxHighlightRequestBatchId,
         highlighted_spans: crate::syntax_highlight::HighlightedSpans,
     ) -> Result<(), anyhow::Error> {
-        let component = self
-            .background_suggestive_editors
-            .iter()
-            .find(|(_, component)| component.borrow().id() == component_id)
-            .map(|(_, component)| component)
-            .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))?;
+        let component = match &self.background_quickfix_list {
+            Some(component) if component.borrow().id() == component_id => {
+                Box::new(component.clone() as Rc<RefCell<dyn Component>>)
+            }
+            _ => self
+                .background_suggestive_editors
+                .iter()
+                .find(|(_, component)| component.borrow().id() == component_id)
+                .map(|(_, component)| Box::new(component.clone() as Rc<RefCell<dyn Component>>))
+                .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))?,
+        };
 
         let mut component = component.borrow_mut();
         component
@@ -430,7 +436,7 @@ impl Layout {
         &mut self,
         quickfix_list: QuickfixList,
         context: &Context,
-    ) -> anyhow::Result<Dispatches> {
+    ) -> anyhow::Result<(Rc<RefCell<Editor>>, Dispatches)> {
         let render = quickfix_list.render();
         let editor = self.background_quickfix_list.get_or_insert_with(|| {
             Rc::new(RefCell::new(Editor::from_text(
@@ -438,6 +444,10 @@ impl Layout {
                 "",
             )))
         });
+        editor
+            .borrow_mut()
+            .buffer_mut()
+            .set_language(from_extension("ki_quickfix").unwrap())?;
         let node_id =
             self.tree
                 .replace_root_node_child(ComponentKind::QuickfixList, editor.clone(), false);
@@ -457,6 +467,8 @@ impl Layout {
             self.tree.set_focus_component_id(node_id)
         }
 
+        let editor = (*editor).clone();
+
         if let Some(info) = render.info {
             self.show_info_on(
                 self.tree.root_id(),
@@ -465,7 +477,8 @@ impl Layout {
                 context,
             )?;
         }
-        Ok(dispatches)
+
+        Ok((editor, dispatches))
     }
 
     #[cfg(test)]
