@@ -32,6 +32,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
         let is_target_non_empty = |_: ropey::RopeSlice| true;
 
         let mut current_line_index = cursor_char_index.to_line(buffer)?;
+        let max_line_index = max_cursor_char_index.to_line(buffer)?;
 
         let Some(line) = buffer.get_line_by_line_index(current_line_index) else {
             return Ok(None);
@@ -45,7 +46,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
             match if_current_not_found {
                 IfCurrentNotFound::LookForward => {}
                 IfCurrentNotFound::LookBackward => {
-                    current_line_index = current_line_index - 1;
+                    current_line_index = current_line_index.saturating_sub(1);
                 }
             }
         } else if char_index_relative_to_line_start + 1
@@ -53,7 +54,8 @@ impl PositionBasedSelectionMode for LineTrimmed {
         {
             match if_current_not_found {
                 IfCurrentNotFound::LookForward => {
-                    current_line_index = current_line_index + 1;
+                    current_line_index =
+                        std::cmp::min(max_line_index, current_line_index.saturating_add(1));
                 }
                 IfCurrentNotFound::LookBackward => {}
             }
