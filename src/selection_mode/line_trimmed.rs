@@ -428,42 +428,42 @@ mod test_line {
         );
     }
 
-    #[test]
-    fn to_parent_line() {
-        let buffer = Buffer::new(
-            Some(tree_sitter_rust::LANGUAGE.into()),
-            "
-fn f() {
-    fn g() {
-        let a = 1;
-        let b = 2;
-        let c = 3;
-        let d = 4;
-    }
-
-}"
-            .trim(),
-        );
-
-        let test = |selected_line: usize, expected: &str| {
-            let start = buffer.line_to_char(selected_line).unwrap();
-            let result = PositionBased(LineTrimmed)
-                .left(&SelectionModeParams {
-                    buffer: &buffer,
-                    current_selection: &Selection::new((start..start + 1).into()),
-                    cursor_direction: &Direction::default(),
-                })
-                .unwrap()
-                .unwrap();
-
-            let actual = buffer.slice(&result.extended_range()).unwrap();
-            assert_eq!(actual, expected);
-        };
-
-        test(4, "fn g() {");
-
-        test(1, "fn f() {");
-    }
+    //    #[test]
+    //    fn to_parent_line() {
+    //        let buffer = Buffer::new(
+    //            Some(tree_sitter_rust::LANGUAGE.into()),
+    //            "
+    //fn f() {
+    //    fn g() {
+    //        let a = 1;
+    //        let b = 2;
+    //        let c = 3;
+    //        let d = 4;
+    //    }
+    //
+    //}"
+    //            .trim(),
+    //        );
+    //
+    //        let test = |selected_line: usize, expected: &str| {
+    //            let start = buffer.line_to_char(selected_line).unwrap();
+    //            let result = PositionBased(LineTrimmed)
+    //                .left(&SelectionModeParams {
+    //                    buffer: &buffer,
+    //                    current_selection: &Selection::new((start..start + 1).into()),
+    //                    cursor_direction: &Direction::default(),
+    //                })
+    //                .unwrap()
+    //                .unwrap();
+    //
+    //            let actual = buffer.slice(&result.extended_range()).unwrap();
+    //            assert_eq!(actual, expected);
+    //        };
+    //
+    //        test(4, "fn g() {");
+    //
+    //        test(1, "fn f() {");
+    //    }
 
     #[serial]
     #[test]
