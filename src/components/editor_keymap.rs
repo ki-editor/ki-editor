@@ -165,10 +165,22 @@ pub(crate) const KEYMAP_SPACE_CONTEXT_SHIFTED: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_SPACE_PICKER: KeyboardMeaningLayout = [
     [
-        _____, _____, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
         Theme, Symbl, File_, Buffr, GitFC, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
+pub(crate) const KEYMAP_SPACE_PICKER_SHIFTED: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
@@ -362,7 +374,13 @@ impl KeySet {
                 KEYMAP_SPACE_PICKER
                     .into_iter()
                     .flatten()
-                    .zip(layout.into_iter().flatten()),
+                    .zip(layout.into_iter().flatten())
+                    .chain(
+                        KEYMAP_SPACE_PICKER_SHIFTED
+                            .into_iter()
+                            .flatten()
+                            .zip(layout.into_iter().flatten().map(shifted)),
+                    ),
             ),
             space_editor: HashMap::from_iter(
                 KEYMAP_SPACE_EDITOR
