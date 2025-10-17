@@ -223,43 +223,6 @@ impl PositionBasedSelectionMode for LineTrimmed {
         Ok(None)
     }
 
-    fn next_char_index(
-        &self,
-        params: &SelectionModeParams,
-        range: crate::char_index_range::CharIndexRange,
-    ) -> anyhow::Result<CharIndex> {
-        let line_index = params.buffer.char_to_line(range.start)?;
-        params.buffer.line_to_char(line_index + 1)
-    }
-
-    #[cfg(test)]
-    fn previous_char_index(
-        &self,
-        params: &SelectionModeParams,
-        range: crate::char_index_range::CharIndexRange,
-    ) -> anyhow::Result<CharIndex> {
-        let line_index = params.buffer.char_to_line(range.start)?;
-        params.buffer.line_to_char(line_index - 1)
-    }
-
-    fn delete_forward(
-        &self,
-        params: &SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        Ok(PositionBased(self.clone())
-            .right(params)?
-            .map(|result| result))
-    }
-
-    fn delete_backward(
-        &self,
-        params: &SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        Ok(PositionBased(self.clone())
-            .left(params)?
-            .map(|result| result))
-    }
-
     fn process_paste_gap(
         &self,
         params: &super::SelectionModeParams,
@@ -294,6 +257,7 @@ fn get_padding_whitespace(line: ropey::RopeSlice) -> PaddingWhitespace {
     PaddingWhitespace { leading, trailing }
 }
 
+#[allow(dead_code)]
 fn expanded_range(
     buffer: &crate::buffer::Buffer,
     char_index: CharIndex,
