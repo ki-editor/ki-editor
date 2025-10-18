@@ -4,6 +4,7 @@
 #[cfg(test)]
 use itertools::Itertools;
 
+use lazy_regex::regex;
 use lsp_types::Url;
 use my_proc_macros::{hex, key, keys};
 
@@ -12,7 +13,6 @@ use serial_test::serial;
 use strum::IntoEnumIterator;
 
 use std::{
-    ops::Range,
     path::PathBuf,
     rc::Rc,
     sync::{Arc, Mutex},
@@ -36,7 +36,7 @@ use crate::{
         App, Dimension, Dispatch, LocalSearchConfigUpdate, RequestParams, Scope,
         StatusLineComponent,
     },
-    buffer::BufferOwner,
+    buffer::{Buffer, BufferOwner},
     char_index_range::CharIndexRange,
     clipboard::CopiedTexts,
     components::{
@@ -52,7 +52,7 @@ use crate::{
     },
     context::{GlobalMode, LocalSearchConfigMode},
     frontend::{mock::MockFrontend, MyWriter, NullWriter, StringWriter},
-    grid::StyleKey,
+    grid::{IndexedHighlightGroup, StyleKey},
     integration_test::{TestOutput, TestRunner},
     list::grep::RegexConfig,
     lsp::{
@@ -65,9 +65,9 @@ use crate::{
         workspace_edit::{TextDocumentEdit, WorkspaceEdit},
     },
     position::Position,
-    quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
+    quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem, QuickfixListType},
     rectangle::Rectangle,
-    selection::SelectionMode,
+    selection::{CharIndex, SelectionMode},
     style::Style,
     themes::Theme,
     ui_tree::ComponentKind,
@@ -84,6 +84,9 @@ pub(crate) enum Step {
     SuggestiveEditor(DispatchSuggestiveEditor),
     ExpectLater(Box<dyn Fn() -> ExpectKind>),
     ExpectCustom(Box<dyn Fn()>),
+    /// This is to simulate the main event loop,
+    /// necessary for testing async features like Global Search
+    WaitForAppMessage(&'static lazy_regex::Lazy<regex::Regex>),
 }
 
 impl Step {
@@ -97,6 +100,7 @@ impl Step {
             SuggestiveEditor(editor) => format!("SuggestiveEditor({editor:?})"),
             ExpectLater(_) => "ExpectLater(_)".to_string(),
             ExpectCustom(_) => "ExpectCustom(_)".to_string(),
+            WaitForAppMessage(regex) => format!("WaitForAppMessage({regex:?})"),
         }
     }
 }
@@ -144,9 +148,10 @@ pub(crate) enum ExpectKind {
     GridCellLine(/*Row*/ usize, /*Column*/ usize, Color),
     GridCellStyleKey(Position, Option<StyleKey>),
     GridCellsStyleKey(Vec<Position>, Option<StyleKey>),
+    RangeStyleKey(/*Search*/ &'static str, Option<StyleKey>),
     HighlightSpans(std::ops::Range<usize>, StyleKey),
     DiagnosticsRanges(Vec<CharIndexRange>),
-    BufferQuickfixListItems(Vec<Range<Position>>),
+    BufferQuickfixListItems(Vec<CharIndexRange>),
     ComponentCount(usize),
     CurrentComponentPath(Option<CanonicalizedPath>),
     OpenedFilesCount(usize),
@@ -336,6 +341,35 @@ impl ExpectKind {
                                 }),
                                 format!("Expected positions {positions:?} to be styled as {style_key:?}"),
                             ),
+            RangeStyleKey(search, style_key) => {
+                                let grid = component.borrow_mut().editor_mut().get_grid(context, false);
+                                let grid_string = grid.to_string();
+                                let matches = grid_string.match_indices(search).collect_vec();
+                                let byte_range = match matches.split_first() {
+                                    Some(((byte_start, str),[])) => *byte_start..byte_start + str.len(),
+                                    Some((_,_)) =>
+                                        panic!("{search:?} should only match 1 range, but it matches {} ranges.", matches.len()),
+                                    None =>
+                                        panic!("{search:?} should only match 1 range, but it matches nothing."),
+                                };
+                                // We use Buffer to obtain the position range given the byte range
+                                let buffer = Buffer::new(None, &grid_string);
+                                let positions = byte_range.map(|byte|buffer.byte_to_position(byte).unwrap()).collect_vec();
+                                if positions.is_empty() {
+                                    panic!("There are 0 positions");
+                                }
+                                (positions.iter().all(|position| {
+                                    let actual_style_key = &grid
+                                        .grid
+                                        .rows[position.line][position.column]
+                                        .source;
+                                    if actual_style_key!=style_key {
+                                        log(format!("Expected {position:?} to be styled as {style_key:?}, but got {actual_style_key:?}"));
+                                    }
+                                    actual_style_key == style_key
+                                }),
+                                format!("Expected positions {positions:?} to be styled as {style_key:?}"))
+                            },
             CompletionDropdownIsOpen(is_open) => {
                                 contextualize(app.completion_dropdown_is_open(), *is_open)
                             }
@@ -358,8 +392,8 @@ impl ExpectKind {
             QuickfixListContent(content) => {
                                 let actual = app.get_quickfix_list().unwrap().render().content;
                                 let expected = content.to_string();
-                                log(format!("expected =\n{expected}"));
-                                log(format!("actual   =\n{actual}"));
+                                println!("Expected =\n{expected}");
+                                println!("Actual =\n{actual}");
                                 contextualize(expected, actual)
                             }
             DropdownInfosCount(expected) => {
@@ -424,13 +458,10 @@ impl ExpectKind {
                             ),
             BufferQuickfixListItems(expected) => contextualize(
                                 expected,
-                                &app.current_component()
-                                    .borrow()
-                                    .editor()
-                                    .buffer()
+                                &app.context()
                                     .quickfix_list_items()
                                     .into_iter()
-                                    .map(|d| d.location().range.clone())
+                                    .map(|d| d.location().range)
                                     .collect_vec(),
                             ),
             ComponentCount(expected) => contextualize(expected, &app.components().len()),
@@ -497,7 +528,7 @@ impl ExpectKind {
                                     .sum::<usize>(),
                             ),
             SelectionExtensionEnabled(expected) => contextualize(expected, &app.current_component().borrow().editor().selection_extension_enabled()),
-            CurrentSearch(scope,expected) => contextualize(*expected, &app.context().get_local_search_config(*scope).search()),
+            CurrentSearch(scope,expected) => contextualize(*expected, &app.context().local_search_config(*scope).search()),
             PromptHistory(key, expected) => contextualize(
                         expected,
                         &app.context().get_prompt_history(*key)
@@ -611,6 +642,7 @@ fn execute_test_helper(
 
         for step in steps.iter() {
             match step.to_owned() {
+                Step::WaitForAppMessage(regex) => app.handle_next_app_messages(regex)?,
                 Step::App(dispatch) => {
                     log(dispatch);
                     app.handle_dispatch(dispatch.to_owned())?
@@ -1046,29 +1078,79 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                     QuickfixListItem::new(
                         Location {
                             path: path_new_file.clone().try_into().unwrap(),
-                            range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
+                            range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&["[This file is untracked or renamed]"]),
+                        None,
                     ),
                     QuickfixListItem::new(
                         Location {
                             path: s.foo_rs(),
-                            range: Position { line: 0, column: 0 }..Position { line: 1, column: 0 },
+                            range: (CharIndex(0)..CharIndex(32)).into(),
                         },
                         strs_to_strings(&[
                             "pub(crate) struct Foo {",
                             "// Hellopub(crate) struct Foo {",
                         ]),
+                        None,
                     ),
                     QuickfixListItem::new(
                         Location {
                             path: s.main_rs(),
-                            range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
+                            range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&["mod foo;"]),
+                        None,
                     ),
                 ]))
             })),
+        ])
+    })
+}
+
+#[test]
+pub(crate) fn revert_git_hunk() -> Result<(), anyhow::Error> {
+    let original_content = "pub(crate) struct Foo {
+    a: (),
+    b: (),
+}
+
+pub(crate) fn foo() -> Foo {
+    Foo { a: (), b: () }
+}
+";
+    execute_test(|s| {
+        Box::new([
+            // Insert a comment at the first line of foo.rs
+            App(OpenFile {
+                path: s.foo_rs().clone(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentComponentContent(original_content)),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("/ / space H e l l o").to_vec())),
+            Expect(CurrentComponentContent(
+                "// Hellopub(crate) struct Foo {
+    a: (),
+    b: (),
+}
+
+pub(crate) fn foo() -> Foo {
+    Foo { a: (), b: () }
+}
+",
+            )),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                GitHunk(crate::git::DiffMode::UnstagedAgainstMainBranch),
+            )),
+            Expect(CurrentSelectedTexts(&["// Hellopub(crate) struct Foo {\n"])),
+            Editor(RevertHunk(
+                crate::git::DiffMode::UnstagedAgainstCurrentBranch,
+            )),
+            Expect(CurrentComponentContent(original_content)),
+            Expect(CurrentSelectedTexts(&["pub(crate) struct Foo {\n"])),
         ])
     })
 }
@@ -1261,15 +1343,17 @@ fn global_marks() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
+                    None,
                     None,
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
+                    None,
                     None,
                 ),
             ]))),
@@ -1301,35 +1385,40 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
             }),
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
             Expect(Quickfixes(Box::new([
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position::new(0, 4)..Position::new(0, 7),
+                        range: (CharIndex(4)..CharIndex(7)).into(),
                     },
                     None,
+                    Some("foo bar foo bar".to_string()),
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position::new(0, 12)..Position::new(0, 15),
+                        range: (CharIndex(12)..CharIndex(15)).into(),
                     },
                     None,
+                    Some("foo bar foo bar".to_string()),
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position::new(0, 4)..Position::new(0, 7),
+                        range: (CharIndex(4)..CharIndex(7)).into(),
                     },
                     None,
+                    Some("foo bar foo bar".to_string()),
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position::new(0, 12)..Position::new(0, 15),
+                        range: (CharIndex(12)..CharIndex(15)).into(),
                     },
                     None,
+                    Some("foo bar foo bar".to_string()),
                 ),
             ]))),
             App(HandleKeyEvent(key!("esc"))),
@@ -1361,11 +1450,11 @@ fn local_lsp_references() -> anyhow::Result<()> {
                 [
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 2 },
+                        range: (CharIndex(0)..CharIndex(2)).into(),
                     },
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 3 }..Position { line: 0, column: 4 },
+                        range: (CharIndex(3)..CharIndex(4)).into(),
                     },
                 ]
                 .to_vec(),
@@ -1415,22 +1504,24 @@ fn global_diagnostics() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
                     Some(Info::new(
                         "Diagnostics".to_string(),
                         "To err is normal, but to err again is not.".to_string(),
                     )),
+                    None,
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
                     Some(Info::new(
                         "Diagnostics".to_string(),
                         "To err is normal, but to err again is not.".to_string(),
                     )),
+                    None,
                 ),
             ]))),
         ])
@@ -1510,26 +1601,38 @@ fn test_global_repeat_search() -> anyhow::Result<()> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetContent("hello world".to_string())),
+            Editor(SetContent("bye world".to_string())),
             App(OpenFile {
                 path: s.main_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetContent("hello world".to_string())),
+            Editor(SetContent("bye world".to_string())),
             App(SaveAll),
+            // Local search "world"
             Editor(MatchLiteral("world".to_string())),
-            Editor(SearchCurrentSelection(
+            // Global search "bye"
+            App(UpdateLocalSearchConfig {
+                update: LocalSearchConfigUpdate::Search("bye".to_string()),
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
+            }),
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
+            Expect(CurrentSelectedTexts(&["bye"])),
+            // Change the selection mode
+            Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                Scope::Local,
+                SelectionMode::Line,
             )),
-            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            Expect(CurrentSelectedTexts(&["bye world"])),
             Editor(RepeatSearch(
                 Scope::Global,
                 IfCurrentNotFound::LookForward,
                 None,
             )),
-            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
+            Expect(CurrentSelectedTexts(&["bye"])),
         ])
     })
 }
@@ -1589,7 +1692,7 @@ fn global_search_replace_naming_convention_agnostic() -> Result<(), anyhow::Erro
 }
 
 #[test]
-fn quickfix_list() -> Result<(), anyhow::Error> {
+fn quickfix_list_basic() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
             UpdateLocalSearchConfig {
@@ -1623,31 +1726,29 @@ foo a // Line 10
             App(new_dispatch(LocalSearchConfigUpdate::Search(
                 "foo".to_string(),
             ))),
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
             Expect(QuickfixListContent(
                 // Line 10 should be placed below Line 2 (sorted numerically, not lexicograhically)
-                format!(
-                    "
-■┬ {}
- ├─ 2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
- └─ 10:1  foo a // Line 10
+                "
+src/foo.rs
+    2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
+    10:1  foo a // Line 10
 
-■┬ {}
- ├─ 1:1  foo d
- └─ 2:1  foo c",
-                    s.foo_rs().display_absolute(),
-                    s.main_rs().display_absolute()
-                )
+src/main.rs
+    1:1  foo d
+    2:1  foo c
+               ".to_string()
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine(" ├─ 2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
+            Expect(QuickfixListCurrentLine("    2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
             Expect(CurrentPath(s.foo_rs())),
             Expect(CurrentLine("foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Expect(ComponentCount(2)),
             Editor(MoveSelection(Right)),
             Expect(ComponentCount(2)),
-            Expect(QuickfixListCurrentLine(" └─ 10:1  foo a // Line 10")),
+            Expect(QuickfixListCurrentLine("    10:1  foo a // Line 10")),
             Expect(CurrentLine("foo a // Line 10")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Right)),
@@ -1692,12 +1793,13 @@ fn main() {
                     [QuickfixListItem::new(
                         Location {
                             path: s.main_rs(),
-                            range: Position { line: 1, column: 2 }..Position { line: 1, column: 5 },
+                            range: (CharIndex(2)..CharIndex(5)).into(),
                         },
                         Some(Info::new(
                             "Hello world".to_string(),
                             "This is fine".to_string(),
                         )),
+                        None,
                     )]
                     .to_vec(),
                 ),
@@ -1714,6 +1816,51 @@ fn main() {
                 IfCurrentNotFound::LookForward,
             )),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}
+
+#[serial] // This test has to be run in serial otherwise it will fail
+#[test]
+fn quickfix_list_header_should_be_highlighted_as_keyword() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(SetQuickfixList(
+                crate::quickfix_list::QuickfixListType::Items(
+                    [QuickfixListItem::new(
+                        Location {
+                            path: s.main_rs(),
+                            range: (CharIndex(2)..CharIndex(5)).into(),
+                        },
+                        None,
+                        None,
+                    )]
+                    .to_vec(),
+                ),
+            )),
+            App(OtherWindow),
+            Expect(CurrentComponentContent(
+                "
+src/main.rs
+    1:3  mod foo;
+"
+                .trim(),
+            )),
+            // We wait for 2 SyntaxHighlightResponse here because one is for main.rs,
+            // and the other one is for the quickfix list
+            WaitForAppMessage(regex!("SyntaxHighlightResponse")),
+            WaitForAppMessage(regex!("SyntaxHighlightResponse")),
+            App(TerminalDimensionChanged(Dimension {
+                height: 20,
+                width: 50,
+            })),
+            // Expect "src/main.rs" is highlighted with "keyword"
+            Expect(RangeStyleKey(
+                "src/main.rs",
+                Some(StyleKey::Syntax(
+                    IndexedHighlightGroup::from_str("keyword").unwrap(),
+                )),
+            )),
         ])
     })
 }
@@ -2636,11 +2783,11 @@ fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
                     [
                         Location {
                             path: s.foo_rs(),
-                            range: Position::new(0, 0)..Position::new(0, 1),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
                         },
                         Location {
                             path: s.foo_rs(),
-                            range: Position::new(1, 0)..Position::new(1, 1),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
                         },
                     ]
                     .to_vec(),
@@ -3152,6 +3299,52 @@ fn renaming_marked_files_should_update_file_marks() -> anyhow::Result<()> {
 2│"#
                 .to_string(),
             )),
+        ])
+    })
+}
+
+#[test]
+fn escape_global_diagnostics_should_not_change_selection() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        let diagnostic = |path: CanonicalizedPath| {
+            Dispatch::HandleLspNotification(LspNotification::PublishDiagnostics(
+                lsp_types::PublishDiagnosticsParams {
+                    uri: Url::from_file_path(path).unwrap(),
+                    diagnostics: [lsp_types::Diagnostic::new_simple(
+                        lsp_types::Range::new(
+                            lsp_types::Position::new(0, 0),
+                            lsp_types::Position::new(0, 3),
+                        ),
+                        "".to_string(),
+                    )]
+                    .to_vec(),
+                    version: None,
+                },
+            ))
+        };
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            App(diagnostic(s.foo_rs())),
+            App(diagnostic(s.main_rs())),
+            App(Dispatch::SetQuickfixList(QuickfixListType::Diagnostic(
+                DiagnosticSeverityRange::All,
+            ))),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            Expect(CurrentSelectedTexts(&["pub"])),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            Expect(CurrentSelectedTexts(&["mod"])),
+            App(HandleKeyEvent(key!("esc"))),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            Expect(CurrentSelectedTexts(&["mod"])),
         ])
     })
 }

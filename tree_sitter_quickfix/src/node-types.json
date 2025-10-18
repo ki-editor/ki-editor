@@ -15,21 +15,6 @@
         }
     },
     {
-        "type": "lastValue",
-        "named": true,
-        "fields": {},
-        "children": {
-            "multiple": false,
-            "required": true,
-            "types": [
-                {
-                    "type": "word",
-                    "named": true
-                }
-            ]
-        }
-    },
-    {
         "type": "section",
         "named": true,
         "fields": {},
@@ -54,7 +39,7 @@
         "fields": {},
         "children": {
             "multiple": true,
-            "required": false,
+            "required": true,
             "types": [
                 {
                     "type": "section",
@@ -87,10 +72,6 @@
             "required": true,
             "types": [
                 {
-                    "type": "lastValue",
-                    "named": true
-                },
-                {
                     "type": "value",
                     "named": true
                 }
@@ -102,19 +83,11 @@
         "named": false
     },
     {
+        "type": "    ",
+        "named": false
+    },
+    {
         "type": "word",
         "named": true
-    },
-    {
-        "type": "└",
-        "named": false
-    },
-    {
-        "type": "├",
-        "named": false
-    },
-    {
-        "type": "■┬",
-        "named": false
     }
 ]

@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import type { Dispatcher } from "../dispatcher";
 import type { Logger } from "../logger";
-import type { SelectionSet } from "../protocol/types";
+import type { SelectionSetParams } from "../protocol/types";
 import { JUMP_SAFETY_PADDING } from "./decoration_manager";
 import { Manager } from "./manager";
 import type { ModeManager } from "./mode_manager";
@@ -34,7 +34,7 @@ export class SelectionManager extends Manager {
         // Register integration event handlers
         this.dispatcher.registerKiNotificationHandler(
             "selection.update",
-            (params: SelectionSet) => {
+            (params: SelectionSetParams) => {
                 this.handleSelectionChanged(params);
             },
         );
@@ -130,7 +130,7 @@ export class SelectionManager extends Manager {
     /**
      * Handle selection changed event from Ki
      */
-    private async handleSelectionChanged(params: SelectionSet) {
+    private async handleSelectionChanged(params: SelectionSetParams) {
         if (this.modeManager.getCurrentMode() === "insert") {
             this.logger.error("ignoring selection change becos inest mode");
             return;

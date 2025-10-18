@@ -51,6 +51,7 @@
           alejandra
           fd
           cargo-watch
+          samply
         ];
 
         # Platform-aware buildInputs

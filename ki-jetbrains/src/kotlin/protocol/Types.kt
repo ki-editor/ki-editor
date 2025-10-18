@@ -99,7 +99,7 @@ sealed class InputMessage {
 	data class SyncBufferResponse(val params: SyncBufferResponseParams): InputMessage()
 	@Serializable
 	@SerialName("selection.set")
-	data class SelectionSet(val params: SelectionSet): InputMessage()
+	data class SelectionSet(val params: SelectionSetParams): InputMessage()
 	@Serializable
 	@SerialName("keyboard.input")
 	data class KeyboardInput(val params: KeyboardParams): InputMessage()
@@ -208,7 +208,7 @@ sealed class OutputMessage {
 	data class BufferDiff(val params: BufferDiffParams): OutputMessage()
 	@Serializable
 	@SerialName("selection.update")
-	data class SelectionUpdate(val params: SelectionSet): OutputMessage()
+	data class SelectionUpdate(val params: SelectionSetParams): OutputMessage()
 	@Serializable
 	@SerialName("mode.change")
 	data class ModeChange(val params: ModeParams): OutputMessage()
@@ -268,8 +268,7 @@ sealed class OutputMessage {
 @Serializable
 data class ResponseError (
 	val code: Int,
-	val message: String,
-	val data: Value? = null
+	val message: String
 )
 
 @Serializable
@@ -347,7 +346,7 @@ data class SelectionModeParams (
 )
 
 @Serializable
-data class SelectionSet (
+data class SelectionSetParams (
 	val uri: String? = null,
 	val selections: List<Selection>
 )

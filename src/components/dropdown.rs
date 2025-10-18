@@ -470,27 +470,22 @@ impl Dropdown {
         }
     }
 
+    /// The formatted content should follow the syntax of tree_sitter_quickfix.
+    /// See more at tree_sitter_quickfix/grammar.js
     fn content(&self) -> String {
         self.filtered_item_groups
             .iter()
             .map(|group| {
                 if let Some(group_key) = group.group_key.as_ref() {
-                    let items_len = group.items.len();
                     let items = group
                         .items
                         .iter()
-                        .enumerate()
-                        .map(|(index, item)| {
+                        .map(|item| {
                             let content = item.item.display();
-                            let indicator = if index == items_len.saturating_sub(1) {
-                                "└─"
-                            } else {
-                                "├─"
-                            };
-                            format!(" {indicator} {content}")
+                            format!("    {content}")
                         })
                         .join("\n");
-                    format!("■┬ {group_key}\n{items}")
+                    format!("{group_key}\n{items}")
                 } else {
                     group
                         .items
@@ -822,29 +817,29 @@ mod test_dropdown {
         assert_eq!(
             dropdown.render().content.trim(),
             "
-■┬ 1
- └─ a
+1
+    a
 
-■┬ 2
- ├─ c
- └─ d
+2
+    c
+    d
 
-■┬ 3
- └─ b
+3
+    b
 "
             .trim()
         );
-        dropdown.assert_highlighted_content(" └─ a");
+        dropdown.assert_highlighted_content("    a");
 
         dropdown.next_group();
-        dropdown.assert_highlighted_content(" ├─ c");
+        dropdown.assert_highlighted_content("    c");
         dropdown.next_group();
-        dropdown.assert_highlighted_content(" └─ b");
+        dropdown.assert_highlighted_content("    b");
 
         dropdown.previous_group();
-        dropdown.assert_highlighted_content(" ├─ c");
+        dropdown.assert_highlighted_content("    c");
         dropdown.previous_group();
-        dropdown.assert_highlighted_content(" └─ a");
+        dropdown.assert_highlighted_content("    a");
     }
 
     #[test]

@@ -120,7 +120,7 @@ pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
         _____, _____, _____, _____, _____, /****/ _____, RevlS, RevlC, RevlM, _____,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ _____, SpEdt, SpPck, SpLsp, Explr,
+        _____, _____, _____, _____, _____, /****/ _____, SpEdt, SpPck, SpCtx, Explr,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, SHelp,
@@ -139,12 +139,24 @@ pub(crate) const KEYMAP_SPACE_EDITOR: KeyboardMeaningLayout = [
     ],
 ];
 
-pub(crate) const KEYMAP_SPACE_LSP: KeyboardMeaningLayout = [
+pub(crate) const KEYMAP_SPACE_CONTEXT: KeyboardMeaningLayout = [
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, LHovr, LCdAc, LRnme, _____, /****/ _____, _____, _____, _____, _____,
+        _____, LHovr, LCdAc, LRnme, RvHkC, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
+pub(crate) const KEYMAP_SPACE_CONTEXT_SHIFTED: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, RvHkM, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
@@ -153,10 +165,22 @@ pub(crate) const KEYMAP_SPACE_LSP: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_SPACE_PICKER: KeyboardMeaningLayout = [
     [
-        _____, _____, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
         Theme, Symbl, File_, Buffr, GitFC, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
+pub(crate) const KEYMAP_SPACE_PICKER_SHIFTED: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
@@ -246,7 +270,7 @@ struct KeySet {
     find_global: HashMap<Meaning, &'static str>,
     surround: HashMap<Meaning, &'static str>,
     space: HashMap<Meaning, &'static str>,
-    space_lsp: HashMap<Meaning, &'static str>,
+    space_context: HashMap<Meaning, &'static str>,
     space_picker: HashMap<Meaning, &'static str>,
     space_editor: HashMap<Meaning, &'static str>,
     transform: HashMap<Meaning, &'static str>,
@@ -334,17 +358,29 @@ impl KeySet {
                     .flatten()
                     .zip(layout.into_iter().flatten()),
             ),
-            space_lsp: HashMap::from_iter(
-                KEYMAP_SPACE_LSP
+            space_context: HashMap::from_iter(
+                KEYMAP_SPACE_CONTEXT
                     .into_iter()
                     .flatten()
-                    .zip(layout.into_iter().flatten()),
+                    .zip(layout.into_iter().flatten())
+                    .chain(
+                        KEYMAP_SPACE_CONTEXT_SHIFTED
+                            .into_iter()
+                            .flatten()
+                            .zip(layout.into_iter().flatten().map(shifted)),
+                    ),
             ),
             space_picker: HashMap::from_iter(
                 KEYMAP_SPACE_PICKER
                     .into_iter()
                     .flatten()
-                    .zip(layout.into_iter().flatten()),
+                    .zip(layout.into_iter().flatten())
+                    .chain(
+                        KEYMAP_SPACE_PICKER_SHIFTED
+                            .into_iter()
+                            .flatten()
+                            .zip(layout.into_iter().flatten().map(shifted)),
+                    ),
             ),
             space_editor: HashMap::from_iter(
                 KEYMAP_SPACE_EDITOR
@@ -446,10 +482,10 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub(crate) fn get_space_lsp_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub(crate) fn get_space_context_keymap(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
-            .space_lsp
+            .space_context
             .get(meaning)
             .cloned()
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
@@ -790,8 +826,12 @@ pub(crate) enum Meaning {
     SpEdt,
     /// Space Pick
     SpPck,
-    /// Space LSP
-    SpLsp,
+    /// Space Context
+    SpCtx,
+    /// Revert hunk (to main branch)
+    RvHkM,
+    /// Revert hunk (to current branch)
+    RvHkC,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

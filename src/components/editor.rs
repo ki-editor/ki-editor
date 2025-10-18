@@ -9,12 +9,15 @@ use super::{
 use crate::{
     app::{Dimension, Dispatch, ToHostApp},
     buffer::Buffer,
+    char_index_range::range_intersects,
     components::component::Component,
     context::LocalSearchConfig,
     edit::{Action, ActionGroup, Edit, EditTransaction},
+    git::{DiffMode, GitOperation as _},
     list::grep::RegexConfig,
     lsp::completion::PositionalEdit,
     position::Position,
+    quickfix_list::QuickfixListItem,
     rectangle::Rectangle,
     search::parse_search_config,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
@@ -240,12 +243,13 @@ impl Component for Editor {
             EnterSwapMode => self.enter_swap_mode(),
             ReplacePattern { config } => {
                 let selection_set = self.selection_set.clone();
-                let (_, selection_set, _) =
+                let (_, selection_set, dispatches, _) =
                     self.buffer_mut()
                         .replace(config, selection_set, last_visible_line)?;
                 return Ok(self
                     .update_selection_set(selection_set, false, context)
-                    .chain(self.get_document_did_change_dispatch()));
+                    .chain(self.get_document_did_change_dispatch())
+                    .chain(dispatches));
             }
             Undo => {
                 let dispatches = self.undo(context);
@@ -372,6 +376,7 @@ impl Component for Editor {
             RepeatSearch(scope, if_current_not_found, prior_change) => {
                 return self.repeat_search(context, scope, if_current_not_found, prior_change)
             }
+            RevertHunk(diff_mode) => return self.revert_hunk(context, diff_mode),
         }
         Ok(Default::default())
     }
@@ -783,14 +788,10 @@ impl Editor {
         Dispatches::default().append_some(show_info)
     }
 
-    pub(crate) fn position_range_to_selection_set(
+    pub(crate) fn char_index_range_to_selection_set(
         &self,
-        range: Range<Position>,
+        range: CharIndexRange,
     ) -> anyhow::Result<SelectionSet> {
-        let range = (self.buffer().position_to_char(range.start)?
-            ..self.buffer().position_to_char(range.end)?)
-            .into();
-
         let mode = if self.buffer().given_range_is_node(&range) {
             SelectionMode::SyntaxNode
         } else {
@@ -951,6 +952,7 @@ impl Editor {
         selection: &Selection,
         use_current_selection_mode: bool,
         working_directory: &shared::canonicalized_path::CanonicalizedPath,
+        quickfix_list_items: Vec<&QuickfixListItem>,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         if use_current_selection_mode {
             self.selection_set.mode().clone()
@@ -962,6 +964,7 @@ impl Editor {
             selection,
             &self.cursor_direction,
             working_directory,
+            quickfix_list_items,
         )
     }
 
@@ -977,6 +980,7 @@ impl Editor {
             selection,
             use_current_selection_mode,
             context.current_working_directory(),
+            context.quickfix_list_items(),
         )?;
 
         let line_ranges = if let Some(ranges) = &self.visible_line_ranges {
@@ -1392,13 +1396,14 @@ impl Editor {
     ) -> anyhow::Result<Dispatches> {
         // Apply the transaction to the buffer
         let last_visible_line = self.last_visible_line(context);
-        let (new_selection_set, edits) = self.buffer.borrow_mut().apply_edit_transaction(
-            &edit_transaction,
-            self.selection_set.clone(),
-            self.mode != Mode::Insert,
-            true,
-            last_visible_line,
-        )?;
+        let (new_selection_set, dispatches, diff_edits) =
+            self.buffer.borrow_mut().apply_edit_transaction(
+                &edit_transaction,
+                self.selection_set.clone(),
+                self.mode != Mode::Insert,
+                true,
+                last_visible_line,
+            )?;
 
         // Create a BufferEditTransaction dispatch for external integrations
         let buffer_edit_dispatch = if context.is_running_as_embedded() {
@@ -1412,7 +1417,7 @@ impl Editor {
                         // Create a dispatch to send buffer edit transaction to external integrations
                         Dispatches::one(Dispatch::ToHostApp(ToHostApp::BufferEditTransaction {
                             path,
-                            edits,
+                            edits: diff_edits,
                         }))
                     })
                 })
@@ -1431,7 +1436,8 @@ impl Editor {
         // Add the buffer edit transaction dispatch
         let dispatches = self
             .get_document_did_change_dispatch()
-            .chain(buffer_edit_dispatch);
+            .chain(buffer_edit_dispatch)
+            .chain(dispatches);
 
         Ok(dispatches)
     }
@@ -2097,6 +2103,7 @@ impl Editor {
                                 current_selection,
                                 &self.cursor_direction,
                                 context.current_working_directory(),
+                                context.quickfix_list_items(),
                             )
                             .ok()?;
 
@@ -2145,6 +2152,7 @@ impl Editor {
                                 current_selection,
                                 &self.cursor_direction,
                                 context.current_working_directory(),
+                                context.quickfix_list_items(),
                             )
                             .ok()?;
                         let params = selection_mode::SelectionModeParams {
@@ -2455,6 +2463,7 @@ impl Editor {
                     selection,
                     true,
                     context.current_working_directory(),
+                    context.quickfix_list_items(),
                 )?;
                 let buffer = self.buffer.borrow();
                 let gap = object.get_paste_gap(
@@ -2563,8 +2572,8 @@ impl Editor {
     fn do_save(&mut self, force: bool, context: &Context) -> anyhow::Result<Dispatches> {
         let last_visible_line = self.last_visible_line(context);
 
-        let path = if context.is_running_as_embedded() {
-            self.path()
+        let (dispatches, path) = if context.is_running_as_embedded() {
+            (Dispatches::default(), self.path())
         } else {
             self.buffer
                 .borrow_mut()
@@ -2582,6 +2591,7 @@ impl Editor {
             .append(Dispatch::DocumentDidSave { path })
             .chain(self.get_document_did_change_dispatch())
             .append(Dispatch::RemainOnlyCurrentComponent)
+            .chain(dispatches)
             .append_some(if self.selection_set.mode().is_contiguous() {
                 Some(Dispatch::ToEditor(MoveSelection(Movement::Current(
                     IfCurrentNotFound::LookForward,
@@ -3128,12 +3138,12 @@ impl Editor {
         self.recalculate_scroll_offset(context)
     }
 
-    pub(crate) fn set_position_range(
+    pub(crate) fn set_char_index_range(
         &mut self,
-        range: Range<Position>,
+        range: CharIndexRange,
         context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
-        let selection_set = self.position_range_to_selection_set(range)?;
+        let selection_set = self.char_index_range_to_selection_set(range)?;
         Ok(self.update_selection_set(selection_set, true, context))
     }
 
@@ -3262,7 +3272,7 @@ impl Editor {
     }
 
     fn replace_with_pattern(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let config = context.local_search_config();
+        let config = context.local_search_config(Scope::Local);
         match config.mode {
             LocalSearchConfigMode::AstGrep => {
                 let edits = if let Some(language) = self.buffer().treesitter_language() {
@@ -3749,10 +3759,8 @@ impl Editor {
         dispatches
     }
 
-    pub(crate) fn current_selection_range(&self) -> anyhow::Result<Range<Position>> {
-        self.buffer().char_index_range_to_position_range(
-            self.selection_set.primary_selection().extended_range(),
-        )
+    pub(crate) fn current_selection_range(&self) -> CharIndexRange {
+        self.selection_set.primary_selection().extended_range()
     }
 
     pub(crate) fn window_title_height(&self, context: &Context) -> u16 {
@@ -3863,7 +3871,7 @@ impl Editor {
         &mut self,
         new_content: &str,
         context: &Context,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Dispatches> {
         let current_selection_set = self.selection_set.clone();
         let last_visible_line = self.last_visible_line(context);
         self.buffer_mut()
@@ -3918,7 +3926,7 @@ impl Editor {
         if_current_not_found: IfCurrentNotFound,
         prior_change: Option<PriorChange>,
     ) -> anyhow::Result<Dispatches> {
-        let Some(search) = context.local_search_config().last_search() else {
+        let Some(search) = context.local_search_config(scope).last_search() else {
             return Ok(Dispatches::default());
         };
         self.handle_prior_change(prior_change);
@@ -3933,6 +3941,56 @@ impl Editor {
             run_search_after_config_updated: true,
         });
         Ok(dispatches)
+    }
+
+    fn revert_hunk(
+        &mut self,
+        context: &Context,
+        diff_mode: DiffMode,
+    ) -> anyhow::Result<Dispatches> {
+        let Some(path) = self.buffer().path() else {
+            return Ok(Default::default());
+        };
+        let hunks = path.simple_hunks(
+            &self.buffer().content(),
+            &diff_mode,
+            context.current_working_directory(),
+        )?;
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let buffer = self.buffer();
+                    let line_range = buffer.char_index_range_to_line_range(selection.range())?;
+                    let Some(matching_hunk) = hunks
+                        .iter()
+                        .find(|hunk| range_intersects(&hunk.new_line_range, &line_range))
+                    else {
+                        // Do nothing if this selection does not intersect with any hunks
+                        return Ok(ActionGroup::new(
+                            [Action::Select(selection.clone())].to_vec(),
+                        ));
+                    };
+
+                    let edit_range =
+                        buffer.line_range_to_char_index_range(&matching_hunk.new_line_range)?;
+                    let replacement: Rope = matching_hunk.old_content.clone().into();
+                    let select_range = {
+                        let start = buffer.line_to_char(matching_hunk.new_line_range.start)?;
+                        (start..start + replacement.len_chars()).into()
+                    };
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(self.buffer().rope(), edit_range, replacement)),
+                            Action::Select(selection.clone().set_range(select_range)),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
+        self.apply_edit_transaction(edit_transaction, context)
     }
 }
 
@@ -4072,6 +4130,7 @@ pub(crate) enum DispatchEditor {
     ToggleBlockComment,
     ShowKeymapLegendExtend,
     RepeatSearch(Scope, IfCurrentNotFound, Option<PriorChange>),
+    RevertHunk(DiffMode),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

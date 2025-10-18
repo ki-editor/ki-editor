@@ -14,7 +14,7 @@ import { Manager } from "./manager";
 export class ModeManager extends Manager {
     private currentMode: EditorMode = EditorMode.Normal;
     private currentSelectionMode: SelectionModeParams["mode"] = {
-        type: "Line",
+        tag: "Line",
     };
     private statusBarItem: vscode.StatusBarItem;
     private context: vscode.ExtensionContext;
@@ -145,13 +145,13 @@ export class ModeManager extends Manager {
         const { modeText, icon } = modeInfo;
 
         const selectionModeText = (() => {
-            switch (this.currentSelectionMode.type) {
+            switch (this.currentSelectionMode.tag) {
                 case "Diagnostic":
                     return this.currentSelectionMode.params;
                 case "Find":
                     return `Find ${JSON.stringify(this.currentSelectionMode.params.search)}`;
                 default:
-                    return this.currentSelectionMode.type;
+                    return this.currentSelectionMode.tag;
             }
         })();
 

@@ -313,8 +313,10 @@ impl KeymapPrintSections {
                 layout,
             ),
             KeymapPrintSection::from_keymaps(
-                "Space LSP".to_string(),
-                &editor.space_lsp_keymap_legend_config(&context).keymaps(),
+                "Space Context".to_string(),
+                &editor
+                    .space_context_keymap_legend_config(&context)
+                    .keymaps(),
                 layout,
             ),
             KeymapPrintSection::from_keymaps(

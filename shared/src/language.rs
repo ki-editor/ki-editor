@@ -82,6 +82,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Swift,
     Heex,
     Toml,
+    KiQuickfix,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -122,6 +123,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Swift => tree_sitter_swift::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Heex => tree_sitter_heex::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Toml => tree_sitter_toml_ng::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::KiQuickfix => tree_sitter_quickfix::language(),
         }
     }
 }
@@ -194,12 +196,6 @@ impl Language {
 
     pub fn tree_sitter_language(&self) -> Option<tree_sitter::Language> {
         grammar::grammar::get_language(&self.tree_sitter_grammar_config()?.grammar_id)
-            .map_err(|err| {
-                log::error!(
-                    "Language::tree_sitter_language: unable to obtain language due to {err:?}"
-                );
-                err
-            })
             .ok()
             .or_else(|| Some(self.language_fallback.clone()?.to_tree_sitter_language()))
     }

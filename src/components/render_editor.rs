@@ -19,6 +19,7 @@ use crate::{
     git::hunk::SimpleHunk,
     grid::{CellUpdate, Grid, RenderContentLineNumber, StyleKey},
     position::Position,
+    quickfix_list::QuickfixListItem,
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
     soft_wrap::wrap_items,
@@ -65,6 +66,7 @@ impl Editor {
             None => self.get_grid_with_dimension(
                 context.theme(),
                 context.current_working_directory(),
+                context.quickfix_list_items(),
                 render_area,
                 scroll_offset,
                 Some(self.selection_set.primary_selection().range()),
@@ -113,6 +115,7 @@ impl Editor {
             editor.get_grid_with_dimension(
                 &theme,
                 context.current_working_directory(),
+                context.quickfix_list_items(),
                 dimension,
                 0,
                 None,
@@ -184,6 +187,7 @@ impl Editor {
                 .revealed_selections(
                     self.selection_set.primary_selection(),
                     context.current_working_directory(),
+                    context.quickfix_list_items(),
                 )
                 .unwrap_or_default()
                 .into_iter()
@@ -250,6 +254,7 @@ impl Editor {
                 grid.merge_vertical(self.get_grid_with_dimension(
                     context.theme(),
                     context.current_working_directory(),
+                    context.quickfix_list_items(),
                     Dimension {
                         height: viewport_section.height() as u16,
                         width: self.dimension().width,
@@ -273,6 +278,7 @@ impl Editor {
         &self,
         theme: &Theme,
         working_directory: &CanonicalizedPath,
+        quickfix_list_items: Vec<&QuickfixListItem>,
         dimension: Dimension,
         scroll_offset: u16,
         protected_range: Option<CharIndexRange>,
@@ -330,6 +336,7 @@ impl Editor {
                 &hidden_parent_line_ranges,
                 &visible_parent_lines,
                 protected_range,
+                quickfix_list_items,
             );
             let boundaries = hidden_parent_line_ranges
                 .into_iter()
@@ -514,6 +521,7 @@ impl Editor {
         grid
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn get_highlight_spans(
         &self,
         theme: &Theme,
@@ -522,6 +530,7 @@ impl Editor {
         hidden_parent_line_ranges: &[Range<usize>],
         visible_parent_lines: &[Line],
         protected_range: Option<CharIndexRange>,
+        quickfix_list_items: Vec<&QuickfixListItem>,
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
         let buffer = self.buffer();
@@ -541,6 +550,7 @@ impl Editor {
                     self.selection_set.primary_selection(),
                     working_directory,
                     visible_line_range,
+                    quickfix_list_items,
                 )
                 .unwrap_or_default()
             }
@@ -870,8 +880,14 @@ impl Editor {
         selection: &Selection,
         working_directory: &CanonicalizedPath,
         line_number_range: &Range<usize>,
+        quickfix_list_items: Vec<&QuickfixListItem>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        let object = self.get_selection_mode_trait_object(selection, true, working_directory)?;
+        let object = self.get_selection_mode_trait_object(
+            selection,
+            true,
+            working_directory,
+            quickfix_list_items,
+        )?;
         if self.selection_set.mode().is_contiguous() {
             return Ok(Vec::new());
         }
@@ -890,13 +906,19 @@ impl Editor {
         &self,
         selection: &Selection,
         working_directory: &CanonicalizedPath,
+        quickfix_list_items: Vec<&QuickfixListItem>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        self.get_selection_mode_trait_object(selection, true, working_directory)?
-            .revealed_selections(&selection_mode::SelectionModeParams {
-                buffer: &self.buffer(),
-                current_selection: selection,
-                cursor_direction: &self.cursor_direction,
-            })
+        self.get_selection_mode_trait_object(
+            selection,
+            true,
+            working_directory,
+            quickfix_list_items,
+        )?
+        .revealed_selections(&selection_mode::SelectionModeParams {
+            buffer: &self.buffer(),
+            current_selection: selection,
+            cursor_direction: &self.cursor_direction,
+        })
     }
 }
 
@@ -1024,7 +1046,7 @@ impl HighlightSpan {
                     .unwrap_or_default()
             }
             HighlightSpanRange::Line(line) => buffer
-                .line_range_to_char_index_range(*line..line + 1)
+                .line_range_to_char_index_range(&(*line..line + 1))
                 .map(|char_range| {
                     (char_range.start.0..char_range.end.0)
                         .filter_map(|char_index| {

@@ -5,20 +5,17 @@ module.exports = grammar({
 
     rules: {
         // The entry point of the grammar
-        source_file: ($) => repeat($.section),
+        source_file: ($) => repeat1($.section),
 
         // A section is a header followed by zero or more values
-        section: ($) => seq($.header, $.values),
+        section: ($) => seq($.header, "\n", $.values),
 
-        // A header is a word enclosed in square brackets
-        header: ($) => seq("■┬", $.word),
+        header: ($) => $.word,
 
-        values: ($) => seq(repeat($.value), $.lastValue),
+        values: ($) => repeat1($.value),
 
         // A value is a word followed by a newline
-        value: ($) => seq("├", $.word, "\n"),
-
-        lastValue: ($) => seq("└", $.word),
+        value: ($) => seq("    ", $.word, optional("\n")),
 
         // A word is a sequence of non-whitespace characters
         word: (_$) => /[^\n]+/,

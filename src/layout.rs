@@ -22,6 +22,7 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use nary_tree::NodeId;
 use shared::canonicalized_path::CanonicalizedPath;
+use shared::language::from_extension;
 use std::{cell::RefCell, rc::Rc};
 
 #[cfg(test)]
@@ -317,12 +318,17 @@ impl Layout {
         batch_id: SyntaxHighlightRequestBatchId,
         highlighted_spans: crate::syntax_highlight::HighlightedSpans,
     ) -> Result<(), anyhow::Error> {
-        let component = self
-            .background_suggestive_editors
-            .iter()
-            .find(|(_, component)| component.borrow().id() == component_id)
-            .map(|(_, component)| component)
-            .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))?;
+        let component = match &self.background_quickfix_list {
+            Some(component) if component.borrow().id() == component_id => {
+                Box::new(component.clone() as Rc<RefCell<dyn Component>>)
+            }
+            _ => self
+                .background_suggestive_editors
+                .iter()
+                .find(|(_, component)| component.borrow().id() == component_id)
+                .map(|(_, component)| Box::new(component.clone() as Rc<RefCell<dyn Component>>))
+                .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))?,
+        };
 
         let mut component = component.borrow_mut();
         component
@@ -343,19 +349,21 @@ impl Layout {
     pub(crate) fn reload_buffers(
         &self,
         affected_paths: Vec<CanonicalizedPath>,
-    ) -> anyhow::Result<()> {
-        for buffer in self.buffers() {
-            let mut buffer = buffer.borrow_mut();
-            if let Some(path) = buffer.path() {
-                if affected_paths
-                    .iter()
-                    .any(|affected_path| affected_path == &path)
-                {
-                    buffer.reload()?;
+    ) -> anyhow::Result<Dispatches> {
+        self.buffers()
+            .into_iter()
+            .try_fold(Dispatches::default(), |dispatches, buffer| {
+                let mut buffer = buffer.borrow_mut();
+                if let Some(path) = buffer.path() {
+                    if affected_paths
+                        .iter()
+                        .any(|affected_path| affected_path == &path)
+                    {
+                        return Ok(dispatches.chain(buffer.reload()?));
+                    }
                 }
-            }
-        }
-        Ok(())
+                Ok(dispatches)
+            })
     }
 
     #[cfg(test)]
@@ -428,7 +436,7 @@ impl Layout {
         &mut self,
         quickfix_list: QuickfixList,
         context: &Context,
-    ) -> anyhow::Result<Dispatches> {
+    ) -> anyhow::Result<(Rc<RefCell<Editor>>, Dispatches)> {
         let render = quickfix_list.render();
         let editor = self.background_quickfix_list.get_or_insert_with(|| {
             Rc::new(RefCell::new(Editor::from_text(
@@ -436,8 +444,13 @@ impl Layout {
                 "",
             )))
         });
-        self.tree
-            .replace_root_node_child(ComponentKind::QuickfixList, editor.clone(), false);
+        editor
+            .borrow_mut()
+            .buffer_mut()
+            .set_language(from_extension("ki_quickfix").unwrap())?;
+        let node_id =
+            self.tree
+                .replace_root_node_child(ComponentKind::QuickfixList, editor.clone(), false);
         let dispatches = {
             let mut editor = editor.borrow_mut();
             editor.set_content(&render.content, context)?;
@@ -445,6 +458,17 @@ impl Layout {
             editor.set_title("Quickfix list".to_string());
             editor.select_line_at(render.highlight_line_index, context)?
         };
+
+        // If the QuickfixList is the only component in the layout,
+        // then it needs to be focused.
+        // This can happen when, say, the user executed a global search
+        // when no files have been opened yet.
+        if self.tree.components().len() == 1 {
+            self.tree.set_focus_component_id(node_id)
+        }
+
+        let editor = (*editor).clone();
+
         if let Some(info) = render.info {
             self.show_info_on(
                 self.tree.root_id(),
@@ -453,7 +477,8 @@ impl Layout {
                 context,
             )?;
         }
-        Ok(dispatches)
+
+        Ok((editor, dispatches))
     }
 
     #[cfg(test)]
@@ -509,12 +534,13 @@ impl Layout {
         &self,
         source: &QuickfixListSource,
     ) -> Vec<QuickfixListItem> {
-        self.buffers()
-            .into_iter()
-            .flat_map(|buffer| {
-                let buffer = buffer.borrow();
-                match source {
-                    QuickfixListSource::Diagnostic(severity_range) => buffer
+        match source {
+            QuickfixListSource::Diagnostic(severity_range) => self
+                .buffers()
+                .into_iter()
+                .flat_map(|buffer| {
+                    let buffer = buffer.borrow();
+                    buffer
                         .diagnostics()
                         .into_iter()
                         .filter_map(|diagnostic| {
@@ -522,45 +548,43 @@ impl Layout {
                                 return None;
                             }
 
-                            let position_range = buffer
-                                .char_index_range_to_position_range(diagnostic.range)
-                                .ok()?;
                             Some(QuickfixListItem::new(
                                 Location {
                                     path: buffer.path()?,
-                                    range: position_range,
+                                    range: diagnostic.range,
                                 },
                                 Some(Info::new(
                                     "Diagnostics".to_string(),
                                     diagnostic.message.clone(),
                                 )),
-                            ))
-                        })
-                        .collect_vec(),
-                    QuickfixListSource::Mark => buffer
-                        .marks()
-                        .into_iter()
-                        .filter_map(|mark| {
-                            let position_range =
-                                buffer.char_index_range_to_position_range(mark).ok()?;
-                            Some(QuickfixListItem::new(
-                                Location {
-                                    path: buffer.path()?,
-                                    range: position_range,
-                                },
                                 None,
                             ))
                         })
-                        .collect_vec(),
-                    QuickfixListSource::Custom => buffer.quickfix_list_items(),
-                }
-            })
-            .collect_vec()
-    }
-
-    pub(crate) fn clear_quickfix_list_items(&mut self) {
-        for buffer in self.buffers() {
-            buffer.borrow_mut().clear_quickfix_list_items()
+                        .collect_vec()
+                })
+                .collect_vec(),
+            QuickfixListSource::Mark => self
+                .buffers()
+                .into_iter()
+                .flat_map(|buffer| {
+                    let buffer = buffer.borrow();
+                    buffer
+                        .marks()
+                        .into_iter()
+                        .filter_map(|mark| {
+                            Some(QuickfixListItem::new(
+                                Location {
+                                    path: buffer.path()?,
+                                    range: mark,
+                                },
+                                None,
+                                None,
+                            ))
+                        })
+                        .collect_vec()
+                })
+                .collect_vec(),
+            QuickfixListSource::Custom(items) => items.iter().cloned().collect_vec(),
         }
     }
 

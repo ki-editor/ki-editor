@@ -19,12 +19,13 @@ use crate::{
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
+    edit::Edit,
     frontend::Frontend,
     git::{self},
     grid::{Grid, LineUpdate},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
     layout::Layout,
-    list::{self, WalkBuilderConfig},
+    list::{self, Match, WalkBuilderConfig},
     lsp::{
         completion::CompletionItem,
         goto_definition_response::GotoDefinitionResponse,
@@ -40,6 +41,7 @@ use crate::{
     search::parse_search_config,
     selection::{CharIndex, SelectionMode},
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
+    thread::SendResult,
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
@@ -48,7 +50,6 @@ use name_variant::NamedVariant;
 #[cfg(test)]
 use shared::language::LanguageId;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
-use std::sync::Arc;
 use std::{
     any::TypeId,
     cell::RefCell,
@@ -59,6 +60,7 @@ use std::{
         Mutex,
     },
 };
+use std::{sync::Arc, time::Duration};
 use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
@@ -129,12 +131,13 @@ impl<T: Frontend> App<T> {
         status_line_components: Vec<StatusLineComponent>,
     ) -> anyhow::Result<App<T>> {
         let (sender, receiver) = std::sync::mpsc::channel();
+        let syntax_highlight_request_sender = crate::syntax_highlight::start_thread(sender.clone());
         Self::from_channel(
             frontend,
             working_directory,
             sender,
             receiver,
-            None, // No syntax highlight request sender
+            Some(syntax_highlight_request_sender), // No syntax highlight request sender
             status_line_components,
             None, // No integration event sender
             false,
@@ -862,7 +865,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::Replace { scope } => match scope {
                 Scope::Local => self.handle_dispatch_editor(ReplacePattern {
-                    config: self.context.local_search_config().clone(),
+                    config: self.context.local_search_config(Scope::Local).clone(),
                 })?,
                 Scope::Global => self.global_replace()?,
             },
@@ -940,6 +943,10 @@ impl<T: Frontend> App<T> {
             Dispatch::SetSystemClipboardHtml { html, alt_text } => {
                 self.set_system_clipboard_html(html, alt_text)?
             }
+            Dispatch::AddQuickfixListEntries(locations) => {
+                self.add_quickfix_list_entries(locations)?
+            }
+            Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
         }
         Ok(())
     }
@@ -965,7 +972,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn local_search(&mut self, if_current_not_found: IfCurrentNotFound) -> anyhow::Result<()> {
-        let config = self.context.local_search_config();
+        let config = self.context.local_search_config(Scope::Local);
         let search = config.search();
         if !search.is_empty() {
             self.handle_dispatch_editor_custom(
@@ -1229,7 +1236,7 @@ impl<T: Frontend> App<T> {
         focus: bool,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
         if store_history {
-            self.push_current_location_into_navigation_history(true)?;
+            self.push_current_location_into_navigation_history(true);
         }
 
         // Check if the file is opened before so that we won't notify the LSP twice
@@ -1402,10 +1409,21 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn get_quickfix_list(&self) -> Option<QuickfixList> {
         self.context.quickfix_list_state().as_ref().map(|state| {
+            let items = self.layout.get_quickfix_list_items(&state.source);
+            // Preload the buffers to avoid unnecessarily rereading the files
+            let buffers = items
+                .iter()
+                .map(|item| &item.location().path)
+                .unique()
+                .filter_map(|path| {
+                    Some(Rc::new(RefCell::new(Buffer::from_path(path, false).ok()?)))
+                })
+                .collect_vec();
             QuickfixList::new(
                 state.title.clone(),
-                self.layout.get_quickfix_list_items(&state.source),
-                self.layout.buffers(),
+                items,
+                buffers,
+                self.context.current_working_directory(),
             )
             .set_current_item_index(state.current_item_index)
         })
@@ -1420,9 +1438,10 @@ impl<T: Frontend> App<T> {
                 self.render_quickfix_list(
                     quickfix_list.set_current_item_index(current_item_index),
                 )?;
+            } else {
+                log::info!("No current item found")
             }
         }
-
         Ok(())
     }
 
@@ -1456,24 +1475,21 @@ impl<T: Frontend> App<T> {
             // Create a selection at the location position
             // We'll let the editor.set_position_range call below handle the actual selection
             // Just emit a simple empty selection at the start position for now
-            let buffer = component_ref.editor().buffer();
-            if let Ok(char_index) = location.range.start.to_char_index(&buffer) {
-                let selection = crate::selection::Selection::new((char_index..char_index).into());
+            let selection = crate::selection::Selection::new(location.range);
 
-                // Emit a selection changed event
-                self.integration_event_sender.emit_event(
-                    crate::integration_event::IntegrationEvent::SelectionChanged {
-                        component_id,
-                        selections: vec![selection],
-                    },
-                );
-            }
+            // Emit a selection changed event
+            self.integration_event_sender.emit_event(
+                crate::integration_event::IntegrationEvent::SelectionChanged {
+                    component_id,
+                    selections: vec![selection],
+                },
+            );
         }
 
         let dispatches = component
             .borrow_mut()
             .editor_mut()
-            .set_position_range(location.range.clone(), &self.context)?;
+            .set_char_index_range(location.range, &self.context)?;
         self.handle_dispatches(dispatches)?;
         Ok(())
     }
@@ -1485,42 +1501,33 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         let title = context.description.unwrap_or_default();
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
-        match r#type {
+        let go_to_first_quickfix = match r#type {
             QuickfixListType::Diagnostic(severity_range) => {
                 self.context.set_quickfix_list_source(
                     title.clone(),
                     QuickfixListSource::Diagnostic(severity_range),
                 );
+                true
             }
             QuickfixListType::Items(items) => {
-                self.layout.clear_quickfix_list_items();
-                items
-                    .into_iter()
-                    .chunk_by(|item| item.location().path.clone())
-                    .into_iter()
-                    .sorted_by_key(|(path, _)| path.clone())
-                    .map(|(path, items)| -> anyhow::Result<()> {
-                        let items = items.collect_vec();
-                        let editor = self.open_file(&path, BufferOwner::System, false, false)?;
-                        editor
-                            .borrow_mut()
-                            .editor_mut()
-                            .buffer_mut()
-                            .update_quickfix_list_items(items);
-                        Ok(())
-                    })
-                    .collect::<anyhow::Result<Vec<_>>>()?;
+                let is_empty = items.is_empty();
                 self.context
-                    .set_quickfix_list_source(title.clone(), QuickfixListSource::Custom);
+                    .set_quickfix_list_source(title.clone(), QuickfixListSource::Custom(items));
+                !is_empty
             }
             QuickfixListType::Mark => {
                 self.context
                     .set_quickfix_list_source(title.clone(), QuickfixListSource::Mark);
+                true
             }
-        }
+        };
         match context.scope {
             None | Some(Scope::Global) => {
-                self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
+                if go_to_first_quickfix {
+                    self.goto_quickfix_list_item(Movement::Current(
+                        IfCurrentNotFound::LookForward,
+                    ))?;
+                }
                 Ok(())
             }
             Some(Scope::Local) => self.handle_dispatch(Dispatch::ToEditor(SetSelectionMode(
@@ -1588,7 +1595,8 @@ impl<T: Frontend> App<T> {
         };
         let config = self.context.global_search_config().local_config();
         let affected_paths = list::grep::replace(walk_builder_config, config.clone())?;
-        self.layout.reload_buffers(affected_paths)
+        let dispatches = self.layout.reload_buffers(affected_paths)?;
+        self.handle_dispatches(dispatches)
     }
 
     fn global_search(&mut self) -> anyhow::Result<()> {
@@ -1604,25 +1612,36 @@ impl<T: Frontend> App<T> {
         if config.search().is_empty() {
             return Ok(());
         }
-        let locations = match config.mode {
+        let sender = self.sender.clone();
+        let send_matches = Arc::new(move |matches: Vec<Match>| {
+            SendResult::from(sender.send(AppMessage::ExternalDispatch(
+                Dispatch::AddQuickfixListEntries(matches),
+            )))
+        });
+        let send_match = crate::thread::batch(send_matches, Duration::from_millis(16)); // Around 30 ticks per second
+
+        // TODO: we need to create a new sender for each global search, so that it can be cancelled, but when?
+        // Is it when the quickfix list is closed?
+        match config.mode {
             LocalSearchConfigMode::Regex(regex) => {
-                list::grep::run(&config.search(), walk_builder_config, regex)
+                list::grep::run(&config.search(), walk_builder_config, regex, send_match)?;
             }
             LocalSearchConfigMode::AstGrep => {
-                list::ast_grep::run(config.search().clone(), walk_builder_config)
+                list::ast_grep::run(config.search().clone(), walk_builder_config, send_match)?;
             }
             LocalSearchConfigMode::NamingConventionAgnostic => {
-                list::naming_convention_agnostic::run(config.search().clone(), walk_builder_config)
+                list::naming_convention_agnostic::run(
+                    config.search().clone(),
+                    walk_builder_config,
+                    send_match,
+                )?;
             }
-        }?;
+        };
         self.set_quickfix_list_type(
             ResponseContext::default().set_description("Global search"),
-            QuickfixListType::Items(
-                locations
-                    .into_iter()
-                    .map(|location| QuickfixListItem::new(location, None))
-                    .collect_vec(),
-            ),
+            // We start with an empty quickfix list, as the result will come later
+            // due to the asynchronity
+            QuickfixListType::Items(Vec::new()),
         )?;
         Ok(())
     }
@@ -1837,19 +1856,16 @@ impl<T: Frontend> App<T> {
                         file_diff
                             .hunks()
                             .iter()
-                            .map(|hunk| {
+                            .filter_map(|hunk| {
+                                let buffer = Buffer::from_path(file_diff.path(), false).ok()?;
                                 let line_range = hunk.line_range();
                                 let location = Location {
                                     path: file_diff.path().clone(),
-                                    range: Position {
-                                        line: line_range.start,
-                                        column: 0,
-                                    }..Position {
-                                        line: line_range.end,
-                                        column: 0,
-                                    },
+                                    range: buffer
+                                        .line_range_to_char_index_range(line_range)
+                                        .ok()?,
                                 };
-                                QuickfixListItem::new(location, hunk.to_info())
+                                Some(QuickfixListItem::new(location, hunk.to_info(), None))
                             })
                             .collect_vec()
                     })
@@ -2126,9 +2142,20 @@ impl<T: Frontend> App<T> {
         &mut self,
         quickfix_list: QuickfixList,
     ) -> anyhow::Result<()> {
-        let dispatches = self
+        let (editor, dispatches) = self
             .layout
             .show_quickfix_list(quickfix_list, &self.context)?;
+
+        let editor = editor.borrow();
+        let buffer = editor.buffer();
+        if let Some(language) = buffer.language() {
+            self.request_syntax_highlight(
+                editor.id(),
+                buffer.batch_id().clone(),
+                language,
+                buffer.content(),
+            )?;
+        };
         self.handle_dispatches(dispatches)
     }
 
@@ -2360,7 +2387,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_filter_selections_prompt(&mut self, maintain: bool) -> anyhow::Result<()> {
-        let config = self.context.get_local_search_config(Scope::Local);
+        let config = self.context.local_search_config(Scope::Local);
         let mode = config.mode;
         self.open_prompt(
             PromptConfig {
@@ -2383,7 +2410,7 @@ impl<T: Frontend> App<T> {
     fn navigate_back(&mut self) -> anyhow::Result<()> {
         while let Some(location) = self.context.location_previous() {
             if location.path.exists() {
-                self.push_current_location_into_navigation_history(false)?;
+                self.push_current_location_into_navigation_history(false);
                 self.go_to_location(&location, false)?;
                 return Ok(());
             }
@@ -2394,17 +2421,14 @@ impl<T: Frontend> App<T> {
     fn navigate_forward(&mut self) -> anyhow::Result<()> {
         while let Some(location) = self.context.location_next() {
             if location.path.exists() {
-                self.push_current_location_into_navigation_history(true)?;
+                self.push_current_location_into_navigation_history(true);
                 self.go_to_location(&location, false)?
             }
         }
         Ok(())
     }
 
-    fn push_current_location_into_navigation_history(
-        &mut self,
-        backward: bool,
-    ) -> anyhow::Result<()> {
+    fn push_current_location_into_navigation_history(&mut self, backward: bool) {
         // TODO: should include scroll offset as well
         // so that when the user navigates back, it really feels the same
         if let Some(path) = self.current_component().borrow().editor().path() {
@@ -2412,11 +2436,10 @@ impl<T: Frontend> App<T> {
                 .current_component()
                 .borrow()
                 .editor()
-                .current_selection_range()?;
+                .current_selection_range();
             let location = Location { path, range };
             self.context.push_location_history(location, backward)
         }
-        Ok(())
     }
 
     fn toggle_file_mark(&mut self) -> anyhow::Result<()> {
@@ -2657,6 +2680,45 @@ impl<T: Frontend> App<T> {
             let _ = self.cycle_marked_file(Direction::End);
         }
     }
+
+    fn add_quickfix_list_entries(&mut self, matches: Vec<Match>) -> anyhow::Result<()> {
+        let go_to_quickfix_item = self.context.quickfix_list_items().is_empty();
+
+        self.context.extend_quickfix_list_items(
+            matches
+                .into_iter()
+                .map(|m| QuickfixListItem::new(m.location, None, Some(m.line)))
+                .collect_vec(),
+        );
+
+        let quickfix_list = self.get_quickfix_list();
+        if let Some(quickfix_list) = quickfix_list {
+            self.render_quickfix_list(quickfix_list)?;
+        }
+        if go_to_quickfix_item {
+            self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
+        }
+        Ok(())
+    }
+
+    fn handle_applied_edits(&mut self, path: CanonicalizedPath, edits: Vec<Edit>) {
+        self.context.handle_applied_edits(path, edits)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn handle_next_app_messages(
+        &mut self,
+        app_message_matcher: &lazy_regex::Lazy<regex::Regex>,
+    ) -> anyhow::Result<()> {
+        while let Ok(app_message) = self.receiver.recv() {
+            let string = format!("{app_message:?}");
+            self.process_message(app_message)?;
+            if app_message_matcher.is_match(&string) {
+                break;
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2896,6 +2958,11 @@ pub(crate) enum Dispatch {
     SetSystemClipboardHtml {
         html: &'static str,
         alt_text: &'static str,
+    },
+    AddQuickfixListEntries(Vec<Match>),
+    AppliedEdits {
+        edits: Vec<Edit>,
+        path: CanonicalizedPath,
     },
 }
 
