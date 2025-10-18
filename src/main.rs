@@ -52,6 +52,8 @@ mod divide_viewport;
 mod env;
 mod format_path_list;
 pub(crate) mod persistence;
+#[cfg(test)]
+mod test_lsp;
 mod thread;
 use std::{rc::Rc, sync::Mutex};
 

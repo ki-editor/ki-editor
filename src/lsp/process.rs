@@ -1,6 +1,7 @@
 use crate::app::{RequestParams, Scope};
 use anyhow::Context;
 use debounce::EventDebouncer;
+use itertools::Itertools;
 use lsp_types::notification::Notification;
 use lsp_types::request::{
     GotoDeclarationParams, GotoImplementationParams, GotoTypeDefinitionParams, Request,
@@ -113,7 +114,6 @@ pub(crate) enum FromEditor {
         version: usize,
         content: String,
     },
-    Shutdown,
     TextDocumentDidChange {
         file_path: CanonicalizedPath,
         version: i32,
@@ -176,7 +176,7 @@ impl LspServerProcessChannel {
     }
 
     pub(crate) fn shutdown(self) -> anyhow::Result<()> {
-        self.send(LspServerProcessMessage::FromEditor(FromEditor::Shutdown))?;
+        self.send(LspServerProcessMessage::Shutdown)?;
         self.join_handle
             .join()
             .map_err(|err| anyhow::anyhow!("Unable to join lsp server process [1]: {:?}", err))?
@@ -185,6 +185,9 @@ impl LspServerProcessChannel {
     }
 
     fn send(&self, message: LspServerProcessMessage) -> anyhow::Result<()> {
+        if !self.is_initialized {
+            return Ok(());
+        }
         self.sender
             .send(message)
             .map_err(|err| anyhow::anyhow!("Unable to send request: {}", err))
@@ -337,7 +340,10 @@ impl LspServerProcess {
                         completion: Some(CompletionClientCapabilities {
                             completion_item: Some(CompletionItemCapability {
                                 resolve_support: Some(CompletionItemCapabilityResolveSupport {
-                                    properties: vec!["additionalTextEdits".to_string()],
+                                    properties: vec![
+                                        "textEdit".to_string(),
+                                        "additionalTextEdits".to_string(),
+                                    ],
                                 }),
 
                                 ..CompletionItemCapability::default()
@@ -460,10 +466,18 @@ impl LspServerProcess {
                     Err(error) => {
                         log::error!("[LspServerProcess] read_response error = {error:?}");
                         if !error_tracker.handle_error(error, &mut stderr_reader, &sender) {
+                            let formatted_errors = error_tracker
+                                .consecutive_errors
+                                .iter()
+                                .enumerate()
+                                .map(|(index, error)| format!("Error #{}: {}", index + 1, error))
+                                .collect_vec()
+                                .join("\n");
                             let error = format!(
-                            "LspServerProcess::listen: Too many consecutive errors ({}).\n\nStopping LSP command:\n\n`{}`",
+                            "LspServerProcess::listen: Stopping LSP command:\n\n`{}`\n\nToo many consecutive errors ({}):\n{}",
+                            lsp_command,
                             ErrorTracker::MAX_CONSECUTIVE_ERRORS,
-                            lsp_command
+                            formatted_errors
                         );
                             app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::Error(error)))
@@ -504,6 +518,7 @@ impl LspServerProcess {
 
         let debounce = {
             let sender = self.sender.clone();
+
             EventDebouncer::new(Duration::from_millis(150), move |Event(from_editor)| {
                 sender
                 .send(LspServerProcessMessage::Throttled(from_editor.clone()))
@@ -537,7 +552,14 @@ impl LspServerProcess {
                 LspServerProcessMessage::Throttled(from_editor) => {
                     self.handle_from_editor(from_editor)
                 }
-                LspServerProcessMessage::Shutdown => break,
+                LspServerProcessMessage::Shutdown => {
+                    if let Err(err) = self.shutdown() {
+                        log::error!(
+                            "LspServerProcess::process_messages: failed to shutdown due to {err:?}"
+                        )
+                    }
+                    break;
+                }
             }
         }
     }
@@ -559,7 +581,9 @@ impl LspServerProcess {
         let content_length = line
             .split(':')
             .nth(1)
-            .ok_or_else(|| anyhow::anyhow!("Parsing Content-Length: Unable to split line."))?
+            .ok_or_else(|| {
+                anyhow::anyhow!("Parsing Content-Length: Unable to split line: {line:?}")
+            })?
             .trim()
             .parse::<usize>()
             .with_context(|| "Parsing Content-Length: Failed to parse number.")?;
@@ -1457,7 +1481,6 @@ impl LspServerProcess {
                 version,
                 content,
             } => self.text_document_did_open(file_path, language_id, version, content),
-            FromEditor::Shutdown => self.shutdown(),
             FromEditor::TextDocumentDidChange {
                 file_path,
                 version,
@@ -1515,19 +1538,19 @@ fn path_buf_to_text_document_identifier(
 /// and allowing recovery if errors stop for a configured timeout period. If errors
 /// continue beyond the maximum threshold, it breaks the connection to prevent resource waste.
 struct ErrorTracker {
-    consecutive_errors: u32,
+    consecutive_errors: Vec<String>,
     last_error_time: Instant,
-    max_consecutive_errors: u32,
+    max_consecutive_errors: usize,
     error_reset_timeout: Duration,
 }
 
 impl ErrorTracker {
-    const MAX_CONSECUTIVE_ERRORS: u32 = 5;
+    const MAX_CONSECUTIVE_ERRORS: usize = 5;
     const ERROR_RESET_TIMEOUT: Duration = Duration::from_secs(30);
 
     fn new() -> Self {
         Self {
-            consecutive_errors: 0,
+            consecutive_errors: Vec::new(),
             last_error_time: Instant::now(),
             max_consecutive_errors: Self::MAX_CONSECUTIVE_ERRORS,
             error_reset_timeout: Self::ERROR_RESET_TIMEOUT,
@@ -1542,26 +1565,28 @@ impl ErrorTracker {
         sender: &Sender<LspServerProcessMessage>,
     ) -> bool {
         let mut stderr = String::new();
+
         let _ = stderr_reader
             .read_to_string(&mut stderr)
             .map_err(|err| log::error!("LspServerResponse::listen failed to read stderr = {err}"));
 
         if self.last_error_time.elapsed() > self.error_reset_timeout {
-            self.consecutive_errors = 0;
+            self.consecutive_errors = Vec::new();
         }
 
-        self.consecutive_errors += 1;
+        self.consecutive_errors
+            .push(format!("Error: {error}; Stderr: {stderr}"));
         self.last_error_time = Instant::now();
 
         log::warn!(
             "LspServerProcess::listen::read_response error (attempt {}/{}): {}",
-            self.consecutive_errors,
+            self.consecutive_errors.len(),
             self.max_consecutive_errors,
             error
         );
         log::warn!("LspServerProcess::listen: stderr = {stderr}");
 
-        if self.consecutive_errors >= self.max_consecutive_errors {
+        if self.consecutive_errors.len() >= self.max_consecutive_errors {
             // Send exit notification
             let _ = sender.send(LspServerProcessMessage::FromLspServer(serde_json::json!({
                 "jsonrpc": "2.0",
@@ -1576,7 +1601,7 @@ impl ErrorTracker {
     }
 
     fn handle_success(&mut self) {
-        self.consecutive_errors = 0;
+        self.consecutive_errors.clear()
     }
 }
 

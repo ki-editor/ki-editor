@@ -65,7 +65,7 @@ use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
 #[cfg(test)]
-use crate::layout::BufferContentsMap;
+use crate::{layout::BufferContentsMap, test_app::RunTestOptions};
 
 // TODO: rename current Context struct to RawContext struct
 // The new Context struct should always be derived, it should contains Hashmap of rectangles, keyed by Component ID
@@ -129,26 +129,28 @@ impl<T: Frontend> App<T> {
         frontend: Rc<Mutex<T>>,
         working_directory: CanonicalizedPath,
         status_line_components: Vec<StatusLineComponent>,
+        options: RunTestOptions,
     ) -> anyhow::Result<App<T>> {
+        use crate::syntax_highlight;
+
         let (sender, receiver) = std::sync::mpsc::channel();
-        let syntax_highlight_request_sender = crate::syntax_highlight::start_thread(sender.clone());
+        let syntax_highlight_request_sender = if options.enable_syntax_highlighting {
+            Some(syntax_highlight::start_thread(sender.clone()))
+        } else {
+            None
+        };
         Self::from_channel(
             frontend,
             working_directory,
             sender,
             receiver,
-            Some(syntax_highlight_request_sender), // No syntax highlight request sender
+            syntax_highlight_request_sender,
             status_line_components,
             None, // No integration event sender
-            false,
+            options.enable_lsp,
             false,
             None,
         )
-    }
-
-    #[cfg(test)]
-    pub(crate) fn disable_lsp(&mut self) {
-        self.enable_lsp = false
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2706,7 +2708,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn handle_next_app_messages(
+    pub(crate) fn wait_for_app_message(
         &mut self,
         app_message_matcher: &lazy_regex::Lazy<regex::Regex>,
     ) -> anyhow::Result<()> {

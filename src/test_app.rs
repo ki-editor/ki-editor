@@ -580,6 +580,25 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
         [StatusLineComponent::LastDispatch].to_vec(),
         callback,
         true,
+        RunTestOptions {
+            enable_lsp: false,
+            enable_syntax_highlighting: false,
+        },
+    )?;
+    Ok(())
+}
+
+pub(crate) fn execute_test_custom(
+    options: RunTestOptions,
+    callback: impl Fn(State) -> Box<[Step]>,
+) -> anyhow::Result<()> {
+    execute_test_helper(
+        || Box::new(NullWriter),
+        false,
+        [StatusLineComponent::LastDispatch].to_vec(),
+        callback,
+        true,
+        options,
     )?;
     Ok(())
 }
@@ -600,6 +619,10 @@ pub(crate) fn execute_recipe(
         .to_vec(),
         callback,
         assert_last_step_is_expect,
+        RunTestOptions {
+            enable_lsp: false,
+            enable_syntax_highlighting: false,
+        },
     )
 }
 
@@ -609,8 +632,9 @@ fn execute_test_helper(
     status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(State) -> Box<[Step]>,
     assert_last_step_is_expect: bool,
+    options: RunTestOptions,
 ) -> anyhow::Result<TestOutput> {
-    run_test(writer, status_line_components, |mut app, temp_dir| {
+    let callback = |mut app: App<MockFrontend>, temp_dir: CanonicalizedPath| {
         let steps = {
             callback(State {
                 main_rs: temp_dir.join("src/main.rs").unwrap(),
@@ -642,7 +666,10 @@ fn execute_test_helper(
 
         for step in steps.iter() {
             match step.to_owned() {
-                Step::WaitForAppMessage(regex) => app.handle_next_app_messages(regex)?,
+                Step::WaitForAppMessage(regex) => {
+                    log(format!("Wait for app message: {}", ***regex));
+                    app.wait_for_app_message(regex)?
+                }
                 Step::App(dispatch) => {
                     log(dispatch);
                     app.handle_dispatch(dispatch.to_owned())?
@@ -678,22 +705,30 @@ fn execute_test_helper(
         }
         let buffer_contents = app.get_buffer_contents_map();
         Ok(buffer_contents)
-    })
+    };
+    run_test(options, writer, status_line_components, callback)
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RunTestOptions {
+    pub(crate) enable_lsp: bool,
+    pub(crate) enable_syntax_highlighting: bool,
 }
 
 fn run_test(
+    options: RunTestOptions,
     writer: fn() -> Box<dyn MyWriter>,
     status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<BufferContentsMap>,
 ) -> anyhow::Result<TestOutput> {
     TestRunner::run(move |temp_dir| {
         let frontend = Rc::new(Mutex::new(MockFrontend::new(writer())));
-        let mut app = App::new(
+        let app = App::new(
             frontend.clone(),
             temp_dir.clone(),
             status_line_components.clone(),
+            options,
         )?;
-        app.disable_lsp();
         let buffer_contents_map = callback(app, temp_dir)?;
         use std::borrow::Borrow;
         let term_output = frontend.lock().unwrap().borrow().string_content();
@@ -1820,10 +1855,13 @@ fn main() {
     })
 }
 
-#[serial] // This test has to be run in serial otherwise it will fail
 #[test]
 fn quickfix_list_header_should_be_highlighted_as_keyword() -> anyhow::Result<()> {
-    execute_test(|s| {
+    let options = RunTestOptions {
+        enable_lsp: false,
+        enable_syntax_highlighting: true,
+    };
+    execute_test_custom(options, |s| {
         Box::new([
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Items(
