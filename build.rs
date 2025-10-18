@@ -28,7 +28,10 @@ fn main() {
     let kotlin_output_path = out_dir
         .join("ki-jetbrains")
         .join("src")
+        .join("main")
         .join("kotlin")
+        .join("com")
+        .join("kieditor")
         .join("protocol");
 
     // Ensure the parent directories exist
