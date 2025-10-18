@@ -667,7 +667,7 @@ fn execute_test_helper(
         for step in steps.iter() {
             match step.to_owned() {
                 Step::WaitForAppMessage(regex) => {
-                    log(&format!("Wait for app message: {}", regex.to_string()));
+                    log(format!("Wait for app message: {}", ***regex));
                     app.wait_for_app_message(regex)?
                 }
                 Step::App(dispatch) => {

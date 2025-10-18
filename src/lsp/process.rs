@@ -114,7 +114,6 @@ pub(crate) enum FromEditor {
         version: usize,
         content: String,
     },
-    Shutdown,
     TextDocumentDidChange {
         file_path: CanonicalizedPath,
         version: i32,
@@ -1482,7 +1481,6 @@ impl LspServerProcess {
                 version,
                 content,
             } => self.text_document_did_open(file_path, language_id, version, content),
-            FromEditor::Shutdown => self.shutdown(),
             FromEditor::TextDocumentDidChange {
                 file_path,
                 version,

@@ -1,21 +1,12 @@
 use lazy_regex::regex;
 use my_proc_macros::{key, keys};
-use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
-    app::{
-        Dimension,
-        Dispatch::{self, *},
-    },
+    app::{Dimension, Dispatch::*},
     buffer::BufferOwner,
-    components::editor::{DispatchEditor::*, IfCurrentNotFound, Movement},
+    components::editor::{DispatchEditor::*, IfCurrentNotFound},
     selection::SelectionMode,
-    test_app::{
-        execute_test, execute_test_custom,
-        ExpectKind::*,
-        RunTestOptions,
-        Step::{self, *},
-    },
+    test_app::{execute_test_custom, ExpectKind::*, RunTestOptions, Step::*},
 };
 
 #[test]
