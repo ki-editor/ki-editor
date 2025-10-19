@@ -3971,8 +3971,11 @@ impl Editor {
                         ));
                     };
 
-                    let edit_range =
-                        buffer.line_range_to_char_index_range(&matching_hunk.new_line_range)?;
+                    let edit_range = {
+                        let start = buffer.line_to_char(matching_hunk.new_line_range.start)?;
+                        (start..start + Rope::from_str(&matching_hunk.new_content).len_chars())
+                            .into()
+                    };
                     let replacement: Rope = matching_hunk.old_content.clone().into();
                     let select_range = {
                         let start = buffer.line_to_char(matching_hunk.new_line_range.start)?;
