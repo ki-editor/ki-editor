@@ -557,10 +557,11 @@ impl Grid {
                                 Some(max_line_number_len + 1),
                                 LINE_NUMBER_VERTICAL_BORDER,
                                 &{
-                                    if let Some(hunk) = git_hunks
-                                        .iter()
-                                        .find(|hunk| hunk.new_line_range.contains(&line_number))
-                                    {
+                                    if let Some(hunk) = git_hunks.iter().find(|hunk| {
+                                        // This equivalence check is crucial, because Deleted hunk has 0 length, for example (1..1)
+                                        hunk.new_line_range.start == line_number
+                                            || hunk.new_line_range.contains(&line_number)
+                                    }) {
                                         match hunk.kind {
                                             SimpleHunkKind::Delete => {
                                                 Style::same_background_foreground(

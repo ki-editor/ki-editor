@@ -1185,7 +1185,7 @@ pub(crate) fn foo() -> Foo {
                 crate::git::DiffMode::UnstagedAgainstCurrentBranch,
             )),
             Expect(CurrentComponentContent(original_content)),
-            Expect(CurrentSelectedTexts(&["pub(crate) struct Foo {\n"])),
+            Expect(CurrentSelectedTexts(&["pub(crate) struct Foo {"])),
         ])
     })
 }
