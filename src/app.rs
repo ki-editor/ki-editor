@@ -19,6 +19,7 @@ use crate::{
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
+    custom_config::keymap::LeaderAction,
     edit::Edit,
     frontend::Frontend,
     git::{self},
@@ -949,6 +950,9 @@ impl<T: Frontend> App<T> {
                 self.add_quickfix_list_entries(locations)?
             }
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
+            Dispatch::HandleLeaderAction(leader_action) => {
+                self.handle_leader_action(leader_action)?
+            }
         }
         Ok(())
     }
@@ -2721,6 +2725,25 @@ impl<T: Frontend> App<T> {
         }
         Ok(())
     }
+
+    fn handle_leader_action(&mut self, leader_action: LeaderAction) -> anyhow::Result<()> {
+        match leader_action {
+            LeaderAction::DoNothing => {}
+            LeaderAction::RunCommand(command, args) => {
+                let output = std::process::Command::new(&command).args(&args).output()?;
+                self.show_global_info(Info::new(
+                    format!("{command} {}", args.join(" ")),
+                    format!(
+                        "[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n",
+                        output.status,
+                        String::from_utf8_lossy(&output.stdout).trim(),
+                        String::from_utf8_lossy(&output.stderr).trim()
+                    ),
+                ))
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2966,6 +2989,7 @@ pub(crate) enum Dispatch {
         edits: Vec<Edit>,
         path: CanonicalizedPath,
     },
+    HandleLeaderAction(LeaderAction),
 }
 
 /// Used to send notify host app about changes

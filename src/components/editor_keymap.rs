@@ -2,7 +2,7 @@ use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use Meaning::*;
 
-use crate::app::Scope;
+use crate::{app::Scope, custom_config::keymap::KEYMAP_LEADER};
 
 pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
     // a = Easiest to access
@@ -275,6 +275,7 @@ struct KeySet {
     space_editor: HashMap<Meaning, &'static str>,
     transform: HashMap<Meaning, &'static str>,
     yes_no: HashMap<Meaning, &'static str>,
+    leader: HashMap<Meaning, &'static str>,
 }
 
 impl KeySet {
@@ -388,6 +389,12 @@ impl KeySet {
                     .flatten()
                     .zip(layout.into_iter().flatten()),
             ),
+            leader: HashMap::from_iter(
+                KEYMAP_LEADER
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten()),
+            ),
         }
     }
 }
@@ -471,6 +478,15 @@ impl KeyboardLayoutKind {
                 .cloned()
                 .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}")),
         }
+    }
+
+    pub(crate) fn get_leader_keymap(&self, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        keyset
+            .leader
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
     pub(crate) fn get_space_keymap(&self, meaning: &Meaning) -> &'static str {
@@ -832,6 +848,68 @@ pub(crate) enum Meaning {
     RvHkM,
     /// Revert hunk (to current branch)
     RvHkC,
+    /// Leader Q
+    __Q__,
+    /// Leader W
+    __W__,
+    /// Leader E
+    __E__,
+    /// Leader R
+    __R__,
+    /// Leader T
+    __T__,
+    /// Leader Y
+    __Y__,
+    /// Leader U
+    __U__,
+    /// Leader I
+    __I__,
+    /// Leader O
+    __O__,
+    /// Leader P
+    __P__,
+
+    /// Leader A
+    __A__,
+    /// Leader S
+    __S__,
+    /// Leader D
+    __D__,
+    /// Leader F
+    __F__,
+    /// Leader G
+    __G__,
+    /// Leader H
+    __H__,
+    /// Leader J
+    __J__,
+    /// Leader K
+    __K__,
+    /// Leader L
+    __L__,
+    /// Leader ;
+    _SEMI,
+
+    /// Leader Z
+    __Z__,
+    /// Leader X
+    __X__,
+    /// Leader C
+    __C__,
+    /// Leader V
+    __V__,
+    /// Leader B
+    __B__,
+    /// Leader N
+    __N__,
+    /// Leader M
+    __M__,
+    /// Leader ,
+    _COMA,
+    /// Leader .
+    _DOT_,
+    /// Leader /
+    _SLSH,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

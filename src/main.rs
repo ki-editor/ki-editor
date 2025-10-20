@@ -48,6 +48,7 @@ mod utils;
 mod embed;
 
 mod alternator;
+pub(crate) mod custom_config;
 mod divide_viewport;
 mod env;
 mod format_path_list;
