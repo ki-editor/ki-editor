@@ -386,7 +386,7 @@ mod test_keymap_legend {
                 },
             )
             .to_string();
-        let expected = "
+        let expected = r#"
 ╭───────┬───┬─────────────┬───┬──────┬───┬───┬───┬───┬───┬───╮
 │       ┆   ┆             ┆   ┆      ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
@@ -394,8 +394,8 @@ mod test_keymap_legend {
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
 │       ┆   ┆ Caterpillar ┆   ┆ Bomb ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ╰───────┴───┴─────────────┴───┴──────┴───┴───┴───┴───┴───┴───╯
-* Pick Keyboard
-"
+* Pick Keyboard    \ Leader
+"#
         .trim_matches('\n');
         assert_eq!(actual, expected);
 
@@ -411,7 +411,7 @@ mod test_keymap_legend {
             .to_string()
             .trim_matches('\n')
             .to_string();
-        let expected = "
+        let expected = r#"
 ╭───────┬───┬─────────────┬─────┬────────┬───┬───┬───┬───┬───┬───╮
 │       ┆   ┆             ┆     ┆        ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
@@ -421,7 +421,7 @@ mod test_keymap_legend {
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
 │       ┆   ┆ Caterpillar ┆     ┆  Bomb  ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ╰───────┴───┴─────────────┴─────┴────────┴───┴───┴───┴───┴───┴───╯
-* Pick Keyboard"
+* Pick Keyboard    \ Leader"#
             .trim_matches('\n');
         assert_eq!(actual, expected);
     }
