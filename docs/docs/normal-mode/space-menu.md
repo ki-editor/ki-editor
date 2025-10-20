@@ -48,6 +48,10 @@ Revert hunk(s) intersecting with selection(s) to latest commit of current branch
 
 Revert hunk(s) intersecting with selection(s) to latest commit of main/master branch.
 
+### `Git Blame`
+
+Show the Git Blame of the current line(s).
+
 ## `Pick`
 
 <KeymapFallback filename="Space Pick"/>

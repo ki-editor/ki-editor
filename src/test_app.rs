@@ -112,6 +112,7 @@ pub(crate) enum ExpectKind {
     NoError,
     FileExplorerContent(String),
     EditorInfoContents(&'static [&'static str]),
+    EditorInfoContentMatches(&'static lazy_regex::Lazy<regex::Regex>),
     GlobalInfoContents(&'static [&'static str]),
     QuickfixListCurrentLine(&'static str),
     DropdownInfosCount(usize),
@@ -411,6 +412,12 @@ impl ExpectKind {
                                     app.editor_info_contents(),
                                     expected.iter().map(|s|s.to_string()).collect()
                                 )
+                            }
+            EditorInfoContentMatches(regex) => {
+                                let content =app.editor_info_contents().join("\n\n"); 
+                                let matched = regex.is_match(&content);
+                                let message = format!("Expected the following to matches regex: {regex:?}:\n{content}");
+                                ( matched, message )
                             }
             GlobalInfoContents(expected) => {
                                 contextualize(

@@ -5220,3 +5220,25 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn git_blame() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(GitBlame),
+            Expect(EditorInfoContentMatches(regex!("Commit: [0-9a-f]{40}"))),
+            Expect(EditorInfoContentMatches(regex!(r"Author: .+ <[^>]+>"))),
+            Expect(EditorInfoContentMatches(regex!(
+                r"Date: \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"
+            ))),
+            Expect(EditorInfoContentMatches(regex!("Message: .+"))),
+            Expect(EditorInfoContentMatches(regex!("URL: .+"))),
+        ])
+    })
+}
