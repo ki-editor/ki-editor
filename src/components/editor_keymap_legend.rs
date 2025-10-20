@@ -1100,6 +1100,13 @@ impl Editor {
                         DiffMode::UnstagedAgainstMainBranch,
                     )),
                 ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_context_keymap(&Meaning::GtBlm),
+                    "Git Blame".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::GitBlame),
+                ),
             ]),
         }
     }

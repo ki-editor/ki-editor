@@ -147,7 +147,7 @@ pub(crate) const KEYMAP_SPACE_CONTEXT: KeyboardMeaningLayout = [
         _____, LHovr, LCdAc, LRnme, RvHkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, _____, _____, GtBlm, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -848,6 +848,8 @@ pub(crate) enum Meaning {
     RvHkM,
     /// Revert hunk (to current branch)
     RvHkC,
+    /// Git Blame
+    GtBlm,
     /// Leader Q
     __Q__,
     /// Leader W
