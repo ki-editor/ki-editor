@@ -377,6 +377,7 @@ impl Component for Editor {
                 return self.repeat_search(context, scope, if_current_not_found, prior_change)
             }
             RevertHunk(diff_mode) => return self.revert_hunk(context, diff_mode),
+            GitBlame => return self.git_blame(context),
         }
         Ok(Default::default())
     }
@@ -3995,6 +3996,38 @@ impl Editor {
         );
         self.apply_edit_transaction(edit_transaction, context)
     }
+
+    fn git_blame(&self, context: &mut Context) -> Result<Dispatches, anyhow::Error> {
+        let Some(file_path) = self.buffer().path() else {
+            return Ok(Default::default());
+        };
+        let line_numbers: Vec<usize> = self
+            .selection_set
+            .map(|selection| self.buffer().char_to_line(selection.range.start))
+            .into_iter()
+            .try_collect()?;
+
+        let git_blame_infos: Vec<_> = line_numbers
+            .into_iter()
+            .map(|line_number| {
+                crate::git::blame::blame_line(
+                    context.current_working_directory(),
+                    &file_path,
+                    line_number,
+                )
+            })
+            .try_collect()?;
+
+        let info = git_blame_infos
+            .into_iter()
+            .map(|info| info.display())
+            .join("\n==========\n");
+
+        Ok(Dispatches::one(Dispatch::ShowEditorInfo(Info::new(
+            "Git blame".to_string(),
+            info,
+        ))))
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4134,6 +4167,7 @@ pub(crate) enum DispatchEditor {
     ShowKeymapLegendExtend,
     RepeatSearch(Scope, IfCurrentNotFound, Option<PriorChange>),
     RevertHunk(DiffMode),
+    GitBlame,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

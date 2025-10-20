@@ -1,3 +1,4 @@
+pub(crate) mod blame;
 pub(crate) mod hunk;
 
 use anyhow::bail;
