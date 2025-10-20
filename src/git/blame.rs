@@ -47,7 +47,7 @@ pub(crate) fn blame_line(
 
     let relative_file_path = file_path.display_relative_to(repo_path)?;
 
-    let blame = repo.blame_file(&Path::new(&relative_file_path), Some(&mut blame_opts))?;
+    let blame = repo.blame_file(Path::new(&relative_file_path), Some(&mut blame_opts))?;
 
     // Get the hunk for the specific line (lines are 1-indexed)
     let hunk = blame.get_line(line_number).ok_or_else(|| {
@@ -113,8 +113,7 @@ fn format_commit_url(
         GitHost::GitHub => {
             // GitHub, Gitea, Gogs: /commit/{hash}#{file_path}L{line}
             Some(format!(
-                "{}/blame/{}/{}#L{}",
-                base_url, commit_hash, file_path, line_number
+                "{base_url}/blame/{commit_hash}/{file_path}#L{line_number}"
             ))
         }
     }
@@ -130,7 +129,7 @@ fn normalize_git_url(remote_url: &str) -> Option<(String, GitHost)> {
         // Handle SSH URLs (git@host:user/repo.git)
         if let Some((host, path)) = ssh_url.split_once(':') {
             let clean_path = path.strip_suffix(".git").unwrap_or(path);
-            (format!("https://{}/{}", host, clean_path), host.to_string())
+            (format!("https://{host}/{clean_path}"), host.to_string())
         } else {
             return None;
         }
@@ -148,12 +147,12 @@ fn normalize_git_url(remote_url: &str) -> Option<(String, GitHost)> {
         // Handle git:// protocol
         let clean_path = path.strip_suffix(".git").unwrap_or(path);
         let host = clean_path.split('/').next()?.to_string();
-        (format!("https://{}", clean_path), host)
+        (format!("https://{clean_path}"), host)
     } else if let Some(path) = remote_url.strip_prefix("ssh://git@") {
         // Handle SSH URLs with ssh:// prefix (ssh://git@host/user/repo.git)
         let clean_path = path.strip_suffix(".git").unwrap_or(path);
         let host = clean_path.split('/').next()?.to_string();
-        (format!("https://{}", clean_path), host)
+        (format!("https://{clean_path}"), host)
     } else {
         return None;
     };
