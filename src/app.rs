@@ -2730,7 +2730,7 @@ impl<T: Frontend> App<T> {
         match leader_action {
             LeaderAction::DoNothing => {}
             LeaderAction::RunCommand(command, args) => {
-                let output = std::process::Command::new(&command).args(&args).output()?;
+                let output = std::process::Command::new(command).args(&args).output()?;
                 self.show_global_info(Info::new(
                     format!("{command} {}", args.join(" ")),
                     format!(
