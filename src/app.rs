@@ -2745,7 +2745,7 @@ impl<T: Frontend> App<T> {
             LeaderAction::DoNothing => {}
             LeaderAction::RunCommand(command, args) => {
                 let args = args
-                    .into_iter()
+                    .iter()
                     .map(|arg| arg.to_string(&leader_context))
                     .collect_vec();
                 let output = std::process::Command::new(command).args(&args).output()?;
