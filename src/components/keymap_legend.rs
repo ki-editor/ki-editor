@@ -450,7 +450,7 @@ mod test_keymap_legend {
                 },
             )
             .to_string();
-        let expected = "
+        let expected = r#"
 ╭───────┬───┬─────────────┬─────┬────────┬───╮
 │       ┆   ┆             ┆     ┆        ┆ ∅ │
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┤
@@ -468,7 +468,7 @@ mod test_keymap_legend {
 ├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┤
 │ ∅ ┆   ┆   ┆   ┆      ┆   │
 ╰───┴───┴───┴───┴──────┴───╯
-* Pick Keyboard"
+* Pick Keyboard    \ Leader"#
             .trim();
         assert_eq!(actual, expected);
     }
