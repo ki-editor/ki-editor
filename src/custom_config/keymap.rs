@@ -1,6 +1,8 @@
 //! This file is for user to define custom keymap.
 //! The keymap starts with the leader key `\`.
 
+use event::KeyEvent;
+use my_proc_macros::keys;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::components::editor_keymap::{
@@ -23,7 +25,7 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
     ],
 ];
 
-fn sample() -> LeaderAction {
+fn sample_run_command() -> LeaderAction {
     RunCommand(
         "echo",
         &[
@@ -35,13 +37,22 @@ fn sample() -> LeaderAction {
     )
 }
 
+fn sample_macro() -> LeaderAction {
+    // This macro adds new cursor to the next selection that matches the current selection
+    Macro(keys!("e r l esc").to_vec())
+}
+
+fn test() -> LeaderAction {
+    RunCommand("just", &[Str("test"), PrimarySelectionContent])
+}
+
 pub(crate) fn leader_keymap() -> Vec<(Meaning, &'static str, LeaderAction)> {
     [
-        (__Q__, "Sample", sample()),
-        (__W__, "", DoNothing),
+        (__Q__, "Sample run command", sample_run_command()),
+        (__W__, "Sample macro", sample_macro()),
         (__E__, "", DoNothing),
         (__R__, "", DoNothing),
-        (__T__, "", DoNothing),
+        (__T__, "Test", test()),
         (__Y__, "", DoNothing),
         (__U__, "", DoNothing),
         (__I__, "", DoNothing),
@@ -78,12 +89,14 @@ pub(crate) struct LeaderContext {
     pub(crate) path: Option<CanonicalizedPath>,
     /// 0-based index
     pub(crate) primary_selection_line_index: usize,
+    pub(crate) primary_selection_content: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum LeaderAction {
     RunCommand(&'static str, &'static [RunCommandPart]),
     DoNothing,
+    Macro(Vec<KeyEvent>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -92,6 +105,7 @@ pub(crate) enum RunCommandPart {
     CurrentFilePath,
     /// 1-based
     PrimarySelectionLineNumber,
+    PrimarySelectionContent,
 }
 impl RunCommandPart {
     pub(crate) fn to_string(&self, leader_context: &LeaderContext) -> String {
@@ -105,6 +119,7 @@ impl RunCommandPart {
             PrimarySelectionLineNumber => {
                 (leader_context.primary_selection_line_index + 1).to_string()
             }
+            PrimarySelectionContent => leader_context.primary_selection_content.to_string(),
         }
     }
 }
