@@ -54,6 +54,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Typescript,
     TSX,
     Python,
+    Scheme,
     OCaml,
     OCamlInterface,
     Rust,
@@ -93,6 +94,7 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::TSX => tree_sitter_typescript::LANGUAGE_TSX.into(),
             CargoLinkedTreesitterLanguage::Python => tree_sitter_python::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Scheme => tree_sitter_scheme::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::OCaml => tree_sitter_ocaml::LANGUAGE_OCAML.into(),
             CargoLinkedTreesitterLanguage::OCamlInterface => {
                 tree_sitter_ocaml::LANGUAGE_OCAML_INTERFACE.into()

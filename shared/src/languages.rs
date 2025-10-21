@@ -7,6 +7,8 @@ pub const LANGUAGES: &[&Language] = &[
     &fish(),
     &unison(),
     &c(),
+    &racket(),
+    &scheme(),
     &common_lisp(),
     &cpp(),
     &c_sharp(),
@@ -121,15 +123,61 @@ const fn c() -> Language {
     }
 }
 
-const fn common_lisp() -> Language {
+const fn racket() -> Language {
     Language {
-        extensions: &["lisp", "lsp", "l", "cl", "fasl", "sbcl", "el"],
+        extensions: &["rkt", "rktd", "rktl", "scrbl", "zuo"],
+        lsp_command: Some(LspCommand {
+            command: Command("racket", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("racket")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "commonlisp",
-            url: "https://github.com/theHamsta/tree-sitter-commonlisp",
+            id: "racket",
+            url: "https://github.com/6cdh/tree-sitter-scheme",
             commit: "master",
             subpath: None,
         }),
+        language_fallback: Some(CargoLinkedTreesitterLanguage::Scheme),
+        line_comment_prefix: Some(";"),
+        block_comment_affixes: Some(("#|", "|#")),
+        ..Language::new()
+    }
+}
+
+const fn scheme() -> Language {
+    Language {
+        extensions: &["ss", "scm", "sld"],
+        // lsp_language_id: Some(LanguageId::new("scheme")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "scheme",
+            url: "https://github.com/6cdh/tree-sitter-scheme",
+            commit: "master",
+            subpath: None,
+        }),
+        language_fallback: Some(CargoLinkedTreesitterLanguage::Scheme),
+        line_comment_prefix: Some(";"),
+        block_comment_affixes: Some(("#|", "|#")),
+        ..Language::new()
+    }
+}
+
+const fn common_lisp() -> Language {
+    Language {
+        extensions: &[
+            "lisp", "lsp", "l", "cl", "fasl", "sbcl", "el", "asd", "ny", "podsl", "sexp",
+        ],
+        lsp_command: Some(LspCommand {
+            command: Command("cl-lsp", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("commonlisp")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "commonlisp",
+            url: "https://github.com/6cdh/tree-sitter-scheme",
+            commit: "master",
+            subpath: None,
+        }),
+        language_fallback: Some(CargoLinkedTreesitterLanguage::Scheme),
         line_comment_prefix: Some(";"),
         ..Language::new()
     }
@@ -717,13 +765,13 @@ const fn dune() -> Language {
     Language {
         extensions: &["dune-project", "dune"],
         formatter_command: Some(Command("dune", &["format-dune-file"])),
-        lsp_language_id: Some(LanguageId::new("dune")),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "dune",
             url: "https://github.com/6cdh/tree-sitter-scheme",
             commit: "main",
             subpath: None,
         }),
+        language_fallback: Some(CargoLinkedTreesitterLanguage::Scheme),
         line_comment_prefix: Some(";"),
         ..Language::new()
     }
