@@ -19,7 +19,7 @@ use crate::{
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
-    custom_config::keymap::LeaderAction,
+    custom_config::keymap::{LeaderAction, LeaderContext},
     edit::Edit,
     frontend::Frontend,
     git::{self},
@@ -2727,9 +2727,22 @@ impl<T: Frontend> App<T> {
     }
 
     fn handle_leader_action(&mut self, leader_action: LeaderAction) -> anyhow::Result<()> {
+        let leader_context = LeaderContext {
+            path: self.get_current_file_path(),
+            primary_selection_line_index: self
+                .current_component()
+                .borrow()
+                .get_cursor_position()
+                .map(|position| position.line)
+                .unwrap_or_default(),
+        };
         match leader_action {
             LeaderAction::DoNothing => {}
             LeaderAction::RunCommand(command, args) => {
+                let args = args
+                    .into_iter()
+                    .map(|arg| arg.to_string(&leader_context))
+                    .collect_vec();
                 let output = std::process::Command::new(command).args(&args).output()?;
                 self.show_global_info(Info::new(
                     format!("{command} {}", args.join(" ")),

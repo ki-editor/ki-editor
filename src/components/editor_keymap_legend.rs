@@ -1268,18 +1268,6 @@ impl Editor {
             // Third row
             __Z__, __X__, __C__, __V__, __B__, __N__, __M__, _COMA, _DOT_, _SLSH,
         ];
-        let leader_context = LeaderContext {
-            path: self.buffer().path(),
-            primary_selection_line_index: self
-                .buffer()
-                .char_to_line(
-                    self.selection_set
-                        .primary_selection()
-                        .extended_range()
-                        .start,
-                )
-                .unwrap_or_default(),
-        };
         KeymapLegendConfig {
             title: "Leader".to_string(),
 
@@ -1287,7 +1275,7 @@ impl Editor {
                 &meanings
                     .into_iter()
                     .filter_map(|meaning| {
-                        let (_, description, leader_action) = leader_keymap(&leader_context)
+                        let (_, description, leader_action) = leader_keymap()
                             .into_iter()
                             .find(|(m, _, _)| &meaning == m)?;
                         Some(Keymap::new(

@@ -28,15 +28,51 @@ pub(crate) struct LeaderContext {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum LeaderAction {
-    RunCommand(&'static str, Vec<String>),
+    RunCommand(&'static str, &'static [RunCommandPart]),
     DoNothing,
 }
 
-use LeaderAction::*;
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum RunCommandPart {
+    Str(&'static str),
+    CurrentFilePath,
+    /// 1-based
+    PrimarySelectionLineNumber,
+}
+impl RunCommandPart {
+    pub(crate) fn to_string(&self, leader_context: &LeaderContext) -> String {
+        match self {
+            Str(str) => str.to_string(),
+            CurrentFilePath => leader_context
+                .path
+                .as_ref()
+                .map(|path| path.display_absolute())
+                .unwrap_or_default(),
+            PrimarySelectionLineNumber => {
+                (leader_context.primary_selection_line_index + 1).to_string()
+            }
+        }
+    }
+}
 
-pub(crate) fn leader_keymap(context: &LeaderContext) -> Vec<(Meaning, &'static str, LeaderAction)> {
+use LeaderAction::*;
+use RunCommandPart::*;
+
+pub(crate) fn leader_keymap() -> Vec<(Meaning, &'static str, LeaderAction)> {
     [
-        (__Q__, "Sample", sample(context)),
+        (
+            __Q__,
+            "Sample",
+            RunCommand(
+                "echo",
+                &[
+                    Str("The current file is"),
+                    CurrentFilePath,
+                    Str("The current line is"),
+                    PrimarySelectionLineNumber,
+                ],
+            ),
+        ),
         (__W__, "", DoNothing),
         (__E__, "", DoNothing),
         (__R__, "", DoNothing),
@@ -71,21 +107,4 @@ pub(crate) fn leader_keymap(context: &LeaderContext) -> Vec<(Meaning, &'static s
     ]
     .into_iter()
     .collect()
-}
-
-fn sample(context: &LeaderContext) -> LeaderAction {
-    RunCommand(
-        "echo",
-        [
-            "The current file is".to_string(),
-            context
-                .path
-                .as_ref()
-                .map(|path| path.display_absolute())
-                .unwrap_or_default(),
-            "The current line is".to_string(),
-            (context.primary_selection_line_index + 1).to_string(),
-        ]
-        .to_vec(),
-    )
 }
