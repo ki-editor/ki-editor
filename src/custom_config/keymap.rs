@@ -8,6 +8,9 @@ use crate::components::editor_keymap::{
     Meaning::{self, *},
 };
 
+use LeaderAction::*;
+use RunCommandPart::*;
+
 pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
     [
         __Q__, __W__, __E__, __R__, __T__, /****/ __Y__, __U__, __I__, __O__, __P__,
@@ -20,43 +23,17 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
     ],
 ];
 
-pub(crate) struct LeaderContext {
-    pub(crate) path: Option<CanonicalizedPath>,
-    /// 0-based index
-    pub(crate) primary_selection_line_index: usize,
+fn sample() -> LeaderAction {
+    RunCommand(
+        "echo",
+        &[
+            Str("The current file is"),
+            CurrentFilePath,
+            Str("The current line is"),
+            PrimarySelectionLineNumber,
+        ],
+    )
 }
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum LeaderAction {
-    RunCommand(&'static str, &'static [RunCommandPart]),
-    DoNothing,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum RunCommandPart {
-    Str(&'static str),
-    CurrentFilePath,
-    /// 1-based
-    PrimarySelectionLineNumber,
-}
-impl RunCommandPart {
-    pub(crate) fn to_string(&self, leader_context: &LeaderContext) -> String {
-        match self {
-            Str(str) => str.to_string(),
-            CurrentFilePath => leader_context
-                .path
-                .as_ref()
-                .map(|path| path.display_absolute())
-                .unwrap_or_default(),
-            PrimarySelectionLineNumber => {
-                (leader_context.primary_selection_line_index + 1).to_string()
-            }
-        }
-    }
-}
-
-use LeaderAction::*;
-use RunCommandPart::*;
 
 pub(crate) fn leader_keymap() -> Vec<(Meaning, &'static str, LeaderAction)> {
     [
@@ -97,14 +74,37 @@ pub(crate) fn leader_keymap() -> Vec<(Meaning, &'static str, LeaderAction)> {
     .collect()
 }
 
-fn sample() -> LeaderAction {
-    RunCommand(
-        "echo",
-        &[
-            Str("The current file is"),
-            CurrentFilePath,
-            Str("The current line is"),
-            PrimarySelectionLineNumber,
-        ],
-    )
+pub(crate) struct LeaderContext {
+    pub(crate) path: Option<CanonicalizedPath>,
+    /// 0-based index
+    pub(crate) primary_selection_line_index: usize,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum LeaderAction {
+    RunCommand(&'static str, &'static [RunCommandPart]),
+    DoNothing,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum RunCommandPart {
+    Str(&'static str),
+    CurrentFilePath,
+    /// 1-based
+    PrimarySelectionLineNumber,
+}
+impl RunCommandPart {
+    pub(crate) fn to_string(&self, leader_context: &LeaderContext) -> String {
+        match self {
+            Str(str) => str.to_string(),
+            CurrentFilePath => leader_context
+                .path
+                .as_ref()
+                .map(|path| path.display_absolute())
+                .unwrap_or_default(),
+            PrimarySelectionLineNumber => {
+                (leader_context.primary_selection_line_index + 1).to_string()
+            }
+        }
+    }
 }
