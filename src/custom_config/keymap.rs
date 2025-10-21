@@ -60,19 +60,7 @@ use RunCommandPart::*;
 
 pub(crate) fn leader_keymap() -> Vec<(Meaning, &'static str, LeaderAction)> {
     [
-        (
-            __Q__,
-            "Sample",
-            RunCommand(
-                "echo",
-                &[
-                    Str("The current file is"),
-                    CurrentFilePath,
-                    Str("The current line is"),
-                    PrimarySelectionLineNumber,
-                ],
-            ),
-        ),
+        (__Q__, "Sample", sample()),
         (__W__, "", DoNothing),
         (__E__, "", DoNothing),
         (__R__, "", DoNothing),
@@ -107,4 +95,16 @@ pub(crate) fn leader_keymap() -> Vec<(Meaning, &'static str, LeaderAction)> {
     ]
     .into_iter()
     .collect()
+}
+
+fn sample() -> LeaderAction {
+    RunCommand(
+        "echo",
+        &[
+            Str("The current file is"),
+            CurrentFilePath,
+            Str("The current line is"),
+            PrimarySelectionLineNumber,
+        ],
+    )
 }
