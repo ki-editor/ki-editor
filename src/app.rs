@@ -1241,6 +1241,19 @@ impl<T: Frontend> App<T> {
         store_history: bool,
         focus: bool,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
+        if !path.exists() {
+            return Err(anyhow::anyhow!(
+                "The path {:?} does not exist.",
+                path.try_display_relative_to(self.context.current_working_directory()),
+            ));
+        }
+        if !path.is_file() {
+            return Err(anyhow::anyhow!(
+                "The path {:?} is not a file.",
+                path.try_display_relative_to(self.context.current_working_directory()),
+            ));
+        }
+
         if store_history {
             self.push_current_location_into_navigation_history(true);
         }
@@ -1966,13 +1979,29 @@ impl<T: Frontend> App<T> {
                 .or_else(|| file_paths.first())
                 .cloned()
         } {
-            if next_file_path.exists() {
-                self.open_file(&next_file_path.clone(), BufferOwner::User, true, true)?;
-            } else {
-                // If the file no longer exists, remove it from the list of marked files
-                // and then cycle to the next file
+            let next_file_path = next_file_path.clone();
+            if let Err(err) = self.open_file(&next_file_path.clone(), BufferOwner::User, true, true)
+            {
+                // If the file failed to open, show the error.
+                // The failure reasons might be:
+                // - the file no longer exists
+                // - the file is not a file
+                //
+                // In such cases we should remove it from the list of marked files,
+                // and then cycle to the next file.
+                //
+                // The removal is necessary otherwise this file will become an
+                // an obstacle that prevents cycle_mark_file from passing through.
                 self.context.toggle_path_mark(next_file_path.clone());
-                self.cycle_marked_file(direction)?
+                self.show_global_info(Info::new(
+                    "Cycle marked file error".to_string(),
+                    format!(
+                        "The file mark {:?} is removed from the list as it cannot be opened due to the following error:\n\n{err:?}",
+                        next_file_path
+                            .try_display_relative_to(self.context.current_working_directory())
+                    ),
+                ));
+                self.cycle_marked_file(direction)?;
             }
         }
         Ok(())
