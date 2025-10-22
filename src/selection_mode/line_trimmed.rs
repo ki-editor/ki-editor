@@ -23,66 +23,36 @@ impl PositionBasedSelectionMode for LineTrimmed {
         if cursor_char_index > max_cursor_char_index {
             return Ok(None);
         }
+        //let max_line_index = max_cursor_char_index.to_line(buffer)?;
 
-        /* let is_target_non_empty = |line: ropey::RopeSlice| {
-            let whitespace = get_padding_whitespace(line);
-            whitespace.leading + whitespace.trailing != line.len_chars()
-        }; */
-
-        let is_target_non_empty = |_: ropey::RopeSlice| true;
-
+        // adjust for first go
+        let portion = get_portion(buffer, cursor_char_index);
         let mut current_line_index = cursor_char_index.to_line(buffer)?;
-        let max_line_index = max_cursor_char_index.to_line(buffer)?;
-
-        let Some(line) = buffer.get_line_by_line_index(current_line_index) else {
-            return Ok(None);
+        current_line_index = match if_current_not_found {
+            IfCurrentNotFound::LookForward => match portion {
+                Portion::Leading => current_line_index,
+                Portion::Trimmed => current_line_index.saturating_add(1),
+                Portion::Trailing => current_line_index.saturating_add(1),
+            },
+            IfCurrentNotFound::LookBackward => match portion {
+                Portion::Leading => current_line_index.saturating_sub(1),
+                Portion::Trimmed => current_line_index.saturating_sub(1),
+                Portion::Trailing => current_line_index,
+            },
         };
-        let padding = get_padding_whitespace(line);
-        let line_start = buffer.line_to_char(current_line_index)?;
-        let line_end = line_start + line.len_chars();
-        let char_index_relative_to_line_start = cursor_char_index.0 - line_start.0;
-        // padding contains char_index
-        if char_index_relative_to_line_start < padding.leading {
-            match if_current_not_found {
-                IfCurrentNotFound::LookForward => {}
-                IfCurrentNotFound::LookBackward => {
-                    current_line_index = current_line_index.saturating_sub(1);
-                }
-            }
-        } else if char_index_relative_to_line_start + 1
-            > (line_end - line_start.0 - padding.trailing).0
-        {
-            match if_current_not_found {
-                IfCurrentNotFound::LookForward => {
-                    current_line_index =
-                        std::cmp::min(max_line_index, current_line_index.saturating_add(1));
-                }
-                IfCurrentNotFound::LookBackward => {}
-            }
-        }
 
-        match if_current_not_found {
-            IfCurrentNotFound::LookForward => loop {
-                let Some(current_line) = buffer.get_line_by_line_index(current_line_index) else {
-                    return Ok(None);
-                };
-
-                if is_target_non_empty(current_line) {
-                    break;
-                } else {
-                    current_line_index = current_line_index + 1;
-                }
-            },
-            IfCurrentNotFound::LookBackward => loop {
-                let Some(current_line) = buffer.get_line_by_line_index(current_line_index) else {
-                    return Ok(None);
-                };
-                if is_target_non_empty(current_line) {
-                    break;
-                } else {
-                    current_line_index = current_line_index - 1;
-                }
-            },
+        let is_target = |_: ropey::RopeSlice| true;
+        loop {
+            let Some(current_line) = buffer.get_line_by_line_index(current_line_index) else {
+                return Ok(None);
+            };
+            if is_target(current_line) {
+                break;
+            }
+            current_line_index = match if_current_not_found {
+                IfCurrentNotFound::LookForward => current_line_index.saturating_add(1),
+                IfCurrentNotFound::LookBackward => current_line_index.saturating_sub(1),
+            }
         }
 
         trimmed_range(buffer, current_line_index)
@@ -95,7 +65,6 @@ impl PositionBasedSelectionMode for LineTrimmed {
         _: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
         let max_cursor_char_index = CharIndex(buffer.len_chars());
-
         if cursor_char_index > max_cursor_char_index {
             return Ok(None);
         }
@@ -104,25 +73,26 @@ impl PositionBasedSelectionMode for LineTrimmed {
         let Some(line) = buffer.get_line_by_line_index(line_index) else {
             return Ok(None);
         };
-        let padding = get_padding_whitespace(line);
+        let line_portions = get_line_portions(line);
         let line_start = buffer.line_to_char(line_index)?;
         let line_end = line_start + line.len_chars();
-        let char_index_relative_to_line_start = cursor_char_index.0 - line_start.0;
-        // padding contains char_index
-        if char_index_relative_to_line_start < padding.leading {
-            let range = buffer.char_index_range_to_byte_range(
-                (line_start..line_start + padding.leading).into(),
-            )?;
-            Ok(Some(ByteRange::new(range)))
-        } else if char_index_relative_to_line_start + 1
-            > (line_end - line_start.0 - padding.trailing).0
-        {
-            // expanded_range(buffer, cursor_char_index)
-            let range = buffer
-                .char_index_range_to_byte_range((line_end - padding.trailing..line_end).into())?;
-            Ok(Some(ByteRange::new(range)))
-        } else {
-            trimmed_range(buffer, line_index)
+
+        let portion = get_portion(buffer, cursor_char_index);
+        match portion {
+            Portion::Leading => {
+                let range = buffer.char_index_range_to_byte_range(
+                    (line_start..line_start + line_portions.leading).into(),
+                )?;
+                Ok(Some(ByteRange::new(range)))
+            }
+            Portion::Trimmed => trimmed_range(buffer, line_index),
+            Portion::Trailing => {
+                // expanded_range(buffer, cursor_char_index)
+                let range = buffer.char_index_range_to_byte_range(
+                    (line_end - line_portions.trailing..line_end).into(),
+                )?;
+                Ok(Some(ByteRange::new(range)))
+            }
         }
     }
 
@@ -236,27 +206,79 @@ impl PositionBasedSelectionMode for LineTrimmed {
     }
 }
 
-struct PaddingWhitespace {
+enum Portion {
+    Leading,
+    Trimmed,
+    Trailing,
+}
+
+struct LinePortions {
     leading: usize,
+    trimmed: usize,
     trailing: usize,
 }
 
-fn get_padding_whitespace(line: ropey::RopeSlice) -> PaddingWhitespace {
+fn get_portion(buffer: &crate::buffer::Buffer, cursor_char_index: CharIndex) -> Portion {
+    let line_index = cursor_char_index.to_line(buffer).unwrap();
+    let line = buffer.get_line_by_line_index(line_index).unwrap();
+
+    let line_start = buffer.line_to_char(line_index).unwrap();
+    let line_end = line_start + line.len_chars();
+
+    let line_portions = get_line_portions(line);
+    let char_position = cursor_char_index.0 - line_start.0;
+
+    //debug_assert!(char_postion >= 0);
+    //debug_assert!(char_postion <= line.len_chars());
+
+    if char_position < line_portions.leading {
+        Portion::Leading
+    } else if line_portions.leading <= char_position
+        && char_position < line.len_chars() - line_portions.trailing
+    {
+        Portion::Trimmed
+    } else {
+        Portion::Trailing
+    }
+}
+
+fn get_line_portions(line: ropey::RopeSlice) -> LinePortions {
     let leading = line
         .chars()
         .take_while(|c| c.is_whitespace() && c != &'\n')
         .count();
-    let trailing = if line.len_chars() == 0 {
-        0
-    } else if line.chars().all(|char| char.is_whitespace()) {
-        line.len_chars() - leading
-    } else {
-        (0..line.len_chars())
-            .rev()
-            .take_while(|index| line.char(*index).is_whitespace())
-            .count()
+    let trimmed = line.to_string().trim().len();
+    let trailing = (leading..line.len_chars())
+        .rev()
+        .take_while(|index| line.char(*index).is_whitespace())
+        .count();
+    // debug_assert_eq!(leading + trimmed + trailing, line.len_chars());
+    LinePortions {
+        leading,
+        trimmed,
+        trailing,
+    }
+}
+
+fn trimmed_range(
+    buffer: &crate::buffer::Buffer,
+    line_index: usize,
+) -> anyhow::Result<Option<super::ByteRange>> {
+    let Some(line) = buffer.get_line_by_line_index(line_index) else {
+        return Ok(None);
     };
-    PaddingWhitespace { leading, trailing }
+    let line_portions = get_line_portions(line);
+    let line_start = buffer.line_to_char(line_index)?;
+    let line_end = line_start + line.len_chars();
+    /* if line.chars().all(|c| c.is_whitespace()) {
+        let line_start = buffer.char_to_byte(line_start + line_portions.leading - 0)?;
+        return Ok(Some(ByteRange::new(line_start..line_start)));
+    } */
+    let range = buffer.char_index_range_to_byte_range(
+        (line_start + line_portions.leading..line_end - line_portions.trailing).into(),
+        //(line_start + line_portions.leading..line_start+line_portions.leading+line_portions.trimmed).into(),
+    )?;
+    Ok(Some(ByteRange::new(range)))
 }
 
 #[allow(dead_code)]
@@ -294,26 +316,6 @@ fn expanded_range(
 
     let range = buffer
         .char_index_range_to_byte_range((leftmost_whitespace..rightmost_whitespace).into())?;
-    Ok(Some(ByteRange::new(range)))
-}
-
-fn trimmed_range(
-    buffer: &crate::buffer::Buffer,
-    line_index: usize,
-) -> anyhow::Result<Option<super::ByteRange>> {
-    let Some(line) = buffer.get_line_by_line_index(line_index) else {
-        return Ok(None);
-    };
-    let padding = get_padding_whitespace(line);
-    let line_start = buffer.line_to_char(line_index)?;
-    let line_end = line_start + line.len_chars();
-    if line.chars().all(|c| c.is_whitespace()) {
-        let line_start = buffer.char_to_byte(line_start + padding.leading - 0)?;
-        return Ok(Some(ByteRange::new(line_start..line_start)));
-    }
-    let range = buffer.char_index_range_to_byte_range(
-        (line_start + padding.leading..line_end - padding.trailing).into(),
-    )?;
     Ok(Some(ByteRange::new(range)))
 }
 
