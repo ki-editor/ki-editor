@@ -545,7 +545,7 @@ impl ExpectKind {
                     ),
             MarkedFiles(expected) => contextualize(
                 expected,
-                &app.context().get_marked_files().into_iter().map(|path| path.clone()).collect_vec()
+                &app.context().get_marked_files().into_iter().cloned().collect_vec()
             ),
             NoError => (true, String::new()),
         })
