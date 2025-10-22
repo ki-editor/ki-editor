@@ -179,6 +179,11 @@ impl CanonicalizedPath {
             .unwrap_or_else(|_| self.display_absolute())
     }
 
+    pub fn try_display_relative_to(&self, other: &CanonicalizedPath) -> String {
+        self.display_relative_to(other)
+            .unwrap_or_else(|_| self.display_absolute())
+    }
+
     pub fn to_url(&self) -> Option<Url> {
         Url::from_file_path(self.0.clone()).ok()
     }
