@@ -31,12 +31,12 @@ impl PositionBasedSelectionMode for LineTrimmed {
         current_line_index = match if_current_not_found {
             IfCurrentNotFound::LookForward => match portion {
                 Portion::Leading => current_line_index,
-                Portion::Trimmed => current_line_index.saturating_add(1),
+                Portion::Trimmed => current_line_index,
                 Portion::Trailing => current_line_index.saturating_add(1),
             },
             IfCurrentNotFound::LookBackward => match portion {
                 Portion::Leading => current_line_index.saturating_sub(1),
-                Portion::Trimmed => current_line_index.saturating_sub(1),
+                Portion::Trimmed => current_line_index,
                 Portion::Trailing => current_line_index,
             },
         };
