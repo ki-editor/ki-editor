@@ -77,6 +77,7 @@ use crate::{lsp::process::LspNotification, themes::Color};
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum Step {
     App(Dispatch),
+    Shell(String),
     AppLater(Box<dyn Fn() -> Dispatch>),
     ExpectMulti(Vec<ExpectKind>),
     Expect(ExpectKind),
@@ -101,6 +102,7 @@ impl Step {
             ExpectLater(_) => "ExpectLater(_)".to_string(),
             ExpectCustom(_) => "ExpectCustom(_)".to_string(),
             WaitForAppMessage(regex) => format!("WaitForAppMessage({regex:?})"),
+            Shell(command) => format!("Shell: {command}"),
         }
     }
 }
@@ -168,6 +170,7 @@ pub(crate) enum ExpectKind {
     CountHighlightedCells(StyleKey, usize),
     SelectionExtensionEnabled(bool),
     PromptHistory(PromptHistoryKey, Vec<String>),
+    MarkedFiles(Vec<CanonicalizedPath>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -540,6 +543,10 @@ impl ExpectKind {
                         expected,
                         &app.context().get_prompt_history(*key)
                     ),
+            MarkedFiles(expected) => contextualize(
+                expected,
+                &app.context().get_marked_files().into_iter().cloned().collect_vec()
+            ),
             NoError => (true, String::new()),
         })
     }
@@ -547,6 +554,7 @@ impl ExpectKind {
 
 pub(crate) use ExpectKind::*;
 pub(crate) use Step::*;
+#[derive(Clone)]
 pub(crate) struct State {
     temp_dir: CanonicalizedPath,
     main_rs: CanonicalizedPath,
@@ -703,6 +711,13 @@ fn execute_test_helper(
                 SuggestiveEditor(dispatch) => {
                     log(dispatch);
                     app.handle_dispatch_suggestive_editor(dispatch.to_owned())?
+                }
+                Shell(command) => {
+                    log(format!("Shell: {command}"));
+                    let parts = command.split(" ").map(|s| s.to_string()).collect_vec();
+                    let (program, args) = parts.split_first().unwrap();
+                    let output = std::process::Command::new(program).args(args).output();
+                    log(output)
                 }
             };
         }
@@ -3291,12 +3306,31 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
             App(CycleMarkedFile(Direction::Start)),
             Expect(NoError),
             Expect(CurrentPath(s.hello_ts())),
-            // Expect main.rs is removed from the tab
+            // Expect main.rs is removed from the tabline
+            // Also an error is shown to notify the user that main.rs is removed from the tabline
             Expect(AppGrid(
                 r#" # 🙈  .gitignore  # 📘  hello.ts
 1│█onsole.log("hello");
-2│"#
-                .to_string(),
+2│
+
+
+
+
+
+
+
+
+
+
+
+
+
+Cycle marked file error
+1│█he file mark "src/main.rs" is removed from the list as it cannot be opened
+↪│due to the following error:
+2│
+3│The path "src/main.rs" does not exist."#
+                    .to_string(),
             )),
         ])
     })
@@ -3390,6 +3424,45 @@ fn escape_global_diagnostics_should_not_change_selection() -> Result<(), anyhow:
             App(HandleKeyEvent(key!("esc"))),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Expect(CurrentSelectedTexts(&["mod"])),
+        ])
+    })
+}
+
+#[test]
+fn unable_to_close_marked_files_that_became_a_directory() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        let foo_path = s.new_path("foo");
+        let temp_path = s.new_path("temp");
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenAddPathPrompt),
+            App(AddPath(foo_path.display().to_string())),
+            // Enter again to open the new file which is revealed in explorer
+            App(HandleKeyEvents(keys!("enter").to_vec())),
+            App(ToggleFileMark),
+            ExpectLater(Box::new({
+                let foo_path = foo_path.clone();
+                move || CurrentPath(foo_path.clone().try_into().unwrap())
+            })),
+            App(CycleMarkedFile(Direction::End)),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            Shell(format!("mv {} {}", foo_path.display(), temp_path.display())),
+            Shell(format!("mkdir {}", foo_path.display(),)),
+            // Turn foo into a directory
+            Shell(format!(
+                "mv {} {}/foo",
+                temp_path.display(),
+                foo_path.display()
+            )),
+            App(CycleMarkedFile(Direction::End)),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            Expect(MarkedFiles([s.main_rs()].to_vec())),
+            Expect(GlobalInfo("The file mark \"foo\" is removed from the list as it cannot be opened due to the following error:\n\nThe path \"foo\" is not a file.")),
         ])
     })
 }
