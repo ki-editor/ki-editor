@@ -43,7 +43,20 @@ fn sample_macro() -> LeaderAction {
 }
 
 fn test() -> LeaderAction {
-    RunCommand("just", &[Str("test"), PrimarySelectionContent])
+    RunCommand(
+        "kitty",
+        &[
+            Str("@"),
+            Str("launch"),
+            Str("--hold"),
+            Str("--no-response"),
+            Str("--cwd"),
+            CurrentWorkingDirectory,
+            Str("just"),
+            Str("test"),
+            PrimarySelectionContent,
+        ],
+    )
 }
 
 pub(crate) fn leader_keymap() -> Vec<(Meaning, &'static str, LeaderAction)> {
@@ -90,6 +103,7 @@ pub(crate) struct LeaderContext {
     /// 0-based index
     pub(crate) primary_selection_line_index: usize,
     pub(crate) primary_selection_content: String,
+    pub(crate) current_working_directory: CanonicalizedPath,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -106,6 +120,7 @@ pub(crate) enum RunCommandPart {
     /// 1-based
     PrimarySelectionLineNumber,
     PrimarySelectionContent,
+    CurrentWorkingDirectory,
 }
 impl RunCommandPart {
     pub(crate) fn to_string(&self, leader_context: &LeaderContext) -> String {
@@ -120,6 +135,7 @@ impl RunCommandPart {
                 (leader_context.primary_selection_line_index + 1).to_string()
             }
             PrimarySelectionContent => leader_context.primary_selection_content.to_string(),
+            CurrentWorkingDirectory => leader_context.current_working_directory.display_absolute(),
         }
     }
 }
