@@ -545,7 +545,7 @@ impl ExpectKind {
                     ),
             MarkedFiles(expected) => contextualize(
                 expected,
-                &app.context().get_marked_files().into_iter().cloned().collect_vec()
+                &app.context().get_marked_files().into_iter().map(|path| path.clone()).collect_vec()
             ),
             NoError => (true, String::new()),
         })
@@ -3306,12 +3306,31 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
             App(CycleMarkedFile(Direction::Start)),
             Expect(NoError),
             Expect(CurrentPath(s.hello_ts())),
-            // Expect main.rs is removed from the tab
+            // Expect main.rs is removed from the tabline
+            // Also an error is shown to notify the user that main.rs is removed from the tabline
             Expect(AppGrid(
                 r#" # 🙈  .gitignore  # 📘  hello.ts
 1│█onsole.log("hello");
-2│"#
-                .to_string(),
+2│
+
+
+
+
+
+
+
+
+
+
+
+
+
+Cycle marked file error
+1│█he file mark "src/main.rs" is removed from the list as it cannot be opened
+↪│due to the following error:
+2│
+3│The path "src/main.rs" does not exist."#
+                    .to_string(),
             )),
         ])
     })
@@ -3443,7 +3462,7 @@ fn unable_to_close_marked_files_that_became_a_directory() -> Result<(), anyhow::
             App(CycleMarkedFile(Direction::End)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Expect(MarkedFiles([s.main_rs()].to_vec())),
-            Expect(GlobalInfo("The file mark \"foo\" will be removed from the list as it cannot be opened due to the following error:\n\nThe path \"foo\" is not a file.")),
+            Expect(GlobalInfo("The file mark \"foo\" is removed from the list as it cannot be opened due to the following error:\n\nThe path \"foo\" is not a file.")),
         ])
     })
 }

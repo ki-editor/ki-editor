@@ -1237,6 +1237,12 @@ impl<T: Frontend> App<T> {
         store_history: bool,
         focus: bool,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
+        if !path.exists() {
+            return Err(anyhow::anyhow!(
+                "The path {:?} does not exist.",
+                path.try_display_relative_to(self.context.current_working_directory()),
+            ));
+        }
         if !path.is_file() {
             return Err(anyhow::anyhow!(
                 "The path {:?} is not a file.",
@@ -1984,9 +1990,9 @@ impl<T: Frontend> App<T> {
                 // an obstacle that prevents cycle_mark_file from passing through.
                 self.context.toggle_path_mark(next_file_path.clone());
                 self.show_global_info(Info::new(
-                    "Cycle mark file error".to_string(),
+                    "Cycle marked file error".to_string(),
                     format!(
-                        "The file mark {:?} will be removed from the list as it cannot be opened due to the following error:\n\n{err:?}",
+                        "The file mark {:?} is removed from the list as it cannot be opened due to the following error:\n\n{err:?}",
                         next_file_path
                             .try_display_relative_to(self.context.current_working_directory())
                     ),
