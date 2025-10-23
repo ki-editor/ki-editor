@@ -871,11 +871,12 @@ const fn typst() -> Language {
         lsp_language_id: Some(LanguageId::new("typst")),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "typst",
-            url: "https://github.com/uben0/tree-sitter-typst",
-            commit: "master",
-            subpath: None,
+            kind: GrammarConfigKind::FromSource {
+                url: "https://github.com/uben0/tree-sitter-typst",
+                commit: "master",
+                subpath: None,
+            },
         }),
-        language_fallback: None,
         block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
