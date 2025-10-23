@@ -3918,7 +3918,7 @@ fn git_hunk_should_compare_against_buffer_content_not_file_content() -> anyhow::
                 GitHunk(crate::git::DiffMode::UnstagedAgainstCurrentBranch),
             )),
             Editor(CursorAddToAllSelections),
-            Expect(CurrentSelectedTexts(&["hellomod foo;\n"])),
+            Expect(CurrentSelectedTexts(&["hellomod foo;"])),
         ])
     })
 }

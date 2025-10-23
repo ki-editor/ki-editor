@@ -34,7 +34,7 @@ pub(crate) struct SimpleHunk {
     pub(crate) kind: SimpleHunkKind,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum SimpleHunkKind {
     Delete,
     Insert,
