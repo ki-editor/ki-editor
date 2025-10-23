@@ -52,6 +52,7 @@ use crate::{
     },
     context::{GlobalMode, LocalSearchConfigMode},
     frontend::{mock::MockFrontend, MyWriter, NullWriter, StringWriter},
+    git::DiffMode,
     grid::{IndexedHighlightGroup, StyleKey},
     integration_test::{TestOutput, TestRunner},
     list::grep::RegexConfig,
@@ -1166,7 +1167,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
 }
 
 #[test]
-pub(crate) fn revert_git_hunk() -> Result<(), anyhow::Error> {
+pub(crate) fn revert_modified_hunk() -> Result<(), anyhow::Error> {
     let original_content = "pub(crate) struct Foo {
     a: (),
     b: (),
@@ -1202,12 +1203,44 @@ pub(crate) fn foo() -> Foo {
                 IfCurrentNotFound::LookForward,
                 GitHunk(crate::git::DiffMode::UnstagedAgainstMainBranch),
             )),
-            Expect(CurrentSelectedTexts(&["// Hellopub(crate) struct Foo {\n"])),
+            Expect(CurrentSelectedTexts(&["// Hellopub(crate) struct Foo {"])),
             Editor(RevertHunk(
                 crate::git::DiffMode::UnstagedAgainstCurrentBranch,
             )),
             Expect(CurrentComponentContent(original_content)),
             Expect(CurrentSelectedTexts(&["pub(crate) struct Foo {"])),
+        ])
+    })
+}
+
+#[test]
+fn revert_deleted_hunk() -> anyhow::Result<()> {
+    let diff_mode = DiffMode::UnstagedAgainstCurrentBranch;
+    execute_test(|s| {
+        let original_content = "mod foo;
+
+fn main() {
+    foo::foo();
+    println!(\"Hello, world!\");
+}
+";
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentComponentContent(original_content)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(Delete),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                GitHunk(diff_mode),
+            )),
+            Expect(GlobalInfoContents(&["mod foo;"])),
+            Editor(RevertHunk(diff_mode)),
+            Expect(CurrentSelectedTexts(&["mod foo;\n"])),
+            Expect(CurrentComponentContent(original_content)),
         ])
     })
 }

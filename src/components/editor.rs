@@ -13,7 +13,7 @@ use crate::{
     components::component::Component,
     context::LocalSearchConfig,
     edit::{Action, ActionGroup, Edit, EditTransaction},
-    git::{DiffMode, GitOperation as _},
+    git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _},
     list::grep::RegexConfig,
     lsp::completion::PositionalEdit,
     position::Position,
@@ -3962,10 +3962,10 @@ impl Editor {
                 .map(|selection| -> anyhow::Result<_> {
                     let buffer = self.buffer();
                     let line_range = buffer.char_index_range_to_line_range(selection.range())?;
-                    let Some(matching_hunk) = hunks
-                        .iter()
-                        .find(|hunk| range_intersects(&hunk.new_line_range, &line_range))
-                    else {
+                    let Some(matching_hunk) = hunks.iter().find(|hunk| {
+                        range_intersects(&hunk.new_line_range, &line_range)
+                            || hunk.new_line_range.start == line_range.start
+                    }) else {
                         // Do nothing if this selection does not intersect with any hunks
                         return Ok(ActionGroup::new(
                             [Action::Select(selection.clone())].to_vec(),
@@ -3978,6 +3978,13 @@ impl Editor {
                             .into()
                     };
                     let replacement: Rope = matching_hunk.old_content.clone().into();
+
+                    // If the hunk is a removed hunk, we need to append a newline char
+                    let replacement = if matching_hunk.kind == SimpleHunkKind::Delete {
+                        format!("{}\n", matching_hunk.old_content).into()
+                    } else {
+                        replacement
+                    };
                     let select_range = {
                         let start = buffer.line_to_char(matching_hunk.new_line_range.start)?;
                         (start..start + replacement.len_chars()).into()
