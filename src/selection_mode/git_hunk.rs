@@ -22,10 +22,8 @@ impl GitHunk {
             .iter()
             .filter_map(|hunk| {
                 let line_range = hunk.line_range();
-                let start = buffer.line_to_byte(line_range.start).ok()?;
-                let end = buffer.line_to_byte(line_range.end).ok()?;
-
-                Some(ByteRange::new(start..end).set_info(hunk.to_info()))
+                let byte_range = buffer.line_range_to_byte_range(line_range).ok()?;
+                Some(ByteRange::new(byte_range).set_info(hunk.to_info()))
             })
             .collect_vec();
         Ok(GitHunk { ranges })
