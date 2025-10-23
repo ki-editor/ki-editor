@@ -41,8 +41,6 @@ pub struct Language {
     pub(crate) lsp_language_id: Option<LanguageId>,
     pub(crate) lsp_command: Option<LspCommand>,
     pub(crate) tree_sitter_grammar_config: Option<GrammarConfig>,
-    /// This will be used when we can't load the language file using `tree_sitter_grammar_config`.
-    pub(crate) language_fallback: Option<CargoLinkedTreesitterLanguage>,
     pub(crate) highlight_query: Option<&'static str>,
     pub(crate) formatter_command: Option<Command>,
     pub(crate) line_comment_prefix: Option<&'static str>,
@@ -154,7 +152,6 @@ impl Language {
             lsp_command: None,
             tree_sitter_grammar_config: None,
             formatter_command: None,
-            language_fallback: None,
             line_comment_prefix: None,
             block_comment_affixes: None,
         }
@@ -181,10 +178,20 @@ impl Default for Language {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GrammarConfig {
-    pub(crate) id: &'static str,
-    pub(crate) url: &'static str,
-    pub(crate) commit: &'static str,
-    pub(crate) subpath: Option<&'static str>,
+    pub id: &'static str,
+    pub kind: GrammarConfigKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GrammarConfigKind {
+    /// This is the recommended over `FromSource`, as `FromSource`
+    /// is not reliable across different operating system.
+    CargoLinked(CargoLinkedTreesitterLanguage),
+    FromSource {
+        url: &'static str,
+        commit: &'static str,
+        subpath: Option<&'static str>,
+    },
 }
 
 impl Language {
@@ -197,15 +204,25 @@ impl Language {
     }
 
     pub fn tree_sitter_language(&self) -> Option<tree_sitter::Language> {
-        grammar::grammar::get_language(&self.tree_sitter_grammar_config()?.grammar_id)
-            .ok()
-            .or_else(|| Some(self.language_fallback.clone()?.to_tree_sitter_language()))
+        let config = self.tree_sitter_grammar_config.as_ref()?;
+        match &config.kind {
+            GrammarConfigKind::CargoLinked(language) => Some(language.to_tree_sitter_language()),
+            GrammarConfigKind::FromSource { .. } => grammar::grammar::get_language(config.id).ok(),
+        }
     }
 
     pub(crate) fn tree_sitter_grammar_config(&self) -> Option<GrammarConfiguration> {
-        self.tree_sitter_grammar_config.as_ref().map(|config| {
-            GrammarConfiguration::remote(config.id, config.url, config.commit, config.subpath)
-        })
+        match self.tree_sitter_grammar_config.as_ref()?.kind {
+            GrammarConfigKind::CargoLinked(_) => None,
+            GrammarConfigKind::FromSource {
+                url,
+                commit,
+                subpath,
+            } => self
+                .tree_sitter_grammar_config
+                .as_ref()
+                .map(|config| GrammarConfiguration::remote(config.id, url, commit, subpath)),
+        }
     }
 
     pub fn highlight_query(&self) -> Option<String> {
@@ -213,14 +230,13 @@ impl Language {
         get_highlight_query(self.tree_sitter_grammar_config.clone()?.id)
             .ok()
             .map(|result| result.query)
-            .or(
+            .or_else(||
                 // Otherwise, get from the default highlight queries defined in the grammar repo
                 grammar::grammar::load_runtime_file(
-                    &self.tree_sitter_grammar_config()?.grammar_id,
+                    &self.tree_sitter_grammar_id()?,
                     "highlights.scm",
                 )
-                .ok(),
-            )
+                .ok())
             .map(|query| {
                 query
                     // Replace `nvim-treesitter`-specific predicates with builtin predicates supported by `tree-sitter-highlight` crate
@@ -251,7 +267,7 @@ impl Language {
     }
 
     pub fn tree_sitter_grammar_id(&self) -> Option<String> {
-        Some(self.tree_sitter_grammar_config()?.grammar_id)
+        Some(self.tree_sitter_grammar_config.as_ref()?.id.to_string())
     }
 
     pub fn id(&self) -> Option<LanguageId> {
