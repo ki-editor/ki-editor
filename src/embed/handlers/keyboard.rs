@@ -67,12 +67,13 @@ impl EmbeddedApp {
         let path = uri_to_path(&params.uri).ok();
         let content_hash = params.content_hash;
         let event = Event::Key(Self::parse_keyboard_input(params));
-        let app_message =
-            AppMessage::ExternalDispatch(Dispatch::FromHostApp(FromHostApp::TargetedEvent {
+        let app_message = AppMessage::ExternalDispatch(Box::new(Dispatch::FromHostApp(
+            FromHostApp::TargetedEvent {
                 event,
                 path,
                 content_hash,
-            }));
+            },
+        )));
 
         // Send the parameters directly to the App thread via the new AppMessage variant
         if let Err(e) = self.app_sender.send(app_message) {
