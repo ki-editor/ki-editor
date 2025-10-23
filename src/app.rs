@@ -253,7 +253,7 @@ impl<T: Frontend> App<T> {
         match message {
             AppMessage::Event(event) => self.handle_event(event),
             AppMessage::LspNotification(notification) => {
-                self.handle_lsp_notification(notification).map(|_| false)
+                self.handle_lsp_notification(*notification).map(|_| false)
             }
             AppMessage::QuitAll => {
                 self.quit()?;
@@ -268,7 +268,7 @@ impl<T: Frontend> App<T> {
                 .map(|_| false),
             AppMessage::ExternalDispatch(dispatch) => {
                 // Process the dispatch directly
-                self.handle_dispatch(dispatch)?;
+                self.handle_dispatch(*dispatch)?;
                 Ok(false)
             }
             AppMessage::NucleoTickDebounced => {
@@ -1402,7 +1402,7 @@ impl<T: Frontend> App<T> {
                 Ok(())
             }
             LspNotification::CompletionItemResolve(completion_item) => {
-                self.update_current_completion_item(completion_item.into())
+                self.update_current_completion_item((*completion_item).into())
             }
         }
     }
@@ -1629,9 +1629,9 @@ impl<T: Frontend> App<T> {
         }
         let sender = self.sender.clone();
         let send_matches = Arc::new(move |matches: Vec<Match>| {
-            SendResult::from(sender.send(AppMessage::ExternalDispatch(
+            SendResult::from(sender.send(AppMessage::ExternalDispatch(Box::new(
                 Dispatch::AddQuickfixListEntries(matches),
-            )))
+            ))))
         });
         let send_match = crate::thread::batch(send_matches, Duration::from_millis(16)); // Around 30 ticks per second
 
@@ -3101,7 +3101,7 @@ pub(crate) enum Scope {
 
 #[derive(Debug)]
 pub(crate) enum AppMessage {
-    LspNotification(LspNotification),
+    LspNotification(Box<LspNotification>),
     Event(Event),
     QuitAll,
     SyntaxHighlightResponse {
@@ -3110,7 +3110,7 @@ pub(crate) enum AppMessage {
         highlighted_spans: HighlightedSpans,
     },
     // New variant for external dispatches
-    ExternalDispatch(Dispatch),
+    ExternalDispatch(Box<Dispatch>),
     NucleoTickDebounced,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
