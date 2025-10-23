@@ -3515,7 +3515,6 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    #[cfg(test)]
     pub(crate) fn primary_selection(&self) -> anyhow::Result<String> {
         Ok(self
             .buffer()
