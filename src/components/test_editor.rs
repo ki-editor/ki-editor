@@ -1492,6 +1492,40 @@ fn jump() -> anyhow::Result<()> {
 }
 
 #[test]
+fn jump_uses_first_alphabetic_char_of_selection_whenever_possible() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+# hello world
+# foo
+#
+zap
+                "
+                .to_string(),
+            )),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 10,
+            })),
+            Expect(JumpChars(&[])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(ShowJumps {
+                use_current_selection_mode: true,
+                prior_change: None,
+            }),
+            Expect(JumpChars(&['h', 'f', '#', 'z'])),
+        ])
+    })
+}
+
+#[test]
 fn jump_to_hidden_parent_lines() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

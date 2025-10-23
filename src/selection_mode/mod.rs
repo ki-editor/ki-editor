@@ -496,12 +496,16 @@ pub trait SelectionModeTrait {
                 let selection = range
                     .to_selection(params.buffer, params.current_selection)
                     .ok()?;
-                let character = params
+                let content = params
                     .buffer
                     .slice(&selection.range()) // Cannot use extend_range here, must use range only
-                    .ok()?
+                    .ok()?;
+
+                let character = content
                     .chars()
-                    .next()?
+                    // Use the first alphabetic char whenever possible
+                    .find(|c| !c.is_alphabetic())
+                    .or_else(|| content.chars().next())?
                     .to_ascii_lowercase();
                 Some(Jump {
                     character,
