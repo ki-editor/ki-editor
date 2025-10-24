@@ -96,20 +96,16 @@ However, if we use `D` instead, the selection will remain as `hello`, and pressi
 ## `Line`
 
 In this selection mode, the selection is trimmed, which means that the leading
-and trailing spaces of each line are not selected.
+and trailing spaces of each line are not meaningful. The meaningful selection of
+this mode is the trimmed portion of any line (this may be empty if line is only
+whitespaces). The other two portions of any line are the leading whitespaces and
+the trailing whitespaces (includes the end of line '\n' character).
 
-| Movement      | Meaning                                         |
-| ------------- | ----------------------------------------------- |
-| Up/Down       | Move to line above/below                        |
-| First/Last    | Move to the first/last line of the current file |
-| Left          | Move to the parent line                         |
-| Previous/Next | Move to empty lines                             |
-
-Parent lines are highlighted lines that represent the parent nodes of the current selection.
-
-This is useful for example when you are within the body of a function and you want to jump to the function name.
-
-This is also practical in the [File Explorer](../../components/file-explorer.md) because the file explorer is rendered using YAML, so going to Parent Line means going to the parent folder!
+| Movement                    | Meaning                                         |
+| --------------------------- | ----------------------------------------------- |
+| Up/Down/Previous/Next       | Move to all kinds of line portions              |
+| First/Last                  | Move to the first/last line of the current file |
+| Right/Left                  | Move to the trimmed portion of the line         |
 
 <TutorialFallback filename="line"/>
 
@@ -117,7 +113,7 @@ This is also practical in the [File Explorer](../../components/file-explorer.md)
 
 Full Line.
 
-Same as [Line](#line), however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.
+Same as [Line](#line), however, leading whitespaces and trailing whitespaces, including newline characters are also selected. And, Right/Left goes to the next empty (whitespaces only) line, this behavior is similar to move by paragraph.
 
 ## `Word`
 
