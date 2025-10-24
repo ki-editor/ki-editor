@@ -416,6 +416,7 @@ mod test_line {
                 (20..20, ""),
                 (21..24, "bye"),
                 (25..25, ""),
+                (26..26, ""),
             ],
         );
     }
@@ -564,7 +565,7 @@ foo
                 )),
                 Editor(Copy),
                 Editor(Paste),
-                Expect(CurrentComponentContent("  foo\n  foo")),
+                Expect(CurrentComponentContent("  \n  foo")),
             ])
         })
     }
@@ -588,7 +589,7 @@ foo
                 Editor(Copy),
                 Editor(SwapCursor),
                 Editor(Paste),
-                Expect(CurrentComponentContent("  foo\n  foo")),
+                Expect(CurrentComponentContent("  \n  foo")),
             ])
         })
     }
@@ -633,7 +634,7 @@ foo
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Line,
                 )),
-                Expect(CurrentSelectedTexts(&[""])),
+                Expect(CurrentSelectedTexts(&[" "])),
                 Editor(Copy),
                 Editor(SwapCursor),
                 Editor(Paste),
@@ -659,7 +660,7 @@ foo
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Line,
                 )),
-                Expect(CurrentSelectedTexts(&[""])),
+                Expect(CurrentSelectedTexts(&[" "])),
                 Editor(Copy),
                 Editor(Paste),
                 Expect(CurrentComponentContent(" \n ")),
