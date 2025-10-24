@@ -1677,7 +1677,9 @@ pub(crate) trait IterBasedSelectionMode {
             self.iter_filtered(params)?
                 .filter_map(|byte_range| {
                     // Get intersecting matches
-                    if byte_range.range.contains(&cursor_byte) {
+                    if byte_range.range.start == cursor_byte
+                        || byte_range.range.contains(&cursor_byte)
+                    {
                         let line = buffer.byte_to_line(byte_range.range.start).ok()?;
                         Some((line, byte_range))
                     } else {

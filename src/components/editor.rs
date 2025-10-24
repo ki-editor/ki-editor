@@ -13,7 +13,7 @@ use crate::{
     components::component::Component,
     context::LocalSearchConfig,
     edit::{Action, ActionGroup, Edit, EditTransaction},
-    git::{DiffMode, GitOperation as _},
+    git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _},
     list::grep::RegexConfig,
     lsp::completion::PositionalEdit,
     position::Position,
@@ -377,6 +377,7 @@ impl Component for Editor {
                 return self.repeat_search(context, scope, if_current_not_found, prior_change)
             }
             RevertHunk(diff_mode) => return self.revert_hunk(context, diff_mode),
+            GitBlame => return self.git_blame(context),
         }
         Ok(Default::default())
     }
@@ -3961,19 +3962,29 @@ impl Editor {
                 .map(|selection| -> anyhow::Result<_> {
                     let buffer = self.buffer();
                     let line_range = buffer.char_index_range_to_line_range(selection.range())?;
-                    let Some(matching_hunk) = hunks
-                        .iter()
-                        .find(|hunk| range_intersects(&hunk.new_line_range, &line_range))
-                    else {
+                    let Some(matching_hunk) = hunks.iter().find(|hunk| {
+                        range_intersects(&hunk.new_line_range, &line_range)
+                            || hunk.new_line_range.start == line_range.start
+                    }) else {
                         // Do nothing if this selection does not intersect with any hunks
                         return Ok(ActionGroup::new(
                             [Action::Select(selection.clone())].to_vec(),
                         ));
                     };
 
-                    let edit_range =
-                        buffer.line_range_to_char_index_range(&matching_hunk.new_line_range)?;
+                    let edit_range = {
+                        let start = buffer.line_to_char(matching_hunk.new_line_range.start)?;
+                        (start..start + Rope::from_str(&matching_hunk.new_content).len_chars())
+                            .into()
+                    };
                     let replacement: Rope = matching_hunk.old_content.clone().into();
+
+                    // If the hunk is a removed hunk, we need to append a newline char
+                    let replacement = if matching_hunk.kind == SimpleHunkKind::Delete {
+                        format!("{}\n", matching_hunk.old_content).into()
+                    } else {
+                        replacement
+                    };
                     let select_range = {
                         let start = buffer.line_to_char(matching_hunk.new_line_range.start)?;
                         (start..start + replacement.len_chars()).into()
@@ -3991,6 +4002,38 @@ impl Editor {
                 .collect_vec(),
         );
         self.apply_edit_transaction(edit_transaction, context)
+    }
+
+    fn git_blame(&self, context: &mut Context) -> Result<Dispatches, anyhow::Error> {
+        let Some(file_path) = self.buffer().path() else {
+            return Ok(Default::default());
+        };
+        let line_numbers: Vec<usize> = self
+            .selection_set
+            .map(|selection| self.buffer().char_to_line(selection.range.start))
+            .into_iter()
+            .try_collect()?;
+
+        let git_blame_infos: Vec<_> = line_numbers
+            .into_iter()
+            .map(|line_number| {
+                crate::git::blame::blame_line(
+                    context.current_working_directory(),
+                    &file_path,
+                    line_number,
+                )
+            })
+            .try_collect()?;
+
+        let info = git_blame_infos
+            .into_iter()
+            .map(|info| info.display())
+            .join("\n==========\n");
+
+        Ok(Dispatches::one(Dispatch::ShowEditorInfo(Info::new(
+            "Git blame".to_string(),
+            info,
+        ))))
     }
 }
 
@@ -4131,6 +4174,7 @@ pub(crate) enum DispatchEditor {
     ShowKeymapLegendExtend,
     RepeatSearch(Scope, IfCurrentNotFound, Option<PriorChange>),
     RevertHunk(DiffMode),
+    GitBlame,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

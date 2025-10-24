@@ -52,6 +52,7 @@ use crate::{
     },
     context::{GlobalMode, LocalSearchConfigMode},
     frontend::{mock::MockFrontend, MyWriter, NullWriter, StringWriter},
+    git::DiffMode,
     grid::{IndexedHighlightGroup, StyleKey},
     integration_test::{TestOutput, TestRunner},
     list::grep::RegexConfig,
@@ -77,6 +78,7 @@ use crate::{lsp::process::LspNotification, themes::Color};
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum Step {
     App(Dispatch),
+    Shell(String),
     AppLater(Box<dyn Fn() -> Dispatch>),
     ExpectMulti(Vec<ExpectKind>),
     Expect(ExpectKind),
@@ -101,6 +103,7 @@ impl Step {
             ExpectLater(_) => "ExpectLater(_)".to_string(),
             ExpectCustom(_) => "ExpectCustom(_)".to_string(),
             WaitForAppMessage(regex) => format!("WaitForAppMessage({regex:?})"),
+            Shell(command) => format!("Shell: {command}"),
         }
     }
 }
@@ -112,6 +115,7 @@ pub(crate) enum ExpectKind {
     NoError,
     FileExplorerContent(String),
     EditorInfoContents(&'static [&'static str]),
+    EditorInfoContentMatches(&'static lazy_regex::Lazy<regex::Regex>),
     GlobalInfoContents(&'static [&'static str]),
     QuickfixListCurrentLine(&'static str),
     DropdownInfosCount(usize),
@@ -167,6 +171,7 @@ pub(crate) enum ExpectKind {
     CountHighlightedCells(StyleKey, usize),
     SelectionExtensionEnabled(bool),
     PromptHistory(PromptHistoryKey, Vec<String>),
+    MarkedFiles(Vec<CanonicalizedPath>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -412,6 +417,12 @@ impl ExpectKind {
                                     expected.iter().map(|s|s.to_string()).collect()
                                 )
                             }
+            EditorInfoContentMatches(regex) => {
+                                let content =app.editor_info_contents().join("\n\n"); 
+                                let matched = regex.is_match(&content);
+                                let message = format!("Expected the following to matches regex: {regex:?}:\n{content}");
+                                ( matched, message )
+                            }
             GlobalInfoContents(expected) => {
                                 contextualize(
                                     app.global_info_contents(),
@@ -533,6 +544,10 @@ impl ExpectKind {
                         expected,
                         &app.context().get_prompt_history(*key)
                     ),
+            MarkedFiles(expected) => contextualize(
+                expected,
+                &app.context().get_marked_files().into_iter().cloned().collect_vec()
+            ),
             NoError => (true, String::new()),
         })
     }
@@ -540,6 +555,7 @@ impl ExpectKind {
 
 pub(crate) use ExpectKind::*;
 pub(crate) use Step::*;
+#[derive(Clone)]
 pub(crate) struct State {
     temp_dir: CanonicalizedPath,
     main_rs: CanonicalizedPath,
@@ -580,6 +596,25 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
         [StatusLineComponent::LastDispatch].to_vec(),
         callback,
         true,
+        RunTestOptions {
+            enable_lsp: false,
+            enable_syntax_highlighting: false,
+        },
+    )?;
+    Ok(())
+}
+
+pub(crate) fn execute_test_custom(
+    options: RunTestOptions,
+    callback: impl Fn(State) -> Box<[Step]>,
+) -> anyhow::Result<()> {
+    execute_test_helper(
+        || Box::new(NullWriter),
+        false,
+        [StatusLineComponent::LastDispatch].to_vec(),
+        callback,
+        true,
+        options,
     )?;
     Ok(())
 }
@@ -600,6 +635,10 @@ pub(crate) fn execute_recipe(
         .to_vec(),
         callback,
         assert_last_step_is_expect,
+        RunTestOptions {
+            enable_lsp: false,
+            enable_syntax_highlighting: false,
+        },
     )
 }
 
@@ -609,8 +648,9 @@ fn execute_test_helper(
     status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(State) -> Box<[Step]>,
     assert_last_step_is_expect: bool,
+    options: RunTestOptions,
 ) -> anyhow::Result<TestOutput> {
-    run_test(writer, status_line_components, |mut app, temp_dir| {
+    let callback = |mut app: App<MockFrontend>, temp_dir: CanonicalizedPath| {
         let steps = {
             callback(State {
                 main_rs: temp_dir.join("src/main.rs").unwrap(),
@@ -642,7 +682,10 @@ fn execute_test_helper(
 
         for step in steps.iter() {
             match step.to_owned() {
-                Step::WaitForAppMessage(regex) => app.handle_next_app_messages(regex)?,
+                Step::WaitForAppMessage(regex) => {
+                    log(format!("Wait for app message: {}", ***regex));
+                    app.wait_for_app_message(regex)?
+                }
                 Step::App(dispatch) => {
                     log(dispatch);
                     app.handle_dispatch(dispatch.to_owned())?
@@ -670,6 +713,13 @@ fn execute_test_helper(
                     log(dispatch);
                     app.handle_dispatch_suggestive_editor(dispatch.to_owned())?
                 }
+                Shell(command) => {
+                    log(format!("Shell: {command}"));
+                    let parts = command.split(" ").map(|s| s.to_string()).collect_vec();
+                    let (program, args) = parts.split_first().unwrap();
+                    let output = std::process::Command::new(program).args(args).output();
+                    log(output)
+                }
             };
         }
 
@@ -678,22 +728,30 @@ fn execute_test_helper(
         }
         let buffer_contents = app.get_buffer_contents_map();
         Ok(buffer_contents)
-    })
+    };
+    run_test(options, writer, status_line_components, callback)
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RunTestOptions {
+    pub(crate) enable_lsp: bool,
+    pub(crate) enable_syntax_highlighting: bool,
 }
 
 fn run_test(
+    options: RunTestOptions,
     writer: fn() -> Box<dyn MyWriter>,
     status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<BufferContentsMap>,
 ) -> anyhow::Result<TestOutput> {
     TestRunner::run(move |temp_dir| {
         let frontend = Rc::new(Mutex::new(MockFrontend::new(writer())));
-        let mut app = App::new(
+        let app = App::new(
             frontend.clone(),
             temp_dir.clone(),
             status_line_components.clone(),
+            options,
         )?;
-        app.disable_lsp();
         let buffer_contents_map = callback(app, temp_dir)?;
         use std::borrow::Borrow;
         let term_output = frontend.lock().unwrap().borrow().string_content();
@@ -1109,7 +1167,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
 }
 
 #[test]
-pub(crate) fn revert_git_hunk() -> Result<(), anyhow::Error> {
+pub(crate) fn revert_modified_hunk() -> Result<(), anyhow::Error> {
     let original_content = "pub(crate) struct Foo {
     a: (),
     b: (),
@@ -1145,12 +1203,44 @@ pub(crate) fn foo() -> Foo {
                 IfCurrentNotFound::LookForward,
                 GitHunk(crate::git::DiffMode::UnstagedAgainstMainBranch),
             )),
-            Expect(CurrentSelectedTexts(&["// Hellopub(crate) struct Foo {\n"])),
+            Expect(CurrentSelectedTexts(&["// Hellopub(crate) struct Foo {"])),
             Editor(RevertHunk(
                 crate::git::DiffMode::UnstagedAgainstCurrentBranch,
             )),
             Expect(CurrentComponentContent(original_content)),
-            Expect(CurrentSelectedTexts(&["pub(crate) struct Foo {\n"])),
+            Expect(CurrentSelectedTexts(&["pub(crate) struct Foo {"])),
+        ])
+    })
+}
+
+#[test]
+fn revert_deleted_hunk() -> anyhow::Result<()> {
+    let diff_mode = DiffMode::UnstagedAgainstCurrentBranch;
+    execute_test(|s| {
+        let original_content = "mod foo;
+
+fn main() {
+    foo::foo();
+    println!(\"Hello, world!\");
+}
+";
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentComponentContent(original_content)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(Delete),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                GitHunk(diff_mode),
+            )),
+            Expect(GlobalInfoContents(&["mod foo;"])),
+            Editor(RevertHunk(diff_mode)),
+            Expect(CurrentSelectedTexts(&["mod foo;\n"])),
+            Expect(CurrentComponentContent(original_content)),
         ])
     })
 }
@@ -1820,10 +1910,13 @@ fn main() {
     })
 }
 
-#[serial] // This test has to be run in serial otherwise it will fail
 #[test]
 fn quickfix_list_header_should_be_highlighted_as_keyword() -> anyhow::Result<()> {
-    execute_test(|s| {
+    let options = RunTestOptions {
+        enable_lsp: false,
+        enable_syntax_highlighting: true,
+    };
+    execute_test_custom(options, |s| {
         Box::new([
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Items(
@@ -3246,12 +3339,31 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
             App(CycleMarkedFile(Direction::Start)),
             Expect(NoError),
             Expect(CurrentPath(s.hello_ts())),
-            // Expect main.rs is removed from the tab
+            // Expect main.rs is removed from the tabline
+            // Also an error is shown to notify the user that main.rs is removed from the tabline
             Expect(AppGrid(
                 r#" # 🙈  .gitignore  # 📘  hello.ts
 1│█onsole.log("hello");
-2│"#
-                .to_string(),
+2│
+
+
+
+
+
+
+
+
+
+
+
+
+
+Cycle marked file error
+1│█he file mark "src/main.rs" is removed from the list as it cannot be opened
+↪│due to the following error:
+2│
+3│The path "src/main.rs" does not exist."#
+                    .to_string(),
             )),
         ])
     })
@@ -3345,6 +3457,45 @@ fn escape_global_diagnostics_should_not_change_selection() -> Result<(), anyhow:
             App(HandleKeyEvent(key!("esc"))),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Expect(CurrentSelectedTexts(&["mod"])),
+        ])
+    })
+}
+
+#[test]
+fn unable_to_close_marked_files_that_became_a_directory() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        let foo_path = s.new_path("foo");
+        let temp_path = s.new_path("temp");
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenAddPathPrompt),
+            App(AddPath(foo_path.display().to_string())),
+            // Enter again to open the new file which is revealed in explorer
+            App(HandleKeyEvents(keys!("enter").to_vec())),
+            App(ToggleFileMark),
+            ExpectLater(Box::new({
+                let foo_path = foo_path.clone();
+                move || CurrentPath(foo_path.clone().try_into().unwrap())
+            })),
+            App(CycleMarkedFile(Direction::End)),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            Shell(format!("mv {} {}", foo_path.display(), temp_path.display())),
+            Shell(format!("mkdir {}", foo_path.display(),)),
+            // Turn foo into a directory
+            Shell(format!(
+                "mv {} {}/foo",
+                temp_path.display(),
+                foo_path.display()
+            )),
+            App(CycleMarkedFile(Direction::End)),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            Expect(MarkedFiles([s.main_rs()].to_vec())),
+            Expect(GlobalInfo("The file mark \"foo\" is removed from the list as it cannot be opened due to the following error:\n\nThe path \"foo\" is not a file.")),
         ])
     })
 }

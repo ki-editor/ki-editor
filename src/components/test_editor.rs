@@ -3918,7 +3918,7 @@ fn git_hunk_should_compare_against_buffer_content_not_file_content() -> anyhow::
                 GitHunk(crate::git::DiffMode::UnstagedAgainstCurrentBranch),
             )),
             Editor(CursorAddToAllSelections),
-            Expect(CurrentSelectedTexts(&["hellomod foo;\n"])),
+            Expect(CurrentSelectedTexts(&["hellomod foo;"])),
         ])
     })
 }
@@ -5217,6 +5217,28 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
             Expect(GridCellBackground(2, 1, GitGutterStyles::new().insertion)),
             Expect(GridCellBackground(4, 1, GitGutterStyles::new().replacement)),
             Expect(GridCellBackground(6, 1, GitGutterStyles::new().deletion)),
+        ])
+    })
+}
+
+#[test]
+fn git_blame() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(GitBlame),
+            Expect(EditorInfoContentMatches(regex!("Commit: [0-9a-f]{40}"))),
+            Expect(EditorInfoContentMatches(regex!(r"Author: .+ <[^>]+>"))),
+            Expect(EditorInfoContentMatches(regex!(
+                r"Date: \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"
+            ))),
+            Expect(EditorInfoContentMatches(regex!("Message: .+"))),
+            Expect(EditorInfoContentMatches(regex!("URL: .+"))),
         ])
     })
 }

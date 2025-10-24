@@ -65,7 +65,7 @@ use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
 #[cfg(test)]
-use crate::layout::BufferContentsMap;
+use crate::{layout::BufferContentsMap, test_app::RunTestOptions};
 
 // TODO: rename current Context struct to RawContext struct
 // The new Context struct should always be derived, it should contains Hashmap of rectangles, keyed by Component ID
@@ -129,26 +129,28 @@ impl<T: Frontend> App<T> {
         frontend: Rc<Mutex<T>>,
         working_directory: CanonicalizedPath,
         status_line_components: Vec<StatusLineComponent>,
+        options: RunTestOptions,
     ) -> anyhow::Result<App<T>> {
+        use crate::syntax_highlight;
+
         let (sender, receiver) = std::sync::mpsc::channel();
-        let syntax_highlight_request_sender = crate::syntax_highlight::start_thread(sender.clone());
+        let syntax_highlight_request_sender = if options.enable_syntax_highlighting {
+            Some(syntax_highlight::start_thread(sender.clone()))
+        } else {
+            None
+        };
         Self::from_channel(
             frontend,
             working_directory,
             sender,
             receiver,
-            Some(syntax_highlight_request_sender), // No syntax highlight request sender
+            syntax_highlight_request_sender,
             status_line_components,
             None, // No integration event sender
-            false,
+            options.enable_lsp,
             false,
             None,
         )
-    }
-
-    #[cfg(test)]
-    pub(crate) fn disable_lsp(&mut self) {
-        self.enable_lsp = false
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -251,7 +253,7 @@ impl<T: Frontend> App<T> {
         match message {
             AppMessage::Event(event) => self.handle_event(event),
             AppMessage::LspNotification(notification) => {
-                self.handle_lsp_notification(notification).map(|_| false)
+                self.handle_lsp_notification(*notification).map(|_| false)
             }
             AppMessage::QuitAll => {
                 self.quit()?;
@@ -266,7 +268,7 @@ impl<T: Frontend> App<T> {
                 .map(|_| false),
             AppMessage::ExternalDispatch(dispatch) => {
                 // Process the dispatch directly
-                self.handle_dispatch(dispatch)?;
+                self.handle_dispatch(*dispatch)?;
                 Ok(false)
             }
             AppMessage::NucleoTickDebounced => {
@@ -1235,6 +1237,19 @@ impl<T: Frontend> App<T> {
         store_history: bool,
         focus: bool,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
+        if !path.exists() {
+            return Err(anyhow::anyhow!(
+                "The path {:?} does not exist.",
+                path.try_display_relative_to(self.context.current_working_directory()),
+            ));
+        }
+        if !path.is_file() {
+            return Err(anyhow::anyhow!(
+                "The path {:?} is not a file.",
+                path.try_display_relative_to(self.context.current_working_directory()),
+            ));
+        }
+
         if store_history {
             self.push_current_location_into_navigation_history(true);
         }
@@ -1387,7 +1402,7 @@ impl<T: Frontend> App<T> {
                 Ok(())
             }
             LspNotification::CompletionItemResolve(completion_item) => {
-                self.update_current_completion_item(completion_item.into())
+                self.update_current_completion_item((*completion_item).into())
             }
         }
     }
@@ -1614,9 +1629,9 @@ impl<T: Frontend> App<T> {
         }
         let sender = self.sender.clone();
         let send_matches = Arc::new(move |matches: Vec<Match>| {
-            SendResult::from(sender.send(AppMessage::ExternalDispatch(
+            SendResult::from(sender.send(AppMessage::ExternalDispatch(Box::new(
                 Dispatch::AddQuickfixListEntries(matches),
-            )))
+            ))))
         });
         let send_match = crate::thread::batch(send_matches, Duration::from_millis(16)); // Around 30 ticks per second
 
@@ -1960,13 +1975,29 @@ impl<T: Frontend> App<T> {
                 .or_else(|| file_paths.first())
                 .cloned()
         } {
-            if next_file_path.exists() {
-                self.open_file(&next_file_path.clone(), BufferOwner::User, true, true)?;
-            } else {
-                // If the file no longer exists, remove it from the list of marked files
-                // and then cycle to the next file
+            let next_file_path = next_file_path.clone();
+            if let Err(err) = self.open_file(&next_file_path.clone(), BufferOwner::User, true, true)
+            {
+                // If the file failed to open, show the error.
+                // The failure reasons might be:
+                // - the file no longer exists
+                // - the file is not a file
+                //
+                // In such cases we should remove it from the list of marked files,
+                // and then cycle to the next file.
+                //
+                // The removal is necessary otherwise this file will become an
+                // an obstacle that prevents cycle_mark_file from passing through.
                 self.context.toggle_path_mark(next_file_path.clone());
-                self.cycle_marked_file(direction)?
+                self.show_global_info(Info::new(
+                    "Cycle marked file error".to_string(),
+                    format!(
+                        "The file mark {:?} is removed from the list as it cannot be opened due to the following error:\n\n{err:?}",
+                        next_file_path
+                            .try_display_relative_to(self.context.current_working_directory())
+                    ),
+                ));
+                self.cycle_marked_file(direction)?;
             }
         }
         Ok(())
@@ -2706,7 +2737,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn handle_next_app_messages(
+    pub(crate) fn wait_for_app_message(
         &mut self,
         app_message_matcher: &lazy_regex::Lazy<regex::Regex>,
     ) -> anyhow::Result<()> {
@@ -3070,7 +3101,7 @@ pub(crate) enum Scope {
 
 #[derive(Debug)]
 pub(crate) enum AppMessage {
-    LspNotification(LspNotification),
+    LspNotification(Box<LspNotification>),
     Event(Event),
     QuitAll,
     SyntaxHighlightResponse {
@@ -3079,7 +3110,7 @@ pub(crate) enum AppMessage {
         highlighted_spans: HighlightedSpans,
     },
     // New variant for external dispatches
-    ExternalDispatch(Dispatch),
+    ExternalDispatch(Box<Dispatch>),
     NucleoTickDebounced,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
