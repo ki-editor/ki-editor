@@ -901,7 +901,7 @@ pub trait PositionBasedSelectionMode {
         &'a self,
         params: &SelectionModeParams<'a>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        let mut cursor_char_index = CharIndex(params.buffer.len_chars() - 1);
+        let mut cursor_char_index = CharIndex(params.buffer.len_chars());
         let mut result = Vec::new();
         while let Some(range) = self.get_current_meaningful_selection_by_cursor(
             params.buffer,

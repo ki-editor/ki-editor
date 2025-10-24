@@ -1538,7 +1538,7 @@ fn main() {
                 use_current_selection_mode: true,
                 prior_change: None,
             }),
-            Expect(JumpChars(&['f', 'b', '}'])),
+            Expect(JumpChars(&['\n', '\n', ' ', 'b', 'f', '}'])),
             App(HandleKeyEvent(key!("f"))),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
         ])
@@ -3431,7 +3431,7 @@ foov foou bar
 }
 
 #[test]
-fn select_current_line_when_cursor_is_at_last_space_of_current_line() -> anyhow::Result<()> {
+fn select_trailing_whitespace_when_cursor_is_at_last_space_of_current_line() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -3449,7 +3449,7 @@ fn select_current_line_when_cursor_is_at_last_space_of_current_line() -> anyhow:
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&[" "])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Expect(CurrentSelectedTexts(&["abc"])),
+            Expect(CurrentSelectedTexts(&[" \n"])),
         ])
     })
 }
@@ -3894,6 +3894,7 @@ fn should_search_backward_if_primary_and_secondary_cursor_swapped() -> anyhow::R
             }),
             Editor(SetContent("  hello world  ".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(MoveSelection(Right)),
             Editor(SwapCursor),
             App(HandleKeyEvent(key!("s"))), // Word selection mode (Qwerty)
             Expect(CurrentSelectedTexts(&["world"])),
@@ -4259,6 +4260,13 @@ foo bar
             )),
             Expect(CurrentSelectedTexts(&["foo bar"])),
             Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["    "])),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["spam"])),
+            Editor(MoveSelection(Up)),
+            Expect(CurrentSelectedTexts(&["foo bar"])),
+            // moving directly down to meaningful requires Right
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["spam"])),
         ])
     })
@@ -4290,6 +4298,11 @@ hello
             )),
             Expect(CurrentSelectedTexts(&["foo bar"])),
             Editor(MoveSelection(Up)),
+            Expect(CurrentSelectedTexts(&["    "])),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["foo bar"])),
+            // moving directly up to meaningful requires Left
+            Editor(MoveSelection(Left)),
             Expect(CurrentSelectedTexts(&["baz"])),
         ])
     })
@@ -4309,6 +4322,9 @@ fn move_down_from_indented_line_to_last_dedented_line() -> anyhow::Result<()> {
                 IfCurrentNotFound::LookForward,
                 SelectionMode::Line,
             )),
+            // current selection will be the leading whitespace
+            Expect(CurrentSelectedTexts(&["    "])),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["fo"])),
             Editor(MoveSelection(Down)),
             Expect(CurrentSelectedTexts(&["b"])),
@@ -4332,6 +4348,8 @@ fn delete_forward_last_dedented_lines() -> anyhow::Result<()> {
                 IfCurrentNotFound::LookForward,
                 SelectionMode::Line,
             )),
+            Expect(CurrentSelectedTexts(&["    "])),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["fo"])),
             Editor(MoveSelection(Down)),
             Expect(CurrentSelectedTexts(&["b"])),
@@ -4395,7 +4413,7 @@ fn go_to_line_number() -> Result<(), anyhow::Error> {
                 SelectionMode::Line,
             )),
             App(OpenMoveToIndexPrompt(None)),
-            App(HandleKeyEvents(keys!("3 enter").to_vec())),
+            App(HandleKeyEvents(keys!("5 enter").to_vec())),
             Expect(CurrentSelectedTexts(&["spam"])),
         ])
     })
@@ -4563,9 +4581,14 @@ fn main() {
             )),
             Expect(CurrentSelectedTexts(&["bar();"])),
             Editor(MoveSelection(Left)),
+            Editor(MoveSelection(Left)),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
             App(HandleKeyEvents(keys!("backspace").to_vec())),
+            Expect(CurrentSelectedTexts(&["foo();"])),
+            App(HandleKeyEvents(keys!("backspace").to_vec())),
             Expect(CurrentSelectedTexts(&["bar();"])),
+            App(HandleKeyEvents(keys!("tab").to_vec())),
+            Expect(CurrentSelectedTexts(&["foo();"])),
             App(HandleKeyEvents(keys!("tab").to_vec())),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
         ])
