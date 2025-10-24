@@ -137,7 +137,7 @@ baz"
                 content: "  hat is that?",
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("a h W"),
+                events: keys!("a l h W"),
                 expectations: Box::new([CurrentComponentContent("  What is that?")]),
                 terminal_height: None,
                 similar_vim_combos: &["I"],
@@ -148,32 +148,10 @@ baz"
                 content: "  What is that",
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("a ; ?"),
+                events: keys!("a l ; ?"),
                 expectations: Box::new([CurrentComponentContent("  What is that?")]),
                 terminal_height: None,
                 similar_vim_combos: &["A"],
-                only: false,
-            },
-            Recipe {
-                description: "Go to parent line",
-                content: "
-- docs/:
-    - .gitignore
-    - book/:
-    - book.toml
-    - src/:
-        - SUMMARY.md
-        - components/:
-            - file-explorer.md
-            - index.md
-"
-                .trim(),
-                file_extension: "yaml",
-                prepare_events: keys!("q i n d e x enter"),
-                events: keys!("a j j j"),
-                expectations: Box::new([CurrentSelectedTexts(&["- docs/:"])]),
-                terminal_height: Some(10),
-                similar_vim_combos: &[],
                 only: false,
             }
             ].to_vec(),
