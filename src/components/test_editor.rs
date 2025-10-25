@@ -5242,3 +5242,29 @@ fn git_blame() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+/// When a buffer is modified, but it is also modified externally
+/// around the same time, saving the buffer should cause a prompt
+/// to be shown, which asks the user whether they want to:
+/// (1) Force save (overwriting external changes)
+/// (2) Force reload (overwriting current changes)
+fn save_conflict_detection() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(Delete),
+            Shell(format!(
+                "echo new_content >> {}",
+                s.main_rs().display_absolute()
+            )),
+            Editor(Save),
+            Expect(CurrentComponentContent("")),
+        ])
+    })
+}

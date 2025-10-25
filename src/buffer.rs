@@ -25,6 +25,7 @@ use shared::{
     canonicalized_path::CanonicalizedPath,
     language::{self, Language},
 };
+use std::time::SystemTime;
 use std::{collections::HashSet, ops::Range};
 use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal2::{traverse, Order};
@@ -52,6 +53,7 @@ pub(crate) struct Buffer {
     decorations: Vec<Decoration>,
     selection_set_history: History<SelectionSet>,
     dirty: bool,
+    last_modified_time: Option<SystemTime>,
     owner: BufferOwner,
     pub(crate) undo_stack: Vec<EditHistory>,
     redo_stack: Vec<EditHistory>,
@@ -107,6 +109,7 @@ impl Buffer {
             redo_stack: Default::default(),
             batch_id: Default::default(),
             cached_hunks: Default::default(),
+            last_modified_time: None,
         }
     }
 
@@ -332,8 +335,7 @@ impl Buffer {
 
     pub(crate) fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
-        self.dirty = true;
-        self.owner = BufferOwner::User;
+        self.flag_as_modified()
     }
 
     pub(crate) fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
@@ -607,6 +609,12 @@ impl Buffer {
         Ok((new_selection_set, dispatches, applied_vscode_edits))
     }
 
+    fn flag_as_modified(&mut self) {
+        self.dirty = true;
+        self.owner = BufferOwner::User;
+        self.last_modified_time = Some(SystemTime::now())
+    }
+
     // Add these methods for undo/redo
     fn apply_edit(&mut self, edit: &Edit, last_visible_line: u16) -> Result<(), anyhow::Error> {
         // We have to get the char index range of positional spans before updating the content
@@ -632,9 +640,7 @@ impl Buffer {
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
             .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
-        self.dirty = true;
-
-        self.owner = BufferOwner::User;
+        self.flag_as_modified();
 
         // Update all the non-positional spans
         self.marks.retain_mut(|mark| {
@@ -699,6 +705,8 @@ impl Buffer {
         buffer.path = Some(path.clone());
         buffer.language = language;
 
+        buffer.last_modified_time = path.last_modified_time().ok();
+
         Ok(buffer)
     }
 
@@ -739,7 +747,23 @@ impl Buffer {
         }
 
         if let Some(path) = &self.path {
+            if self.dirty {
+                if let Ok(last_modified_time_system) = path.last_modified_time() {
+                    if let Some(last_modified_time_editor) = &self.last_modified_time {
+                        dbg!(&self.last_modified_time);
+                        dbg!(&last_modified_time_system);
+                        if &last_modified_time_system < last_modified_time_editor {
+                            panic!()
+                        }
+                    }
+                }
+            }
             path.write(&self.content())?;
+            self.last_modified_time = path
+                .last_modified_time()
+                .ok()
+                .or_else(|| Some(SystemTime::now()));
+
             self.dirty = false;
             Ok(Some(path.clone()))
         } else {

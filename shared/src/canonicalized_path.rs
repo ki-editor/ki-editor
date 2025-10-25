@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 
 use url::Url;
 
@@ -194,5 +197,9 @@ impl CanonicalizedPath {
 
     pub fn exists(&self) -> bool {
         self.to_path_buf().exists()
+    }
+
+    pub fn last_modified_time(&self) -> anyhow::Result<SystemTime> {
+        Ok(self.0.metadata()?.modified()?)
     }
 }
