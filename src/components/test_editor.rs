@@ -5242,3 +5242,190 @@ fn git_blame() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn save_conflict_resolved_by_force_reload() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                height: 100,
+                width: 300,
+            })),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("o u r s enter").to_vec())),
+            Shell(
+                //sed -i '$a\theirs' filename
+                "sed",
+                [
+                    "-i".to_string(),
+                    "$a\\theirs".to_string(),
+                    s.main_rs().display_absolute(),
+                ]
+                .to_vec(),
+            ),
+            Editor(Save),
+            Expect(CurrentComponentTitle(
+                "Failed to save src/main.rs: The content of the file is newer.".to_string(),
+            )),
+            Expect(CompletionDropdownContent("Merge\nForce Save\nForce Reload")),
+            App(HandleKeyEvents(keys!("r e l o a d").to_vec())),
+            // Expect dropdown info of Force Reload shows the diff of
+            // the changes to be made to the EDITOR content
+            Expect(CompletionDropdownInfoContent(
+                "@@ -1,7 +1,7 @@
+-ours
+ mod foo;
+ 
+ fn main() {
+     foo::foo();
+     println!(\"Hello, world!\");
+ }
++theirs
+",
+            )),
+            App(HandleKeyEvents(keys!("enter").to_vec())),
+            Expect(CurrentComponentContentMatches(regex!("theirs"))),
+            Expect(Not(Box::new(EditorIsDirty()))),
+            Editor(EnterInsertMode(Direction::Start)),
+            // Editing and saving again should be fine
+            App(HandleKeyEvents(keys!("n e w").to_vec())),
+            Editor(Save),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn save_conflict_resolved_by_force_save() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                height: 100,
+                width: 300,
+            })),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("o u r s enter").to_vec())),
+            Shell(
+                //sed -i '$a\theirs' filename
+                "sed",
+                [
+                    "-i".to_string(),
+                    "$a\\theirs".to_string(),
+                    s.main_rs().display_absolute(),
+                ]
+                .to_vec(),
+            ),
+            Editor(Save),
+            Expect(CurrentComponentTitle(
+                "Failed to save src/main.rs: The content of the file is newer.".to_string(),
+            )),
+            Expect(CompletionDropdownContent("Merge\nForce Save\nForce Reload")),
+            App(HandleKeyEvents(keys!("s a v e").to_vec())),
+            // Expect dropdown info of Force Save shows the diff of
+            // the changes to be made to the SYSTEM content
+            Expect(CompletionDropdownInfoContent(
+                "@@ -1,7 +1,7 @@
++ours
+ mod foo;
+ 
+ fn main() {
+     foo::foo();
+     println!(\"Hello, world!\");
+ }
+-theirs
+",
+            )),
+            App(HandleKeyEvents(keys!("enter").to_vec())),
+            Expect(CurrentComponentContentMatches(regex!("ours"))),
+            // Editing and saving again should be fine
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("n e w").to_vec())),
+            Editor(Save),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn save_conflict_resolved_by_3_way_merge() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                height: 100,
+                width: 300,
+            })),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("o u r s enter").to_vec())),
+            Shell(
+                //sed -i '$a\theirs' filename
+                "sed",
+                [
+                    "-i".to_string(),
+                    "$a\\theirs".to_string(),
+                    s.main_rs().display_absolute(),
+                ]
+                .to_vec(),
+            ),
+            Editor(Save),
+            Expect(CurrentComponentTitle(
+                "Failed to save src/main.rs: The content of the file is newer.".to_string(),
+            )),
+            Expect(CompletionDropdownContent("Merge\nForce Save\nForce Reload")),
+            App(HandleKeyEvents(keys!("m e r g e enter").to_vec())),
+            Expect(CurrentComponentContentMatches(regex!("(?s)ours.*theirs"))),
+            // Editing and saving again should be fine
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("n e w").to_vec())),
+            Editor(Save),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn gracefully_reload_buffer_when_there_is_conflict() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                height: 100,
+                width: 300,
+            })),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("o u r s enter").to_vec())),
+            Shell(
+                //sed -i '$a\theirs' filename
+                "sed",
+                [
+                    "-i".to_string(),
+                    "$a\\theirs".to_string(),
+                    s.main_rs().display_absolute(),
+                ]
+                .to_vec(),
+            ),
+            Editor(ReloadFile { force: false }),
+            Expect(CurrentComponentTitle(
+                "Failed to save src/main.rs: The content of the file is newer.".to_string(),
+            )),
+        ])
+    })
+}
