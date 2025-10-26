@@ -34,7 +34,7 @@ fn main() {
 // padding bottom 6
 }".trim(),
                     file_extension: "rs",
-                    prepare_events: keys!("q f o o"),
+                    prepare_events: keys!("q f o o enter d"),
                     events: keys!("alt+; alt+; alt+;"),
                     expectations: Box::new([CurrentSelectedTexts(&["foo {\n        bar: spam\n    }"])]),
                     terminal_height: Some(9),
