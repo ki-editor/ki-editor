@@ -127,6 +127,12 @@ Save all files and quit Ki.
 
 Save all files.
 
+### `Reload File`
+
+Reload the current file. A prompt will be shown if there are conflicts.
+
+Save all files.
+
 ### `Pipe`
 
 Open a prompt which takes a shell command that treats the current selections as STDIN, and replace the current selections with the STDOUT of the command.

@@ -78,7 +78,7 @@ use crate::{lsp::process::LspNotification, themes::Color};
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum Step {
     App(Dispatch),
-    Shell(String),
+    Shell(&'static str, Vec<String>),
     AppLater(Box<dyn Fn() -> Dispatch>),
     ExpectMulti(Vec<ExpectKind>),
     Expect(ExpectKind),
@@ -103,7 +103,7 @@ impl Step {
             ExpectLater(_) => "ExpectLater(_)".to_string(),
             ExpectCustom(_) => "ExpectCustom(_)".to_string(),
             WaitForAppMessage(regex) => format!("WaitForAppMessage({regex:?})"),
-            Shell(command) => format!("Shell: {command}"),
+            Shell(command, args) => format!("Shell: {command} {}", args.join(" ")),
         }
     }
 }
@@ -121,12 +121,14 @@ pub(crate) enum ExpectKind {
     DropdownInfosCount(usize),
     QuickfixListContent(String),
     CompletionDropdownContent(&'static str),
+    CompletionDropdownInfoContent(&'static str),
     CompletionDropdownIsOpen(bool),
     CompletionDropdownSelectedItem(&'static str),
     JumpChars(&'static [char]),
     CurrentLine(&'static str),
     Not(Box<ExpectKind>),
     CurrentComponentContent(&'static str),
+    CurrentComponentContentMatches(&'static lazy_regex::Lazy<regex::Regex>),
     CurrentSearch(Scope, &'static str),
     EditorCursorPosition(Position),
     EditorGridCursorPosition(Position),
@@ -193,6 +195,15 @@ impl ExpectKind {
         fn contextualize<T: PartialEq + std::fmt::Debug>(a: T, b: T) -> (bool, String) {
             (a == b, format!("\n{a:?}\n == \n{b:?}\n",))
         }
+        fn contextualize_regex_match(
+            haystack: &str,
+            regex: &'static lazy_regex::Lazy<regex::Regex>,
+        ) -> (bool, String) {
+            let matched = regex.is_match(haystack);
+            let message =
+                format!("Expected the following to matches regex: {regex:?}:\n{haystack}");
+            (matched, message)
+        }
         fn to_vec(strs: &[&str]) -> Vec<String> {
             strs.iter().map(|t| t.to_string()).collect()
         }
@@ -202,6 +213,10 @@ impl ExpectKind {
                                 app.get_current_component_content(),
                                 expected_content.to_string(),
                             ),
+            CurrentComponentContentMatches(regex) => {
+                                let content = app.get_current_component_content();
+                                contextualize_regex_match(&content, regex)
+                            },
             FileContent(path, expected_content) => {
                                 contextualize(app.get_file_content(path), expected_content.clone())
                             }
@@ -385,6 +400,13 @@ impl ExpectKind {
                                     .content(),
                                 content.to_string(),
                             ),
+            CompletionDropdownInfoContent(content) => contextualize(
+                                app.current_completion_dropdown_info()
+                                    .unwrap()
+                                    .borrow()
+                                    .content(),
+                                content.to_string(),
+                            ),
             CompletionDropdownSelectedItem(item) => contextualize(
                                 app.current_completion_dropdown()
                                     .unwrap()
@@ -418,10 +440,8 @@ impl ExpectKind {
                                 )
                             }
             EditorInfoContentMatches(regex) => {
-                                let content =app.editor_info_contents().join("\n\n"); 
-                                let matched = regex.is_match(&content);
-                                let message = format!("Expected the following to matches regex: {regex:?}:\n{content}");
-                                ( matched, message )
+                                let content = app.editor_info_contents().join("\n\n");
+                                contextualize_regex_match(&content, regex)
                             }
             GlobalInfoContents(expected) => {
                                 contextualize(
@@ -713,10 +733,8 @@ fn execute_test_helper(
                     log(dispatch);
                     app.handle_dispatch_suggestive_editor(dispatch.to_owned())?
                 }
-                Shell(command) => {
-                    log(format!("Shell: {command}"));
-                    let parts = command.split(" ").map(|s| s.to_string()).collect_vec();
-                    let (program, args) = parts.split_first().unwrap();
+                Shell(program, args) => {
+                    log(format!("Shell: {program} {args:?}",));
                     let output = std::process::Command::new(program).args(args).output();
                     log(output)
                 }
@@ -3484,14 +3502,14 @@ fn unable_to_close_marked_files_that_became_a_directory() -> Result<(), anyhow::
             })),
             App(CycleMarkedFile(Direction::End)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
-            Shell(format!("mv {} {}", foo_path.display(), temp_path.display())),
-            Shell(format!("mkdir {}", foo_path.display(),)),
+            Shell("mv",[foo_path.display().to_string(),temp_path.display().to_string()].to_vec()),
+            Shell("mkdir",[foo_path.display().to_string()
+            ].to_vec()),
             // Turn foo into a directory
-            Shell(format!(
-                "mv {} {}/foo",
-                temp_path.display(),
-                foo_path.display()
-            )),
+            Shell("mv",[
+                temp_path.display().to_string(),
+                foo_path.display().to_string()
+            ].to_vec()),
             App(CycleMarkedFile(Direction::End)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Expect(MarkedFiles([s.main_rs()].to_vec())),

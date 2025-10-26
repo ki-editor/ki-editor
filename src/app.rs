@@ -949,6 +949,13 @@ impl<T: Frontend> App<T> {
                 self.add_quickfix_list_entries(locations)?
             }
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
+            Dispatch::ShowBufferSaveConflictPrompt {
+                path,
+                content_editor,
+                content_filesystem,
+            } => {
+                self.show_buffer_save_conflict_prompt(&path, content_editor, content_filesystem)?
+            }
         }
         Ok(())
     }
@@ -1609,7 +1616,9 @@ impl<T: Frontend> App<T> {
             exclude: global_search_config.exclude_glob(),
         };
         let config = self.context.global_search_config().local_config();
-        let affected_paths = list::grep::replace(walk_builder_config, config.clone())?;
+        let (dispatches, affected_paths) =
+            list::grep::replace(walk_builder_config, config.clone())?;
+        self.handle_dispatches(dispatches)?;
         let dispatches = self.layout.reload_buffers(affected_paths)?;
         self.handle_dispatches(dispatches)
     }
@@ -2062,6 +2071,11 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout.current_completion_dropdown()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn current_completion_dropdown_info(&self) -> Option<Rc<RefCell<dyn Component>>> {
+        self.layout.current_completion_dropdown_info()
     }
 
     fn open_prompt(
@@ -2750,6 +2764,82 @@ impl<T: Frontend> App<T> {
         }
         Ok(())
     }
+
+    fn get_diff(before: &str, after: &str) -> String {
+        let input = imara_diff::InternedInput::new(before, after);
+        let mut diff = imara_diff::Diff::compute(imara_diff::Algorithm::Histogram, &input);
+        diff.postprocess_lines(&input);
+
+        diff.unified_diff(
+            &imara_diff::BasicLineDiffPrinter(&input.interner),
+            imara_diff::UnifiedDiffConfig::default(),
+            &input,
+        )
+        .to_string()
+    }
+
+    fn show_buffer_save_conflict_prompt(
+        &mut self,
+        path: &CanonicalizedPath,
+        content_editor: String,
+        content_filesystem: String,
+    ) -> anyhow::Result<()> {
+        self.open_prompt(
+            PromptConfig {
+                on_enter: DispatchPrompt::Null,
+                items: PromptItems::Precomputed(
+                    [
+                        DropdownItem::new("Force Save".to_string())
+                            .set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                                DispatchEditor::ForceSave,
+                            )))
+                            .set_info(Some(Info::new(
+                                "Diff to be applied".to_string(),
+                                Self::get_diff(&content_filesystem, &content_editor),
+                            ))),
+                        DropdownItem::new("Force Reload".to_string())
+                            .set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                                DispatchEditor::ReloadFile { force: true },
+                            )))
+                            .set_info(Some(Info::new(
+                                "Diff to be applied".to_string(),
+                                Self::get_diff(&content_editor, &content_filesystem),
+                            ))),
+                        DropdownItem::new("Merge".to_string())
+                            .set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                                DispatchEditor::MergeContent {
+                                    content_filesystem,
+                                    content_editor,
+                                    path: path.clone(),
+                                },
+                            )))
+                            .set_info(Some(Info::new(
+                                "Info".to_string(),
+                                "Perform a 3-way merge where:
+
+- ours     = content of file in the Editor
+- theirs   = content of file in the Filesystem
+- original = content of file in the latest Git commit
+
+Conflict markers will be injected in areas that cannot be merged gracefully."
+                                    .to_string(),
+                            ))),
+                    ]
+                    .into_iter()
+                    .collect(),
+                ),
+                title: format!(
+                    "Failed to save {}: The content of the file is newer.",
+                    path.try_display_relative_to(self.context.current_working_directory())
+                ),
+                enter_selects_first_matching_item: true,
+                leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::ResolveBufferSaveConflict,
+            },
+            None,
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2994,6 +3084,11 @@ pub(crate) enum Dispatch {
     AppliedEdits {
         edits: Vec<Edit>,
         path: CanonicalizedPath,
+    },
+    ShowBufferSaveConflictPrompt {
+        path: CanonicalizedPath,
+        content_filesystem: String,
+        content_editor: String,
     },
 }
 

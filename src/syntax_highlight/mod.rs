@@ -117,9 +117,6 @@ impl HighlightedSpans {
             return;
         }
         let length = self.0.len();
-        debug_assert!(self
-            .0
-            .is_sorted_by_key(|span| (span.byte_range.start, span.byte_range.end)));
         let start_index = self
             .0
             .partition_point(|span| span.byte_range.end <= affected_range.start);
@@ -128,8 +125,9 @@ impl HighlightedSpans {
             .0
             .partition_point(|span| span.byte_range.start < affected_range.end);
 
-        debug_assert!(start_index < length);
-        debug_assert!(end_index < length);
+        if start_index >= length {
+            return;
+        }
         self.0[start_index..end_index.max(start_index)]
             .iter_mut()
             .for_each(|span| {

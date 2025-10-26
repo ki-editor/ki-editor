@@ -53,7 +53,6 @@ pub(crate) struct Buffer {
     decorations: Vec<Decoration>,
     selection_set_history: History<SelectionSet>,
     dirty: bool,
-    last_modified_time: Option<SystemTime>,
     owner: BufferOwner,
     pub(crate) undo_stack: Vec<EditHistory>,
     redo_stack: Vec<EditHistory>,
@@ -61,6 +60,9 @@ pub(crate) struct Buffer {
 
     /// We need to cache this because its computation is expensive.
     cached_hunks: Option<CachedHunks>,
+
+    /// Timestamp of the file when we last read/wrote it
+    last_synced_time: Option<SystemTime>,
 }
 
 #[derive(Debug, Clone)]
@@ -109,7 +111,7 @@ impl Buffer {
             redo_stack: Default::default(),
             batch_id: Default::default(),
             cached_hunks: Default::default(),
-            last_modified_time: None,
+            last_synced_time: None,
         }
     }
 
@@ -123,11 +125,17 @@ impl Buffer {
         self.owner
     }
 
-    pub(crate) fn reload(&mut self) -> anyhow::Result<Dispatches> {
+    pub(crate) fn reload(&mut self, force: bool) -> anyhow::Result<Dispatches> {
         if let Some(path) = self.path() {
+            if let Ok(Some(dispatches)) = self.check_conflict(force, &path) {
+                return Ok(dispatches);
+            }
+
             let updated_content = path.read()?;
+            let dispatches = self.update_content(&updated_content, SelectionSet::default(), 0)?;
+            self.last_synced_time = path.last_modified_time().ok();
             self.dirty = false;
-            self.update_content(&updated_content, SelectionSet::default(), 0)
+            Ok(dispatches)
         } else {
             Ok(Default::default())
         }
@@ -612,7 +620,6 @@ impl Buffer {
     fn flag_as_modified(&mut self) {
         self.dirty = true;
         self.owner = BufferOwner::User;
-        self.last_modified_time = Some(SystemTime::now())
     }
 
     // Add these methods for undo/redo
@@ -705,7 +712,7 @@ impl Buffer {
         buffer.path = Some(path.clone());
         buffer.language = language;
 
-        buffer.last_modified_time = path.last_modified_time().ok();
+        buffer.last_synced_time = path.last_modified_time().ok();
 
         Ok(buffer)
     }
@@ -741,35 +748,52 @@ impl Buffer {
     pub(crate) fn save_without_formatting(
         &mut self,
         force: bool,
-    ) -> anyhow::Result<Option<CanonicalizedPath>> {
+    ) -> anyhow::Result<(Dispatches, Option<CanonicalizedPath>)> {
         if !force && !self.dirty {
-            return Ok(None);
+            return Ok((Dispatches::default(), None));
         }
 
         if let Some(path) = &self.path {
-            if self.dirty {
-                if let Ok(last_modified_time_system) = path.last_modified_time() {
-                    if let Some(last_modified_time_editor) = &self.last_modified_time {
-                        dbg!(&self.last_modified_time);
-                        dbg!(&last_modified_time_system);
-                        if &last_modified_time_system < last_modified_time_editor {
-                            panic!()
-                        }
-                    }
-                }
+            if let Ok(Some(dispatches)) = self.check_conflict(force, path) {
+                return Ok((dispatches, Some(path.clone())));
             }
+
             path.write(&self.content())?;
-            self.last_modified_time = path
-                .last_modified_time()
-                .ok()
-                .or_else(|| Some(SystemTime::now()));
+
+            self.last_synced_time = path.last_modified_time().ok();
 
             self.dirty = false;
-            Ok(Some(path.clone()))
+            Ok((Dispatches::default(), Some(path.clone())))
         } else {
             log::info!("Buffer has no path");
-            Ok(None)
+            Ok((Dispatches::default(), None))
         }
+    }
+
+    /// Check if the content of this file conflicts with that of the system.
+    /// Return None if no conflict.
+    fn check_conflict(
+        &self,
+        force: bool,
+        path: &CanonicalizedPath,
+    ) -> anyhow::Result<Option<Dispatches>> {
+        if force || !self.dirty {
+            return Ok(None);
+        }
+        let last_modified_time_system = path.last_modified_time()?;
+        let Some(last_modified_time_editor) = &self.last_synced_time else {
+            return Ok(None);
+        };
+
+        Ok(if &last_modified_time_system != last_modified_time_editor {
+            Some(Dispatches::one(Dispatch::ShowBufferSaveConflictPrompt {
+                path: path.clone(),
+                content_editor: self.content(),
+                content_filesystem: path.read()?,
+            }))
+        } else {
+            None
+        })
     }
 
     pub(crate) fn save(
@@ -785,11 +809,12 @@ impl Buffer {
                     current_selection_set,
                     last_visible_line,
                 )?;
-                return Ok((dispatches, self.save_without_formatting(force)?));
+                let (other_dispatches, path) = self.save_without_formatting(force)?;
+                return Ok((dispatches.chain(other_dispatches), path));
             }
         }
 
-        Ok((Default::default(), self.save_without_formatting(force)?))
+        self.save_without_formatting(force)
     }
 
     pub(crate) fn update_content(
