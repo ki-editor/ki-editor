@@ -13,7 +13,7 @@ use crate::{
     components::component::Component,
     context::LocalSearchConfig,
     edit::{Action, ActionGroup, Edit, EditTransaction},
-    git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _},
+    git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _, GitRepo},
     list::grep::RegexConfig,
     lsp::completion::PositionalEdit,
     position::Position,
@@ -284,7 +284,9 @@ impl Component for Editor {
                 self.apply_syntax_highlighting(context)?;
             }
             Save => return self.do_save(false, context),
-            ForceSave => return self.do_save(true, context),
+            ForceSave => {
+                return self.do_save(true, context);
+            }
             ReplaceCurrentSelectionWith(string) => {
                 return self
                     .replace_current_selection_with(|_| Some(Rope::from_str(&string)), context)
@@ -378,6 +380,12 @@ impl Component for Editor {
             }
             RevertHunk(diff_mode) => return self.revert_hunk(context, diff_mode),
             GitBlame => return self.git_blame(context),
+            ReloadFile { force } => return self.buffer_mut().reload(force),
+            MergeContent {
+                content_filesystem,
+                content_editor,
+                path,
+            } => return self.merge_content(context, path, content_editor, content_filesystem),
         }
         Ok(Default::default())
     }
@@ -4035,6 +4043,27 @@ impl Editor {
             info,
         ))))
     }
+
+    fn merge_content(
+        &mut self,
+        context: &Context,
+        file_path: CanonicalizedPath,
+        content_editor: String,
+        content_filesystem: String,
+    ) -> anyhow::Result<Dispatches> {
+        let original = file_path
+            .content_at_last_commit(
+                &DiffMode::UnstagedAgainstCurrentBranch,
+                &GitRepo::try_from(context.current_working_directory())?,
+            )
+            .unwrap_or_default();
+        let merged = match diffy::merge(&original, &content_editor, &content_filesystem) {
+            Ok(merged_without_conflicts) => merged_without_conflicts,
+            Err(merged_with_conflicts) => merged_with_conflicts,
+        };
+        let dispatches = self.update_content(&merged, context)?;
+        Ok(dispatches.chain(self.do_save(true, context)?))
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4175,6 +4204,14 @@ pub(crate) enum DispatchEditor {
     RepeatSearch(Scope, IfCurrentNotFound, Option<PriorChange>),
     RevertHunk(DiffMode),
     GitBlame,
+    ReloadFile {
+        force: bool,
+    },
+    MergeContent {
+        content_filesystem: String,
+        content_editor: String,
+        path: CanonicalizedPath,
+    },
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

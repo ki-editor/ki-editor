@@ -1,5 +1,6 @@
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+
 use Meaning::*;
 
 use crate::app::Scope;
@@ -132,7 +133,7 @@ pub(crate) const KEYMAP_SPACE_EDITOR: KeyboardMeaningLayout = [
         QNSav, QSave, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, SaveA, _____, Pipe_, _____, /****/ _____, _____, _____, _____, _____,
+        _____, SaveA, RlBfr, Pipe_, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, RplcA, _____, _____, TSNSx, /****/ _____, _____, _____, _____, _____,
@@ -834,6 +835,8 @@ pub(crate) enum Meaning {
     RvHkC,
     /// Git Blame
     GtBlm,
+    /// Reload buffer
+    RlBfr,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

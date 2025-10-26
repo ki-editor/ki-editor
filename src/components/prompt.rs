@@ -167,6 +167,7 @@ pub(crate) enum PromptHistoryKey {
     },
     KeyboardLayout,
     SurroundXmlTag,
+    ResolveBufferSaveConflict,
 }
 
 impl Prompt {
