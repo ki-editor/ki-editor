@@ -359,7 +359,7 @@ impl Layout {
                         .iter()
                         .any(|affected_path| affected_path == &path)
                     {
-                        return Ok(dispatches.chain(buffer.reload()?));
+                        return Ok(dispatches.chain(buffer.reload(true)?));
                     }
                 }
                 Ok(dispatches)
@@ -373,6 +373,12 @@ impl Layout {
 
     pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.get_current_node_child_id(ComponentKind::Dropdown)
+            .and_then(|node_id| Some(self.tree.get(node_id)?.data().component().clone()))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn current_completion_dropdown_info(&self) -> Option<Rc<RefCell<dyn Component>>> {
+        self.get_current_node_child_id(ComponentKind::DropdownInfo)
             .and_then(|node_id| Some(self.tree.get(node_id)?.data().component().clone()))
     }
 
