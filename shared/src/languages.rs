@@ -30,6 +30,7 @@ pub const LANGUAGES: &[&Language] = &[
     &heex(),
     &html(),
     &idris(),
+    &haskell(),
     &javascript(),
     &javascript_react(),
     &svelte(),
@@ -513,6 +514,24 @@ const fn idris() -> Language {
                 subpath: None,
             },
         }),
+        ..Language::new()
+    }
+}
+
+const fn haskell() -> Language {
+    Language {
+        extensions: &["hs"],
+        lsp_command: Some(LspCommand {
+            command: Command("haskell-language-server-wrapper", &["--lsp"]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("haskell")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "haskell",
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Haskell),
+        }),
+        line_comment_prefix: Some("--"),
+        block_comment_affixes: Some(("{-", "-}")),
         ..Language::new()
     }
 }
