@@ -22,7 +22,6 @@ impl PositionBasedSelectionMode for LineTrimmed {
             return Ok(None);
         }
 
-        // adjust for first go (for now it is the main logic)
         let portion = get_portion(buffer, cursor_char_index);
         let mut current_line_index = cursor_char_index.to_line(buffer)?;
         current_line_index = match if_current_not_found {
@@ -37,22 +36,6 @@ impl PositionBasedSelectionMode for LineTrimmed {
                 Portion::Trailing => current_line_index,
             },
         };
-
-        // find target line (for now it will just break)
-        let is_target = |_: ropey::RopeSlice| true;
-        loop {
-            let Some(current_line) = buffer.get_line_by_line_index(current_line_index) else {
-                return Ok(None);
-            };
-            if is_target(current_line) {
-                break;
-            }
-            current_line_index = match if_current_not_found {
-                IfCurrentNotFound::LookForward => current_line_index.saturating_add(1),
-                IfCurrentNotFound::LookBackward => current_line_index.saturating_sub(1),
-            }
-        }
-
         trimmed_range(buffer, current_line_index)
     }
 
@@ -120,12 +103,9 @@ fn get_portion(buffer: &crate::buffer::Buffer, cursor_char_index: CharIndex) -> 
     let line_index = cursor_char_index.to_line(buffer).unwrap();
     let line = buffer.get_line_by_line_index(line_index).unwrap();
     let line_start = buffer.line_to_char(line_index).unwrap();
-    //let line_end = line_start + line.len_chars();
 
     let line_portions = get_line_portions(line);
     let char_position = cursor_char_index.0 - line_start.0;
-    //debug_assert!(char_postion >= 0);
-    //debug_assert!(char_postion <= line.len_chars());
 
     if char_position < line_portions.leading {
         Portion::Leading
@@ -141,13 +121,13 @@ fn get_line_portions(line: ropey::RopeSlice) -> LinePortions {
         .chars()
         .take_while(|c| c.is_whitespace() && c != &'\n')
         .count();
-    let trimmed = line.to_string().trim().len();
+    let trimmed = line.to_string().trim().chars().count();
     let trailing = (leading..line.len_chars())
         .rev()
         .take_while(|index| line.char(*index).is_whitespace())
         .count();
 
-    //debug_assert_eq!(leading + trimmed + trailing, line.len_chars());
+    debug_assert_eq!(leading + trimmed + trailing, line.len_chars());
     LinePortions {
         leading,
         trimmed,
