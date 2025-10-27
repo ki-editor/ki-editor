@@ -20,20 +20,27 @@ pub(crate) fn watch_file_changes(
 
     for result in receiver {
         match result {
-            Ok(event) => {
-                log::info!("watch_file_changes event: {event:?}");
-                if let notify::EventKind::Modify(modify_kind) = event.kind { if let notify::event::ModifyKind::Data(_) = modify_kind {
-                    for path in event.paths {
-                        let _ = app_message_sender.send(AppMessage::FileWatcherEvent(
-                            FileWatcherEvent::ContentModified(path.try_into()?),
-                        ));
-                    }
-                } }
-            }
+            Ok(event) => handle_event(event, &app_message_sender),
             Err(error) => {
                 log::error!("watch_file_changes error: {error:?}")
             }
         }
     }
     Ok(())
+}
+
+fn handle_event(event: notify::Event, app_message_sender: &Sender<AppMessage>) {
+    if let notify::EventKind::Modify(modify_kind) = event.kind {
+        if let notify::event::ModifyKind::Data(_) = modify_kind {
+            for path in event.paths {
+                if let Ok(path) = CanonicalizedPath::try_from(path) {
+                    if path.is_file() {
+                        let _ = app_message_sender.send(AppMessage::FileWatcherEvent(
+                            FileWatcherEvent::ContentModified(path),
+                        ));
+                    }
+                }
+            }
+        }
+    }
 }
