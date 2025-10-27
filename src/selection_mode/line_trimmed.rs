@@ -527,4 +527,38 @@ foo
             ])
         })
     }
+
+    #[test]
+    fn able_to_move_right_left_on_unicode_lines() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    "
+🦀  main.rs [*]
+1│fn first () {
+5│  █ifth();
+6│}
+"
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Expect(CurrentSelectedTexts(&["🦀  main.rs [*]"])),
+                Editor(MoveSelection(Movement::Right)),
+                Expect(CurrentSelectedTexts(&["1│fn first () {"])),
+                Editor(MoveSelection(Movement::Right)),
+                Expect(CurrentSelectedTexts(&["5│  █ifth();"])),
+                Editor(MoveSelection(Movement::Left)),
+                Expect(CurrentSelectedTexts(&["1│fn first () {"])),
+            ])
+        })
+    }
 }
