@@ -13,10 +13,6 @@ impl<T> Callback<T> {
     pub(crate) fn call(&self, event: T) {
         self.0(event)
     }
-
-    pub(crate) fn func(&self) -> Arc<dyn Fn(T) + Send + Sync> {
-        self.0.clone()
-    }
 }
 
 pub(crate) fn debounce<T: PartialEq + Eq + Send + Sync + 'static>(
