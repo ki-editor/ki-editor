@@ -148,6 +148,7 @@ impl<T: Frontend> App<T> {
             status_line_components,
             None, // No integration event sender
             options.enable_lsp,
+            options.enable_file_watcher,
             false,
             None,
         )
@@ -163,10 +164,18 @@ impl<T: Frontend> App<T> {
         status_line_components: Vec<StatusLineComponent>,
         integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
         enable_lsp: bool,
+        enable_file_watcher: bool,
         is_running_as_embedded: bool,
         persistence: Option<Persistence>,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
+        if enable_file_watcher {
+            let sender = sender.clone();
+            let working_directory = working_directory.clone();
+            std::thread::spawn(move || {
+                crate::file_watcher::watch_file_changes(&working_directory, sender)
+            });
+        }
         let mut app = App {
             context: Context::new(
                 working_directory.clone(),
@@ -273,6 +282,10 @@ impl<T: Frontend> App<T> {
             }
             AppMessage::NucleoTickDebounced => {
                 self.handle_nucleo_debounced()?;
+                Ok(false)
+            }
+            AppMessage::FileWatcherEvent(event) => {
+                self.handle_file_watcher_event(event)?;
                 Ok(false)
             }
         }
@@ -2840,6 +2853,25 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
             None,
         )
     }
+
+    fn handle_file_watcher_event(&mut self, event: FileWatcherEvent) -> anyhow::Result<()> {
+        match event {
+            FileWatcherEvent::ContentModified(path) => {
+                if path.is_file()
+                    && self
+                        .layout
+                        .get_opened_files()
+                        .iter()
+                        .any(|opened_file| &path == opened_file)
+                {
+                    let component = self.open_file(&path, BufferOwner::User, false, false)?;
+                    let dispatches = component.borrow_mut().editor_mut().reload(false)?;
+                    self.handle_dispatches(dispatches)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -3207,7 +3239,14 @@ pub(crate) enum AppMessage {
     // New variant for external dispatches
     ExternalDispatch(Box<Dispatch>),
     NucleoTickDebounced,
+    FileWatcherEvent(FileWatcherEvent),
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum FileWatcherEvent {
+    ContentModified(CanonicalizedPath),
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum DispatchPrompt {
     MoveSelectionByIndex,

@@ -14,6 +14,7 @@ fn rust_lsp_auto_import_from_completion_item() -> Result<(), anyhow::Error> {
     let options = RunTestOptions {
         enable_lsp: true,
         enable_syntax_highlighting: false,
+        enable_file_watcher: false,
     };
     execute_test_custom(options, |s| {
         Box::new([

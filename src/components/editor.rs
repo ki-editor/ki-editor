@@ -380,7 +380,7 @@ impl Component for Editor {
             }
             RevertHunk(diff_mode) => return self.revert_hunk(context, diff_mode),
             GitBlame => return self.git_blame(context),
-            ReloadFile { force } => return self.buffer_mut().reload(force),
+            ReloadFile { force } => return self.reload(force),
             MergeContent {
                 content_filesystem,
                 content_editor,
@@ -4063,6 +4063,10 @@ impl Editor {
         };
         let dispatches = self.update_content(&merged, context)?;
         Ok(dispatches.chain(self.do_save(true, context)?))
+    }
+
+    pub(crate) fn reload(&mut self, force: bool) -> Result<Dispatches, anyhow::Error> {
+        self.buffer_mut().reload(force)
     }
 }
 

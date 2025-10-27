@@ -130,6 +130,7 @@ crc32fast = "1.4.2"
 scraper = "0.24.0"
 imara-diff = "0.2.0"
 nucleo = "0.5.0"
+notify = "8.2.0"
 
 [dev-dependencies]
 serial_test = "~3.2.0"
