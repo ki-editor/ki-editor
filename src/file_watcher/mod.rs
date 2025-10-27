@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test;
 
-use notify::{Event, RecursiveMode, Result, Watcher};
+use notify::{event::ModifyKind, Event, EventKind, RecursiveMode, Result, Watcher};
 
 use shared::canonicalized_path::CanonicalizedPath;
 use std::sync::mpsc::{self, Sender};
@@ -30,15 +30,13 @@ pub(crate) fn watch_file_changes(
 }
 
 fn handle_event(event: notify::Event, app_message_sender: &Sender<AppMessage>) {
-    if let notify::EventKind::Modify(modify_kind) = event.kind {
-        if let notify::event::ModifyKind::Data(_) = modify_kind {
-            for path in event.paths {
-                if let Ok(path) = CanonicalizedPath::try_from(path) {
-                    if path.is_file() {
-                        let _ = app_message_sender.send(AppMessage::FileWatcherEvent(
-                            FileWatcherEvent::ContentModified(path),
-                        ));
-                    }
+    if let EventKind::Modify(ModifyKind::Data(_)) = event.kind {
+        for path in event.paths {
+            if let Ok(path) = CanonicalizedPath::try_from(path) {
+                if path.is_file() {
+                    let _ = app_message_sender.send(AppMessage::FileWatcherEvent(
+                        FileWatcherEvent::ContentModified(path),
+                    ));
                 }
             }
         }
