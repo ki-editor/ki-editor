@@ -73,13 +73,9 @@ impl FileExplorer {
         }
     }
 
-    pub(crate) fn refresh(
-        &mut self,
-        working_directory: &CanonicalizedPath,
-        context: &Context,
-    ) -> anyhow::Result<()> {
+    pub(crate) fn refresh(&mut self, context: &Context) -> anyhow::Result<()> {
         let tree = std::mem::take(&mut self.tree);
-        self.tree = tree.refresh(working_directory)?;
+        self.tree = tree.refresh(context.current_working_directory())?;
         self.refresh_editor(context)?;
         Ok(())
     }
