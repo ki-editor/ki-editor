@@ -13,7 +13,6 @@ once_cell.workspace = true
 serde.workspace = true
 lsp-types.workspace = true
 regex.workspace = true
-fancy-regex.workspace = true
 tempfile.workspace = true
 log.workspace = true
 grammar = {path = "../grammar"}

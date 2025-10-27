@@ -51,6 +51,7 @@
           alejandra
           fd
           cargo-watch
+          cargo-machete
           samply
         ];
 
