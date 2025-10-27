@@ -2,9 +2,16 @@ use std::time::Duration;
 
 use lazy_regex::regex;
 
+use DispatchEditor::*;
+
 use crate::{
     app::Dispatch::*,
     buffer::BufferOwner,
+    components::editor::{
+        Direction,
+        DispatchEditor::{self, SetSelectionMode},
+    },
+    selection::SelectionMode,
     test_app::{execute_test_custom, ExpectKind::*, RunTestOptions, Step::*},
 };
 
@@ -90,6 +97,32 @@ fn path_rename_should_refresh_explorer() -> Result<(), anyhow::Error> {
             WaitForDuration(Duration::from_secs(2)),
             WaitForAppMessage(regex!("FileWatcherEvent.*PathRenamed")),
             Expect(CurrentComponentContentMatches(regex!("renamed.rs"))),
+        ])
+    })
+}
+
+#[test]
+fn saving_a_file_should_not_refreshes_the_buffer_due_to_incoming_file_modified_notification(
+) -> Result<(), anyhow::Error> {
+    let options = RunTestOptions {
+        enable_lsp: false,
+        enable_syntax_highlighting: false,
+        enable_file_watcher: true,
+    };
+    execute_test_custom(options, |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(MatchLiteral("mod".to_string())),
+            Editor(Delete),
+            Editor(Save),
+            WaitForDuration(Duration::from_secs(2)),
+            WaitForAppMessage(regex!("FileWatcherEvent.*ContentModified")),
+            Editor(Undo),
+            Expect(CurrentSelectedTexts(&["mod"])),
         ])
     })
 }
