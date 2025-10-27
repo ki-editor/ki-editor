@@ -2,24 +2,41 @@ use std::sync::mpsc::SendError;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-pub(crate) fn debounce(
-    callback: Arc<dyn Fn() + Send + Sync>,
+#[derive(Clone)]
+pub(crate) struct Callback<T>(Arc<dyn Fn(T) + Send + Sync>);
+
+impl<T> Callback<T> {
+    pub(crate) fn new(callback: Arc<dyn Fn(T) + Send + Sync>) -> Self {
+        Self(callback)
+    }
+
+    pub(crate) fn call(&self, event: T) {
+        self.0(event)
+    }
+
+    pub(crate) fn func(&self) -> Arc<dyn Fn(T) + Send + Sync> {
+        self.0.clone()
+    }
+}
+
+pub(crate) fn debounce<T: PartialEq + Eq + Send + Sync + 'static>(
+    callback: Callback<T>,
     duration: Duration,
-) -> Arc<dyn Fn() + Send + Sync> {
-    let (sender, receiver) = std::sync::mpsc::channel::<()>();
+) -> Callback<T> {
+    let (sender, receiver) = std::sync::mpsc::channel::<T>();
     use debounce::EventDebouncer;
 
     std::thread::spawn(move || {
-        let debounce = EventDebouncer::new(duration, move |_| callback());
+        let debounce = EventDebouncer::new(duration, move |x| callback.call(x));
 
-        while let Ok(()) = receiver.recv() {
-            debounce.put(())
+        while let Ok(event) = receiver.recv() {
+            debounce.put(event)
         }
     });
 
-    Arc::new(move || {
-        let _ = sender.send(());
-    })
+    Callback::new(Arc::new(move |event| {
+        let _ = sender.send(event);
+    }))
 }
 
 pub(crate) enum SendResult {

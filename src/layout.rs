@@ -292,14 +292,8 @@ impl Layout {
         self.background_suggestive_editors.shift_remove(path);
     }
 
-    pub(crate) fn refresh_file_explorer(
-        &self,
-        working_directory: &CanonicalizedPath,
-        context: &Context,
-    ) -> anyhow::Result<()> {
-        self.background_file_explorer
-            .borrow_mut()
-            .refresh(working_directory, context)
+    pub(crate) fn refresh_file_explorer(&self, context: &Context) -> anyhow::Result<()> {
+        self.background_file_explorer.borrow_mut().refresh(context)
     }
 
     pub(crate) fn open_file_explorer(&mut self) {

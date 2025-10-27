@@ -20,6 +20,7 @@ use crate::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
     edit::Edit,
+    file_watcher::FileWatcherEvent,
     frontend::Frontend,
     git::{self},
     grid::{Grid, LineUpdate},
@@ -41,7 +42,7 @@ use crate::{
     search::parse_search_config,
     selection::{CharIndex, SelectionMode},
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
-    thread::SendResult,
+    thread::{Callback, SendResult},
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
@@ -839,9 +840,7 @@ impl<T: Frontend> App<T> {
             Dispatch::MoveFile { from, to } => self.move_file(from, to)?,
             Dispatch::CopyFile { from, to } => self.copy_file(from, to)?,
             Dispatch::AddPath(path) => self.add_path(path)?,
-            Dispatch::RefreshFileExplorer => self
-                .layout
-                .refresh_file_explorer(&self.working_directory, &self.context)?,
+            Dispatch::RefreshFileExplorer => self.layout.refresh_file_explorer(&self.context)?,
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
             } => self.context.set_clipboard_content(contents)?,
@@ -1211,9 +1210,9 @@ impl<T: Frontend> App<T> {
                         task: PromptItemsBackgroundTask::NonGitIgnoredFiles { working_directory },
                         on_nucleo_tick_debounced: {
                             let sender = self.sender.clone();
-                            Arc::new(move || {
+                            Callback::new(Arc::new(move |_| {
                                 let _ = sender.send(AppMessage::NucleoTickDebounced);
-                            })
+                            }))
                         },
                     },
                     FilePickerKind::GitStatus(diff_mode) => PromptItems::Precomputed(
@@ -1726,8 +1725,7 @@ impl<T: Frontend> App<T> {
             std::fs::remove_file(path)?;
         }
         self.layout.remove_suggestive_editor(path);
-        self.layout
-            .refresh_file_explorer(&self.working_directory, &self.context)?;
+        self.layout.refresh_file_explorer(&self.context)?;
         Ok(())
     }
 
@@ -1735,8 +1733,7 @@ impl<T: Frontend> App<T> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::rename(from.clone(), to.clone())?;
-        self.layout
-            .refresh_file_explorer(&self.working_directory, &self.context)?;
+        self.layout.refresh_file_explorer(&self.context)?;
         let to = to.try_into()?;
 
         self.context.rename_path_mark(&from, &to);
@@ -1758,8 +1755,7 @@ impl<T: Frontend> App<T> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::copy(from.clone(), to.clone())?;
-        self.layout
-            .refresh_file_explorer(&self.working_directory, &self.context)?;
+        self.layout.refresh_file_explorer(&self.context)?;
         let to = to.try_into()?;
         self.reveal_path_in_explorer(&to)?;
         self.lsp_manager.send_message(
@@ -1788,8 +1784,7 @@ impl<T: Frontend> App<T> {
             self.add_path_parent(&path)?;
             std::fs::File::create(&path)?;
         }
-        self.layout
-            .refresh_file_explorer(&self.working_directory, &self.context)?;
+        self.layout.refresh_file_explorer(&self.context)?;
         let path: CanonicalizedPath = path.try_into()?;
         self.reveal_path_in_explorer(&path)?;
         self.lsp_manager.send_message(
@@ -2869,6 +2864,11 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                     self.handle_dispatches(dispatches)?;
                 }
             }
+            FileWatcherEvent::PathCreated
+            | FileWatcherEvent::PathRemoved(_)
+            | FileWatcherEvent::PathRenamed(_) => {
+                self.layout.refresh_file_explorer(&self.context)?;
+            }
         }
         Ok(())
     }
@@ -3240,11 +3240,6 @@ pub(crate) enum AppMessage {
     ExternalDispatch(Box<Dispatch>),
     NucleoTickDebounced,
     FileWatcherEvent(FileWatcherEvent),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum FileWatcherEvent {
-    ContentModified(CanonicalizedPath),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
