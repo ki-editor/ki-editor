@@ -7,11 +7,7 @@ use DispatchEditor::*;
 use crate::{
     app::Dispatch::*,
     buffer::BufferOwner,
-    components::editor::{
-        Direction,
-        DispatchEditor::{self, SetSelectionMode},
-    },
-    selection::SelectionMode,
+    components::editor::DispatchEditor::{self},
     test_app::{execute_test_custom, ExpectKind::*, RunTestOptions, Step::*},
 };
 
