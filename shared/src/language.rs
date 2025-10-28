@@ -288,7 +288,6 @@ impl Language {
                 Err(error) => {
                     log::error!(
                         "[Language::highlight_query]: Falling back to default query; unable to use highlight query of {} from nvim-treesitter due to error: {error:?}",
-                        
                         self.tree_sitter_grammar_config.clone()?.id
                     )
                 }
