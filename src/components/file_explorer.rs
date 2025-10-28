@@ -61,7 +61,7 @@ impl FileExplorer {
     pub(crate) fn expanded_folders(&self) -> Vec<CanonicalizedPath> {
         self.tree
             .walk_visible(Vec::new(), |result, node| Continuation {
-                state: if node.path.is_dir() {
+                state: if matches!(node.kind, NodeKind::Directory { open: true, .. }) {
                     result.into_iter().chain(Some(node.path.clone())).collect()
                 } else {
                     result

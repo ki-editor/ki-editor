@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use lazy_regex::regex;
 
+use serial_test::serial;
 use DispatchEditor::*;
 
 use crate::{
@@ -159,7 +160,7 @@ fn path_rename_should_refresh_explorer() -> Result<(), anyhow::Error> {
                 "mv",
                 [
                     s.main_rs().display_absolute(),
-                    s.new_path("renamed.rs").display().to_string(),
+                    s.new_path("src/renamed.rs").display().to_string(),
                 ]
                 .to_vec(),
             ),
@@ -189,15 +190,17 @@ fn path_modified_under_a_non_expanded_folder_should_not_refresh_explorer(
  - 📄  Cargo.toml
  - 📁  src/ :",
             )),
+            WaitForDuration(Duration::from_secs(2)),
             // Rename "src/main.rs" to "src/renamed.rs"
             Shell(
                 "mv",
                 [
                     s.main_rs().display_absolute(),
-                    s.new_path("renamed.rs").display().to_string(),
+                    s.new_path("src/renamed.rs").display().to_string(),
                 ]
                 .to_vec(),
             ),
+            WaitForDuration(Duration::from_secs(2)),
             Expect(AppMessageNotReceived {
                 matches: regex!("FileWatcherEvent.*PathRenamed"),
                 timeout: Duration::from_secs(5),
@@ -235,6 +238,7 @@ fn path_modified_under_current_working_directory_should_refresh_explorer(
     })
 }
 
+#[serial]
 #[test]
 fn saving_a_file_should_not_refreshes_the_buffer_due_to_incoming_file_modified_notification(
 ) -> Result<(), anyhow::Error> {
