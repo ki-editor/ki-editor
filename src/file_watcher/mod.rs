@@ -18,31 +18,115 @@ use crate::{
     thread::{debounce, Callback},
 };
 
+#[derive(Debug)]
+pub(crate) enum FileWatcherInput {
+    SyncOpenedPaths(Vec<CanonicalizedPath>),
+    FileWatcherEvent(FileWatcherEvent),
+    SyncFileExplorerExpandedFolders(Vec<CanonicalizedPath>),
+}
+
+#[derive(Default)]
+pub(crate) struct FileWatcherState {
+    opened_paths: Vec<CanonicalizedPath>,
+    expanded_folders: Vec<CanonicalizedPath>,
+}
+impl FileWatcherState {
+    fn contains_path_buf(&self, path_buf: &PathBuf) -> bool {
+        self.opened_paths
+            .iter()
+            .any(|opened_path| opened_path.to_path_buf() == path_buf)
+            || self
+                .expanded_folders
+                .iter()
+                .any(|folder| path_buf.parent() == Some(folder.to_path_buf()))
+    }
+
+    fn should_send(&self, file_watcher_event: &FileWatcherEvent) -> bool {
+        match file_watcher_event {
+            FileWatcherEvent::ContentModified(path)
+                if self.contains_path_buf(&path.to_path_buf()) =>
+            {
+                true
+            }
+            FileWatcherEvent::PathCreated => true,
+            FileWatcherEvent::PathRemoved(path) | FileWatcherEvent::PathRenamed(path)
+                if self.contains_path_buf(&path) =>
+            {
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
 pub(crate) fn watch_file_changes(
     path: &CanonicalizedPath,
     app_message_sender: Sender<AppMessage>,
-) -> anyhow::Result<()> {
-    let (sender, receiver) = mpsc::channel::<Result<Event>>();
+) -> anyhow::Result<Sender<FileWatcherInput>> {
+    let (file_watcher_input_sender, file_watcher_input_receiver) =
+        mpsc::channel::<FileWatcherInput>();
 
-    let mut watcher = notify::recommended_watcher(sender)?;
-    let debounced_handler = debounce(
-        Callback::new(Arc::new(move |event: FileWatcherEvent| {
-            let _ = app_message_sender.send(AppMessage::FileWatcherEvent(event));
-        })),
-        Duration::from_secs(1),
-    );
+    std::thread::spawn({
+        let path = path.clone();
+        let file_watcher_input_sender = file_watcher_input_sender.clone();
+        move || {
+            let (notify_sender, notify_receiver) = mpsc::channel::<Result<Event>>();
+            let mut watcher = match notify::recommended_watcher(notify_sender) {
+                Ok(watcher) => watcher,
+                Err(error) => {
+                    log::error!("[notify::recommended_watcher] error: {error:?}");
+                    return;
+                }
+            };
+            if let Err(error) = watcher.watch(path.to_path_buf(), RecursiveMode::Recursive) {
+                log::error!("[watcher::watch] error: {error:?}");
+                return;
+            }
 
-    watcher.watch(path.to_path_buf(), RecursiveMode::Recursive)?;
+            let debounced_handler = debounce(
+                Callback::new({
+                    let file_watcher_input_sender = file_watcher_input_sender.clone();
+                    Arc::new({
+                        move |event: FileWatcherEvent| {
+                            let _ = file_watcher_input_sender
+                                .send(FileWatcherInput::FileWatcherEvent(event));
+                        }
+                    })
+                }),
+                Duration::from_secs(1),
+            );
 
-    for result in receiver {
-        match result {
-            Ok(event) => handle_event(event, &debounced_handler),
-            Err(error) => {
-                log::error!("watch_file_changes error: {error:?}")
+            std::thread::spawn(move || {
+                for result in notify_receiver {
+                    match result {
+                        Ok(event) => handle_event(event, &debounced_handler),
+                        Err(error) => {
+                            log::error!("watch_file_changes error: {error:?}")
+                        }
+                    }
+                }
+            });
+
+            let mut state = FileWatcherState::default();
+            for event in file_watcher_input_receiver {
+                match event {
+                    FileWatcherInput::SyncOpenedPaths(paths) => state.opened_paths = paths,
+                    FileWatcherInput::SyncFileExplorerExpandedFolders(paths) => {
+                        state.expanded_folders = paths
+                    }
+                    FileWatcherInput::FileWatcherEvent(file_watcher_event) => {
+                        // Only send events for path that are opened
+                        if state.should_send(&file_watcher_event) {
+                            let _ = app_message_sender
+                                .send(AppMessage::FileWatcherEvent(file_watcher_event));
+                        }
+                    }
+                }
             }
         }
-    }
-    Ok(())
+    });
+
+    Ok(file_watcher_input_sender)
 }
 
 fn handle_event(event: notify::Event, callback: &Callback<FileWatcherEvent>) {

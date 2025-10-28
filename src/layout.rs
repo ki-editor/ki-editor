@@ -530,6 +530,10 @@ impl Layout {
         self.background_file_explorer.borrow().content()
     }
 
+    pub(crate) fn file_explorer_expanded_folders(&self) -> Vec<CanonicalizedPath> {
+        self.background_file_explorer.borrow().expanded_folders()
+    }
+
     pub(crate) fn get_quickfix_list_items(
         &self,
         source: &QuickfixListSource,

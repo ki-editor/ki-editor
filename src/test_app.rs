@@ -177,6 +177,11 @@ pub(crate) enum ExpectKind {
     SelectionExtensionEnabled(bool),
     PromptHistory(PromptHistoryKey, Vec<String>),
     MarkedFiles(Vec<CanonicalizedPath>),
+    /// Similar to `Step::WaitForAppMessage`, but expect the opposites, with a timeout
+    AppMessageNotReceived {
+        matches: &'static lazy_regex::Lazy<regex::Regex>,
+        timeout: Duration,
+    },
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -574,6 +579,10 @@ impl ExpectKind {
                 &app.context().get_marked_files().into_iter().cloned().collect_vec()
             ),
             NoError => (true, String::new()),
+            AppMessageNotReceived { matches, timeout } => {
+                    app.expect_app_message_not_received(matches, timeout)?;
+                    (true, String::new())
+                }
         })
     }
 }
