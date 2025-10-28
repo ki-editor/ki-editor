@@ -1,15 +1,17 @@
 use crate::{
     app::Dimension,
+    git::hunk::SimpleHunkKind,
     position::Position,
     soft_wrap::{self},
     style::Style,
-    themes::{Color, Theme},
+    themes::{Color, HighlightName, Theme},
 };
 
 use itertools::Itertools;
 use my_proc_macros::hex;
 #[cfg(test)]
 use ropey::Rope;
+use strum::IntoEnumIterator;
 use unicode_width::UnicodeWidthChar;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -19,14 +21,17 @@ pub(crate) struct Grid {
 }
 
 const DEFAULT_TAB_SIZE: usize = 4;
+pub(crate) const LINE_NUMBER_VERTICAL_BORDER: &str = "│";
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub(crate) struct Cell {
-    pub(crate) symbol: String,
+    pub(crate) symbol: char,
     pub(crate) foreground_color: Color,
     pub(crate) background_color: Color,
     pub(crate) line: Option<CellLine>,
     pub(crate) is_cursor: bool,
+    /// Need for folded sections where the cursor is not in them
+    pub(crate) is_protected_range_start: bool,
     /// For debugging purposes, so that we can trace this Cell is updated by which
     /// decoration, e.g. Diagnostic
     pub(crate) source: Option<StyleKey>,
@@ -49,14 +54,14 @@ impl Cell {
     #[cfg(test)]
     pub(crate) fn from_char(c: char) -> Self {
         Cell {
-            symbol: c.to_string(),
+            symbol: c,
             ..Default::default()
         }
     }
 
     fn apply_update(&self, update: CellUpdate) -> Cell {
         Cell {
-            symbol: update.symbol.clone().unwrap_or(self.symbol.clone()),
+            symbol: update.symbol.unwrap_or(self.symbol),
             foreground_color: update
                 .style
                 .foreground_color
@@ -66,9 +71,11 @@ impl Cell {
                 .background_color
                 .unwrap_or(self.background_color),
             line: update.style.line.or(self.line),
-            is_cursor: update.is_cursor,
-            source: update.source.or(self.source.clone()),
+            is_cursor: update.is_cursor || self.is_cursor,
+            source: update.source.or_else(|| self.source.clone()),
             is_bold: update.style.is_bold || self.is_bold,
+            is_protected_range_start: update.is_protected_range_start
+                || self.is_protected_range_start,
         }
     }
 }
@@ -76,13 +83,14 @@ impl Cell {
 impl Default for Cell {
     fn default() -> Self {
         Cell {
-            symbol: " ".to_string(),
+            symbol: ' ',
             foreground_color: hex!("#ffffff"),
             background_color: hex!("#ffffff"),
             line: None,
             is_cursor: false,
             source: None,
             is_bold: false,
+            is_protected_range_start: false,
         }
     }
 }
@@ -90,12 +98,13 @@ impl Default for Cell {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct CellUpdate {
     pub(crate) position: Position,
-    pub(crate) symbol: Option<String>,
+    pub(crate) symbol: Option<char>,
     pub(crate) style: Style,
     pub(crate) is_cursor: bool,
 
     /// For debugging purposes
     pub(crate) source: Option<StyleKey>,
+    pub(crate) is_protected_range_start: bool,
 }
 
 impl CellUpdate {
@@ -106,6 +115,7 @@ impl CellUpdate {
             style: Style::default(),
             is_cursor: false,
             source: None,
+            is_protected_range_start: false,
         }
     }
 
@@ -121,8 +131,19 @@ impl CellUpdate {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_symbol(self, symbol: Option<String>) -> CellUpdate {
+    pub(crate) fn set_symbol(self, symbol: Option<char>) -> CellUpdate {
         CellUpdate { symbol, ..self }
+    }
+
+    pub(crate) fn set_is_protected_range_start(self, is_protected_range_start: bool) -> Self {
+        CellUpdate {
+            is_protected_range_start,
+            ..self
+        }
+    }
+
+    fn set_source(self, source: Option<StyleKey>) -> CellUpdate {
+        CellUpdate { source, ..self }
     }
 }
 
@@ -142,7 +163,6 @@ impl Ord for PositionedCell {
         self.position.cmp(&other.position)
     }
 }
-#[cfg(test)]
 impl std::fmt::Display for Grid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -218,7 +238,7 @@ impl Grid {
                 .enumerate()
                 .for_each(|(column_index, character)| {
                     grid.rows[row_index][column_index] = Cell {
-                        symbol: character.to_string(),
+                        symbol: character,
                         ..Cell::default()
                     }
                 })
@@ -265,13 +285,6 @@ impl Grid {
         grid
     }
 
-    pub(crate) fn clamp_top(self, by: usize) -> Self {
-        Self {
-            rows: self.rows.into_iter().skip(by).collect_vec(),
-            ..self
-        }
-    }
-
     pub(crate) fn get_cursor_position(&self) -> Option<Position> {
         self.to_positioned_cells().into_iter().find_map(|cell| {
             if cell.cell.is_cursor {
@@ -308,7 +321,7 @@ impl Grid {
                         line: row_index,
                         column: column_index,
                     },
-                    symbol: Some(character.to_string()),
+                    symbol: Some(character),
                     style: *style,
                     ..CellUpdate::default()
                 }
@@ -324,6 +337,7 @@ impl Grid {
     /// Note:
     /// - `line_index_start` is 0-based.
     /// - If `max_line_number` is
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn render_content(
         self,
         content: &str,
@@ -331,6 +345,8 @@ impl Grid {
         cell_updates: Vec<CellUpdate>,
         line_updates: Vec<LineUpdate>,
         theme: &Theme,
+        cursor_position: Option<Position>,
+        git_hunks: &[crate::git::hunk::SimpleHunk],
     ) -> Grid {
         let Dimension { height, width } = self.dimension();
         let (line_index_start, max_line_number_len, line_number_separator_width) = match line_number
@@ -350,6 +366,10 @@ impl Grid {
             .saturating_sub(line_number_separator_width);
 
         let wrapped_lines = soft_wrap::soft_wrap(content, content_container_width);
+
+        let calibrated_cursor_position = cursor_position
+            .and_then(|cursor_position| wrapped_lines.calibrate(cursor_position).ok()?.first());
+
         let content_cell_updates = {
             content
                 .lines()
@@ -362,7 +382,7 @@ impl Grid {
                                 line: line_index,
                                 column: column_index,
                             },
-                            symbol: Some(character.to_string()),
+                            symbol: Some(character),
                             style: Style::default().foreground_color(theme.ui.text_foreground),
                             ..CellUpdate::default()
                         })
@@ -420,12 +440,50 @@ impl Grid {
                     .collect_vec()
             })
             .collect::<Vec<_>>();
-        let line_numbers = if line_numbers.is_empty() {
-            [LineNumber {
-                line_number: 0,
+
+        // Handle discrepancy between ropey and String line counting methods.
+        //
+        // `ropey::Rope::len_lines()` counts lines as "number of newline characters + 1",
+        // which means a string ending with a newline is counted as having an extra line.
+        // For example: "hello\nworld\n" has 2 newlines, so ropey counts 3 lines.
+        //
+        // However, `String::lines()` ignores trailing newlines when iterating.
+        // The same string "hello\nworld\n" only yields 2 lines when iterated.
+        //
+        // Ropey behaves this way because text editors are expected to follow this convention:
+        // - A newline character creates a new line, even if it's at the end of the file
+        // - Users expect the cursor to be able to move to a new empty line after a trailing newline
+        // - Line numbers should reflect the actual navigable positions in the editor
+        // - This matches how most professional text editors (Vim, Emacs, VS Code) handle line counting
+        //
+        // This creates a mismatch: we need to render as many line numbers as `ropey`
+        // reports (to match the editor's expected line count), but our `wrapped_lines` is built
+        // from `String::lines()` iteration (which excludes the trailing empty line).
+        //
+        // When ropey reports exactly one more line than our wrapped line count,
+        // it indicates there's a trailing newline that created an "empty" final line.
+        // We need to add a corresponding line number for this empty line to maintain
+        // proper line numbering alignment and editor behavior consistency.
+        //
+        // Note: This also handles the case where we need to render at least one
+        // line number even when the content appears empty (e.g., empty string or just "\n").
+        let line_numbers = if 1
+            == ropey::Rope::from_str(content)
+                .len_lines()
+                .saturating_sub(wrapped_lines.wrapped_lines_count())
+        {
+            let last_line_number = LineNumber {
+                line_number: line_numbers
+                    .last()
+                    .map(|line_number| line_number.line_number + 1)
+                    .unwrap_or(0),
+
                 wrapped: false,
-            }]
-            .to_vec()
+            };
+            line_numbers
+                .into_iter()
+                .chain(Some(last_line_number))
+                .collect_vec()
         } else {
             line_numbers
         };
@@ -455,6 +513,9 @@ impl Grid {
                                 wrapped,
                             },
                         )| {
+                            let is_cursor_line_number = calibrated_cursor_position
+                                .map(|position| line_index == position.line)
+                                .unwrap_or(false);
                             let line_number_str = {
                                 let line_number = if wrapped {
                                     "↪".to_string()
@@ -467,20 +528,61 @@ impl Grid {
                                     width = { max_line_number_len }
                                 )
                             };
+                            let style = {
+                                let style = theme.ui.line_number;
+                                style.set_some_background_color(if is_cursor_line_number {
+                                    Some(theme.ui.primary_selection_background)
+                                } else {
+                                    style.background_color
+                                })
+                            };
                             grid.get_row_cell_updates(
                                 line_index,
                                 Some(0),
                                 Some(max_line_number_len),
                                 &line_number_str,
-                                &theme.ui.line_number,
+                                &style,
                             )
                             .into_iter()
+                            .map(move |cell_update| {
+                                cell_update.set_source(if is_cursor_line_number {
+                                    Some(StyleKey::UiCursorLineNumber)
+                                } else {
+                                    None
+                                })
+                            })
                             .chain(grid.get_row_cell_updates(
                                 line_index,
                                 Some(max_line_number_len),
                                 Some(max_line_number_len + 1),
-                                "│",
-                                &theme.ui.border,
+                                LINE_NUMBER_VERTICAL_BORDER,
+                                &{
+                                    if let Some(hunk) = git_hunks.iter().find(|hunk| {
+                                        // This equivalence check is crucial, because Deleted hunk has 0 length, for example (1..1)
+                                        hunk.new_line_range.start == line_number
+                                            || hunk.new_line_range.contains(&line_number)
+                                    }) {
+                                        match hunk.kind {
+                                            SimpleHunkKind::Delete => {
+                                                Style::same_background_foreground(
+                                                    theme.git_gutter.deletion,
+                                                )
+                                            }
+                                            SimpleHunkKind::Insert => {
+                                                Style::same_background_foreground(
+                                                    theme.git_gutter.insertion,
+                                                )
+                                            }
+                                            SimpleHunkKind::Replace => {
+                                                Style::same_background_foreground(
+                                                    theme.git_gutter.replacement,
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        theme.ui.border
+                                    }
+                                },
                             ))
                             .map(|cell_update| {
                                 CalibratableCellUpdate {
@@ -494,7 +596,6 @@ impl Grid {
             }
         };
         let calibrated = content_cell_updates
-            .into_iter()
             .chain(line_updates)
             .chain(cell_updates)
             .chain(line_numbers)
@@ -509,7 +610,7 @@ impl Grid {
                                     (max_line_number_len + line_number_separator_width) as u16,
                                 ),
                                 symbol: if index == 0 {
-                                    update.cell_update.symbol.clone()
+                                    update.cell_update.symbol
                                 } else {
                                     // Fill extra paddings with no-symbol cells
                                     None
@@ -527,17 +628,19 @@ impl Grid {
                 }
             })
             .collect_vec();
-        let cursor = calibrated.iter().find(|update| update.is_cursor).cloned();
+        let protected_range_start_position = calibrated
+            .iter()
+            .find(|update| update.is_protected_range_start)
+            .map(|update| update.position);
         // If the cursor is out of bound due to wrapped lines above it,
         // trim the lines from above until the cursor is inbound again
-        let trimmed = if let Some(cursor) = cursor {
+        let trimmed = if let Some(calibrated_cursor_position) = protected_range_start_position {
             let min_line = calibrated
                 .iter()
                 .map(|update| update.position.line)
                 .min()
                 .unwrap_or_default();
-            let extra_height = cursor
-                .position
+            let extra_height = calibrated_cursor_position
                 .line
                 .saturating_sub(min_line)
                 .saturating_add(1)
@@ -547,16 +650,22 @@ impl Grid {
             calibrated
                 .into_iter()
                 .filter(|update| update.position.line >= min_renderable_line)
-                .map(|update| CellUpdate {
-                    position: update.position.move_up(extra_height),
-                    ..update
+                .filter_map(|update| {
+                    Some(CellUpdate {
+                        position: update.position.move_up(extra_height)?,
+                        ..update
+                    })
                 })
                 .collect_vec()
         } else {
             calibrated
         };
-        self.set_background_color(theme.ui.background_color)
-            .apply_cell_updates(trimmed)
+
+        let result_grid = self
+            .set_background_color(theme.ui.background_color)
+            .apply_cell_updates(trimmed);
+        debug_assert_eq!(result_grid.dimension().height, height);
+        result_grid
     }
 
     fn set_background_color(mut self, background_color: Color) -> Self {
@@ -567,11 +676,51 @@ impl Grid {
         }
         self
     }
+
+    pub(crate) fn get_protected_range_start_position(&self) -> Option<Position> {
+        self.to_positioned_cells().into_iter().find_map(|cell| {
+            if cell.cell.is_protected_range_start {
+                Some(cell.position)
+            } else {
+                None
+            }
+        })
+    }
+
+    pub(crate) fn height(&self) -> usize {
+        self.rows.len()
+    }
+}
+
+/// This is created so the payload of `StyleKey::Syntax`
+/// can be usize instead of String.
+///
+/// The impact of this is huge because for a 3k Rust files
+/// there are over 50,000 highlight spans,
+/// and copying the style key as strings are very expensive.
+#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
+pub(crate) struct IndexedHighlightGroup(usize);
+impl IndexedHighlightGroup {
+    pub(crate) fn new(index: usize) -> Self {
+        Self(index)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_str(name: &str) -> Option<Self> {
+        crate::themes::highlight_names()
+            .iter()
+            .position(|highlight_name| highlight_name == &name)
+            .map(Self)
+    }
+
+    pub(crate) fn to_highlight_name(&self) -> Option<crate::themes::HighlightName> {
+        HighlightName::iter().nth(self.0)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
 pub(crate) enum StyleKey {
-    Syntax(String),
+    Syntax(IndexedHighlightGroup),
     UiPrimarySelection,
 
     UiPrimarySelectionAnchors,
@@ -581,7 +730,7 @@ pub(crate) enum StyleKey {
     DiagnosticsError,
     DiagnosticsWarning,
     DiagnosticsInformation,
-    UiBookmark,
+    UiMark,
     UiPossibleSelection,
 
     DiagnosticsDefault,
@@ -594,6 +743,25 @@ pub(crate) enum StyleKey {
     KeymapKey,
     UiFuzzyMatchedChar,
     ParentLine,
+    UiPrimarySelectionSecondaryCursor,
+    UiSecondarySelectionPrimaryCursor,
+    UiSecondarySelectionSecondaryCursor,
+    UiSectionDivider,
+    UiFocusedTab,
+    UiCursorLineNumber,
+}
+
+impl StyleKey {
+    #[cfg(test)]
+    pub(crate) fn display(&self) -> String {
+        match self {
+            StyleKey::Syntax(highlight_group) => {
+                let str: &'static str = highlight_group.to_highlight_name().unwrap().into();
+                str.to_string()
+            }
+            _ => format!("{self:?}"),
+        }
+    }
 }
 
 /// TODO: in the future, tab size should be configurable
@@ -654,6 +822,8 @@ mod test_grid {
                 Vec::new(),
                 Vec::new(),
                 &Theme::default(),
+                None,
+                &[],
             )
             .to_string();
             assert_eq!(actual, "2│hello")
@@ -675,6 +845,8 @@ mod test_grid {
                 Vec::new(),
                 Vec::new(),
                 &Theme::default(),
+                None,
+                &[],
             )
             .to_string();
             assert_eq!(
@@ -703,6 +875,8 @@ mod test_grid {
                 Vec::new(),
                 Vec::new(),
                 &Theme::default(),
+                None,
+                &[],
             )
             .to_string();
             assert_eq!(
@@ -733,13 +907,15 @@ mod test_grid {
                     start_line_index: 1,
                 },
                 [CellUpdate {
-                    symbol: Some(cursor.to_string()),
+                    symbol: Some(cursor),
                     position: Position::new(0, 3),
                     ..Default::default()
                 }]
                 .to_vec(),
                 Vec::new(),
                 &Theme::default(),
+                None,
+                &[],
             )
             .to_string();
             // Expect a space is inserted between the crab emoji and 'c',
@@ -772,13 +948,15 @@ mod test_grid {
                     start_line_index: 1,
                 },
                 [CellUpdate {
-                    symbol: Some(cursor.to_string()),
+                    symbol: Some(cursor),
                     position: Position::new(0, 8), // 3rd space
                     ..Default::default()
                 }]
                 .to_vec(),
                 Vec::new(),
                 &Theme::default(),
+                None,
+                &[],
             )
             .to_string();
             assert_eq!(
@@ -809,6 +987,8 @@ mod test_grid {
                 [].to_vec(),
                 Vec::new(),
                 &Theme::default(),
+                None,
+                &[],
             )
             .to_string();
             // Expect there's two extra spaces before '2'
@@ -837,6 +1017,8 @@ mod test_grid {
                 }]
                 .to_vec(),
                 &Theme::default(),
+                None,
+                &[],
             );
             assert_eq!(
                 actual
@@ -880,6 +1062,8 @@ mod test_grid {
 
                         ..Default::default()
                     },
+                    None,
+                    &[],
                 )
                 .to_positioned_cells();
             assert_eq!(
@@ -905,6 +1089,8 @@ mod test_grid {
                     Vec::new(),
                     Vec::new(),
                     &Default::default(),
+                    None,
+                    &[],
                 )
                 .to_string();
             assert_eq!("hello", actual)
@@ -924,12 +1110,14 @@ mod test_grid {
                     Vec::new(),
                     Vec::new(),
                     &Default::default(),
+                    None,
+                    &[],
                 )
                 .to_positioned_cells()
                 .into_iter()
                 .map(|cell| cell.cell.symbol)
                 .collect_vec();
-            assert_eq!(["\t", " ", " ", " ", "h", "e", "l", " "].to_vec(), actual)
+            assert_eq!(['\t', ' ', ' ', ' ', 'h', 'e', 'l', ' '].to_vec(), actual)
         }
 
         #[test]
@@ -951,11 +1139,14 @@ x
                     [CellUpdate {
                         position: Position::new(1, 0), // on 'x'
                         is_cursor: true,
+                        is_protected_range_start: true,
                         ..Default::default()
                     }]
                     .to_vec(),
                     Vec::new(),
                     &Default::default(),
+                    None,
+                    &[],
                 )
                 .to_string();
             assert_eq!(
@@ -987,6 +1178,8 @@ x
                     }]
                     .to_vec(),
                     &Default::default(),
+                    None,
+                    &[],
                 )
                 .to_positioned_cells()
                 .into_iter()
@@ -994,7 +1187,7 @@ x
                 .collect_vec();
             let expected = PositionedCell {
                 cell: Cell {
-                    symbol: "h".to_string(),
+                    symbol: 'h',
                     foreground_color: color,
                     ..Default::default()
                 },
@@ -1016,20 +1209,21 @@ mod test_cell {
     #[test]
     fn apply_update() {
         let cell = Cell {
-            symbol: "a".to_string(),
+            symbol: 'a',
             foreground_color: hex!("#aaaaaa"),
             background_color: hex!("#bbbbbb"),
             line: Some(CellLine {
                 color: hex!("#cccccc"),
                 style: CellLineStyle::Undercurl,
             }),
-            is_cursor: true,
+            is_cursor: false,
             source: Some(StyleKey::HunkNew),
             is_bold: true,
+            is_protected_range_start: false,
         };
         let cell = cell.apply_update(CellUpdate {
             position: Position::default(),
-            symbol: Some("b".to_string()),
+            symbol: Some('b'),
             style: Style::new()
                 .foreground_color(hex!("#dddddd"))
                 .background_color(hex!("#eeeeee"))
@@ -1037,13 +1231,14 @@ mod test_cell {
                     color: hex!("#ffffff"),
                     style: CellLineStyle::Underline,
                 })),
-            is_cursor: false,
+            is_cursor: true,
             source: Some(StyleKey::KeymapHint),
+            is_protected_range_start: true,
         });
-        assert_eq!(cell.symbol, "b");
+        assert_eq!(cell.symbol, 'b');
         assert_eq!(cell.foreground_color, hex!("#dddddd"));
         assert_eq!(cell.background_color, hex!("#eeeeee"));
-        assert!(!cell.is_cursor);
+        assert!(cell.is_cursor);
         assert_eq!(cell.source, Some(StyleKey::KeymapHint));
         assert_eq!(
             cell.line,

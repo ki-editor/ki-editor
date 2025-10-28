@@ -1,6 +1,6 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Event {
     Key(KeyEvent),
     FocusGained,
@@ -27,10 +27,15 @@ impl From<crossterm::event::Event> for Event {
 /// on combined modifier keys like Ctrl+Alt+Shift.
 ///
 /// The `crossterm` crate does not support this out of the box.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct KeyEvent {
     pub code: crossterm::event::KeyCode,
     pub modifiers: KeyModifiers,
+}
+impl fmt::Debug for KeyEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.display())
+    }
 }
 impl KeyEvent {
     pub const fn new(key: crossterm::event::KeyCode, modifiers: KeyModifiers) -> KeyEvent {
@@ -44,6 +49,54 @@ impl KeyEvent {
         format!(
             "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::KeyModifiers::{:#?}, }}",
             self.code, self.modifiers
+        )
+    }
+
+    pub fn display(&self) -> String {
+        use crossterm::event::KeyCode;
+        let key_code = match self.code {
+            KeyCode::Char(' ') => String::from("space"),
+            KeyCode::Char(c) => c.to_string(),
+            KeyCode::Backspace => String::from("backspace"),
+            KeyCode::Enter => String::from("enter"),
+            KeyCode::Left => String::from("left"),
+            KeyCode::Right => String::from("right"),
+            KeyCode::Up => String::from("up"),
+            KeyCode::Down => String::from("down"),
+            KeyCode::Home => String::from("home"),
+            KeyCode::End => String::from("end"),
+            KeyCode::PageUp => String::from("pageup"),
+            KeyCode::PageDown => String::from("pagedown"),
+            KeyCode::Tab => String::from("tab"),
+            KeyCode::BackTab => String::from("backtab"),
+            KeyCode::Delete => String::from("delete"),
+            KeyCode::Insert => String::from("insert"),
+            KeyCode::F(n) => format!("F{n}"),
+            KeyCode::Null => String::from("Null"),
+            KeyCode::Esc => String::from("esc"),
+            // Add more cases as needed
+            _ => String::from("Unknown"),
+        };
+        let modifier = if self.modifiers != KeyModifiers::None {
+            use convert_case::{Case, Casing};
+            Some(
+                format!("{:?}", self.modifiers)
+                    .to_case(Case::Lower)
+                    .split(" ")
+                    .collect::<Vec<_>>()
+                    .join("+")
+                    .to_string(),
+            )
+        } else {
+            None
+        };
+        format!(
+            "{}{key_code}",
+            if let Some(modifier) = modifier {
+                format!("{modifier}+")
+            } else {
+                "".to_string()
+            }
         )
     }
 }
@@ -69,6 +122,7 @@ pub enum KeyModifiers {
     CtrlAltShift,
     Unknown,
 }
+
 impl KeyModifiers {
     pub(crate) fn add_shift(self, shift: bool) -> KeyModifiers {
         use KeyModifiers::*;
@@ -82,6 +136,18 @@ impl KeyModifiers {
             CtrlAlt => CtrlAltShift,
             Unknown => Shift,
             _ => self,
+        }
+    }
+
+    pub fn display(&self) -> String {
+        match self {
+            KeyModifiers::None => "".to_string(),
+            _ => format!("{self:?}")
+                .to_lowercase()
+                .split(" ")
+                .collect::<Vec<_>>()
+                .join("+")
+                .to_string(),
         }
     }
 }

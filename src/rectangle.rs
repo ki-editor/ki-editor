@@ -63,8 +63,8 @@ impl Border {
                 position,
                 cell: Cell {
                     symbol: match self.direction {
-                        BorderDirection::Horizontal => "─".to_string(),
-                        BorderDirection::Vertical => "│".to_string(),
+                        BorderDirection::Horizontal => '─',
+                        BorderDirection::Vertical => '│',
                     },
                     foreground_color: border_style.foreground_color.unwrap_or_default(),
                     background_color: border_style.background_color.unwrap_or_default(),
@@ -467,6 +467,7 @@ impl Rectangle {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LayoutKind {
+    #[allow(unused)]
     Tall,
     Wide,
 }

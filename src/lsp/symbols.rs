@@ -1,32 +1,69 @@
 use crate::{
     app::{Dispatch, Dispatches},
+    buffer::Buffer,
     components::dropdown::DropdownItem,
     quickfix_list::Location,
 };
 use lsp_types::{DocumentSymbolResponse, SymbolKind};
-use shared::icons::get_icon_config;
+use shared::{canonicalized_path::CanonicalizedPath, icons::get_icon_config};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Symbols {
     pub(crate) symbols: Vec<Symbol>,
 }
 
-impl TryFrom<DocumentSymbolResponse> for Symbols {
-    type Error = anyhow::Error;
+impl Symbols {
+    fn collect_document_symbols(
+        document_symbol: &lsp_types::DocumentSymbol,
+        parent_name: Option<String>,
+        path: &CanonicalizedPath,
+    ) -> Result<Vec<Symbol>, anyhow::Error> {
+        let root_symbol = Symbol::try_from_document_symbol(
+            document_symbol.clone(),
+            parent_name.clone(),
+            path.clone(),
+        )?;
 
-    fn try_from(value: DocumentSymbolResponse) -> Result<Self, Self::Error> {
-        match value {
-            DocumentSymbolResponse::Flat(symbols) => {
-                let symbols = symbols
-                    .into_iter()
-                    .map(|symbol| symbol.try_into())
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(Self { symbols })
-            }
-            DocumentSymbolResponse::Nested(_nested) => {
-                todo!()
-            }
-        }
+        let symbols = document_symbol
+            .children
+            .iter()
+            .flatten()
+            .flat_map(|child| {
+                let parent_name = format!(
+                    "{}{}",
+                    parent_name
+                        .as_ref()
+                        .map(|name| format!("{name} ▶ ",))
+                        .unwrap_or_default(),
+                    document_symbol.name.clone()
+                );
+                Self::collect_document_symbols(child, Some(parent_name), path).unwrap_or_default()
+            })
+            .chain(std::iter::once(root_symbol))
+            .collect();
+
+        Ok(symbols)
+    }
+
+    pub(crate) fn try_from_document_symbol_response(
+        value: DocumentSymbolResponse,
+        path: CanonicalizedPath,
+    ) -> anyhow::Result<Self> {
+        let symbols = match value {
+            DocumentSymbolResponse::Flat(flat_symbols) => flat_symbols
+                .into_iter()
+                .map(|symbol| symbol.try_into())
+                .collect::<Result<Vec<_>, _>>()?,
+            DocumentSymbolResponse::Nested(nested_symbols) => nested_symbols
+                .into_iter()
+                .map(|symbol| Self::collect_document_symbols(&symbol, None, &path))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .flatten()
+                .collect(),
+        };
+
+        Ok(Self { symbols })
     }
 }
 
@@ -34,13 +71,31 @@ impl TryFrom<lsp_types::SymbolInformation> for Symbol {
     type Error = anyhow::Error;
 
     fn try_from(value: lsp_types::SymbolInformation) -> Result<Self, Self::Error> {
-        let name = value.name;
-        let location = value.location.try_into()?;
         Ok(Self {
-            name,
+            name: value.name,
             kind: value.kind,
-            location,
+            location: value.location.try_into()?,
             container_name: value.container_name,
+        })
+    }
+}
+
+impl Symbol {
+    fn try_from_document_symbol(
+        value: lsp_types::DocumentSymbol,
+        container_name: Option<String>,
+        path: CanonicalizedPath,
+    ) -> anyhow::Result<Self> {
+        let buffer = Buffer::from_path(&path, false)?;
+
+        let start_position = value.range.start.into();
+        let end_position = value.range.end.into();
+        let range = buffer.position_range_to_char_index_range(&(start_position..end_position))?;
+        Ok(Self {
+            name: value.name,
+            kind: value.kind,
+            location: Location { path, range },
+            container_name,
         })
     }
 }
@@ -70,6 +125,7 @@ impl From<Symbol> for DropdownItem {
             .set_group(Some(
                 symbol.container_name.unwrap_or("[TOP LEVEL]".to_string()),
             ))
+            .set_rank(Some(Box::new([symbol.location.range.start.0])))
             .set_dispatches(dispatches)
     }
 }

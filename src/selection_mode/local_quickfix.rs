@@ -1,4 +1,6 @@
-use super::{ByteRange, SelectionMode};
+use crate::quickfix_list::QuickfixListItem;
+
+use super::{ByteRange, IterBasedSelectionMode};
 
 // TODO: change this to custom selections, so it can also hold references, definitions etc
 pub(crate) struct LocalQuickfix {
@@ -6,30 +8,36 @@ pub(crate) struct LocalQuickfix {
 }
 
 impl LocalQuickfix {
-    pub(crate) fn new(params: super::SelectionModeParams<'_>) -> Self {
+    pub(crate) fn new(
+        params: super::SelectionModeParams<'_>,
+        quickfix_list_items: Vec<&QuickfixListItem>,
+    ) -> Self {
         let buffer = params.buffer;
-        let ranges = buffer
-            .quickfix_list_items()
+        let ranges = quickfix_list_items
             .into_iter()
             .filter_map(|item| {
-                Some(
-                    super::ByteRange::new(
-                        buffer
-                            .position_range_to_byte_range(&item.location().range)
-                            .ok()?,
+                if Some(&item.location().path) != buffer.path().as_ref() {
+                    None
+                } else {
+                    Some(
+                        super::ByteRange::new(
+                            buffer
+                                .char_index_range_to_byte_range(item.location().range)
+                                .ok()?,
+                        )
+                        .set_info(item.info().clone()),
                     )
-                    .set_info(item.info().clone()),
-                )
+                }
             })
             .collect();
         Self { ranges }
     }
 }
 
-impl SelectionMode for LocalQuickfix {
+impl IterBasedSelectionMode for LocalQuickfix {
     fn iter<'a>(
         &'a self,
-        _: super::SelectionModeParams<'a>,
+        _: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         Ok(Box::new(self.ranges.clone().into_iter()))
     }

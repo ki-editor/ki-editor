@@ -1,6 +1,7 @@
 use crate::app::{RequestParams, Scope};
 use anyhow::Context;
 use debounce::EventDebouncer;
+use itertools::Itertools;
 use lsp_types::notification::Notification;
 use lsp_types::request::{
     GotoDeclarationParams, GotoImplementationParams, GotoTypeDefinitionParams, Request,
@@ -9,13 +10,14 @@ use lsp_types::*;
 use name_variant::NamedVariant;
 use shared::canonicalized_path::CanonicalizedPath;
 use shared::language::Language;
+use shared::process_command::SpawnCommandResult;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 
 use std::process::{self};
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::app::AppMessage;
 use crate::utils::consolidate_errors;
@@ -53,6 +55,7 @@ type RequestId = u64;
 struct PendingResponseRequest {
     method: String,
     context: ResponseContext,
+    path: Option<CanonicalizedPath>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -69,7 +72,7 @@ pub(crate) enum LspNotification {
     CodeAction(Vec<CodeAction>),
     SignatureHelp(Option<SignatureHelp>),
     Symbols(Symbols),
-    CompletionItemResolve(lsp_types::CompletionItem),
+    CompletionItemResolve(Box<lsp_types::CompletionItem>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -93,6 +96,7 @@ enum LspServerProcessMessage {
     FromEditor(FromEditor),
     /// Throttled message should be executed immediately
     Throttled(FromEditor),
+    Shutdown,
 }
 
 #[derive(Debug, NamedVariant, Clone, PartialEq)]
@@ -110,7 +114,6 @@ pub(crate) enum FromEditor {
         version: usize,
         content: String,
     },
-    Shutdown,
     TextDocumentDidChange {
         file_path: CanonicalizedPath,
         version: i32,
@@ -137,12 +140,15 @@ pub(crate) enum FromEditor {
         old: CanonicalizedPath,
         new: CanonicalizedPath,
     },
+    WorkspaceDidCreateFiles {
+        file_path: CanonicalizedPath,
+    },
     WorkspaceExecuteCommand {
         params: RequestParams,
         command: super::code_action::Command,
     },
     CompletionItemResolve {
-        completion_item: lsp_types::CompletionItem,
+        completion_item: Box<lsp_types::CompletionItem>,
         params: RequestParams,
     },
 }
@@ -170,7 +176,7 @@ impl LspServerProcessChannel {
     }
 
     pub(crate) fn shutdown(self) -> anyhow::Result<()> {
-        self.send(LspServerProcessMessage::FromEditor(FromEditor::Shutdown))?;
+        self.send(LspServerProcessMessage::Shutdown)?;
         self.join_handle
             .join()
             .map_err(|err| anyhow::anyhow!("Unable to join lsp server process [1]: {:?}", err))?
@@ -179,6 +185,9 @@ impl LspServerProcessChannel {
     }
 
     fn send(&self, message: LspServerProcessMessage) -> anyhow::Result<()> {
+        if !self.is_initialized {
+            return Ok(());
+        }
         self.sender
             .send(message)
             .map_err(|err| anyhow::anyhow!("Unable to send request: {}", err))
@@ -236,7 +245,12 @@ impl LspServerProcess {
             None => return Ok(None),
         };
 
-        let mut process = process_command.spawn()?;
+        let mut process = match process_command.spawn() {
+            SpawnCommandResult::Spawned(result) => result?,
+            SpawnCommandResult::CommandNotFound { .. } => {
+                return Ok(None);
+            }
+        };
         let stdin = process
             .stdin
             .take()
@@ -261,13 +275,14 @@ impl LspServerProcess {
             next_request_id: 0,
             pending_response_requests: HashMap::new(),
             server_capabilities: None,
-            app_message_sender,
+            app_message_sender: app_message_sender.clone(),
             sender: sender.clone(),
         };
 
         lsp_server_process.initialize()?;
 
-        let join_handle = std::thread::spawn(move || lsp_server_process.listen(receiver));
+        let join_handle =
+            std::thread::spawn(move || lsp_server_process.listen(receiver, app_message_sender));
 
         Ok(Some(LspServerProcessChannel {
             language,
@@ -280,14 +295,10 @@ impl LspServerProcess {
     fn initialize(&mut self) -> anyhow::Result<()> {
         self.send_request::<lsp_request!("initialize")>(
             ResponseContext::default(),
+            None,
             InitializeParams {
                 process_id: None,
-                root_uri: Some(Url::parse(&format!(
-                    "file://{}",
-                    self.current_working_directory.display_absolute()
-                ))?),
                 initialization_options: self.language.initialization_options(),
-
                 capabilities: ClientCapabilities {
                     workspace: Some(WorkspaceClientCapabilities {
                         apply_edit: Some(true),
@@ -306,6 +317,7 @@ impl LspServerProcess {
                         }),
                         file_operations: Some(WorkspaceFileOperationsClientCapabilities {
                             did_rename: Some(true),
+                            did_create: Some(true),
                             ..Default::default()
                         }),
                         execute_command: Some(DynamicRegistrationClientCapabilities {
@@ -328,7 +340,10 @@ impl LspServerProcess {
                         completion: Some(CompletionClientCapabilities {
                             completion_item: Some(CompletionItemCapability {
                                 resolve_support: Some(CompletionItemCapabilityResolveSupport {
-                                    properties: vec!["additionalTextEdits".to_string()],
+                                    properties: vec![
+                                        "textEdit".to_string(),
+                                        "additionalTextEdits".to_string(),
+                                    ],
                                 }),
 
                                 ..CompletionItemCapability::default()
@@ -385,119 +400,148 @@ impl LspServerProcess {
                     }),
                     ..ClientCapabilities::default()
                 },
-                workspace_folders: None,
+                workspace_folders: Some(vec![WorkspaceFolder {
+                    uri: Url::parse(&format!(
+                        "file://{}",
+                        self.current_working_directory.display_absolute()
+                    ))?,
+                    name: "root".to_string(),
+                }]),
                 ..InitializeParams::default()
             },
         )?;
         Ok(())
     }
 
-    pub(crate) fn listen(mut self, receiver: Receiver<LspServerProcessMessage>) -> JoinHandle<()> {
-        let mut stdout_reader = BufReader::new(self.stdout.take().unwrap());
-        let mut stderr_reader = BufReader::new(self.stderr.take().unwrap());
+    /// Main orchestrator that starts two concurrent loops:
+    /// 1. Spawns a thread to continuously read from LSP server's stdout
+    /// 2. Processes incoming messages from both the stdout reader and editor
+    ///
+    /// Returns the stdout reader thread handle for cleanup
+    pub(crate) fn listen(
+        mut self,
+        receiver: Receiver<LspServerProcessMessage>,
+        app_message_sender: Sender<AppMessage>,
+    ) -> JoinHandle<()> {
+        let lsp_command = self.lsp_command();
+        let stdout_reader = BufReader::new(self.stdout.take().unwrap());
+        let stderr_reader = BufReader::new(self.stderr.take().unwrap());
         let sender = self.sender.clone();
-        let handle = thread::spawn(move || {
-            fn read_response(
-                reader: &mut BufReader<process::ChildStdout>,
-                sender: &Sender<LspServerProcessMessage>,
-            ) -> anyhow::Result<()> {
-                let mut line = String::new();
-                reader
-                    .read_line(&mut line)
-                    .with_context(|| "Failed to read Content-Length")?;
 
-                let content_length = line
-                    .split(':')
-                    .nth(1)
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("Parsing Content-Length: Unable to split line.")
-                    })?
-                    .trim()
-                    .parse::<usize>()
-                    .with_context(|| "Parsing Content-Length: Failed to parse number.")?;
+        // Start the stdout reader loop in its own thread
+        let stdout_handle = self.spawn_stdout_reader(
+            stdout_reader,
+            stderr_reader,
+            sender.clone(),
+            app_message_sender.clone(),
+            lsp_command,
+        );
 
-                // According to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#headerPart
-                //
-                // ... this means that TWO '\r\n' sequences always immediately precede the content part of a message.
-                //
-                // That's why we have to read an empty line here again.
-                reader
-                    .read_line(&mut line)
-                    .with_context(|| "Failed to read content.")?;
+        // Start the message processor loop in the main thread
+        log::info!("[LspServerProcess] Listening for messages from LSP server");
+        self.process_messages(receiver);
+        log::info!("LspServerProcess::listen | Stopped listening for messages from LSP server");
 
-                let mut buffer = vec![0; content_length];
-                reader
-                    .read_exact(&mut buffer)
-                    .with_context(|| "Failed to read buffer into vector.")?;
+        stdout_handle
+    }
 
-                let reply = String::from_utf8(buffer)
-                    .with_context(|| "Failed to convert content buffer into String.")?;
+    /// Runs a loop that reads raw LSP protocol messages from stdout
+    /// Handles error tracking/recovery and sends parsed messages to the message processor
+    /// Sends shutdown signal if too many errors occur
+    fn spawn_stdout_reader(
+        &self,
+        mut stdout_reader: BufReader<process::ChildStdout>,
+        mut stderr_reader: BufReader<process::ChildStderr>,
+        sender: Sender<LspServerProcessMessage>,
+        app_message_sender: Sender<AppMessage>,
+        lsp_command: String,
+    ) -> JoinHandle<()> {
+        thread::spawn(move || {
+            let mut error_tracker = ErrorTracker::new();
 
-                // Parse as generic JSON value
-                let reply: serde_json::Value = serde_json::from_str(&reply)
-                    .with_context(|| "Failed to convert content string into JSON value")?;
-
-                sender
-                    .send(LspServerProcessMessage::FromLspServer(reply))
-                    .unwrap_or_else(|error| {
-                        log::error!("[LspServerProcess] Error sending reply: {:?}", error);
-                    });
-
-                Ok(())
-            }
+            // The stdout reader loop
             loop {
-                if let Err(error) = read_response(&mut stdout_reader, &sender) {
-                    let mut stderr = String::new();
-                    // Reading the error from stderr is necessary
-                    // If not, subsequent read from stdout might result in infinite loop, due to
-                    // stdout keeps emitting empty lines only
-                    //
-                    // Note: this logic is only tested on Rust Analyzer
-                    let _ = stderr_reader.read_to_string(&mut stderr).map_err(|err| {
-                        log::error!("LspServerResponse::listen failed to read stderr = {err}")
-                    });
-                    log::info!("LspServerProcess::listen::read_response: {}", error);
-                    log::info!("LspServerProcess::listen: stderr = {}", stderr)
+                match Self::read_response(&mut stdout_reader, &sender) {
+                    Ok(()) => error_tracker.handle_success(),
+                    Err(error) => {
+                        log::error!("[LspServerProcess] read_response error = {error:?}");
+                        if !error_tracker.handle_error(error, &mut stderr_reader, &sender) {
+                            let formatted_errors = error_tracker
+                                .consecutive_errors
+                                .iter()
+                                .enumerate()
+                                .map(|(index, error)| format!("Error #{}: {}", index + 1, error))
+                                .collect_vec()
+                                .join("\n");
+                            let error = format!(
+                            "LspServerProcess::listen: Stopping LSP command:\n\n`{}`\n\nToo many consecutive errors ({}):\n{}",
+                            lsp_command,
+                            ErrorTracker::MAX_CONSECUTIVE_ERRORS,
+                            formatted_errors
+                        );
+                            app_message_sender
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::Error(error),
+                                )))
+                                .unwrap_or_else(|error| {
+                                    log::error!(
+                                        "[LspServerProcess] Error sending error to app: {error:?}"
+                                    );
+                                });
+                            sender
+                            .send(LspServerProcessMessage::Shutdown)
+                            .unwrap_or_else(|error| {
+                                log::error!(
+                                    "[LspServerProcess] Error sending Shutdown to the loop outside: {error:?}"
+                                );
+                            });
+                            break;
+                        }
+                    }
                 }
             }
-        });
+        })
+    }
 
-        log::info!("[LspServerProcess] Listening for messages from LSP server");
-
+    /// Processes all incoming messages:
+    /// - LSP server responses (from stdout reader)
+    /// - Editor requests (e.g. completions, hover)
+    /// - Throttled requests (debounced editor actions)
+    ///
+    /// Breaks loop when shutdown message received
+    fn process_messages(&mut self, receiver: Receiver<LspServerProcessMessage>) {
+        // Set up event debouncing
         struct Event(FromEditor);
         impl PartialEq for Event {
             fn eq(&self, other: &Self) -> bool {
                 self.0.variant_name() == other.0.variant_name()
             }
         }
-        // Throttle request being sent to LSP server
-        // This is crucial for request such as 'textDocument/completion', 'completionItem/resolve' etc,
-        // which are being fired on every keypress
+
         let debounce = {
             let sender = self.sender.clone();
+
             EventDebouncer::new(Duration::from_millis(150), move |Event(from_editor)| {
                 sender
-                    .send(LspServerProcessMessage::Throttled(from_editor.clone()))
-                    .unwrap_or_else(|error| {
-                        log::info!("LspServerProcess::listen::debounce | Error sending throttled message from_editor={from_editor:?}, error={error:?}");
-                    })
+                .send(LspServerProcessMessage::Throttled(from_editor.clone()))
+                .unwrap_or_else(|error| {
+                    log::info!("LspServerProcess::listen::debounce | Error sending throttled message from_editor={from_editor:?}, error={error:?}");
+                })
             })
         };
+
+        // The message processor loop
         while let Ok(message) = receiver.recv() {
             match &message {
                 LspServerProcessMessage::FromLspServer(json_value) => {
                     self.handle_reply(json_value.clone())
-                        .unwrap_or_else(|error| {
-                            log::info!(
-                                "LspServerProcess::listen | Error handling reply from LSP server, json={:?}, error={:?}",
-                                json_value,
-                                error
-                            );
-                        });
+                    .unwrap_or_else(|error| {
+                        log::info!(
+                            "LspServerProcess::listen | Error handling reply from LSP server, json={json_value:?}, error={error:?}"
+                        );
+                    });
                 }
                 LspServerProcessMessage::FromEditor(from_editor) => match from_editor.clone() {
-                    // We only want to throttle request sent from the editor to the LSP server
-                    // Also, we only want to throttle requests that are fired on every keypresses
                     FromEditor::CompletionItemResolve {
                         completion_item,
                         params,
@@ -505,17 +549,80 @@ impl LspServerProcess {
                         completion_item,
                         params,
                     })),
-                    // Other requests should not be throttled, and hanlded immediately
                     _ => self.handle_from_editor(from_editor),
                 },
                 LspServerProcessMessage::Throttled(from_editor) => {
                     self.handle_from_editor(from_editor)
                 }
+                LspServerProcessMessage::Shutdown => {
+                    if let Err(err) = self.shutdown() {
+                        log::error!(
+                            "LspServerProcess::process_messages: failed to shutdown due to {err:?}"
+                        )
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Handles low-level LSP protocol message parsing:
+    /// 1. Reads Content-Length header
+    /// 2. Reads message content
+    /// 3. Parses JSON
+    /// 4. Sends parsed message back via channel
+    fn read_response(
+        reader: &mut BufReader<process::ChildStdout>,
+        sender: &Sender<LspServerProcessMessage>,
+    ) -> anyhow::Result<()> {
+        let mut line = String::new();
+        reader
+            .read_line(&mut line)
+            .with_context(|| "Failed to read Content-Length")?;
+
+        let content_length = line
+            .split(':')
+            .nth(1)
+            .ok_or_else(|| {
+                anyhow::anyhow!("Parsing Content-Length: Unable to split line: {line:?}")
+            })?
+            .trim()
+            .parse::<usize>()
+            .with_context(|| "Parsing Content-Length: Failed to parse number.")?;
+
+        // According to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#headerPart,
+        // we need to loop until we encounter an empty line, because the JSON comes after the empty line.
+        loop {
+            line.clear();
+            reader
+                .read_line(&mut line)
+                .with_context(|| "Failed to read content.")?;
+            if line == "\r\n" {
+                break;
             }
         }
 
-        log::info!("LspServerProcess::listen | Stopped listening for messages from LSP server");
-        handle
+        let mut buffer = vec![0; content_length];
+        reader
+            .read_exact(&mut buffer)
+            .with_context(|| "Failed to read buffer into vector.")?;
+
+        let reply = String::from_utf8(buffer)
+            .with_context(|| "Failed to convert content buffer into String.")?;
+
+        let reply: serde_json::Value = serde_json::from_str(&reply).map_err(|err| {
+            anyhow::anyhow!(
+                "Failed to convert content string into JSON value due to error: {err:?}. Content is {reply:?}"
+            )
+        })?;
+
+        sender
+            .send(LspServerProcessMessage::FromLspServer(reply))
+            .unwrap_or_else(|error| {
+                log::error!("[LspServerProcess] Error sending reply: {error:?}");
+            });
+
+        Ok(())
     }
 
     fn handle_reply(&mut self, reply: serde_json::Value) -> anyhow::Result<()> {
@@ -546,8 +653,11 @@ impl LspServerProcess {
                 .payload
                 .map_err(|e| {
                     self.app_message_sender
-                        .send(AppMessage::LspNotification(LspNotification::Error(
-                            format!("LSP JSON-RPC Error: {:?}: {}", e.code, e.message),
+                        .send(AppMessage::LspNotification(Box::new(
+                            LspNotification::Error(format!(
+                                "LSP JSON-RPC Error: {:?}: {}",
+                                e.code, e.message
+                            )),
                         )))
                         .unwrap();
                     anyhow::anyhow!(
@@ -560,11 +670,12 @@ impl LspServerProcess {
                 let PendingResponseRequest {
                     method,
                     context: response_context,
+                    path,
                 } = pending_response_request;
 
                 match method.as_str() {
                     "initialize" => {
-                        log::info!("Initialize response: {:?}", response);
+                        log::info!("Initialize response: {response:?}");
                         let payload: <lsp_request!("initialize") as Request>::Result =
                             serde_json::from_value(response)?;
 
@@ -576,9 +687,10 @@ impl LspServerProcess {
                             InitializedParams {},
                         )?;
 
-                        self.app_message_sender.send(AppMessage::LspNotification(
-                            LspNotification::Initialized(self.language.clone()),
-                        ))?;
+                        self.app_message_sender
+                            .send(AppMessage::LspNotification(Box::new(
+                                LspNotification::Initialized(self.language.clone()),
+                            )))?;
                     }
                     "textDocument/completion" => {
                         let payload: <lsp_request!("textDocument/completion") as Request>::Result =
@@ -586,19 +698,21 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Completion(
-                                    response_context,
-                                    Completion {
-                                        trigger_characters: self.trigger_characters(),
-                                        items: match payload {
-                                            CompletionResponse::Array(items) => items,
-                                            CompletionResponse::List(list) => list.items,
-                                        }
-                                        .into_iter()
-                                        .map(CompletionItem::from)
-                                        .map(|item| item.into())
-                                        .collect(),
-                                    },
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::Completion(
+                                        response_context,
+                                        Completion {
+                                            trigger_characters: self.trigger_characters(),
+                                            items: match payload {
+                                                CompletionResponse::Array(items) => items,
+                                                CompletionResponse::List(list) => list.items,
+                                            }
+                                            .into_iter()
+                                            .map(CompletionItem::from)
+                                            .map(|item| item.into())
+                                            .collect(),
+                                        },
+                                    ),
                                 )))
                                 .unwrap();
                         }
@@ -609,8 +723,8 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Hover(
-                                    payload.into(),
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::Hover(payload.into()),
                                 )))
                                 .unwrap();
                         }
@@ -621,9 +735,11 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Definition(
-                                    response_context,
-                                    payload.try_into()?,
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::Definition(
+                                        response_context,
+                                        payload.try_into()?,
+                                    ),
                                 )))
                                 .unwrap();
                         }
@@ -634,12 +750,14 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::References(
-                                    response_context,
-                                    payload
-                                        .into_iter()
-                                        .map(|r| r.try_into())
-                                        .collect::<Result<Vec<_>, _>>()?,
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::References(
+                                        response_context,
+                                        payload
+                                            .into_iter()
+                                            .map(|r| r.try_into())
+                                            .collect::<Result<Vec<_>, _>>()?,
+                                    ),
                                 )))
                                 .unwrap();
                         }
@@ -650,9 +768,11 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Definition(
-                                    response_context,
-                                    payload.try_into()?,
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::Definition(
+                                        response_context,
+                                        payload.try_into()?,
+                                    ),
                                 )))
                                 .unwrap();
                         }
@@ -663,9 +783,11 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Definition(
-                                    response_context,
-                                    payload.try_into()?,
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::Definition(
+                                        response_context,
+                                        payload.try_into()?,
+                                    ),
                                 )))
                                 .unwrap();
                         }
@@ -676,9 +798,11 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Definition(
-                                    response_context,
-                                    payload.try_into()?,
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::Definition(
+                                        response_context,
+                                        payload.try_into()?,
+                                    ),
                                 )))
                                 .unwrap();
                         }
@@ -689,9 +813,9 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(
+                                .send(AppMessage::LspNotification(Box::new(
                                     LspNotification::PrepareRenameResponse(payload.into()),
-                                ))
+                                )))
                                 .unwrap();
                         }
                     }
@@ -701,8 +825,8 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::WorkspaceEdit(
-                                    payload.try_into()?,
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::WorkspaceEdit(payload.try_into()?),
                                 )))
                                 .unwrap();
                         }
@@ -713,16 +837,18 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::CodeAction(
-                                    payload
-                                        .into_iter()
-                                        .map(|r| match r {
-                                            CodeActionOrCommand::Command(_) => todo!(),
-                                            CodeActionOrCommand::CodeAction(code_action) => {
-                                                code_action.try_into()
-                                            }
-                                        })
-                                        .collect::<Result<Vec<_>, _>>()?,
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::CodeAction(
+                                        payload
+                                            .into_iter()
+                                            .map(|r| match r {
+                                                CodeActionOrCommand::Command(_) => todo!(),
+                                                CodeActionOrCommand::CodeAction(code_action) => {
+                                                    code_action.try_into()
+                                                }
+                                            })
+                                            .collect::<Result<Vec<_>, _>>()?,
+                                    ),
                                 )))
                                 .unwrap();
                         }
@@ -732,8 +858,10 @@ impl LspServerProcess {
                             serde_json::from_value(response)?;
 
                         self.app_message_sender
-                            .send(AppMessage::LspNotification(LspNotification::SignatureHelp(
-                                payload.map(|payload| payload.into()),
+                            .send(AppMessage::LspNotification(Box::new(
+                                LspNotification::SignatureHelp(
+                                    payload.map(|payload| payload.into()),
+                                ),
                             )))
                             .unwrap();
                     }
@@ -742,11 +870,17 @@ impl LspServerProcess {
                             serde_json::from_value(response)?;
 
                         if let Some(payload) = payload {
-                            self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Symbols(
-                                    payload.try_into()?,
-                                )))
-                                .unwrap();
+                            if let Some(path) = path {
+                                self.app_message_sender
+                                    .send(AppMessage::LspNotification(Box::new(
+                                        LspNotification::Symbols(
+                                            Symbols::try_from_document_symbol_response(
+                                                payload, path,
+                                            )?,
+                                        ),
+                                    )))
+                                    .unwrap();
+                            }
                         }
                     }
                     "completionItem/resolve" => {
@@ -754,13 +888,13 @@ impl LspServerProcess {
                             serde_json::from_value(response)?;
 
                         self.app_message_sender
-                            .send(AppMessage::LspNotification(
-                                LspNotification::CompletionItemResolve(payload),
-                            ))
+                            .send(AppMessage::LspNotification(Box::new(
+                                LspNotification::CompletionItemResolve(Box::new(payload)),
+                            )))
                             .unwrap();
                     }
                     _ => {
-                        log::info!("Unknown method: {:#?}", method);
+                        log::info!("Unknown method: {method:#?}");
                     }
                 }
             }
@@ -786,9 +920,9 @@ impl LspServerProcess {
                             serde_json::from_value(request.params.ok_or_else(|| anyhow::anyhow!("Missing params"))?)?;
 
                         self.app_message_sender
-                            .send(AppMessage::LspNotification(
+                            .send(AppMessage::LspNotification(Box::new(
                                 LspNotification::PublishDiagnostics(params),
-                            ))
+                            )))
                             .unwrap();
                     }
                     "workspace/applyEdit" => {
@@ -796,8 +930,8 @@ impl LspServerProcess {
                             serde_json::from_value(request.params.unwrap())?;
 
                         self.app_message_sender
-                            .send(AppMessage::LspNotification(LspNotification::WorkspaceEdit(
-                                params.edit.try_into()?,
+                            .send(AppMessage::LspNotification(Box::new(
+                                LspNotification::WorkspaceEdit(params.edit.try_into()?),
                             )))
                             .unwrap();
                     }
@@ -807,8 +941,24 @@ impl LspServerProcess {
 
                         self.send_reply(request.id, serde_json::Value::Null)?;
                     }
+                    "window/logMessage" => {
+                        let command = self.lsp_command();
+                        let params: <lsp_notification!("window/logMessage") as Notification>::Params =
+                            serde_json::from_value(request.params.ok_or_else(|| anyhow::anyhow!("Missing params"))?)?;
+                        let typ = match params.typ {
+                            MessageType::LOG => "LOG".to_string(),
+                            MessageType::ERROR => "ERROR".to_string(),
+                            MessageType::WARNING => "WARNING".to_string(),
+                            MessageType::INFO => "INFO".to_string(),
+                            _ => format!("[Unknown message type {:?}]", params.typ),
+                        };
+                        log::info!(
+                            "LSP(window/logMessage)({command})[{typ}]: '{}'",
+                            params.message
+                        )
+                    }
 
-                    _ => log::info!("unhandled Incoming Notification: {}", method),
+                    _ => log::info!("unhandled Incoming Notification: {method}"),
                 }
             }
         }
@@ -829,7 +979,7 @@ impl LspServerProcess {
     }
 
     pub(crate) fn shutdown(&mut self) -> anyhow::Result<()> {
-        self.send_request::<lsp_request!("shutdown")>(ResponseContext::default(), ())?;
+        self.send_request::<lsp_request!("shutdown")>(ResponseContext::default(), None, ())?;
         Ok(())
     }
 
@@ -889,6 +1039,7 @@ impl LspServerProcess {
     fn send_request<R: Request>(
         &mut self,
         context: ResponseContext,
+        path: Option<CanonicalizedPath>,
         params: R::Params,
     ) -> anyhow::Result<()>
     where
@@ -914,6 +1065,7 @@ impl LspServerProcess {
             PendingResponseRequest {
                 context,
                 method: R::METHOD.to_string(),
+                path,
             },
         );
 
@@ -986,6 +1138,18 @@ impl LspServerProcess {
         })
     }
 
+    fn workspace_did_create_files(
+        &mut self,
+        file_path: CanonicalizedPath,
+    ) -> Result<(), anyhow::Error> {
+        self.send_notification::<lsp_notification!("workspace/didCreateFiles")>(CreateFilesParams {
+            files: [FileCreate {
+                uri: file_path.display_absolute(),
+            }]
+            .to_vec(),
+        })
+    }
+
     fn has_capability(&self, f: impl Fn(&ServerCapabilities) -> bool) -> bool {
         self.server_capabilities.as_ref().map(f).unwrap_or(false)
     }
@@ -1004,6 +1168,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/completion")>(
             context,
+            Some(path.clone()),
             CompletionParams {
                 text_document_position: TextDocumentPositionParams {
                     position: position.into(),
@@ -1034,6 +1199,7 @@ impl LspServerProcess {
         };
         self.send_request::<lsp_request!("textDocument/hover")>(
             context,
+            Some(path.clone()),
             HoverParams {
                 text_document_position_params: TextDocumentPositionParams {
                     position: position.into(),
@@ -1059,6 +1225,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/definition")>(
             context,
+            Some(path.clone()),
             GotoDefinitionParams {
                 partial_result_params: Default::default(),
                 text_document_position_params: TextDocumentPositionParams {
@@ -1084,6 +1251,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/references")>(
             context,
+            Some(path.clone()),
             ReferenceParams {
                 context: ReferenceContext {
                     include_declaration,
@@ -1104,6 +1272,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/declaration")>(
             params.context,
+            Some(params.path.clone()),
             GotoDeclarationParams {
                 partial_result_params: Default::default(),
                 text_document_position_params: TextDocumentPositionParams {
@@ -1121,6 +1290,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/implementation")>(
             params.context,
+            Some(params.path.clone()),
             GotoImplementationParams {
                 partial_result_params: Default::default(),
                 text_document_position_params: TextDocumentPositionParams {
@@ -1141,6 +1311,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/typeDefinition")>(
             params.context,
+            Some(params.path.clone()),
             GotoTypeDefinitionParams {
                 partial_result_params: Default::default(),
                 text_document_position_params: TextDocumentPositionParams {
@@ -1158,6 +1329,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/prepareRename")>(
             params.context,
+            Some(params.path.clone()),
             TextDocumentPositionParams {
                 position: params.position.into(),
                 text_document: path_buf_to_text_document_identifier(params.path)?,
@@ -1175,6 +1347,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/rename")>(
             params.context,
+            Some(params.path.clone()),
             RenameParams {
                 new_name,
                 text_document_position: TextDocumentPositionParams {
@@ -1196,6 +1369,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/codeAction")>(
             params.context,
+            Some(params.path.clone()),
             CodeActionParams {
                 context: CodeActionContext {
                     diagnostics,
@@ -1222,6 +1396,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/signatureHelp")>(
             params.context,
+            Some(params.path.clone()),
             SignatureHelpParams {
                 context: None,
                 text_document_position_params: TextDocumentPositionParams {
@@ -1242,6 +1417,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/documentSymbol")>(
             params.context,
+            Some(params.path.clone()),
             DocumentSymbolParams {
                 partial_result_params: Default::default(),
                 text_document: path_buf_to_text_document_identifier(params.path)?,
@@ -1260,6 +1436,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("workspace/executeCommand")>(
             params.context,
+            Some(params.path.clone()),
             ExecuteCommandParams {
                 command: command.command(),
                 arguments: command.arguments(),
@@ -1283,7 +1460,11 @@ impl LspServerProcess {
         }) {
             return Ok(());
         }
-        self.send_request::<lsp_request!("completionItem/resolve")>(params.context, completion_item)
+        self.send_request::<lsp_request!("completionItem/resolve")>(
+            params.context,
+            Some(params.path),
+            completion_item,
+        )
     }
 
     fn handle_from_editor(&mut self, from_editor: &FromEditor) {
@@ -1326,7 +1507,6 @@ impl LspServerProcess {
                 version,
                 content,
             } => self.text_document_did_open(file_path, language_id, version, content),
-            FromEditor::Shutdown => self.shutdown(),
             FromEditor::TextDocumentDidChange {
                 file_path,
                 version,
@@ -1339,17 +1519,27 @@ impl LspServerProcess {
             FromEditor::WorkspaceDidRenameFiles { old, new } => {
                 self.workspace_did_rename_files(old, new)
             }
+            FromEditor::WorkspaceDidCreateFiles { file_path } => {
+                self.workspace_did_create_files(file_path)
+            }
             FromEditor::WorkspaceExecuteCommand { params, command } => {
                 self.workspace_execute_command(params, command)
             }
             FromEditor::CompletionItemResolve {
                 completion_item,
                 params,
-            } => self.completion_item_resolve(params, completion_item),
+            } => self.completion_item_resolve(params, *completion_item),
         }
         .unwrap_or_else(|error| {
-            log::info!("LspServerProcess::handle_from_editor | error={:?}", error);
+            log::info!("LspServerProcess::handle_from_editor | error={error:?}");
         });
+    }
+
+    fn lsp_command(&self) -> String {
+        self.language
+            .lsp_process_command()
+            .map(|command| command.to_string())
+            .unwrap_or_default()
     }
 }
 
@@ -1363,4 +1553,145 @@ fn path_buf_to_text_document_identifier(
     Ok(TextDocumentIdentifier {
         uri: path_buf_to_url(path)?,
     })
+}
+
+/// `ErrorTracker` is created for preventing infinite error loops in LSP communication.
+///
+/// This exists because some LSP servers can enter states where they continuously emit
+/// invalid data while keeping their pipe open.
+///
+/// It works by implementing a circuit breaker pattern - tracking consecutive errors
+/// and allowing recovery if errors stop for a configured timeout period. If errors
+/// continue beyond the maximum threshold, it breaks the connection to prevent resource waste.
+struct ErrorTracker {
+    consecutive_errors: Vec<String>,
+    last_error_time: Instant,
+    max_consecutive_errors: usize,
+    error_reset_timeout: Duration,
+}
+
+impl ErrorTracker {
+    const MAX_CONSECUTIVE_ERRORS: usize = 5;
+    const ERROR_RESET_TIMEOUT: Duration = Duration::from_secs(30);
+
+    fn new() -> Self {
+        Self {
+            consecutive_errors: Vec::new(),
+            last_error_time: Instant::now(),
+            max_consecutive_errors: Self::MAX_CONSECUTIVE_ERRORS,
+            error_reset_timeout: Self::ERROR_RESET_TIMEOUT,
+        }
+    }
+
+    /// Returns true if should continue, false if should break
+    fn handle_error(
+        &mut self,
+        error: anyhow::Error,
+        stderr_reader: &mut BufReader<process::ChildStderr>,
+        sender: &Sender<LspServerProcessMessage>,
+    ) -> bool {
+        let mut stderr = String::new();
+
+        let _ = stderr_reader
+            .read_to_string(&mut stderr)
+            .map_err(|err| log::error!("LspServerResponse::listen failed to read stderr = {err}"));
+
+        if self.last_error_time.elapsed() > self.error_reset_timeout {
+            self.consecutive_errors = Vec::new();
+        }
+
+        self.consecutive_errors
+            .push(format!("Error: {error}; Stderr: {stderr}"));
+        self.last_error_time = Instant::now();
+
+        log::warn!(
+            "LspServerProcess::listen::read_response error (attempt {}/{}): {}",
+            self.consecutive_errors.len(),
+            self.max_consecutive_errors,
+            error
+        );
+        log::warn!("LspServerProcess::listen: stderr = {stderr}");
+
+        if self.consecutive_errors.len() >= self.max_consecutive_errors {
+            // Send exit notification
+            let _ = sender.send(LspServerProcessMessage::FromLspServer(serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            })));
+            return false;
+        }
+
+        thread::sleep(Duration::from_millis(100));
+        true
+    }
+
+    fn handle_success(&mut self) {
+        self.consecutive_errors.clear()
+    }
+}
+
+#[cfg(test)]
+mod test_lsp_server_process {
+    use super::*;
+    use std::process::Command;
+    use std::sync::mpsc;
+
+    #[test]
+    fn lsp_should_shutdown_after_too_many_consecutive_errors() -> anyhow::Result<()> {
+        let (app_sender, app_receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::channel();
+
+        // Create a process that will output invalid LSP data quickly
+        let mut process = Command::new("sh")
+            .args(["-c", "for i in {1..10}; do echo 'invalid data'; done"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()?;
+
+        let stdin = process.stdin.take().unwrap();
+        let stdout = process.stdout.take().unwrap();
+        let stderr = process.stderr.take().unwrap();
+
+        let lsp_process = LspServerProcess {
+            language: Language::default(),
+            stdin,
+            stdout: Some(stdout),
+            stderr: Some(stderr),
+            server_capabilities: None,
+            current_working_directory: std::env::current_dir()?.try_into()?,
+            next_request_id: 0,
+            pending_response_requests: HashMap::new(),
+            app_message_sender: app_sender.clone(),
+            sender,
+        };
+
+        // Start listening in a separate thread
+        let handle = lsp_process.listen(receiver, app_sender);
+
+        // Kill the process before checking for error
+        process.kill()?;
+        process.wait()?;
+
+        // We expect an error message after max consecutive errors
+        match app_receiver.recv_timeout(Duration::from_secs(1)) {
+            Ok(AppMessage::LspNotification(notification)) => {
+                if let LspNotification::Error(msg) = *notification {
+                    assert!(msg.contains("Too many consecutive errors"));
+                }
+            }
+            other => panic!("Expected error notification, got: {other:?}"),
+        }
+
+        // Verify the thread has actually finished by waiting a short time
+        // If join returns Ok, it means the thread completed (loop was escaped)
+        // If it's still running, join_timeout would return Err
+        thread::sleep(Duration::from_secs(1));
+        assert!(
+            handle.is_finished(),
+            "Listen loop didn't escape after max errors"
+        );
+        Ok(())
+    }
 }

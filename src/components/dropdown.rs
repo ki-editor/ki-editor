@@ -1,6 +1,8 @@
 use std::cmp::Reverse;
 
-use crate::{app::Dispatches, components::editor::Movement, position::Position};
+use crate::{
+    app::Dispatches, buffer::BufferOwner, components::editor::Movement, position::Position,
+};
 
 use itertools::Itertools;
 
@@ -45,6 +47,10 @@ impl DropdownItem {
         Self { info, ..self }
     }
 
+    pub(crate) fn info(&self) -> Option<&Info> {
+        self.info.as_ref()
+    }
+
     pub(crate) fn set_dispatches(self, dispatches: Dispatches) -> DropdownItem {
         Self { dispatches, ..self }
     }
@@ -68,6 +74,37 @@ impl DropdownItem {
     pub(crate) fn resolved(&self) -> bool {
         self.resolved
     }
+
+    pub(crate) fn from_path_buf(
+        working_directory: &CanonicalizedPath,
+        path: std::path::PathBuf,
+    ) -> DropdownItem {
+        DropdownItem::new({
+            let name = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let icon = shared::canonicalized_path::get_path_icon(&path);
+            format!("{icon} {name}")
+        })
+        .set_group(path.parent().map(|parent| {
+            let relative = parent
+                .strip_prefix(working_directory)
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|_| parent.display().to_string());
+            format!("{} {}", shared::icons::get_icon_config().folder, relative,)
+        }))
+        .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFileFromPathBuf {
+            path,
+            owner: BufferOwner::User,
+            focus: true,
+        }))
+    }
+
+    pub(crate) fn group(&self) -> &Option<String> {
+        &self.group
+    }
 }
 
 impl From<CanonicalizedPath> for DropdownItem {
@@ -89,7 +126,11 @@ impl From<CanonicalizedPath> for DropdownItem {
                 parent.try_display_relative()
             )
         }))
-        .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFile(value)))
+        .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFile {
+            path: value,
+            owner: BufferOwner::User,
+            focus: true,
+        }))
     }
 }
 
@@ -235,6 +276,14 @@ impl Dropdown {
         self.get_item_by_index(self.current_item_index)
     }
 
+    pub(crate) fn all_filtered_items(&self) -> Vec<DropdownItem> {
+        self.filtered_item_groups
+            .iter()
+            .flat_map(|group| &group.items)
+            .map(|item| item.item.clone())
+            .collect()
+    }
+
     fn get_item_by_index(&self, item_index: usize) -> Option<DropdownItem> {
         self.filtered_item_groups
             .iter()
@@ -300,7 +349,7 @@ impl Dropdown {
             .into_iter()
             .sorted_by_key(|(item, _)| item.group.clone())
             // Sort by group first
-            .group_by(|(item, _)| item.group.clone())
+            .chunk_by(|(item, _)| item.group.clone())
             .into_iter()
             .map(|(group_key, items)| {
                 let items = items.collect_vec();
@@ -421,27 +470,22 @@ impl Dropdown {
         }
     }
 
+    /// The formatted content should follow the syntax of tree_sitter_quickfix.
+    /// See more at tree_sitter_quickfix/grammar.js
     fn content(&self) -> String {
         self.filtered_item_groups
             .iter()
             .map(|group| {
                 if let Some(group_key) = group.group_key.as_ref() {
-                    let items_len = group.items.len();
                     let items = group
                         .items
                         .iter()
-                        .enumerate()
-                        .map(|(index, item)| {
+                        .map(|item| {
                             let content = item.item.display();
-                            let indicator = if index == items_len.saturating_sub(1) {
-                                "└─"
-                            } else {
-                                "├─"
-                            };
-                            format!(" {} {}", indicator, content)
+                            format!("    {content}")
                         })
                         .join("\n");
-                    format!("■┬ {}\n{}", group_key, items)
+                    format!("{group_key}\n{items}")
                 } else {
                     group
                         .items
@@ -456,13 +500,13 @@ impl Dropdown {
 
     pub(crate) fn apply_movement(&mut self, movement: Movement) {
         match movement {
-            Movement::Next => self.next_item(),
+            Movement::Right | Movement::Down => self.next_item(),
             Movement::Current(_) => {}
-            Movement::Previous => self.previous_item(),
+            Movement::Left | Movement::Up => self.previous_item(),
             Movement::Last => self.last_item(),
             Movement::First => self.first_item(),
-            Movement::Up => self.previous_group(),
-            Movement::Down => self.next_group(),
+            Movement::Previous => self.previous_group(),
+            Movement::Next => self.next_group(),
             _ => {}
         }
     }
@@ -773,29 +817,29 @@ mod test_dropdown {
         assert_eq!(
             dropdown.render().content.trim(),
             "
-■┬ 1
- └─ a
+1
+    a
 
-■┬ 2
- ├─ c
- └─ d
+2
+    c
+    d
 
-■┬ 3
- └─ b
+3
+    b
 "
             .trim()
         );
-        dropdown.assert_highlighted_content(" └─ a");
+        dropdown.assert_highlighted_content("    a");
 
         dropdown.next_group();
-        dropdown.assert_highlighted_content(" ├─ c");
+        dropdown.assert_highlighted_content("    c");
         dropdown.next_group();
-        dropdown.assert_highlighted_content(" └─ b");
+        dropdown.assert_highlighted_content("    b");
 
         dropdown.previous_group();
-        dropdown.assert_highlighted_content(" ├─ c");
+        dropdown.assert_highlighted_content("    c");
         dropdown.previous_group();
-        dropdown.assert_highlighted_content(" └─ a");
+        dropdown.assert_highlighted_content("    a");
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use crate::selection::Selection;
 
-use super::SelectionMode;
+use super::IterBasedSelectionMode;
 
 pub(crate) struct Custom {
     current_selection: Selection,
@@ -12,10 +12,10 @@ impl Custom {
     }
 }
 
-impl SelectionMode for Custom {
+impl IterBasedSelectionMode for Custom {
     fn iter<'a>(
         &'a self,
-        params: super::SelectionModeParams<'a>,
+        params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         let buffer = params.buffer;
         let range = self.current_selection.extended_range();

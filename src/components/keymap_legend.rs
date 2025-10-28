@@ -1,13 +1,15 @@
 use event::{parse_key_event, KeyEvent};
 use regex::Regex;
-use unicode_width::UnicodeWidthStr;
 
 use itertools::Itertools;
 use my_proc_macros::key;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    components::editor::RegexHighlightRuleCaptureStyle,
+    components::{
+        editor::RegexHighlightRuleCaptureStyle, editor_keymap_printer::KeymapDisplayOption,
+    },
+    context::Context,
     grid::StyleKey,
     rectangle::Rectangle,
 };
@@ -15,82 +17,42 @@ use crate::{
 use super::{
     component::Component,
     editor::{Direction, Editor, Mode, RegexHighlightRule},
+    editor_keymap::KeyboardLayoutKind,
+    editor_keymap_printer::KeymapPrintSection,
     render_editor::Source,
 };
 
 pub(crate) struct KeymapLegend {
     editor: Editor,
     config: KeymapLegendConfig,
+    option: KeymapDisplayOption,
+    keymap_layout_kind: super::editor_keymap::KeyboardLayoutKind,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct KeymapLegendConfig {
     pub(crate) title: String,
-    pub(crate) body: KeymapLegendBody,
+    pub(crate) keymaps: Keymaps,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) enum KeymapLegendBody {
-    SingleSection { keymaps: Keymaps },
-    MultipleSections { sections: Vec<KeymapLegendSection> },
-}
 const BETWEEN_KEY_AND_DESCRIPTION: &str = " → ";
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymaps(Vec<Keymap>);
 impl Keymaps {
-    fn display(&self, indent: usize, width: usize) -> String {
-        let width = width.saturating_sub(indent);
-        let max_key_width = self
-            .0
-            .iter()
-            .map(|keymap| keymap.key.len())
-            .max()
-            .unwrap_or(0);
-        let max_description_width = self
-            .0
-            .iter()
-            .map(|keymap| keymap.description.len())
-            .max()
-            .unwrap_or(0);
-        let key_description_gap = UnicodeWidthStr::width(BETWEEN_KEY_AND_DESCRIPTION);
-        let column_gap = key_description_gap * 2;
-        let column_width = max_key_width + key_description_gap + max_description_width + column_gap;
-        let column_count = width / column_width;
-
-        // Align the keys columns and the dispatch columns
-        let result = self
-            .0
-            .iter()
-            // .sorted_by_key(|keymap| keymap.key.to_lowercase())
-            .map(|keymap| {
-                let formatted = format!(
-                    "{: >width$}{}{}",
-                    keymap.key,
-                    BETWEEN_KEY_AND_DESCRIPTION,
-                    keymap.description,
-                    width = max_key_width
-                );
-                formatted
-            })
-            .chunks(column_count.max(1)) // At least 1, otherwise `chunks` will panic
-            .into_iter()
-            .map(|chunks| {
-                chunks
-                    .map(|chunk| {
-                        let second_formatted = format!("{: <width$}", chunk, width = column_width);
-                        second_formatted
-                    })
-                    .join("")
-            })
-            .join("\n");
-        let result = dedent(&result);
-        result
-            .lines()
-            .map(|line| format!("{}{}", " ".repeat(indent), line.trim_end()))
-            .join("\n")
+    fn display(
+        &self,
+        keyboard_layout_kind: &KeyboardLayoutKind,
+        terminal_width: u16,
+        option: &KeymapDisplayOption,
+    ) -> String {
+        KeymapPrintSection::from_keymaps(
+            "".to_string(),
+            self,
+            keyboard_layout_kind.get_keyboard_layout(),
+        )
+        .display(terminal_width, option)
     }
-
     pub(crate) fn new(keymaps: &[Keymap]) -> Self {
         Self(keymaps.to_vec())
     }
@@ -98,82 +60,33 @@ impl Keymaps {
     pub(crate) fn get(&self, event: &KeyEvent) -> std::option::Option<&Keymap> {
         self.0.iter().find(|key| &key.event == event)
     }
-}
 
-fn dedent(s: &str) -> String {
-    // Split the input string into lines
-    let lines: Vec<&str> = s.lines().collect();
-
-    // Find the minimum indentation (number of leading spaces)
-    let min_indent = lines
-        .iter()
-        .filter(|&&line| !line.trim().is_empty())
-        .map(|line| line.chars().take_while(|&c| c == ' ').count())
-        .min()
-        .unwrap_or(0);
-
-    // Remove the common indentation from each line
-    let dedented_lines: Vec<String> = lines
-        .iter()
-        .map(|&line| {
-            if line.len() >= min_indent {
-                line[min_indent..].to_string()
-            } else {
-                line.to_string()
-            }
-        })
-        .collect();
-
-    // Join the dedented lines back into a single string
-    dedented_lines.join("\n")
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct KeymapLegendSection {
-    pub(crate) title: String,
-    pub(crate) keymaps: Keymaps,
-}
-
-impl KeymapLegendSection {
-    fn display(&self, width: usize) -> String {
-        format!("{}:\n{}", self.title, self.keymaps.display(2, width))
-    }
-}
-
-impl KeymapLegendBody {
-    fn display(&self, width: usize) -> String {
-        match self {
-            KeymapLegendBody::SingleSection { keymaps } => keymaps.display(0, width),
-            KeymapLegendBody::MultipleSections { sections } => sections
-                .iter()
-                .map(|section| section.display(width))
-                .join("\n\n"),
-        }
+    pub(crate) fn iter(&self) -> std::slice::Iter<'_, Keymap> {
+        self.0.iter()
     }
 
-    fn keymaps(&self) -> Vec<&Keymap> {
-        match self {
-            KeymapLegendBody::SingleSection { keymaps } => keymaps.0.iter().collect_vec(),
-            KeymapLegendBody::MultipleSections { sections } => sections
-                .iter()
-                .flat_map(|section| section.keymaps.0.iter())
-                .collect_vec(),
-        }
+    pub(crate) fn into_vec(self) -> Vec<Keymap> {
+        self.0
     }
 }
 
 impl KeymapLegendConfig {
-    fn display(&self, width: usize) -> String {
-        self.body.display(width)
+    pub(crate) fn display(
+        &self,
+        keyboard_layout_kind: &KeyboardLayoutKind,
+        width: u16,
+        option: &KeymapDisplayOption,
+    ) -> String {
+        self.keymaps.display(keyboard_layout_kind, width, option)
     }
 
-    pub(crate) fn keymaps(&self) -> Vec<&Keymap> {
-        let keymaps = self.body.keymaps();
+    pub(crate) fn keymaps(&self) -> Keymaps {
+        let keymaps = &self.keymaps;
         #[cfg(test)]
         {
             let conflicting_keymaps = keymaps
                 .iter()
-                .group_by(|keymap| keymap.key)
+                .chunk_by(|keymap| keymap.key)
                 .into_iter()
                 .map(|(key, keymaps)| (key, keymaps.collect_vec()))
                 .filter(|(_, keymaps)| keymaps.len() > 1)
@@ -183,11 +96,12 @@ impl KeymapLegendConfig {
                 panic!("Conflicting keymaps detected:\n\n{conflicting_keymaps:#?}");
             }
         }
-        keymaps
+        keymaps.clone()
     }
 
     fn get_regex_highlight_rules(&self) -> Vec<RegexHighlightRule> {
         self.keymaps()
+            .0
             .into_iter()
             .flat_map(|keymap| {
                 let keymap_key = RegexHighlightRule {
@@ -229,7 +143,9 @@ impl KeymapLegendConfig {
                         regex: regex::Regex::new(
                             &(format!(
                                 "{}{}{}",
-                                keymap.key, BETWEEN_KEY_AND_DESCRIPTION, marked_description
+                                regex::escape(keymap.key),
+                                BETWEEN_KEY_AND_DESCRIPTION,
+                                marked_description
                             )),
                         )
                         .unwrap(),
@@ -249,7 +165,8 @@ impl KeymapLegendConfig {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymap {
     key: &'static str,
-    description: String,
+    pub short_description: Option<String>,
+    pub description: String,
     event: KeyEvent,
     dispatch: Dispatch,
 }
@@ -258,26 +175,74 @@ impl Keymap {
     pub(crate) fn new(key: &'static str, description: String, dispatch: Dispatch) -> Keymap {
         Keymap {
             key,
+            short_description: None,
             description,
             dispatch,
             event: parse_key_event(key).unwrap(),
         }
     }
 
-    pub(crate) fn dispatch(&self) -> Dispatch {
-        self.dispatch.clone()
+    pub(crate) fn new_extended(
+        key: &'static str,
+        short_description: String,
+        description: String,
+        dispatch: Dispatch,
+    ) -> Keymap {
+        Keymap {
+            key,
+            short_description: Some(short_description),
+            description,
+            dispatch,
+            event: parse_key_event(key).unwrap(),
+        }
+    }
+
+    pub(crate) fn get_dispatches(&self) -> Dispatches {
+        Dispatches::one(self.dispatch.clone()).append(Dispatch::SetLastActionDescription {
+            long_description: self.description.clone(),
+            short_description: self.short_description.clone(),
+        })
     }
 
     pub(crate) fn event(&self) -> &KeyEvent {
         &self.event
     }
+
+    pub(crate) fn override_keymap(
+        self,
+        keymap_override: Option<&super::editor_keymap_legend::KeymapOverride>,
+        none_if_no_override: bool,
+    ) -> Option<Keymap> {
+        match keymap_override {
+            Some(keymap_override) => Some(Self {
+                short_description: Some(keymap_override.description.to_string()),
+                description: keymap_override.description.to_string(),
+                dispatch: keymap_override.dispatch.clone(),
+                ..self
+            }),
+            None => {
+                if none_if_no_override {
+                    None
+                } else {
+                    Some(self)
+                }
+            }
+        }
+    }
+
+    pub(crate) fn display(&self) -> String {
+        self.short_description
+            .clone()
+            .unwrap_or_else(|| self.description.clone())
+    }
 }
 
 impl KeymapLegend {
-    pub(crate) fn new(config: KeymapLegendConfig) -> KeymapLegend {
+    pub(crate) fn new(config: KeymapLegendConfig, context: &Context) -> KeymapLegend {
         // Check for duplicate keys
         let duplicates = config
             .keymaps()
+            .0
             .into_iter()
             .duplicates_by(|keymap| keymap.key)
             .collect_vec();
@@ -291,20 +256,36 @@ impl KeymapLegend {
                     .map(|duplicate| format!("{}: {}", duplicate.key, duplicate.description))
                     .collect_vec()
             );
-            log::info!("{}", message);
+            log::info!("{message}");
             // panic!("{}", message);
         }
 
         let mut editor = Editor::from_text(None, "");
         editor.set_title(config.title.clone());
-        let _ = editor.enter_insert_mode(Direction::End).unwrap_or_default();
+        let _ = editor
+            .enter_insert_mode(Direction::End, context)
+            .unwrap_or_default();
         editor.set_regex_highlight_rules(config.get_regex_highlight_rules());
-        KeymapLegend { editor, config }
+        KeymapLegend {
+            editor,
+            config,
+            option: KeymapDisplayOption {
+                show_alt: true,
+                show_shift: true,
+            },
+            keymap_layout_kind: context.keyboard_layout_kind().clone(),
+        }
     }
 
-    fn refresh(&mut self) {
-        let content = self.config.display(self.editor.rectangle().width as usize);
-        self.editor_mut().set_content(&content).unwrap_or_default();
+    fn refresh(&mut self, context: &Context) {
+        let content = self.config.display(
+            &self.keymap_layout_kind,
+            self.editor.rectangle().width,
+            &self.option,
+        );
+        self.editor_mut()
+            .set_content(&content, context)
+            .unwrap_or_default();
     }
 }
 
@@ -313,9 +294,9 @@ impl Component for KeymapLegend {
         &self.editor
     }
 
-    fn set_rectangle(&mut self, rectangle: Rectangle) {
-        self.editor_mut().set_rectangle(rectangle);
-        self.refresh()
+    fn set_rectangle(&mut self, rectangle: Rectangle, context: &Context) {
+        self.refresh(context); // TODO: pass theme from App.rs
+        self.editor_mut().set_rectangle(rectangle, context);
     }
 
     fn editor_mut(&mut self) -> &mut Editor {
@@ -331,9 +312,10 @@ impl Component for KeymapLegend {
         if self.editor.mode == Mode::Insert {
             match &event {
                 key!("esc") => {
-                    self.editor.enter_normal_mode()?;
+                    self.editor.enter_normal_mode(context)?;
                     Ok(Default::default())
                 }
+                key!("ctrl+c") => Ok(Dispatches::one(Dispatch::CloseCurrentWindow)),
                 key_event => {
                     if let Some(keymap) = self
                         .config
@@ -341,11 +323,7 @@ impl Component for KeymapLegend {
                         .iter()
                         .find(|keymap| &keymap.event == key_event)
                     {
-                        Ok([close_current_window]
-                            .into_iter()
-                            .chain(vec![keymap.dispatch.clone()])
-                            .collect_vec()
-                            .into())
+                        Ok(Dispatches::one(close_current_window).chain(keymap.get_dispatches()))
                     } else {
                         Ok(vec![].into())
                     }
@@ -361,21 +339,22 @@ impl Component for KeymapLegend {
 
 #[cfg(test)]
 mod test_keymap_legend {
-    use crate::test_app::*;
-    use my_proc_macros::keys;
-
     use super::*;
+    use crate::{buffer::BufferOwner, test_app::*};
+    use my_proc_macros::keys;
 
     #[test]
     fn test_esc() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 App(ShowKeymapLegend(KeymapLegendConfig {
                     title: "".to_string(),
-                    body: KeymapLegendBody::SingleSection {
-                        keymaps: Keymaps::new(&[]),
-                    },
+                    keymaps: Keymaps::new(&[]),
                 })),
                 App(HandleKeyEvent(key!("esc"))),
                 App(HandleKeyEvent(key!("esc"))),
@@ -385,60 +364,156 @@ mod test_keymap_legend {
     }
 
     #[test]
-    fn test_display_1() {
+    fn test_display_positional_full() {
         let keymaps = Keymaps(
             [
                 Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
                 Keymap::new("b", "Bomb".to_string(), Dispatch::Null),
+                Keymap::new("F", "Foo".to_string(), Dispatch::Null),
                 Keymap::new("c", "Caterpillar".to_string(), Dispatch::Null),
-                Keymap::new("d", "D".to_string(), Dispatch::Null),
-                Keymap::new("e", "Elephant".to_string(), Dispatch::Null),
-                Keymap::new("space", "Gogagg".to_string(), Dispatch::Null),
+                Keymap::new("alt+g", "Gogagg".to_string(), Dispatch::Null),
             ]
             .to_vec(),
         );
-        let width = 53;
-        let actual = keymaps.display(2, width).to_string();
+        let context = Context::default();
+        let actual = keymaps
+            .display(
+                context.keyboard_layout_kind(),
+                100,
+                &KeymapDisplayOption {
+                    show_alt: false,
+                    show_shift: false,
+                },
+            )
+            .to_string();
         let expected = "
-  a → Aloha                b → Bomb
-  c → Caterpillar          d → D
-  e → Elephant         space → Gogagg"
+╭───────┬───┬─────────────┬───┬──────┬───┬───┬───┬───┬───┬───╮
+│       ┆   ┆             ┆   ┆      ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│ Aloha ┆   ┆             ┆   ┆      ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│       ┆   ┆ Caterpillar ┆   ┆ Bomb ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+╰───────┴───┴─────────────┴───┴──────┴───┴───┴───┴───┴───┴───╯
+* Pick Keyboard
+"
+        .trim_matches('\n');
+        assert_eq!(actual, expected);
+
+        let actual = keymaps
+            .display(
+                context.keyboard_layout_kind(),
+                100,
+                &KeymapDisplayOption {
+                    show_alt: true,
+                    show_shift: true,
+                },
+            )
+            .to_string()
+            .trim_matches('\n')
+            .to_string();
+        let expected = "
+╭───────┬───┬─────────────┬─────┬────────┬───┬───┬───┬───┬───┬───╮
+│       ┆   ┆             ┆     ┆        ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│       ┆   ┆             ┆     ┆ Gogagg ┆ ⌥ ┆   ┆   ┆   ┆   ┆   │
+│       ┆   ┆             ┆ Foo ┆        ┆ ⇧ ┆   ┆   ┆   ┆   ┆   │
+│ Aloha ┆   ┆             ┆     ┆        ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│       ┆   ┆ Caterpillar ┆     ┆  Bomb  ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+╰───────┴───┴─────────────┴─────┴────────┴───┴───┴───┴───┴───┴───╯
+* Pick Keyboard"
             .trim_matches('\n');
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_display_2() {
+    fn test_display_positional_stacked() {
         let keymaps = Keymaps(
             [
                 Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
                 Keymap::new("b", "Bomb".to_string(), Dispatch::Null),
-                Keymap::new("space", "Gogagg".to_string(), Dispatch::Null),
+                Keymap::new("F", "Foo".to_string(), Dispatch::Null),
                 Keymap::new("c", "Caterpillar".to_string(), Dispatch::Null),
+                Keymap::new("alt+g", "Gogagg".to_string(), Dispatch::Null),
+                Keymap::new("alt+l", "Lamp".to_string(), Dispatch::Null),
             ]
             .to_vec(),
         );
-        let width = 53;
-        let actual = keymaps.display(2, width).to_string();
+        let context = Context::default();
+        let actual = keymaps
+            .display(
+                context.keyboard_layout_kind(),
+                50,
+                &KeymapDisplayOption {
+                    show_alt: true,
+                    show_shift: true,
+                },
+            )
+            .to_string();
         let expected = "
-      a → Aloha                b → Bomb
-  space → Gogagg               c → Caterpillar"
-            .trim_matches('\n');
+╭───────┬───┬─────────────┬─────┬────────┬───╮
+│       ┆   ┆             ┆     ┆        ┆ ∅ │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┤
+│       ┆   ┆             ┆     ┆ Gogagg ┆ ⌥ │
+│       ┆   ┆             ┆ Foo ┆        ┆ ⇧ │
+│ Aloha ┆   ┆             ┆     ┆        ┆ ∅ │
+├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┤
+│       ┆   ┆ Caterpillar ┆     ┆  Bomb  ┆ ∅ │
+╰───────┴───┴─────────────┴─────┴────────┴───╯
+╭───┬───┬───┬───┬──────┬───╮
+│ ∅ ┆   ┆   ┆   ┆      ┆   │
+├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┤
+│ ⌥ ┆   ┆   ┆   ┆ Lamp ┆   │
+│ ∅ ┆   ┆   ┆   ┆      ┆   │
+├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┤
+│ ∅ ┆   ┆   ┆   ┆      ┆   │
+╰───┴───┴───┴───┴──────┴───╯
+* Pick Keyboard"
+            .trim();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_display_positional_too_small() {
+        let keymaps = Keymaps(
+            [
+                Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
+                Keymap::new("b", "Bomb".to_string(), Dispatch::Null),
+                Keymap::new("F", "Foo".to_string(), Dispatch::Null),
+                Keymap::new("c", "Caterpillar".to_string(), Dispatch::Null),
+                Keymap::new("alt+g", "Gogagg".to_string(), Dispatch::Null),
+                Keymap::new("alt+l", "Lamp".to_string(), Dispatch::Null),
+            ]
+            .to_vec(),
+        );
+        let context = Context::default();
+        let actual = keymaps
+            .display(
+                context.keyboard_layout_kind(),
+                10,
+                &KeymapDisplayOption {
+                    show_alt: true,
+                    show_shift: true,
+                },
+            )
+            .to_string();
+        let expected = "Window is too small to display keymap legend :(";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn should_intercept_key_event_defined_in_config() {
-        let mut keymap_legend = KeymapLegend::new(KeymapLegendConfig {
-            title: "Test".to_string(),
-            body: KeymapLegendBody::SingleSection {
+        let mut keymap_legend = KeymapLegend::new(
+            KeymapLegendConfig {
+                title: "Test".to_string(),
                 keymaps: Keymaps::new(&[Keymap::new(
                     "s",
-                    "test".to_string(),
+                    "fifafofum".to_string(),
                     Dispatch::Custom("Spongebob".to_string()),
                 )]),
             },
-        });
+            &Context::default(),
+        );
 
         let dispatches = keymap_legend.handle_events(keys!("s")).unwrap();
 
@@ -446,7 +521,11 @@ mod test_keymap_legend {
             dispatches,
             Dispatches::new(vec![
                 Dispatch::CloseCurrentWindowAndFocusParent,
-                Dispatch::Custom("Spongebob".to_string())
+                Dispatch::Custom("Spongebob".to_string()),
+                SetLastActionDescription {
+                    long_description: "fifafofum".to_string(),
+                    short_description: None
+                }
             ])
         )
     }
@@ -464,7 +543,7 @@ mod test_keymap_legend {
         );
         let regexes = KeymapLegendConfig {
             title: "".to_string(),
-            body: KeymapLegendBody::SingleSection { keymaps },
+            keymaps,
         }
         .get_regex_highlight_rules()
         .into_iter()

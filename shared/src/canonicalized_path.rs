@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 
 use url::Url;
 
@@ -7,7 +10,9 @@ use url::Url;
 ///
 /// However, the construction of a `CanonicalizedPath` is slow,
 /// because `std::path::Path::canonicalize` is expensive.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Deserialize, serde::Serialize,
+)]
 pub struct CanonicalizedPath(PathBuf);
 
 impl AsRef<Path> for CanonicalizedPath {
@@ -118,6 +123,20 @@ impl CanonicalizedPath {
         Ok(relative.display().to_string())
     }
 
+    /// If the path is relative to home, format it relative to the home directory with
+    /// a leading ~ character. Otherwise it will be displayed as an absolute path.
+    pub fn display_relative_to_home(&self) -> anyhow::Result<String> {
+        let home_dir: CanonicalizedPath = match etcetera::home_dir() {
+            Ok(dir) => dir.try_into()?,
+            Err(_) => return Ok(self.display_absolute()),
+        };
+
+        match self.0.strip_prefix(&home_dir.0) {
+            Ok(path) => Ok(format!("~{}{}", std::path::MAIN_SEPARATOR, path.display())),
+            _ => Ok(self.display_absolute()),
+        }
+    }
+
     pub fn display_absolute(&self) -> String {
         self.0.display().to_string()
     }
@@ -163,11 +182,24 @@ impl CanonicalizedPath {
             .unwrap_or_else(|_| self.display_absolute())
     }
 
+    pub fn try_display_relative_to(&self, other: &CanonicalizedPath) -> String {
+        self.display_relative_to(other)
+            .unwrap_or_else(|_| self.display_absolute())
+    }
+
     pub fn to_url(&self) -> Option<Url> {
         Url::from_file_path(self.0.clone()).ok()
     }
 
-    pub(crate) fn file_name(&self) -> Option<String> {
+    pub fn file_name(&self) -> Option<String> {
         Some(self.0.file_name()?.to_string_lossy().to_string())
+    }
+
+    pub fn exists(&self) -> bool {
+        self.to_path_buf().exists()
+    }
+
+    pub fn last_modified_time(&self) -> anyhow::Result<SystemTime> {
+        Ok(self.0.metadata()?.modified()?)
     }
 }

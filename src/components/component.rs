@@ -6,17 +6,13 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{context::Context, grid::Grid, position::Position, rectangle::Rectangle};
 
-use super::{
-    editor::{DispatchEditor, Editor},
-    keymap_legend::KeymapLegendSection,
-};
+use super::editor::{DispatchEditor, Editor};
 
-// dyn_clone::clone_trait_object!(Component);
-//
 pub(crate) struct GetGridResult {
     pub(crate) grid: Grid,
     pub(crate) cursor: Option<Cursor>,
 }
+
 #[cfg(test)]
 impl std::fmt::Display for GetGridResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -25,12 +21,12 @@ impl std::fmt::Display for GetGridResult {
                 .grid
                 .clone()
                 .apply_cell_update(
-                    crate::grid::CellUpdate::new(cursor.position).set_symbol(Some("█".to_string())),
+                    crate::grid::CellUpdate::new(cursor.position).set_symbol(Some('█')),
                 )
                 .to_string(),
             None => self.grid.to_string(),
         };
-        write!(f, "{}", content)
+        write!(f, "{content}")
     }
 }
 
@@ -67,10 +63,12 @@ impl From<&SetCursorStyle> for crossterm::cursor::SetCursorStyle {
         }
     }
 }
+
 impl Cursor {
     pub(crate) fn style(&self) -> &SetCursorStyle {
         &self.style
     }
+
     pub(crate) fn position(&self) -> &Position {
         &self.position
     }
@@ -83,14 +81,18 @@ impl Cursor {
         Cursor { position, ..self }
     }
 }
+
 pub trait Component: Any + AnyComponent {
     fn id(&self) -> ComponentId {
         self.editor().id()
     }
+
     fn editor(&self) -> &Editor;
+
     fn editor_mut(&mut self) -> &mut Editor;
-    fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
-        self.editor().get_grid(context, focused)
+
+    fn get_grid(&mut self, context: &Context, focused: bool) -> GetGridResult {
+        self.editor_mut().get_grid(context, focused)
     }
 
     fn path(&self) -> Option<CanonicalizedPath> {
@@ -117,21 +119,25 @@ pub trait Component: Any + AnyComponent {
     fn handle_event(&mut self, context: &Context, event: Event) -> anyhow::Result<Dispatches> {
         match event {
             Event::Key(event) => self.handle_key_event(context, event),
-            Event::Paste(content) => self.handle_paste_event(content),
+            Event::Paste(content) => self.handle_paste_event(content, context),
             Event::Mouse(event) => self.handle_mouse_event(event),
             _ => Ok(Default::default()),
         }
     }
 
-    fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Dispatches> {
-        self.editor_mut().handle_paste_event(content)
+    fn handle_paste_event(
+        &mut self,
+        content: String,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
+        self.editor_mut().handle_paste_event(content, context)
     }
 
     fn handle_mouse_event(
         &mut self,
-        _event: crossterm::event::MouseEvent,
+        event: crossterm::event::MouseEvent,
     ) -> anyhow::Result<Dispatches> {
-        Ok(Default::default())
+        self.editor_mut().handle_mouse_event(event)
     }
 
     fn handle_key_event(
@@ -144,16 +150,16 @@ pub trait Component: Any + AnyComponent {
         self.editor().get_cursor_position()
     }
 
-    fn set_rectangle(&mut self, rectangle: Rectangle) {
-        self.editor_mut().set_rectangle(rectangle)
+    fn set_rectangle(&mut self, rectangle: Rectangle, context: &Context) {
+        self.editor_mut().set_rectangle(rectangle, context)
     }
 
     fn rectangle(&self) -> &Rectangle {
         self.editor().rectangle()
     }
 
-    fn set_content(&mut self, str: &str) -> anyhow::Result<()> {
-        self.editor_mut().set_content(str)
+    fn set_content(&mut self, str: &str, context: &Context) -> anyhow::Result<()> {
+        self.editor_mut().set_content(str, context)
     }
 
     fn content(&self) -> String {
@@ -174,12 +180,6 @@ pub trait Component: Any + AnyComponent {
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
         self.editor_mut().handle_dispatch_editor(context, dispatch)
-    }
-
-    /// This should be different for every component.
-    /// because the default context menu is not applicable in the File Explorer.
-    fn contextual_keymaps(&self) -> Vec<KeymapLegendSection> {
-        Default::default()
     }
 }
 

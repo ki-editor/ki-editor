@@ -1,3 +1,0 @@
-# Comparisons
-
-See next page.

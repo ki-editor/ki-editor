@@ -1,7 +1,6 @@
 use std::fmt::Display;
 
 use itertools::Itertools;
-use regex::Regex;
 
 use crate::{
     grid::{get_char_width, get_string_width},
@@ -170,8 +169,9 @@ impl WrappedLine {
 }
 
 pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
-    let re = Regex::new(r"\b").unwrap();
+    let re = lazy_regex::lazy_regex!(r"\b");
 
+    // LABEL: NEED_TO_REDUCE_WIDTH_BY_1
     // Need to reduce the width by 1 for wrapping,
     // that one space is reserved for rendering cursor at the last column
     let wrap_width = width.saturating_sub(1);
@@ -179,27 +179,8 @@ pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
         .lines()
         .enumerate()
         .filter_map(|(line_number, line)| {
-            let wrapped_lines: Vec<String> = re
-                .split(line)
-                .flat_map(|chunk| chop_str(chunk, wrap_width))
-                .fold(
-                    vec![],
-                    |mut lines: Vec<(usize, String)>, (chunk_width, chunk)| {
-                        match lines.last_mut() {
-                            Some((last_line_width, last_line))
-                                if *last_line_width + chunk_width <= wrap_width =>
-                            {
-                                last_line.push_str(&chunk);
-                                *last_line_width += chunk_width;
-                            }
-                            _ => lines.push((chunk_width, chunk.to_string())),
-                        }
-                        lines
-                    },
-                )
-                .into_iter()
-                .map(|(_, line)| line)
-                .collect_vec();
+            let items = re.split(line).collect_vec();
+            let wrapped_lines: Vec<String> = wrap_items(&items, wrap_width);
             let (primary, wrapped) = wrapped_lines.split_first()?;
             Some(WrappedLine {
                 primary: primary.to_string(),
@@ -227,9 +208,37 @@ pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
     result
 }
 
+pub(crate) fn wrap_items(items: &[&str], wrap_width: usize) -> Vec<String> {
+    if wrap_width == 0 {
+        return Vec::new();
+    }
+    items
+        .iter()
+        .flat_map(|chunk| chop_str(chunk, wrap_width))
+        .fold(
+            vec![],
+            |mut lines: Vec<(usize, String)>, (chunk_width, chunk)| {
+                match lines.last_mut() {
+                    Some((last_line_width, last_line))
+                        if *last_line_width + chunk_width <= wrap_width =>
+                    {
+                        last_line.push_str(&chunk);
+                        *last_line_width += chunk_width;
+                    }
+                    _ => lines.push((chunk_width, chunk.to_string())),
+                }
+                lines
+            },
+        )
+        .into_iter()
+        .map(|(_, line)| line)
+        .collect_vec()
+}
+
 /// Chop the given string into chunks by the given `max_width`
 /// The width of each chunk is paired with each chunk in the result vector.
 fn chop_str(s: &str, max_width: usize) -> Vec<(usize, String)> {
+    debug_assert!(max_width > 0);
     fn chop_str_(s: &str, max_width: usize) -> Vec<(usize, String)> {
         let width = get_string_width(s);
         if width <= max_width {

@@ -3,162 +3,39 @@ use nonempty::NonEmpty;
 use std::ops::{Add, Sub};
 
 use crate::{
+    alternator::Alternator,
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::{
-        editor::{Direction, Movement},
+        editor::{Direction, MovementApplicandum},
         suggestive_editor::Info,
     },
-    context::{LocalSearchConfigMode, Search},
+    context::{Context, LocalSearchConfigMode, Search},
     non_empty_extensions::{NonEmptyTryCollectOption, NonEmptyTryCollectResult},
     position::Position,
-    quickfix_list::DiagnosticSeverityRange,
-    selection_mode::{self, ApplyMovementResult, SelectionModeParams},
+    quickfix_list::{DiagnosticSeverityRange, QuickfixListItem},
+    selection_mode::{self, ApplyMovementResult, IterBased, PositionBased, SelectionModeParams},
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SelectionSet {
     /// 0 means the cursor is at the first selection
-    cursor_index: usize,
-    selections: NonEmpty<Selection>,
-    pub(crate) mode: SelectionMode,
-    /// TODO: filters should be stored globally, not at SelectionSet
-    pub(crate) filters: Filters,
+    pub(crate) cursor_index: usize,
+    pub(crate) selections: NonEmpty<Selection>,
+    pub(crate) mode: Alternator<SelectionMode>,
+    /// This will be set when a vertical movement is executed.
+    /// Once set, its value will not changed.
+    /// A non-vertical movement will reset its value to None.
+    sticky_column_index: Option<usize>,
 }
-
-/// Filters is a stack.
-/// Operations on filter:
-/// 1. Push new filter
-/// 2. Pop latest filter
-/// 3. Clear all filters
-#[derive(Clone, Default, Debug, PartialEq, Eq)]
-pub(crate) struct Filters(Vec<Filter>);
-impl Filters {
-    /// Returns `Some(item)` if it satisfy this `Filters`.
-    pub(crate) fn retain(
-        &self,
-        buffer: &Buffer,
-        item: selection_mode::ByteRange,
-    ) -> Option<selection_mode::ByteRange> {
-        self.0
-            .iter()
-            .try_fold(item, |item, filter| filter.retain(buffer, item))
-    }
-
-    fn push(self, filter: Filter) -> Filters {
-        let mut result = self.0;
-        result.push(filter);
-        Filters(result)
-    }
-
-    pub(crate) fn display(&self) -> Option<String> {
-        if self.0.is_empty() {
-            None
-        } else {
-            Some(self.0.iter().map(|filter| filter.display()).join(", "))
-        }
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Filter {
-    kind: FilterKind,
-    mechanism: FilterMechanism,
-    target: FilterTarget,
-}
-impl Filter {
-    pub(crate) fn retain(
-        &self,
-        buffer: &Buffer,
-        item: selection_mode::ByteRange,
-    ) -> Option<selection_mode::ByteRange> {
-        let target = match self.target {
-            FilterTarget::Content => buffer
-                .slice(&buffer.byte_range_to_char_index_range(item.range()).ok()?)
-                .ok()
-                .map(|rope| rope.to_string()),
-            FilterTarget::Info => item.info().as_ref().map(|info| info.content().clone()),
-        }?;
-        let matched: bool = match &self.mechanism {
-            FilterMechanism::Literal(literal) => {
-                target.to_lowercase().contains(&literal.to_lowercase())
-            }
-            FilterMechanism::Regex(regex) => regex.is_match(&target),
-        };
-        match self.kind {
-            FilterKind::Keep => matched,
-            FilterKind::Remove => !matched,
-        }
-        .then_some(item)
-    }
-
-    pub(crate) fn new(kind: FilterKind, target: FilterTarget, mechanism: FilterMechanism) -> Self {
-        Self {
-            kind,
-            target,
-            mechanism,
-        }
-    }
-
-    fn display(&self) -> String {
-        let target = format!("{:?}", self.target);
-        let kind = match self.kind {
-            FilterKind::Keep => "⊇",
-            FilterKind::Remove => "⊈",
-        };
-        let mechanism = match &self.mechanism {
-            FilterMechanism::Literal(literal) => format!("\"{}\"", literal),
-            FilterMechanism::Regex(regex) => format!("/{}/", regex),
-        };
-        format!("{}{}{}", target, kind, mechanism)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub(crate) enum FilterTarget {
-    Info,
-    Content,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub(crate) enum FilterKind {
-    Keep,
-    Remove,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) enum FilterMechanism {
-    Literal(String),
-    Regex(regex::Regex),
-    // AstGrep(ast_grep_core::Pattern),
-    // TreeSitterKind(String),
-}
-
-impl PartialEq for FilterMechanism {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (FilterMechanism::Literal(x), FilterMechanism::Literal(y)) => x == y,
-            (FilterMechanism::Regex(a), FilterMechanism::Regex(b)) => {
-                a.to_string() == b.to_string()
-            }
-            _ => false,
-        }
-    }
-}
-
-impl Eq for FilterMechanism {}
 
 impl Default for SelectionSet {
     fn default() -> Self {
         Self {
             cursor_index: 0,
             selections: NonEmpty::singleton(Selection::default()),
-            mode: SelectionMode::LineTrimmed,
-            filters: Filters::default(),
+            mode: Alternator::new(SelectionMode::Line),
+            sticky_column_index: None,
         }
     }
 }
@@ -189,7 +66,11 @@ impl SelectionSet {
         self.cursor_index = 0;
     }
 
-    pub(crate) fn apply<F>(&self, mode: SelectionMode, f: F) -> anyhow::Result<SelectionSet>
+    pub(crate) fn apply<F>(
+        &self,
+        mode: Alternator<SelectionMode>,
+        f: F,
+    ) -> anyhow::Result<SelectionSet>
     where
         F: Fn(&Selection) -> anyhow::Result<Selection>,
     {
@@ -201,7 +82,7 @@ impl SelectionSet {
                 .map(|selection| f(&selection))
                 .try_collect()?,
             mode,
-            filters: self.filters.clone(),
+            sticky_column_index: self.sticky_column_index,
         })
     }
 
@@ -234,8 +115,9 @@ impl SelectionSet {
         &self,
         buffer: &Buffer,
         mode: &SelectionMode,
-        direction: &Movement,
+        movement: &MovementApplicandum,
         cursor_direction: &Direction,
+        context: &Context,
     ) -> anyhow::Result<Option<SelectionSet>> {
         let Some(selections) = self
             .map(|selection| {
@@ -243,9 +125,9 @@ impl SelectionSet {
                     buffer,
                     selection,
                     mode,
-                    direction,
+                    movement,
                     cursor_direction,
-                    &self.filters,
+                    context,
                 )
             })
             .try_collect()?
@@ -256,18 +138,22 @@ impl SelectionSet {
 
         Ok(Some(SelectionSet {
             cursor_index: self.cursor_index,
-            mode: selections.head.mode.clone().unwrap_or_else(|| mode.clone()),
             selections: selections.clone().map(|selection| selection.selection),
-            filters: self.filters.clone(),
+            // The following is how `mode` and `sticky_column_index` got stored
+            mode: self.mode.clone().replace_primary(mode.clone()),
+            sticky_column_index: selections.head.sticky_column_index,
         }))
     }
 
+    /// Returns `false` if no new selection is added
     pub(crate) fn add_selection(
         &mut self,
         buffer: &Buffer,
-        direction: &Movement,
+        movement: &MovementApplicandum,
         cursor_direction: &Direction,
-    ) -> anyhow::Result<()> {
+        context: &Context,
+    ) -> anyhow::Result<bool> {
+        let initial_selections_length = self.selections.len();
         let last_selection = &self
             .selections
             .get(self.cursor_index)
@@ -276,10 +162,10 @@ impl SelectionSet {
         if let Some(new_selection) = Selection::get_selection_(
             buffer,
             last_selection,
-            &self.mode,
-            direction,
+            self.mode.primary(),
+            movement,
             cursor_direction,
-            &self.filters,
+            context,
         )? {
             let new_selection = new_selection.selection;
 
@@ -305,35 +191,41 @@ impl SelectionSet {
             }
         }
 
-        Ok(())
+        Ok(self.selections.len() > initial_selections_length)
     }
 
-    pub(crate) fn add_all(
-        &mut self,
+    pub(crate) fn mode(&self) -> &SelectionMode {
+        self.mode.primary()
+    }
+
+    pub(crate) fn all_selections(
+        &self,
         buffer: &Buffer,
         cursor_direction: &Direction,
-    ) -> anyhow::Result<()> {
+        context: &Context,
+    ) -> anyhow::Result<Option<NonEmpty<Selection>>> {
         if let Some((head, tail)) = self
             .map(|selection| {
                 let object = self
-                    .mode
+                    .mode()
                     .to_selection_mode_trait_object(
                         buffer,
                         selection,
                         cursor_direction,
-                        &self.filters,
+                        context.current_working_directory(),
+                        context.quickfix_list_items(),
                     )
                     .ok()?;
 
                 let iter = object
-                    .iter_filtered(SelectionModeParams {
+                    .all_selections(&SelectionModeParams {
                         buffer,
                         current_selection: selection,
                         cursor_direction,
-                        filters: &self.filters,
                     })
                     .ok()?;
                 let result = iter
+                    .into_iter()
                     .filter_map(|range| -> Option<Selection> {
                         range.to_selection(buffer, &self.selections.head).ok()
                     })
@@ -343,25 +235,45 @@ impl SelectionSet {
             .into_iter()
             .flatten()
             .flatten()
+            .map(|selection| selection.set_initial_range(None))
             .unique_by(|selection| selection.extended_range())
             .collect_vec()
             .split_first()
         {
-            self.selections = NonEmpty {
+            Ok(Some(NonEmpty {
                 head: (*head).clone(),
                 tail: tail.to_vec(),
-            };
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+    pub(crate) fn add_all(
+        &mut self,
+        buffer: &Buffer,
+        cursor_direction: &Direction,
+        context: &Context,
+    ) -> anyhow::Result<()> {
+        if let Some(selections) = self.all_selections(buffer, cursor_direction, context)? {
+            self.selections = selections;
             self.cursor_index = 0;
         };
         Ok(())
     }
     #[cfg(test)]
     pub(crate) fn escape_highlight_mode(&mut self) {
-        self.apply_mut(|selection| selection.escape_highlight_mode());
+        self.apply_mut(|selection| selection.disable_extension());
     }
 
-    pub(crate) fn toggle_visual_mode(&mut self) {
-        self.apply_mut(|selection| selection.toggle_visual_mode());
+    pub(crate) fn enable_selection_extension(&mut self) {
+        self.mode.copy_primary_to_secondary();
+
+        self.apply_mut(|selection| selection.enable_selection_extension());
+    }
+
+    pub(crate) fn swap_anchor(&mut self) {
+        self.mode.cycle();
+        self.apply_mut(|selection| selection.swap_initial_range_direction());
     }
 
     pub(crate) fn clamp(&self, max_char_index: CharIndex) -> anyhow::Result<SelectionSet> {
@@ -372,28 +284,6 @@ impl SelectionSet {
 
     pub(crate) fn len(&self) -> usize {
         self.selections.len()
-    }
-
-    pub(crate) fn filter_push(self, filter: Filter) -> SelectionSet {
-        let SelectionSet {
-            selections,
-            mode,
-            filters,
-            cursor_index,
-        } = self;
-        Self {
-            cursor_index,
-            selections,
-            mode,
-            filters: filters.push(filter),
-        }
-    }
-
-    pub(crate) fn filter_clear(self) -> Self {
-        Self {
-            filters: Filters::default(),
-            ..self
-        }
     }
 
     pub(crate) fn unset_initial_range(&mut self) {
@@ -424,11 +314,18 @@ impl SelectionSet {
     }
 
     pub(crate) fn set_selections(self, selections: NonEmpty<Selection>) -> SelectionSet {
-        Self { selections, ..self }
+        Self {
+            cursor_index: self.cursor_index.min(selections.len() - 1),
+            selections,
+            ..self
+        }
     }
 
     pub(crate) fn set_mode(self, mode: SelectionMode) -> SelectionSet {
-        Self { mode, ..self }
+        Self {
+            mode: self.mode.replace_primary(mode),
+            ..self
+        }
     }
 
     pub(crate) fn secondary_selections(&self) -> Vec<&Selection> {
@@ -502,22 +399,56 @@ impl SelectionSet {
             }
         }
     }
+
+    pub(crate) fn is_extended(&self) -> bool {
+        self.primary_selection().initial_range.is_some()
+    }
+
+    pub(crate) fn selections(&self) -> &NonEmpty<Selection> {
+        &self.selections
+    }
+
+    pub(crate) fn delete_current_selection(&mut self, direction: Direction) {
+        let index = self.cursor_index;
+        match self
+            .selections
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| index != &self.cursor_index)
+            .map(|(_, selection)| selection.clone())
+            .collect_vec()
+            .split_first()
+        {
+            Some((head, tail)) => {
+                self.selections = NonEmpty {
+                    head: head.clone(),
+                    tail: tail.to_vec(),
+                }
+            }
+            _ => return,
+        }
+        self.cursor_index = match direction {
+            Direction::Start => index.saturating_sub(1),
+            Direction::End => index.min(self.selections.len() - 1),
+        }
+    }
+
+    pub(crate) fn sticky_column_index(&self) -> &Option<usize> {
+        &self.sticky_column_index
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) enum SelectionMode {
     // Regex
-    EmptyLine,
-    WordShort,
-    WordLong,
-    LineTrimmed,
-    Column,
+    Subword,
+    Word,
+    Line,
+    Character,
     Custom,
     Find { search: Search },
-
     // Syntax-tree
-    Token,
-    SyntaxNodeCoarse,
+    SyntaxNode,
     SyntaxNodeFine,
 
     // LSP
@@ -529,40 +460,38 @@ pub(crate) enum SelectionMode {
     // Local quickfix
     LocalQuickfix { title: String },
 
-    // Bookmark
-    Bookmark,
+    // Mark
+    Mark,
     LineFull,
 }
 impl SelectionMode {
     pub(crate) fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, SyntaxNodeCoarse | SyntaxNodeFine)
+        matches!(self, SyntaxNode | SyntaxNodeFine)
     }
 
     pub(crate) fn display(&self) -> String {
         match self {
-            SelectionMode::WordShort => "WORD (SHORT)".to_string(),
-            SelectionMode::WordLong => "WORD (LONG)".to_string(),
-            SelectionMode::EmptyLine => "EMPTY LINE".to_string(),
-            SelectionMode::LineTrimmed => "LINE (TRIMMED)".to_string(),
-            SelectionMode::LineFull => "LINE (FULL)".to_string(),
-            SelectionMode::Column => "COLUMN".to_string(),
+            SelectionMode::Line => "LINE".to_string(),
+            SelectionMode::LineFull => "LINE*".to_string(),
+            SelectionMode::Character => "CHAR".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
-            SelectionMode::Token => "TOKEN".to_string(),
-            SelectionMode::SyntaxNodeCoarse => "SYNTAX NODE (COARSE)".to_string(),
-            SelectionMode::SyntaxNodeFine => "SYNTAX NODE (FINE)".to_string(),
-            SelectionMode::Find { search } => {
-                format!("FIND {} {:?}", search.mode.display(), search.search)
+            SelectionMode::SyntaxNode => "NODE".to_string(),
+            SelectionMode::SyntaxNodeFine => "NODE*".to_string(),
+            SelectionMode::Find { .. } => "FIND".to_string(),
+            SelectionMode::Diagnostic(severity) => match severity {
+                DiagnosticSeverityRange::All => "ALL",
+                DiagnosticSeverityRange::Error => "ERROR",
+                DiagnosticSeverityRange::Warning => "WARN",
+                DiagnosticSeverityRange::Information => "INFO",
+                DiagnosticSeverityRange::Hint => "HINT",
             }
-            SelectionMode::Diagnostic(severity) => {
-                let severity = format!("{:?}", severity).to_uppercase();
-                format!("DIAGNOSTIC:{}", severity)
-            }
-            SelectionMode::GitHunk(diff_mode) => {
-                format!("GIT HUNK ({})", diff_mode.display()).to_string()
-            }
-            SelectionMode::Bookmark => "BOOKMARK".to_string(),
+            .to_string(),
+            SelectionMode::GitHunk(diff_mode) => format!("HUNK{}", diff_mode.display()).to_string(),
+            SelectionMode::Mark => "MARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
+            SelectionMode::Subword => "SUBWORD".to_string(),
+            SelectionMode::Word => "WORD".to_string(),
         }
     }
 
@@ -571,69 +500,72 @@ impl SelectionMode {
         buffer: &Buffer,
         current_selection: &Selection,
         cursor_direction: &Direction,
-        filters: &Filters,
-    ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
+        working_directory: &shared::canonicalized_path::CanonicalizedPath,
+        quickfix_list_items: Vec<&QuickfixListItem>,
+    ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         let params = SelectionModeParams {
             buffer,
             current_selection,
             cursor_direction,
-            filters,
         };
         Ok(match self {
-            SelectionMode::WordShort => Box::new(selection_mode::WordShort::as_regex(buffer)?),
-            SelectionMode::WordLong => Box::new(selection_mode::WordLong::as_regex(buffer)?),
-            SelectionMode::LineTrimmed => Box::new(selection_mode::LineTrimmed),
-            SelectionMode::LineFull => Box::new(selection_mode::LineFull),
-            SelectionMode::Column => {
-                let current_column = buffer
-                    .char_to_position(current_selection.to_char_index(cursor_direction))?
-                    .column;
-                Box::new(selection_mode::Column::new(current_column))
-            }
-            SelectionMode::Custom => {
-                Box::new(selection_mode::Custom::new(current_selection.clone()))
-            }
+            SelectionMode::Subword => Box::new(PositionBased(selection_mode::Subword::new())),
+            SelectionMode::Word => Box::new(PositionBased(selection_mode::Word)),
+            SelectionMode::Line => Box::new(PositionBased(selection_mode::LineTrimmed)),
+            SelectionMode::LineFull => Box::new(PositionBased(selection_mode::LineFull::new())),
+            SelectionMode::Character => Box::new(PositionBased(selection_mode::Character)),
+            SelectionMode::Custom => Box::new(IterBased(selection_mode::Custom::new(
+                current_selection.clone(),
+            ))),
             SelectionMode::Find { search } => match search.mode {
-                LocalSearchConfigMode::Regex(regex) => Box::new(
+                LocalSearchConfigMode::Regex(regex) => Box::new(IterBased(
                     selection_mode::Regex::from_config(buffer, &search.search, regex)?,
-                ),
-                LocalSearchConfigMode::AstGrep => {
-                    Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
-                }
-                LocalSearchConfigMode::CaseAgnostic => {
-                    Box::new(selection_mode::CaseAgnostic::new(search.search.clone()))
-                }
+                )),
+                LocalSearchConfigMode::AstGrep => Box::new(IterBased(
+                    selection_mode::AstGrep::new(buffer, &search.search)?,
+                )),
+                LocalSearchConfigMode::NamingConventionAgnostic => Box::new(IterBased(
+                    selection_mode::NamingConventionAgnostic::new(search.search.clone()),
+                )),
             },
-            SelectionMode::Token => Box::new(selection_mode::Token),
-            SelectionMode::SyntaxNodeCoarse => {
-                Box::new(selection_mode::SyntaxNode { coarse: true })
+            SelectionMode::SyntaxNode => {
+                Box::new(IterBased(selection_mode::SyntaxNode { coarse: true }))
             }
-            SelectionMode::SyntaxNodeFine => Box::new(selection_mode::SyntaxNode { coarse: false }),
-            SelectionMode::Diagnostic(severity) => {
-                Box::new(selection_mode::Diagnostic::new(*severity, params))
+            SelectionMode::SyntaxNodeFine => {
+                Box::new(IterBased(selection_mode::SyntaxNode { coarse: false }))
             }
-            SelectionMode::GitHunk(diff_mode) => {
-                Box::new(selection_mode::GitHunk::new(diff_mode, buffer)?)
-            }
-            SelectionMode::Bookmark => Box::new(selection_mode::Bookmark),
-            SelectionMode::EmptyLine => Box::new(selection_mode::Regex::new(buffer, r"(?m)^\s*$")?),
-            SelectionMode::LocalQuickfix { .. } => {
-                Box::new(selection_mode::LocalQuickfix::new(params))
-            }
+            SelectionMode::Diagnostic(severity) => Box::new(IterBased(
+                selection_mode::Diagnostic::new(*severity, params),
+            )),
+            SelectionMode::GitHunk(diff_mode) => Box::new(IterBased(selection_mode::GitHunk::new(
+                diff_mode,
+                buffer,
+                working_directory,
+            )?)),
+            SelectionMode::Mark => Box::new(IterBased(selection_mode::Mark)),
+            SelectionMode::LocalQuickfix { .. } => Box::new(IterBased(
+                selection_mode::LocalQuickfix::new(params, quickfix_list_items),
+            )),
         })
     }
 
     pub(crate) fn is_contiguous(&self) -> bool {
         matches!(
             self,
-            SelectionMode::WordShort
-                | SelectionMode::WordLong
-                | SelectionMode::LineTrimmed
+            SelectionMode::Subword
+                | SelectionMode::Word
+                | SelectionMode::Line
                 | SelectionMode::LineFull
-                | SelectionMode::Column
-                | SelectionMode::Token
-                | SelectionMode::SyntaxNodeCoarse
+                | SelectionMode::Character
+                | SelectionMode::SyntaxNode
                 | SelectionMode::SyntaxNodeFine
+        )
+    }
+
+    pub(crate) fn is_syntax_node(&self) -> bool {
+        matches!(
+            self,
+            SelectionMode::SyntaxNode | SelectionMode::SyntaxNodeFine
         )
     }
 }
@@ -646,15 +578,15 @@ impl From<Selection> for ApplyMovementResult {
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default)]
 pub(crate) struct Selection {
-    range: CharIndexRange,
+    pub range: CharIndexRange,
 
     /// Used for extended selection.
     /// Some = the selection is being extended
     /// None = the selection is not being extended
-    initial_range: Option<CharIndexRange>,
+    pub initial_range: Option<CharIndexRange>,
 
     /// For example, used for Diagnostic and Git Hunk
-    info: Option<Info>,
+    pub info: Option<Info>,
 }
 
 impl Selection {
@@ -707,41 +639,41 @@ impl Selection {
         buffer: &Buffer,
         current_selection: &Selection,
         mode: &SelectionMode,
-        direction: &Movement,
+        movement: &MovementApplicandum,
         cursor_direction: &Direction,
-        filters: &Filters,
+        context: &Context,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         let selection_mode = mode.to_selection_mode_trait_object(
             buffer,
             current_selection,
             cursor_direction,
-            filters,
+            context.current_working_directory(),
+            context.quickfix_list_items(),
         )?;
 
         let params = SelectionModeParams {
             buffer,
             current_selection,
             cursor_direction,
-            filters,
         };
 
-        selection_mode.apply_movement(params, *direction)
+        selection_mode.apply_movement(&params, *movement)
     }
     #[cfg(test)]
-    pub(crate) fn escape_highlight_mode(&mut self) {
+    pub(crate) fn disable_extension(&mut self) {
         log::info!("escape highlight mode");
         self.initial_range = None
     }
 
-    pub(crate) fn toggle_visual_mode(&mut self) {
-        match self.initial_range.take() {
-            None => {
-                self.enable_extension();
-            }
-            // If highlight mode is enabled, inverse the selection
-            Some(initial_range) => {
-                self.initial_range = Some(std::mem::replace(&mut self.range, initial_range));
-            }
+    pub(crate) fn enable_selection_extension(&mut self) {
+        if self.initial_range.is_none() {
+            self.enable_extension();
+        }
+    }
+
+    pub(crate) fn swap_initial_range_direction(&mut self) {
+        if let Some(initial_range) = self.initial_range.take() {
+            self.initial_range = Some(std::mem::replace(&mut self.range, initial_range));
         }
     }
 
@@ -764,6 +696,7 @@ impl Selection {
     }
 
     /// WARNING: You should always use `extended_range` unless you know what you are doing
+    /// This always represent the non-extended range
     pub(crate) fn range(&self) -> CharIndexRange {
         self.range
     }
@@ -817,10 +750,17 @@ impl Selection {
         };
         self.set_range(range).set_initial_range(None)
     }
-}
 
-// TODO: this works, but the result is not satisfactory,
-// we will leave this function here as a reference
+    pub(crate) fn update_with_byte_range(
+        self,
+        buffer: &Buffer,
+        byte_range: selection_mode::ByteRange,
+    ) -> anyhow::Result<Selection> {
+        Ok(self
+            .set_info(byte_range.info())
+            .set_range(buffer.byte_range_to_char_index_range(byte_range.range())?))
+    }
+}
 
 impl Add<usize> for Selection {
     type Output = Selection;

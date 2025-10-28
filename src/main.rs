@@ -4,14 +4,15 @@ mod git;
 pub(crate) mod char_index_range;
 mod cli;
 mod clipboard;
-pub(crate) mod command;
 mod components;
 mod context;
 mod edit;
 pub(crate) mod frontend;
 mod grid;
+mod integration_event;
 #[cfg(test)]
 mod integration_test;
+mod search;
 
 mod layout;
 pub(crate) mod list;
@@ -19,10 +20,14 @@ mod lsp;
 mod position;
 
 mod app;
+#[cfg(test)]
+mod generate_recipes;
 pub(crate) mod history;
 mod non_empty_extensions;
 mod osc52;
 mod quickfix_list;
+#[cfg(test)]
+mod recipes;
 mod rectangle;
 mod screen;
 mod selection;
@@ -38,24 +43,33 @@ mod test_app;
 pub(crate) mod themes;
 pub(crate) mod transformation;
 pub(crate) mod ui_tree;
-pub(crate) mod undo_tree;
 mod utils;
 
-use std::sync::{Arc, Mutex};
+mod embed;
+
+mod alternator;
+mod divide_viewport;
+mod env;
+pub(crate) mod file_watcher;
+mod format_path_list;
+pub(crate) mod persistence;
+#[cfg(test)]
+mod test_lsp;
+mod thread;
+use std::{rc::Rc, sync::Mutex};
 
 use anyhow::Context;
 use frontend::crossterm::Crossterm;
 use log::LevelFilter;
 use shared::canonicalized_path::CanonicalizedPath;
 
-use app::App;
+use app::{App, StatusLineComponent};
 
-use crate::app::AppMessage;
+use crate::{app::AppMessage, persistence::Persistence};
 
 fn main() {
     cli::cli().unwrap();
 }
-
 #[derive(Default)]
 pub(crate) struct RunConfig {
     pub(crate) entry_path: Option<CanonicalizedPath>,
@@ -67,13 +81,33 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
     simple_logging::log_to_file(grammar::default_log_file(), LevelFilter::Info)?;
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
-    let mut app = App::from_channel(
-        Arc::new(Mutex::new(Crossterm::default())),
+
+    let app = App::from_channel(
+        Rc::new(Mutex::new(Crossterm::new()?)),
         config.working_directory.unwrap_or(".".try_into()?),
         sender,
         receiver,
+        Some(syntax_highlighter_sender),
+        [
+            StatusLineComponent::Mode,
+            StatusLineComponent::SelectionMode,
+            StatusLineComponent::LastSearchString,
+            StatusLineComponent::Reveal,
+            StatusLineComponent::CurrentWorkingDirectory,
+            StatusLineComponent::GitBranch,
+            StatusLineComponent::KeyboardLayout,
+            StatusLineComponent::Help,
+            StatusLineComponent::LastDispatch,
+        ]
+        .to_vec(),
+        None, // No integration event sender
+        true,
+        true,
+        false,
+        Some(Persistence::load_or_default(
+            grammar::cache_dir().join("data.json"),
+        )),
     )?;
-    app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 
     let sender = app.sender();
 

@@ -1,7 +1,7 @@
 use super::{DiagnosticStyles, HighlightName, Theme, UiStyles};
 use crate::{
     style::{fg, Style},
-    themes::SyntaxStyles,
+    themes::{GitGutterStyles, SyntaxStyles},
 };
 use my_proc_macros::hex;
 
@@ -34,6 +34,7 @@ pub fn vscode_dark() -> Theme {
                 .foreground_color(hex!("#969696"))
                 .background_color(hex!("#444444")),
             parent_lines_background: hex!("#3B3D41"),
+            section_divider_background: hex!("#3B3D41"),
             jump_mark_odd: Style::new()
                 .background_color(hex!("#b5485d"))
                 .foreground_color(hex!("#ffffff")),
@@ -59,7 +60,7 @@ pub fn vscode_dark() -> Theme {
             border: Style::new()
                 .background_color(hex!("#1E1E1E"))
                 .foreground_color(hex!("#858585")),
-            bookmark: Style::new().background_color(hex!("#ffcc00")),
+            mark: Style::new().background_color(hex!("#ffcc00")),
             possible_selection_background: hex!("#5C3521"),
             keymap_hint: Style::new().underline(hex!("#af00db")),
             keymap_key: Style::new().bold().foreground_color(hex!("#af00db")),
@@ -68,5 +69,6 @@ pub fn vscode_dark() -> Theme {
         },
         diagnostic: DiagnosticStyles::default(),
         hunk: super::HunkStyles::dark(),
+        git_gutter: GitGutterStyles::new(),
     }
 }

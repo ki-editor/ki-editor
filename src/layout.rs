@@ -1,8 +1,10 @@
+use crate::context::Context;
 use crate::quickfix_list::QuickfixList;
+use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
 use crate::ui_tree::{ComponentKind, KindedComponent, UiTree};
 use crate::{
     app::{Dimension, Dispatches},
-    buffer::Buffer,
+    buffer::{Buffer, BufferOwner},
     components::{
         component::{Component, ComponentId},
         editor::Editor,
@@ -20,7 +22,11 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use nary_tree::NodeId;
 use shared::canonicalized_path::CanonicalizedPath;
+use shared::language::from_extension;
 use std::{cell::RefCell, rc::Rc};
+
+#[cfg(test)]
+pub(crate) type BufferContentsMap = std::collections::HashMap<String, String>;
 
 /// The layout of the app is split into multiple sections: the main panel, info panel, quickfix
 /// lists, prompts, and etc.
@@ -43,7 +49,7 @@ impl Layout {
         terminal_dimension: Dimension,
         working_directory: &CanonicalizedPath,
     ) -> anyhow::Result<Layout> {
-        let (layout_kind, ratio) = layout_kind(&terminal_dimension);
+        let (layout_kind, ratio) = layout_kind();
         let (rectangles, borders) = Rectangle::generate(layout_kind, 1, ratio, terminal_dimension);
         let tree = UiTree::new();
         Ok(Layout {
@@ -65,23 +71,31 @@ impl Layout {
         self.get_component(self.tree.focused_component_id())
     }
 
-    fn get_component(&self, id: NodeId) -> Rc<RefCell<dyn Component>> {
+    pub(crate) fn get_current_component_kind(&self) -> Option<ComponentKind> {
+        self.tree
+            .get(self.tree.focused_component_id())
+            .map(|node| node.data().kind())
+    }
+
+    pub(crate) fn get_component(&self, id: NodeId) -> Rc<RefCell<dyn Component>> {
         self.tree
             .get(id)
             .map(|node| node.data().component())
             .unwrap_or_else(|| self.tree.root().data().component().clone())
     }
 
-    pub(crate) fn remove_current_component(&mut self) {
+    pub(crate) fn remove_current_component(
+        &mut self,
+        context: &Context,
+    ) -> Option<CanonicalizedPath> {
         let node = self.tree.get_current_node();
-        if let Some(path) = node.data().component().borrow().path() {
-            self.background_suggestive_editors.shift_remove(&path);
+        let removed_path = node.data().component().borrow().path();
+        if let Some(path) = &removed_path {
+            self.background_suggestive_editors.shift_remove(path);
             if let Some((_, editor)) = self
                 .background_suggestive_editors
                 .iter()
-                .skip_while(|(p, _)| p != &&path)
-                .nth(1)
-                .or_else(|| self.background_suggestive_editors.first())
+                .find(|(_, editor)| editor.borrow().editor().buffer().owner() == BufferOwner::User)
             {
                 self.replace_and_focus_current_suggestive_editor(editor.clone())
             } else {
@@ -91,29 +105,31 @@ impl Layout {
             self.tree.remove(node.node_id(), true);
         };
 
-        self.recalculate_layout();
+        self.recalculate_layout(context);
+        removed_path
     }
 
     pub(crate) fn cycle_window(&mut self) {
         self.tree.cycle_component()
     }
 
-    pub(crate) fn close_current_window(&mut self) {
-        self.remove_current_component();
+    pub(crate) fn close_current_window(&mut self, context: &Context) -> Option<CanonicalizedPath> {
+        self.remove_current_component(context)
     }
 
     pub(crate) fn add_and_focus_prompt(
         &mut self,
         kind: ComponentKind,
         component: Rc<RefCell<Prompt>>,
+        context: &Context,
     ) {
         self.tree
             .append_component_to_current(KindedComponent::new(kind, component), true);
-        self.recalculate_layout();
+        self.recalculate_layout(context);
     }
 
-    pub(crate) fn recalculate_layout(&mut self) {
-        let (layout_kind, ratio) = layout_kind(&self.terminal_dimension);
+    pub(crate) fn recalculate_layout(&mut self, context: &Context) {
+        let (layout_kind, ratio) = layout_kind();
 
         let (rectangles, borders) = Rectangle::generate(
             layout_kind,
@@ -131,7 +147,7 @@ impl Layout {
                 component
                     .component()
                     .borrow_mut()
-                    .set_rectangle(rectangle.clone())
+                    .set_rectangle(rectangle.clone(), context)
             });
     }
 
@@ -157,9 +173,9 @@ impl Layout {
         }
     }
 
-    pub(crate) fn set_terminal_dimension(&mut self, dimension: Dimension) {
+    pub(crate) fn set_terminal_dimension(&mut self, dimension: Dimension, context: &Context) {
         self.terminal_dimension = dimension;
-        self.recalculate_layout()
+        self.recalculate_layout(context)
     }
 
     pub(crate) fn terminal_dimension(&self) -> Dimension {
@@ -190,23 +206,36 @@ impl Layout {
         node_id: NodeId,
         info: Info,
         kind: ComponentKind,
+        context: &Context,
     ) -> anyhow::Result<()> {
         let info_panel = Rc::new(RefCell::new(Editor::from_text(None, "")));
-        info_panel.borrow_mut().show_info(info)?;
+        info_panel.borrow_mut().show_info(info, context)?;
         self.tree
             .replace_node_child(node_id, kind, info_panel, false);
         Ok(())
     }
 
-    pub(crate) fn show_global_info(&mut self, info: Info) -> anyhow::Result<()> {
-        self.show_info_on(self.tree.root_id(), info, ComponentKind::GlobalInfo)
+    pub(crate) fn show_global_info(&mut self, info: Info, context: &Context) -> anyhow::Result<()> {
+        self.show_info_on(
+            self.tree.root_id(),
+            info,
+            ComponentKind::GlobalInfo,
+            context,
+        )
     }
 
-    pub(crate) fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
+    pub(crate) fn show_keymap_legend(
+        &mut self,
+        keymap_legend_config: KeymapLegendConfig,
+        context: &Context,
+    ) {
         self.tree.append_component_to_current(
             KindedComponent::new(
                 ComponentKind::KeymapLegend,
-                Rc::new(RefCell::new(KeymapLegend::new(keymap_legend_config))),
+                Rc::new(RefCell::new(KeymapLegend::new(
+                    keymap_legend_config,
+                    context,
+                ))),
             ),
             true,
         )
@@ -219,14 +248,28 @@ impl Layout {
     pub(crate) fn get_opened_files(&self) -> Vec<CanonicalizedPath> {
         self.background_suggestive_editors
             .iter()
+            .filter(|(_, editor)| editor.borrow().editor().buffer().owner() == BufferOwner::User)
             .map(|(path, _)| path.clone())
             .collect()
     }
 
-    pub(crate) fn save_all(&self) -> Result<(), anyhow::Error> {
+    #[cfg(test)]
+    pub(crate) fn get_buffer_contents_map(&self) -> BufferContentsMap {
         self.background_suggestive_editors
             .iter()
-            .map(|(_, editor)| editor.borrow_mut().editor_mut().save())
+            .map(|(path, editor)| {
+                (
+                    path.file_name().unwrap_or_default(),
+                    editor.borrow().editor().buffer().content(),
+                )
+            })
+            .collect()
+    }
+
+    pub(crate) fn save_all(&self, context: &Context) -> Result<(), anyhow::Error> {
+        self.background_suggestive_editors
+            .iter()
+            .map(|(_, editor)| editor.borrow_mut().editor_mut().save(context))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(())
     }
@@ -234,8 +277,12 @@ impl Layout {
     pub(crate) fn reveal_path_in_explorer(
         &mut self,
         path: &CanonicalizedPath,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        let dispatches = self.background_file_explorer.borrow_mut().reveal(path)?;
+        let dispatches = self
+            .background_file_explorer
+            .borrow_mut()
+            .reveal(path, context)?;
         self.open_file_explorer();
 
         Ok(dispatches)
@@ -245,13 +292,8 @@ impl Layout {
         self.background_suggestive_editors.shift_remove(path);
     }
 
-    pub(crate) fn refresh_file_explorer(
-        &self,
-        working_directory: &CanonicalizedPath,
-    ) -> anyhow::Result<()> {
-        self.background_file_explorer
-            .borrow_mut()
-            .refresh(working_directory)
+    pub(crate) fn refresh_file_explorer(&self, context: &Context) -> anyhow::Result<()> {
+        self.background_file_explorer.borrow_mut().refresh(context)
     }
 
     pub(crate) fn open_file_explorer(&mut self) {
@@ -267,20 +309,26 @@ impl Layout {
     pub(crate) fn update_highlighted_spans(
         &self,
         component_id: ComponentId,
-        highlighted_spans: crate::syntax_highlight::HighlighedSpans,
+        batch_id: SyntaxHighlightRequestBatchId,
+        highlighted_spans: crate::syntax_highlight::HighlightedSpans,
     ) -> Result<(), anyhow::Error> {
-        let component = self
-            .background_suggestive_editors
-            .iter()
-            .find(|(_, component)| component.borrow().id() == component_id)
-            .map(|(_, component)| component)
-            .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))?;
+        let component = match &self.background_quickfix_list {
+            Some(component) if component.borrow().id() == component_id => {
+                Box::new(component.clone() as Rc<RefCell<dyn Component>>)
+            }
+            _ => self
+                .background_suggestive_editors
+                .iter()
+                .find(|(_, component)| component.borrow().id() == component_id)
+                .map(|(_, component)| Box::new(component.clone() as Rc<RefCell<dyn Component>>))
+                .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))?,
+        };
 
         let mut component = component.borrow_mut();
         component
             .editor_mut()
             .buffer_mut()
-            .update_highlighted_spans(highlighted_spans);
+            .update_highlighted_spans(batch_id, highlighted_spans);
 
         Ok(())
     }
@@ -295,19 +343,21 @@ impl Layout {
     pub(crate) fn reload_buffers(
         &self,
         affected_paths: Vec<CanonicalizedPath>,
-    ) -> anyhow::Result<()> {
-        for buffer in self.buffers() {
-            let mut buffer = buffer.borrow_mut();
-            if let Some(path) = buffer.path() {
-                if affected_paths
-                    .iter()
-                    .any(|affected_path| affected_path == &path)
-                {
-                    buffer.reload()?;
+    ) -> anyhow::Result<Dispatches> {
+        self.buffers()
+            .into_iter()
+            .try_fold(Dispatches::default(), |dispatches, buffer| {
+                let mut buffer = buffer.borrow_mut();
+                if let Some(path) = buffer.path() {
+                    if affected_paths
+                        .iter()
+                        .any(|affected_path| affected_path == &path)
+                    {
+                        return Ok(dispatches.chain(buffer.reload(true)?));
+                    }
                 }
-            }
-        }
-        Ok(())
+                Ok(dispatches)
+            })
     }
 
     #[cfg(test)]
@@ -315,13 +365,18 @@ impl Layout {
         self.current_completion_dropdown().is_some()
     }
 
-    #[cfg(test)]
     pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.get_current_node_child_id(ComponentKind::Dropdown)
             .and_then(|node_id| Some(self.tree.get(node_id)?.data().component().clone()))
     }
 
-    pub(crate) fn open_dropdown(&mut self) -> Option<Rc<RefCell<Editor>>> {
+    #[cfg(test)]
+    pub(crate) fn current_completion_dropdown_info(&self) -> Option<Rc<RefCell<dyn Component>>> {
+        self.get_current_node_child_id(ComponentKind::DropdownInfo)
+            .and_then(|node_id| Some(self.tree.get(node_id)?.data().component().clone()))
+    }
+
+    pub(crate) fn open_dropdown(&mut self, context: &Context) -> Option<Rc<RefCell<Editor>>> {
         let dropdown = Rc::new(RefCell::new(Editor::from_text(
             Some(tree_sitter_quickfix::language()),
             "",
@@ -335,7 +390,7 @@ impl Layout {
         }
         self.tree
             .replace_current_node_child(ComponentKind::Dropdown, dropdown.clone(), false);
-        self.recalculate_layout(); // This is important to give Dropdown the render area, otherwise during render, height 0 is assume, causing weird behavior when scrolling
+        self.recalculate_layout(context); // This is important to give Dropdown the render area, otherwise during render, height 0 is assume, causing weird behavior when scrolling
         Some(dropdown)
     }
 
@@ -359,9 +414,13 @@ impl Layout {
         self.tree.remove_node_child(node_id, kind)
     }
 
-    pub(crate) fn show_dropdown_info(&mut self, info: Info) -> anyhow::Result<()> {
+    pub(crate) fn show_dropdown_info(
+        &mut self,
+        info: Info,
+        context: &Context,
+    ) -> anyhow::Result<()> {
         if let Some(node_id) = self.tree.get_current_node_child_id(ComponentKind::Dropdown) {
-            self.show_info_on(node_id, info, ComponentKind::DropdownInfo)?;
+            self.show_info_on(node_id, info, ComponentKind::DropdownInfo, context)?;
         }
 
         Ok(())
@@ -376,7 +435,8 @@ impl Layout {
     pub(crate) fn show_quickfix_list(
         &mut self,
         quickfix_list: QuickfixList,
-    ) -> anyhow::Result<Dispatches> {
+        context: &Context,
+    ) -> anyhow::Result<(Rc<RefCell<Editor>>, Dispatches)> {
         let render = quickfix_list.render();
         let editor = self.background_quickfix_list.get_or_insert_with(|| {
             Rc::new(RefCell::new(Editor::from_text(
@@ -384,21 +444,41 @@ impl Layout {
                 "",
             )))
         });
+        editor
+            .borrow_mut()
+            .buffer_mut()
+            .set_language(from_extension("ki_quickfix").unwrap())?;
         let node_id =
             self.tree
                 .replace_root_node_child(ComponentKind::QuickfixList, editor.clone(), false);
-
         let dispatches = {
             let mut editor = editor.borrow_mut();
-            editor.set_content(&render.content)?;
+            editor.set_content(&render.content, context)?;
             editor.set_decorations(&render.decorations);
             editor.set_title("Quickfix list".to_string());
-            editor.select_line_at(render.highlight_line_index)?
+            editor.select_line_at(render.highlight_line_index, context)?
         };
-        if let Some(info) = render.info {
-            self.show_info_on(node_id, info, ComponentKind::QuickfixListInfo)?;
+
+        // If the QuickfixList is the only component in the layout,
+        // then it needs to be focused.
+        // This can happen when, say, the user executed a global search
+        // when no files have been opened yet.
+        if self.tree.components().len() == 1 {
+            self.tree.set_focus_component_id(node_id)
         }
-        Ok(dispatches)
+
+        let editor = (*editor).clone();
+
+        if let Some(info) = render.info {
+            self.show_info_on(
+                self.tree.root_id(),
+                info,
+                ComponentKind::GlobalInfo,
+                context,
+            )?;
+        }
+
+        Ok((editor, dispatches))
     }
 
     #[cfg(test)]
@@ -406,11 +486,12 @@ impl Layout {
         self.tree.count_by_kind(ComponentKind::DropdownInfo)
     }
 
-    pub(crate) fn show_editor_info(&mut self, info: Info) -> anyhow::Result<()> {
+    pub(crate) fn show_editor_info(&mut self, info: Info, context: &Context) -> anyhow::Result<()> {
         self.show_info_on(
             self.tree.focused_component_id(),
             info,
             ComponentKind::EditorInfo,
+            context,
         )
     }
 
@@ -425,22 +506,23 @@ impl Layout {
     }
 
     #[cfg(test)]
-    pub(crate) fn editor_info_open(&self) -> bool {
-        self.tree.count_by_kind(ComponentKind::EditorInfo) > 0
+    pub(crate) fn editor_info_contents(&self) -> Vec<String> {
+        self.tree
+            .root()
+            .traverse_pre_order()
+            .filter(|node| node.data().kind() == ComponentKind::EditorInfo)
+            .map(|node| node.data().component().borrow().content())
+            .collect()
     }
 
     #[cfg(test)]
-    pub(crate) fn editor_info_content(&self) -> Option<String> {
-        Some(
-            self.tree
-                .root()
-                .traverse_pre_order()
-                .find(|node| node.data().kind() == ComponentKind::EditorInfo)?
-                .data()
-                .component()
-                .borrow()
-                .content(),
-        )
+    pub(crate) fn global_info_contents(&self) -> Vec<String> {
+        self.tree
+            .root()
+            .traverse_pre_order()
+            .filter(|node| node.data().kind() == ComponentKind::GlobalInfo)
+            .map(|node| node.data().component().borrow().content())
+            .collect()
     }
 
     #[cfg(test)]
@@ -452,12 +534,13 @@ impl Layout {
         &self,
         source: &QuickfixListSource,
     ) -> Vec<QuickfixListItem> {
-        self.buffers()
-            .into_iter()
-            .flat_map(|buffer| {
-                let buffer = buffer.borrow();
-                match source {
-                    QuickfixListSource::Diagnostic(severity_range) => buffer
+        match source {
+            QuickfixListSource::Diagnostic(severity_range) => self
+                .buffers()
+                .into_iter()
+                .flat_map(|buffer| {
+                    let buffer = buffer.borrow();
+                    buffer
                         .diagnostics()
                         .into_iter()
                         .filter_map(|diagnostic| {
@@ -465,45 +548,43 @@ impl Layout {
                                 return None;
                             }
 
-                            let position_range = buffer
-                                .char_index_range_to_position_range(diagnostic.range)
-                                .ok()?;
                             Some(QuickfixListItem::new(
                                 Location {
                                     path: buffer.path()?,
-                                    range: position_range,
+                                    range: diagnostic.range,
                                 },
                                 Some(Info::new(
                                     "Diagnostics".to_string(),
                                     diagnostic.message.clone(),
                                 )),
-                            ))
-                        })
-                        .collect_vec(),
-                    QuickfixListSource::Bookmark => buffer
-                        .bookmarks()
-                        .into_iter()
-                        .filter_map(|bookmark| {
-                            let position_range =
-                                buffer.char_index_range_to_position_range(bookmark).ok()?;
-                            Some(QuickfixListItem::new(
-                                Location {
-                                    path: buffer.path()?,
-                                    range: position_range,
-                                },
                                 None,
                             ))
                         })
-                        .collect_vec(),
-                    QuickfixListSource::Custom => buffer.quickfix_list_items(),
-                }
-            })
-            .collect_vec()
-    }
-
-    pub(crate) fn clear_quickfix_list_items(&mut self) {
-        for buffer in self.buffers() {
-            buffer.borrow_mut().clear_quickfix_list_items()
+                        .collect_vec()
+                })
+                .collect_vec(),
+            QuickfixListSource::Mark => self
+                .buffers()
+                .into_iter()
+                .flat_map(|buffer| {
+                    let buffer = buffer.borrow();
+                    buffer
+                        .marks()
+                        .into_iter()
+                        .filter_map(|mark| {
+                            Some(QuickfixListItem::new(
+                                Location {
+                                    path: buffer.path()?,
+                                    range: mark,
+                                },
+                                None,
+                                None,
+                            ))
+                        })
+                        .collect_vec()
+                })
+                .collect_vec(),
+            QuickfixListSource::Custom(items) => items.iter().cloned().collect_vec(),
         }
     }
 
@@ -525,10 +606,10 @@ impl Layout {
     }
 
     #[cfg(test)]
-    pub(crate) fn quickfix_list_info(&self) -> Option<String> {
+    pub(crate) fn global_info(&self) -> Option<String> {
         Some(
             self.tree
-                .get_component_by_kind(ComponentKind::QuickfixListInfo)?
+                .get_component_by_kind(ComponentKind::GlobalInfo)?
                 .borrow()
                 .content(),
         )
@@ -544,13 +625,12 @@ impl Layout {
     pub(crate) fn hide_editor_info(&mut self) {
         self.tree.remove_current_child(ComponentKind::EditorInfo);
     }
-}
-fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {
-    const MAIN_PANEL_MIN_WIDTH: u16 = 100;
-    const RIGHT_PANEL_MIN_WIDTH: u16 = 50;
-    if terminal_dimension.width > MAIN_PANEL_MIN_WIDTH + RIGHT_PANEL_MIN_WIDTH {
-        (LayoutKind::Tall, 0.70)
-    } else {
-        (LayoutKind::Wide, 0.80)
+
+    pub(crate) fn close_global_info(&mut self) {
+        self.tree
+            .remove_node_child(self.tree.root_id(), ComponentKind::GlobalInfo);
     }
+}
+fn layout_kind() -> (LayoutKind, f32) {
+    (LayoutKind::Wide, 0.70)
 }

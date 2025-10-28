@@ -43,6 +43,91 @@ pub struct Language {
     pub(crate) tree_sitter_grammar_config: Option<GrammarConfig>,
     pub(crate) highlight_query: Option<&'static str>,
     pub(crate) formatter_command: Option<Command>,
+    pub(crate) line_comment_prefix: Option<&'static str>,
+    pub(crate) block_comment_affixes: Option<(&'static str, &'static str)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CargoLinkedTreesitterLanguage {
+    Typescript,
+    TSX,
+    Python,
+    Scheme,
+    OCaml,
+    OCamlInterface,
+    Rust,
+    Graphql,
+    Javascript,
+    JSX,
+    Svelte,
+    JSON,
+    YAML,
+    HTML,
+    XML,
+    Zig,
+    Markdown,
+    Go,
+    Lua,
+    Gleam,
+    Bash,
+    C,
+    CPP,
+    CSS,
+    Ruby,
+    Nix,
+    Fish,
+    Diff,
+    Elixir,
+    Swift,
+    Heex,
+    Toml,
+    KiQuickfix,
+    Haskell,
+}
+
+impl CargoLinkedTreesitterLanguage {
+    pub(crate) fn to_tree_sitter_language(&self) -> tree_sitter::Language {
+        match self {
+            CargoLinkedTreesitterLanguage::Typescript => {
+                tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()
+            }
+            CargoLinkedTreesitterLanguage::TSX => tree_sitter_typescript::LANGUAGE_TSX.into(),
+            CargoLinkedTreesitterLanguage::Python => tree_sitter_python::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Scheme => tree_sitter_scheme::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::OCaml => tree_sitter_ocaml::LANGUAGE_OCAML.into(),
+            CargoLinkedTreesitterLanguage::OCamlInterface => {
+                tree_sitter_ocaml::LANGUAGE_OCAML_INTERFACE.into()
+            }
+            CargoLinkedTreesitterLanguage::Rust => tree_sitter_rust::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Graphql => tree_sitter_graphql::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Javascript => tree_sitter_javascript::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::JSX => tree_sitter_javascript::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Svelte => tree_sitter_svelte_ng::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::JSON => tree_sitter_json::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::YAML => tree_sitter_yaml::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::HTML => tree_sitter_html::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Haskell => tree_sitter_haskell::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::XML => tree_sitter_xml::LANGUAGE_XML.into(),
+            CargoLinkedTreesitterLanguage::Zig => tree_sitter_zig::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Markdown => tree_sitter_md::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Go => tree_sitter_go::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Lua => tree_sitter_lua::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Gleam => tree_sitter_gleam::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Bash => tree_sitter_bash::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::C => tree_sitter_c::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::CPP => tree_sitter_cpp::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::CSS => tree_sitter_css::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Ruby => tree_sitter_ruby::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Nix => tree_sitter_nix::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Fish => tree_sitter_fish::language(),
+            CargoLinkedTreesitterLanguage::Diff => tree_sitter_diff::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Elixir => tree_sitter_elixir::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Swift => tree_sitter_swift::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Heex => tree_sitter_heex::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Toml => tree_sitter_toml_ng::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::KiQuickfix => tree_sitter_quickfix::language(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,11 +154,21 @@ impl Language {
             lsp_command: None,
             tree_sitter_grammar_config: None,
             formatter_command: None,
+            line_comment_prefix: None,
+            block_comment_affixes: None,
         }
     }
 
     fn file_names(&self) -> &'static [&'static str] {
         self.file_names
+    }
+
+    pub fn line_comment_prefix(&self) -> Option<&'static str> {
+        self.line_comment_prefix
+    }
+
+    pub fn block_comment_affixes(&self) -> Option<(&'static str, &'static str)> {
+        self.block_comment_affixes
     }
 }
 
@@ -85,10 +180,20 @@ impl Default for Language {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GrammarConfig {
-    pub(crate) id: &'static str,
-    pub(crate) url: &'static str,
-    pub(crate) commit: &'static str,
-    pub(crate) subpath: Option<&'static str>,
+    pub id: &'static str,
+    pub kind: GrammarConfigKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GrammarConfigKind {
+    /// This is the recommended over `FromSource`, as `FromSource`
+    /// is not reliable across different operating system.
+    CargoLinked(CargoLinkedTreesitterLanguage),
+    FromSource {
+        url: &'static str,
+        commit: &'static str,
+        subpath: Option<&'static str>,
+    },
 }
 
 impl Language {
@@ -101,13 +206,25 @@ impl Language {
     }
 
     pub fn tree_sitter_language(&self) -> Option<tree_sitter::Language> {
-        grammar::grammar::get_language(&self.tree_sitter_grammar_config()?.grammar_id).ok()
+        let config = self.tree_sitter_grammar_config.as_ref()?;
+        match &config.kind {
+            GrammarConfigKind::CargoLinked(language) => Some(language.to_tree_sitter_language()),
+            GrammarConfigKind::FromSource { .. } => grammar::grammar::get_language(config.id).ok(),
+        }
     }
 
     pub(crate) fn tree_sitter_grammar_config(&self) -> Option<GrammarConfiguration> {
-        self.tree_sitter_grammar_config.as_ref().map(|config| {
-            GrammarConfiguration::remote(config.id, config.url, config.commit, config.subpath)
-        })
+        match self.tree_sitter_grammar_config.as_ref()?.kind {
+            GrammarConfigKind::CargoLinked(_) => None,
+            GrammarConfigKind::FromSource {
+                url,
+                commit,
+                subpath,
+            } => self
+                .tree_sitter_grammar_config
+                .as_ref()
+                .map(|config| GrammarConfiguration::remote(config.id, url, commit, subpath)),
+        }
     }
 
     pub fn highlight_query(&self) -> Option<String> {
@@ -115,14 +232,13 @@ impl Language {
         get_highlight_query(self.tree_sitter_grammar_config.clone()?.id)
             .ok()
             .map(|result| result.query)
-            .or(
+            .or_else(||
                 // Otherwise, get from the default highlight queries defined in the grammar repo
                 grammar::grammar::load_runtime_file(
-                    &self.tree_sitter_grammar_config()?.grammar_id,
+                    &self.tree_sitter_grammar_id()?,
                     "highlights.scm",
                 )
-                .ok(),
-            )
+                .ok())
             .map(|query| {
                 query
                     // Replace `nvim-treesitter`-specific predicates with builtin predicates supported by `tree-sitter-highlight` crate
@@ -153,7 +269,7 @@ impl Language {
     }
 
     pub fn tree_sitter_grammar_id(&self) -> Option<String> {
-        Some(self.tree_sitter_grammar_config()?.grammar_id)
+        Some(self.tree_sitter_grammar_config.as_ref()?.id.to_string())
     }
 
     pub fn id(&self) -> Option<LanguageId> {
@@ -192,6 +308,41 @@ pub(crate) fn from_filename(path: &CanonicalizedPath) -> Option<Language> {
         .map(|language| (*language).clone())
 }
 
+use regex::Regex;
+
+/// Detect the language from the first line of the file content.
+///
+/// Standard shebang format is checked as well as vim's `ft=` method and various
+/// other editors supporting `mode:`.
+///
+/// For example, a file opened that has any of the following first lines will be
+/// detected as bash.
+///
+/// - `#!/bin/bash`
+/// - `# vim: ft=bash`
+/// - `# mode: bash
+///
+/// Spaces and other content on the line do not matter.
+pub fn from_content_directive(content: &str) -> Option<Language> {
+    let first_line = content.lines().next()?;
+
+    let re = Regex::new(r"(?:(?:^#!.*/)|(?:mode:)|(?:ft\s*=))\s*(\w+)").unwrap();
+    let language_id = re
+        .captures(first_line)
+        .and_then(|captures| captures.get(1).map(|mode| mode.as_str().to_string()));
+
+    language_id.and_then(|id| {
+        LANGUAGES
+            .iter()
+            .find(|language| {
+                language
+                    .lsp_language_id
+                    .is_some_and(|lsp_id| lsp_id.0 == id)
+            })
+            .map(|language| (*language).clone())
+    })
+}
+
 #[cfg(test)]
 mod test_language {
     use super::*;
@@ -211,6 +362,27 @@ mod test_language {
         }
         run_test_case("hello.rs", "rust")?;
         run_test_case("justfile", "just")?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_content_directive() -> anyhow::Result<()> {
+        fn run_test_case(content: &str, expected_language_id: &'static str) -> anyhow::Result<()> {
+            let result = from_content_directive(content).unwrap();
+            assert_eq!(
+                result.tree_sitter_grammar_id().unwrap(),
+                expected_language_id
+            );
+            Ok(())
+        }
+
+        run_test_case("#!/bin/bash", "bash")?;
+        run_test_case("#!/usr/local/bin/bash", "bash")?;
+        run_test_case("// mode: python", "python")?;
+        run_test_case("-- tab_spaces: 5, mode: bash, use_tabs: false", "bash")?;
+        run_test_case("-- tab_spaces: 5, mode:bash, use_tabs: false", "bash")?;
+        run_test_case("-- vim: ft = bash", "bash")?;
+
         Ok(())
     }
 }

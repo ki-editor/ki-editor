@@ -1,0 +1,41 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Extension (Debug with Source Maps)",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": ["--extensionDevelopmentPath=${workspaceFolder}/ki-vscode"],
+            "outFiles": ["${workspaceFolder}/ki-vscode/dist/**/*.js"],
+            "sourceMaps": true,
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/ki-vscode/**",
+                "!**/node_modules/**"
+            ],
+            "env": {
+                "RUST_BACKTRACE": "1",
+                "RUST_LOG": "debug",
+                "NODE_OPTIONS": "--inspect",
+                "DISABLE_DEBUG": "false"
+            },
+            "preLaunchTask": "tsc: build with source maps",
+            "cwd": "${workspaceFolder}/ki-vscode"
+        },
+        {
+            "name": "Extension Tests",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "--extensionDevelopmentPath=${workspaceFolder}/ki-vscode",
+                "--extensionTestsPath=${workspaceFolder}/ki-vscode/dist/test/suite/index"
+            ],
+            "outFiles": ["${workspaceFolder}/ki-vscode/dist/test/**/*.js"],
+            "sourceMaps": true,
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/ki-vscode/**",
+                "!**/node_modules/**"
+            ],
+            "preLaunchTask": "${defaultBuildTask}"
+        }
+    ]
+}
