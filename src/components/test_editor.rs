@@ -5429,3 +5429,34 @@ fn gracefully_reload_buffer_when_there_is_conflict() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn search_prompt_should_show_words_within_file_as_suggestions() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(TerminalDimensionChanged(Dimension {
+                height: 100,
+                width: 300,
+            })),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("snake_case kebab-case camelCase".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            // The suggested words should include snake_case, kebab-case and camelCase
+            Expect(ExpectKind::CompletionDropdownContent(
+                "
+camelCase
+kebab-case
+snake_case
+"
+                .trim(),
+            )),
+        ])
+    })
+}
