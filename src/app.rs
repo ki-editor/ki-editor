@@ -20,7 +20,7 @@ use crate::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
     edit::Edit,
-    file_watcher::FileWatcherEvent,
+    file_watcher::{FileWatcherEvent, FileWatcherInput},
     frontend::Frontend,
     git::{self},
     grid::{Grid, LineUpdate},
@@ -107,6 +107,7 @@ pub(crate) struct App<T: Frontend> {
     /// This is used for suspending events until the buffer content
     /// is synced between Ki and the host application.
     queued_events: Vec<Event>,
+    file_watcher_input_sender: Option<Sender<FileWatcherInput>>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
@@ -170,13 +171,14 @@ impl<T: Frontend> App<T> {
         persistence: Option<Persistence>,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
-        if enable_file_watcher {
-            let sender = sender.clone();
-            let working_directory = working_directory.clone();
-            std::thread::spawn(move || {
-                crate::file_watcher::watch_file_changes(&working_directory, sender)
-            });
-        }
+        let file_watcher_input_sender = if enable_file_watcher {
+            Some(crate::file_watcher::watch_file_changes(
+                &working_directory.clone(),
+                sender.clone(),
+            )?)
+        } else {
+            None
+        };
         let mut app = App {
             context: Context::new(
                 working_directory.clone(),
@@ -201,6 +203,7 @@ impl<T: Frontend> App<T> {
             integration_event_sender,
             last_prompt_config: None,
             queued_events: Vec::new(),
+            file_watcher_input_sender,
         };
 
         app.restore_session();
@@ -985,6 +988,9 @@ impl<T: Frontend> App<T> {
 
     fn close_current_window(&mut self) -> anyhow::Result<()> {
         if let Some(removed_path) = self.layout.close_current_window(&self.context) {
+            self.send_file_watcher_input(FileWatcherInput::SyncOpenedPaths(
+                self.layout.get_opened_files(),
+            ));
             if let Some(path) = self.context.unmark_path(removed_path).cloned() {
                 self.open_file(&path, BufferOwner::User, true, true)?;
             }
@@ -1301,6 +1307,10 @@ impl<T: Frontend> App<T> {
         if self.enable_lsp {
             self.lsp_manager.open_file(path.clone())?;
         }
+
+        self.send_file_watcher_input(FileWatcherInput::SyncOpenedPaths(
+            self.layout.get_opened_files(),
+        ));
         Ok(component)
     }
 
@@ -2235,6 +2245,16 @@ impl<T: Frontend> App<T> {
 
     fn reveal_path_in_explorer(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
         let dispatches = self.layout.reveal_path_in_explorer(path, &self.context)?;
+        self.send_file_watcher_input(FileWatcherInput::SyncFileExplorerExpandedFolders(
+            self.layout
+                .file_explorer_expanded_folders()
+                .into_iter()
+                // Need to include the current working directory (cwd)
+                // otherwise path modifications of files that are parked directly under the cwd
+                // will not refresh the file explorer.
+                .chain(Some(self.context.current_working_directory().clone()))
+                .collect(),
+        ));
         self.handle_dispatches(dispatches)
     }
 
@@ -2763,11 +2783,45 @@ impl<T: Frontend> App<T> {
         &mut self,
         app_message_matcher: &lazy_regex::Lazy<regex::Regex>,
     ) -> anyhow::Result<()> {
-        while let Ok(app_message) = self.receiver.recv() {
-            let string = format!("{app_message:?}");
-            self.process_message(app_message)?;
-            if app_message_matcher.is_match(&string) {
-                break;
+        use std::time::Instant;
+
+        let start_time = Instant::now();
+        let timeout = Duration::from_secs(5);
+        while (Instant::now() - start_time) < timeout {
+            if let Ok(app_message) = self.receiver.try_recv() {
+                let string = format!("{app_message:?}");
+                self.process_message(app_message)?;
+                if app_message_matcher.is_match(&string) {
+                    return Ok(());
+                }
+            }
+        }
+        Err(anyhow::anyhow!(
+            "No app message matching {} is received after {:?}.",
+            app_message_matcher.as_str(),
+            timeout,
+        ))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn expect_app_message_not_received(
+        &mut self,
+        regex: &&'static lazy_regex::Lazy<regex::Regex>,
+        timeout: &Duration,
+    ) -> anyhow::Result<()> {
+        use std::time::Instant;
+
+        let start_time = Instant::now();
+        while &(Instant::now() - start_time) < timeout {
+            if let Ok(app_message) = self.receiver.try_recv() {
+                let string = format!("{app_message:?}");
+                self.process_message(app_message)?;
+                if regex.is_match(&string) {
+                    return Err(anyhow::anyhow!(
+                    "Expected no app message matching {} is received within {timeout:?}, but got {string:?}",
+                    regex.as_str(),
+                ));
+                }
             }
         }
         Ok(())
@@ -2850,6 +2904,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
     }
 
     fn handle_file_watcher_event(&mut self, event: FileWatcherEvent) -> anyhow::Result<()> {
+        log::info!("Received file watcher event: {event:?}");
         match event {
             FileWatcherEvent::ContentModified(path) => {
                 if path.is_file()
@@ -2871,6 +2926,14 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
             }
         }
         Ok(())
+    }
+
+    fn send_file_watcher_input(&self, input: FileWatcherInput) {
+        if let Some(sender) = self.file_watcher_input_sender.as_ref() {
+            if let Err(error) = sender.send(input) {
+                log::error!("[App::send_file_watcher_input] error = {error:?}")
+            }
+        }
     }
 }
 
