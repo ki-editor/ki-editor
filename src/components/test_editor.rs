@@ -1321,6 +1321,46 @@ fn delete_extended_selection() -> anyhow::Result<()> {
 }
 
 #[test]
+fn delete_extended_selection_2() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+fn main() {
+    foo
+       .bar(
+           spam
+       );
+}
+"
+                .to_string(),
+            )),
+            Editor(MatchLiteral("spam".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Editor(MoveSelection(Up)),
+            Editor(EnableSelectionExtension),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectedTexts(&[".bar(\n           spam\n       )"])),
+            Editor(Delete),
+            Expect(CurrentSelectedTexts(&[""])),
+            Expect(CurrentComponentContent(
+                "
+fn main() {
+    foo
+       ;
+}
+",
+            )),
+        ])
+    })
+}
+
+#[test]
 fn multicursor_add_all() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
