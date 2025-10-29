@@ -182,6 +182,7 @@ export class KeyboardManager extends Manager {
     private async handleType(args: { text: string }): Promise<void> {
         // If we should ignore this key, reset the flag and let VSCode handle it
         if (this.ignoreNextKey) {
+            // todo doesn't seem to be used
             this.ignoreNextKey = false;
             return await this.letVscodeHandleTyping(args);
         }
