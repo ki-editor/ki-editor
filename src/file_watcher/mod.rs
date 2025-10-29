@@ -44,13 +44,13 @@ impl FileWatcherState {
     fn should_send(&self, file_watcher_event: &FileWatcherEvent) -> bool {
         match file_watcher_event {
             FileWatcherEvent::ContentModified(path)
-                if self.contains_path_buf(&path.to_path_buf()) =>
+                if self.contains_path_buf(path.to_path_buf()) =>
             {
                 true
             }
             FileWatcherEvent::PathCreated => true,
             FileWatcherEvent::PathRemoved(path) | FileWatcherEvent::PathRenamed(path)
-                if self.contains_path_buf(&path) =>
+                if self.contains_path_buf(path) =>
             {
                 true
             }
