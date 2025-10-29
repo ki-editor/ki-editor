@@ -222,7 +222,7 @@ impl Buffer {
     }
 
     pub(crate) fn words(&self) -> Vec<String> {
-        let regex = regex::Regex::new(r"\b\w+").unwrap();
+        let regex = lazy_regex::regex!(r"\b(\w|-)+");
         let str = self.rope.to_string();
         regex
             .find_iter(&str)
