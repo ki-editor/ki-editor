@@ -81,42 +81,51 @@ pub(crate) fn leader_keymap() -> Vec<(
             "Sample run command",
             Arc::new(sample_run_command) as _,
         ),
-        (__W__, "Sample macro", Arc::new(sample_macro) as _),
-        (__E__, "Other", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__R__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__T__, "Test", Arc::new(test) as _),
-        (__Y__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__U__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__I__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__O__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__P__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__W__, "Sample macro", action(sample_macro)),
+        (__E__, "", do_nothing()),
+        (__R__, "", do_nothing()),
+        (__T__, "Test", action(test)),
+        (__Y__, "", do_nothing()),
+        (__U__, "", do_nothing()),
+        (__I__, "", do_nothing()),
+        (__O__, "", do_nothing()),
+        (__P__, "", do_nothing()),
         // Second row
-        (__A__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__S__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__D__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__F__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__G__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__H__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__J__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__K__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__L__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (_SEMI, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__A__, "", do_nothing()),
+        (__S__, "", do_nothing()),
+        (__D__, "", do_nothing()),
+        (__F__, "", do_nothing()),
+        (__G__, "", do_nothing()),
+        (__H__, "", do_nothing()),
+        (__J__, "", do_nothing()),
+        (__K__, "", do_nothing()),
+        (__L__, "", do_nothing()),
+        (_SEMI, "", do_nothing()),
         // Third row
-        (__Z__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__X__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__C__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__V__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__B__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__N__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (__M__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (_COMA, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (_DOT_, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
-        (_SLSH, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__Z__, "", do_nothing()),
+        (__X__, "", do_nothing()),
+        (__C__, "", do_nothing()),
+        (__V__, "", do_nothing()),
+        (__B__, "", do_nothing()),
+        (__N__, "", do_nothing()),
+        (__M__, "", do_nothing()),
+        (_COMA, "", do_nothing()),
+        (_DOT_, "", do_nothing()),
+        (_SLSH, "", do_nothing()),
     ]
     .into_iter()
     .collect()
 }
 
+fn do_nothing() -> Arc<dyn Fn(&LeaderContext) -> LeaderAction + Send + Sync> {
+    Arc::new(|_: &LeaderContext| DoNothing)
+}
+
+fn action(
+    f: fn(&LeaderContext) -> LeaderAction,
+) -> Arc<dyn Fn(&LeaderContext) -> LeaderAction + Send + Sync> {
+    Arc::new(f)
+}
 pub(crate) struct LeaderContext {
     pub(crate) path: Option<CanonicalizedPath>,
     /// 0-based index
