@@ -2802,7 +2802,7 @@ impl<T: Frontend> App<T> {
                     .iter()
                     .map(|arg| arg.to_string(&leader_context))
                     .collect_vec();
-                let output = std::process::Command::new(command).args(&args).spawn()?;
+                let _output = std::process::Command::new(command).args(&args).spawn()?;
                 // self.show_global_info(Info::new( format!("{command} {}", args.join(" ")), format!( "[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n", output.status, String::from_utf8_lossy(&output.stdout).trim(), String::from_utf8_lossy(&output.stderr).trim() ), ))
             }
             LeaderAction::Macro(key_events) => self.handle_key_events(key_events)?,

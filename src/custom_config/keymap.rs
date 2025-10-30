@@ -28,20 +28,19 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
 ];
 
 fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
-    if PrimarySelectionLineNumber.resolve(ctx) <= 5 {
+    if SelectionPrimary::ROW_INDEX.resolve(ctx) <= 5 {
         RunCommand("wl-copy", &[Str("You have quite some exploring todo!")])
-    } else if PrimarySelectionContent.resolve(ctx) == "fn" {
+    } else if SelectionPrimary::CONTENT.resolve(ctx) == "fn" {
         RunCommand(
             "wl-copy",
             &[
                 Str("The current file is"),
-                CurrentFilePath,
+                FileCurrent::PATH,
                 Str("The current line is"),
-                PrimarySelectionLineNumber,
+                SelectionPrimary::ROW_INDEX,
             ],
         )
-    } else if PrimarySelectionContent.resolve(ctx) == "else" {
-        // This macro selects the entire file
+    } else if SelectionPrimary::CONTENT.resolve(ctx) == "else" {
         Macro(keys!("a g g esc").to_vec())
     } else {
         DoNothing
@@ -62,10 +61,10 @@ fn test(_ctx: &LeaderContext) -> LeaderAction {
             Str("--hold"),
             Str("--no-response"),
             Str("--cwd"),
-            CurrentWorkingDirectory,
+            DirCurrent::PATH,
             Str("just"),
             Str("test"),
-            PrimarySelectionContent,
+            SelectionPrimary::CONTENT,
         ],
     )
 }
@@ -144,11 +143,46 @@ pub(crate) enum LeaderAction {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum RunCommandPart {
     Str(&'static str),
-    CurrentFilePath,
+    FileCurrent(FileCurrentKind),
+    SelectionPrimary(SelectionPrimaryKind),
+    DirCurrent(DirCurrentKind),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum FileCurrentKind {
+    Path,
+    Extension,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum SelectionPrimaryKind {
+    Content,
     /// 1-based
-    PrimarySelectionLineNumber,
-    PrimarySelectionContent,
-    CurrentWorkingDirectory,
+    RowIndex,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum DirCurrentKind {
+    Path,
+}
+
+pub(crate) struct FileCurrent;
+impl FileCurrent {
+    pub const PATH: RunCommandPart = RunCommandPart::FileCurrent(FileCurrentKind::Path);
+    pub const EXTENSION: RunCommandPart = RunCommandPart::FileCurrent(FileCurrentKind::Extension);
+}
+
+pub(crate) struct SelectionPrimary;
+impl SelectionPrimary {
+    pub const CONTENT: RunCommandPart =
+        RunCommandPart::SelectionPrimary(SelectionPrimaryKind::Content);
+    pub const ROW_INDEX: RunCommandPart =
+        RunCommandPart::SelectionPrimary(SelectionPrimaryKind::RowIndex);
+}
+
+pub(crate) struct DirCurrent;
+impl DirCurrent {
+    pub const PATH: RunCommandPart = RunCommandPart::DirCurrent(DirCurrentKind::Path);
 }
 
 pub(crate) enum ResolvedValue {
@@ -161,32 +195,39 @@ impl RunCommandPart {
     pub(crate) fn resolve(&self, ctx: &LeaderContext) -> ResolvedValue {
         match self {
             Str(str) => ResolvedValue::Str(str.to_string()),
-            CurrentFilePath => match &ctx.path {
-                Some(path) => ResolvedValue::Str(path.display_absolute()),
-                None => ResolvedValue::Empty,
+            RunCommandPart::FileCurrent(kind) => match kind {
+                FileCurrentKind::Path => match &ctx.path {
+                    Some(path) => ResolvedValue::Str(path.display_absolute()),
+                    None => ResolvedValue::Empty,
+                },
+                FileCurrentKind::Extension => match &ctx.path {
+                    Some(path) => {
+                        ResolvedValue::Str(path.extension().unwrap_or_default().to_string())
+                    }
+                    None => ResolvedValue::Empty,
+                },
             },
-            PrimarySelectionLineNumber => {
-                ResolvedValue::Int((&ctx.primary_selection_line_index + 1) as i64)
-            }
-            PrimarySelectionContent => ResolvedValue::Str(ctx.primary_selection_content.clone()),
-            CurrentWorkingDirectory => {
-                ResolvedValue::Str(ctx.current_working_directory.display_absolute())
-            }
+            RunCommandPart::SelectionPrimary(kind) => match kind {
+                SelectionPrimaryKind::Content => {
+                    ResolvedValue::Str(ctx.primary_selection_content.clone())
+                }
+                SelectionPrimaryKind::RowIndex => {
+                    ResolvedValue::Int((ctx.primary_selection_line_index + 1) as i64)
+                }
+            },
+            RunCommandPart::DirCurrent(kind) => match kind {
+                DirCurrentKind::Path => {
+                    ResolvedValue::Str(ctx.current_working_directory.display_absolute())
+                }
+            },
         }
     }
+
     pub(crate) fn to_string(&self, leader_context: &LeaderContext) -> String {
-        match self {
-            Str(str) => str.to_string(),
-            CurrentFilePath => leader_context
-                .path
-                .as_ref()
-                .map(|path| path.display_absolute())
-                .unwrap_or_default(),
-            PrimarySelectionLineNumber => {
-                (leader_context.primary_selection_line_index + 1).to_string()
-            }
-            PrimarySelectionContent => leader_context.primary_selection_content.to_string(),
-            CurrentWorkingDirectory => leader_context.current_working_directory.display_absolute(),
+        match self.resolve(leader_context) {
+            ResolvedValue::Str(string) => string,
+            ResolvedValue::Int(integer) => integer.to_string(),
+            ResolvedValue::Empty => String::new(),
         }
     }
 }

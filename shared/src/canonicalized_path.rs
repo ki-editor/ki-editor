@@ -105,7 +105,7 @@ impl CanonicalizedPath {
         Ok(std::fs::write(&self.0, content)?)
     }
 
-    pub(crate) fn extension(&self) -> Option<&str> {
+    pub fn extension(&self) -> Option<&str> {
         self.0.extension().and_then(|s| s.to_str())
     }
 
