@@ -3,6 +3,7 @@ use nonempty::NonEmpty;
 use std::ops::{Add, Sub};
 
 use crate::{
+    alternator::Alternator,
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::{
@@ -12,7 +13,7 @@ use crate::{
     context::{Context, LocalSearchConfigMode, Search},
     non_empty_extensions::{NonEmptyTryCollectOption, NonEmptyTryCollectResult},
     position::Position,
-    quickfix_list::DiagnosticSeverityRange,
+    quickfix_list::{DiagnosticSeverityRange, QuickfixListItem},
     selection_mode::{self, ApplyMovementResult, IterBased, PositionBased, SelectionModeParams},
 };
 
@@ -21,7 +22,7 @@ pub(crate) struct SelectionSet {
     /// 0 means the cursor is at the first selection
     pub(crate) cursor_index: usize,
     pub(crate) selections: NonEmpty<Selection>,
-    pub(crate) mode: SelectionMode,
+    pub(crate) mode: Alternator<SelectionMode>,
     /// This will be set when a vertical movement is executed.
     /// Once set, its value will not changed.
     /// A non-vertical movement will reset its value to None.
@@ -33,7 +34,7 @@ impl Default for SelectionSet {
         Self {
             cursor_index: 0,
             selections: NonEmpty::singleton(Selection::default()),
-            mode: SelectionMode::Line,
+            mode: Alternator::new(SelectionMode::Line),
             sticky_column_index: None,
         }
     }
@@ -65,7 +66,11 @@ impl SelectionSet {
         self.cursor_index = 0;
     }
 
-    pub(crate) fn apply<F>(&self, mode: SelectionMode, f: F) -> anyhow::Result<SelectionSet>
+    pub(crate) fn apply<F>(
+        &self,
+        mode: Alternator<SelectionMode>,
+        f: F,
+    ) -> anyhow::Result<SelectionSet>
     where
         F: Fn(&Selection) -> anyhow::Result<Selection>,
     {
@@ -135,7 +140,7 @@ impl SelectionSet {
             cursor_index: self.cursor_index,
             selections: selections.clone().map(|selection| selection.selection),
             // The following is how `mode` and `sticky_column_index` got stored
-            mode: selections.head.mode.clone().unwrap_or_else(|| mode.clone()),
+            mode: self.mode.clone().replace_primary(mode.clone()),
             sticky_column_index: selections.head.sticky_column_index,
         }))
     }
@@ -157,7 +162,7 @@ impl SelectionSet {
         if let Some(new_selection) = Selection::get_selection_(
             buffer,
             last_selection,
-            &self.mode,
+            self.mode.primary(),
             movement,
             cursor_direction,
             context,
@@ -189,6 +194,10 @@ impl SelectionSet {
         Ok(self.selections.len() > initial_selections_length)
     }
 
+    pub(crate) fn mode(&self) -> &SelectionMode {
+        self.mode.primary()
+    }
+
     pub(crate) fn all_selections(
         &self,
         buffer: &Buffer,
@@ -198,8 +207,14 @@ impl SelectionSet {
         if let Some((head, tail)) = self
             .map(|selection| {
                 let object = self
-                    .mode
-                    .to_selection_mode_trait_object(buffer, selection, cursor_direction, context)
+                    .mode()
+                    .to_selection_mode_trait_object(
+                        buffer,
+                        selection,
+                        cursor_direction,
+                        context.current_working_directory(),
+                        context.quickfix_list_items(),
+                    )
                     .ok()?;
 
                 let iter = object
@@ -251,10 +266,13 @@ impl SelectionSet {
     }
 
     pub(crate) fn enable_selection_extension(&mut self) {
+        self.mode.copy_primary_to_secondary();
+
         self.apply_mut(|selection| selection.enable_selection_extension());
     }
 
     pub(crate) fn swap_anchor(&mut self) {
+        self.mode.cycle();
         self.apply_mut(|selection| selection.swap_initial_range_direction());
     }
 
@@ -304,7 +322,10 @@ impl SelectionSet {
     }
 
     pub(crate) fn set_mode(self, mode: SelectionMode) -> SelectionSet {
-        Self { mode, ..self }
+        Self {
+            mode: self.mode.replace_primary(mode),
+            ..self
+        }
     }
 
     pub(crate) fn secondary_selections(&self) -> Vec<&Selection> {
@@ -420,8 +441,8 @@ impl SelectionSet {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) enum SelectionMode {
     // Regex
+    Subword,
     Word,
-    Token,
     Line,
     Character,
     Custom,
@@ -454,7 +475,7 @@ impl SelectionMode {
             SelectionMode::Line => "LINE".to_string(),
             SelectionMode::LineFull => "LINE*".to_string(),
             SelectionMode::Character => "CHAR".to_string(),
-            SelectionMode::Custom => "CSTOM".to_string(),
+            SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::SyntaxNode => "NODE".to_string(),
             SelectionMode::SyntaxNodeFine => "NODE*".to_string(),
             SelectionMode::Find { .. } => "FIND".to_string(),
@@ -469,8 +490,8 @@ impl SelectionMode {
             SelectionMode::GitHunk(diff_mode) => format!("HUNK{}", diff_mode.display()).to_string(),
             SelectionMode::Mark => "MARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
+            SelectionMode::Subword => "SUBWORD".to_string(),
             SelectionMode::Word => "WORD".to_string(),
-            SelectionMode::Token => "TOKEN".to_string(),
         }
     }
 
@@ -479,7 +500,8 @@ impl SelectionMode {
         buffer: &Buffer,
         current_selection: &Selection,
         cursor_direction: &Direction,
-        context: &Context,
+        working_directory: &shared::canonicalized_path::CanonicalizedPath,
+        quickfix_list_items: Vec<&QuickfixListItem>,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         let params = SelectionModeParams {
             buffer,
@@ -487,8 +509,8 @@ impl SelectionMode {
             cursor_direction,
         };
         Ok(match self {
-            SelectionMode::Word => Box::new(PositionBased(selection_mode::Word::new())),
-            SelectionMode::Token => Box::new(selection_mode::Token),
+            SelectionMode::Subword => Box::new(PositionBased(selection_mode::Subword::new())),
+            SelectionMode::Word => Box::new(PositionBased(selection_mode::Word)),
             SelectionMode::Line => Box::new(PositionBased(selection_mode::LineTrimmed)),
             SelectionMode::LineFull => Box::new(PositionBased(selection_mode::LineFull::new())),
             SelectionMode::Character => Box::new(PositionBased(selection_mode::Character)),
@@ -516,20 +538,22 @@ impl SelectionMode {
                 selection_mode::Diagnostic::new(*severity, params),
             )),
             SelectionMode::GitHunk(diff_mode) => Box::new(IterBased(selection_mode::GitHunk::new(
-                diff_mode, buffer, context,
+                diff_mode,
+                buffer,
+                working_directory,
             )?)),
             SelectionMode::Mark => Box::new(IterBased(selection_mode::Mark)),
-            SelectionMode::LocalQuickfix { .. } => {
-                Box::new(IterBased(selection_mode::LocalQuickfix::new(params)))
-            }
+            SelectionMode::LocalQuickfix { .. } => Box::new(IterBased(
+                selection_mode::LocalQuickfix::new(params, quickfix_list_items),
+            )),
         })
     }
 
     pub(crate) fn is_contiguous(&self) -> bool {
         matches!(
             self,
-            SelectionMode::Word
-                | SelectionMode::Token
+            SelectionMode::Subword
+                | SelectionMode::Word
                 | SelectionMode::Line
                 | SelectionMode::LineFull
                 | SelectionMode::Character
@@ -623,7 +647,8 @@ impl Selection {
             buffer,
             current_selection,
             cursor_direction,
-            context,
+            context.current_working_directory(),
+            context.quickfix_list_items(),
         )?;
 
         let params = SelectionModeParams {

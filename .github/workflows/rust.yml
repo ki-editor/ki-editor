@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - uses: cachix/install-nix-action@v26
+      - uses: cachix/install-nix-action@v30
       - name: Run everything
         run: nix develop --command just
       - name: Verify installation

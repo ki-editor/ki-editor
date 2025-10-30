@@ -32,7 +32,7 @@ pub struct Selection {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[typeshare]
-pub struct SelectionSet {
+pub struct SelectionSetParams {
     pub uri: Option<String>,
     pub selections: Vec<Selection>,
 }
@@ -61,13 +61,13 @@ pub enum EditorMode {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[typeshare]
-#[serde(tag = "type", content = "params")]
+#[serde(tag = "tag", content = "params")]
 pub enum SelectionMode {
     Character,
     Line,
     LineFull,
+    Subword,
     Word,
-    Token,
     Custom,
     SyntaxNode,
     SyntaxNodeFine,
@@ -182,7 +182,7 @@ pub enum InputMessage {
 
     // Selection operations (includes cursor information)
     #[serde(rename = "selection.set")]
-    SelectionSet(SelectionSet),
+    SelectionSet(SelectionSetParams),
 
     // Input operations
     #[serde(rename = "keyboard.input")]
@@ -246,7 +246,7 @@ pub enum OutputMessage {
 
     // Selection operations (includes cursor information)
     #[serde(rename = "selection.update")]
-    SelectionUpdate(SelectionSet),
+    SelectionUpdate(SelectionSetParams),
 
     // Mode operations
     #[serde(rename = "mode.change")]
@@ -351,8 +351,6 @@ pub struct OutputMessageWrapper {
 pub struct ResponseError {
     pub code: i32,
     pub message: String,
-    #[typeshare(typescript(type = "any | undefined"))]
-    pub data: Option<serde_json::Value>,
 }
 
 pub trait MessageMethod {

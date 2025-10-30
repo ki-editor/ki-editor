@@ -10,8 +10,8 @@ use crate::{
         editor_keymap::{KeyboardLayoutKind, Meaning},
         editor_keymap_printer::KeymapDisplayOption,
         file_explorer::FileExplorer,
-        keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
-        prompt::{Prompt, PromptConfig, PromptHistoryKey},
+        keymap_legend::{Keymap, KeymapLegendConfig, Keymaps},
+        prompt::{Prompt, PromptConfig, PromptHistoryKey, PromptItems, PromptItemsBackgroundTask},
         suggestive_editor::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
         },
@@ -19,12 +19,14 @@ use crate::{
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
+    edit::Edit,
+    file_watcher::{FileWatcherEvent, FileWatcherInput},
     frontend::Frontend,
-    git,
+    git::{self},
     grid::{Grid, LineUpdate},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
     layout::Layout,
-    list::{self, grep::RegexConfig, WalkBuilderConfig},
+    list::{self, Match, WalkBuilderConfig},
     lsp::{
         completion::CompletionItem,
         goto_definition_response::GotoDefinitionResponse,
@@ -33,17 +35,21 @@ use crate::{
         symbols::Symbols,
         workspace_edit::WorkspaceEdit,
     },
+    persistence::Persistence,
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     screen::{Screen, Window},
     search::parse_search_config,
     selection::{CharIndex, SelectionMode},
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
+    thread::{Callback, SendResult},
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
 use itertools::{Either, Itertools};
 use name_variant::NamedVariant;
+#[cfg(test)]
+use shared::language::LanguageId;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     any::TypeId,
@@ -55,9 +61,18 @@ use std::{
         Mutex,
     },
 };
+use std::{sync::Arc, time::Duration};
 use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
+#[cfg(test)]
+use crate::{layout::BufferContentsMap, test_app::RunTestOptions};
+
+// TODO: rename current Context struct to RawContext struct
+// The new Context struct should always be derived, it should contains Hashmap of rectangles, keyed by Component ID
+// The scroll offset of each componentn should only be recalculated when:
+// 1. The number of components is changed (this means we need to store the components)
+// 2. The terminal dimension is changed
 pub(crate) struct App<T: Frontend> {
     context: Context,
 
@@ -82,7 +97,6 @@ pub(crate) struct App<T: Frontend> {
     frontend: Rc<Mutex<T>>,
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
-
     status_line_components: Vec<StatusLineComponent>,
     last_action_description: Option<String>,
     last_action_short_description: Option<String>,
@@ -93,6 +107,7 @@ pub(crate) struct App<T: Frontend> {
     /// This is used for suspending events until the buffer content
     /// is synced between Ki and the host application.
     queued_events: Vec<Event>,
+    file_watcher_input_sender: Option<Sender<FileWatcherInput>>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
@@ -116,23 +131,29 @@ impl<T: Frontend> App<T> {
         frontend: Rc<Mutex<T>>,
         working_directory: CanonicalizedPath,
         status_line_components: Vec<StatusLineComponent>,
+        options: RunTestOptions,
     ) -> anyhow::Result<App<T>> {
+        use crate::syntax_highlight;
+
         let (sender, receiver) = std::sync::mpsc::channel();
+        let syntax_highlight_request_sender = if options.enable_syntax_highlighting {
+            Some(syntax_highlight::start_thread(sender.clone()))
+        } else {
+            None
+        };
         Self::from_channel(
             frontend,
             working_directory,
             sender,
             receiver,
+            syntax_highlight_request_sender,
             status_line_components,
             None, // No integration event sender
+            options.enable_lsp,
+            options.enable_file_watcher,
             false,
-            false,
+            None,
         )
-    }
-
-    #[cfg(test)]
-    pub(crate) fn disable_lsp(&mut self) {
-        self.enable_lsp = false
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -141,14 +162,29 @@ impl<T: Frontend> App<T> {
         working_directory: CanonicalizedPath,
         sender: Sender<AppMessage>,
         receiver: Receiver<AppMessage>,
+        syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
         status_line_components: Vec<StatusLineComponent>,
         integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
         enable_lsp: bool,
+        enable_file_watcher: bool,
         is_running_as_embedded: bool,
+        persistence: Option<Persistence>,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
-        let app = App {
-            context: Context::new(working_directory.clone(), is_running_as_embedded),
+        let file_watcher_input_sender = if enable_file_watcher {
+            Some(crate::file_watcher::watch_file_changes(
+                &working_directory.clone(),
+                sender.clone(),
+            )?)
+        } else {
+            None
+        };
+        let mut app = App {
+            context: Context::new(
+                working_directory.clone(),
+                is_running_as_embedded,
+                persistence,
+            ),
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             enable_lsp,
@@ -159,7 +195,7 @@ impl<T: Frontend> App<T> {
             )?,
             working_directory,
             frontend,
-            syntax_highlight_request_sender: None,
+            syntax_highlight_request_sender,
             global_title: None,
             status_line_components,
             last_action_description: None,
@@ -167,7 +203,11 @@ impl<T: Frontend> App<T> {
             integration_event_sender,
             last_prompt_config: None,
             queued_events: Vec::new(),
+            file_watcher_input_sender,
         };
+
+        app.restore_session();
+
         Ok(app)
     }
 
@@ -189,6 +229,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
+    /// This is the main event loop.
     pub(crate) fn run(
         mut self,
         entry_path: Option<CanonicalizedPath>,
@@ -225,7 +266,7 @@ impl<T: Frontend> App<T> {
         match message {
             AppMessage::Event(event) => self.handle_event(event),
             AppMessage::LspNotification(notification) => {
-                self.handle_lsp_notification(notification).map(|_| false)
+                self.handle_lsp_notification(*notification).map(|_| false)
             }
             AppMessage::QuitAll => {
                 self.quit()?;
@@ -238,10 +279,17 @@ impl<T: Frontend> App<T> {
             } => self
                 .update_highlighted_spans(component_id, batch_id, highlighted_spans)
                 .map(|_| false),
-            // Handle the new ExternalDispatch variant
             AppMessage::ExternalDispatch(dispatch) => {
                 // Process the dispatch directly
-                self.handle_dispatch(dispatch)?;
+                self.handle_dispatch(*dispatch)?;
+                Ok(false)
+            }
+            AppMessage::NucleoTickDebounced => {
+                self.handle_nucleo_debounced()?;
+                Ok(false)
+            }
+            AppMessage::FileWatcherEvent(event) => {
+                self.handle_file_watcher_event(event)?;
                 Ok(false)
             }
         }
@@ -252,6 +300,7 @@ impl<T: Frontend> App<T> {
         frontend.leave_alternate_screen()?;
         frontend.disable_raw_mode()?;
         frontend.disable_mouse_capture()?;
+        self.context.persist_data();
         Ok(())
     }
 
@@ -350,26 +399,30 @@ impl<T: Frontend> App<T> {
                 let focused = component.component().borrow().id() == focused_component_id;
                 let GetGridResult { grid, cursor } = component
                     .component()
-                    .borrow()
+                    .borrow_mut()
                     .get_grid(&self.context, focused);
-                let cursor_position = if focused {
-                    if let Some(cursor) = cursor {
-                        let cursor_position = cursor.position();
-                        // If cursor position is not in view
-                        if cursor_position.line >= (rectangle.dimension().height) as usize {
-                            None
-                        } else {
-                            let calibrated_position = Position::new(
-                                cursor_position.line + rectangle.origin.line,
-                                cursor_position.column + rectangle.origin.column,
-                            );
-                            Some(cursor.set_position(calibrated_position))
-                        }
-                    } else {
-                        None
+                let cursor_position = 'cursor_calc: {
+                    if !focused {
+                        break 'cursor_calc None;
                     }
-                } else {
-                    None
+
+                    let Some(cursor) = cursor else {
+                        break 'cursor_calc None;
+                    };
+
+                    let cursor_position = cursor.position();
+
+                    // If cursor position is not in view
+                    if cursor_position.line >= rectangle.dimension().height as usize {
+                        break 'cursor_calc None;
+                    }
+
+                    let calibrated_position = Position::new(
+                        cursor_position.line + rectangle.origin.line,
+                        cursor_position.column + rectangle.origin.column,
+                    );
+
+                    Some(cursor.set_position(calibrated_position))
                 };
                 let window = Window::new(grid, rectangle.clone());
 
@@ -406,7 +459,7 @@ impl<T: Frontend> App<T> {
                                 .unwrap_or_else(|| {
                                     self.current_component().borrow().editor().display_mode()
                                 });
-                            Some(format!("{: <5}", mode))
+                            Some(format!("{mode: <5}"))
                         }
                         StatusLineComponent::SelectionMode => Some(
                             self.current_component()
@@ -439,7 +492,7 @@ impl<T: Frontend> App<T> {
                     })
                     .join(" ")
             });
-            let title = format!(" {}", title);
+            let title = format!(" {title}");
             let grid = Grid::new(Dimension {
                 height: 1,
                 width: dimension.width,
@@ -455,6 +508,7 @@ impl<T: Frontend> App<T> {
                 .to_vec(),
                 self.context.theme(),
                 None,
+                &[],
             );
             Window::new(
                 grid,
@@ -576,7 +630,7 @@ impl<T: Frontend> App<T> {
                     self.lsp_manager.send_message(
                         params.path.clone(),
                         FromEditor::CompletionItemResolve {
-                            completion_item,
+                            completion_item: Box::new(completion_item),
                             params,
                         },
                     )?
@@ -789,15 +843,10 @@ impl<T: Frontend> App<T> {
             Dispatch::MoveFile { from, to } => self.move_file(from, to)?,
             Dispatch::CopyFile { from, to } => self.copy_file(from, to)?,
             Dispatch::AddPath(path) => self.add_path(path)?,
-            Dispatch::RefreshFileExplorer => self
-                .layout
-                .refresh_file_explorer(&self.working_directory, &self.context)?,
+            Dispatch::RefreshFileExplorer => self.layout.refresh_file_explorer(&self.context)?,
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
-                use_system_clipboard,
-            } => self
-                .context
-                .set_clipboard_content(contents, use_system_clipboard)?,
+            } => self.context.set_clipboard_content(contents)?,
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
@@ -820,42 +869,20 @@ impl<T: Frontend> App<T> {
             Dispatch::UpdateLocalSearchConfig {
                 update,
                 scope,
-                show_config_after_enter,
                 if_current_not_found,
                 run_search_after_config_updated,
             } => self.update_local_search_config(
                 update,
                 scope,
-                show_config_after_enter,
                 if_current_not_found,
                 run_search_after_config_updated,
             )?,
             Dispatch::UpdateGlobalSearchConfig { update } => {
                 self.update_global_search_config(update)?;
             }
-            Dispatch::OpenSetGlobalSearchFilterGlobPrompt { filter_glob } => {
-                self.open_set_global_search_filter_glob_prompt(filter_glob)?
-            }
-            Dispatch::ShowSearchConfig {
-                scope,
-                if_current_not_found,
-                run_search_after_config_updated,
-            } => self.show_search_config(
-                scope,
-                if_current_not_found,
-                run_search_after_config_updated,
-            ),
-            Dispatch::OpenUpdateReplacementPrompt {
-                scope,
-                if_current_not_found,
-            } => self.open_update_replacement_prompt(scope, if_current_not_found)?,
-            Dispatch::OpenUpdateSearchPrompt {
-                scope,
-                if_current_not_found,
-            } => self.open_update_search_prompt(scope, if_current_not_found)?,
             Dispatch::Replace { scope } => match scope {
                 Scope::Local => self.handle_dispatch_editor(ReplacePattern {
-                    config: self.context.local_search_config().clone(),
+                    config: self.context.local_search_config(Scope::Local).clone(),
                 })?,
                 Scope::Global => self.global_replace()?,
             },
@@ -864,17 +891,16 @@ impl<T: Frontend> App<T> {
                 self.handle_lsp_notification(notification)?
             }
             Dispatch::SetTheme(theme) => {
-                let context = std::mem::take(&mut self.context);
-                self.context = context.set_theme(theme.clone());
+                self.context.set_theme(theme.clone());
             }
             Dispatch::SetThemeFromDescriptor(theme_descriptor) => {
-                let context = std::mem::take(&mut self.context);
-                self.context = context.set_theme(theme_descriptor.to_theme());
+                self.context.set_theme(theme_descriptor.to_theme());
             }
             #[cfg(test)]
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
             Dispatch::CloseDropdown => self.layout.close_dropdown(),
             Dispatch::CloseEditorInfo => self.layout.close_editor_info(),
+            Dispatch::CloseGlobalInfo => self.layout.close_global_info(),
             Dispatch::RenderDropdown { render } => {
                 if let Some(dropdown) = self.layout.open_dropdown(&self.context) {
                     self.render_dropdown(dropdown, render)?;
@@ -930,6 +956,25 @@ impl<T: Frontend> App<T> {
                 scope,
                 prior_change,
             } => self.open_search_prompt_with_current_selection(scope, prior_change)?,
+            Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
+            Dispatch::DropdownFilterUpdated(filter) => {
+                self.handle_dropdown_filter_updated(filter)?
+            }
+            #[cfg(test)]
+            Dispatch::SetSystemClipboardHtml { html, alt_text } => {
+                self.set_system_clipboard_html(html, alt_text)?
+            }
+            Dispatch::AddQuickfixListEntries(locations) => {
+                self.add_quickfix_list_entries(locations)?
+            }
+            Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
+            Dispatch::ShowBufferSaveConflictPrompt {
+                path,
+                content_editor,
+                content_filesystem,
+            } => {
+                self.show_buffer_save_conflict_prompt(&path, content_editor, content_filesystem)?
+            }
         }
         Ok(())
     }
@@ -947,6 +992,9 @@ impl<T: Frontend> App<T> {
 
     fn close_current_window(&mut self) -> anyhow::Result<()> {
         if let Some(removed_path) = self.layout.close_current_window(&self.context) {
+            self.send_file_watcher_input(FileWatcherInput::SyncOpenedPaths(
+                self.layout.get_opened_files(),
+            ));
             if let Some(path) = self.context.unmark_path(removed_path).cloned() {
                 self.open_file(&path, BufferOwner::User, true, true)?;
             }
@@ -955,7 +1003,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn local_search(&mut self, if_current_not_found: IfCurrentNotFound) -> anyhow::Result<()> {
-        let config = self.context.local_search_config();
+        let config = self.context.local_search_config(Scope::Local);
         let search = config.search();
         if !search.is_empty() {
             self.handle_dispatch_editor_custom(
@@ -994,7 +1042,7 @@ impl<T: Frontend> App<T> {
             PromptConfig {
                 title: "Move to index".to_string(),
                 on_enter: DispatchPrompt::MoveSelectionByIndex,
-                items: vec![],
+                items: PromptItems::None,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
@@ -1009,7 +1057,7 @@ impl<T: Frontend> App<T> {
             PromptConfig {
                 title: "Rename Symbol".to_string(),
                 on_enter: DispatchPrompt::RenameSymbol,
-                items: vec![],
+                items: PromptItems::None,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
@@ -1025,7 +1073,7 @@ impl<T: Frontend> App<T> {
                 title: "Surround selection with XML tag (can be empty for React Fragment)"
                     .to_string(),
                 on_enter: DispatchPrompt::SurroundXmlTag,
-                items: vec![],
+                items: PromptItems::None,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
                 fire_dispatches_on_change: None,
@@ -1060,11 +1108,10 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
-                title: format!("{:?} search", scope,),
-                items: self.words(),
+                title: format!("{scope:?} search",),
+                items: PromptItems::Precomputed(self.words()),
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                     scope,
-                    show_config_after_enter: false,
                     if_current_not_found,
                     run_search_after_config_updated: true,
                 },
@@ -1103,7 +1150,7 @@ impl<T: Frontend> App<T> {
                 PromptConfig {
                     title: "Add path".to_string(),
                     on_enter: DispatchPrompt::AddPath,
-                    items: Vec::new(),
+                    items: PromptItems::None,
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
@@ -1123,7 +1170,7 @@ impl<T: Frontend> App<T> {
                 PromptConfig {
                     title: "Move path".to_string(),
                     on_enter: DispatchPrompt::MovePath { from: path.clone() },
-                    items: Vec::new(),
+                    items: PromptItems::None,
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
@@ -1143,7 +1190,7 @@ impl<T: Frontend> App<T> {
                 PromptConfig {
                     title: format!("Duplicate '{}' to", path.display_absolute()),
                     on_enter: DispatchPrompt::CopyFile { from: path.clone() },
-                    items: Vec::new(),
+                    items: PromptItems::None,
                     enter_selects_first_matching_item: false,
                     leaves_current_line_empty: false,
                     fire_dispatches_on_change: None,
@@ -1160,12 +1207,14 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 title: "Symbols".to_string(),
-                items: symbols
-                    .symbols
-                    .clone()
-                    .into_iter()
-                    .map(|symbol| symbol.into())
-                    .collect_vec(),
+                items: PromptItems::Precomputed(
+                    symbols
+                        .symbols
+                        .clone()
+                        .into_iter()
+                        .map(|symbol| symbol.into())
+                        .collect_vec(),
+                ),
                 on_enter: DispatchPrompt::SelectSymbol { symbols },
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -1181,56 +1230,43 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 title: format!("Open file: {}", kind.display()),
-                on_enter: DispatchPrompt::OpenFile { working_directory },
-                items: {
-                    match kind {
-                        FilePickerKind::NonGitIgnored => {
-                            // Note: we should not use CanonicalizedPath here, as it is resource-intensive
-                            list::WalkBuilderConfig::non_git_ignored_files(
-                                self.working_directory.clone(),
-                            )?
-                        }
-                        FilePickerKind::GitStatus(diff_mode) => {
-                            git::GitRepo::try_from(&self.working_directory)?
-                                .diff_entries(diff_mode)?
-                                .into_iter()
-                                .map(|entry| entry.new_path().into_path_buf())
-                                .collect_vec()
-                        }
-                        FilePickerKind::Opened => self
-                            .layout
+                on_enter: DispatchPrompt::OpenFile {
+                    working_directory: working_directory.clone(),
+                },
+                items: match kind {
+                    FilePickerKind::NonGitIgnored => PromptItems::BackgroundTask {
+                        task: PromptItemsBackgroundTask::NonGitIgnoredFiles { working_directory },
+                        on_nucleo_tick_debounced: {
+                            let sender = self.sender.clone();
+                            Callback::new(Arc::new(move |_| {
+                                let _ = sender.send(AppMessage::NucleoTickDebounced);
+                            }))
+                        },
+                    },
+                    FilePickerKind::GitStatus(diff_mode) => PromptItems::Precomputed(
+                        git::GitRepo::try_from(&self.working_directory)?
+                            .diff_entries(diff_mode)?
+                            .into_iter()
+                            .map(|entry| {
+                                DropdownItem::from_path_buf(
+                                    &working_directory,
+                                    entry.new_path().into_path_buf(),
+                                )
+                            })
+                            .collect_vec(),
+                    ),
+                    FilePickerKind::Opened => PromptItems::Precomputed(
+                        self.layout
                             .get_opened_files()
                             .into_iter()
-                            .map(|path| path.into_path_buf())
+                            .map(|path| {
+                                DropdownItem::from_path_buf(
+                                    &working_directory,
+                                    path.into_path_buf(),
+                                )
+                            })
                             .collect_vec(),
-                    }
-                    .into_iter()
-                    .map(|path| {
-                        DropdownItem::new({
-                            let name = path
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                                .to_string();
-                            let icon = shared::canonicalized_path::get_path_icon(&path);
-                            format!("{icon} {name}")
-                        })
-                        .set_group(path.parent().map(|parent| {
-                            let relative = parent
-                                .strip_prefix(&self.working_directory)
-                                .map(|path| path.display().to_string())
-                                .unwrap_or_else(|_| parent.display().to_string());
-                            format!("{} {}", shared::icons::get_icon_config().folder, relative,)
-                        }))
-                        .set_dispatches(Dispatches::one(
-                            crate::app::Dispatch::OpenFileFromPathBuf {
-                                path,
-                                owner: BufferOwner::User,
-                                focus: true,
-                            },
-                        ))
-                    })
-                    .collect_vec()
+                    ),
                 },
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -1248,8 +1284,21 @@ impl<T: Frontend> App<T> {
         store_history: bool,
         focus: bool,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
+        if !path.exists() {
+            return Err(anyhow::anyhow!(
+                "The path {:?} does not exist.",
+                path.try_display_relative_to(self.context.current_working_directory()),
+            ));
+        }
+        if !path.is_file() {
+            return Err(anyhow::anyhow!(
+                "The path {:?} is not a file.",
+                path.try_display_relative_to(self.context.current_working_directory()),
+            ));
+        }
+
         if store_history {
-            self.push_current_location_into_navigation_history(true)?;
+            self.push_current_location_into_navigation_history(true);
         }
 
         // Check if the file is opened before so that we won't notify the LSP twice
@@ -1280,6 +1329,10 @@ impl<T: Frontend> App<T> {
         if self.enable_lsp {
             self.lsp_manager.open_file(path.clone())?;
         }
+
+        self.send_file_watcher_input(FileWatcherInput::SyncOpenedPaths(
+            self.layout.get_opened_files(),
+        ));
         Ok(component)
     }
 
@@ -1331,14 +1384,19 @@ impl<T: Frontend> App<T> {
             }
             LspNotification::Initialized(language) => {
                 // Need to notify LSP that the file is opened
-                self.lsp_manager.initialized(
-                    language,
-                    self.layout
-                        .buffers()
-                        .into_iter()
-                        .filter_map(|buffer| buffer.borrow().path())
-                        .collect_vec(),
-                );
+                let opened_documents = self
+                    .layout
+                    .buffers()
+                    .into_iter()
+                    .filter_map(|buffer| {
+                        if buffer.borrow().language()? == language {
+                            buffer.borrow().path()
+                        } else {
+                            None
+                        }
+                    })
+                    .collect_vec();
+                self.lsp_manager.initialized(language, opened_documents);
                 Ok(())
             }
             LspNotification::PublishDiagnostics(params) => {
@@ -1395,7 +1453,7 @@ impl<T: Frontend> App<T> {
                 Ok(())
             }
             LspNotification::CompletionItemResolve(completion_item) => {
-                self.update_current_completion_item(completion_item.into())
+                self.update_current_completion_item((*completion_item).into())
             }
         }
     }
@@ -1417,10 +1475,21 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn get_quickfix_list(&self) -> Option<QuickfixList> {
         self.context.quickfix_list_state().as_ref().map(|state| {
+            let items = self.layout.get_quickfix_list_items(&state.source);
+            // Preload the buffers to avoid unnecessarily rereading the files
+            let buffers = items
+                .iter()
+                .map(|item| &item.location().path)
+                .unique()
+                .filter_map(|path| {
+                    Some(Rc::new(RefCell::new(Buffer::from_path(path, false).ok()?)))
+                })
+                .collect_vec();
             QuickfixList::new(
                 state.title.clone(),
-                self.layout.get_quickfix_list_items(&state.source),
-                self.layout.buffers(),
+                items,
+                buffers,
+                self.context.current_working_directory(),
             )
             .set_current_item_index(state.current_item_index)
         })
@@ -1435,9 +1504,10 @@ impl<T: Frontend> App<T> {
                 self.render_quickfix_list(
                     quickfix_list.set_current_item_index(current_item_index),
                 )?;
+            } else {
+                log::info!("No current item found")
             }
         }
-
         Ok(())
     }
 
@@ -1452,7 +1522,7 @@ impl<T: Frontend> App<T> {
         self.layout
             .show_global_info(info, &self.context)
             .unwrap_or_else(|err| {
-                log::error!("Error showing info: {:?}", err);
+                log::error!("Error showing info: {err:?}");
             });
     }
 
@@ -1471,24 +1541,21 @@ impl<T: Frontend> App<T> {
             // Create a selection at the location position
             // We'll let the editor.set_position_range call below handle the actual selection
             // Just emit a simple empty selection at the start position for now
-            let buffer = component_ref.editor().buffer();
-            if let Ok(char_index) = location.range.start.to_char_index(&buffer) {
-                let selection = crate::selection::Selection::new((char_index..char_index).into());
+            let selection = crate::selection::Selection::new(location.range);
 
-                // Emit a selection changed event
-                self.integration_event_sender.emit_event(
-                    crate::integration_event::IntegrationEvent::SelectionChanged {
-                        component_id,
-                        selections: vec![selection],
-                    },
-                );
-            }
+            // Emit a selection changed event
+            self.integration_event_sender.emit_event(
+                crate::integration_event::IntegrationEvent::SelectionChanged {
+                    component_id,
+                    selections: vec![selection],
+                },
+            );
         }
 
         let dispatches = component
             .borrow_mut()
             .editor_mut()
-            .set_position_range(location.range.clone(), &self.context)?;
+            .set_char_index_range(location.range, &self.context)?;
         self.handle_dispatches(dispatches)?;
         Ok(())
     }
@@ -1500,42 +1567,33 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         let title = context.description.unwrap_or_default();
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
-        match r#type {
+        let go_to_first_quickfix = match r#type {
             QuickfixListType::Diagnostic(severity_range) => {
                 self.context.set_quickfix_list_source(
                     title.clone(),
                     QuickfixListSource::Diagnostic(severity_range),
                 );
+                true
             }
             QuickfixListType::Items(items) => {
-                self.layout.clear_quickfix_list_items();
-                items
-                    .into_iter()
-                    .chunk_by(|item| item.location().path.clone())
-                    .into_iter()
-                    .sorted_by_key(|(path, _)| path.clone())
-                    .map(|(path, items)| -> anyhow::Result<()> {
-                        let items = items.collect_vec();
-                        let editor = self.open_file(&path, BufferOwner::System, false, false)?;
-                        editor
-                            .borrow_mut()
-                            .editor_mut()
-                            .buffer_mut()
-                            .update_quickfix_list_items(items);
-                        Ok(())
-                    })
-                    .collect::<anyhow::Result<Vec<_>>>()?;
+                let is_empty = items.is_empty();
                 self.context
-                    .set_quickfix_list_source(title.clone(), QuickfixListSource::Custom);
+                    .set_quickfix_list_source(title.clone(), QuickfixListSource::Custom(items));
+                !is_empty
             }
             QuickfixListType::Mark => {
                 self.context
                     .set_quickfix_list_source(title.clone(), QuickfixListSource::Mark);
+                true
             }
-        }
+        };
         match context.scope {
             None | Some(Scope::Global) => {
-                self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
+                if go_to_first_quickfix {
+                    self.goto_quickfix_list_item(Movement::Current(
+                        IfCurrentNotFound::LookForward,
+                    ))?;
+                }
                 Ok(())
             }
             Some(Scope::Local) => self.handle_dispatch(Dispatch::ToEditor(SetSelectionMode(
@@ -1585,7 +1643,7 @@ impl<T: Frontend> App<T> {
             );
             self.integration_event_sender
                 .emit_event(IntegrationEvent::ShowInfo {
-                    info: Some(format!("{}\n\n{}", title, body)),
+                    info: Some(format!("{title}\n\n{body}")),
                 });
         }
         self.layout
@@ -1602,8 +1660,11 @@ impl<T: Frontend> App<T> {
             exclude: global_search_config.exclude_glob(),
         };
         let config = self.context.global_search_config().local_config();
-        let affected_paths = list::grep::replace(walk_builder_config, config.clone())?;
-        self.layout.reload_buffers(affected_paths)
+        let (dispatches, affected_paths) =
+            list::grep::replace(walk_builder_config, config.clone())?;
+        self.handle_dispatches(dispatches)?;
+        let dispatches = self.layout.reload_buffers(affected_paths)?;
+        self.handle_dispatches(dispatches)
     }
 
     fn global_search(&mut self) -> anyhow::Result<()> {
@@ -1619,25 +1680,36 @@ impl<T: Frontend> App<T> {
         if config.search().is_empty() {
             return Ok(());
         }
-        let locations = match config.mode {
+        let sender = self.sender.clone();
+        let send_matches = Arc::new(move |matches: Vec<Match>| {
+            SendResult::from(sender.send(AppMessage::ExternalDispatch(Box::new(
+                Dispatch::AddQuickfixListEntries(matches),
+            ))))
+        });
+        let send_match = crate::thread::batch(send_matches, Duration::from_millis(16)); // Around 30 ticks per second
+
+        // TODO: we need to create a new sender for each global search, so that it can be cancelled, but when?
+        // Is it when the quickfix list is closed?
+        match config.mode {
             LocalSearchConfigMode::Regex(regex) => {
-                list::grep::run(&config.search(), walk_builder_config, regex)
+                list::grep::run(&config.search(), walk_builder_config, regex, send_match)?;
             }
             LocalSearchConfigMode::AstGrep => {
-                list::ast_grep::run(config.search().clone(), walk_builder_config)
+                list::ast_grep::run(config.search().clone(), walk_builder_config, send_match)?;
             }
             LocalSearchConfigMode::NamingConventionAgnostic => {
-                list::naming_convention_agnostic::run(config.search().clone(), walk_builder_config)
+                list::naming_convention_agnostic::run(
+                    config.search().clone(),
+                    walk_builder_config,
+                    send_match,
+                )?;
             }
-        }?;
+        };
         self.set_quickfix_list_type(
             ResponseContext::default().set_description("Global search"),
-            QuickfixListType::Items(
-                locations
-                    .into_iter()
-                    .map(|location| QuickfixListItem::new(location, None))
-                    .collect_vec(),
-            ),
+            // We start with an empty quickfix list, as the result will come later
+            // due to the asynchronity
+            QuickfixListType::Items(Vec::new()),
         )?;
         Ok(())
     }
@@ -1663,7 +1735,7 @@ impl<T: Frontend> App<T> {
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
         self.handle_dispatch(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
             title: prompt.title.to_string(),
-            body: KeymapLegendBody::Positional(Keymaps::new(&[
+            keymaps: Keymaps::new(&[
                 Keymap::new(
                     self.keyboard_layout_kind().get_yes_no_key(&Meaning::Yes__),
                     "Yes".to_string(),
@@ -1674,7 +1746,7 @@ impl<T: Frontend> App<T> {
                     "No".to_string(),
                     Dispatch::Null,
                 ),
-            ])),
+            ]),
         }))
     }
 
@@ -1685,8 +1757,7 @@ impl<T: Frontend> App<T> {
             std::fs::remove_file(path)?;
         }
         self.layout.remove_suggestive_editor(path);
-        self.layout
-            .refresh_file_explorer(&self.working_directory, &self.context)?;
+        self.layout.refresh_file_explorer(&self.context)?;
         Ok(())
     }
 
@@ -1694,10 +1765,13 @@ impl<T: Frontend> App<T> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::rename(from.clone(), to.clone())?;
-        self.layout
-            .refresh_file_explorer(&self.working_directory, &self.context)?;
+        self.layout.refresh_file_explorer(&self.context)?;
         let to = to.try_into()?;
+
+        self.context.rename_path_mark(&from, &to);
+
         self.reveal_path_in_explorer(&to)?;
+
         self.lsp_manager.send_message(
             from.clone(),
             FromEditor::WorkspaceDidRenameFiles {
@@ -1713,8 +1787,7 @@ impl<T: Frontend> App<T> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::copy(from.clone(), to.clone())?;
-        self.layout
-            .refresh_file_explorer(&self.working_directory, &self.context)?;
+        self.layout.refresh_file_explorer(&self.context)?;
         let to = to.try_into()?;
         self.reveal_path_in_explorer(&to)?;
         self.lsp_manager.send_message(
@@ -1743,8 +1816,7 @@ impl<T: Frontend> App<T> {
             self.add_path_parent(&path)?;
             std::fs::File::create(&path)?;
         }
-        self.layout
-            .refresh_file_explorer(&self.working_directory, &self.context)?;
+        self.layout.refresh_file_explorer(&self.context)?;
         let path: CanonicalizedPath = path.try_into()?;
         self.reveal_path_in_explorer(&path)?;
         self.lsp_manager.send_message(
@@ -1848,19 +1920,16 @@ impl<T: Frontend> App<T> {
                         file_diff
                             .hunks()
                             .iter()
-                            .map(|hunk| {
+                            .filter_map(|hunk| {
+                                let buffer = Buffer::from_path(file_diff.path(), false).ok()?;
                                 let line_range = hunk.line_range();
                                 let location = Location {
                                     path: file_diff.path().clone(),
-                                    range: Position {
-                                        line: line_range.start,
-                                        column: 0,
-                                    }..Position {
-                                        line: line_range.end,
-                                        column: 0,
-                                    },
+                                    range: buffer
+                                        .line_range_to_char_index_range(line_range)
+                                        .ok()?,
                                 };
-                                QuickfixListItem::new(location, hunk.to_info())
+                                Some(QuickfixListItem::new(location, hunk.to_info(), None))
                             })
                             .collect_vec()
                     })
@@ -1872,13 +1941,6 @@ impl<T: Frontend> App<T> {
     #[cfg(test)]
     fn set_global_title(&mut self, title: String) {
         self.global_title = Some(title)
-    }
-
-    pub(crate) fn set_syntax_highlight_request_sender(
-        &mut self,
-        sender: Sender<SyntaxHighlightRequest>,
-    ) {
-        self.syntax_highlight_request_sender = Some(sender);
     }
 
     pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
@@ -1898,7 +1960,6 @@ impl<T: Frontend> App<T> {
         &mut self,
         update: LocalSearchConfigUpdate,
         scope: Scope,
-        show_legend: bool,
         if_current_not_found: IfCurrentNotFound,
         run_search_after_config_updated: bool,
     ) -> Result<(), anyhow::Error> {
@@ -1912,9 +1973,6 @@ impl<T: Frontend> App<T> {
             }
         }
 
-        if show_legend {
-            self.show_search_config(scope, if_current_not_found, run_search_after_config_updated);
-        }
         Ok(())
     }
 
@@ -1925,270 +1983,6 @@ impl<T: Frontend> App<T> {
         self.context.update_global_search_config(update)?;
         self.global_search()?;
         Ok(())
-    }
-
-    fn open_set_global_search_filter_glob_prompt(
-        &mut self,
-        filter_glob: GlobalSearchFilterGlob,
-    ) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                title: format!("Set global search {:?} files glob", filter_glob),
-                on_enter: DispatchPrompt::GlobalSearchConfigSetGlob { filter_glob },
-                items: Vec::new(),
-                enter_selects_first_matching_item: false,
-                leaves_current_line_empty: false,
-                fire_dispatches_on_change: None,
-                prompt_history_key: PromptHistoryKey::FilterGlob(filter_glob),
-            },
-            None,
-        )
-    }
-
-    fn show_search_config(
-        &mut self,
-        scope: Scope,
-        if_current_not_found: IfCurrentNotFound,
-        run_search_after_config_updated: bool,
-    ) {
-        fn show_checkbox(title: &str, checked: bool) -> String {
-            format!("[{}] {title}", if checked { "X" } else { " " })
-        }
-        let global_search_confing = match scope {
-            Scope::Local => None,
-            Scope::Global => Some(self.context.global_search_config()),
-        };
-        let local_search_config = global_search_confing
-            .map(|config| config.local_config())
-            .unwrap_or_else(|| self.context.local_search_config());
-        let update_keymap =
-            |key: &'static str, description: String, update: LocalSearchConfigUpdate| -> Keymap {
-                Keymap::new(
-                    key,
-                    description,
-                    Dispatch::UpdateLocalSearchConfig {
-                        update,
-                        scope,
-                        show_config_after_enter: false,
-                        if_current_not_found: IfCurrentNotFound::LookForward,
-                        run_search_after_config_updated,
-                    },
-                )
-            };
-        let update_mode_keymap = |key: &'static str,
-                                  name: String,
-                                  mode: LocalSearchConfigMode,
-                                  checked: bool|
-         -> Keymap {
-            let description = show_checkbox(&name, checked);
-            update_keymap(key, description, LocalSearchConfigUpdate::Mode(mode))
-        };
-        let regex = match local_search_config.mode {
-            LocalSearchConfigMode::Regex(regex) => Some(regex),
-            LocalSearchConfigMode::AstGrep => None,
-            LocalSearchConfigMode::NamingConventionAgnostic => None,
-        };
-        self.show_keymap_legend(KeymapLegendConfig {
-            title: format!("Configure Search ({:?})", scope),
-            body: KeymapLegendBody::Mnemonic(Keymaps::new(
-                &[
-                    Keymap::new(
-                        self.keyboard_layout_kind()
-                            .get_search_config_keymap(&Meaning::Srch_),
-                        format!("Search = {}", local_search_config.search()),
-                        Dispatch::OpenUpdateSearchPrompt {
-                            scope,
-                            if_current_not_found,
-                        },
-                    ),
-                    Keymap::new(
-                        self.keyboard_layout_kind()
-                            .get_search_config_keymap(&Meaning::Rplcm),
-                        format!("Replacement = {}", local_search_config.replacement()),
-                        Dispatch::OpenUpdateReplacementPrompt {
-                            scope,
-                            if_current_not_found,
-                        },
-                    ),
-                    update_mode_keymap(
-                        self.keyboard_layout_kind()
-                            .get_search_config_keymap(&Meaning::ASTGp),
-                        "AST Grep".to_string(),
-                        LocalSearchConfigMode::AstGrep,
-                        local_search_config.mode == LocalSearchConfigMode::AstGrep,
-                    ),
-                    update_mode_keymap(
-                        self.keyboard_layout_kind()
-                            .get_search_config_keymap(&Meaning::NCAgn),
-                        "Naming Convention Agnostic".to_string(),
-                        LocalSearchConfigMode::NamingConventionAgnostic,
-                        local_search_config.mode == LocalSearchConfigMode::NamingConventionAgnostic,
-                    ),
-                    update_mode_keymap(
-                        self.keyboard_layout_kind()
-                            .get_search_config_keymap(&Meaning::Litrl),
-                        "Literal".to_string(),
-                        LocalSearchConfigMode::Regex(RegexConfig {
-                            escaped: true,
-                            ..regex.unwrap_or_default()
-                        }),
-                        regex.map(|regex| regex.escaped).unwrap_or(false),
-                    ),
-                    update_mode_keymap(
-                        self.keyboard_layout_kind()
-                            .get_search_config_keymap(&Meaning::Regex),
-                        "Regex".to_string(),
-                        LocalSearchConfigMode::Regex(RegexConfig {
-                            escaped: false,
-                            ..regex.unwrap_or_default()
-                        }),
-                        regex.map(|regex| !regex.escaped).unwrap_or(false),
-                    ),
-                    Keymap::new(
-                        self.keyboard_layout_kind()
-                            .get_search_config_keymap(&Meaning::RplcA),
-                        "Replace all".to_string(),
-                        Dispatch::Replace { scope },
-                    ),
-                ]
-                .into_iter()
-                .chain(
-                    regex
-                        .map(|regex| {
-                            [
-                                update_mode_keymap(
-                                    self.keyboard_layout_kind()
-                                        .get_search_config_keymap(&Meaning::CaStv),
-                                    "Case-sensitive".to_string(),
-                                    LocalSearchConfigMode::Regex(RegexConfig {
-                                        case_sensitive: !regex.case_sensitive,
-                                        ..regex
-                                    }),
-                                    regex.case_sensitive,
-                                ),
-                                update_mode_keymap(
-                                    self.keyboard_layout_kind()
-                                        .get_search_config_keymap(&Meaning::Strct),
-                                    "Strict".to_string(),
-                                    LocalSearchConfigMode::Regex(RegexConfig {
-                                        match_whole_word: true,
-                                        case_sensitive: true,
-                                        ..regex
-                                    }),
-                                    regex.match_whole_word && regex.case_sensitive,
-                                ),
-                                update_mode_keymap(
-                                    self.keyboard_layout_kind()
-                                        .get_search_config_keymap(&Meaning::Flexi),
-                                    "Flexible".to_string(),
-                                    LocalSearchConfigMode::Regex(RegexConfig {
-                                        match_whole_word: false,
-                                        case_sensitive: false,
-                                        ..regex
-                                    }),
-                                    !regex.match_whole_word && !regex.case_sensitive,
-                                ),
-                                update_mode_keymap(
-                                    self.keyboard_layout_kind()
-                                        .get_search_config_keymap(&Meaning::MaWWd),
-                                    "Match whole word".to_string(),
-                                    LocalSearchConfigMode::Regex(RegexConfig {
-                                        match_whole_word: !regex.match_whole_word,
-                                        ..regex
-                                    }),
-                                    regex.match_whole_word,
-                                ),
-                            ]
-                            .to_vec()
-                        })
-                        .unwrap_or_default(),
-                )
-                .chain(
-                    global_search_confing
-                        .map(|config| {
-                            [
-                                Keymap::new(
-                                    self.keyboard_layout_kind()
-                                        .get_search_config_keymap(&Meaning::InFGb),
-                                    format!(
-                                        "Include files (glob) = {}",
-                                        config
-                                            .include_glob()
-                                            .map(|glob| glob.to_string())
-                                            .unwrap_or_default()
-                                    ),
-                                    Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
-                                        filter_glob: GlobalSearchFilterGlob::Include,
-                                    },
-                                ),
-                                Keymap::new(
-                                    self.keyboard_layout_kind()
-                                        .get_search_config_keymap(&Meaning::ExFGb),
-                                    format!(
-                                        "Exclude files (glob) = {}",
-                                        config
-                                            .exclude_glob()
-                                            .map(|glob| glob.to_string())
-                                            .unwrap_or_default()
-                                    ),
-                                    Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
-                                        filter_glob: GlobalSearchFilterGlob::Exclude,
-                                    },
-                                ),
-                            ]
-                            .to_vec()
-                        })
-                        .unwrap_or_default(),
-                )
-                .collect_vec(),
-            )),
-        })
-    }
-
-    fn open_update_replacement_prompt(
-        &mut self,
-        scope: Scope,
-        if_current_not_found: IfCurrentNotFound,
-    ) -> Result<(), anyhow::Error> {
-        self.open_prompt(
-            PromptConfig {
-                title: format!("Set Replace ({:?})", scope),
-                on_enter: DispatchPrompt::UpdateLocalSearchConfigReplacement {
-                    scope,
-                    if_current_not_found,
-                },
-                items: Vec::new(),
-                enter_selects_first_matching_item: false,
-                leaves_current_line_empty: false,
-                fire_dispatches_on_change: None,
-                prompt_history_key: PromptHistoryKey::Replacement,
-            },
-            None,
-        )
-    }
-
-    fn open_update_search_prompt(
-        &mut self,
-        scope: Scope,
-        if_current_not_found: IfCurrentNotFound,
-    ) -> Result<(), anyhow::Error> {
-        self.open_prompt(
-            PromptConfig {
-                title: format!("Set Search ({:?})", scope),
-                on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
-                    scope,
-                    show_config_after_enter: false,
-                    if_current_not_found,
-                    run_search_after_config_updated: true,
-                },
-                items: self.words(),
-                enter_selects_first_matching_item: false,
-                leaves_current_line_empty: false,
-                fire_dispatches_on_change: None,
-                prompt_history_key: PromptHistoryKey::Search,
-            },
-            None,
-        )
     }
 
     fn words(&self) -> Vec<DropdownItem> {
@@ -2208,7 +2002,7 @@ impl<T: Frontend> App<T> {
 
     fn cycle_marked_file(&mut self, direction: Direction) -> anyhow::Result<()> {
         if let Some(next_file_path) = {
-            let file_paths = self.context.get_marked_paths();
+            let file_paths = self.context.get_marked_files();
             self.get_current_file_path()
                 .and_then(|current_file_path| {
                     if let Some(current_index) = file_paths
@@ -2230,7 +2024,30 @@ impl<T: Frontend> App<T> {
                 .or_else(|| file_paths.first())
                 .cloned()
         } {
-            self.open_file(&next_file_path.clone(), BufferOwner::User, true, true)?;
+            let next_file_path = next_file_path.clone();
+            if let Err(err) = self.open_file(&next_file_path.clone(), BufferOwner::User, true, true)
+            {
+                // If the file failed to open, show the error.
+                // The failure reasons might be:
+                // - the file no longer exists
+                // - the file is not a file
+                //
+                // In such cases we should remove it from the list of marked files,
+                // and then cycle to the next file.
+                //
+                // The removal is necessary otherwise this file will become an
+                // an obstacle that prevents cycle_mark_file from passing through.
+                self.context.toggle_path_mark(next_file_path.clone());
+                self.show_global_info(Info::new(
+                    "Cycle marked file error".to_string(),
+                    format!(
+                        "The file mark {:?} is removed from the list as it cannot be opened due to the following error:\n\n{err:?}",
+                        next_file_path
+                            .try_display_relative_to(self.context.current_working_directory())
+                    ),
+                ));
+                self.cycle_marked_file(direction)?;
+            }
         }
         Ok(())
     }
@@ -2238,6 +2055,11 @@ impl<T: Frontend> App<T> {
     #[cfg(test)]
     pub(crate) fn get_current_component_content(&self) -> String {
         self.current_component().borrow().editor().content()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn get_buffer_contents_map(&self) -> BufferContentsMap {
+        self.layout.get_buffer_contents_map()
     }
 
     #[cfg(test)]
@@ -2287,9 +2109,13 @@ impl<T: Frontend> App<T> {
         self.layout.completion_dropdown_is_open()
     }
 
-    #[cfg(test)]
     pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout.current_completion_dropdown()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn current_completion_dropdown_info(&self) -> Option<Rc<RefCell<dyn Component>>> {
+        self.layout.current_completion_dropdown_info()
     }
 
     fn open_prompt(
@@ -2335,7 +2161,7 @@ impl<T: Frontend> App<T> {
         let history = self.context.get_prompt_history(key);
 
         let items = prompt_config
-            .items
+            .items()
             .iter()
             .map(|item| ki_protocol_types::PromptItem {
                 label: item.display(),
@@ -2401,9 +2227,20 @@ impl<T: Frontend> App<T> {
         &mut self,
         quickfix_list: QuickfixList,
     ) -> anyhow::Result<()> {
-        let dispatches = self
+        let (editor, dispatches) = self
             .layout
             .show_quickfix_list(quickfix_list, &self.context)?;
+
+        let editor = editor.borrow();
+        let buffer = editor.buffer();
+        if let Some(language) = buffer.language() {
+            self.request_syntax_highlight(
+                editor.id(),
+                buffer.batch_id().clone(),
+                language,
+                buffer.content(),
+            )?;
+        };
         self.handle_dispatches(dispatches)
     }
 
@@ -2419,17 +2256,27 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn editor_info_open(&self) -> bool {
-        self.layout.editor_info_open()
+    pub(crate) fn editor_info_contents(&self) -> Vec<String> {
+        self.layout.editor_info_contents()
     }
 
     #[cfg(test)]
-    pub(crate) fn editor_info_content(&self) -> Option<String> {
-        self.layout.editor_info_content()
+    pub(crate) fn global_info_contents(&self) -> Vec<String> {
+        self.layout.global_info_contents()
     }
 
     fn reveal_path_in_explorer(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
         let dispatches = self.layout.reveal_path_in_explorer(path, &self.context)?;
+        self.send_file_watcher_input(FileWatcherInput::SyncFileExplorerExpandedFolders(
+            self.layout
+                .file_explorer_expanded_folders()
+                .into_iter()
+                // Need to include the current working directory (cwd)
+                // otherwise path modifications of files that are parked directly under the cwd
+                // will not refresh the file explorer.
+                .chain(Some(self.context.current_working_directory().clone()))
+                .collect(),
+        ));
         self.handle_dispatches(dispatches)
     }
 
@@ -2445,10 +2292,12 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 on_enter: DispatchPrompt::Null,
-                items: code_actions
-                    .into_iter()
-                    .map(move |code_action| code_action.into())
-                    .collect(),
+                items: PromptItems::Precomputed(
+                    code_actions
+                        .into_iter()
+                        .map(move |code_action| code_action.into())
+                        .collect(),
+                ),
                 title: "Code Actions".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -2466,14 +2315,13 @@ impl<T: Frontend> App<T> {
             .emit_event(IntegrationEvent::ShowInfo { info: None });
     }
 
-    #[cfg(test)]
     pub(crate) fn opened_files_count(&self) -> usize {
         self.layout.get_opened_files().len()
     }
 
     #[cfg(test)]
-    pub(crate) fn quickfix_list_info(&self) -> Option<String> {
-        self.layout.quickfix_list_info()
+    pub(crate) fn global_info(&self) -> Option<String> {
+        self.layout.global_info()
     }
 
     #[cfg(test)]
@@ -2521,17 +2369,19 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 on_enter: DispatchPrompt::Null,
-                items: crate::themes::theme_descriptor::all()
-                    .into_iter()
-                    .enumerate()
-                    .map(|(index, theme_descriptor)| {
-                        DropdownItem::new(theme_descriptor.name().to_string())
-                            .set_rank(Some(Box::from([index].to_vec())))
-                            .set_dispatches(Dispatches::one(Dispatch::SetThemeFromDescriptor(
-                                theme_descriptor,
-                            )))
-                    })
-                    .collect_vec(),
+                items: PromptItems::Precomputed(
+                    crate::themes::theme_descriptor::all()
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, theme_descriptor)| {
+                            DropdownItem::new(theme_descriptor.name().to_string())
+                                .set_rank(Some(Box::from([index].to_vec())))
+                                .set_dispatches(Dispatches::one(Dispatch::SetThemeFromDescriptor(
+                                    theme_descriptor,
+                                )))
+                        })
+                        .collect_vec(),
+                ),
                 title: "Theme".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -2553,17 +2403,21 @@ impl<T: Frontend> App<T> {
                 } else {
                     DispatchPrompt::Null
                 },
-                items: KeyboardLayoutKind::iter()
-                    .map(|keyboard_layout| {
-                        DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
-                            if embedded {
-                                Dispatches::default()
-                            } else {
-                                Dispatches::one(Dispatch::SetKeyboardLayoutKind(keyboard_layout))
-                            },
-                        )
-                    })
-                    .collect_vec(),
+                items: PromptItems::Precomputed(
+                    KeyboardLayoutKind::iter()
+                        .map(|keyboard_layout| {
+                            DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
+                                if embedded {
+                                    Dispatches::default()
+                                } else {
+                                    Dispatches::one(Dispatch::SetKeyboardLayoutKind(
+                                        keyboard_layout,
+                                    ))
+                                },
+                            )
+                        })
+                        .collect_vec(),
+                ),
                 title: "Keyboard Layout".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
@@ -2579,7 +2433,7 @@ impl<T: Frontend> App<T> {
         completion_item: CompletionItem,
     ) -> anyhow::Result<()> {
         self.handle_dispatch_suggestive_editor(
-            DispatchSuggestiveEditor::UpdateCurrentCompletionItem(completion_item),
+            DispatchSuggestiveEditor::UpdateCurrentCompletionItem(Box::new(completion_item)),
         )
     }
 
@@ -2592,7 +2446,7 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 title: "Pipe to shell".to_string(),
-                items: Default::default(),
+                items: PromptItems::None,
                 on_enter: DispatchPrompt::PipeToShell,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
@@ -2628,7 +2482,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_filter_selections_prompt(&mut self, maintain: bool) -> anyhow::Result<()> {
-        let config = self.context.get_local_search_config(Scope::Local);
+        let config = self.context.local_search_config(Scope::Local);
         let mode = config.mode;
         self.open_prompt(
             PromptConfig {
@@ -2638,7 +2492,7 @@ impl<T: Frontend> App<T> {
                     mode.display()
                 ),
                 on_enter: DispatchPrompt::FilterSelectionMatchingSearch { maintain },
-                items: Vec::new(),
+                items: PromptItems::None,
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
@@ -2649,25 +2503,27 @@ impl<T: Frontend> App<T> {
     }
 
     fn navigate_back(&mut self) -> anyhow::Result<()> {
-        if let Some(location) = self.context.location_previous() {
-            self.push_current_location_into_navigation_history(false)?;
-            self.go_to_location(&location, false)?
+        while let Some(location) = self.context.location_previous() {
+            if location.path.exists() {
+                self.push_current_location_into_navigation_history(false);
+                self.go_to_location(&location, false)?;
+                return Ok(());
+            }
         }
         Ok(())
     }
 
     fn navigate_forward(&mut self) -> anyhow::Result<()> {
-        if let Some(location) = self.context.location_next() {
-            self.push_current_location_into_navigation_history(true)?;
-            self.go_to_location(&location, false)?
+        while let Some(location) = self.context.location_next() {
+            if location.path.exists() {
+                self.push_current_location_into_navigation_history(true);
+                self.go_to_location(&location, false)?
+            }
         }
         Ok(())
     }
 
-    fn push_current_location_into_navigation_history(
-        &mut self,
-        backward: bool,
-    ) -> anyhow::Result<()> {
+    fn push_current_location_into_navigation_history(&mut self, backward: bool) {
         // TODO: should include scroll offset as well
         // so that when the user navigates back, it really feels the same
         if let Some(path) = self.current_component().borrow().editor().path() {
@@ -2675,16 +2531,15 @@ impl<T: Frontend> App<T> {
                 .current_component()
                 .borrow()
                 .editor()
-                .current_selection_range()?;
+                .current_selection_range();
             let location = Location { path, range };
             self.context.push_location_history(location, backward)
         }
-        Ok(())
     }
 
     fn toggle_file_mark(&mut self) -> anyhow::Result<()> {
         if let Some(path) = self.get_current_file_path() {
-            if let Some(new_path) = self.context.toggle_file_mark(path).cloned() {
+            if let Some(new_path) = self.context.toggle_path_mark(path).cloned() {
                 self.open_file(&new_path, BufferOwner::User, true, true)?;
             }
         }
@@ -2868,6 +2723,240 @@ impl<T: Frontend> App<T> {
         self.open_search_prompt(scope, if_current_not_found, None)?;
         Ok(())
     }
+
+    #[cfg(test)]
+    pub(crate) fn lsp_server_initialized_args(
+        &self,
+    ) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
+        self.lsp_manager.lsp_server_initialized_args()
+    }
+
+    fn handle_nucleo_debounced(&mut self) -> Result<(), anyhow::Error> {
+        let dispatches = {
+            let component = self.layout.get_current_component();
+            let mut component_mut = component.borrow_mut();
+            let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
+                return Ok(());
+            };
+
+            let viewport_height: u32 = self
+                .current_completion_dropdown()
+                .map(|component| component.borrow().rectangle().height)
+                .unwrap_or(10)
+                .into();
+
+            prompt.handle_nucleo_updated(viewport_height)
+        };
+        self.handle_dispatches(dispatches)
+    }
+
+    fn handle_dropdown_filter_updated(&mut self, filter: String) -> anyhow::Result<()> {
+        {
+            let component = self.layout.get_current_component();
+            let mut component_mut = component.borrow_mut();
+            let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
+                return Ok(());
+            };
+            prompt.reparse_pattern(&filter);
+        }
+        self.handle_nucleo_debounced()
+    }
+
+    #[cfg(test)]
+    fn set_system_clipboard_html(&self, html: &str, alt_text: &str) -> anyhow::Result<()> {
+        Ok(arboard::Clipboard::new()?.set_html(html, Some(alt_text))?)
+    }
+
+    fn restore_session(&mut self) {
+        // This condition is necessary, because user might have opened a file by passing
+        // a path argument to the Ki CLI
+        if self.opened_files_count() == 0 {
+            // Try to go to a marked file, if there are loaded marked file from the persistence
+            let _ = self.cycle_marked_file(Direction::End);
+        }
+    }
+
+    fn add_quickfix_list_entries(&mut self, matches: Vec<Match>) -> anyhow::Result<()> {
+        let go_to_quickfix_item = self.context.quickfix_list_items().is_empty();
+
+        self.context.extend_quickfix_list_items(
+            matches
+                .into_iter()
+                .map(|m| QuickfixListItem::new(m.location, None, Some(m.line)))
+                .collect_vec(),
+        );
+
+        let quickfix_list = self.get_quickfix_list();
+        if let Some(quickfix_list) = quickfix_list {
+            self.render_quickfix_list(quickfix_list)?;
+        }
+        if go_to_quickfix_item {
+            self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
+        }
+        Ok(())
+    }
+
+    fn handle_applied_edits(&mut self, path: CanonicalizedPath, edits: Vec<Edit>) {
+        self.context.handle_applied_edits(path, edits)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn wait_for_app_message(
+        &mut self,
+        app_message_matcher: &lazy_regex::Lazy<regex::Regex>,
+    ) -> anyhow::Result<()> {
+        use std::time::Instant;
+
+        let start_time = Instant::now();
+        let timeout = Duration::from_secs(5);
+        while (Instant::now() - start_time) < timeout {
+            if let Ok(app_message) = self.receiver.try_recv() {
+                let string = format!("{app_message:?}");
+                self.process_message(app_message)?;
+                if app_message_matcher.is_match(&string) {
+                    return Ok(());
+                }
+            }
+        }
+        Err(anyhow::anyhow!(
+            "No app message matching {} is received after {:?}.",
+            app_message_matcher.as_str(),
+            timeout,
+        ))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn expect_app_message_not_received(
+        &mut self,
+        regex: &&'static lazy_regex::Lazy<regex::Regex>,
+        timeout: &Duration,
+    ) -> anyhow::Result<()> {
+        use std::time::Instant;
+
+        let start_time = Instant::now();
+        while &(Instant::now() - start_time) < timeout {
+            if let Ok(app_message) = self.receiver.try_recv() {
+                let string = format!("{app_message:?}");
+                self.process_message(app_message)?;
+                if regex.is_match(&string) {
+                    return Err(anyhow::anyhow!(
+                    "Expected no app message matching {} is received within {timeout:?}, but got {string:?}",
+                    regex.as_str(),
+                ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn get_diff(before: &str, after: &str) -> String {
+        let input = imara_diff::InternedInput::new(before, after);
+        let mut diff = imara_diff::Diff::compute(imara_diff::Algorithm::Histogram, &input);
+        diff.postprocess_lines(&input);
+
+        diff.unified_diff(
+            &imara_diff::BasicLineDiffPrinter(&input.interner),
+            imara_diff::UnifiedDiffConfig::default(),
+            &input,
+        )
+        .to_string()
+    }
+
+    fn show_buffer_save_conflict_prompt(
+        &mut self,
+        path: &CanonicalizedPath,
+        content_editor: String,
+        content_filesystem: String,
+    ) -> anyhow::Result<()> {
+        self.open_prompt(
+            PromptConfig {
+                on_enter: DispatchPrompt::Null,
+                items: PromptItems::Precomputed(
+                    [
+                        DropdownItem::new("Force Save".to_string())
+                            .set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                                DispatchEditor::ForceSave,
+                            )))
+                            .set_info(Some(Info::new(
+                                "Diff to be applied".to_string(),
+                                Self::get_diff(&content_filesystem, &content_editor),
+                            ))),
+                        DropdownItem::new("Force Reload".to_string())
+                            .set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                                DispatchEditor::ReloadFile { force: true },
+                            )))
+                            .set_info(Some(Info::new(
+                                "Diff to be applied".to_string(),
+                                Self::get_diff(&content_editor, &content_filesystem),
+                            ))),
+                        DropdownItem::new("Merge".to_string())
+                            .set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                                DispatchEditor::MergeContent {
+                                    content_filesystem,
+                                    content_editor,
+                                    path: path.clone(),
+                                },
+                            )))
+                            .set_info(Some(Info::new(
+                                "Info".to_string(),
+                                "Perform a 3-way merge where:
+
+- ours     = content of file in the Editor
+- theirs   = content of file in the Filesystem
+- original = content of file in the latest Git commit
+
+Conflict markers will be injected in areas that cannot be merged gracefully."
+                                    .to_string(),
+                            ))),
+                    ]
+                    .into_iter()
+                    .collect(),
+                ),
+                title: format!(
+                    "Failed to save {}: The content of the file is newer.",
+                    path.try_display_relative_to(self.context.current_working_directory())
+                ),
+                enter_selects_first_matching_item: true,
+                leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::ResolveBufferSaveConflict,
+            },
+            None,
+        )
+    }
+
+    fn handle_file_watcher_event(&mut self, event: FileWatcherEvent) -> anyhow::Result<()> {
+        log::info!("Received file watcher event: {event:?}");
+        match event {
+            FileWatcherEvent::ContentModified(path) => {
+                if path.is_file()
+                    && self
+                        .layout
+                        .get_opened_files()
+                        .iter()
+                        .any(|opened_file| &path == opened_file)
+                {
+                    let component = self.open_file(&path, BufferOwner::User, false, false)?;
+                    let dispatches = component.borrow_mut().editor_mut().reload(false)?;
+                    self.handle_dispatches(dispatches)?;
+                }
+            }
+            FileWatcherEvent::PathCreated
+            | FileWatcherEvent::PathRemoved(_)
+            | FileWatcherEvent::PathRenamed(_) => {
+                self.layout.refresh_file_explorer(&self.context)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn send_file_watcher_input(&self, input: FileWatcherInput) {
+        if let Some(sender) = self.file_watcher_input_sender.as_ref() {
+            if let Err(error) = sender.send(input) {
+                log::error!("[App::send_file_watcher_input] error = {error:?}")
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -3027,7 +3116,6 @@ pub(crate) enum Dispatch {
     RefreshFileExplorer,
     SetClipboardContent {
         copied_texts: CopiedTexts,
-        use_system_clipboard: bool,
     },
     SetGlobalMode(Option<GlobalMode>),
     #[cfg(test)]
@@ -3046,28 +3134,11 @@ pub(crate) enum Dispatch {
     UpdateLocalSearchConfig {
         update: LocalSearchConfigUpdate,
         scope: Scope,
-        show_config_after_enter: bool,
         if_current_not_found: IfCurrentNotFound,
         run_search_after_config_updated: bool,
     },
     UpdateGlobalSearchConfig {
         update: GlobalSearchConfigUpdate,
-    },
-    OpenSetGlobalSearchFilterGlobPrompt {
-        filter_glob: GlobalSearchFilterGlob,
-    },
-    ShowSearchConfig {
-        scope: Scope,
-        if_current_not_found: IfCurrentNotFound,
-        run_search_after_config_updated: bool,
-    },
-    OpenUpdateReplacementPrompt {
-        scope: Scope,
-        if_current_not_found: IfCurrentNotFound,
-    },
-    OpenUpdateSearchPrompt {
-        scope: Scope,
-        if_current_not_found: IfCurrentNotFound,
     },
     Replace {
         scope: Scope,
@@ -3088,6 +3159,7 @@ pub(crate) enum Dispatch {
     OtherWindow,
     CloseCurrentWindowAndFocusParent,
     CloseEditorInfo,
+    CloseGlobalInfo,
     CycleMarkedFile(Direction),
     PushPromptHistory {
         key: PromptHistoryKey,
@@ -3121,6 +3193,23 @@ pub(crate) enum Dispatch {
     OpenSearchPromptWithCurrentSelection {
         scope: Scope,
         prior_change: Option<PriorChange>,
+    },
+    ShowGlobalInfo(Info),
+    DropdownFilterUpdated(String),
+    #[cfg(test)]
+    SetSystemClipboardHtml {
+        html: &'static str,
+        alt_text: &'static str,
+    },
+    AddQuickfixListEntries(Vec<Match>),
+    AppliedEdits {
+        edits: Vec<Edit>,
+        path: CanonicalizedPath,
+    },
+    ShowBufferSaveConflictPrompt {
+        path: CanonicalizedPath,
+        content_filesystem: String,
+        content_editor: String,
     },
 }
 
@@ -3156,19 +3245,14 @@ pub(crate) enum FromHostApp {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum GlobalSearchConfigUpdate {
-    SetGlob(GlobalSearchFilterGlob, String),
     Config(GlobalSearchConfig),
-}
-
-#[derive(Clone, Hash, Debug, PartialEq, Eq, Copy)]
-pub(crate) enum GlobalSearchFilterGlob {
-    Include,
-    Exclude,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum LocalSearchConfigUpdate {
+    #[cfg(test)]
     Mode(LocalSearchConfigMode),
+    #[cfg(test)]
     Replacement(String),
     #[cfg(test)]
     Search(String),
@@ -3233,7 +3317,7 @@ pub(crate) enum Scope {
 
 #[derive(Debug)]
 pub(crate) enum AppMessage {
-    LspNotification(LspNotification),
+    LspNotification(Box<LspNotification>),
     Event(Event),
     QuitAll,
     SyntaxHighlightResponse {
@@ -3242,19 +3326,17 @@ pub(crate) enum AppMessage {
         highlighted_spans: HighlightedSpans,
     },
     // New variant for external dispatches
-    ExternalDispatch(Dispatch),
+    ExternalDispatch(Box<Dispatch>),
+    NucleoTickDebounced,
+    FileWatcherEvent(FileWatcherEvent),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum DispatchPrompt {
-    GlobalSearchConfigSetGlob {
-        filter_glob: GlobalSearchFilterGlob,
-    },
     MoveSelectionByIndex,
     RenameSymbol,
     UpdateLocalSearchConfigSearch {
         scope: Scope,
-        show_config_after_enter: bool,
         if_current_not_found: IfCurrentNotFound,
         run_search_after_config_updated: bool,
     },
@@ -3274,10 +3356,6 @@ pub(crate) enum DispatchPrompt {
     OpenFile {
         working_directory: CanonicalizedPath,
     },
-    UpdateLocalSearchConfigReplacement {
-        scope: Scope,
-        if_current_not_found: IfCurrentNotFound,
-    },
     #[cfg(test)]
     SetContent,
     PipeToShell,
@@ -3290,12 +3368,6 @@ pub(crate) enum DispatchPrompt {
 impl DispatchPrompt {
     pub(crate) fn to_dispatches(&self, text: &str) -> anyhow::Result<Dispatches> {
         match self.clone() {
-            DispatchPrompt::GlobalSearchConfigSetGlob { filter_glob } => Ok(Dispatches::new(
-                [Dispatch::UpdateGlobalSearchConfig {
-                    update: GlobalSearchConfigUpdate::SetGlob(filter_glob, text.to_string()),
-                }]
-                .to_vec(),
-            )),
             DispatchPrompt::MoveSelectionByIndex => {
                 let index = text.parse::<usize>()?.saturating_sub(1);
                 Ok(Dispatches::new(
@@ -3307,7 +3379,6 @@ impl DispatchPrompt {
             }])),
             DispatchPrompt::UpdateLocalSearchConfigSearch {
                 scope,
-                show_config_after_enter,
                 if_current_not_found,
                 run_search_after_config_updated,
             } => {
@@ -3316,7 +3387,6 @@ impl DispatchPrompt {
                         Scope::Local => Dispatch::UpdateLocalSearchConfig {
                             update: LocalSearchConfigUpdate::Config(search_config.local_config),
                             scope,
-                            show_config_after_enter,
                             if_current_not_found,
                             run_search_after_config_updated,
                         },
@@ -3373,19 +3443,6 @@ impl DispatchPrompt {
                     focus: true,
                 }]))
             }
-            DispatchPrompt::UpdateLocalSearchConfigReplacement {
-                scope,
-                if_current_not_found,
-            } => Ok(Dispatches::new(
-                [Dispatch::UpdateLocalSearchConfig {
-                    scope,
-                    update: LocalSearchConfigUpdate::Replacement(text.to_owned()),
-                    show_config_after_enter: false,
-                    if_current_not_found,
-                    run_search_after_config_updated: true,
-                }]
-                .to_vec(),
-            )),
             #[cfg(test)]
             DispatchPrompt::SetContent => Ok(Dispatches::new(
                 [Dispatch::ToEditor(SetContent(text.to_string()))].to_vec(),

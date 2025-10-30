@@ -1,6 +1,7 @@
 use crate::cli::get_version;
 use crate::components::component::ComponentId;
 use crate::components::editor::Mode;
+use crate::context::Context;
 use std::rc::Rc;
 use std::sync::mpsc::{self, TryRecvError};
 use std::sync::Mutex;
@@ -28,6 +29,7 @@ pub(crate) struct EmbeddedApp {
         mpsc::Receiver<crate::integration_event::IntegrationEvent>,
     pub(crate) app_message_receiver: mpsc::Receiver<AppMessage>,
     pub(crate) ipc_handler: WebSocketIpc,
+    pub(crate) context: Context,
 }
 
 impl EmbeddedApp {
@@ -39,7 +41,7 @@ impl EmbeddedApp {
         };
         let logger = HostLogger::new(log_level);
         if let Err(e) = log::set_boxed_logger(Box::new(logger)) {
-            eprintln!("Failed to initialize logger: {}", e);
+            eprintln!("Failed to initialize logger: {e}");
         } else {
             log::set_max_level(log_level);
         }
@@ -59,10 +61,13 @@ impl EmbeddedApp {
             resolved_wd,
             real_app_sender.clone(),
             mpsc::channel().1,
+            None,
             status_line_components.clone(),
             Some(integration_event_sender),
             false,
+            false,
             true,
+            None,
         )?;
 
         let (ipc_handler, _port) = WebSocketIpc::new()?;
@@ -74,6 +79,7 @@ impl EmbeddedApp {
             app_message_receiver: real_app_receiver,
             integration_event_receiver,
             ipc_handler,
+            context: Context::new(CanonicalizedPath::try_from(".")?, true, None),
         })
     }
 
@@ -94,19 +100,11 @@ impl EmbeddedApp {
     }
 
     fn handle_request(&mut self, id: u32, message: InputMessage, trace_id: &str) -> Result<()> {
-        debug!(
-            "[{}] Entering handle_request: id={}, message={:?}",
-            trace_id, id, message
-        );
+        debug!("[{trace_id}] Entering handle_request: id={id}, message={message:?}");
 
         let start_time = std::time::Instant::now();
-        let message_type = format!("{:?}", message);
-        trace!(
-            "[{}] ENTER handle_request: ID={:?}, Type={:?}",
-            trace_id,
-            id,
-            message_type
-        );
+        let message_type = format!("{message:?}");
+        trace!("[{trace_id}] ENTER handle_request: ID={id:?}, Type={message_type:?}");
 
         let result = match message {
             InputMessage::Ping(value) => {
@@ -127,11 +125,11 @@ impl EmbeddedApp {
 
         let duration = start_time.elapsed();
         if let Err(ref e) = result {
-            error!("[{}] Error processing request: {}", trace_id, e);
-            self.send_error_response(id, &format!("Internal error: {}", e))?;
+            error!("[{trace_id}] Error processing request: {e}");
+            self.send_error_response(id, &format!("Internal error: {e}"))?;
         }
 
-        debug!("[{}] Exiting handle_request: id={}", trace_id, id);
+        debug!("[{trace_id}] Exiting handle_request: id={id}");
         trace!(
             target: "host_flow",
             "[{}] EXIT handle_request: ID={:?}, Type={:?}, Duration={:?}, Result={}",
@@ -159,7 +157,7 @@ impl EmbeddedApp {
                         &trace_id, id, &message
                     );
                     if let Err(e) = self.handle_request(id, message, &trace_id) {
-                        error!("Error handling request from Host: {}", e);
+                        error!("Error handling request from Host: {e}");
                     }
                 }
                 Err(TryRecvError::Empty) => {}
@@ -172,7 +170,7 @@ impl EmbeddedApp {
             match self.app_message_receiver.try_recv() {
                 Ok(app_message) => {
                     received_message = true;
-                    trace!("Received message for core App: {:?}", app_message);
+                    trace!("Received message for core App: {app_message:?}");
 
                     if let AppMessage::QuitAll = &app_message {
                         info!("Core App requested quit. Exiting.");
@@ -191,7 +189,7 @@ impl EmbeddedApp {
                                     Ok(())
                                 }
                                 Err(e) => {
-                                    error!("Error processing message in core App: {}", e);
+                                    error!("Error processing message in core App: {e}");
                                     Err(e)
                                 }
                             }
@@ -203,7 +201,7 @@ impl EmbeddedApp {
                     };
 
                     if let Err(e) = app_lock_result {
-                        error!("Error processing message: {}", e);
+                        error!("Error processing message: {e}");
                     }
                 }
                 Err(TryRecvError::Empty) => {}
@@ -216,10 +214,10 @@ impl EmbeddedApp {
             match self.integration_event_receiver.try_recv() {
                 Ok(event) => {
                     received_message = true;
-                    trace!("Received integration event from core App: {:?}", event);
+                    trace!("Received integration event from core App: {event:?}");
 
                     if let Err(e) = self.handle_integration_event(event) {
-                        error!("Error handling integration event: {}", e);
+                        error!("Error handling integration event: {e}");
                     }
                 }
                 Err(TryRecvError::Empty) => {}
@@ -265,7 +263,7 @@ impl EmbeddedApp {
     }
 
     pub(crate) fn send_response(&self, id: u32, message: OutputMessage) -> Result<()> {
-        info!("Sending response for request ID {}: {:?}", id, message);
+        info!("Sending response for request ID {id}: {message:?}");
         let wrapper = OutputMessageWrapper {
             id,
             message,
@@ -281,7 +279,6 @@ impl EmbeddedApp {
             error: Some(ResponseError {
                 code: -32000,
                 message: error_message.to_string(),
-                data: None,
             }),
         };
         self.send_message_to_host(error_response)
@@ -426,7 +423,7 @@ impl EmbeddedApp {
             })
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-        let selection_set = ki_protocol_types::SelectionSet {
+        let selection_set = ki_protocol_types::SelectionSetParams {
             uri: buffer.path().map(|path| path_to_uri(&path)),
             selections: host_selections,
         };
@@ -498,8 +495,8 @@ impl EmbeddedApp {
             crate::selection::SelectionMode::Line | crate::selection::SelectionMode::LineFull => {
                 ki_protocol_types::SelectionMode::Line
             }
+            crate::selection::SelectionMode::Subword => ki_protocol_types::SelectionMode::Subword,
             crate::selection::SelectionMode::Word => ki_protocol_types::SelectionMode::Word,
-            crate::selection::SelectionMode::Token => ki_protocol_types::SelectionMode::Token,
             crate::selection::SelectionMode::Custom => ki_protocol_types::SelectionMode::Custom,
             crate::selection::SelectionMode::Find { search } => {
                 ki_protocol_types::SelectionMode::Find {

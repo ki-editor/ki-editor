@@ -3,6 +3,7 @@ sidebar_position: 8
 ---
 
 import {KeymapFallback} from '@site/src/components/KeymapFallback';
+import {TutorialFallback} from '@site/src/components/TutorialFallback';
 
 # Universal Keybindings
 
@@ -18,13 +19,17 @@ The keybindings presented here work in any [Modes](./modes.md).
 
 Switch view alignment.
 
+This is similar to Vim's `zt`, `zz` and `zb`, however, it works for multiple line selections.
+
 There are 3 kinds of view alignments (in order):
 
-1. Top
-1. Center
-1. Bottom
+1. Top: align first line of selection to the top
+1. Center: align the middle line of selection to the center
+1. Bottom: align the last line of the selection to the bottom
 
 Executing this action continuously cycles through the list above in order, starting from Top.
+
+<TutorialFallback filename="align-view"/>
 
 ### `⇋ Window`
 
@@ -47,7 +52,7 @@ Note: when the current window is closed, all of its children will be unmounted (
 
 ### `Paste →`
 
-Although there's already a [Paste](./normal-mode/actions/index.md#paste-paste-) action
+Although there's already a [Paste](./normal-mode/actions/index.md#paste) action
 in Normal mode, `alt+v` is more efficient sometimes than hopping between
 Insert mode and Normal mode for minuscule changes.
 

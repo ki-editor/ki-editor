@@ -14,14 +14,7 @@ the keyboard types them into the current opened file.
 
 To enter the normal mode, press `esc` (regardless of keyboard layout).
 
-If the current selection mode is any of the following, then the selection before the cursor will be selected:
-
-1. Line
-2. Line Full
-3. Token
-4. Word
-
-Otherwise, only one character before the cursor will be selected, this is because except the selection modes above,
+When entering normal mode, only one character before the cursor will be selected, this is because except the selection modes above,
 the cursor might jump beyond the current view, causing unintended disorientation.
 
 <TutorialFallback filename="enter-normal-mode"/>
@@ -42,11 +35,11 @@ The following keybindings only work when the completion dropdown is opened.
 
 <KeymapFallback filename="Insert"/>
 
-| Label/Keybinding | Meaning               |
-| ---------------- | --------------------- |
-| `Line ←`         | Move to line start    |
-| `Line →`         | Move to line end      |
-| `Kill Line ←`    | Kill line backward    |
-| `Kill Line →`    | Kill line forward     |
-| `Delete Token ←` | Delete token backward |
-| `alt+backspace`  | Delete word backward  |
+| Label/Keybinding | Meaning                 |
+| ---------------- | ----------------------- |
+| `Line ←`         | Move to line start      |
+| `Line →`         | Move to line end        |
+| `Kill Line ←`    | Kill line backward      |
+| `Kill Line →`    | Kill line forward       |
+| `Delete Word ←`  | Delete word backward    |
+| `alt+backspace`  | Delete subword backward |

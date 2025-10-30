@@ -9,15 +9,18 @@ default:
     @just doc 
     
 install:
+    rm -r ~/.cache/ki/zed-themes || echo "ok" 
     cargo install --locked --path .
 
 fmt-check:
     @echo "Checking formating"
     cargo fmt --all -- --check
+    alejandra -c .
     
 fmt:
 	cargo fmt --all
 	npm run format
+	alejandra .
 
 build:
     @echo "Running cargo build..."
@@ -30,6 +33,7 @@ lint:
     @echo "Running cargo clippy..."
     cargo clippy --workspace -- -D warnings
     cargo clippy --tests -- -D warnings
+    cargo machete
     @just vscode-lint
     
 vscode-lint:
@@ -37,7 +41,7 @@ vscode-lint:
     npm run lint
     
 lint-fix:
-	cargo clippy --workspace --tests --fix --allow-staged
+	cargo clippy --workspace --tests --fix --allow-staged --allow-dirty
 	@just vscode-lint-fix
 
 vscode-lint-fix:
@@ -75,12 +79,6 @@ watch-test testname:
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo clippy --workspace --tests
 	
-generate-recipes:
-	just test "generate_recipes"
-	
-watch-generate-recipes:
-	just watch-test "generate_recipes"
-
 vscode-build: build
     cd ki-vscode && npm install
 
@@ -143,3 +141,7 @@ vscode-build-binaries:
     just vscode-build-binary-windows-x64
     ls -la ki-vscode/dist/bin/
     echo "Done!"
+
+profile:
+    cargo build --release
+    samply record ./target/release/ki

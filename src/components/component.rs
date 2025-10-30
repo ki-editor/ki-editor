@@ -8,8 +8,6 @@ use crate::{context::Context, grid::Grid, position::Position, rectangle::Rectang
 
 use super::editor::{DispatchEditor, Editor};
 
-// dyn_clone::clone_trait_object!(Component);
-//
 pub(crate) struct GetGridResult {
     pub(crate) grid: Grid,
     pub(crate) cursor: Option<Cursor>,
@@ -28,7 +26,7 @@ impl std::fmt::Display for GetGridResult {
                 .to_string(),
             None => self.grid.to_string(),
         };
-        write!(f, "{}", content)
+        write!(f, "{content}")
     }
 }
 
@@ -93,8 +91,8 @@ pub trait Component: Any + AnyComponent {
 
     fn editor_mut(&mut self) -> &mut Editor;
 
-    fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
-        self.editor().get_grid(context, focused)
+    fn get_grid(&mut self, context: &Context, focused: bool) -> GetGridResult {
+        self.editor_mut().get_grid(context, focused)
     }
 
     fn path(&self) -> Option<CanonicalizedPath> {
@@ -137,9 +135,9 @@ pub trait Component: Any + AnyComponent {
 
     fn handle_mouse_event(
         &mut self,
-        _event: crossterm::event::MouseEvent,
+        event: crossterm::event::MouseEvent,
     ) -> anyhow::Result<Dispatches> {
-        Ok(Default::default())
+        self.editor_mut().handle_mouse_event(event)
     }
 
     fn handle_key_event(

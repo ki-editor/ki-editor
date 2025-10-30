@@ -1,6 +1,6 @@
 use itertools::{Either, Itertools};
 use my_proc_macros::key;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use std::collections::HashMap;
 
 // TODO:
 // 1. Emoji not rendering properly
@@ -19,14 +19,14 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
         })
     });
     recipe_groups
-        .into_par_iter()
+        .into_iter()
         .filter(|recipe_group| {
             !contains_only_recipes || recipe_group.recipes.iter().any(|recipe| recipe.only)
         })
         .map(|recipe_group| -> anyhow::Result<_> {
             let recipes = recipe_group.recipes;
             let (errors, recipes_output): (Vec<_>, Vec<_>) = recipes
-                .into_par_iter()
+                .into_iter()
                 .filter(|recipe| !contains_only_recipes || recipe.only)
                 .map(|recipe| -> Result<RecipeOutput, String> {
                     let run = || {
@@ -66,7 +66,7 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                                         Editor(SetRectangle(Rectangle {
                                             origin: Position::default(),
                                             width,
-                                            height: height as u16,
+                                            height: (height as u16).saturating_sub(1), // Minus one because of app global status bar,
                                         })),
                                         // Editor(ApplySyntaxHighlight),
                                         App(HandleKeyEvent(key!("esc"))),
@@ -100,7 +100,8 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                                         .map(|event| event.display())
                                         .unwrap_or(" ".to_string()),
                                     description: "".to_string(),
-                                    term_output: result.unwrap(),
+                                    term_output: result.term_output.unwrap(),
+                                    buffer_contents_map: result.buffer_contents_map,
                                 })
                             })
                             .collect::<Result<Vec<_>, _>>()?;
@@ -160,6 +161,7 @@ pub(crate) struct StepOutput {
     pub(crate) key: String,
     pub(crate) description: String,
     pub(crate) term_output: String,
+    pub(crate) buffer_contents_map: HashMap<String, String>,
 }
 
 #[derive(serde::Serialize)]

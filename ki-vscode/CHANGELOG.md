@@ -1,5 +1,8 @@
 # Changelog
 
+# [0.0.16]
+Up to https://github.com/ki-editor/ki-editor/commit/5d02ca3e422ff42744e73ddc57327bcc6992e03b.
+
 # [0.0.15]
 Up to https://github.com/ki-editor/ki-editor/commit/c956df7c13dee9e3aee5da9615f943ed6191b9d7.
 

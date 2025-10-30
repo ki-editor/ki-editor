@@ -1,10 +1,13 @@
 use super::prelude::*;
 use crate::{components::component::Component, embed::EmbeddedApp};
-use ki_protocol_types::SelectionSet;
+use ki_protocol_types::SelectionSetParams;
 
 impl EmbeddedApp {
     /// Handle selection.set notification from Host
-    pub(crate) fn handle_selection_set_notification(&mut self, params: SelectionSet) -> Result<()> {
+    pub(crate) fn handle_selection_set_notification(
+        &mut self,
+        params: SelectionSetParams,
+    ) -> Result<()> {
         let Some(uri) = params.uri else {
             log::info!("EmbeddedApp::handle_selection_set_notification: params.uri is None");
             return Ok(());
@@ -45,7 +48,7 @@ impl EmbeddedApp {
             }),
             None => return Ok(()),
         }
-        .set_mode(editor.selection_set.mode.clone());
+        .set_mode(editor.selection_set.mode().clone());
 
         // Skip setting selection if the extended ranges of both selection sets are the same.
         // This is necessary so that selection extension can work.
@@ -73,12 +76,15 @@ impl EmbeddedApp {
             }
         }
 
-        editor.set_selection_set(selection_set, &Context::default());
+        editor.set_selection_set(selection_set, &self.context);
 
         Ok(())
     }
 
-    pub(crate) fn handle_selection_set_request(&mut self, params: SelectionSet) -> Result<()> {
+    pub(crate) fn handle_selection_set_request(
+        &mut self,
+        params: SelectionSetParams,
+    ) -> Result<()> {
         self.handle_selection_set_notification(params)
     }
 }

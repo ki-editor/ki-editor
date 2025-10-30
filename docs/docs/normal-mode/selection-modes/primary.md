@@ -119,14 +119,14 @@ Full Line.
 
 Same as [Line](#line), however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.
 
-## `Token`
+## `Word`
 
 Each unit is a sequence of alphanumeric characters including `-` and `_`.
 
-| Movement              | Meaning                                       |
-| --------------------- | --------------------------------------------- |
-| Up/Down/Previous/Next | Move to all kinds of token, including symbols |
-| Left/Right            | Move to non-symbol token only                 |
+| Movement              | Meaning                                                      |
+| --------------------- | ------------------------------------------------------------ |
+| Up/Down/Previous/Next | Move to all kinds of word, including symbols and whitespaces |
+| Left/Right            | Move to non-symbol word only                                 |
 
 Suppose the following example:
 
@@ -143,26 +143,26 @@ If the current selection is selecting `use`, the following table demonstrates ho
 
 
 
-<TutorialFallback filename="token"/>
-
-[^1]: This is possible because even Prompt is an editor, so the Token mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
-[^1]: This is possible because even Prompt is an editor, so the Token mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
-
-## `Word`
-
-This selects word within a word.
-
-For example, `myOatPepperBanana` consists of 4 short word, namely: `my`, `Oat`, `Pepper` and `Banana`.
-
-This is useful for renaming identifiers, especially if we only want to change a single word of the name. [^1]
-
-| Movement              | Meaning                                      |
-| --------------------- | -------------------------------------------- |
-| Up/Down/Previous/Next | Move to all kinds of word, including symbols |
-| Left/Right            | Move to non-symbol word only                 |
-
-
 <TutorialFallback filename="word"/>
+
+[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
+[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
+
+## `Subword`
+
+This selects subword within a subword.
+
+For example, `myOatPepperBanana` consists of 4 short subword, namely: `my`, `Oat`, `Pepper` and `Banana`.
+
+This is useful for renaming identifiers, especially if we only want to change a single subword of the name. [^1]
+
+| Movement              | Meaning                                         |
+| --------------------- | ----------------------------------------------- |
+| Up/Down/Previous/Next | Move to all kinds of subword, including symbols |
+| Left/Right            | Move to non-symbol subword only                 |
+
+
+<TutorialFallback filename="subword"/>
 
 ## `Char`
 
@@ -173,8 +173,3 @@ In this selection mode, the movements behave like the usual editor, where [Left/
 [First/Last](./../core-movements.md#firstlast) means the first/last character of the current word.
 
 <TutorialFallback filename="char"/>
-
-
-## `Last Search`
-
-Repeats the last search.

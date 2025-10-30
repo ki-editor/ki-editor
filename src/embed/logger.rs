@@ -31,7 +31,7 @@ impl Log for HostLogger {
 
             // Just output to stderr for debugging
             // This appears in the Host debug console already
-            let _ = writeln!(io::stderr(), "[{}] {}", level_str, message);
+            let _ = writeln!(io::stderr(), "[{level_str}] {message}");
         }
     }
 

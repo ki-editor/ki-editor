@@ -241,7 +241,7 @@ Replace all matches across the repository with a specified replacement pattern.
 
 This is a global action affecting all matching occurrences.
 
-Keybinding: `space X`
+Keybinding: `space j x`
 
 ## Overcoming Unintended Gotchas
 

@@ -4,7 +4,6 @@ use super::prelude::*;
 use crate::{
     app::Dispatch,
     buffer::BufferOwner,
-    context::Context,
     edit::{Action, ActionGroup, Edit, EditTransaction},
     embed::{
         app::EmbeddedApp,
@@ -36,19 +35,18 @@ impl EmbeddedApp {
         };
         self.app.lock().unwrap().handle_dispatch(dispatch)?;
 
-        self.handle_selection_set_notification(ki_protocol_types::SelectionSet {
+        self.handle_selection_set_notification(ki_protocol_types::SelectionSetParams {
             uri: Some(uri.to_string()),
             selections,
         })?;
 
         let app_guard = self.app.lock().unwrap();
         let comp = app_guard.current_component();
-        let context = Context::new(path.clone(), true);
 
         // Scope the mutable borrow to avoid borrow checker issues
         {
             let mut comp_ref = comp.borrow_mut();
-            comp_ref.set_content(&content, &context)?;
+            comp_ref.set_content(&content, &self.context)?;
         }
 
         Ok(())
@@ -123,7 +121,7 @@ impl EmbeddedApp {
         let _ = editor_rc
             .borrow_mut()
             .editor_mut()
-            .apply_edit_transaction(transaction, &Context::default())?;
+            .apply_edit_transaction(transaction, &self.context)?;
 
         Ok(())
     }
@@ -146,12 +144,13 @@ impl EmbeddedApp {
         // Update the content, this is to prevent buffer desync issues that happens randomly
         let mut app_guard = self.app.lock().unwrap();
         let comp = app_guard.current_component();
-        let context = Context::new(path.clone(), true);
-
         // Scope the mutable borrow to avoid borrow checker issues
         {
             let mut comp_ref = comp.borrow_mut();
-            comp_ref.editor_mut().update_content(&content, &context)?;
+            let dispatches = comp_ref
+                .editor_mut()
+                .update_content(&content, &self.context)?;
+            app_guard.handle_dispatches(dispatches)?;
         };
 
         for event in app_guard.take_queued_events() {

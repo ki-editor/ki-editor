@@ -20,6 +20,7 @@ pub(crate) struct Theme {
     pub(crate) ui: UiStyles,
     pub(crate) diagnostic: DiagnosticStyles,
     pub(crate) hunk: HunkStyles,
+    pub(crate) git_gutter: GitGutterStyles,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -46,6 +47,23 @@ impl HunkStyles {
             old_background: hex!("#FCECEA"),
             old_emphasized_background: hex!("#F9D8D6"),
             new_emphasized_background: hex!("#BAF0C0"),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub(crate) struct GitGutterStyles {
+    pub(crate) insertion: Color,
+    pub(crate) deletion: Color,
+    pub(crate) replacement: Color,
+}
+
+impl GitGutterStyles {
+    pub(crate) fn new() -> Self {
+        Self {
+            insertion: hex!("#BAF0C0"),
+            deletion: hex!("#F9D8D6"),
+            replacement: hex!("#f0e68c"),
         }
     }
 }

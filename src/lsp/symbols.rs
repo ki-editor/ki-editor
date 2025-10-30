@@ -1,5 +1,6 @@
 use crate::{
     app::{Dispatch, Dispatches},
+    buffer::Buffer,
     components::dropdown::DropdownItem,
     quickfix_list::Location,
 };
@@ -85,15 +86,15 @@ impl Symbol {
         container_name: Option<String>,
         path: CanonicalizedPath,
     ) -> anyhow::Result<Self> {
+        let buffer = Buffer::from_path(&path, false)?;
+
         let start_position = value.range.start.into();
         let end_position = value.range.end.into();
+        let range = buffer.position_range_to_char_index_range(&(start_position..end_position))?;
         Ok(Self {
             name: value.name,
             kind: value.kind,
-            location: Location {
-                path,
-                range: start_position..end_position,
-            },
+            location: Location { path, range },
             container_name,
         })
     }
@@ -124,10 +125,7 @@ impl From<Symbol> for DropdownItem {
             .set_group(Some(
                 symbol.container_name.unwrap_or("[TOP LEVEL]".to_string()),
             ))
-            .set_rank(Some(Box::new([
-                symbol.location.range.start.line,
-                symbol.location.range.start.column,
-            ])))
+            .set_rank(Some(Box::new([symbol.location.range.start.0])))
             .set_dispatches(dispatches)
     }
 }

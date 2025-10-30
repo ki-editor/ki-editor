@@ -74,6 +74,37 @@ impl DropdownItem {
     pub(crate) fn resolved(&self) -> bool {
         self.resolved
     }
+
+    pub(crate) fn from_path_buf(
+        working_directory: &CanonicalizedPath,
+        path: std::path::PathBuf,
+    ) -> DropdownItem {
+        DropdownItem::new({
+            let name = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let icon = shared::canonicalized_path::get_path_icon(&path);
+            format!("{icon} {name}")
+        })
+        .set_group(path.parent().map(|parent| {
+            let relative = parent
+                .strip_prefix(working_directory)
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|_| parent.display().to_string());
+            format!("{} {}", shared::icons::get_icon_config().folder, relative,)
+        }))
+        .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFileFromPathBuf {
+            path,
+            owner: BufferOwner::User,
+            focus: true,
+        }))
+    }
+
+    pub(crate) fn group(&self) -> &Option<String> {
+        &self.group
+    }
 }
 
 impl From<CanonicalizedPath> for DropdownItem {
@@ -439,27 +470,22 @@ impl Dropdown {
         }
     }
 
+    /// The formatted content should follow the syntax of tree_sitter_quickfix.
+    /// See more at tree_sitter_quickfix/grammar.js
     fn content(&self) -> String {
         self.filtered_item_groups
             .iter()
             .map(|group| {
                 if let Some(group_key) = group.group_key.as_ref() {
-                    let items_len = group.items.len();
                     let items = group
                         .items
                         .iter()
-                        .enumerate()
-                        .map(|(index, item)| {
+                        .map(|item| {
                             let content = item.item.display();
-                            let indicator = if index == items_len.saturating_sub(1) {
-                                "└─"
-                            } else {
-                                "├─"
-                            };
-                            format!(" {} {}", indicator, content)
+                            format!("    {content}")
                         })
                         .join("\n");
-                    format!("■┬ {}\n{}", group_key, items)
+                    format!("{group_key}\n{items}")
                 } else {
                     group
                         .items
@@ -791,29 +817,29 @@ mod test_dropdown {
         assert_eq!(
             dropdown.render().content.trim(),
             "
-■┬ 1
- └─ a
+1
+    a
 
-■┬ 2
- ├─ c
- └─ d
+2
+    c
+    d
 
-■┬ 3
- └─ b
+3
+    b
 "
             .trim()
         );
-        dropdown.assert_highlighted_content(" └─ a");
+        dropdown.assert_highlighted_content("    a");
 
         dropdown.next_group();
-        dropdown.assert_highlighted_content(" ├─ c");
+        dropdown.assert_highlighted_content("    c");
         dropdown.next_group();
-        dropdown.assert_highlighted_content(" └─ b");
+        dropdown.assert_highlighted_content("    b");
 
         dropdown.previous_group();
-        dropdown.assert_highlighted_content(" ├─ c");
+        dropdown.assert_highlighted_content("    c");
         dropdown.previous_group();
-        dropdown.assert_highlighted_content(" └─ a");
+        dropdown.assert_highlighted_content("    a");
     }
 
     #[test]

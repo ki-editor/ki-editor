@@ -51,11 +51,23 @@ impl FileExplorer {
         let mut editor = Editor::from_text(
             shared::language::from_extension("yaml")
                 .and_then(|language| language.tree_sitter_language()),
-            &format!("{}\n", text),
+            &format!("{text}\n"),
         );
         editor.set_title("File Explorer".to_string());
         editor.set_normal_mode_override(file_explorer_normal_mode_override());
         Ok(Self { editor, tree })
+    }
+
+    pub(crate) fn expanded_folders(&self) -> Vec<CanonicalizedPath> {
+        self.tree
+            .walk_visible(Vec::new(), |result, node| Continuation {
+                state: if matches!(node.kind, NodeKind::Directory { open: true, .. }) {
+                    result.into_iter().chain(Some(node.path.clone())).collect()
+                } else {
+                    result
+                },
+                kind: ContinuationKind::Continue,
+            })
     }
 
     pub(crate) fn reveal(
@@ -73,13 +85,9 @@ impl FileExplorer {
         }
     }
 
-    pub(crate) fn refresh(
-        &mut self,
-        working_directory: &CanonicalizedPath,
-        context: &Context,
-    ) -> anyhow::Result<()> {
+    pub(crate) fn refresh(&mut self, context: &Context) -> anyhow::Result<()> {
         let tree = std::mem::take(&mut self.tree);
-        self.tree = tree.refresh(working_directory)?;
+        self.tree = tree.refresh(context.current_working_directory())?;
         self.refresh_editor(context)?;
         Ok(())
     }
@@ -276,9 +284,9 @@ impl Tree {
                             String::new()
                         };
                         if tail.is_empty() {
-                            format!("{} :", head)
+                            format!("{head} :")
                         } else {
-                            format!("{} :\n{}", head, tail)
+                            format!("{head} :\n{tail}")
                         }
                     }
                 };
@@ -335,7 +343,6 @@ impl Tree {
             },
         });
         let tree = Tree::new(working_directory)?;
-        log::info!("opened_paths = {:?}", opened_paths);
         let tree = opened_paths
             .into_iter()
             .fold(tree, |tree, path| tree.toggle(&path, |_| true));
@@ -423,6 +430,7 @@ mod test_file_explorer {
  - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
+   - 📘  hello.ts
    - 🦀  main.rs
 "
                     .trim_matches('\n')
@@ -446,7 +454,7 @@ mod test_file_explorer {
                 }),
                 App(RevealInExplorer(s.main_rs())),
                 Expect(ComponentCount(1)),
-                App(HandleKeyEvents(keys!("m").to_vec())),
+                App(HandleKeyEvents(keys!("f").to_vec())),
                 Expect(ComponentCount(2)),
                 Expect(CurrentComponentTitle("Move path".to_string())),
                 Editor(Insert("/hello/world.rs".to_string())),

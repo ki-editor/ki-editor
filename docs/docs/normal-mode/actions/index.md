@@ -14,7 +14,7 @@ import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 ## Search
 
-### `← Search`/`Search →`
+### `Search`
 
 Open search prompt.
 
@@ -44,20 +44,22 @@ This is similar to [Yanking Earlier Kills](https://www.gnu.org/software/emacs/ma
 
 This is useful when you want to retrieve earlier copies.
 
-### `← Open`/`Open →`
+### `Open`
 
-Open before/after selection.
+Open next to current selection.
 
-If the current selection mode is not Syntax Node,
-then Open inserts a newline with the respective indent after/before the current line.
+`Open` is directional[^directionality].
 
-Otherwise, it inserts a gap before/after the current selection, and then enter Insert mode.
+`Open` inserts a newline with the respective indent of the current line,
+In Syntax Mode, exceptionally, it inserts a gap next to the current selection.
 
 <TutorialFallback filename="open"/>
 
-### `← Delete`/`Delete →`
+### `Delete`
 
-Delete until previous/next selection.
+Delete until the left/right selection.
+
+`Delete` is directional[^directionality].
 
 This deletes the current selection(s), however, if the current selection mode is
 [contiguous](../selection-modes/index.md#contiguity), it will delete until the
@@ -79,6 +81,16 @@ hello(y);
 ```
 
 <TutorialFallback filename="delete"/>
+
+### `Delete 0 Gap`
+
+Delete until the previous/next selection.
+
+This is similar to `Delete`, but it doesn't delete the meaningless gaps between selections.
+
+Meaningless gaps are usually whitespaces, or insignificant nodes like comma or semicolon in the Syntax Node selection mode.
+
+<TutorialFallback filename="delete-0-gap"/>
 
 ### `Change`
 
@@ -183,25 +195,21 @@ After formatting, the [Current](../core-movements.md#current) movement will be e
 
 ## Clipboard
 
-There are two kinds of clipboards:
+The usual disntinction between two kinds of (system and editor) clipboards,
+like in other editors like vim or helix, are unified in ki's user interface:
 
-1. The editor clipboard
-2. The system clipboard
+For single cursor,
 
-By default, the editor clipboard is used, to use the system clipboard, press
-`space` before pressing the keybindings of the following actions.
+- Copy copies to system clipboard also adds to editor clipboard history
+- Paste uses the system clipboard content but adds the pasted content if it is new.
 
-The editor clipboard works for multiple cursors, the text of each cursor can be
-copied to and pasted from the editor clipboard respectively.
+For multiple cursors,
 
-The system clipboard however does not support multiple cursors.
-When there are multiple cursors:
+- Copy copies to system clipboard a html formatted text containing list of div tags
+- Paste uses the system clipboard's html formatted text containing list of div tags.
 
-- Copy joins every selection into a single string and then place it in the system clipboard
-- Paste uses the same string from the system clipboard for every cursor
-
-Note: when new content are copied to the system clipboard, it will also be
-copied to the editor clipboard.
+Note: Effectively, the user only interacts with the system clipboard, the editor
+clipboard provides clipboard history.
 
 ### `Copy`
 
@@ -212,12 +220,13 @@ Copy behaves differently depending on the number of cursors.
 When there is more than one cursor, the selected texts of each cursor will be
 copied to the cursor-specific clipboard.
 
-### `Paste ←`/`Paste →`
+### `Paste`
 
-Paste before/after selection.
+Paste copied content next to current selection.
 
-This action pastes the content from the clipboard (either the system clipboard or
-cursor-specific clipboard) after/before the current selection.
+`Paste` is directional[^directionality].
+
+This action pastes the content from the clipboard, next to the current selection.
 
 Notes:
 
@@ -248,8 +257,7 @@ hello(x, y, z);
 
 ### `Change X`
 
-This is similar to [Change](#change), but it copies the deleted text into the system clipboard.  
-Like `ctrl+x` in Windows and `cmd+x` in macOS.
+This is similar to [Change](#change), but it copies the deleted text into the clipboard.Like `ctrl+x` in Windows and `cmd+x` in macOS.
 
 ### `Replace`
 
@@ -260,3 +268,11 @@ This replaces the current selected text with the copied text.
 Replace Cut, swaps the current selection with the content in the clipboard.
 
 <TutorialFallback filename="replace-cut"/>
+
+### `Change keyboard layout`
+
+Keybinding: `*`
+
+This has a special keybinding that is non-positional so that the keyboard layout can be switched easily.
+
+[^directionality]: Actions can have Directionality which can be changed using [`⇋ Curs`](../../normal-mode/other-movements/#-curs). Directionality means, that the result of that action can be applied in two opposite directions. For example, deleting backward and deleting forward, both are the same action only directionally opposite. To change the direction of the action make sure to first swap the cursor using [`⇋ Curs`](../../normal-mode/other-movements/#-curs) before applying the action.

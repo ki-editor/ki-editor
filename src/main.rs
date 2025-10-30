@@ -47,9 +47,15 @@ mod utils;
 
 mod embed;
 
+mod alternator;
 mod divide_viewport;
 mod env;
+pub(crate) mod file_watcher;
 mod format_path_list;
+pub(crate) mod persistence;
+#[cfg(test)]
+mod test_lsp;
+mod thread;
 use std::{rc::Rc, sync::Mutex};
 
 use anyhow::Context;
@@ -59,7 +65,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 use app::{App, StatusLineComponent};
 
-use crate::app::AppMessage;
+use crate::{app::AppMessage, persistence::Persistence};
 
 fn main() {
     cli::cli().unwrap();
@@ -75,11 +81,13 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
     simple_logging::log_to_file(grammar::default_log_file(), LevelFilter::Info)?;
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
-    let mut app = App::from_channel(
+
+    let app = App::from_channel(
         Rc::new(Mutex::new(Crossterm::new()?)),
         config.working_directory.unwrap_or(".".try_into()?),
         sender,
         receiver,
+        Some(syntax_highlighter_sender),
         [
             StatusLineComponent::Mode,
             StatusLineComponent::SelectionMode,
@@ -94,9 +102,12 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         .to_vec(),
         None, // No integration event sender
         true,
+        true,
         false,
+        Some(Persistence::load_or_default(
+            grammar::cache_dir().join("data.json"),
+        )),
     )?;
-    app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 
     let sender = app.sender();
 

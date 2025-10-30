@@ -164,7 +164,7 @@ impl PositionBasedSelectionMode for LineFull {
 #[cfg(test)]
 mod test_line_full {
     use crate::buffer::BufferOwner;
-    use crate::components::editor::{Direction, IfCurrentNotFound};
+    use crate::components::editor::IfCurrentNotFound;
     use crate::selection::SelectionMode;
     use crate::test_app::*;
 
@@ -173,6 +173,8 @@ mod test_line_full {
         selection::Selection,
         selection_mode::{PositionBased, SelectionModeTrait as _},
     };
+
+    use serial_test::serial;
 
     #[test]
     fn case_1() {
@@ -203,37 +205,50 @@ mod test_line_full {
         );
     }
 
+    #[serial]
     #[test]
-    fn still_paste_to_newline_despite_only_one_line_present() -> anyhow::Result<()> {
-        let run_test = |direction: Direction| {
-            execute_test(|s| {
-                Box::new([
-                    App(OpenFile {
-                        path: s.main_rs(),
-                        owner: BufferOwner::User,
-                        focus: true,
-                    }),
-                    Editor(SetContent("  foo".to_string())),
-                    Editor(SetSelectionMode(
-                        IfCurrentNotFound::LookForward,
-                        SelectionMode::LineFull,
-                    )),
-                    Editor(Copy {
-                        use_system_clipboard: false,
-                    }),
-                    Editor(Paste {
-                        use_system_clipboard: false,
-                        direction: direction.clone(),
-                    }),
-                    Editor(Paste {
-                        use_system_clipboard: false,
-                        direction: direction.clone(),
-                    }),
-                    Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
-                ])
-            })
-        };
-        run_test(Direction::End)?;
-        run_test(Direction::Start)
+    fn still_paste_forward_to_newline_despite_only_one_line_present() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("  foo".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::LineFull,
+                )),
+                Editor(Copy),
+                Editor(Paste),
+                Editor(Paste),
+                Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
+            ])
+        })
+    }
+
+    #[serial]
+    #[test]
+    fn still_paste_backward_to_newline_despite_only_one_line_present() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("  foo".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::LineFull,
+                )),
+                Editor(Copy),
+                Editor(SwapCursor),
+                Editor(Paste),
+                Editor(Paste),
+                Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
+            ])
+        })
     }
 }

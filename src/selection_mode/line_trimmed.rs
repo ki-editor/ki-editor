@@ -302,6 +302,8 @@ mod test_line {
 
     use super::*;
 
+    use serial_test::serial;
+
     #[test]
     fn simple_case() {
         let buffer = Buffer::new(None, "a\n\nb");
@@ -379,93 +381,133 @@ fn f() {
         test(1, "fn f() {");
     }
 
+    #[serial]
     #[test]
     fn paste_forward_use_larger_indent() -> anyhow::Result<()> {
-        let run_test = |direction: Direction, expected_result: &'static str| {
-            execute_test(|s| {
-                Box::new([
-                    App(OpenFile {
-                        path: s.main_rs(),
-                        owner: BufferOwner::User,
-                        focus: true,
-                    }),
-                    Editor(SetContent(
-                        "
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    "
 foo
   bar
     spam
 "
-                        .trim()
-                        .to_string(),
-                    )),
-                    Editor(MatchLiteral("bar".to_string())),
-                    Editor(SetSelectionMode(
-                        IfCurrentNotFound::LookForward,
-                        SelectionMode::Line,
-                    )),
-                    Editor(Copy {
-                        use_system_clipboard: false,
-                    }),
-                    Editor(Paste {
-                        use_system_clipboard: false,
-                        direction: direction.clone(),
-                    }),
-                    Expect(CurrentComponentContent(expected_result)),
-                ])
-            })
-        };
-        run_test(
-            Direction::End,
-            "
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("bar".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(Copy),
+                Editor(Paste),
+                Expect(CurrentComponentContent(
+                    "
 foo
   bar
     bar
     spam
 "
-            .trim(),
-        )?;
-        run_test(
-            Direction::Start,
-            "
+                    .trim(),
+                )),
+            ])
+        })
+    }
+
+    #[serial]
+    #[test]
+    fn paste_backward_use_larger_indent() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    "
+foo
+  bar
+    spam
+"
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("bar".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(Copy),
+                Editor(SwapCursor),
+                Editor(Paste),
+                Expect(CurrentComponentContent(
+                    "
 foo
   bar
   bar
     spam
 "
-            .trim(),
-        )
+                    .trim(),
+                )),
+            ])
+        })
     }
 
+    #[serial]
     #[test]
-    fn still_paste_to_newline_with_indent_despite_only_one_line_present() -> anyhow::Result<()> {
-        let run_test = |direction: Direction| {
-            execute_test(|s| {
-                Box::new([
-                    App(OpenFile {
-                        path: s.main_rs(),
-                        owner: BufferOwner::User,
-                        focus: true,
-                    }),
-                    Editor(SetContent("  foo".to_string())),
-                    Editor(SetSelectionMode(
-                        IfCurrentNotFound::LookForward,
-                        SelectionMode::Line,
-                    )),
-                    Editor(Copy {
-                        use_system_clipboard: false,
-                    }),
-                    Editor(Paste {
-                        use_system_clipboard: false,
-                        direction: direction.clone(),
-                    }),
-                    Expect(CurrentComponentContent("  foo\n  foo")),
-                ])
-            })
-        };
-        run_test(Direction::End)?;
-        run_test(Direction::Start)
+    fn still_paste_forward_with_newline_with_indent_despite_only_one_line_present(
+    ) -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("  foo".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(Copy),
+                Editor(Paste),
+                Expect(CurrentComponentContent("  foo\n  foo")),
+            ])
+        })
     }
 
+    #[serial]
+    #[test]
+    fn still_paste_backward_with_newline_with_indent_despite_only_one_line_present(
+    ) -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("  foo".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(Copy),
+                Editor(SwapCursor),
+                Editor(Paste),
+                Expect(CurrentComponentContent("  foo\n  foo")),
+            ])
+        })
+    }
+
+    #[serial]
     #[test]
     fn paste_previous_using_last_line() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -482,52 +524,63 @@ foo
                     SelectionMode::Line,
                 )),
                 Expect(CurrentSelectedTexts(&["bar"])),
-                Editor(Copy {
-                    use_system_clipboard: false,
-                }),
-                Editor(Paste {
-                    use_system_clipboard: false,
-                    direction: Direction::Start,
-                }),
+                Editor(Copy),
+                Editor(SwapCursor),
+                Editor(Paste),
                 Expect(CurrentComponentContent("foo\nbar\nbar")),
             ])
         })
     }
 
+    #[serial]
     #[test]
-    fn copy_pasting_nothing_but_with_indentation() -> anyhow::Result<()> {
-        let run_test = |direction: Direction| {
-            execute_test(|s| {
-                Box::new([
-                    App(OpenFile {
-                        path: s.main_rs(),
-                        owner: BufferOwner::User,
-                        focus: true,
-                    }),
-                    Editor(SetContent(" ".to_string())),
-                    Editor(SetSelectionMode(
-                        IfCurrentNotFound::LookForward,
-                        SelectionMode::Line,
-                    )),
-                    Expect(CurrentSelectedTexts(&[""])),
-                    Editor(Copy {
-                        use_system_clipboard: false,
-                    }),
-                    Editor(Paste {
-                        use_system_clipboard: false,
-                        direction: direction.clone(),
-                    }),
-                    Expect(CurrentComponentContent(" \n ")),
-                    Editor(Paste {
-                        use_system_clipboard: false,
-                        direction: direction.clone(),
-                    }),
-                    Expect(CurrentComponentContent(" \n \n ")),
-                ])
-            })
-        };
-        run_test(Direction::End)?;
-        run_test(Direction::Start)
+    fn copy_pasting_backward_nothing_but_with_indentation() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(" ".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(Copy),
+                Editor(SwapCursor),
+                Editor(Paste),
+                Expect(CurrentComponentContent(" \n ")),
+                Editor(Paste),
+                Expect(CurrentComponentContent(" \n \n ")),
+            ])
+        })
+    }
+
+    #[serial]
+    #[test]
+    fn copy_pasting_forward_nothing_but_with_indentation() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(" ".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(Copy),
+                Editor(Paste),
+                Expect(CurrentComponentContent(" \n ")),
+                Editor(Paste),
+                Expect(CurrentComponentContent(" \n \n ")),
+            ])
+        })
     }
 
     #[test]
@@ -559,28 +612,47 @@ foo
     }
 
     #[test]
-    fn able_to_delete_last_line_which_is_empty() -> anyhow::Result<()> {
-        fn test(direction: Direction) -> anyhow::Result<()> {
-            execute_test(|s| {
-                Box::new([
-                    App(OpenFile {
-                        path: s.main_rs(),
-                        owner: BufferOwner::User,
-                        focus: true,
-                    }),
-                    Editor(SetContent("hello\n".to_string())),
-                    Editor(SetSelectionMode(
-                        IfCurrentNotFound::LookForward,
-                        SelectionMode::Line,
-                    )),
-                    Editor(MoveSelection(Movement::Last)),
-                    Expect(CurrentSelectedTexts(&[""])),
-                    Editor(Delete(direction.clone())),
-                    Expect(CurrentComponentContent("hello")),
-                ])
-            })
-        }
-        test(Direction::End)?;
-        test(Direction::Start)
+    fn able_to_delete_forward_at_last_line_which_is_empty() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("hello\n".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(MoveSelection(Movement::Last)),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(Delete),
+                Expect(CurrentComponentContent("hello")),
+            ])
+        })
+    }
+
+    #[test]
+    fn able_to_delete_backward_at_last_line_which_is_empty() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("hello\n".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(MoveSelection(Movement::Last)),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(SwapCursor),
+                Editor(Delete),
+                Expect(CurrentComponentContent("hello")),
+            ])
+        })
     }
 }

@@ -1,5 +1,6 @@
 use grammar::grammar::GrammarConfiguration;
 use serde_json::Value;
+use tree_sitter::Query;
 
 pub(crate) use crate::process_command::ProcessCommand;
 use crate::{
@@ -41,8 +42,6 @@ pub struct Language {
     pub(crate) lsp_language_id: Option<LanguageId>,
     pub(crate) lsp_command: Option<LspCommand>,
     pub(crate) tree_sitter_grammar_config: Option<GrammarConfig>,
-    /// This will be used when we can't load the language file using `tree_sitter_grammar_config`.
-    pub(crate) language_fallback: Option<CargoLinkedTreesitterLanguage>,
     pub(crate) highlight_query: Option<&'static str>,
     pub(crate) formatter_command: Option<Command>,
     pub(crate) line_comment_prefix: Option<&'static str>,
@@ -54,10 +53,14 @@ pub enum CargoLinkedTreesitterLanguage {
     Typescript,
     TSX,
     Python,
+    Scheme,
+    OCaml,
+    OCamlInterface,
     Rust,
     Graphql,
     Javascript,
     JSX,
+    Svelte,
     JSON,
     YAML,
     HTML,
@@ -79,6 +82,8 @@ pub enum CargoLinkedTreesitterLanguage {
     Swift,
     Heex,
     Toml,
+    KiQuickfix,
+    Haskell,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -89,13 +94,20 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::TSX => tree_sitter_typescript::LANGUAGE_TSX.into(),
             CargoLinkedTreesitterLanguage::Python => tree_sitter_python::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Scheme => tree_sitter_scheme::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::OCaml => tree_sitter_ocaml::LANGUAGE_OCAML.into(),
+            CargoLinkedTreesitterLanguage::OCamlInterface => {
+                tree_sitter_ocaml::LANGUAGE_OCAML_INTERFACE.into()
+            }
             CargoLinkedTreesitterLanguage::Rust => tree_sitter_rust::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Graphql => tree_sitter_graphql::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Javascript => tree_sitter_javascript::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::JSX => tree_sitter_javascript::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Svelte => tree_sitter_svelte_ng::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::JSON => tree_sitter_json::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::YAML => tree_sitter_yaml::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::HTML => tree_sitter_html::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Haskell => tree_sitter_haskell::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::XML => tree_sitter_xml::LANGUAGE_XML.into(),
             CargoLinkedTreesitterLanguage::Zig => tree_sitter_zig::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Markdown => tree_sitter_md::LANGUAGE.into(),
@@ -114,6 +126,52 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Swift => tree_sitter_swift::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Heex => tree_sitter_heex::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Toml => tree_sitter_toml_ng::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::KiQuickfix => tree_sitter_quickfix::language(),
+        }
+    }
+
+    fn default_highlight_query(&self) -> Option<&str> {
+        match self {
+            CargoLinkedTreesitterLanguage::Typescript => {
+                Some(tree_sitter_typescript::HIGHLIGHTS_QUERY)
+            }
+            CargoLinkedTreesitterLanguage::TSX => Some(tree_sitter_typescript::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Python => Some(tree_sitter_python::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Scheme => Some(tree_sitter_scheme::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::OCaml => Some(tree_sitter_ocaml::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::OCamlInterface => {
+                Some(tree_sitter_ocaml::HIGHLIGHTS_QUERY)
+            }
+            CargoLinkedTreesitterLanguage::Rust => Some(tree_sitter_rust::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Graphql => None,
+            CargoLinkedTreesitterLanguage::Javascript => {
+                Some(tree_sitter_javascript::HIGHLIGHT_QUERY)
+            }
+            CargoLinkedTreesitterLanguage::JSX => Some(tree_sitter_javascript::HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::Svelte => Some(tree_sitter_svelte_ng::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::JSON => Some(tree_sitter_json::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::YAML => Some(tree_sitter_yaml::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::HTML => Some(tree_sitter_html::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Haskell => Some(tree_sitter_haskell::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::XML => Some(tree_sitter_xml::XML_HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::Zig => Some(tree_sitter_zig::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Markdown => Some(tree_sitter_md::HIGHLIGHT_QUERY_BLOCK),
+            CargoLinkedTreesitterLanguage::Go => Some(tree_sitter_go::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Lua => Some(tree_sitter_lua::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Gleam => Some(tree_sitter_gleam::HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::Bash => Some(tree_sitter_bash::HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::C => Some(tree_sitter_c::HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::CPP => Some(tree_sitter_cpp::HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::CSS => Some(tree_sitter_css::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Ruby => Some(tree_sitter_ruby::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Nix => Some(tree_sitter_nix::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Fish => Some(tree_sitter_fish::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Diff => Some(tree_sitter_diff::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Elixir => Some(tree_sitter_elixir::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Swift => Some(tree_sitter_swift::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Heex => Some(tree_sitter_heex::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Toml => Some(tree_sitter_toml_ng::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::KiQuickfix => Some(r#" (header) @keyword"#),
         }
     }
 }
@@ -142,7 +200,6 @@ impl Language {
             lsp_command: None,
             tree_sitter_grammar_config: None,
             formatter_command: None,
-            language_fallback: None,
             line_comment_prefix: None,
             block_comment_affixes: None,
         }
@@ -169,10 +226,20 @@ impl Default for Language {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GrammarConfig {
-    pub(crate) id: &'static str,
-    pub(crate) url: &'static str,
-    pub(crate) commit: &'static str,
-    pub(crate) subpath: Option<&'static str>,
+    pub id: &'static str,
+    pub kind: GrammarConfigKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GrammarConfigKind {
+    /// This is the recommended over `FromSource`, as `FromSource`
+    /// is not reliable across different operating system.
+    CargoLinked(CargoLinkedTreesitterLanguage),
+    FromSource {
+        url: &'static str,
+        commit: &'static str,
+        subpath: Option<&'static str>,
+    },
 }
 
 impl Language {
@@ -185,38 +252,56 @@ impl Language {
     }
 
     pub fn tree_sitter_language(&self) -> Option<tree_sitter::Language> {
-        grammar::grammar::get_language(&self.tree_sitter_grammar_config()?.grammar_id)
-            .map_err(|err| {
-                log::error!(
-                    "Language::tree_sitter_language: unable to obtain language due to {err:?}"
-                );
-                err
-            })
-            .ok()
-            .or_else(|| Some(self.language_fallback.clone()?.to_tree_sitter_language()))
+        let config = self.tree_sitter_grammar_config.as_ref()?;
+        match &config.kind {
+            GrammarConfigKind::CargoLinked(language) => Some(language.to_tree_sitter_language()),
+            GrammarConfigKind::FromSource { .. } => grammar::grammar::get_language(config.id).ok(),
+        }
     }
 
     pub(crate) fn tree_sitter_grammar_config(&self) -> Option<GrammarConfiguration> {
-        self.tree_sitter_grammar_config.as_ref().map(|config| {
-            GrammarConfiguration::remote(config.id, config.url, config.commit, config.subpath)
-        })
+        match self.tree_sitter_grammar_config.as_ref()?.kind {
+            GrammarConfigKind::CargoLinked(_) => None,
+            GrammarConfigKind::FromSource {
+                url,
+                commit,
+                subpath,
+            } => self
+                .tree_sitter_grammar_config
+                .as_ref()
+                .map(|config| GrammarConfiguration::remote(config.id, url, commit, subpath)),
+        }
     }
 
+    /// We prioritize using highlight queries from nvim-treesitter
+    /// over the default highlight queries provided by each Treesitter grammar
+    /// repositories because the former produces better syntax highlighting.
+    ///
+    /// However, in the event that the tree-sitter-highlight crates cannot
+    /// handle the nvim-treesitter query due to issues like Neovim-specific directives
+    /// (this is validated through the use of `tree_sitter::Query::new`),
+    /// we will fallback to the default highlight queries.
     pub fn highlight_query(&self) -> Option<String> {
-        // Get highlight query from `nvim-treesitter` first
+        if let Some(query) = self.highlight_query_nvim_treesitter() {
+            match Query::new(&self.tree_sitter_language()?, &query) {
+                Ok(_) => return Some(query),
+                Err(error) => {
+                    log::error!(
+                        "[Language::highlight_query]: Falling back to default query; unable to use highlight query of {} from nvim-treesitter due to error: {error:?}",
+                        self.tree_sitter_grammar_config.clone()?.id
+                    )
+                }
+            }
+        }
+        self.highlight_query_default()
+    }
+
+    pub fn highlight_query_nvim_treesitter(&self) -> Option<String> {
         get_highlight_query(self.tree_sitter_grammar_config.clone()?.id)
             .ok()
-            .map(|result| result.query)
-            .or(
-                // Otherwise, get from the default highlight queries defined in the grammar repo
-                grammar::grammar::load_runtime_file(
-                    &self.tree_sitter_grammar_config()?.grammar_id,
-                    "highlights.scm",
-                )
-                .ok(),
-            )
-            .map(|query| {
-                query
+            .map(|result| {
+                result
+                    .query
                     // Replace `nvim-treesitter`-specific predicates with builtin predicates supported by `tree-sitter-highlight` crate
                     // Reference: https://github.com/nvim-treesitter/nvim-treesitter/blob/23ba63028c6acca29be6462c0a291fc4a1b9eae8/CONTRIBUTING.md#predicates
                     .replace("lua-match", "match")
@@ -228,6 +313,20 @@ impl Language {
                     .replace("@spell", "")
                     .replace("@nospell", "")
             })
+    }
+
+    fn highlight_query_default(&self) -> Option<String> {
+        let config = self.tree_sitter_grammar_config.as_ref()?;
+        match &config.kind {
+            GrammarConfigKind::CargoLinked(language) => {
+                Some(language.default_highlight_query()?.to_string())
+            }
+            GrammarConfigKind::FromSource { .. } => grammar::grammar::load_runtime_file(
+                &self.tree_sitter_grammar_id()?,
+                "highlights.scm",
+            )
+            .ok(),
+        }
     }
 
     pub fn locals_query(&self) -> Option<&'static str> {
@@ -245,7 +344,7 @@ impl Language {
     }
 
     pub fn tree_sitter_grammar_id(&self) -> Option<String> {
-        Some(self.tree_sitter_grammar_config()?.grammar_id)
+        Some(self.tree_sitter_grammar_config.as_ref()?.id.to_string())
     }
 
     pub fn id(&self) -> Option<LanguageId> {

@@ -65,15 +65,15 @@ impl CompletionItem {
             .map(|kind| {
                 get_icon_config()
                     .completion
-                    .get(&format!("{:?}", kind))
+                    .get(&format!("{kind:?}"))
                     .map(|s| s.to_string())
-                    .unwrap_or_else(|| format!("({:?})", kind))
+                    .unwrap_or_else(|| format!("({kind:?})"))
             })
             .unwrap_or_default()
     }
     pub(crate) fn info(&self) -> Option<Info> {
         let kind = self.kind.map(|kind| {
-            convert_case::Casing::to_case(&format!("{:?}", kind), convert_case::Case::Title)
+            convert_case::Casing::to_case(&format!("{kind:?}"), convert_case::Case::Title)
         });
         let detail = self.detail.clone();
         let documentation = self.documentation().map(|d| d.content);
