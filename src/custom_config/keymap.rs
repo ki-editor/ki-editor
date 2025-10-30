@@ -4,6 +4,7 @@
 use event::KeyEvent;
 use my_proc_macros::keys;
 use shared::canonicalized_path::CanonicalizedPath;
+use std::cmp::Ordering;
 
 use crate::components::editor_keymap::{
     KeyboardMeaningLayout,
@@ -27,7 +28,9 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
 ];
 
 fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
-    if PrimarySelectionContent.resolve(ctx) == "fn" {
+    if PrimarySelectionLineNumber.resolve(ctx) <= 5 {
+        RunCommand("wl-copy", &[Str("You have quite some exploring todo!")])
+    } else if PrimarySelectionContent.resolve(ctx) == "fn" {
         RunCommand(
             "wl-copy",
             &[
@@ -38,8 +41,8 @@ fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
             ],
         )
     } else if PrimarySelectionContent.resolve(ctx) == "else" {
-        // This macro adds new cursor to the next selection that matches the current selection
-        Macro(keys!("e r l esc").to_vec())
+        // This macro selects the entire file
+        Macro(keys!("a g g esc").to_vec())
     } else {
         DoNothing
     }
@@ -138,18 +141,28 @@ pub(crate) enum RunCommandPart {
     PrimarySelectionContent,
     CurrentWorkingDirectory,
 }
+
+pub(crate) enum ResolvedValue {
+    Str(String),
+    Int(i64),
+    Empty,
+}
+
 impl RunCommandPart {
-    pub(crate) fn resolve(&self, ctx: &LeaderContext) -> String {
+    pub(crate) fn resolve(&self, ctx: &LeaderContext) -> ResolvedValue {
         match self {
-            Str(str) => str.to_string(),
-            CurrentFilePath => ctx
-                .path
-                .as_ref()
-                .map(|path| path.display_absolute())
-                .unwrap_or_default(),
-            PrimarySelectionLineNumber => (ctx.primary_selection_line_index + 1).to_string(),
-            PrimarySelectionContent => ctx.primary_selection_content.clone(),
-            CurrentWorkingDirectory => ctx.current_working_directory.display_absolute(),
+            Str(str) => ResolvedValue::Str(str.to_string()),
+            CurrentFilePath => match &ctx.path {
+                Some(path) => ResolvedValue::Str(path.display_absolute()),
+                None => ResolvedValue::Empty,
+            },
+            PrimarySelectionLineNumber => {
+                ResolvedValue::Int((&ctx.primary_selection_line_index + 1) as i64)
+            }
+            PrimarySelectionContent => ResolvedValue::Str(ctx.primary_selection_content.clone()),
+            CurrentWorkingDirectory => {
+                ResolvedValue::Str(ctx.current_working_directory.display_absolute())
+            }
         }
     }
     pub(crate) fn to_string(&self, leader_context: &LeaderContext) -> String {
@@ -165,6 +178,33 @@ impl RunCommandPart {
             }
             PrimarySelectionContent => leader_context.primary_selection_content.to_string(),
             CurrentWorkingDirectory => leader_context.current_working_directory.display_absolute(),
+        }
+    }
+}
+
+impl PartialEq<&str> for ResolvedValue {
+    fn eq(&self, other: &&str) -> bool {
+        match self {
+            ResolvedValue::Str(val) => val == *other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<i64> for ResolvedValue {
+    fn eq(&self, other: &i64) -> bool {
+        match self {
+            ResolvedValue::Int(val) => val == other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialOrd<i64> for ResolvedValue {
+    fn partial_cmp(&self, other: &i64) -> Option<Ordering> {
+        match self {
+            ResolvedValue::Int(val) => val.partial_cmp(other),
+            _ => None,
         }
     }
 }
