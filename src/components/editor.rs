@@ -1042,6 +1042,18 @@ impl Editor {
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     let current_range = selection.extended_range();
+
+                    // Let the current_range be at least one character long
+                    // so even if the current_range is empty, the user can
+                    // still delete the character which is apparently under the cursor.
+                    let current_range = if current_range.len() == 0 {
+                        (current_range.start
+                            ..(current_range.start + 1).min(CharIndex(self.buffer().len_chars())))
+                            .into()
+                    } else {
+                        current_range
+                    };
+
                     let default = {
                         let start = current_range.start;
                         (current_range, (start..start + 1).into())
