@@ -584,12 +584,6 @@ impl Editor {
                 Dispatch::OtherWindow,
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::UPstE),
-                "Paste →".to_string(),
-                "Paste".to_string(),
-                Dispatch::ToEditor(Paste),
-            ),
-            Keymap::new_extended(
                 context
                     .keyboard_layout_kind()
                     .get_insert_key(&Meaning::SHelp),

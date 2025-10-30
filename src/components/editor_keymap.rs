@@ -49,7 +49,7 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
         _____, LineP, LineD, LineN, OpenM, /****/ DWrdP, MrkFP, ScrlD, MrkFN, SView,
     ],
     [
-        Undo_, _____, WClse, UPstE, MarkF, /****/ _____, SHelp, _____, _____, WSwth,
+        Undo_, _____, _____, WClse, MarkF, /****/ _____, SHelp, _____, _____, WSwth,
     ],
 ];
 
@@ -671,8 +671,6 @@ pub(crate) enum Meaning {
     Word_,
     /// Transform
     Trsfm,
-    /// Paste (End)
-    UPstE,
     /// Undo
     Undo_,
     /// Up
