@@ -4092,8 +4092,9 @@ impl Editor {
         Ok(dispatches.chain(self.do_save(true, context)?))
     }
 
-    pub(crate) fn reload(&mut self, force: bool) -> Result<Dispatches, anyhow::Error> {
-        self.buffer_mut().reload(force)
+    fn reload(&mut self, force: bool) -> Result<Dispatches, anyhow::Error> {
+        let dispatches = self.buffer_mut().reload(force)?;
+        Ok(dispatches.chain(self.get_document_did_change_dispatch()))
     }
 }
 

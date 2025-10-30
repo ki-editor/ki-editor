@@ -2,24 +2,36 @@ use std::time::Duration;
 
 use lazy_regex::regex;
 
+use crate::{
+    app::{Dimension, Dispatch::*},
+    buffer::BufferOwner,
+    components::editor::DispatchEditor,
+    grid::{IndexedHighlightGroup, StyleKey},
+    test_app::{
+        execute_test_custom,
+        ExpectKind::*,
+        RunTestOptions, State,
+        Step::{self, *},
+    },
+};
 use serial_test::serial;
+
 use DispatchEditor::*;
 
-use crate::{
-    app::Dispatch::*,
-    buffer::BufferOwner,
-    components::editor::DispatchEditor::{self},
-    test_app::{execute_test_custom, ExpectKind::*, RunTestOptions, Step::*},
-};
+fn execute_file_watcher_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<()> {
+    execute_test_custom(
+        RunTestOptions {
+            enable_lsp: false,
+            enable_syntax_highlighting: false,
+            enable_file_watcher: true,
+        },
+        callback,
+    )
+}
 
 #[test]
 fn file_modified_externally() -> Result<(), anyhow::Error> {
-    let options = RunTestOptions {
-        enable_lsp: false,
-        enable_syntax_highlighting: false,
-        enable_file_watcher: true,
-    };
-    execute_test_custom(options, |s| {
+    execute_file_watcher_test(|s| {
         Box::new([
             App(OpenFile {
                 path: s.main_rs(),
@@ -53,7 +65,7 @@ fn expect_no_file_notifications_for_unopened_files() -> Result<(), anyhow::Error
         enable_syntax_highlighting: false,
         enable_file_watcher: true,
     };
-    execute_test_custom(options, |s| {
+    execute_file_watcher_test(|s| {
         Box::new([
             // Open main.rs
             App(OpenFile {
@@ -87,7 +99,7 @@ fn expect_no_file_notifications_for_closed_files() -> Result<(), anyhow::Error> 
         enable_syntax_highlighting: false,
         enable_file_watcher: true,
     };
-    execute_test_custom(options, |s| {
+    execute_file_watcher_test(|s| {
         Box::new([
             // Open main.rs
             App(OpenFile {
@@ -126,7 +138,7 @@ fn path_removal_should_refresh_explorer() -> Result<(), anyhow::Error> {
         enable_syntax_highlighting: false,
         enable_file_watcher: true,
     };
-    execute_test_custom(options, |s| {
+    execute_file_watcher_test(|s| {
         Box::new([
             App(RevealInExplorer(s.main_rs())),
             Expect(CurrentComponentContentMatches(regex!("main.rs"))),
@@ -148,7 +160,7 @@ fn path_rename_should_refresh_explorer() -> Result<(), anyhow::Error> {
         enable_syntax_highlighting: false,
         enable_file_watcher: true,
     };
-    execute_test_custom(options, |s| {
+    execute_file_watcher_test(|s| {
         Box::new([
             App(RevealInExplorer(s.main_rs())),
             Expect(Not(Box::new(CurrentComponentContentMatches(regex!(
@@ -179,7 +191,7 @@ fn path_modified_under_a_non_expanded_folder_should_not_refresh_explorer(
         enable_syntax_highlighting: false,
         enable_file_watcher: true,
     };
-    execute_test_custom(options, |s| {
+    execute_file_watcher_test(|s| {
         Box::new([
             App(RevealInExplorer(s.gitignore())),
             // Expect "src" folder is not expanded,
@@ -217,7 +229,7 @@ fn path_modified_under_current_working_directory_should_refresh_explorer(
         enable_syntax_highlighting: false,
         enable_file_watcher: true,
     };
-    execute_test_custom(options, |s| {
+    execute_file_watcher_test(|s| {
         Box::new([
             App(RevealInExplorer(s.main_rs())),
             Expect(Not(Box::new(CurrentComponentContentMatches(regex!(
@@ -247,7 +259,7 @@ fn saving_a_file_should_not_refreshes_the_buffer_due_to_incoming_file_modified_n
         enable_syntax_highlighting: false,
         enable_file_watcher: true,
     };
-    execute_test_custom(options, |s| {
+    execute_file_watcher_test(|s| {
         Box::new([
             App(OpenFile {
                 path: s.main_rs(),
@@ -261,6 +273,52 @@ fn saving_a_file_should_not_refreshes_the_buffer_due_to_incoming_file_modified_n
             WaitForAppMessage(regex!("FileWatcherEvent.*ContentModified")),
             Editor(Undo),
             Expect(CurrentSelectedTexts(&["mod"])),
+        ])
+    })
+}
+
+#[test]
+fn file_reloading_due_to_file_watcher_event_should_recompute_syntax_highlighting(
+) -> Result<(), anyhow::Error> {
+    let options = RunTestOptions {
+        enable_lsp: false,
+        enable_syntax_highlighting: true,
+        enable_file_watcher: true,
+    };
+    execute_test_custom(options, |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(TerminalDimensionChanged(Dimension {
+                height: 20,
+                width: 50,
+            })),
+            // Modify file externally
+            WaitForDuration(Duration::from_secs(1)),
+            Shell(
+                "bash",
+                [
+                    "-c".to_string(),
+                    format!(
+                        "echo '// new comment' >> {}",
+                        s.main_rs().display_absolute(),
+                    ),
+                ]
+                .to_vec(),
+            ),
+            WaitForDuration(Duration::from_secs(1)),
+            WaitForAppMessage(regex!("FileWatcherEvent.*ContentModified")),
+            Expect(CurrentComponentContentMatches(regex!("// new comment"))),
+            WaitForAppMessage(regex!("SyntaxHighlightResponse")),
+            Expect(RangeStyleKey(
+                "// new comment",
+                Some(StyleKey::Syntax(
+                    IndexedHighlightGroup::from_str("comment").unwrap(),
+                )),
+            )),
         ])
     })
 }
