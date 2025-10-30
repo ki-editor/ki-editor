@@ -16,13 +16,21 @@ import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 ### `Search`
 
-Open search prompt.
+Opens the search prompt.
 
 ### `This`
 
-Search this selection.
+Searches the current selection.
 
 <TutorialFallback filename="search-current-selection"/>
+
+### `With`
+
+Opens the search prompt with the currently selected text pre-filled in the search field.
+
+For example, if you have "foo" selected, executing this action will open the search prompt with "foo" already entered, allowing you to build upon it to create a new query.
+
+This is most useful when you want to search for the current selection with some modifications.
 
 ## Modifications
 
