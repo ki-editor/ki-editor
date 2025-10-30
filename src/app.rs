@@ -2937,8 +2937,10 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                         .any(|opened_file| &path == opened_file)
                 {
                     let component = self.open_file(&path, BufferOwner::User, false, false)?;
-                    let dispatches = component.borrow_mut().editor_mut().reload(false)?;
-                    self.handle_dispatches(dispatches)?;
+                    self.handle_dispatch_editor_custom(
+                        DispatchEditor::ReloadFile { force: false },
+                        component,
+                    )?;
                 }
             }
             FileWatcherEvent::PathCreated
