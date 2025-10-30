@@ -60,11 +60,6 @@ fn file_modified_externally() -> Result<(), anyhow::Error> {
 
 #[test]
 fn expect_no_file_notifications_for_unopened_files() -> Result<(), anyhow::Error> {
-    let options = RunTestOptions {
-        enable_lsp: false,
-        enable_syntax_highlighting: false,
-        enable_file_watcher: true,
-    };
     execute_file_watcher_test(|s| {
         Box::new([
             // Open main.rs
@@ -94,11 +89,6 @@ fn expect_no_file_notifications_for_unopened_files() -> Result<(), anyhow::Error
 
 #[test]
 fn expect_no_file_notifications_for_closed_files() -> Result<(), anyhow::Error> {
-    let options = RunTestOptions {
-        enable_lsp: false,
-        enable_syntax_highlighting: false,
-        enable_file_watcher: true,
-    };
     execute_file_watcher_test(|s| {
         Box::new([
             // Open main.rs
@@ -133,11 +123,6 @@ fn expect_no_file_notifications_for_closed_files() -> Result<(), anyhow::Error> 
 
 #[test]
 fn path_removal_should_refresh_explorer() -> Result<(), anyhow::Error> {
-    let options = RunTestOptions {
-        enable_lsp: false,
-        enable_syntax_highlighting: false,
-        enable_file_watcher: true,
-    };
     execute_file_watcher_test(|s| {
         Box::new([
             App(RevealInExplorer(s.main_rs())),
@@ -155,11 +140,6 @@ fn path_removal_should_refresh_explorer() -> Result<(), anyhow::Error> {
 
 #[test]
 fn path_rename_should_refresh_explorer() -> Result<(), anyhow::Error> {
-    let options = RunTestOptions {
-        enable_lsp: false,
-        enable_syntax_highlighting: false,
-        enable_file_watcher: true,
-    };
     execute_file_watcher_test(|s| {
         Box::new([
             App(RevealInExplorer(s.main_rs())),
@@ -186,11 +166,6 @@ fn path_rename_should_refresh_explorer() -> Result<(), anyhow::Error> {
 #[test]
 fn path_modified_under_a_non_expanded_folder_should_not_refresh_explorer(
 ) -> Result<(), anyhow::Error> {
-    let options = RunTestOptions {
-        enable_lsp: false,
-        enable_syntax_highlighting: false,
-        enable_file_watcher: true,
-    };
     execute_file_watcher_test(|s| {
         Box::new([
             App(RevealInExplorer(s.gitignore())),
@@ -224,11 +199,6 @@ fn path_modified_under_a_non_expanded_folder_should_not_refresh_explorer(
 #[test]
 fn path_modified_under_current_working_directory_should_refresh_explorer(
 ) -> Result<(), anyhow::Error> {
-    let options = RunTestOptions {
-        enable_lsp: false,
-        enable_syntax_highlighting: false,
-        enable_file_watcher: true,
-    };
     execute_file_watcher_test(|s| {
         Box::new([
             App(RevealInExplorer(s.main_rs())),
@@ -254,11 +224,6 @@ fn path_modified_under_current_working_directory_should_refresh_explorer(
 #[test]
 fn saving_a_file_should_not_refreshes_the_buffer_due_to_incoming_file_modified_notification(
 ) -> Result<(), anyhow::Error> {
-    let options = RunTestOptions {
-        enable_lsp: false,
-        enable_syntax_highlighting: false,
-        enable_file_watcher: true,
-    };
     execute_file_watcher_test(|s| {
         Box::new([
             App(OpenFile {
