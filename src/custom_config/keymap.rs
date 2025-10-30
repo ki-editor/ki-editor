@@ -27,7 +27,7 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
 ];
 
 fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
-    if resolve(ctx, PrimarySelectionContent) == "fn" {
+    if PrimarySelectionContent.resolve(ctx) == "fn" {
         RunCommand(
             "wl-copy",
             &[
@@ -37,7 +37,7 @@ fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
                 PrimarySelectionLineNumber,
             ],
         )
-    } else if resolve(ctx, PrimarySelectionContent) == "else" {
+    } else if PrimarySelectionContent.resolve(ctx) == "else" {
         // This macro adds new cursor to the next selection that matches the current selection
         Macro(keys!("e r l esc").to_vec())
     } else {
@@ -114,20 +114,6 @@ pub(crate) fn leader_keymap() -> Vec<(
     .collect()
 }
 
-pub(crate) fn resolve(ctx: &LeaderContext, part: RunCommandPart) -> String {
-    match part {
-        Str(str) => str.to_string(),
-        CurrentFilePath => ctx
-            .path
-            .as_ref()
-            .map(|path| path.display_absolute())
-            .unwrap_or_default(),
-        PrimarySelectionLineNumber => (ctx.primary_selection_line_index + 1).to_string(),
-        PrimarySelectionContent => ctx.primary_selection_content.clone(),
-        CurrentWorkingDirectory => ctx.current_working_directory.display_absolute(),
-    }
-}
-
 pub(crate) struct LeaderContext {
     pub(crate) path: Option<CanonicalizedPath>,
     /// 0-based index
@@ -153,6 +139,19 @@ pub(crate) enum RunCommandPart {
     CurrentWorkingDirectory,
 }
 impl RunCommandPart {
+    pub(crate) fn resolve(&self, ctx: &LeaderContext) -> String {
+        match self {
+            Str(str) => str.to_string(),
+            CurrentFilePath => ctx
+                .path
+                .as_ref()
+                .map(|path| path.display_absolute())
+                .unwrap_or_default(),
+            PrimarySelectionLineNumber => (ctx.primary_selection_line_index + 1).to_string(),
+            PrimarySelectionContent => ctx.primary_selection_content.clone(),
+            CurrentWorkingDirectory => ctx.current_working_directory.display_absolute(),
+        }
+    }
     pub(crate) fn to_string(&self, leader_context: &LeaderContext) -> String {
         match self {
             Str(str) => str.to_string(),
