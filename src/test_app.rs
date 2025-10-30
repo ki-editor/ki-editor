@@ -2583,6 +2583,27 @@ fn open_search_prompt_in_file_explorer() -> anyhow::Result<()> {
 }
 
 #[test]
+fn open_search_prompt_with_current_selection() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectedTexts(&["mod foo;"])),
+            App(OpenSearchPromptWithCurrentSelection {
+                scope: Scope::Local,
+                prior_change: None,
+            }),
+            Expect(CurrentComponentTitle("Local search".to_string())),
+            Expect(CurrentComponentContent("mod foo;")),
+        ])
+    })
+}
+
+#[test]
 fn global_search_should_not_using_empty_pattern() -> anyhow::Result<()> {
     execute_test(|_| {
         Box::new([

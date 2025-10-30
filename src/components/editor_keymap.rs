@@ -28,7 +28,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        _____, Char_, _____, _____, Raise, /****/ _____, RplcP, Join_, RplcN, Pst0G,
+        _____, Char_, SchWC, _____, Raise, /****/ _____, RplcP, Join_, RplcN, Pst0G,
     ],
     [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
@@ -837,6 +837,8 @@ pub(crate) enum Meaning {
     GtBlm,
     /// Reload buffer
     RlBfr,
+    /// Open search prompt with current selection
+    SchWC,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

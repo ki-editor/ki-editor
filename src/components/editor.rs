@@ -3746,14 +3746,20 @@ impl Editor {
         self.selection_set.is_extended()
     }
 
+    pub(crate) fn current_primary_selection(&self) -> anyhow::Result<String> {
+        Ok(self
+            .buffer()
+            .slice(&self.selection_set.primary_selection().extended_range())?
+            .to_string())
+    }
+
     fn search_current_selection(
         &mut self,
         if_current_not_found: IfCurrentNotFound,
         scope: Scope,
     ) -> Dispatches {
         let dispatches = self
-            .buffer()
-            .slice(&self.selection_set.primary_selection().extended_range())
+            .current_primary_selection()
             .map(|search| {
                 Dispatches::one(Dispatch::UpdateLocalSearchConfig {
                     scope,

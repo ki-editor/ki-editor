@@ -328,6 +328,14 @@ impl Editor {
                     prior_change,
                 },
             ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::SchWC),
+                "With".to_string(),
+                Dispatch::OpenSearchPromptWithCurrentSelection {
+                    scope: Scope::Local,
+                    prior_change,
+                },
+            ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Undo_),
                 "Undo".to_string(),
@@ -1496,6 +1504,14 @@ impl Editor {
                     Dispatch::OpenSearchPrompt {
                         scope,
                         if_current_not_found,
+                    },
+                ),
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::SchWC),
+                    "With".to_string(),
+                    Dispatch::OpenSearchPromptWithCurrentSelection {
+                        scope,
+                        prior_change,
                     },
                 ),
                 Keymap::new(

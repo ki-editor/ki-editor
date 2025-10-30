@@ -94,6 +94,7 @@ vscode-install:
     rm ki-vscode/ki-editor-vscode-*.vsix || true
     cargo build --release 
     cp target/release/ki ./ki-vscode/dist/bin/ki-darwin-arm64  
+    cd ki-vscode && npm install  
     cd ki-vscode && npm run package  
     rm -rf ~/.vscode/extensions/ki-editor.ki-editor-vscode-0.0.*/** 
     code --install-extension ki-vscode/ki-editor-vscode-*.vsix 

@@ -596,7 +596,7 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenSearchPrompt {
                 scope,
                 if_current_not_found,
-            } => self.open_search_prompt(scope, if_current_not_found)?,
+            } => self.open_search_prompt(scope, if_current_not_found, None)?,
             Dispatch::OpenSearchPromptWithPriorChange {
                 scope,
                 if_current_not_found,
@@ -952,6 +952,10 @@ impl<T: Frontend> App<T> {
             Dispatch::ToHostApp(to_host_app) => self.handle_to_host_app(to_host_app)?,
             Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
             Dispatch::OpenSurroundXmlPrompt => self.open_surround_xml_prompt()?,
+            Dispatch::OpenSearchPromptWithCurrentSelection {
+                scope,
+                prior_change,
+            } => self.open_search_prompt_with_current_selection(scope, prior_change)?,
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
             Dispatch::DropdownFilterUpdated(filter) => {
                 self.handle_dropdown_filter_updated(filter)?
@@ -1079,10 +1083,28 @@ impl<T: Frontend> App<T> {
         )
     }
 
+    fn open_search_prompt_with_current_selection(
+        &mut self,
+        scope: Scope,
+        prior_change: Option<PriorChange>,
+    ) -> anyhow::Result<()> {
+        self.current_component()
+            .borrow_mut()
+            .editor_mut()
+            .handle_prior_change(prior_change);
+        let current_line = self
+            .current_component()
+            .borrow()
+            .editor()
+            .current_primary_selection()?;
+        self.open_search_prompt(scope, IfCurrentNotFound::LookForward, Some(current_line))
+    }
+
     fn open_search_prompt(
         &mut self,
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
+        current_line: Option<String>,
     ) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
@@ -1094,11 +1116,11 @@ impl<T: Frontend> App<T> {
                     run_search_after_config_updated: true,
                 },
                 enter_selects_first_matching_item: false,
-                leaves_current_line_empty: true,
+                leaves_current_line_empty: current_line.is_none(),
                 fire_dispatches_on_change: None,
                 prompt_history_key: PromptHistoryKey::Search,
             },
-            None,
+            current_line,
         )
     }
 
@@ -2698,7 +2720,7 @@ impl<T: Frontend> App<T> {
             .borrow_mut()
             .editor_mut()
             .handle_prior_change(prior_change);
-        self.open_search_prompt(scope, if_current_not_found)?;
+        self.open_search_prompt(scope, if_current_not_found, None)?;
         Ok(())
     }
 
@@ -3168,6 +3190,10 @@ pub(crate) enum Dispatch {
     ToHostApp(ToHostApp),
     FromHostApp(FromHostApp),
     OpenSurroundXmlPrompt,
+    OpenSearchPromptWithCurrentSelection {
+        scope: Scope,
+        prior_change: Option<PriorChange>,
+    },
     ShowGlobalInfo(Info),
     DropdownFilterUpdated(String),
     #[cfg(test)]
