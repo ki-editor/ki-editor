@@ -1275,13 +1275,13 @@ impl Editor {
                 &meanings
                     .into_iter()
                     .filter_map(|meaning| {
-                        let (_, description, leader_action) = leader_keymap()
+                        let (_, description, _) = leader_keymap()
                             .into_iter()
                             .find(|(m, _, _)| &meaning == m)?;
                         Some(Keymap::new(
                             context.keyboard_layout_kind().get_leader_keymap(&meaning),
                             description.to_string(),
-                            Dispatch::HandleLeaderAction(leader_action.clone()),
+                            Dispatch::ExecuteLeaderMeaning(meaning),
                         ))
                     })
                     .collect_vec(),

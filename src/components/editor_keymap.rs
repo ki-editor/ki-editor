@@ -568,7 +568,7 @@ impl KeyboardLayoutKind {
 /// Postfix N = Next, Postfix P = Previous
 /// X means Swap/Cut
 /// Prefix W means Window
-#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub(crate) enum Meaning {
     /// Empty, not assigned
     _____,

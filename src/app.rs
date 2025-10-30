@@ -1,3 +1,4 @@
+use crate::custom_config::keymap::leader_keymap;
 use crate::{
     buffer::{Buffer, BufferOwner},
     clipboard::CopiedTexts,
@@ -950,8 +951,31 @@ impl<T: Frontend> App<T> {
                 self.add_quickfix_list_entries(locations)?
             }
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
-            Dispatch::HandleLeaderAction(leader_action) => {
-                self.handle_leader_action(leader_action)?
+            Dispatch::ExecuteLeaderMeaning(meaning) => {
+                if let Some((_, _, action_fn)) =
+                    leader_keymap().into_iter().find(|(m, _, _)| *m == meaning)
+                {
+                    let context = LeaderContext {
+                        path: self.get_current_file_path(),
+                        primary_selection_line_index: self
+                            .current_component()
+                            .borrow()
+                            .get_cursor_position()
+                            .map(|position| position.line)
+                            .unwrap_or_default(),
+                        primary_selection_content: self
+                            .current_component()
+                            .borrow()
+                            .editor()
+                            .primary_selection()
+                            .unwrap_or_default(),
+                        current_working_directory: self.context.current_working_directory().clone(),
+                    };
+
+                    let leader_action = action_fn(&context);
+
+                    self.handle_leader_action(leader_action)?;
+                }
             }
         }
         Ok(())
@@ -3030,7 +3054,7 @@ pub(crate) enum Dispatch {
         edits: Vec<Edit>,
         path: CanonicalizedPath,
     },
-    HandleLeaderAction(LeaderAction),
+    ExecuteLeaderMeaning(Meaning),
 }
 
 /// Used to send notify host app about changes

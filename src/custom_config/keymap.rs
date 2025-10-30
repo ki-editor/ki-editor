@@ -9,6 +9,7 @@ use crate::components::editor_keymap::{
     KeyboardMeaningLayout,
     Meaning::{self, *},
 };
+use std::sync::Arc;
 
 use LeaderAction::*;
 use RunCommandPart::*;
@@ -25,24 +26,31 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
     ],
 ];
 
-fn sample_run_command() -> LeaderAction {
-    RunCommand(
-        "echo",
-        &[
-            Str("The current file is"),
-            CurrentFilePath,
-            Str("The current line is"),
-            PrimarySelectionLineNumber,
-        ],
-    )
+fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
+    if resolve(ctx, PrimarySelectionContent) == "fn" {
+        RunCommand(
+            "wl-copy",
+            &[
+                Str("The current file is"),
+                CurrentFilePath,
+                Str("The current line is"),
+                PrimarySelectionLineNumber,
+            ],
+        )
+    } else if resolve(ctx, PrimarySelectionContent) == "else" {
+        // This macro adds new cursor to the next selection that matches the current selection
+        Macro(keys!("e r l esc").to_vec())
+    } else {
+        DoNothing
+    }
 }
 
-fn sample_macro() -> LeaderAction {
+fn sample_macro(_ctx: &LeaderContext) -> LeaderAction {
     // This macro adds new cursor to the next selection that matches the current selection
     Macro(keys!("e r l esc").to_vec())
 }
 
-fn test() -> LeaderAction {
+fn test(_ctx: &LeaderContext) -> LeaderAction {
     RunCommand(
         "kitty",
         &[
@@ -59,43 +67,65 @@ fn test() -> LeaderAction {
     )
 }
 
-pub(crate) fn leader_keymap() -> Vec<(Meaning, &'static str, LeaderAction)> {
+pub(crate) fn leader_keymap() -> Vec<(
+    Meaning,
+    &'static str,
+    Arc<dyn Fn(&LeaderContext) -> LeaderAction + Send + Sync>,
+)> {
     [
-        (__Q__, "Sample run command", sample_run_command()),
-        (__W__, "Sample macro", sample_macro()),
-        (__E__, "", DoNothing),
-        (__R__, "", DoNothing),
-        (__T__, "Test", test()),
-        (__Y__, "", DoNothing),
-        (__U__, "", DoNothing),
-        (__I__, "", DoNothing),
-        (__O__, "", DoNothing),
-        (__P__, "", DoNothing),
+        (
+            __Q__,
+            "Sample run command",
+            Arc::new(sample_run_command) as _,
+        ),
+        (__W__, "Sample macro", Arc::new(sample_macro) as _),
+        (__E__, "Other", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__R__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__T__, "Test", Arc::new(test) as _),
+        (__Y__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__U__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__I__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__O__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__P__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
         // Second row
-        (__A__, "", DoNothing),
-        (__S__, "", DoNothing),
-        (__D__, "", DoNothing),
-        (__F__, "", DoNothing),
-        (__G__, "", DoNothing),
-        (__H__, "", DoNothing),
-        (__J__, "", DoNothing),
-        (__K__, "", DoNothing),
-        (__L__, "", DoNothing),
-        (_SEMI, "", DoNothing),
+        (__A__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__S__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__D__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__F__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__G__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__H__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__J__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__K__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__L__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (_SEMI, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
         // Third row
-        (__Z__, "", DoNothing),
-        (__X__, "", DoNothing),
-        (__C__, "", DoNothing),
-        (__V__, "", DoNothing),
-        (__B__, "", DoNothing),
-        (__N__, "", DoNothing),
-        (__M__, "", DoNothing),
-        (_COMA, "", DoNothing),
-        (_DOT_, "", DoNothing),
-        (_SLSH, "", DoNothing),
+        (__Z__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__X__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__C__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__V__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__B__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__N__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (__M__, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (_COMA, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (_DOT_, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
+        (_SLSH, "", Arc::new(|_: &LeaderContext| DoNothing) as _),
     ]
     .into_iter()
     .collect()
+}
+
+pub(crate) fn resolve(ctx: &LeaderContext, part: RunCommandPart) -> String {
+    match part {
+        Str(str) => str.to_string(),
+        CurrentFilePath => ctx
+            .path
+            .as_ref()
+            .map(|path| path.display_absolute())
+            .unwrap_or_default(),
+        PrimarySelectionLineNumber => (ctx.primary_selection_line_index + 1).to_string(),
+        PrimarySelectionContent => ctx.primary_selection_content.clone(),
+        CurrentWorkingDirectory => ctx.current_working_directory.display_absolute(),
+    }
 }
 
 pub(crate) struct LeaderContext {
