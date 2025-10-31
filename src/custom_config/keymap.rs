@@ -28,19 +28,19 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
 ];
 
 fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
-    if SelectionPrimary::ROW_INDEX.resolve(ctx) <= 5 {
-        RunCommand("wl-copy", &[Str("You have quite some exploring todo!")])
-    } else if SelectionPrimary::CONTENT.resolve(ctx) == "fn" {
+    if SelectionPrimary::row_index().resolve(ctx) <= 5 {
+        RunCommand("wl-copy", vec![Str("You have quite some exploring todo!")])
+    } else if SelectionPrimary::content().resolve(ctx) == "fn" {
         RunCommand(
             "wl-copy",
-            &[
+            vec![
                 Str("The current file is"),
-                FileCurrent::PATH,
+                FileCurrent::path(),
                 Str("The current line is"),
-                SelectionPrimary::ROW_INDEX,
+                SelectionPrimary::row_index(),
             ],
         )
-    } else if SelectionPrimary::CONTENT.resolve(ctx) == "else" {
+    } else if SelectionPrimary::content().resolve(ctx) == "else" {
         Macro(keys!("a g g esc").to_vec())
     } else {
         DoNothing
@@ -55,16 +55,16 @@ fn sample_macro(_ctx: &LeaderContext) -> LeaderAction {
 fn test(_ctx: &LeaderContext) -> LeaderAction {
     RunCommand(
         "kitty",
-        &[
+        vec![
             Str("@"),
             Str("launch"),
             Str("--hold"),
             Str("--no-response"),
             Str("--cwd"),
-            DirCurrent::PATH,
+            DirCurrent::path(),
             Str("just"),
             Str("test"),
-            SelectionPrimary::CONTENT,
+            SelectionPrimary::content(),
         ],
     )
 }
@@ -135,7 +135,7 @@ pub(crate) struct LeaderContext {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum LeaderAction {
-    RunCommand(&'static str, &'static [RunCommandPart]),
+    RunCommand(&'static str, Vec<RunCommandPart>),
     DoNothing,
     Macro(Vec<KeyEvent>),
 }
@@ -168,21 +168,29 @@ pub(crate) enum DirCurrentKind {
 
 pub(crate) struct FileCurrent;
 impl FileCurrent {
-    pub const PATH: RunCommandPart = RunCommandPart::FileCurrent(FileCurrentKind::Path);
-    pub const EXTENSION: RunCommandPart = RunCommandPart::FileCurrent(FileCurrentKind::Extension);
+    pub fn path() -> RunCommandPart {
+        RunCommandPart::FileCurrent(FileCurrentKind::Path)
+    }
+    pub fn extension() -> RunCommandPart {
+        RunCommandPart::FileCurrent(FileCurrentKind::Extension)
+    }
 }
 
 pub(crate) struct SelectionPrimary;
 impl SelectionPrimary {
-    pub const CONTENT: RunCommandPart =
-        RunCommandPart::SelectionPrimary(SelectionPrimaryKind::Content);
-    pub const ROW_INDEX: RunCommandPart =
-        RunCommandPart::SelectionPrimary(SelectionPrimaryKind::RowIndex);
+    pub fn content() -> RunCommandPart {
+        RunCommandPart::SelectionPrimary(SelectionPrimaryKind::Content)
+    }
+    pub fn row_index() -> RunCommandPart {
+        RunCommandPart::SelectionPrimary(SelectionPrimaryKind::RowIndex)
+    }
 }
 
 pub(crate) struct DirCurrent;
 impl DirCurrent {
-    pub const PATH: RunCommandPart = RunCommandPart::DirCurrent(DirCurrentKind::Path);
+    pub fn path() -> RunCommandPart {
+        RunCommandPart::DirCurrent(DirCurrentKind::Path)
+    }
 }
 
 pub(crate) enum ResolvedValue {
