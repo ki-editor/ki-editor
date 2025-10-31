@@ -2800,7 +2800,7 @@ impl<T: Frontend> App<T> {
             LeaderAction::RunCommand(command, args) => {
                 let args = args
                     .iter()
-                    .map(|arg| arg.to_string(&leader_context))
+                    .map(|arg| arg.resolve(&leader_context).to_string())
                     .collect_vec();
                 let _output = std::process::Command::new(command).args(&args).spawn()?;
                 // self.show_global_info(Info::new( format!("{command} {}", args.join(" ")), format!( "[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n", output.status, String::from_utf8_lossy(&output.stdout).trim(), String::from_utf8_lossy(&output.stderr).trim() ), ))

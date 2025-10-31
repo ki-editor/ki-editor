@@ -28,7 +28,7 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
 ];
 
 fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
-    if DirCurrent::file_exists("Cargo.toml").resolve(ctx) == true {
+    if DirWorking::file_exists("Cargo.toml").resolve(ctx) == true {
         RunCommand("wl-copy", vec![Str("run")])
     } else if FileCurrent::extension().resolve(ctx) == "py" {
         RunCommand("wl-copy", vec![FileCurrent::path()])
@@ -38,7 +38,7 @@ fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
             vec![
                 FileCurrent::path(),
                 Str("cargo run? :"),
-                DirCurrent::file_exists("Cargo.toml"),
+                DirWorking::file_exists("Cargo.toml"),
             ],
         )
     }
@@ -58,7 +58,7 @@ fn test(_ctx: &LeaderContext) -> LeaderAction {
             Str("--hold"),
             Str("--no-response"),
             Str("--cwd"),
-            DirCurrent::path(),
+            DirWorking::path(),
             Str("just"),
             Str("test"),
             SelectionPrimary::content(),
@@ -72,11 +72,7 @@ pub(crate) fn leader_keymap() -> Vec<(
     Arc<dyn Fn(&LeaderContext) -> LeaderAction + Send + Sync>,
 )> {
     [
-        (
-            __Q__,
-            "Sample run command",
-            Arc::new(sample_run_command) as _,
-        ),
+        (__Q__, "Sample run command", action(sample_run_command)),
         (__W__, "Sample macro", action(sample_macro)),
         (__E__, "", do_nothing()),
         (__R__, "", do_nothing()),
@@ -142,7 +138,7 @@ pub(crate) enum RunCommandPart {
     Str(&'static str),
     FileCurrent(FileCurrentKind),
     SelectionPrimary(SelectionPrimaryKind),
-    DirCurrent(DirCurrentKind),
+    DirCurrent(DirWorkingKind),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -159,8 +155,8 @@ pub(crate) enum SelectionPrimaryKind {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum DirCurrentKind {
-    PathRoot,
+pub(crate) enum DirWorkingKind {
+    Path,
     FileExists(&'static str),
 }
 
@@ -184,13 +180,13 @@ impl SelectionPrimary {
     }
 }
 
-pub(crate) struct DirCurrent;
-impl DirCurrent {
+pub(crate) struct DirWorking;
+impl DirWorking {
     pub fn path() -> RunCommandPart {
-        RunCommandPart::DirCurrent(DirCurrentKind::PathRoot)
+        RunCommandPart::DirCurrent(DirWorkingKind::Path)
     }
     pub fn file_exists(filename: &'static str) -> RunCommandPart {
-        RunCommandPart::DirCurrent(DirCurrentKind::FileExists(filename))
+        RunCommandPart::DirCurrent(DirWorkingKind::FileExists(filename))
     }
 }
 
@@ -199,6 +195,17 @@ pub(crate) enum ResolvedValue {
     Int(i64),
     Empty,
     Bool(bool),
+}
+
+impl ResolvedValue {
+    pub(crate) fn to_string(&self) -> String {
+        match self {
+            ResolvedValue::Str(string) => string.clone(),
+            ResolvedValue::Int(integer) => integer.to_string(),
+            ResolvedValue::Bool(bool) => bool.to_string(),
+            ResolvedValue::Empty => String::new(),
+        }
+    }
 }
 
 impl RunCommandPart {
@@ -226,10 +233,10 @@ impl RunCommandPart {
                 }
             },
             RunCommandPart::DirCurrent(kind) => match kind {
-                DirCurrentKind::PathRoot => {
+                DirWorkingKind::Path => {
                     ResolvedValue::Str(ctx.current_working_directory.display_absolute())
                 }
-                DirCurrentKind::FileExists(file_name) => {
+                DirWorkingKind::FileExists(file_name) => {
                     let exists = ctx
                         .current_working_directory
                         .join(*file_name)
@@ -238,15 +245,6 @@ impl RunCommandPart {
                     ResolvedValue::Bool(exists)
                 }
             },
-        }
-    }
-
-    pub(crate) fn to_string(&self, leader_context: &LeaderContext) -> String {
-        match self.resolve(leader_context) {
-            ResolvedValue::Str(string) => string,
-            ResolvedValue::Int(integer) => integer.to_string(),
-            ResolvedValue::Bool(bool) => bool.to_string(),
-            ResolvedValue::Empty => String::new(),
         }
     }
 }
