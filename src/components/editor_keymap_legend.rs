@@ -1011,9 +1011,16 @@ impl Editor {
                 .chain(Some(Keymap::new(
                     context
                         .keyboard_layout_kind()
-                        .get_space_picker_keymap(&Meaning::Symbl),
-                    "Symbol".to_string(),
+                        .get_space_picker_keymap(&Meaning::SyblD),
+                    "Symbol (Document)".to_string(),
                     Dispatch::RequestDocumentSymbols,
+                )))
+                .chain(Some(Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_picker_keymap(&Meaning::SyblW),
+                    "Symbol (Workspace)".to_string(),
+                    Dispatch::OpenWorkspaceSymbolsPrompt,
                 )))
                 .chain(Some(Keymap::new(
                     context

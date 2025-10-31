@@ -11,7 +11,10 @@ use crate::{
         editor_keymap_printer::KeymapDisplayOption,
         file_explorer::FileExplorer,
         keymap_legend::{Keymap, KeymapLegendConfig, Keymaps},
-        prompt::{Prompt, PromptConfig, PromptHistoryKey, PromptItems, PromptItemsBackgroundTask},
+        prompt::{
+            Prompt, PromptConfig, PromptHistoryKey, PromptItems, PromptItemsBackgroundTask,
+            PromptOnChangeDispatch,
+        },
         suggestive_editor::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
         },
@@ -724,6 +727,15 @@ impl<T: Frontend> App<T> {
                     self.send_integration_event(IntegrationEvent::RequestLspDocumentSymbols);
                 }
             }
+            Dispatch::RequestWorkspaceSymbols { query, path } => {
+                self.lsp_manager.send_message(
+                    path.clone(),
+                    FromEditor::WorkspaceSymbol {
+                        context: ResponseContext::default(),
+                        query,
+                    },
+                )?;
+            }
             Dispatch::PrepareRename => {
                 if let Some(params) = self.get_request_params() {
                     self.lsp_manager.send_message(
@@ -975,6 +987,7 @@ impl<T: Frontend> App<T> {
             } => {
                 self.show_buffer_save_conflict_prompt(&path, content_editor, content_filesystem)?
             }
+            Dispatch::OpenWorkspaceSymbolsPrompt => self.open_workspace_symbols_prompt()?,
         }
         Ok(())
     }
@@ -1042,11 +1055,9 @@ impl<T: Frontend> App<T> {
             PromptConfig {
                 title: "Move to index".to_string(),
                 on_enter: DispatchPrompt::MoveSelectionByIndex,
-                items: PromptItems::None,
-                enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
-                fire_dispatches_on_change: None,
                 prompt_history_key: PromptHistoryKey::MoveToIndex,
+                ..Default::default()
             },
             None,
         )
@@ -1057,11 +1068,8 @@ impl<T: Frontend> App<T> {
             PromptConfig {
                 title: "Rename Symbol".to_string(),
                 on_enter: DispatchPrompt::RenameSymbol,
-                items: PromptItems::None,
-                enter_selects_first_matching_item: false,
-                leaves_current_line_empty: false,
-                fire_dispatches_on_change: None,
                 prompt_history_key: PromptHistoryKey::Rename,
+                ..Default::default()
             },
             current_name,
         )
@@ -1073,11 +1081,8 @@ impl<T: Frontend> App<T> {
                 title: "Surround selection with XML tag (can be empty for React Fragment)"
                     .to_string(),
                 on_enter: DispatchPrompt::SurroundXmlTag,
-                items: PromptItems::None,
-                enter_selects_first_matching_item: false,
-                leaves_current_line_empty: false,
-                fire_dispatches_on_change: None,
                 prompt_history_key: PromptHistoryKey::SurroundXmlTag,
+                ..Default::default()
             },
             None,
         )
@@ -1115,10 +1120,9 @@ impl<T: Frontend> App<T> {
                     if_current_not_found,
                     run_search_after_config_updated: true,
                 },
-                enter_selects_first_matching_item: false,
                 leaves_current_line_empty: current_line.is_none(),
-                fire_dispatches_on_change: None,
                 prompt_history_key: PromptHistoryKey::Search,
+                ..Default::default()
             },
             current_line,
         )
@@ -1150,11 +1154,8 @@ impl<T: Frontend> App<T> {
                 PromptConfig {
                     title: "Add path".to_string(),
                     on_enter: DispatchPrompt::AddPath,
-                    items: PromptItems::None,
-                    enter_selects_first_matching_item: false,
-                    leaves_current_line_empty: false,
-                    fire_dispatches_on_change: None,
                     prompt_history_key: PromptHistoryKey::AddPath,
+                    ..Default::default()
                 },
                 Some(path.display_absolute()),
             )
@@ -1170,11 +1171,8 @@ impl<T: Frontend> App<T> {
                 PromptConfig {
                     title: "Move path".to_string(),
                     on_enter: DispatchPrompt::MovePath { from: path.clone() },
-                    items: PromptItems::None,
-                    enter_selects_first_matching_item: false,
-                    leaves_current_line_empty: false,
-                    fire_dispatches_on_change: None,
                     prompt_history_key: PromptHistoryKey::MovePath,
+                    ..Default::default()
                 },
                 Some(path.display_absolute()),
             )
@@ -1190,11 +1188,8 @@ impl<T: Frontend> App<T> {
                 PromptConfig {
                     title: format!("Duplicate '{}' to", path.display_absolute()),
                     on_enter: DispatchPrompt::CopyFile { from: path.clone() },
-                    items: PromptItems::None,
-                    enter_selects_first_matching_item: false,
-                    leaves_current_line_empty: false,
-                    fire_dispatches_on_change: None,
                     prompt_history_key: PromptHistoryKey::CopyFile,
+                    ..Default::default()
                 },
                 Some(path.display_absolute()),
             )
@@ -1218,8 +1213,8 @@ impl<T: Frontend> App<T> {
                 on_enter: DispatchPrompt::SelectSymbol { symbols },
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
-                fire_dispatches_on_change: None,
                 prompt_history_key: PromptHistoryKey::Symbol,
+                ..Default::default()
             },
             None,
         )
@@ -1270,8 +1265,8 @@ impl<T: Frontend> App<T> {
                 },
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
-                fire_dispatches_on_change: None,
                 prompt_history_key: PromptHistoryKey::OpenFile,
+                ..Default::default()
             },
             None,
         )
@@ -1448,13 +1443,14 @@ impl<T: Frontend> App<T> {
                 self.handle_signature_help(signature_help)?;
                 Ok(())
             }
-            LspNotification::Symbols(symbols) => {
+            LspNotification::DocumentSymbols(symbols) => {
                 self.open_symbol_picker(symbols)?;
                 Ok(())
             }
             LspNotification::CompletionItemResolve(completion_item) => {
                 self.update_current_completion_item((*completion_item).into())
             }
+            LspNotification::WorkspaceSymbols(symbols) => self.handle_workspace_symbols(symbols),
         }
     }
 
@@ -2301,8 +2297,8 @@ impl<T: Frontend> App<T> {
                 title: "Code Actions".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
-                fire_dispatches_on_change: None,
                 prompt_history_key: PromptHistoryKey::CodeAction,
+                ..Default::default()
             },
             None,
         )?;
@@ -2376,6 +2372,9 @@ impl<T: Frontend> App<T> {
                         .map(|(index, theme_descriptor)| {
                             DropdownItem::new(theme_descriptor.name().to_string())
                                 .set_rank(Some(Box::from([index].to_vec())))
+                                .set_on_focused(Dispatches::one(Dispatch::SetThemeFromDescriptor(
+                                    theme_descriptor.clone(),
+                                )))
                                 .set_dispatches(Dispatches::one(Dispatch::SetThemeFromDescriptor(
                                     theme_descriptor,
                                 )))
@@ -2385,10 +2384,11 @@ impl<T: Frontend> App<T> {
                 title: "Theme".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
-                fire_dispatches_on_change: Some(Dispatches::one(Dispatch::SetTheme(
+                on_cancelled: Some(Dispatches::one(Dispatch::SetTheme(
                     self.context.theme().clone(),
                 ))),
                 prompt_history_key: PromptHistoryKey::Theme,
+                ..Default::default()
             },
             None,
         )
@@ -2421,8 +2421,8 @@ impl<T: Frontend> App<T> {
                 title: "Keyboard Layout".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
-                fire_dispatches_on_change: None,
                 prompt_history_key: PromptHistoryKey::KeyboardLayout,
+                ..Default::default()
             },
             None,
         )
@@ -2446,12 +2446,10 @@ impl<T: Frontend> App<T> {
         self.open_prompt(
             PromptConfig {
                 title: "Pipe to shell".to_string(),
-                items: PromptItems::None,
                 on_enter: DispatchPrompt::PipeToShell,
-                enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
-                fire_dispatches_on_change: None,
                 prompt_history_key: PromptHistoryKey::PipeToShell,
+                ..Default::default()
             },
             None,
         )
@@ -2492,11 +2490,9 @@ impl<T: Frontend> App<T> {
                     mode.display()
                 ),
                 on_enter: DispatchPrompt::FilterSelectionMatchingSearch { maintain },
-                items: PromptItems::None,
-                enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
-                fire_dispatches_on_change: None,
                 prompt_history_key: PromptHistoryKey::FilterSelectionsMatchingSearch { maintain },
+                ..Default::default()
             },
             None,
         )
@@ -2804,11 +2800,12 @@ impl<T: Frontend> App<T> {
     pub(crate) fn wait_for_app_message(
         &mut self,
         app_message_matcher: &lazy_regex::Lazy<regex::Regex>,
+        timeout: Option<Duration>,
     ) -> anyhow::Result<()> {
         use std::time::Instant;
 
         let start_time = Instant::now();
-        let timeout = Duration::from_secs(5);
+        let timeout = timeout.unwrap_or_else(|| Duration::from_secs(5));
         while (Instant::now() - start_time) < timeout {
             if let Ok(app_message) = self.receiver.try_recv() {
                 let string = format!("{app_message:?}");
@@ -2918,8 +2915,8 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                 ),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
-                fire_dispatches_on_change: None,
                 prompt_history_key: PromptHistoryKey::ResolveBufferSaveConflict,
+                ..Default::default()
             },
             None,
         )
@@ -2958,6 +2955,56 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                 log::error!("[App::send_file_watcher_input] error = {error:?}")
             }
         }
+    }
+
+    fn open_workspace_symbols_prompt(&mut self) -> anyhow::Result<()> {
+        if self.is_running_as_embedded() {
+            self.send_integration_event(IntegrationEvent::RequestLspWorkspaceSymbols);
+            return Ok(());
+        }
+
+        let Some(path) = self.current_component().borrow().path() else {
+            return Ok(());
+        };
+        self.open_prompt(
+            PromptConfig {
+                title: "Workspace Symbol".to_string(),
+                on_change: Some(PromptOnChangeDispatch::RequestWorkspaceSymbol(path)),
+                items: PromptItems::BackgroundTask {
+                    task: PromptItemsBackgroundTask::HandledByMainEventLoop,
+                    on_nucleo_tick_debounced: {
+                        let sender = self.sender.clone();
+                        Callback::new(Arc::new(move |_| {
+                            let _ = sender.send(AppMessage::NucleoTickDebounced);
+                        }))
+                    },
+                },
+                enter_selects_first_matching_item: true,
+                leaves_current_line_empty: true,
+                prompt_history_key: PromptHistoryKey::WorkspaceSymbol,
+                ..Default::default()
+            },
+            None,
+        )
+    }
+
+    fn handle_workspace_symbols(&self, symbols: Symbols) -> Result<(), anyhow::Error> {
+        {
+            let component = self.layout.get_current_component();
+            let mut component_mut = component.borrow_mut();
+            let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
+                return Ok(());
+            };
+            prompt.clear_and_update_matcher_items(
+                symbols
+                    .symbols
+                    .clone()
+                    .into_iter()
+                    .map(|symbol| symbol.into())
+                    .collect_vec(),
+            );
+        }
+        Ok(())
     }
 }
 
@@ -3213,6 +3260,11 @@ pub(crate) enum Dispatch {
         content_filesystem: String,
         content_editor: String,
     },
+    RequestWorkspaceSymbols {
+        query: String,
+        path: CanonicalizedPath,
+    },
+    OpenWorkspaceSymbolsPrompt,
 }
 
 /// Used to send notify host app about changes
@@ -3367,6 +3419,13 @@ pub(crate) enum DispatchPrompt {
     SetKeyboardLayoutKind,
     SurroundXmlTag,
 }
+
+impl Default for DispatchPrompt {
+    fn default() -> Self {
+        Self::Null
+    }
+}
+
 impl DispatchPrompt {
     pub(crate) fn to_dispatches(&self, text: &str) -> anyhow::Result<Dispatches> {
         match self.clone() {

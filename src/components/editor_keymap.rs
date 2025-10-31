@@ -169,7 +169,7 @@ pub(crate) const KEYMAP_SPACE_PICKER: KeyboardMeaningLayout = [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        Theme, Symbl, File_, Buffr, GitFC, /****/ _____, _____, _____, _____, _____,
+        Theme, SyblD, File_, Buffr, GitFC, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
@@ -181,7 +181,7 @@ pub(crate) const KEYMAP_SPACE_PICKER_SHIFTED: KeyboardMeaningLayout = [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
+        _____, SyblW, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
@@ -759,8 +759,10 @@ pub(crate) enum Meaning {
     LRnme,
     /// Pick Theme
     Theme,
-    /// Pick Symbol
-    Symbl,
+    /// Pick Symbol (Document)
+    SyblD,
+    /// Pick Symbol (Workspace)
+    SyblW,
     /// Pick File
     File_,
     /// Pick Git Status File (against current branch)

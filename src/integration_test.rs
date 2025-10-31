@@ -16,6 +16,7 @@ impl Drop for TestRunner {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct TestOutput {
     pub(crate) term_output: Option<String>,
     pub(crate) buffer_contents_map: BufferContentsMap,
