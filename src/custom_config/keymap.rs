@@ -29,16 +29,29 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
 
 fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
     if DirWorking::file_exists("Cargo.toml").resolve(ctx) == true {
-        RunCommand("wl-copy", vec![Str("run")])
+        RunCommand("wl-copy", vec![Str("cargo run")])
     } else if FileCurrent::extension().resolve(ctx) == "py" {
-        RunCommand("wl-copy", vec![FileCurrent::path()])
+        RunCommand("wl-copy", vec![Str("python"), FileCurrent::path()])
+    } else if DirWorking::file_exists_dynamic(SelectionPrimary::content()).resolve(ctx) == true {
+        RunCommand(
+            "wl-copy",
+            vec![
+                Str("selection:"),
+                SelectionPrimary::content(),
+                Str("at: "),
+                FileCurrent::path(),
+            ],
+        )
     } else {
         RunCommand(
             "wl-copy",
             vec![
-                FileCurrent::path(),
-                Str("cargo run? :"),
-                DirWorking::file_exists("Cargo.toml"),
+                Str("zig?\n"),
+                DirWorking::file_exists("build.zig"),
+                Str("\ngo?\n"),
+                DirWorking::file_exists("go.mod"),
+                Str("\nhaskell?\n"),
+                DirWorking::file_exists(".cabal"),
             ],
         )
     }
@@ -158,6 +171,7 @@ pub(crate) enum SelectionPrimaryKind {
 pub(crate) enum DirWorkingKind {
     Path,
     FileExists(&'static str),
+    FileExistsDynamic(Box<RunCommandPart>),
 }
 
 pub(crate) struct FileCurrent;
@@ -187,6 +201,9 @@ impl DirWorking {
     }
     pub fn file_exists(filename: &'static str) -> RunCommandPart {
         RunCommandPart::DirCurrent(DirWorkingKind::FileExists(filename))
+    }
+    pub fn file_exists_dynamic(filename: RunCommandPart) -> RunCommandPart {
+        RunCommandPart::DirCurrent(DirWorkingKind::FileExistsDynamic(Box::new(filename)))
     }
 }
 
@@ -240,6 +257,26 @@ impl RunCommandPart {
                     let exists = ctx
                         .current_working_directory
                         .join(*file_name)
+                        .map(|path| path.exists())
+                        .unwrap_or(false);
+                    ResolvedValue::Bool(exists)
+                }
+                DirWorkingKind::FileExistsDynamic(file_name_part) => {
+                    let file_name_resolved = file_name_part.resolve(ctx);
+                    let file_name_str = match file_name_resolved {
+                        ResolvedValue::Str(s) => s,
+                        ResolvedValue::Int(i) => i.to_string(),
+                        ResolvedValue::Bool(b) => b.to_string(),
+                        ResolvedValue::Empty => String::new(),
+                    };
+
+                    if file_name_str.is_empty() {
+                        return ResolvedValue::Bool(false);
+                    }
+
+                    let exists = ctx
+                        .current_working_directory
+                        .join(file_name_str.as_ref())
                         .map(|path| path.exists())
                         .unwrap_or(false);
                     ResolvedValue::Bool(exists)
