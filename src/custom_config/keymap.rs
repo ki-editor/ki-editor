@@ -28,22 +28,19 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
 ];
 
 fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
-    if SelectionPrimary::row_index().resolve(ctx) <= 5 {
-        RunCommand("wl-copy", vec![Str("You have quite some exploring todo!")])
-    } else if SelectionPrimary::content().resolve(ctx) == "fn" {
+    if DirCurrent::file_exists("Cargo.toml").resolve(ctx) == true {
+        RunCommand("wl-copy", vec![Str("run")])
+    } else if FileCurrent::extension().resolve(ctx) == "py" {
+        RunCommand("wl-copy", vec![FileCurrent::path()])
+    } else {
         RunCommand(
             "wl-copy",
             vec![
-                Str("The current file is"),
                 FileCurrent::path(),
-                Str("The current line is"),
-                SelectionPrimary::row_index(),
+                Str("cargo run? :"),
+                DirCurrent::file_exists("Cargo.toml"),
             ],
         )
-    } else if SelectionPrimary::content().resolve(ctx) == "else" {
-        Macro(keys!("a g g esc").to_vec())
-    } else {
-        DoNothing
     }
 }
 
@@ -163,7 +160,8 @@ pub(crate) enum SelectionPrimaryKind {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum DirCurrentKind {
-    Path,
+    PathRoot,
+    FileExists(&'static str),
 }
 
 pub(crate) struct FileCurrent;
@@ -189,7 +187,10 @@ impl SelectionPrimary {
 pub(crate) struct DirCurrent;
 impl DirCurrent {
     pub fn path() -> RunCommandPart {
-        RunCommandPart::DirCurrent(DirCurrentKind::Path)
+        RunCommandPart::DirCurrent(DirCurrentKind::PathRoot)
+    }
+    pub fn file_exists(filename: &'static str) -> RunCommandPart {
+        RunCommandPart::DirCurrent(DirCurrentKind::FileExists(filename))
     }
 }
 
@@ -197,6 +198,7 @@ pub(crate) enum ResolvedValue {
     Str(String),
     Int(i64),
     Empty,
+    Bool(bool),
 }
 
 impl RunCommandPart {
@@ -224,8 +226,16 @@ impl RunCommandPart {
                 }
             },
             RunCommandPart::DirCurrent(kind) => match kind {
-                DirCurrentKind::Path => {
+                DirCurrentKind::PathRoot => {
                     ResolvedValue::Str(ctx.current_working_directory.display_absolute())
+                }
+                DirCurrentKind::FileExists(file_name) => {
+                    let exists = ctx
+                        .current_working_directory
+                        .join(*file_name)
+                        .map(|path| path.exists())
+                        .unwrap_or(false);
+                    ResolvedValue::Bool(exists)
                 }
             },
         }
@@ -235,6 +245,7 @@ impl RunCommandPart {
         match self.resolve(leader_context) {
             ResolvedValue::Str(string) => string,
             ResolvedValue::Int(integer) => integer.to_string(),
+            ResolvedValue::Bool(bool) => bool.to_string(),
             ResolvedValue::Empty => String::new(),
         }
     }
@@ -244,6 +255,15 @@ impl PartialEq<&str> for ResolvedValue {
     fn eq(&self, other: &&str) -> bool {
         match self {
             ResolvedValue::Str(val) => val == *other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<bool> for ResolvedValue {
+    fn eq(&self, other: &bool) -> bool {
+        match self {
+            ResolvedValue::Bool(val) => val == other,
             _ => false,
         }
     }
