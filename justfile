@@ -33,6 +33,7 @@ lint:
     @echo "Running cargo clippy..."
     cargo clippy --workspace -- -D warnings
     cargo clippy --tests -- -D warnings
+    cargo machete
     @just vscode-lint
     
 vscode-lint:

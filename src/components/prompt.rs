@@ -11,6 +11,7 @@ use crate::{
     context::Context,
     lsp::completion::Completion,
     selection::SelectionMode,
+    thread::Callback,
 };
 
 use super::{
@@ -57,8 +58,13 @@ impl PromptMatcher {
             .collect_vec()
     }
 
-    fn new(task: PromptItemsBackgroundTask, debounce: Arc<dyn Fn() + Send + Sync>) -> Self {
-        let nucleo = nucleo::Nucleo::new(nucleo::Config::DEFAULT, debounce, None, 1);
+    fn new(task: PromptItemsBackgroundTask, notify: Callback<()>) -> Self {
+        let nucleo = nucleo::Nucleo::new(
+            nucleo::Config::DEFAULT,
+            Arc::new(move || notify.call(())),
+            None,
+            1,
+        );
         task.execute(nucleo.injector());
         PromptMatcher { nucleo }
     }
@@ -115,7 +121,7 @@ pub(crate) enum PromptItems {
     Precomputed(Vec<DropdownItem>),
     BackgroundTask {
         task: PromptItemsBackgroundTask,
-        on_nucleo_tick_debounced: Arc<dyn Fn() + Send + Sync>,
+        on_nucleo_tick_debounced: Callback<()>,
     },
 }
 
@@ -167,6 +173,7 @@ pub(crate) enum PromptHistoryKey {
     },
     KeyboardLayout,
     SurroundXmlTag,
+    ResolveBufferSaveConflict,
 }
 
 impl Prompt {

@@ -13,7 +13,7 @@ use crate::{
     components::component::Component,
     context::LocalSearchConfig,
     edit::{Action, ActionGroup, Edit, EditTransaction},
-    git::{DiffMode, GitOperation as _},
+    git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _, GitRepo},
     list::grep::RegexConfig,
     lsp::completion::PositionalEdit,
     position::Position,
@@ -284,7 +284,9 @@ impl Component for Editor {
                 self.apply_syntax_highlighting(context)?;
             }
             Save => return self.do_save(false, context),
-            ForceSave => return self.do_save(true, context),
+            ForceSave => {
+                return self.do_save(true, context);
+            }
             ReplaceCurrentSelectionWith(string) => {
                 return self
                     .replace_current_selection_with(|_| Some(Rope::from_str(&string)), context)
@@ -378,6 +380,12 @@ impl Component for Editor {
             }
             RevertHunk(diff_mode) => return self.revert_hunk(context, diff_mode),
             GitBlame => return self.git_blame(context),
+            ReloadFile { force } => return self.reload(force),
+            MergeContent {
+                content_filesystem,
+                content_editor,
+                path,
+            } => return self.merge_content(context, path, content_editor, content_filesystem),
         }
         Ok(Default::default())
     }
@@ -1069,42 +1077,51 @@ impl Editor {
                             Some(result_selection)
                         }
                     };
-                    let (delete_range, select_range) = {
+                    let (delete_range, select_range) = (|| {
                         if !self.selection_set.mode().is_contiguous() {
-                            default
+                            return default;
                         }
+
                         // If the selection mode is contiguous,
-                        // perform a "kill next/previous" instead
-                        else if let Some(other_selection) = get_selection(&direction)
+                        // perform a "delete until the other selection" instead
+                        // Other selection is a selection which is before/after the current selection
+                        if let Some(other_selection) = get_selection(&direction)
                             .or_else(|| get_selection(&direction.reverse()))
                         {
-                            let other_range = other_selection.selection.range();
-                            if other_range == current_range {
-                                default
-                            } else if other_range.start >= current_range.end {
-                                let delete_range: CharIndexRange =
-                                    (current_range.start..other_range.start).into();
-                                let select_range = {
-                                    other_selection
-                                        .selection
-                                        .extended_range()
-                                        .shift_left(delete_range.len())
-                                };
-                                (delete_range, select_range)
-                            } else {
-                                let delete_range: CharIndexRange =
-                                    (other_range.end..current_range.end).into();
-                                let select_range = other_selection.selection.range();
-                                (delete_range, select_range)
+                            // The other_selection is only consider valid
+                            // if it does not intersect with the range to be deleted
+                            if !other_selection
+                                .selection
+                                .range()
+                                .intersects_with(&current_range)
+                            {
+                                let other_range = other_selection.selection.range();
+                                if other_range == current_range {
+                                    return default;
+                                } else if other_range.start >= current_range.end {
+                                    let delete_range: CharIndexRange =
+                                        (current_range.start..other_range.start).into();
+                                    let select_range = {
+                                        other_selection
+                                            .selection
+                                            .extended_range()
+                                            .shift_left(delete_range.len())
+                                    };
+                                    return (delete_range, select_range);
+                                } else {
+                                    let delete_range: CharIndexRange =
+                                        (other_range.end..current_range.end).into();
+                                    let select_range = other_selection.selection.range();
+                                    return (delete_range, select_range);
+                                }
                             }
                         }
+
                         // If the other selection not found, then only deletes the selection
                         // without moving forward or backward
-                        else {
-                            let range = selection.extended_range();
-                            (range, (range.start..range.start).into())
-                        }
-                    };
+                        let range = selection.extended_range();
+                        (range, (range.start..range.start).into())
+                    })();
                     Ok(ActionGroup::new(
                         [
                             Action::Edit(Edit::new(
@@ -3961,10 +3978,10 @@ impl Editor {
                 .map(|selection| -> anyhow::Result<_> {
                     let buffer = self.buffer();
                     let line_range = buffer.char_index_range_to_line_range(selection.range())?;
-                    let Some(matching_hunk) = hunks
-                        .iter()
-                        .find(|hunk| range_intersects(&hunk.new_line_range, &line_range))
-                    else {
+                    let Some(matching_hunk) = hunks.iter().find(|hunk| {
+                        range_intersects(&hunk.new_line_range, &line_range)
+                            || hunk.new_line_range.start == line_range.start
+                    }) else {
                         // Do nothing if this selection does not intersect with any hunks
                         return Ok(ActionGroup::new(
                             [Action::Select(selection.clone())].to_vec(),
@@ -3977,6 +3994,13 @@ impl Editor {
                             .into()
                     };
                     let replacement: Rope = matching_hunk.old_content.clone().into();
+
+                    // If the hunk is a removed hunk, we need to append a newline char
+                    let replacement = if matching_hunk.kind == SimpleHunkKind::Delete {
+                        format!("{}\n", matching_hunk.old_content).into()
+                    } else {
+                        replacement
+                    };
                     let select_range = {
                         let start = buffer.line_to_char(matching_hunk.new_line_range.start)?;
                         (start..start + replacement.len_chars()).into()
@@ -4026,6 +4050,31 @@ impl Editor {
             "Git blame".to_string(),
             info,
         ))))
+    }
+
+    fn merge_content(
+        &mut self,
+        context: &Context,
+        file_path: CanonicalizedPath,
+        content_editor: String,
+        content_filesystem: String,
+    ) -> anyhow::Result<Dispatches> {
+        let original = file_path
+            .content_at_last_commit(
+                &DiffMode::UnstagedAgainstCurrentBranch,
+                &GitRepo::try_from(context.current_working_directory())?,
+            )
+            .unwrap_or_default();
+        let merged = match diffy::merge(&original, &content_editor, &content_filesystem) {
+            Ok(merged_without_conflicts) => merged_without_conflicts,
+            Err(merged_with_conflicts) => merged_with_conflicts,
+        };
+        let dispatches = self.update_content(&merged, context)?;
+        Ok(dispatches.chain(self.do_save(true, context)?))
+    }
+
+    pub(crate) fn reload(&mut self, force: bool) -> Result<Dispatches, anyhow::Error> {
+        self.buffer_mut().reload(force)
     }
 }
 
@@ -4167,6 +4216,14 @@ pub(crate) enum DispatchEditor {
     RepeatSearch(Scope, IfCurrentNotFound, Option<PriorChange>),
     RevertHunk(DiffMode),
     GitBlame,
+    ReloadFile {
+        force: bool,
+    },
+    MergeContent {
+        content_filesystem: String,
+        content_editor: String,
+        path: CanonicalizedPath,
+    },
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

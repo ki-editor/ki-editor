@@ -16,6 +16,7 @@ use std::{
     path::PathBuf,
     rc::Rc,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 pub(crate) use Dispatch::*;
 pub(crate) use DispatchEditor::*;
@@ -52,6 +53,7 @@ use crate::{
     },
     context::{GlobalMode, LocalSearchConfigMode},
     frontend::{mock::MockFrontend, MyWriter, NullWriter, StringWriter},
+    git::DiffMode,
     grid::{IndexedHighlightGroup, StyleKey},
     integration_test::{TestOutput, TestRunner},
     list::grep::RegexConfig,
@@ -77,7 +79,7 @@ use crate::{lsp::process::LspNotification, themes::Color};
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum Step {
     App(Dispatch),
-    Shell(String),
+    Shell(&'static str, Vec<String>),
     AppLater(Box<dyn Fn() -> Dispatch>),
     ExpectMulti(Vec<ExpectKind>),
     Expect(ExpectKind),
@@ -88,6 +90,7 @@ pub(crate) enum Step {
     /// This is to simulate the main event loop,
     /// necessary for testing async features like Global Search
     WaitForAppMessage(&'static lazy_regex::Lazy<regex::Regex>),
+    WaitForDuration(Duration),
 }
 
 impl Step {
@@ -102,7 +105,8 @@ impl Step {
             ExpectLater(_) => "ExpectLater(_)".to_string(),
             ExpectCustom(_) => "ExpectCustom(_)".to_string(),
             WaitForAppMessage(regex) => format!("WaitForAppMessage({regex:?})"),
-            Shell(command) => format!("Shell: {command}"),
+            Shell(command, args) => format!("Shell: {command} {}", args.join(" ")),
+            WaitForDuration(duration) => format!("Wait for duration {duration:?}"),
         }
     }
 }
@@ -120,12 +124,14 @@ pub(crate) enum ExpectKind {
     DropdownInfosCount(usize),
     QuickfixListContent(String),
     CompletionDropdownContent(&'static str),
+    CompletionDropdownInfoContent(&'static str),
     CompletionDropdownIsOpen(bool),
     CompletionDropdownSelectedItem(&'static str),
     JumpChars(&'static [char]),
     CurrentLine(&'static str),
     Not(Box<ExpectKind>),
     CurrentComponentContent(&'static str),
+    CurrentComponentContentMatches(&'static lazy_regex::Lazy<regex::Regex>),
     CurrentSearch(Scope, &'static str),
     EditorCursorPosition(Position),
     EditorGridCursorPosition(Position),
@@ -171,6 +177,11 @@ pub(crate) enum ExpectKind {
     SelectionExtensionEnabled(bool),
     PromptHistory(PromptHistoryKey, Vec<String>),
     MarkedFiles(Vec<CanonicalizedPath>),
+    /// Similar to `Step::WaitForAppMessage`, but expect the opposites, with a timeout
+    AppMessageNotReceived {
+        matches: &'static lazy_regex::Lazy<regex::Regex>,
+        timeout: Duration,
+    },
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -192,6 +203,17 @@ impl ExpectKind {
         fn contextualize<T: PartialEq + std::fmt::Debug>(a: T, b: T) -> (bool, String) {
             (a == b, format!("\n{a:?}\n == \n{b:?}\n",))
         }
+        fn contextualize_regex_match(
+            haystack: &str,
+            regex: &'static lazy_regex::Lazy<regex::Regex>,
+        ) -> (bool, String) {
+            let matched = regex.is_match(haystack);
+            let message = format!(
+                "Expected the following to matches regex {:?}:\n{haystack}",
+                regex.as_str()
+            );
+            (matched, message)
+        }
         fn to_vec(strs: &[&str]) -> Vec<String> {
             strs.iter().map(|t| t.to_string()).collect()
         }
@@ -201,6 +223,10 @@ impl ExpectKind {
                                 app.get_current_component_content(),
                                 expected_content.to_string(),
                             ),
+            CurrentComponentContentMatches(regex) => {
+                                let content = app.get_current_component_content();
+                                contextualize_regex_match(&content, regex)
+                            },
             FileContent(path, expected_content) => {
                                 contextualize(app.get_file_content(path), expected_content.clone())
                             }
@@ -384,6 +410,13 @@ impl ExpectKind {
                                     .content(),
                                 content.to_string(),
                             ),
+            CompletionDropdownInfoContent(content) => contextualize(
+                                app.current_completion_dropdown_info()
+                                    .unwrap()
+                                    .borrow()
+                                    .content(),
+                                content.to_string(),
+                            ),
             CompletionDropdownSelectedItem(item) => contextualize(
                                 app.current_completion_dropdown()
                                     .unwrap()
@@ -417,10 +450,8 @@ impl ExpectKind {
                                 )
                             }
             EditorInfoContentMatches(regex) => {
-                                let content =app.editor_info_contents().join("\n\n"); 
-                                let matched = regex.is_match(&content);
-                                let message = format!("Expected the following to matches regex: {regex:?}:\n{content}");
-                                ( matched, message )
+                                let content = app.editor_info_contents().join("\n\n");
+                                contextualize_regex_match(&content, regex)
                             }
             GlobalInfoContents(expected) => {
                                 contextualize(
@@ -548,6 +579,10 @@ impl ExpectKind {
                 &app.context().get_marked_files().into_iter().cloned().collect_vec()
             ),
             NoError => (true, String::new()),
+            AppMessageNotReceived { matches, timeout } => {
+                    app.expect_app_message_not_received(matches, timeout)?;
+                    (true, String::new())
+                }
         })
     }
 }
@@ -598,6 +633,7 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
         RunTestOptions {
             enable_lsp: false,
             enable_syntax_highlighting: false,
+            enable_file_watcher: false,
         },
     )?;
     Ok(())
@@ -637,6 +673,7 @@ pub(crate) fn execute_recipe(
         RunTestOptions {
             enable_lsp: false,
             enable_syntax_highlighting: false,
+            enable_file_watcher: false,
         },
     )
 }
@@ -712,13 +749,12 @@ fn execute_test_helper(
                     log(dispatch);
                     app.handle_dispatch_suggestive_editor(dispatch.to_owned())?
                 }
-                Shell(command) => {
-                    log(format!("Shell: {command}"));
-                    let parts = command.split(" ").map(|s| s.to_string()).collect_vec();
-                    let (program, args) = parts.split_first().unwrap();
+                Shell(program, args) => {
+                    log(format!("Shell: {program} {args:?}",));
                     let output = std::process::Command::new(program).args(args).output();
                     log(output)
                 }
+                WaitForDuration(duration) => std::thread::sleep(*duration),
             };
         }
 
@@ -735,6 +771,7 @@ fn execute_test_helper(
 pub(crate) struct RunTestOptions {
     pub(crate) enable_lsp: bool,
     pub(crate) enable_syntax_highlighting: bool,
+    pub(crate) enable_file_watcher: bool,
 }
 
 fn run_test(
@@ -1166,7 +1203,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
 }
 
 #[test]
-pub(crate) fn revert_git_hunk() -> Result<(), anyhow::Error> {
+pub(crate) fn revert_modified_hunk() -> Result<(), anyhow::Error> {
     let original_content = "pub(crate) struct Foo {
     a: (),
     b: (),
@@ -1202,12 +1239,44 @@ pub(crate) fn foo() -> Foo {
                 IfCurrentNotFound::LookForward,
                 GitHunk(crate::git::DiffMode::UnstagedAgainstMainBranch),
             )),
-            Expect(CurrentSelectedTexts(&["// Hellopub(crate) struct Foo {\n"])),
+            Expect(CurrentSelectedTexts(&["// Hellopub(crate) struct Foo {"])),
             Editor(RevertHunk(
                 crate::git::DiffMode::UnstagedAgainstCurrentBranch,
             )),
             Expect(CurrentComponentContent(original_content)),
             Expect(CurrentSelectedTexts(&["pub(crate) struct Foo {"])),
+        ])
+    })
+}
+
+#[test]
+fn revert_deleted_hunk() -> anyhow::Result<()> {
+    let diff_mode = DiffMode::UnstagedAgainstCurrentBranch;
+    execute_test(|s| {
+        let original_content = "mod foo;
+
+fn main() {
+    foo::foo();
+    println!(\"Hello, world!\");
+}
+";
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentComponentContent(original_content)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(Delete),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                GitHunk(diff_mode),
+            )),
+            Expect(GlobalInfoContents(&["mod foo;"])),
+            Editor(RevertHunk(diff_mode)),
+            Expect(CurrentSelectedTexts(&["mod foo;\n"])),
+            Expect(CurrentComponentContent(original_content)),
         ])
     })
 }
@@ -1882,6 +1951,7 @@ fn quickfix_list_header_should_be_highlighted_as_keyword() -> anyhow::Result<()>
     let options = RunTestOptions {
         enable_lsp: false,
         enable_syntax_highlighting: true,
+        enable_file_watcher: false,
     };
     execute_test_custom(options, |s| {
         Box::new([
@@ -3451,14 +3521,14 @@ fn unable_to_close_marked_files_that_became_a_directory() -> Result<(), anyhow::
             })),
             App(CycleMarkedFile(Direction::End)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
-            Shell(format!("mv {} {}", foo_path.display(), temp_path.display())),
-            Shell(format!("mkdir {}", foo_path.display(),)),
+            Shell("mv",[foo_path.display().to_string(),temp_path.display().to_string()].to_vec()),
+            Shell("mkdir",[foo_path.display().to_string()
+            ].to_vec()),
             // Turn foo into a directory
-            Shell(format!(
-                "mv {} {}/foo",
-                temp_path.display(),
-                foo_path.display()
-            )),
+            Shell("mv",[
+                temp_path.display().to_string(),
+                foo_path.display().to_string()
+            ].to_vec()),
             App(CycleMarkedFile(Direction::End)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Expect(MarkedFiles([s.main_rs()].to_vec())),

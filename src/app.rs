@@ -22,6 +22,7 @@ use crate::{
     },
     custom_config::keymap::{LeaderAction, LeaderContext},
     edit::Edit,
+    file_watcher::{FileWatcherEvent, FileWatcherInput},
     frontend::Frontend,
     git::{self},
     grid::{Grid, LineUpdate},
@@ -43,7 +44,7 @@ use crate::{
     search::parse_search_config,
     selection::{CharIndex, SelectionMode},
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
-    thread::SendResult,
+    thread::{Callback, SendResult},
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
@@ -108,6 +109,7 @@ pub(crate) struct App<T: Frontend> {
     /// This is used for suspending events until the buffer content
     /// is synced between Ki and the host application.
     queued_events: Vec<Event>,
+    file_watcher_input_sender: Option<Sender<FileWatcherInput>>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
@@ -150,6 +152,7 @@ impl<T: Frontend> App<T> {
             status_line_components,
             None, // No integration event sender
             options.enable_lsp,
+            options.enable_file_watcher,
             false,
             None,
         )
@@ -165,10 +168,19 @@ impl<T: Frontend> App<T> {
         status_line_components: Vec<StatusLineComponent>,
         integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
         enable_lsp: bool,
+        enable_file_watcher: bool,
         is_running_as_embedded: bool,
         persistence: Option<Persistence>,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
+        let file_watcher_input_sender = if enable_file_watcher {
+            Some(crate::file_watcher::watch_file_changes(
+                &working_directory.clone(),
+                sender.clone(),
+            )?)
+        } else {
+            None
+        };
         let mut app = App {
             context: Context::new(
                 working_directory.clone(),
@@ -193,6 +205,7 @@ impl<T: Frontend> App<T> {
             integration_event_sender,
             last_prompt_config: None,
             queued_events: Vec::new(),
+            file_watcher_input_sender,
         };
 
         app.restore_session();
@@ -255,7 +268,7 @@ impl<T: Frontend> App<T> {
         match message {
             AppMessage::Event(event) => self.handle_event(event),
             AppMessage::LspNotification(notification) => {
-                self.handle_lsp_notification(notification).map(|_| false)
+                self.handle_lsp_notification(*notification).map(|_| false)
             }
             AppMessage::QuitAll => {
                 self.quit()?;
@@ -270,11 +283,15 @@ impl<T: Frontend> App<T> {
                 .map(|_| false),
             AppMessage::ExternalDispatch(dispatch) => {
                 // Process the dispatch directly
-                self.handle_dispatch(dispatch)?;
+                self.handle_dispatch(*dispatch)?;
                 Ok(false)
             }
             AppMessage::NucleoTickDebounced => {
                 self.handle_nucleo_debounced()?;
+                Ok(false)
+            }
+            AppMessage::FileWatcherEvent(event) => {
+                self.handle_file_watcher_event(event)?;
                 Ok(false)
             }
         }
@@ -828,9 +845,7 @@ impl<T: Frontend> App<T> {
             Dispatch::MoveFile { from, to } => self.move_file(from, to)?,
             Dispatch::CopyFile { from, to } => self.copy_file(from, to)?,
             Dispatch::AddPath(path) => self.add_path(path)?,
-            Dispatch::RefreshFileExplorer => self
-                .layout
-                .refresh_file_explorer(&self.working_directory, &self.context)?,
+            Dispatch::RefreshFileExplorer => self.layout.refresh_file_explorer(&self.context)?,
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
             } => self.context.set_clipboard_content(contents)?,
@@ -977,6 +992,13 @@ impl<T: Frontend> App<T> {
                     self.handle_leader_action(leader_action)?;
                 }
             }
+            Dispatch::ShowBufferSaveConflictPrompt {
+                path,
+                content_editor,
+                content_filesystem,
+            } => {
+                self.show_buffer_save_conflict_prompt(&path, content_editor, content_filesystem)?
+            }
         }
         Ok(())
     }
@@ -994,6 +1016,9 @@ impl<T: Frontend> App<T> {
 
     fn close_current_window(&mut self) -> anyhow::Result<()> {
         if let Some(removed_path) = self.layout.close_current_window(&self.context) {
+            self.send_file_watcher_input(FileWatcherInput::SyncOpenedPaths(
+                self.layout.get_opened_files(),
+            ));
             if let Some(path) = self.context.unmark_path(removed_path).cloned() {
                 self.open_file(&path, BufferOwner::User, true, true)?;
             }
@@ -1219,9 +1244,9 @@ impl<T: Frontend> App<T> {
                         task: PromptItemsBackgroundTask::NonGitIgnoredFiles { working_directory },
                         on_nucleo_tick_debounced: {
                             let sender = self.sender.clone();
-                            Arc::new(move || {
+                            Callback::new(Arc::new(move |_| {
                                 let _ = sender.send(AppMessage::NucleoTickDebounced);
-                            })
+                            }))
                         },
                     },
                     FilePickerKind::GitStatus(diff_mode) => PromptItems::Precomputed(
@@ -1310,6 +1335,10 @@ impl<T: Frontend> App<T> {
         if self.enable_lsp {
             self.lsp_manager.open_file(path.clone())?;
         }
+
+        self.send_file_watcher_input(FileWatcherInput::SyncOpenedPaths(
+            self.layout.get_opened_files(),
+        ));
         Ok(component)
     }
 
@@ -1430,7 +1459,7 @@ impl<T: Frontend> App<T> {
                 Ok(())
             }
             LspNotification::CompletionItemResolve(completion_item) => {
-                self.update_current_completion_item(completion_item.into())
+                self.update_current_completion_item((*completion_item).into())
             }
         }
     }
@@ -1637,7 +1666,9 @@ impl<T: Frontend> App<T> {
             exclude: global_search_config.exclude_glob(),
         };
         let config = self.context.global_search_config().local_config();
-        let affected_paths = list::grep::replace(walk_builder_config, config.clone())?;
+        let (dispatches, affected_paths) =
+            list::grep::replace(walk_builder_config, config.clone())?;
+        self.handle_dispatches(dispatches)?;
         let dispatches = self.layout.reload_buffers(affected_paths)?;
         self.handle_dispatches(dispatches)
     }
@@ -1657,9 +1688,9 @@ impl<T: Frontend> App<T> {
         }
         let sender = self.sender.clone();
         let send_matches = Arc::new(move |matches: Vec<Match>| {
-            SendResult::from(sender.send(AppMessage::ExternalDispatch(
+            SendResult::from(sender.send(AppMessage::ExternalDispatch(Box::new(
                 Dispatch::AddQuickfixListEntries(matches),
-            )))
+            ))))
         });
         let send_match = crate::thread::batch(send_matches, Duration::from_millis(16)); // Around 30 ticks per second
 
@@ -1732,8 +1763,7 @@ impl<T: Frontend> App<T> {
             std::fs::remove_file(path)?;
         }
         self.layout.remove_suggestive_editor(path);
-        self.layout
-            .refresh_file_explorer(&self.working_directory, &self.context)?;
+        self.layout.refresh_file_explorer(&self.context)?;
         Ok(())
     }
 
@@ -1741,8 +1771,7 @@ impl<T: Frontend> App<T> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::rename(from.clone(), to.clone())?;
-        self.layout
-            .refresh_file_explorer(&self.working_directory, &self.context)?;
+        self.layout.refresh_file_explorer(&self.context)?;
         let to = to.try_into()?;
 
         self.context.rename_path_mark(&from, &to);
@@ -1764,8 +1793,7 @@ impl<T: Frontend> App<T> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::copy(from.clone(), to.clone())?;
-        self.layout
-            .refresh_file_explorer(&self.working_directory, &self.context)?;
+        self.layout.refresh_file_explorer(&self.context)?;
         let to = to.try_into()?;
         self.reveal_path_in_explorer(&to)?;
         self.lsp_manager.send_message(
@@ -1794,8 +1822,7 @@ impl<T: Frontend> App<T> {
             self.add_path_parent(&path)?;
             std::fs::File::create(&path)?;
         }
-        self.layout
-            .refresh_file_explorer(&self.working_directory, &self.context)?;
+        self.layout.refresh_file_explorer(&self.context)?;
         let path: CanonicalizedPath = path.try_into()?;
         self.reveal_path_in_explorer(&path)?;
         self.lsp_manager.send_message(
@@ -2091,6 +2118,11 @@ impl<T: Frontend> App<T> {
         self.layout.current_completion_dropdown()
     }
 
+    #[cfg(test)]
+    pub(crate) fn current_completion_dropdown_info(&self) -> Option<Rc<RefCell<dyn Component>>> {
+        self.layout.current_completion_dropdown_info()
+    }
+
     fn open_prompt(
         &mut self,
         prompt_config: PromptConfig,
@@ -2240,6 +2272,16 @@ impl<T: Frontend> App<T> {
 
     fn reveal_path_in_explorer(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
         let dispatches = self.layout.reveal_path_in_explorer(path, &self.context)?;
+        self.send_file_watcher_input(FileWatcherInput::SyncFileExplorerExpandedFolders(
+            self.layout
+                .file_explorer_expanded_folders()
+                .into_iter()
+                // Need to include the current working directory (cwd)
+                // otherwise path modifications of files that are parked directly under the cwd
+                // will not refresh the file explorer.
+                .chain(Some(self.context.current_working_directory().clone()))
+                .collect(),
+        ));
         self.handle_dispatches(dispatches)
     }
 
@@ -2768,11 +2810,45 @@ impl<T: Frontend> App<T> {
         &mut self,
         app_message_matcher: &lazy_regex::Lazy<regex::Regex>,
     ) -> anyhow::Result<()> {
-        while let Ok(app_message) = self.receiver.recv() {
-            let string = format!("{app_message:?}");
-            self.process_message(app_message)?;
-            if app_message_matcher.is_match(&string) {
-                break;
+        use std::time::Instant;
+
+        let start_time = Instant::now();
+        let timeout = Duration::from_secs(5);
+        while (Instant::now() - start_time) < timeout {
+            if let Ok(app_message) = self.receiver.try_recv() {
+                let string = format!("{app_message:?}");
+                self.process_message(app_message)?;
+                if app_message_matcher.is_match(&string) {
+                    return Ok(());
+                }
+            }
+        }
+        Err(anyhow::anyhow!(
+            "No app message matching {} is received after {:?}.",
+            app_message_matcher.as_str(),
+            timeout,
+        ))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn expect_app_message_not_received(
+        &mut self,
+        regex: &&'static lazy_regex::Lazy<regex::Regex>,
+        timeout: &Duration,
+    ) -> anyhow::Result<()> {
+        use std::time::Instant;
+
+        let start_time = Instant::now();
+        while &(Instant::now() - start_time) < timeout {
+            if let Ok(app_message) = self.receiver.try_recv() {
+                let string = format!("{app_message:?}");
+                self.process_message(app_message)?;
+                if regex.is_match(&string) {
+                    return Err(anyhow::anyhow!(
+                    "Expected no app message matching {} is received within {timeout:?}, but got {string:?}",
+                    regex.as_str(),
+                ));
+                }
             }
         }
         Ok(())
@@ -2808,6 +2884,114 @@ impl<T: Frontend> App<T> {
             LeaderAction::Macro(key_events) => self.handle_key_events(key_events)?,
         }
         Ok(())
+    }
+    fn get_diff(before: &str, after: &str) -> String {
+        let input = imara_diff::InternedInput::new(before, after);
+        let mut diff = imara_diff::Diff::compute(imara_diff::Algorithm::Histogram, &input);
+        diff.postprocess_lines(&input);
+
+        diff.unified_diff(
+            &imara_diff::BasicLineDiffPrinter(&input.interner),
+            imara_diff::UnifiedDiffConfig::default(),
+            &input,
+        )
+        .to_string()
+    }
+
+    fn show_buffer_save_conflict_prompt(
+        &mut self,
+        path: &CanonicalizedPath,
+        content_editor: String,
+        content_filesystem: String,
+    ) -> anyhow::Result<()> {
+        self.open_prompt(
+            PromptConfig {
+                on_enter: DispatchPrompt::Null,
+                items: PromptItems::Precomputed(
+                    [
+                        DropdownItem::new("Force Save".to_string())
+                            .set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                                DispatchEditor::ForceSave,
+                            )))
+                            .set_info(Some(Info::new(
+                                "Diff to be applied".to_string(),
+                                Self::get_diff(&content_filesystem, &content_editor),
+                            ))),
+                        DropdownItem::new("Force Reload".to_string())
+                            .set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                                DispatchEditor::ReloadFile { force: true },
+                            )))
+                            .set_info(Some(Info::new(
+                                "Diff to be applied".to_string(),
+                                Self::get_diff(&content_editor, &content_filesystem),
+                            ))),
+                        DropdownItem::new("Merge".to_string())
+                            .set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                                DispatchEditor::MergeContent {
+                                    content_filesystem,
+                                    content_editor,
+                                    path: path.clone(),
+                                },
+                            )))
+                            .set_info(Some(Info::new(
+                                "Info".to_string(),
+                                "Perform a 3-way merge where:
+
+- ours     = content of file in the Editor
+- theirs   = content of file in the Filesystem
+- original = content of file in the latest Git commit
+
+Conflict markers will be injected in areas that cannot be merged gracefully."
+                                    .to_string(),
+                            ))),
+                    ]
+                    .into_iter()
+                    .collect(),
+                ),
+                title: format!(
+                    "Failed to save {}: The content of the file is newer.",
+                    path.try_display_relative_to(self.context.current_working_directory())
+                ),
+                enter_selects_first_matching_item: true,
+                leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
+                prompt_history_key: PromptHistoryKey::ResolveBufferSaveConflict,
+            },
+            None,
+        )
+    }
+
+    fn handle_file_watcher_event(&mut self, event: FileWatcherEvent) -> anyhow::Result<()> {
+        log::info!("Received file watcher event: {event:?}");
+        match event {
+            FileWatcherEvent::ContentModified(path) => {
+                if path.is_file()
+                    && self
+                        .layout
+                        .get_opened_files()
+                        .iter()
+                        .any(|opened_file| &path == opened_file)
+                {
+                    let component = self.open_file(&path, BufferOwner::User, false, false)?;
+                    let dispatches = component.borrow_mut().editor_mut().reload(false)?;
+                    self.handle_dispatches(dispatches)?;
+                }
+            }
+            FileWatcherEvent::PathCreated
+            | FileWatcherEvent::PathRemoved(_)
+            | FileWatcherEvent::PathRenamed(_) => {
+                self.layout.refresh_file_explorer(&self.context)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn send_file_watcher_input(&self, input: FileWatcherInput) {
+        if let Some(sender) = self.file_watcher_input_sender.as_ref() {
+            if let Err(error) = sender.send(input) {
+                log::error!("[App::send_file_watcher_input] error = {error:?}")
+            }
+        }
     }
 }
 
@@ -3055,6 +3239,11 @@ pub(crate) enum Dispatch {
         path: CanonicalizedPath,
     },
     ExecuteLeaderMeaning(Meaning),
+    ShowBufferSaveConflictPrompt {
+        path: CanonicalizedPath,
+        content_filesystem: String,
+        content_editor: String,
+    },
 }
 
 /// Used to send notify host app about changes
@@ -3161,7 +3350,7 @@ pub(crate) enum Scope {
 
 #[derive(Debug)]
 pub(crate) enum AppMessage {
-    LspNotification(LspNotification),
+    LspNotification(Box<LspNotification>),
     Event(Event),
     QuitAll,
     SyntaxHighlightResponse {
@@ -3170,9 +3359,11 @@ pub(crate) enum AppMessage {
         highlighted_spans: HighlightedSpans,
     },
     // New variant for external dispatches
-    ExternalDispatch(Dispatch),
+    ExternalDispatch(Box<Dispatch>),
     NucleoTickDebounced,
+    FileWatcherEvent(FileWatcherEvent),
 }
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum DispatchPrompt {
     MoveSelectionByIndex,

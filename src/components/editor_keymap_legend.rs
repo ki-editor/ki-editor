@@ -1168,6 +1168,13 @@ impl Editor {
                     "Pipe".to_string(),
                     Dispatch::OpenPipeToShellPrompt,
                 ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_editor_keymap(&Meaning::RlBfr),
+                    "Reload File".to_string(),
+                    Dispatch::ToEditor(ReloadFile { force: false }),
+                ),
             ]),
         }
     }

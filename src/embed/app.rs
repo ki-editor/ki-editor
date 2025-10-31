@@ -65,6 +65,7 @@ impl EmbeddedApp {
             status_line_components.clone(),
             Some(integration_event_sender),
             false,
+            false,
             true,
             None,
         )?;

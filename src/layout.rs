@@ -292,14 +292,8 @@ impl Layout {
         self.background_suggestive_editors.shift_remove(path);
     }
 
-    pub(crate) fn refresh_file_explorer(
-        &self,
-        working_directory: &CanonicalizedPath,
-        context: &Context,
-    ) -> anyhow::Result<()> {
-        self.background_file_explorer
-            .borrow_mut()
-            .refresh(working_directory, context)
+    pub(crate) fn refresh_file_explorer(&self, context: &Context) -> anyhow::Result<()> {
+        self.background_file_explorer.borrow_mut().refresh(context)
     }
 
     pub(crate) fn open_file_explorer(&mut self) {
@@ -359,7 +353,7 @@ impl Layout {
                         .iter()
                         .any(|affected_path| affected_path == &path)
                     {
-                        return Ok(dispatches.chain(buffer.reload()?));
+                        return Ok(dispatches.chain(buffer.reload(true)?));
                     }
                 }
                 Ok(dispatches)
@@ -373,6 +367,12 @@ impl Layout {
 
     pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.get_current_node_child_id(ComponentKind::Dropdown)
+            .and_then(|node_id| Some(self.tree.get(node_id)?.data().component().clone()))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn current_completion_dropdown_info(&self) -> Option<Rc<RefCell<dyn Component>>> {
+        self.get_current_node_child_id(ComponentKind::DropdownInfo)
             .and_then(|node_id| Some(self.tree.get(node_id)?.data().component().clone()))
     }
 
@@ -528,6 +528,10 @@ impl Layout {
     #[cfg(test)]
     pub(crate) fn file_explorer_content(&self) -> String {
         self.background_file_explorer.borrow().content()
+    }
+
+    pub(crate) fn file_explorer_expanded_folders(&self) -> Vec<CanonicalizedPath> {
+        self.background_file_explorer.borrow().expanded_folders()
     }
 
     pub(crate) fn get_quickfix_list_items(

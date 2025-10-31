@@ -51,6 +51,7 @@ mod alternator;
 pub(crate) mod custom_config;
 mod divide_viewport;
 mod env;
+pub(crate) mod file_watcher;
 mod format_path_list;
 pub(crate) mod persistence;
 #[cfg(test)]
@@ -101,6 +102,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         ]
         .to_vec(),
         None, // No integration event sender
+        true,
         true,
         false,
         Some(Persistence::load_or_default(

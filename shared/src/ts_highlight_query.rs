@@ -21,14 +21,6 @@ pub fn clear_cache() -> anyhow::Result<()> {
 
 /// Get highlight query from cache or `nvim-treesitter` repo.
 pub(crate) fn get_highlight_query(language_id: &str) -> anyhow::Result<GetHighlightQueryResult> {
-    if language_id == "ki_quickfix" {
-        // This is required for the test case of quickfix_list_header_should_be_highlighted_as_keyword to pass.
-        return Ok(GetHighlightQueryResult {
-            is_cache: false,
-            query: r#" (header) @keyword"#.to_string(),
-        });
-    };
-
     let cache_dir = cache_dir();
     std::fs::create_dir_all(cache_dir.clone())?;
     let cache_path = cache_dir.join(format!("{language_id}.scm"));
