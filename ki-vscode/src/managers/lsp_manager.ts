@@ -74,5 +74,14 @@ export class LspManager extends Manager {
                 );
             },
         );
+
+        this.dispatcher.registerKiNotificationHandler(
+            "lsp.workspaceSymbols",
+            async () => {
+                await vscode.commands.executeCommand(
+                    "workbench.action.showAllSymbols",
+                );
+            },
+        );
     }
 }

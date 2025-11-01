@@ -8,6 +8,7 @@ use crate::components::editor::{
     PriorChange,
 };
 use crate::context::{Context, GlobalMode, LocalSearchConfigMode, Search};
+use crate::git::DiffMode;
 use crate::grid::IndexedHighlightGroup;
 use crate::list::grep::RegexConfig;
 use crate::lsp::process::LspNotification;
@@ -3955,7 +3956,7 @@ fn git_hunk_should_compare_against_buffer_content_not_file_content() -> anyhow::
             Editor(EnterNormalMode),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                GitHunk(crate::git::DiffMode::UnstagedAgainstCurrentBranch),
+                GitHunk(DiffMode::UnstagedAgainstCurrentBranch),
             )),
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["hellomod foo;"])),
@@ -4789,7 +4790,7 @@ fn main() {
 fn global_git_hunk_and_local_git_hunk_should_not_cause_multiple_info_windows_to_be_shown(
 ) -> anyhow::Result<()> {
     execute_test(|s| {
-        let diff_mode = crate::git::DiffMode::UnstagedAgainstCurrentBranch;
+        let diff_mode = DiffMode::UnstagedAgainstCurrentBranch;
 
         Box::new([
             App(OpenFile {
@@ -5257,6 +5258,36 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
             Expect(GridCellBackground(2, 1, GitGutterStyles::new().insertion)),
             Expect(GridCellBackground(4, 1, GitGutterStyles::new().replacement)),
             Expect(GridCellBackground(6, 1, GitGutterStyles::new().deletion)),
+        ])
+    })
+}
+
+#[test]
+fn move_to_hunks_consisting_of_only_a_single_empty_line_and_delete_it() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            // Insert one new empty line
+            Editor(BreakSelection),
+            // Expect a new line is inserted at the beginning
+            Expect(CurrentComponentContent("\ntarget/\n")),
+            // Move to the last line of the file
+            Editor(MoveSelection(Last)),
+            // Move to the hunk created by the new empty line,
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                GitHunk(DiffMode::UnstagedAgainstCurrentBranch),
+            )),
+            Expect(CurrentSelectedTexts(&[""])),
+            // Delete the empty line hunk
+            Editor(Delete),
+            // Expect the leading new line is deleted
+            Expect(CurrentComponentContent("target/\n")),
         ])
     })
 }

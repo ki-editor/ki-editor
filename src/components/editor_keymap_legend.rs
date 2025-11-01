@@ -329,6 +329,14 @@ impl Editor {
                     prior_change,
                 },
             ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::SchWC),
+                "With".to_string(),
+                Dispatch::OpenSearchPromptWithCurrentSelection {
+                    scope: Scope::Local,
+                    prior_change,
+                },
+            ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Undo_),
                 "Undo".to_string(),
@@ -575,12 +583,6 @@ impl Editor {
                 "⇋ Window".to_string(),
                 "Switch window".to_string(),
                 Dispatch::OtherWindow,
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::UPstE),
-                "Paste →".to_string(),
-                "Paste".to_string(),
-                Dispatch::ToEditor(Paste),
             ),
             Keymap::new_extended(
                 context
@@ -1015,9 +1017,16 @@ impl Editor {
                 .chain(Some(Keymap::new(
                     context
                         .keyboard_layout_kind()
-                        .get_space_picker_keymap(&Meaning::Symbl),
-                    "Symbol".to_string(),
+                        .get_space_picker_keymap(&Meaning::SyblD),
+                    "Symbol (Document)".to_string(),
                     Dispatch::RequestDocumentSymbols,
+                )))
+                .chain(Some(Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_picker_keymap(&Meaning::SyblW),
+                    "Symbol (Workspace)".to_string(),
+                    Dispatch::OpenWorkspaceSymbolsPrompt,
                 )))
                 .chain(Some(Keymap::new(
                     context
@@ -1533,6 +1542,14 @@ impl Editor {
                     Dispatch::OpenSearchPrompt {
                         scope,
                         if_current_not_found,
+                    },
+                ),
+                Keymap::new(
+                    context.keyboard_layout_kind().get_key(&Meaning::SchWC),
+                    "With".to_string(),
+                    Dispatch::OpenSearchPromptWithCurrentSelection {
+                        scope,
+                        prior_change,
                     },
                 ),
                 Keymap::new(

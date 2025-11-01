@@ -53,6 +53,9 @@
           cargo-watch
           cargo-machete
           samply
+
+          # For testing LSP
+          typescript-language-server
         ];
 
         # Platform-aware buildInputs

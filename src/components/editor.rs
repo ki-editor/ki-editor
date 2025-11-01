@@ -1042,6 +1042,18 @@ impl Editor {
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     let current_range = selection.extended_range();
+
+                    // Let the current_range be at least one character long
+                    // so even if the current_range is empty, the user can
+                    // still delete the character which is apparently under the cursor.
+                    let current_range = if current_range.len() == 0 {
+                        (current_range.start
+                            ..(current_range.start + 1).min(CharIndex(self.buffer().len_chars())))
+                            .into()
+                    } else {
+                        current_range
+                    };
+
                     let default = {
                         let start = current_range.start;
                         (current_range, (start..start + 1).into())
@@ -3745,14 +3757,20 @@ impl Editor {
         self.selection_set.is_extended()
     }
 
+    pub(crate) fn current_primary_selection(&self) -> anyhow::Result<String> {
+        Ok(self
+            .buffer()
+            .slice(&self.selection_set.primary_selection().extended_range())?
+            .to_string())
+    }
+
     fn search_current_selection(
         &mut self,
         if_current_not_found: IfCurrentNotFound,
         scope: Scope,
     ) -> Dispatches {
         let dispatches = self
-            .buffer()
-            .slice(&self.selection_set.primary_selection().extended_range())
+            .current_primary_selection()
             .map(|search| {
                 Dispatches::one(Dispatch::UpdateLocalSearchConfig {
                     scope,
@@ -4073,8 +4091,9 @@ impl Editor {
         Ok(dispatches.chain(self.do_save(true, context)?))
     }
 
-    pub(crate) fn reload(&mut self, force: bool) -> Result<Dispatches, anyhow::Error> {
-        self.buffer_mut().reload(force)
+    fn reload(&mut self, force: bool) -> Result<Dispatches, anyhow::Error> {
+        let dispatches = self.buffer_mut().reload(force)?;
+        Ok(dispatches.chain(self.get_document_did_change_dispatch()))
     }
 }
 

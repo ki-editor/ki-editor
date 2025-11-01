@@ -182,6 +182,10 @@ pub(crate) enum ExpectKind {
         matches: &'static lazy_regex::Lazy<regex::Regex>,
         timeout: Duration,
     },
+    AppMessageIsReceived {
+        matches: &'static lazy_regex::Lazy<regex::Regex>,
+        timeout: Duration,
+    },
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -583,6 +587,10 @@ impl ExpectKind {
                     app.expect_app_message_not_received(matches, timeout)?;
                     (true, String::new())
                 }
+            AppMessageIsReceived { matches, timeout } => {
+                    app.wait_for_app_message(matches, Some(*timeout))?;
+                    (true, String::new())
+                }
         })
     }
 }
@@ -720,7 +728,7 @@ fn execute_test_helper(
             match step.to_owned() {
                 Step::WaitForAppMessage(regex) => {
                     log(format!("Wait for app message: {}", ***regex));
-                    app.wait_for_app_message(regex)?
+                    app.wait_for_app_message(regex, None)?
                 }
                 Step::App(dispatch) => {
                     log(dispatch);
@@ -2578,6 +2586,27 @@ fn open_search_prompt_in_file_explorer() -> anyhow::Result<()> {
             )))),
             App(HandleKeyEvents(keys!("m a i n enter").to_vec())),
             Expect(CurrentComponentTitle("File Explorer".to_string())),
+        ])
+    })
+}
+
+#[test]
+fn open_search_prompt_with_current_selection() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectedTexts(&["mod foo;"])),
+            App(OpenSearchPromptWithCurrentSelection {
+                scope: Scope::Local,
+                prior_change: None,
+            }),
+            Expect(CurrentComponentTitle("Local search".to_string())),
+            Expect(CurrentComponentContent("mod foo;")),
         ])
     })
 }

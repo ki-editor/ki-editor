@@ -149,6 +149,7 @@ export type OutputMessage =
 	| { tag: "lsp.rename", params?: undefined }
 	| { tag: "lsp.codeAction", params?: undefined }
 	| { tag: "lsp.documentSymbols", params?: undefined }
+	| { tag: "lsp.workspaceSymbols", params?: undefined }
 	| { tag: "editor.syncBufferRequest", params: {
 	uri: string;
 }}
