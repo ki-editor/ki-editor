@@ -129,7 +129,7 @@ impl KeymapPrintSection {
             content_width + 12 + 22 + 2
         }
 
-        let exmatrix_keybindings = ["* Pick Keyboard"].join(&" ".repeat(4));
+        let exmatrix_keybindings = ["* Pick Keyboard", "\\ Leader"].join(&" ".repeat(4));
         if get_content_width(&table) < terminal_width {
             format!("{table}\n{exmatrix_keybindings}")
         } else {
