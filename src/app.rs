@@ -22,6 +22,7 @@ use crate::{
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
+    custom_config::keymap::{LeaderAction, LeaderContext},
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
     frontend::Frontend,
@@ -980,6 +981,9 @@ impl<T: Frontend> App<T> {
                 self.add_quickfix_list_entries(locations)?
             }
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
+            Dispatch::HandleLeaderAction(leader_action) => {
+                self.handle_leader_action(leader_action)?
+            }
             Dispatch::ShowBufferSaveConflictPrompt {
                 path,
                 content_editor,
@@ -2058,7 +2062,6 @@ impl<T: Frontend> App<T> {
         self.layout.get_buffer_contents_map()
     }
 
-    #[cfg(test)]
     fn handle_key_events(&mut self, key_events: Vec<event::KeyEvent>) -> anyhow::Result<()> {
         for key_event in key_events.into_iter() {
             self.handle_event(Event::Key(key_event.to_owned()))?;
@@ -3006,6 +3009,38 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         }
         Ok(())
     }
+
+    fn handle_leader_action(&mut self, leader_action: LeaderAction) -> anyhow::Result<()> {
+        let leader_context = LeaderContext {
+            path: self.get_current_file_path(),
+            primary_selection_line_index: self
+                .current_component()
+                .borrow()
+                .get_cursor_position()
+                .map(|position| position.line)
+                .unwrap_or_default(),
+            primary_selection_content: self
+                .current_component()
+                .borrow()
+                .editor()
+                .primary_selection()
+                .unwrap_or_default(),
+            current_working_directory: self.context.current_working_directory().clone(),
+        };
+        match leader_action {
+            LeaderAction::DoNothing => {}
+            LeaderAction::RunCommand(command, args) => {
+                let args = args
+                    .iter()
+                    .map(|arg| arg.to_string(&leader_context))
+                    .collect_vec();
+                let output = std::process::Command::new(command).args(&args).spawn()?;
+                // self.show_global_info(Info::new( format!("{command} {}", args.join(" ")), format!( "[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n", output.status, String::from_utf8_lossy(&output.stdout).trim(), String::from_utf8_lossy(&output.stderr).trim() ), ))
+            }
+            LeaderAction::Macro(key_events) => self.handle_key_events(key_events)?,
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -3255,6 +3290,7 @@ pub(crate) enum Dispatch {
         edits: Vec<Edit>,
         path: CanonicalizedPath,
     },
+    HandleLeaderAction(LeaderAction),
     ShowBufferSaveConflictPrompt {
         path: CanonicalizedPath,
         content_filesystem: String,
