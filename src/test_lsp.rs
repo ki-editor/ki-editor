@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use lazy_regex::regex;
 use my_proc_macros::{key, keys};
 
@@ -65,6 +67,29 @@ fn main() {
 }
 "#,
             )),
+        ])
+    })
+}
+
+#[test]
+fn typescript_lsp_workspace_symbols() -> Result<(), anyhow::Error> {
+    let options = RunTestOptions {
+        enable_lsp: true,
+        enable_syntax_highlighting: false,
+        enable_file_watcher: false,
+    };
+    execute_test_custom(options, |s| {
+        Box::new([
+            App(AddPath(s.new_path("hello.ts").display().to_string())),
+            App(HandleKeyEvent(key!("enter"))),
+            Editor(SetContent("export function hello() {}".to_string())),
+            WaitForAppMessage(lazy_regex::regex!("LspNotification.*Initialized")),
+            App(OpenWorkspaceSymbolsPrompt),
+            App(HandleKeyEvents(keys!("h e").to_vec())),
+            Expect(AppMessageIsReceived {
+                matches: regex!("LspNotification.*WorkspaceSymbols"),
+                timeout: Duration::from_secs(5),
+            }),
         ])
     })
 }
