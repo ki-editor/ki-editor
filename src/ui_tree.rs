@@ -283,6 +283,19 @@ impl UiTree {
                 .node_id(),
         )
     }
+
+    pub(crate) fn get_component_by_id(
+        &self,
+        component_id: crate::components::component::ComponentId,
+    ) -> Option<Rc<RefCell<dyn Component>>> {
+        Some(
+            self.root()
+                .traverse_pre_order()
+                .find(|node| node.data().component().borrow().id() == component_id)?
+                .data()
+                .component(),
+        )
+    }
 }
 
 impl Default for UiTree {
