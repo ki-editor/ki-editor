@@ -531,6 +531,7 @@ impl LocalSearchConfig {
             LocalSearchConfigUpdate::Replacement(replacement) => {
                 self.set_replacment(replacement);
             }
+            #[cfg(test)]
             LocalSearchConfigUpdate::Search(search) => {
                 self.set_search(search);
             }
