@@ -634,6 +634,13 @@ impl Layout {
         self.tree
             .remove_node_child(self.tree.root_id(), ComponentKind::GlobalInfo);
     }
+
+    pub(crate) fn get_component_by_id(
+        &self,
+        component_id: ComponentId,
+    ) -> Option<Rc<RefCell<dyn Component>>> {
+        self.tree.get_component_by_id(component_id)
+    }
 }
 fn layout_kind() -> (LayoutKind, f32) {
     (LayoutKind::Wide, 0.70)

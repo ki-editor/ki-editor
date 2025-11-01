@@ -883,11 +883,13 @@ impl<T: Frontend> App<T> {
                 scope,
                 if_current_not_found,
                 run_search_after_config_updated,
+                component_id,
             } => self.update_local_search_config(
                 update,
                 scope,
                 if_current_not_found,
                 run_search_after_config_updated,
+                component_id,
             )?,
             Dispatch::UpdateGlobalSearchConfig { update } => {
                 self.update_global_search_config(update)?;
@@ -1015,7 +1017,11 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn local_search(&mut self, if_current_not_found: IfCurrentNotFound) -> anyhow::Result<()> {
+    fn local_search(
+        &mut self,
+        if_current_not_found: IfCurrentNotFound,
+        component_id: Option<ComponentId>,
+    ) -> anyhow::Result<()> {
         let config = self.context.local_search_config(Scope::Local);
         let search = config.search();
         if !search.is_empty() {
@@ -1029,7 +1035,9 @@ impl<T: Frontend> App<T> {
                         },
                     },
                 ),
-                self.current_component(),
+                component_id
+                    .and_then(|component_id| self.get_component_by_id(component_id))
+                    .unwrap_or_else(|| self.current_component()),
             )?;
         }
 
@@ -1120,7 +1128,23 @@ impl<T: Frontend> App<T> {
                     if_current_not_found,
                     run_search_after_config_updated: true,
                 },
+                on_change: Some({
+                    let component_id = self.current_component().borrow().id();
+                    PromptOnChangeDispatch::UpdateLocalSearchConfigSearch {
+                        scope,
+                        if_current_not_found,
+                        component_id,
+                    }
+                }),
                 leaves_current_line_empty: current_line.is_none(),
+                on_cancelled: Some(Dispatches::one(Dispatch::ToEditor({
+                    let component = self.current_component();
+                    let borrow = component.borrow();
+                    DispatchEditor::RestoreState {
+                        selection_set: borrow.editor().selection_set.clone(),
+                        scroll_offset: borrow.editor().scroll_offset(),
+                    }
+                }))),
                 prompt_history_key: PromptHistoryKey::Search,
                 ..Default::default()
             },
@@ -1958,11 +1982,12 @@ impl<T: Frontend> App<T> {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
         run_search_after_config_updated: bool,
+        component_id: Option<ComponentId>,
     ) -> Result<(), anyhow::Error> {
         self.context.update_local_search_config(update, scope);
         if run_search_after_config_updated {
             match scope {
-                Scope::Local => self.local_search(if_current_not_found)?,
+                Scope::Local => self.local_search(if_current_not_found, component_id)?,
                 Scope::Global => {
                     self.global_search()?;
                 }
@@ -3006,6 +3031,10 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         }
         Ok(())
     }
+
+    fn get_component_by_id(&self, component_id: ComponentId) -> Option<Rc<RefCell<dyn Component>>> {
+        self.layout.get_component_by_id(component_id)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -3185,6 +3214,8 @@ pub(crate) enum Dispatch {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
         run_search_after_config_updated: bool,
+        /// If None, then this search will run in the current component
+        component_id: Option<ComponentId>,
     },
     UpdateGlobalSearchConfig {
         update: GlobalSearchConfigUpdate,
@@ -3450,6 +3481,7 @@ impl DispatchPrompt {
                             scope,
                             if_current_not_found,
                             run_search_after_config_updated,
+                            component_id: None,
                         },
                         Scope::Global => Dispatch::UpdateGlobalSearchConfig {
                             update: GlobalSearchConfigUpdate::Config(search_config),

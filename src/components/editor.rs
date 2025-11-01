@@ -386,6 +386,10 @@ impl Component for Editor {
                 content_editor,
                 path,
             } => return self.merge_content(context, path, content_editor, content_filesystem),
+            RestoreState {
+                selection_set,
+                scroll_offset,
+            } => self.restore_state(selection_set, scroll_offset),
         }
         Ok(Default::default())
     }
@@ -3784,6 +3788,7 @@ impl Editor {
                         .clone(),
                     ),
                     run_search_after_config_updated: true,
+                    component_id: None,
                 })
                 .append(Dispatch::PushPromptHistory {
                     key: super::prompt::PromptHistoryKey::Search,
@@ -3975,6 +3980,7 @@ impl Editor {
                     .clone(),
             ),
             run_search_after_config_updated: true,
+            component_id: None,
         });
         Ok(dispatches)
     }
@@ -4095,6 +4101,11 @@ impl Editor {
     fn reload(&mut self, force: bool) -> Result<Dispatches, anyhow::Error> {
         let dispatches = self.buffer_mut().reload(force)?;
         Ok(dispatches.chain(self.get_document_did_change_dispatch()))
+    }
+
+    fn restore_state(&mut self, selection_set: SelectionSet, scroll_offset: u16) {
+        self.selection_set = selection_set;
+        self.scroll_offset = scroll_offset
     }
 }
 
@@ -4243,6 +4254,10 @@ pub(crate) enum DispatchEditor {
         content_filesystem: String,
         content_editor: String,
         path: CanonicalizedPath,
+    },
+    RestoreState {
+        selection_set: crate::selection::SelectionSet,
+        scroll_offset: u16,
     },
 }
 

@@ -1518,6 +1518,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 scope: Scope::Global,
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
+                component_id: None,
             }),
             WaitForAppMessage(regex!("AddQuickfixListEntries")),
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
@@ -1680,6 +1681,7 @@ fn test_global_search_replace(
                 scope: Scope::Global,
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
+                component_id: None,
             }
         };
         let main_rs = s.main_rs();
@@ -1751,6 +1753,7 @@ fn test_global_repeat_search() -> anyhow::Result<()> {
                 scope: Scope::Global,
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
+                component_id: None,
             }),
             WaitForAppMessage(regex!("AddQuickfixListEntries")),
             Expect(CurrentSelectedTexts(&["bye"])),
@@ -1834,6 +1837,7 @@ fn quickfix_list_basic() -> Result<(), anyhow::Error> {
                 scope: Scope::Global,
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
+                component_id: None,
             }
         };
         Box::new([
@@ -2620,6 +2624,7 @@ fn global_search_should_not_using_empty_pattern() -> anyhow::Result<()> {
                 scope: Scope::Global,
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
+                component_id: None,
             }),
             Expect(ExpectKind::Quickfixes(Box::new([]))),
         ])

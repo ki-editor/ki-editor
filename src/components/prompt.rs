@@ -5,11 +5,15 @@ use my_proc_macros::key;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
-    app::{Dispatch, DispatchPrompt, Dispatches},
+    app::{Dispatch, DispatchPrompt, Dispatches, Scope},
     buffer::Buffer,
-    components::editor::DispatchEditor,
+    components::{
+        component::ComponentId,
+        editor::{DispatchEditor, IfCurrentNotFound},
+    },
     context::Context,
     lsp::completion::Completion,
+    search::parse_search_config,
     selection::SelectionMode,
     thread::Callback,
 };
@@ -36,6 +40,11 @@ pub(crate) struct Prompt {
 #[derive(Debug, Clone)]
 pub(crate) enum PromptOnChangeDispatch {
     RequestWorkspaceSymbol(CanonicalizedPath),
+    UpdateLocalSearchConfigSearch {
+        scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
+        component_id: ComponentId,
+    },
 }
 
 impl PromptOnChangeDispatch {
@@ -47,6 +56,21 @@ impl PromptOnChangeDispatch {
                     path: path.clone(),
                 })
             }
+            PromptOnChangeDispatch::UpdateLocalSearchConfigSearch {
+                scope,
+                if_current_not_found,
+                component_id,
+            } => Dispatches::one(Dispatch::UpdateLocalSearchConfig {
+                scope: *scope,
+                if_current_not_found: if_current_not_found.clone(),
+                run_search_after_config_updated: true,
+                update: crate::app::LocalSearchConfigUpdate::Config(
+                    parse_search_config(&context.current_line)
+                        .unwrap_or_default()
+                        .local_config,
+                ),
+                component_id: Some(*component_id),
+            }),
         }
     }
 }
@@ -837,6 +861,7 @@ mod test_prompt {
                     scope: Scope::Local,
                     if_current_not_found: IfCurrentNotFound::LookForward,
                     run_search_after_config_updated: false,
+                    component_id: None,
                 }),
                 App(OpenSearchPrompt {
                     scope: Scope::Local,
