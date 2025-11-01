@@ -6,8 +6,8 @@ use grep_searcher::{sinks, SearcherBuilder};
 use fancy_regex::Regex;
 
 use crate::{
-    buffer::Buffer, context::LocalSearchConfig, list::Match, quickfix_list::Location,
-    selection_mode::regex::get_regex, thread::SendResult,
+    app::Dispatches, buffer::Buffer, context::LocalSearchConfig, list::Match,
+    quickfix_list::Location, selection_mode::regex::get_regex, thread::SendResult,
 };
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -80,24 +80,29 @@ impl Default for RegexConfig {
 pub(crate) fn replace(
     walk_builder_config: WalkBuilderConfig,
     local_search_config: LocalSearchConfig,
-) -> anyhow::Result<Vec<CanonicalizedPath>> {
-    Ok(walk_builder_config
+) -> anyhow::Result<(Dispatches, Vec<CanonicalizedPath>)> {
+    let (dispatches, paths): (Vec<_>, Vec<_>) = walk_builder_config
         .run(Box::new(move |path, sender| {
             let path = path.try_into()?;
             let mut buffer = Buffer::from_path(&path, local_search_config.require_tree_sitter())?;
             let (modified, _, _, _) =
                 buffer.replace(local_search_config.clone(), Default::default(), 0)?;
             if modified {
-                buffer.save_without_formatting(false)?;
+                let (dispatches, _) = buffer.save_without_formatting(false)?;
                 sender
-                    .send(path)
+                    .send((dispatches, path))
                     .map_err(|err| log::info!("Error = {err:?}"))
                     .unwrap_or_default();
             }
             Ok(())
         }))?
         .into_iter()
-        .collect())
+        .unzip();
+    let dispatches = dispatches
+        .into_iter()
+        .reduce(Dispatches::chain)
+        .unwrap_or_default();
+    Ok((dispatches, paths))
 }
 
 pub(crate) fn run(

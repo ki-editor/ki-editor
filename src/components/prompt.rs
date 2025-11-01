@@ -11,6 +11,7 @@ use crate::{
     context::Context,
     lsp::completion::Completion,
     selection::SelectionMode,
+    thread::Callback,
 };
 
 use super::{
@@ -27,8 +28,31 @@ pub(crate) struct Prompt {
     on_enter: DispatchPrompt,
     enter_selects_first_matching_item: bool,
     prompt_history_key: PromptHistoryKey,
-    fire_dispatches_on_change: Option<Dispatches>,
+    on_change: Option<PromptOnChangeDispatch>,
+    on_cancelled: Option<Dispatches>,
     matcher: Option<PromptMatcher>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum PromptOnChangeDispatch {
+    RequestWorkspaceSymbol(CanonicalizedPath),
+}
+
+impl PromptOnChangeDispatch {
+    fn to_dispatches(&self, context: &PromptContext) -> Dispatches {
+        match self {
+            PromptOnChangeDispatch::RequestWorkspaceSymbol(path) => {
+                Dispatches::one(Dispatch::RequestWorkspaceSymbols {
+                    query: context.current_line.to_string(),
+                    path: path.clone(),
+                })
+            }
+        }
+    }
+}
+
+struct PromptContext {
+    current_line: String,
 }
 
 struct PromptMatcher {
@@ -57,14 +81,19 @@ impl PromptMatcher {
             .collect_vec()
     }
 
-    fn new(task: PromptItemsBackgroundTask, debounce: Arc<dyn Fn() + Send + Sync>) -> Self {
-        let nucleo = nucleo::Nucleo::new(nucleo::Config::DEFAULT, debounce, None, 1);
+    fn new(task: PromptItemsBackgroundTask, notify: Callback<()>) -> Self {
+        let nucleo = nucleo::Nucleo::new(
+            nucleo::Config::DEFAULT,
+            Arc::new(move || notify.call(())),
+            None,
+            1,
+        );
         task.execute(nucleo.injector());
         PromptMatcher { nucleo }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub(crate) struct PromptConfig {
     pub(crate) on_enter: DispatchPrompt,
     pub(crate) items: PromptItems,
@@ -73,8 +102,9 @@ pub(crate) struct PromptConfig {
     pub(crate) leaves_current_line_empty: bool,
 
     /// If defined, the `Dispatches` here is used for undoing the dispatches fired on change.
-    pub(crate) fire_dispatches_on_change: Option<Dispatches>,
+    pub(crate) on_cancelled: Option<Dispatches>,
     pub(crate) prompt_history_key: PromptHistoryKey,
+    pub(crate) on_change: Option<PromptOnChangeDispatch>,
 }
 
 impl PromptConfig {
@@ -103,7 +133,7 @@ impl std::fmt::Debug for PromptConfig {
                 &self.enter_selects_first_matching_item,
             )
             .field("leaves_current_line_empty", &self.leaves_current_line_empty)
-            .field("fire_dispatches_on_change", &self.fire_dispatches_on_change)
+            .field("on_cancelled", &self.on_cancelled)
             .field("prompt_history_key", &self.prompt_history_key)
             .finish()
     }
@@ -115,8 +145,14 @@ pub(crate) enum PromptItems {
     Precomputed(Vec<DropdownItem>),
     BackgroundTask {
         task: PromptItemsBackgroundTask,
-        on_nucleo_tick_debounced: Arc<dyn Fn() + Send + Sync>,
+        on_nucleo_tick_debounced: Callback<()>,
     },
+}
+
+impl Default for PromptItems {
+    fn default() -> Self {
+        Self::None
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -124,6 +160,7 @@ pub(crate) enum PromptItemsBackgroundTask {
     NonGitIgnoredFiles {
         working_directory: CanonicalizedPath,
     },
+    HandledByMainEventLoop,
 }
 impl PromptItemsBackgroundTask {
     fn execute(self, injector: nucleo::Injector<DropdownItem>) {
@@ -143,6 +180,10 @@ impl PromptItemsBackgroundTask {
                     )
                 });
             }
+            PromptItemsBackgroundTask::HandledByMainEventLoop => {
+                // Do nothing if the background task is handled by the app main event loop
+                // For example: LSP Workspace Symbols
+            }
         }
     }
 }
@@ -158,15 +199,20 @@ pub(crate) enum PromptHistoryKey {
     Symbol,
     OpenFile,
     CodeAction,
-    #[cfg(test)]
     Null,
     Theme,
     PipeToShell,
-    FilterSelectionsMatchingSearch {
-        maintain: bool,
-    },
+    FilterSelectionsMatchingSearch { maintain: bool },
     KeyboardLayout,
     SurroundXmlTag,
+    ResolveBufferSaveConflict,
+    WorkspaceSymbol,
+}
+
+impl Default for PromptHistoryKey {
+    fn default() -> Self {
+        Self::Null
+    }
 }
 
 impl Prompt {
@@ -237,7 +283,8 @@ impl Prompt {
                 on_enter: config.on_enter,
                 enter_selects_first_matching_item: config.enter_selects_first_matching_item,
                 prompt_history_key: config.prompt_history_key,
-                fire_dispatches_on_change: config.fire_dispatches_on_change,
+                on_cancelled: config.on_cancelled,
+                on_change: config.on_change,
                 matcher,
             },
             dispatches,
@@ -282,6 +329,23 @@ impl Prompt {
             matcher.reparse(filter);
         }
     }
+
+    pub(crate) fn clear_and_update_matcher_items(&mut self, items: Vec<DropdownItem>) {
+        let Some(matcher) = self.matcher.as_mut() else {
+            return Default::default();
+        };
+
+        matcher.nucleo.restart(true);
+
+        let injector = matcher.nucleo.injector();
+        for item in items {
+            injector.push(item, |item, columns| {
+                let group = item.group().clone().unwrap_or_default();
+                let display = item.display().clone();
+                columns[0] = format!("{group} {display}").into();
+            });
+        }
+    }
 }
 
 impl Component for Prompt {
@@ -309,7 +373,7 @@ impl Component for Prompt {
         match event {
             key!("esc") if self.editor().mode == Mode::Normal => {
                 Ok(Dispatches::one(Dispatch::CloseCurrentWindow)
-                    .chain(self.fire_dispatches_on_change.clone().unwrap_or_default()))
+                    .chain(self.on_cancelled.clone().unwrap_or_default()))
             }
             key!("tab") => self.replace_current_query_with_focused_item(context, event),
             _ if event.display() == context.keyboard_layout_kind().get_key(&Meaning::MrkFN) => {
@@ -351,16 +415,23 @@ impl Component for Prompt {
             }
             _ => {
                 let dispatches = self.editor.handle_key_event(context, event)?;
-                Ok(if self.fire_dispatches_on_change.is_some() {
-                    dispatches.chain(
+                Ok(dispatches
+                    .chain(
                         self.editor
                             .completion_dropdown_current_item()
-                            .map(|item| item.dispatches)
+                            .map(|item| item.on_focused())
                             .unwrap_or_default(),
                     )
-                } else {
-                    dispatches
-                })
+                    .chain(
+                        self.on_change
+                            .as_ref()
+                            .map(|on_change| {
+                                on_change.to_dispatches(&PromptContext {
+                                    current_line: self.editor().current_line().unwrap_or_default(),
+                                })
+                            })
+                            .unwrap_or_default(),
+                    ))
             }
         }
     }
@@ -409,13 +480,9 @@ mod test_prompt {
                     App(OpenPrompt {
                         current_line: Some("hello\nworld".to_string()),
                         config: PromptConfig {
-                            on_enter: DispatchPrompt::Null,
-                            items: PromptItems::None,
-                            title: "".to_string(),
                             enter_selects_first_matching_item: true,
                             leaves_current_line_empty,
-                            fire_dispatches_on_change: None,
-                            prompt_history_key: PromptHistoryKey::Null,
+                            ..Default::default()
                         },
                     }),
                     Expect(CurrentComponentContent(expected_text)),
@@ -434,13 +501,9 @@ mod test_prompt {
             let open_prompt = OpenPrompt {
                 current_line: None,
                 config: PromptConfig {
-                    on_enter: DispatchPrompt::Null,
-                    items: PromptItems::None,
-                    title: "".to_string(),
                     enter_selects_first_matching_item: true,
                     leaves_current_line_empty: true,
-                    fire_dispatches_on_change: None,
-                    prompt_history_key: PromptHistoryKey::Null,
+                    ..Default::default()
                 },
             };
             Box::new([
@@ -485,13 +548,9 @@ mod test_prompt {
                 App((OpenPrompt {
                     current_line: Some("spongebob squarepants".to_string()),
                     config: PromptConfig {
-                        on_enter: DispatchPrompt::Null,
-                        items: PromptItems::None,
-                        title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
-                        fire_dispatches_on_change: None,
-                        prompt_history_key: PromptHistoryKey::Null,
+                        ..Default::default()
                     },
                 })
                 .clone()),
@@ -516,12 +575,9 @@ mod test_prompt {
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::SetContent,
-                        items: PromptItems::None,
-                        title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
-                        fire_dispatches_on_change: None,
-                        prompt_history_key: PromptHistoryKey::Null,
+                        ..Default::default()
                     },
                 }),
                 Expect(CurrentComponentContent("")),
@@ -559,11 +615,9 @@ mod test_prompt {
                                     .collect(),
                             ),
 
-                            title: "".to_string(),
                             enter_selects_first_matching_item,
                             leaves_current_line_empty: true,
-                            fire_dispatches_on_change: None,
-                            prompt_history_key: PromptHistoryKey::Null,
+                            ..Default::default()
                         },
                     }),
                     Expect(CompletionDropdownIsOpen(true)),
@@ -597,11 +651,9 @@ mod test_prompt {
                                 .collect(),
                         ),
 
-                        title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
-                        fire_dispatches_on_change: None,
-                        prompt_history_key: PromptHistoryKey::Null,
+                        ..Default::default()
                     },
                 }),
                 App(HandleKeyEvents(keys!("f o o _ b tab").to_vec())),
@@ -612,13 +664,12 @@ mod test_prompt {
     }
 
     #[test]
-    fn fire_dispatches_on_change() -> anyhow::Result<()> {
+    fn test_on_cancelled() -> anyhow::Result<()> {
         execute_test(|_| {
             Box::new([
                 App(Dispatch::OpenPrompt {
                     current_line: None,
                     config: super::PromptConfig {
-                        on_enter: DispatchPrompt::Null,
                         items: PromptItems::Precomputed(
                             [
                                 "foo_bar".to_string(),
@@ -629,20 +680,20 @@ mod test_prompt {
                             .map(|item| item.into())
                             .map(|item: DropdownItem| {
                                 let content = item.display();
-                                item.set_dispatches(Dispatches::one(Dispatch::ShowEditorInfo(
+                                item.set_on_focused(Dispatches::one(Dispatch::ShowEditorInfo(
                                     Info::new("".to_string(), content),
                                 )))
                             })
                             .collect(),
                         ),
 
-                        title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
-                        fire_dispatches_on_change: Some(Dispatches::one(Dispatch::ShowEditorInfo(
-                            Info::new("".to_string(), "back to square one".to_string()),
-                        ))),
-                        prompt_history_key: PromptHistoryKey::Null,
+                        on_cancelled: Some(Dispatches::one(Dispatch::ShowEditorInfo(Info::new(
+                            "".to_string(),
+                            "back to square one".to_string(),
+                        )))),
+                        ..Default::default()
                     },
                 }),
                 App(HandleKeyEvents(keys!("f o o _").to_vec())),
@@ -674,11 +725,9 @@ mod test_prompt {
                             .collect(),
                         ),
 
-                        title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
-                        fire_dispatches_on_change: None,
-                        prompt_history_key: PromptHistoryKey::Null,
+                        ..Default::default()
                     },
                 }),
                 App(TerminalDimensionChanged(crate::app::Dimension {
@@ -714,11 +763,9 @@ mod test_prompt {
                                 .collect(),
                         ),
 
-                        title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
-                        fire_dispatches_on_change: None,
-                        prompt_history_key: PromptHistoryKey::Null,
+                        ..Default::default()
                     },
                 }),
                 // Expect the completion dropdown to be open,

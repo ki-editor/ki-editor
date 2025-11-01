@@ -34,7 +34,7 @@ pub(crate) struct SimpleHunk {
     pub(crate) kind: SimpleHunkKind,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum SimpleHunkKind {
     Delete,
     Insert,
@@ -68,7 +68,7 @@ impl Hunk {
         let simple_hunks = Self::get_simple_hunks(old, new);
         simple_hunks
             .into_iter()
-            .filter_map(|simple_hunk| {
+            .map(|simple_hunk| {
                 let old = &simple_hunk.old_content;
                 let new = slice_line_range(
                     new,
@@ -76,17 +76,17 @@ impl Hunk {
                         ..simple_hunk.new_line_range.end as u32),
                 );
 
-                let (content, decorations) = Self::get_detailed_hunk(old, &new)?;
-                Some(Hunk {
+                let (content, decorations) = Self::get_detailed_hunk(old, &new);
+                Hunk {
                     new_line_range: simple_hunk.new_line_range,
                     content,
                     decorations,
-                })
+                }
             })
             .collect_vec()
     }
 
-    pub(crate) fn get_detailed_hunk(old: &str, new: &str) -> Option<(String, Vec<Decoration>)> {
+    pub(crate) fn get_detailed_hunk(old: &str, new: &str) -> (String, Vec<Decoration>) {
         let diff = TextDiff::from_lines(old, new);
 
         #[derive(PartialEq)]
@@ -96,11 +96,18 @@ impl Hunk {
         }
 
         // We only take the first diff_op, because the `old` and `new` string should contain only one diff hunk.
+
         let diff_ops = diff.ops().iter().collect_vec();
 
-        debug_assert_eq!(diff_ops.len(), 1);
+        debug_assert!(diff_ops.len() <= 1);
 
-        let diff_op = diff_ops.first()?;
+        let Some(diff_op) = diff_ops.first() else {
+            // This case will happen when both `old` and `new` are empty strings,
+            // which can happen when the hunk is:
+            // 1. A newly added single empty line
+            // 2. A newly removed single empty line
+            return Default::default();
+        };
 
         let (lines, decorations): (Vec<_>, Vec<_>) = diff
             .iter_inline_changes(diff_op)
@@ -145,7 +152,7 @@ impl Hunk {
             .map(|decoration| decoration.move_left(min_leading_whitespaces_count))
             .collect_vec();
         let content = trim_start(content, min_leading_whitespaces_count);
-        Some((content, decorations))
+        (content, decorations)
     }
 
     pub(crate) fn line_range(&self) -> &Range<usize> {

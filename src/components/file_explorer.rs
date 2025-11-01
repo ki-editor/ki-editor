@@ -58,6 +58,18 @@ impl FileExplorer {
         Ok(Self { editor, tree })
     }
 
+    pub(crate) fn expanded_folders(&self) -> Vec<CanonicalizedPath> {
+        self.tree
+            .walk_visible(Vec::new(), |result, node| Continuation {
+                state: if matches!(node.kind, NodeKind::Directory { open: true, .. }) {
+                    result.into_iter().chain(Some(node.path.clone())).collect()
+                } else {
+                    result
+                },
+                kind: ContinuationKind::Continue,
+            })
+    }
+
     pub(crate) fn reveal(
         &mut self,
         path: &CanonicalizedPath,
@@ -73,13 +85,9 @@ impl FileExplorer {
         }
     }
 
-    pub(crate) fn refresh(
-        &mut self,
-        working_directory: &CanonicalizedPath,
-        context: &Context,
-    ) -> anyhow::Result<()> {
+    pub(crate) fn refresh(&mut self, context: &Context) -> anyhow::Result<()> {
         let tree = std::mem::take(&mut self.tree);
-        self.tree = tree.refresh(working_directory)?;
+        self.tree = tree.refresh(context.current_working_directory())?;
         self.refresh_editor(context)?;
         Ok(())
     }
@@ -335,7 +343,6 @@ impl Tree {
             },
         });
         let tree = Tree::new(working_directory)?;
-        log::info!("opened_paths = {opened_paths:?}");
         let tree = opened_paths
             .into_iter()
             .fold(tree, |tree, path| tree.toggle(&path, |_| true));

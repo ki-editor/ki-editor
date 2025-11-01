@@ -8,8 +8,6 @@ use crate::{context::Context, grid::Grid, position::Position, rectangle::Rectang
 
 use super::editor::{DispatchEditor, Editor};
 
-// dyn_clone::clone_trait_object!(Component);
-//
 pub(crate) struct GetGridResult {
     pub(crate) grid: Grid,
     pub(crate) cursor: Option<Cursor>,

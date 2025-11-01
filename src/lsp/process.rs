@@ -71,8 +71,9 @@ pub(crate) enum LspNotification {
     WorkspaceEdit(WorkspaceEdit),
     CodeAction(Vec<CodeAction>),
     SignatureHelp(Option<SignatureHelp>),
-    Symbols(Symbols),
-    CompletionItemResolve(lsp_types::CompletionItem),
+    DocumentSymbols(Symbols),
+    WorkspaceSymbols(Symbols),
+    CompletionItemResolve(Box<lsp_types::CompletionItem>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -136,6 +137,10 @@ pub(crate) enum FromEditor {
     TextDocumentImplementation(RequestParams),
     TextDocumentTypeDefinition(RequestParams),
     TextDocumentDocumentSymbol(RequestParams),
+    WorkspaceSymbol {
+        query: String,
+        context: ResponseContext,
+    },
     WorkspaceDidRenameFiles {
         old: CanonicalizedPath,
         new: CanonicalizedPath,
@@ -161,7 +166,6 @@ impl FromEditor {
 
 pub(crate) struct LspServerProcessChannel {
     language: Language,
-    join_handle: JoinHandle<JoinHandle<()>>,
     sender: Sender<LspServerProcessMessage>,
     is_initialized: bool,
 }
@@ -176,12 +180,7 @@ impl LspServerProcessChannel {
     }
 
     pub(crate) fn shutdown(self) -> anyhow::Result<()> {
-        self.send(LspServerProcessMessage::Shutdown)?;
-        self.join_handle
-            .join()
-            .map_err(|err| anyhow::anyhow!("Unable to join lsp server process [1]: {:?}", err))?
-            .join()
-            .map_err(|err| anyhow::anyhow!("Unable to join lsp server process [2]: {:?}", err))
+        self.send(LspServerProcessMessage::Shutdown)
     }
 
     fn send(&self, message: LspServerProcessMessage) -> anyhow::Result<()> {
@@ -281,12 +280,10 @@ impl LspServerProcess {
 
         lsp_server_process.initialize()?;
 
-        let join_handle =
-            std::thread::spawn(move || lsp_server_process.listen(receiver, app_message_sender));
+        std::thread::spawn(move || lsp_server_process.listen(receiver, app_message_sender));
 
         Ok(Some(LspServerProcessChannel {
             language,
-            join_handle,
             sender,
             is_initialized: false,
         }))
@@ -322,6 +319,9 @@ impl LspServerProcess {
                         }),
                         execute_command: Some(DynamicRegistrationClientCapabilities {
                             dynamic_registration: None,
+                        }),
+                        symbol: Some(WorkspaceSymbolClientCapabilities {
+                            ..Default::default()
                         }),
                         ..WorkspaceClientCapabilities::default()
                     }),
@@ -480,7 +480,9 @@ impl LspServerProcess {
                             formatted_errors
                         );
                             app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Error(error)))
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::Error(error),
+                                )))
                                 .unwrap_or_else(|error| {
                                     log::error!(
                                         "[LspServerProcess] Error sending error to app: {error:?}"
@@ -651,8 +653,11 @@ impl LspServerProcess {
                 .payload
                 .map_err(|e| {
                     self.app_message_sender
-                        .send(AppMessage::LspNotification(LspNotification::Error(
-                            format!("LSP JSON-RPC Error: {:?}: {}", e.code, e.message),
+                        .send(AppMessage::LspNotification(Box::new(
+                            LspNotification::Error(format!(
+                                "LSP JSON-RPC Error: {:?}: {}",
+                                e.code, e.message
+                            )),
                         )))
                         .unwrap();
                     anyhow::anyhow!(
@@ -682,9 +687,10 @@ impl LspServerProcess {
                             InitializedParams {},
                         )?;
 
-                        self.app_message_sender.send(AppMessage::LspNotification(
-                            LspNotification::Initialized(self.language.clone()),
-                        ))?;
+                        self.app_message_sender
+                            .send(AppMessage::LspNotification(Box::new(
+                                LspNotification::Initialized(self.language.clone()),
+                            )))?;
                     }
                     "textDocument/completion" => {
                         let payload: <lsp_request!("textDocument/completion") as Request>::Result =
@@ -692,19 +698,21 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Completion(
-                                    response_context,
-                                    Completion {
-                                        trigger_characters: self.trigger_characters(),
-                                        items: match payload {
-                                            CompletionResponse::Array(items) => items,
-                                            CompletionResponse::List(list) => list.items,
-                                        }
-                                        .into_iter()
-                                        .map(CompletionItem::from)
-                                        .map(|item| item.into())
-                                        .collect(),
-                                    },
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::Completion(
+                                        response_context,
+                                        Completion {
+                                            trigger_characters: self.trigger_characters(),
+                                            items: match payload {
+                                                CompletionResponse::Array(items) => items,
+                                                CompletionResponse::List(list) => list.items,
+                                            }
+                                            .into_iter()
+                                            .map(CompletionItem::from)
+                                            .map(|item| item.into())
+                                            .collect(),
+                                        },
+                                    ),
                                 )))
                                 .unwrap();
                         }
@@ -715,8 +723,8 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Hover(
-                                    payload.into(),
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::Hover(payload.into()),
                                 )))
                                 .unwrap();
                         }
@@ -727,9 +735,11 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Definition(
-                                    response_context,
-                                    payload.try_into()?,
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::Definition(
+                                        response_context,
+                                        payload.try_into()?,
+                                    ),
                                 )))
                                 .unwrap();
                         }
@@ -740,12 +750,14 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::References(
-                                    response_context,
-                                    payload
-                                        .into_iter()
-                                        .map(|r| r.try_into())
-                                        .collect::<Result<Vec<_>, _>>()?,
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::References(
+                                        response_context,
+                                        payload
+                                            .into_iter()
+                                            .map(|r| r.try_into())
+                                            .collect::<Result<Vec<_>, _>>()?,
+                                    ),
                                 )))
                                 .unwrap();
                         }
@@ -756,9 +768,11 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Definition(
-                                    response_context,
-                                    payload.try_into()?,
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::Definition(
+                                        response_context,
+                                        payload.try_into()?,
+                                    ),
                                 )))
                                 .unwrap();
                         }
@@ -769,9 +783,11 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Definition(
-                                    response_context,
-                                    payload.try_into()?,
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::Definition(
+                                        response_context,
+                                        payload.try_into()?,
+                                    ),
                                 )))
                                 .unwrap();
                         }
@@ -782,9 +798,11 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Definition(
-                                    response_context,
-                                    payload.try_into()?,
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::Definition(
+                                        response_context,
+                                        payload.try_into()?,
+                                    ),
                                 )))
                                 .unwrap();
                         }
@@ -795,9 +813,9 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(
+                                .send(AppMessage::LspNotification(Box::new(
                                     LspNotification::PrepareRenameResponse(payload.into()),
-                                ))
+                                )))
                                 .unwrap();
                         }
                     }
@@ -807,8 +825,8 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::WorkspaceEdit(
-                                    payload.try_into()?,
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::WorkspaceEdit(payload.try_into()?),
                                 )))
                                 .unwrap();
                         }
@@ -819,16 +837,18 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::CodeAction(
-                                    payload
-                                        .into_iter()
-                                        .map(|r| match r {
-                                            CodeActionOrCommand::Command(_) => todo!(),
-                                            CodeActionOrCommand::CodeAction(code_action) => {
-                                                code_action.try_into()
-                                            }
-                                        })
-                                        .collect::<Result<Vec<_>, _>>()?,
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::CodeAction(
+                                        payload
+                                            .into_iter()
+                                            .map(|r| match r {
+                                                CodeActionOrCommand::Command(_) => todo!(),
+                                                CodeActionOrCommand::CodeAction(code_action) => {
+                                                    code_action.try_into()
+                                                }
+                                            })
+                                            .collect::<Result<Vec<_>, _>>()?,
+                                    ),
                                 )))
                                 .unwrap();
                         }
@@ -838,8 +858,10 @@ impl LspServerProcess {
                             serde_json::from_value(response)?;
 
                         self.app_message_sender
-                            .send(AppMessage::LspNotification(LspNotification::SignatureHelp(
-                                payload.map(|payload| payload.into()),
+                            .send(AppMessage::LspNotification(Box::new(
+                                LspNotification::SignatureHelp(
+                                    payload.map(|payload| payload.into()),
+                                ),
                             )))
                             .unwrap();
                     }
@@ -850,8 +872,12 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             if let Some(path) = path {
                                 self.app_message_sender
-                                    .send(AppMessage::LspNotification(LspNotification::Symbols(
-                                        Symbols::try_from_document_symbol_response(payload, path)?,
+                                    .send(AppMessage::LspNotification(Box::new(
+                                        LspNotification::DocumentSymbols(
+                                            Symbols::try_from_document_symbol_response(
+                                                payload, path,
+                                            )?,
+                                        ),
                                     )))
                                     .unwrap();
                             }
@@ -862,10 +888,27 @@ impl LspServerProcess {
                             serde_json::from_value(response)?;
 
                         self.app_message_sender
-                            .send(AppMessage::LspNotification(
-                                LspNotification::CompletionItemResolve(payload),
-                            ))
+                            .send(AppMessage::LspNotification(Box::new(
+                                LspNotification::CompletionItemResolve(Box::new(payload)),
+                            )))
                             .unwrap();
+                    }
+                    "workspace/symbol" => {
+                        let payload: <lsp_request!("workspace/symbol") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        if let Some(workspace_symbol_response) = payload {
+                            let symbols = Symbols::try_from_workspace_symbol_response(
+                                workspace_symbol_response,
+                                &self.current_working_directory,
+                            )?;
+
+                            self.app_message_sender
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::WorkspaceSymbols(symbols),
+                                )))
+                                .unwrap();
+                        }
                     }
                     _ => {
                         log::info!("Unknown method: {method:#?}");
@@ -894,9 +937,9 @@ impl LspServerProcess {
                             serde_json::from_value(request.params.ok_or_else(|| anyhow::anyhow!("Missing params"))?)?;
 
                         self.app_message_sender
-                            .send(AppMessage::LspNotification(
+                            .send(AppMessage::LspNotification(Box::new(
                                 LspNotification::PublishDiagnostics(params),
-                            ))
+                            )))
                             .unwrap();
                     }
                     "workspace/applyEdit" => {
@@ -904,8 +947,8 @@ impl LspServerProcess {
                             serde_json::from_value(request.params.unwrap())?;
 
                         self.app_message_sender
-                            .send(AppMessage::LspNotification(LspNotification::WorkspaceEdit(
-                                params.edit.try_into()?,
+                            .send(AppMessage::LspNotification(Box::new(
+                                LspNotification::WorkspaceEdit(params.edit.try_into()?),
                             )))
                             .unwrap();
                     }
@@ -1400,6 +1443,25 @@ impl LspServerProcess {
         )
     }
 
+    fn workspace_symbol(
+        &mut self,
+        context: ResponseContext,
+        query: String,
+    ) -> Result<(), anyhow::Error> {
+        if !self.has_capability(|c| c.workspace_symbol_provider.is_some()) {
+            return Ok(());
+        }
+        self.send_request::<lsp_request!("workspace/symbol")>(
+            context,
+            None,
+            WorkspaceSymbolParams {
+                partial_result_params: Default::default(),
+                work_done_progress_params: Default::default(),
+                query,
+            },
+        )
+    }
+
     fn workspace_execute_command(
         &mut self,
         params: RequestParams,
@@ -1474,6 +1536,8 @@ impl LspServerProcess {
             FromEditor::TextDocumentDocumentSymbol(params) => {
                 self.text_document_document_symbol(params)
             }
+
+            FromEditor::WorkspaceSymbol { context, query } => self.workspace_symbol(context, query),
 
             FromEditor::TextDocumentDidOpen {
                 file_path,
@@ -1650,8 +1714,10 @@ mod test_lsp_server_process {
 
         // We expect an error message after max consecutive errors
         match app_receiver.recv_timeout(Duration::from_secs(1)) {
-            Ok(AppMessage::LspNotification(LspNotification::Error(msg))) => {
-                assert!(msg.contains("Too many consecutive errors"));
+            Ok(AppMessage::LspNotification(notification)) => {
+                if let LspNotification::Error(msg) = *notification {
+                    assert!(msg.contains("Too many consecutive errors"));
+                }
             }
             other => panic!("Expected error notification, got: {other:?}"),
         }

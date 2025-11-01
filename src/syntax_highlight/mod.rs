@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod test;
+
 use std::{
     collections::HashMap,
     ops::Range,
@@ -32,7 +35,9 @@ impl GetHighlightConfig for Language {
             return Ok(None);
         };
 
-        let highlights_query = &self.highlight_query().unwrap_or_default();
+        let Some(highlights_query) = &self.highlight_query() else {
+            return Ok(None);
+        };
         let mut config = HighlightConfiguration::new(
             tree_sitter_language,
             "highlight".to_string(),
@@ -117,9 +122,6 @@ impl HighlightedSpans {
             return;
         }
         let length = self.0.len();
-        debug_assert!(self
-            .0
-            .is_sorted_by_key(|span| (span.byte_range.start, span.byte_range.end)));
         let start_index = self
             .0
             .partition_point(|span| span.byte_range.end <= affected_range.start);
@@ -128,8 +130,9 @@ impl HighlightedSpans {
             .0
             .partition_point(|span| span.byte_range.start < affected_range.end);
 
-        debug_assert!(start_index < length);
-        debug_assert!(end_index < length);
+        if start_index >= length {
+            return;
+        }
         self.0[start_index..end_index.max(start_index)]
             .iter_mut()
             .for_each(|span| {
@@ -148,6 +151,7 @@ impl SyntaxHighlightRequestBatchId {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct SyntaxHighlightRequest {
     pub(crate) component_id: ComponentId,
     pub(crate) batch_id: SyntaxHighlightRequestBatchId,
