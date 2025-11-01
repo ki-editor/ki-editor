@@ -28,11 +28,11 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
 ];
 
 fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
-    if DirWorking::file_exists("Cargo.toml").resolve(ctx) == true {
-        RunCommand("wl-copy", vec![Str("cargo run")])
+    if DirWorking::file_exists("Cargo.toml").resolve(ctx) {
+        RunCommand("cargo", vec![Str("run")])
     } else if FileCurrent::extension().resolve(ctx) == "py" {
-        RunCommand("wl-copy", vec![Str("python"), FileCurrent::path()])
-    } else if DirWorking::file_exists_dynamic(SelectionPrimary::content()).resolve(ctx) == true {
+        RunCommand("python", vec![FileCurrent::path()])
+    } else if DirWorking::file_exists_dynamic(SelectionPrimary::content()).resolve(ctx) == false {
         RunCommand(
             "wl-copy",
             vec![
@@ -47,11 +47,11 @@ fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
             "wl-copy",
             vec![
                 Str("zig?\n"),
-                DirWorking::file_exists("build.zig"),
+                DirWorking::file_exists("build.zig").into(),
                 Str("\ngo?\n"),
-                DirWorking::file_exists("go.mod"),
+                DirWorking::file_exists("go.mod").into(),
                 Str("\nhaskell?\n"),
-                DirWorking::file_exists(".cabal"),
+                DirWorking::file_exists(".cabal").into(),
             ],
         )
     }
@@ -199,11 +199,15 @@ impl DirWorking {
     pub fn path() -> RunCommandPart {
         RunCommandPart::DirCurrent(DirWorkingKind::Path)
     }
-    pub fn file_exists(filename: &'static str) -> RunCommandPart {
-        RunCommandPart::DirCurrent(DirWorkingKind::FileExists(filename))
+    pub fn file_exists(filename: &'static str) -> Condition {
+        Condition(RunCommandPart::DirCurrent(DirWorkingKind::FileExists(
+            filename,
+        )))
     }
-    pub fn file_exists_dynamic(filename: RunCommandPart) -> RunCommandPart {
-        RunCommandPart::DirCurrent(DirWorkingKind::FileExistsDynamic(Box::new(filename)))
+    pub fn file_exists_dynamic(filename: RunCommandPart) -> Condition {
+        Condition(RunCommandPart::DirCurrent(
+            DirWorkingKind::FileExistsDynamic(Box::new(filename)),
+        ))
     }
 }
 
@@ -222,6 +226,22 @@ impl ResolvedValue {
             ResolvedValue::Bool(bool) => bool.to_string(),
             ResolvedValue::Empty => String::new(),
         }
+    }
+}
+
+pub(crate) struct Condition(RunCommandPart);
+
+impl Condition {
+    pub(crate) fn resolve(&self, ctx: &LeaderContext) -> bool {
+        match self.0.resolve(ctx) {
+            ResolvedValue::Bool(b) => b,
+            _ => false,
+        }
+    }
+}
+impl From<Condition> for RunCommandPart {
+    fn from(condition: Condition) -> Self {
+        condition.0
     }
 }
 
