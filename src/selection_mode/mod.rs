@@ -821,7 +821,7 @@ pub trait PositionBasedSelectionMode {
                 .current_selection
                 .range()
                 .end
-                .min(CharIndex(params.buffer.len_chars().saturating_sub(1))),
+                .min(CharIndex(params.buffer.len_chars())),
             IfCurrentNotFound::LookForward,
         )?
         .map(|range| {
