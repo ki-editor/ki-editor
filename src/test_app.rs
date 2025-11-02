@@ -186,6 +186,7 @@ pub(crate) enum ExpectKind {
         matches: &'static lazy_regex::Lazy<regex::Regex>,
         timeout: Duration,
     },
+    CurrentScrollOffSet(usize),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -591,6 +592,10 @@ impl ExpectKind {
                     app.wait_for_app_message(matches, Some(*timeout))?;
                     (true, String::new())
                 }
+            CurrentScrollOffSet(expected) => contextualize(
+                *expected,
+                app.current_component().borrow().editor().scroll_offset() as usize
+            )
         })
     }
 }

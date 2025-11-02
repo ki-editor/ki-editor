@@ -1,4 +1,8 @@
-use crate::{app::Scope, test_app::execute_test};
+use crate::{
+    app::{Dimension, Scope},
+    rectangle::Rectangle,
+    test_app::{execute_test, ExpectKind},
+};
 
 use my_proc_macros::keys;
 
@@ -64,5 +68,47 @@ fn live_search_preview_should_work_with_custom_search_mode() -> anyhow::Result<(
     })
 }
 
-// TODO: new test cases: the scroll off set should be reset
+#[test]
+fn live_search_preview_should_restore_scroll_offset_upon_cancelled() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(TerminalDimensionChanged(Dimension {
+                width: 200,
+                height: 10,
+            })),
+            Editor(SetRectangle(Rectangle {
+                origin: Default::default(),
+                width: 100,
+                height: 5,
+            })),
+            Editor(SetContent("x\n\n\n\n\n\n\n\n\n\ny".to_string())),
+            Expect(ExpectKind::CurrentScrollOffSet(0)),
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            Expect(ExpectKind::CurrentScrollOffSet(0)),
+            App(HandleKeyEvents(keys!("y").to_vec())),
+            App(HandleKeyEvents(keys!("alt+/ alt+/").to_vec())),
+            // Switch focus to the main panel so that we can expect the scroll offest,
+            Expect(CurrentSelectedTexts(&["y"])),
+            // Expect the scroll offset is non-zero (since "y" is so many lines below "x")
+            Expect(ExpectKind::CurrentScrollOffSet(9)),
+            // Switch focus back to the prompt and cancel it
+            App(HandleKeyEvents(keys!("alt+/ esc esc").to_vec())),
+            // Expect the scroll offset is reset to the previous scroll offset
+            Expect(ExpectKind::CurrentScrollOffSet(0)),
+        ])
+    })
+}
+
 // TODO: new test case: the search query during live search should not add to search history
+// TODO: new test case: update component title with search mode
+
+// TODO: new test case: when search query matches nothing, selection set should be reset, and users should be notified
+// TODO: new test case: when user use tab, the live search should also run (right now after tabbing nothings happen)
