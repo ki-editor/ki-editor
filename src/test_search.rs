@@ -107,7 +107,31 @@ fn live_search_preview_should_restore_scroll_offset_upon_cancelled() -> anyhow::
     })
 }
 
-// TODO: new test case: the search query during live search should not add to search history
+#[test]
+fn live_search_preview_should_not_affect_prompt_history() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            // Search for "m" and cancel the prompt
+            App(HandleKeyEvents(keys!("m esc esc").to_vec())),
+            // Open search prompt again, expect there's no history of "m"
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            Expect(CurrentComponentContent("")),
+        ])
+    })
+}
+
 // TODO: new test case: update component title with search mode
 
 // TODO: new test case: when search query matches nothing, selection set should be reset, and users should be notified
