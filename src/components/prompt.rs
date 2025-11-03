@@ -370,6 +370,17 @@ impl Prompt {
             });
         }
     }
+
+    pub(crate) fn get_on_change_dispatches(&self) -> Dispatches {
+        self.on_change
+            .as_ref()
+            .map(|on_change| {
+                on_change.to_dispatches(&PromptContext {
+                    current_line: self.editor().current_line().unwrap_or_default(),
+                })
+            })
+            .unwrap_or_default()
+    }
 }
 
 impl Component for Prompt {
@@ -388,8 +399,31 @@ impl Component for Prompt {
     ) -> anyhow::Result<Dispatches> {
         self.editor.handle_dispatch_editor(context, dispatch)
     }
-
     fn handle_key_event(
+        &mut self,
+        context: &Context,
+        event: event::KeyEvent,
+    ) -> anyhow::Result<Dispatches> {
+        let dispatches = self.handle_key_event_inner(context, event)?;
+
+        // Question: why don't we return `self.get_on_change_dispatches()` straightaway?
+        // Because some editor modifications like insert-mode Backspace are handled in the
+        // main event loop.
+        //
+        // So if we obtain get the On Change Dispatches here, then it will be based on the
+        // non-updated content of the editor, which is not what we want.
+        Ok(dispatches.append(Dispatch::GetAndHandlePromptOnChangeDispatches))
+    }
+}
+impl Prompt {
+    pub(crate) fn handle_dispatch_suggestive_editor(
+        &mut self,
+        dispatch: DispatchSuggestiveEditor,
+    ) -> anyhow::Result<Dispatches> {
+        self.editor.handle_dispatch(dispatch)
+    }
+
+    fn handle_key_event_inner(
         &mut self,
         context: &Context,
         event: event::KeyEvent,
@@ -439,33 +473,14 @@ impl Component for Prompt {
             }
             _ => {
                 let dispatches = self.editor.handle_key_event(context, event)?;
-                Ok(dispatches
-                    .chain(
-                        self.editor
-                            .completion_dropdown_current_item()
-                            .map(|item| item.on_focused())
-                            .unwrap_or_default(),
-                    )
-                    .chain(
-                        self.on_change
-                            .as_ref()
-                            .map(|on_change| {
-                                on_change.to_dispatches(&PromptContext {
-                                    current_line: self.editor().current_line().unwrap_or_default(),
-                                })
-                            })
-                            .unwrap_or_default(),
-                    ))
+                Ok(dispatches.chain(
+                    self.editor
+                        .completion_dropdown_current_item()
+                        .map(|item| item.on_focused())
+                        .unwrap_or_default(),
+                ))
             }
         }
-    }
-}
-impl Prompt {
-    pub(crate) fn handle_dispatch_suggestive_editor(
-        &mut self,
-        dispatch: DispatchSuggestiveEditor,
-    ) -> anyhow::Result<Dispatches> {
-        self.editor.handle_dispatch(dispatch)
     }
 }
 #[cfg(test)]

@@ -139,7 +139,10 @@ pub(crate) enum ExpectKind {
     CurrentMode(Mode),
     FileContent(CanonicalizedPath, String),
     FileContentEqual(CanonicalizedPath, CanonicalizedPath),
+    /// This is for any component
     CurrentSelectedTexts(&'static [&'static str]),
+    /// This is only for the main editor (e.g. not prompt, not completion, etc)
+    CurrentEditorSelectedTexts(&'static [&'static str]),
     CurrentPrimarySelection(&'static str),
     CurrentCursorDirection(Direction),
     CurrentViewAlignment(Option<ViewAlignment>),
@@ -240,6 +243,9 @@ impl ExpectKind {
                             }
             CurrentSelectedTexts(selected_texts) => {
                                 contextualize(app.get_current_selected_texts(), to_vec(selected_texts))
+                            }
+            CurrentEditorSelectedTexts(selected_texts) => {
+                                contextualize(app.get_current_editor_selected_texts(), to_vec(selected_texts))
                             }
             ComponentsLength(length) => contextualize(app.components().len(), *length),
             Quickfixes(expected_quickfixes) => contextualize(

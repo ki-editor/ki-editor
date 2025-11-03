@@ -990,6 +990,9 @@ impl<T: Frontend> App<T> {
                 self.show_buffer_save_conflict_prompt(&path, content_editor, content_filesystem)?
             }
             Dispatch::OpenWorkspaceSymbolsPrompt => self.open_workspace_symbols_prompt()?,
+            Dispatch::GetAndHandlePromptOnChangeDispatches => {
+                self.get_and_handle_prompt_on_change_dispatches()?
+            }
         }
         Ok(())
     }
@@ -1866,11 +1869,20 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     pub(crate) fn get_current_selected_texts(&self) -> Vec<String> {
-        let _content = self.current_component().borrow().content();
         self.current_component()
             .borrow()
             .editor()
             .get_selected_texts()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn get_current_editor_selected_texts(&self) -> Vec<String> {
+        let component = self
+            .layout
+            .get_component_by_kind(ComponentKind::SuggestiveEditor)
+            .unwrap();
+        let temp = component.borrow();
+        temp.editor().get_selected_texts()
     }
 
     #[cfg(test)]
@@ -2136,7 +2148,8 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     pub(crate) fn current_completion_dropdown_info(&self) -> Option<Rc<RefCell<dyn Component>>> {
-        self.layout.current_completion_dropdown_info()
+        self.layout
+            .get_component_by_kind(ComponentKind::DropdownInfo)
     }
 
     fn open_prompt(
@@ -3035,6 +3048,15 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
     fn get_component_by_id(&self, component_id: ComponentId) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout.get_component_by_id(component_id)
     }
+
+    fn get_and_handle_prompt_on_change_dispatches(&mut self) -> anyhow::Result<()> {
+        let component = self.layout.get_current_component();
+        let mut component_mut = component.borrow_mut();
+        let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
+            return Ok(());
+        };
+        self.handle_dispatches(prompt.get_on_change_dispatches())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -3103,6 +3125,10 @@ impl Dispatches {
 
     pub(crate) fn empty() -> Dispatches {
         Dispatches(Default::default())
+    }
+
+    pub(crate) fn iter(&self) -> std::slice::Iter<'_, Dispatch> {
+        self.0.iter()
     }
 }
 
@@ -3296,6 +3322,7 @@ pub(crate) enum Dispatch {
         path: CanonicalizedPath,
     },
     OpenWorkspaceSymbolsPrompt,
+    GetAndHandlePromptOnChangeDispatches,
 }
 
 /// Used to send notify host app about changes

@@ -34,11 +34,7 @@ fn live_search_preview() -> anyhow::Result<()> {
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             App(HandleKeyEvents(keys!("k e b").to_vec())),
-            // Switch focus to the main panel so that we can expect the selected texts
-            App(HandleKeyEvents(keys!("alt+/ alt+/").to_vec())),
-            Expect(CurrentSelectedTexts(&["keb"])),
-            // Switch focus back to the search prompt
-            App(HandleKeyEvents(keys!("alt+/").to_vec())),
+            Expect(CurrentEditorSelectedTexts(&["keb"])),
             // When the prompt is closed, expect the selection is restored
             App(HandleKeyEvents(keys!("esc esc").to_vec())),
             Expect(CurrentSelectedTexts(&["snake_case"])),
@@ -61,9 +57,7 @@ fn live_search_preview_should_work_with_custom_search_mode() -> anyhow::Result<(
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             App(HandleKeyEvents(keys!("n / f o space b a").to_vec())),
-            // Switch focus to the main panel so that we can expect the selected texts
-            App(HandleKeyEvents(keys!("alt+/").to_vec())),
-            Expect(CurrentSelectedTexts(&["fo-ba"])),
+            Expect(CurrentEditorSelectedTexts(&["fo-ba"])),
         ])
     })
 }
@@ -132,7 +126,35 @@ fn live_search_preview_should_not_affect_prompt_history() -> anyhow::Result<()> 
     })
 }
 
+#[test]
+fn live_search_preview_should_work_with_tab_completion_and_backspace() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            // Search for "f" and then uses tab to use the first completion "foo"
+            App(HandleKeyEvents(keys!("f tab").to_vec())),
+            // Expect the current selection of the editor is "foo"
+            Expect(CurrentEditorSelectedTexts(&["foo"])),
+            // Press backspace
+            App(HandleKeyEvents(keys!("backspace").to_vec())),
+            Expect(CurrentEditorSelectedTexts(&["fo"])),
+        ])
+    })
+}
+
 // TODO: new test case: update component title with search mode
 
 // TODO: new test case: when search query matches nothing, selection set should be reset, and users should be notified
 // TODO: new test case: when user use tab, the live search should also run (right now after tabbing nothings happen)
+// TODO: new test case: live search preview should not update selection set history
+// TODO: live preview direction follows opposite of CursorDirection
+// TODO: each key change should trigger a re-search based on the pre-prompt cursor position
