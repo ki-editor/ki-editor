@@ -70,7 +70,9 @@ impl PositionBasedSelectionMode for LineTrimmed {
                     }
 
                     left_index = left_index - 1;
-                    let ch = buffer.char(left_index)?;
+                    let Ok(ch) = buffer.char(left_index) else {
+                        break;
+                    };
                     if ch == '\n' {
                         break;
                     } else if ch.is_whitespace() {
@@ -101,7 +103,9 @@ impl PositionBasedSelectionMode for LineTrimmed {
                         }
 
                         left_index = left_index - 1;
-                        let ch = buffer.char(left_index)?;
+                        let Ok(ch) = buffer.char(left_index) else {
+                            break;
+                        };
                         if ch == '\n' {
                             left_index = left_index + 1;
                             break;
@@ -126,8 +130,11 @@ impl PositionBasedSelectionMode for LineTrimmed {
                         }
 
                         right_index = right_index + 1;
-                        let ch = buffer.char(right_index)?;
+                        let Ok(ch) = buffer.char(right_index) else {
+                            break;
+                        };
                         if ch == '\n' {
+                            right_index = right_index + 1;
                             break;
                         } else if ch.is_whitespace() {
                             continue;
@@ -167,7 +174,9 @@ impl PositionBasedSelectionMode for LineTrimmed {
                         break left_most_non_whitespace;
                     }
                     left_index = left_index - 1;
-                    let ch = buffer.char(left_index)?;
+                    let Ok(ch) = buffer.char(left_index) else {
+                        break left_most_non_whitespace;
+                    };
                     if ch == '\n' {
                         break left_most_non_whitespace;
                     } else if ch.is_whitespace() {
@@ -191,7 +200,13 @@ impl PositionBasedSelectionMode for LineTrimmed {
                         }
 
                         right_index = right_index + 1;
-                        let ch = buffer.char(right_index)?;
+                        let Ok(ch) = buffer.char(right_index) else {
+                            if right_encountered_non_whitespace {
+                                break right_last_non_whitespace + 1;
+                            } else {
+                                break right_index;
+                            }
+                        };
                         if ch == '\n' {
                             if right_encountered_non_whitespace {
                                 break right_last_non_whitespace + 1;
