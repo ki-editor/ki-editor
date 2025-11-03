@@ -156,11 +156,10 @@ impl PositionBasedSelectionMode for LineTrimmed {
                             end_index = right_index;
                         }
                     } else {
+                        start_index = left_index;
                         if right_atleast_one_non_whitespace {
-                            start_index = left_index;
                             end_index = right_first_non_whitespace;
                         } else {
-                            start_index = left_index;
                             end_index = right_index;
                         }
                     }
@@ -225,7 +224,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
         }
         let trimmed_range =
             buffer.char_index_range_to_byte_range((start_index..end_index).into())?;
-        return Ok(Some(ByteRange::new(trimmed_range)));
+        Ok(Some(ByteRange::new(trimmed_range)))
     }
 
     fn process_paste_gap(
