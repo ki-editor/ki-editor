@@ -563,6 +563,17 @@ impl Editor {
                 is_protected_range_start: false,
             });
 
+        let incremental_search_matches =
+            self.incremental_search_matches
+                .iter()
+                .map(|range| HighlightSpan {
+                    set_symbol: None,
+                    is_cursor: false,
+                    range: HighlightSpanRange::ByteRange(range.clone()),
+                    source: Source::StyleKey(UiIncrementalSearchMatch),
+                    is_protected_range_start: false,
+                });
+
         let marks = buffer
             .marks()
             .into_iter()
@@ -861,6 +872,7 @@ impl Editor {
             .chain(filtered_highlighted_spans)
             .chain(extra_decorations)
             .chain(possible_selections)
+            .chain(incremental_search_matches)
             .chain(primary_selection_highlight_span)
             .chain(secondary_selections_highlight_spans)
             .chain(primary_selection_anchors)

@@ -90,12 +90,14 @@ impl Theme {
             StyleKey::UiPossibleSelection => {
                 Style::new().background_color(self.ui.possible_selection_background)
             }
+            StyleKey::UiIncrementalSearchMatch => {
+                Style::new().background_color(self.ui.incremental_search_match_background)
+            }
             StyleKey::DiagnosticsHint => self.diagnostic.hint,
             StyleKey::DiagnosticsError => self.diagnostic.error,
             StyleKey::DiagnosticsWarning => self.diagnostic.warning,
             StyleKey::DiagnosticsInformation => self.diagnostic.info,
             StyleKey::DiagnosticsDefault => self.diagnostic.default,
-
             StyleKey::HunkOld => Style::new().background_color(self.hunk.old_background),
             StyleKey::HunkNew => Style::new().background_color(self.hunk.new_background),
             StyleKey::HunkOldEmphasized => {
@@ -104,7 +106,6 @@ impl Theme {
             StyleKey::HunkNewEmphasized => {
                 Style::new().background_color(self.hunk.new_emphasized_background)
             }
-
             StyleKey::Syntax(highlight_group) => highlight_group
                 .to_highlight_name()
                 .and_then(|name| self.syntax.get_style(&name))
@@ -185,6 +186,7 @@ pub(crate) struct UiStyles {
     pub(crate) secondary_selection_background: Color,
     pub(crate) secondary_selection_anchor_background: Color,
     pub(crate) possible_selection_background: Color,
+    pub(crate) incremental_search_match_background: Color,
     pub(crate) secondary_selection_primary_cursor: Style,
     pub(crate) secondary_selection_secondary_cursor: Style,
     pub(crate) line_number: Style,

@@ -40,11 +40,7 @@ pub(crate) struct Prompt {
 #[derive(Debug, Clone)]
 pub(crate) enum PromptOnChangeDispatch {
     RequestWorkspaceSymbol(CanonicalizedPath),
-    UpdateLocalSearchConfigSearch {
-        scope: Scope,
-        if_current_not_found: IfCurrentNotFound,
-        component_id: ComponentId,
-    },
+    SetIncrementalSearchConfig { component_id: ComponentId },
 }
 
 impl PromptOnChangeDispatch {
@@ -56,21 +52,19 @@ impl PromptOnChangeDispatch {
                     path: path.clone(),
                 })
             }
-            PromptOnChangeDispatch::UpdateLocalSearchConfigSearch {
-                scope,
-                if_current_not_found,
-                component_id,
-            } => Dispatches::one(Dispatch::UpdateLocalSearchConfig {
-                scope: *scope,
-                if_current_not_found: if_current_not_found.clone(),
-                run_search_after_config_updated: true,
-                update: crate::app::LocalSearchConfigUpdate::Config(
-                    parse_search_config(&context.current_line)
-                        .unwrap_or_default()
-                        .local_config,
-                ),
-                component_id: Some(*component_id),
-            }),
+            PromptOnChangeDispatch::SetIncrementalSearchConfig { component_id } => {
+                let search_config = parse_search_config(&context.current_line)
+                    .unwrap_or_default()
+                    .local_config;
+                Dispatches::one(Dispatch::UpdateCurrentComponentTitle(format!(
+                    "Local search ({})",
+                    search_config.mode.display()
+                )))
+                .append(Dispatch::SetIncrementalSearchConfig {
+                    config: search_config,
+                    component_id: Some(*component_id),
+                })
+            }
         }
     }
 }

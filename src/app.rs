@@ -997,6 +997,13 @@ impl<T: Frontend> App<T> {
             Dispatch::GetAndHandlePromptOnChangeDispatches => {
                 self.get_and_handle_prompt_on_change_dispatches()?
             }
+            Dispatch::SetIncrementalSearchConfig {
+                config,
+                component_id,
+            } => self.set_incremental_search_config(config, component_id),
+            Dispatch::UpdateCurrentComponentTitle(title) => {
+                self.update_current_component_title(title)
+            }
         }
         Ok(())
     }
@@ -1138,11 +1145,7 @@ impl<T: Frontend> App<T> {
                 on_change: match scope {
                     Scope::Local => Some({
                         let component_id = self.current_component().borrow().id();
-                        PromptOnChangeDispatch::UpdateLocalSearchConfigSearch {
-                            scope,
-                            if_current_not_found,
-                            component_id,
-                        }
+                        PromptOnChangeDispatch::SetIncrementalSearchConfig { component_id }
                     }),
                     Scope::Global => None,
                 },
@@ -1150,10 +1153,7 @@ impl<T: Frontend> App<T> {
                 on_cancelled: Some(Dispatches::one(Dispatch::ToEditor({
                     let component = self.current_component();
                     let borrow = component.borrow();
-                    DispatchEditor::RestoreState {
-                        selection_set: borrow.editor().selection_set.clone(),
-                        scroll_offset: borrow.editor().scroll_offset(),
-                    }
+                    DispatchEditor::ClearIncrementalSearchMatches
                 }))),
                 prompt_history_key: PromptHistoryKey::Search,
                 ..Default::default()
@@ -1883,13 +1883,12 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn get_current_editor_selected_texts(&self) -> Vec<String> {
+    pub(crate) fn get_current_editor(&self) -> Rc<RefCell<dyn Component>> {
         let component = self
             .layout
             .get_component_by_kind(ComponentKind::SuggestiveEditor)
             .unwrap();
-        let temp = component.borrow();
-        temp.editor().get_selected_texts()
+        component.clone()
     }
 
     #[cfg(test)]
@@ -3057,12 +3056,38 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
     }
 
     fn get_and_handle_prompt_on_change_dispatches(&mut self) -> anyhow::Result<()> {
-        let component = self.layout.get_current_component();
-        let mut component_mut = component.borrow_mut();
-        let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
-            return Ok(());
+        let dispatches = {
+            let component = self.layout.get_current_component();
+            let mut component_mut = component.borrow_mut();
+            let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
+                return Ok(());
+            };
+            prompt.get_on_change_dispatches()
         };
-        self.handle_dispatches(prompt.get_on_change_dispatches())
+        self.handle_dispatches(dispatches)
+    }
+
+    fn set_incremental_search_config(
+        &self,
+        config: crate::context::LocalSearchConfig,
+        component_id: Option<ComponentId>,
+    ) {
+        let Some(component_id) = component_id else {
+            return;
+        };
+        let Some(component) = self.get_component_by_id(component_id) else {
+            return;
+        };
+        let mut borrow = component.borrow_mut();
+        borrow.editor_mut().set_incremental_search_config(config)
+    }
+
+    fn update_current_component_title(&self, title: String) {
+        {
+            let comp = self.current_component();
+            let mut borrow = comp.borrow_mut();
+            borrow.set_title(title)
+        }
     }
 }
 
@@ -3332,6 +3357,11 @@ pub(crate) enum Dispatch {
     },
     OpenWorkspaceSymbolsPrompt,
     GetAndHandlePromptOnChangeDispatches,
+    SetIncrementalSearchConfig {
+        config: crate::context::LocalSearchConfig,
+        component_id: Option<ComponentId>,
+    },
+    UpdateCurrentComponentTitle(String),
 }
 
 /// Used to send notify host app about changes
@@ -3528,7 +3558,8 @@ impl DispatchPrompt {
                         format!("{error:?}"),
                     )),
                 };
-                Ok(Dispatches::one(dispatch))
+                Ok(Dispatches::one(dispatch)
+                    .append(Dispatch::ToEditor(ClearIncrementalSearchMatches)))
             }
             DispatchPrompt::AddPath => {
                 Ok(Dispatches::new([Dispatch::AddPath(text.into())].to_vec()))

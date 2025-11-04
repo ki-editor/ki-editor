@@ -732,6 +732,7 @@ pub(crate) enum StyleKey {
     DiagnosticsInformation,
     UiMark,
     UiPossibleSelection,
+    UiIncrementalSearchMatch,
 
     DiagnosticsDefault,
     HunkOld,
