@@ -864,6 +864,10 @@ impl<T: Frontend> App<T> {
             Dispatch::HandleKeyEvent(key_event) => {
                 self.handle_event(Event::Key(key_event))?;
             }
+            #[cfg(test)]
+            Dispatch::HandleEvent(event) => {
+                self.handle_event(event)?;
+            }
             Dispatch::GetRepoGitHunks(diff_mode) => self.get_repo_git_hunks(diff_mode)?,
             Dispatch::SaveAll => self.save_all()?,
             #[cfg(test)]
@@ -1131,14 +1135,17 @@ impl<T: Frontend> App<T> {
                     if_current_not_found,
                     run_search_after_config_updated: true,
                 },
-                on_change: Some({
-                    let component_id = self.current_component().borrow().id();
-                    PromptOnChangeDispatch::UpdateLocalSearchConfigSearch {
-                        scope,
-                        if_current_not_found,
-                        component_id,
-                    }
-                }),
+                on_change: match scope {
+                    Scope::Local => Some({
+                        let component_id = self.current_component().borrow().id();
+                        PromptOnChangeDispatch::UpdateLocalSearchConfigSearch {
+                            scope,
+                            if_current_not_found,
+                            component_id,
+                        }
+                    }),
+                    Scope::Global => None,
+                },
                 leaves_current_line_empty: current_line.is_none(),
                 on_cancelled: Some(Dispatches::one(Dispatch::ToEditor({
                     let component = self.current_component();
@@ -3222,6 +3229,8 @@ pub(crate) enum Dispatch {
         copied_texts: CopiedTexts,
     },
     SetGlobalMode(Option<GlobalMode>),
+    #[cfg(test)]
+    HandleEvent(Event),
     #[cfg(test)]
     HandleKeyEvent(event::KeyEvent),
     #[cfg(test)]

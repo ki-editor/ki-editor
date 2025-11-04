@@ -399,31 +399,8 @@ impl Component for Prompt {
     ) -> anyhow::Result<Dispatches> {
         self.editor.handle_dispatch_editor(context, dispatch)
     }
+
     fn handle_key_event(
-        &mut self,
-        context: &Context,
-        event: event::KeyEvent,
-    ) -> anyhow::Result<Dispatches> {
-        let dispatches = self.handle_key_event_inner(context, event)?;
-
-        // Question: why don't we return `self.get_on_change_dispatches()` straightaway?
-        // Because some editor modifications like insert-mode Backspace are handled in the
-        // main event loop.
-        //
-        // So if we obtain get the On Change Dispatches here, then it will be based on the
-        // non-updated content of the editor, which is not what we want.
-        Ok(dispatches.append(Dispatch::GetAndHandlePromptOnChangeDispatches))
-    }
-}
-impl Prompt {
-    pub(crate) fn handle_dispatch_suggestive_editor(
-        &mut self,
-        dispatch: DispatchSuggestiveEditor,
-    ) -> anyhow::Result<Dispatches> {
-        self.editor.handle_dispatch(dispatch)
-    }
-
-    fn handle_key_event_inner(
         &mut self,
         context: &Context,
         event: event::KeyEvent,
@@ -481,6 +458,18 @@ impl Prompt {
                 ))
             }
         }
+    }
+
+    fn post_handle_event(&self, dispatches: Dispatches) -> anyhow::Result<Dispatches> {
+        Ok(dispatches.append(Dispatch::GetAndHandlePromptOnChangeDispatches))
+    }
+}
+impl Prompt {
+    pub(crate) fn handle_dispatch_suggestive_editor(
+        &mut self,
+        dispatch: DispatchSuggestiveEditor,
+    ) -> anyhow::Result<Dispatches> {
+        self.editor.handle_dispatch(dispatch)
     }
 }
 #[cfg(test)]

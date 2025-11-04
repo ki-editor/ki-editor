@@ -5,6 +5,7 @@ use crate::{
 };
 
 use my_proc_macros::keys;
+use serial_test::serial;
 
 use crate::{
     app::Dispatch::*,
@@ -147,6 +148,27 @@ fn live_search_preview_should_work_with_tab_completion_and_backspace() -> anyhow
             // Press backspace
             App(HandleKeyEvents(keys!("backspace").to_vec())),
             Expect(CurrentEditorSelectedTexts(&["fo"])),
+        ])
+    })
+}
+
+#[test]
+#[serial]
+fn live_search_preview_should_work_with_terminal_paste_event() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam".to_string())),
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleEvent(event::event::Event::Paste("spam".to_string()))),
+            Expect(CurrentEditorSelectedTexts(&["spam"])),
         ])
     })
 }
