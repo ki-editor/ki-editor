@@ -17,26 +17,311 @@ impl PositionBasedSelectionMode for LineTrimmed {
         cursor_char_index: crate::selection::CharIndex,
         if_current_not_found: crate::components::editor::IfCurrentNotFound,
     ) -> anyhow::Result<Option<super::ByteRange>> {
-        let max_cursor_char_index = CharIndex(buffer.len_chars());
-        if cursor_char_index > max_cursor_char_index {
-            return Ok(None);
+        let start_index;
+        let end_index;
+
+        if cursor_char_index == CharIndex(buffer.len_chars()) {
+            start_index = CharIndex(buffer.len_chars());
+            end_index = CharIndex(buffer.len_chars());
+        } else {
+            let Ok(ch) = buffer.char(cursor_char_index) else {
+                return Ok(None);
+            };
+
+            if ch == '\n' {
+                match if_current_not_found {
+                    IfCurrentNotFound::LookForward => {
+                        let mut right_atleast_one_non_whitespace = false;
+                        let mut right_first_non_whitespace = CharIndex(0);
+                        let mut right_last_non_whitespace = CharIndex(0);
+
+                        let mut right_index = cursor_char_index;
+                        loop {
+                            right_index = right_index + 1;
+
+                            let Ok(ch) = buffer.char(right_index) else {
+                                break;
+                            };
+
+                            if ch == '\n' {
+                                break;
+                            } else if ch.is_whitespace() {
+                                continue;
+                            } else {
+                                if !right_atleast_one_non_whitespace {
+                                    right_first_non_whitespace = right_index;
+                                }
+                                right_atleast_one_non_whitespace = true;
+                                right_last_non_whitespace = right_index;
+                            }
+                        }
+
+                        if right_atleast_one_non_whitespace {
+                            start_index = right_first_non_whitespace;
+                            end_index = right_last_non_whitespace + 1;
+                        } else {
+                            start_index = right_index;
+                            end_index = right_index;
+                        }
+                    }
+                    IfCurrentNotFound::LookBackward => {
+                        let mut left_outer_index = cursor_char_index;
+                        let mut left_atleast_one_non_whitespace = false;
+                        let mut left_first_non_whitespace = CharIndex(0);
+                        let mut left_last_non_whitespace = CharIndex(0);
+
+                        loop {
+                            if left_outer_index == CharIndex(0) {
+                                break;
+                            }
+
+                            left_outer_index = left_outer_index - 1;
+
+                            let Ok(ch) = buffer.char(left_outer_index) else {
+                                break;
+                            };
+
+                            if ch == '\n' {
+                                break;
+                            } else if ch.is_whitespace() {
+                                continue;
+                            } else {
+                                if !left_atleast_one_non_whitespace {
+                                    left_first_non_whitespace = left_outer_index;
+                                }
+                                left_atleast_one_non_whitespace = true;
+                                left_last_non_whitespace = left_outer_index;
+                            }
+                        }
+
+                        if left_atleast_one_non_whitespace {
+                            start_index = left_last_non_whitespace;
+                            end_index = left_first_non_whitespace + 1;
+                        } else {
+                            start_index = cursor_char_index;
+                            end_index = cursor_char_index;
+                        }
+                    }
+                }
+            } else if ch.is_whitespace() {
+                let mut left_index = cursor_char_index;
+                let mut right_index = cursor_char_index;
+
+                let mut left_atleast_one_non_whitespace = false;
+
+                loop {
+                    if left_index == CharIndex(0) {
+                        break;
+                    }
+                    left_index = left_index - 1;
+
+                    let Ok(ch) = buffer.char(left_index) else {
+                        break;
+                    };
+
+                    if ch == '\n' {
+                        break;
+                    } else if ch.is_whitespace() {
+                        continue;
+                    } else {
+                        left_atleast_one_non_whitespace = true;
+                    }
+                }
+
+                let mut right_atleast_one_non_whitespace = false;
+                let mut right_first_non_whitespace = CharIndex(0);
+                let mut right_last_non_whitespace = CharIndex(0);
+
+                loop {
+                    if right_index == CharIndex(buffer.len_chars()) {
+                        break;
+                    }
+                    right_index = right_index + 1;
+
+                    let Ok(ch) = buffer.char(right_index) else {
+                        break;
+                    };
+
+                    if ch == '\n' {
+                        break;
+                    } else if ch.is_whitespace() {
+                        continue;
+                    } else {
+                        if !right_atleast_one_non_whitespace {
+                            right_first_non_whitespace = right_index
+                        }
+                        right_atleast_one_non_whitespace = true;
+                        right_last_non_whitespace = right_index;
+                    }
+                }
+
+                match if_current_not_found {
+                    IfCurrentNotFound::LookForward => {
+                        if left_atleast_one_non_whitespace {
+                            let mut right_inner_index = right_index;
+                            let mut right_atleast_one_non_whitespace = false;
+                            let mut right_first_non_whitespace = CharIndex(0);
+                            let mut right_last_non_whitespace = CharIndex(0);
+                            loop {
+                                if right_inner_index == CharIndex(buffer.len_chars()) {
+                                    break;
+                                }
+                                right_inner_index = right_inner_index + 1;
+                                let Ok(ch) = buffer.char(right_inner_index) else {
+                                    break;
+                                };
+                                if ch == '\n' {
+                                    break;
+                                } else if ch.is_whitespace() {
+                                    continue;
+                                } else {
+                                    if !right_atleast_one_non_whitespace {
+                                        right_first_non_whitespace = right_inner_index;
+                                    }
+                                    right_atleast_one_non_whitespace = true;
+                                    right_last_non_whitespace = right_inner_index;
+                                }
+                            }
+                            if right_atleast_one_non_whitespace {
+                                start_index = right_first_non_whitespace;
+                                end_index = right_last_non_whitespace + 1;
+                            } else {
+                                start_index = right_inner_index;
+                                end_index = right_inner_index;
+                            }
+                        } else if right_atleast_one_non_whitespace {
+                            start_index = right_first_non_whitespace;
+                            end_index = right_last_non_whitespace + 1;
+                        } else {
+                            start_index = right_index;
+                            end_index = right_index;
+                        }
+                    }
+                    IfCurrentNotFound::LookBackward => {
+                        if left_atleast_one_non_whitespace {
+                            let mut right_inner_index = right_index;
+                            let mut right_atleast_one_non_whitespace = false;
+                            let mut right_first_non_whitespace = CharIndex(0);
+                            let mut right_last_non_whitespace = CharIndex(0);
+                            loop {
+                                if right_inner_index == CharIndex(buffer.len_chars()) {
+                                    break;
+                                }
+                                right_inner_index = right_inner_index + 1;
+                                let Ok(ch) = buffer.char(right_inner_index) else {
+                                    break;
+                                };
+                                if ch == '\n' {
+                                    break;
+                                } else if ch.is_whitespace() {
+                                    continue;
+                                } else {
+                                    if !right_atleast_one_non_whitespace {
+                                        right_first_non_whitespace = right_inner_index;
+                                    }
+                                    right_atleast_one_non_whitespace = true;
+                                    right_last_non_whitespace = right_inner_index;
+                                }
+                            }
+                            if right_atleast_one_non_whitespace {
+                                start_index = right_first_non_whitespace;
+                                end_index = right_last_non_whitespace + 1;
+                            } else {
+                                start_index = right_inner_index;
+                                end_index = right_inner_index;
+                            }
+                        } else {
+                            let mut left_index_inner = left_index;
+                            let mut left_atleast_one_non_whitespace = false;
+                            let mut left_first_non_whitespace_inner = CharIndex(0);
+                            let mut left_last_non_whitespace_inner = CharIndex(0);
+                            loop {
+                                if left_index_inner == CharIndex(0) {
+                                    break;
+                                }
+                                left_index_inner = left_index_inner - 1;
+                                let Ok(ch) = buffer.char(left_index_inner) else {
+                                    break;
+                                };
+                                if ch == '\n' {
+                                    break;
+                                } else if ch.is_whitespace() {
+                                    continue;
+                                } else {
+                                    if !left_atleast_one_non_whitespace {
+                                        left_first_non_whitespace_inner = left_index_inner;
+                                    }
+                                    left_atleast_one_non_whitespace = true;
+                                    left_last_non_whitespace_inner = left_index_inner;
+                                }
+                            }
+                            if left_atleast_one_non_whitespace {
+                                start_index = left_last_non_whitespace_inner;
+                                end_index = left_first_non_whitespace_inner + 1;
+                            } else {
+                                start_index = left_index;
+                                end_index = left_index;
+                            }
+                        }
+                    }
+                }
+            } else {
+                let mut right_index = cursor_char_index;
+                let mut right_atleast_one_non_whitespace = false;
+                let mut right_last_non_whitespace = CharIndex(0);
+                loop {
+                    if right_index == CharIndex(buffer.len_chars()) {
+                        break;
+                    }
+                    right_index = right_index + 1;
+                    let Ok(ch) = buffer.char(right_index) else {
+                        break;
+                    };
+                    if ch == '\n' {
+                        break;
+                    } else if ch.is_whitespace() {
+                        continue;
+                    } else {
+                        right_atleast_one_non_whitespace = true;
+                        right_last_non_whitespace = right_index;
+                    }
+                }
+                let mut left_index = cursor_char_index;
+                let mut left_atleast_one_non_whitespace = false;
+                let mut left_last_non_whitespace = CharIndex(0);
+                loop {
+                    if left_index == CharIndex(0) {
+                        break;
+                    }
+                    left_index = left_index - 1;
+                    let Ok(ch) = buffer.char(left_index) else {
+                        break;
+                    };
+                    if ch == '\n' {
+                        break;
+                    } else if ch.is_whitespace() {
+                        continue;
+                    } else {
+                        left_atleast_one_non_whitespace = true;
+                        left_last_non_whitespace = left_index;
+                    }
+                }
+                if left_atleast_one_non_whitespace {
+                    start_index = left_last_non_whitespace;
+                } else {
+                    start_index = cursor_char_index;
+                }
+                if right_atleast_one_non_whitespace {
+                    end_index = right_last_non_whitespace + 1;
+                } else {
+                    end_index = cursor_char_index + 1;
+                }
+            };
         }
 
-        let portion = get_portion(buffer, cursor_char_index);
-        let mut current_line_index = cursor_char_index.to_line(buffer)?;
-        current_line_index = match if_current_not_found {
-            IfCurrentNotFound::LookForward => match portion {
-                Portion::Leading => current_line_index,
-                Portion::Trimmed => current_line_index,
-                Portion::Trailing => current_line_index.saturating_add(1),
-            },
-            IfCurrentNotFound::LookBackward => match portion {
-                Portion::Leading => current_line_index.saturating_sub(1),
-                Portion::Trimmed => current_line_index,
-                Portion::Trailing => current_line_index,
-            },
-        };
-        trimmed_range(buffer, current_line_index)
+        let trimmed_range =
+            buffer.char_index_range_to_byte_range((start_index..end_index).into())?;
+        Ok(Some(ByteRange::new(trimmed_range)))
     }
 
     fn get_current_selection_by_cursor(
@@ -236,72 +521,6 @@ impl PositionBasedSelectionMode for LineTrimmed {
     ) -> String {
         process_paste_gap(params, prev_gap, next_gap, direction)
     }
-}
-
-enum Portion {
-    Leading,
-    Trimmed,
-    Trailing,
-}
-
-struct LinePortions {
-    leading: usize,
-    trimmed: usize,
-    trailing: usize,
-}
-
-fn get_portion(buffer: &crate::buffer::Buffer, cursor_char_index: CharIndex) -> Portion {
-    let line_index = cursor_char_index.to_line(buffer).unwrap();
-    let line = buffer.get_line_by_line_index(line_index).unwrap();
-    let line_start = buffer.line_to_char(line_index).unwrap();
-
-    let line_portions = get_line_portions(line);
-    let char_position = cursor_char_index.0 - line_start.0;
-
-    if char_position < line_portions.leading {
-        Portion::Leading
-    } else if char_position < line_portions.leading + line_portions.trimmed {
-        Portion::Trimmed
-    } else {
-        Portion::Trailing
-    }
-}
-
-fn get_line_portions(line: ropey::RopeSlice) -> LinePortions {
-    let leading = line
-        .chars()
-        .take_while(|c| c.is_whitespace() && c != &'\n')
-        .count();
-    let trimmed = line.to_string().trim().chars().count();
-    let trailing = (leading..line.len_chars())
-        .rev()
-        .take_while(|index| line.char(*index).is_whitespace())
-        .count();
-
-    debug_assert_eq!(leading + trimmed + trailing, line.len_chars());
-    LinePortions {
-        leading,
-        trimmed,
-        trailing,
-    }
-}
-
-fn trimmed_range(
-    buffer: &crate::buffer::Buffer,
-    line_index: usize,
-) -> anyhow::Result<Option<super::ByteRange>> {
-    let Some(line) = buffer.get_line_by_line_index(line_index) else {
-        return Ok(None);
-    };
-
-    let line_portions = get_line_portions(line);
-    let line_start = buffer.line_to_char(line_index)?;
-    let line_end = line_start + line.len_chars();
-
-    let range = buffer.char_index_range_to_byte_range(
-        (line_start + line_portions.leading..line_end - line_portions.trailing).into(),
-    )?;
-    Ok(Some(ByteRange::new(range)))
 }
 
 pub(crate) fn process_paste_gap(
