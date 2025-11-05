@@ -448,7 +448,7 @@ pub(crate) struct Editor {
     /// for example, inside VS Code.
     visible_line_ranges: Option<Vec<Range<usize>>>,
 
-    pub(crate) incremental_search_matches: Vec<Range<usize>>,
+    pub(crate) incremental_search_matches: Option<Vec<Range<usize>>>,
 }
 
 #[derive(Default)]
@@ -4107,12 +4107,12 @@ impl Editor {
     }
 
     fn clear_incremental_search_matches(&mut self) {
-        self.incremental_search_matches.clear()
+        self.incremental_search_matches = None
     }
 
     pub(crate) fn set_incremental_search_config(&mut self, config: LocalSearchConfig) {
         let content = self.content();
-        self.incremental_search_matches = match config.mode {
+        let matches = match config.mode {
             LocalSearchConfigMode::Regex(regex_config) => regex_config
                 .to_regex(&config.search())
                 .map(|regex| {
@@ -4134,7 +4134,8 @@ impl Editor {
                     .map(|(range, _)| range.range().clone())
                     .collect_vec()
             }
-        }
+        };
+        self.incremental_search_matches = Some(matches)
     }
 }
 

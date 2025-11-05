@@ -534,45 +534,56 @@ impl Editor {
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
         let buffer = self.buffer();
-        let possible_selections =
-            if self.selection_set.mode().is_contiguous() && self.reveal.is_none() {
-                Default::default()
-            } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
-                protected_range
-                    .and_then(|protected_range| {
-                        buffer.char_index_range_to_byte_range(protected_range).ok()
-                    })
-                    .into_iter()
-                    .map(ByteRange::new)
-                    .collect()
-            } else {
-                self.possible_selections_in_line_number_range(
-                    self.selection_set.primary_selection(),
-                    working_directory,
-                    visible_line_range,
-                    quickfix_list_items,
-                )
-                .unwrap_or_default()
-            }
-            .into_iter()
-            .map(|range| HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::ByteRange(range.range().clone()),
-                source: Source::StyleKey(UiPossibleSelection),
-                is_protected_range_start: false,
-            });
 
-        let incremental_search_matches =
-            self.incremental_search_matches
-                .iter()
+        let possible_selections = if self.incremental_search_matches.is_some() {
+            Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
+        } else {
+            Box::new(
+                if self.selection_set.mode().is_contiguous() && self.reveal.is_none() {
+                    Default::default()
+                } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
+                    protected_range
+                        .and_then(|protected_range| {
+                            buffer.char_index_range_to_byte_range(protected_range).ok()
+                        })
+                        .into_iter()
+                        .map(ByteRange::new)
+                        .collect()
+                } else {
+                    self.possible_selections_in_line_number_range(
+                        self.selection_set.primary_selection(),
+                        working_directory,
+                        visible_line_range,
+                        quickfix_list_items,
+                    )
+                    .unwrap_or_default()
+                }
+                .into_iter()
                 .map(|range| HighlightSpan {
+                    set_symbol: None,
+                    is_cursor: false,
+                    range: HighlightSpanRange::ByteRange(range.range().clone()),
+                    source: Source::StyleKey(UiPossibleSelection),
+                    is_protected_range_start: false,
+                }),
+            )
+        };
+
+        let incremental_search_matches = self
+            .incremental_search_matches
+            .as_ref()
+            .map(|matches| {
+                Box::new(matches.iter().map(|range| HighlightSpan {
                     set_symbol: None,
                     is_cursor: false,
                     range: HighlightSpanRange::ByteRange(range.clone()),
                     source: Source::StyleKey(UiIncrementalSearchMatch),
                     is_protected_range_start: false,
-                });
+                })) as Box<dyn Iterator<Item = HighlightSpan>>
+            })
+            .unwrap_or_else(|| {
+                Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
+            });
 
         let marks = buffer
             .marks()
@@ -866,13 +877,19 @@ impl Editor {
         } else {
             Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
         };
+
+        // Note: the order here is important
+        //   - First = lowest precedence
+        //   - Last  = highest precedence
+        //
+        // Highlight spans with higher precedence will overwrite
+        // highlight spans with lower precedence.
         vec![]
             .into_iter()
             .chain(visible_parent_lines)
             .chain(filtered_highlighted_spans)
             .chain(extra_decorations)
             .chain(possible_selections)
-            .chain(incremental_search_matches)
             .chain(primary_selection_highlight_span)
             .chain(secondary_selections_highlight_spans)
             .chain(primary_selection_anchors)
@@ -884,6 +901,7 @@ impl Editor {
             .chain(secondary_selection_cursors)
             .chain(custom_regex_highlights)
             .chain(regex_highlight_rules)
+            .chain(incremental_search_matches)
             .collect_vec()
     }
 

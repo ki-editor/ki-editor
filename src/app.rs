@@ -2179,6 +2179,14 @@ impl<T: Frontend> App<T> {
             self.context
                 .push_history_prompt(prompt_config.prompt_history_key, line)
         }
+
+        // Initialize the incremental search matches
+        // so that the possible selections highlights will be "cleared" (i.e., not rendered)
+        self.current_component()
+            .borrow_mut()
+            .editor_mut()
+            .set_incremental_search_config(Default::default());
+
         let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
         let (prompt, dispatches) = Prompt::new(prompt_config, history);

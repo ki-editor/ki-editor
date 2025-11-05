@@ -622,7 +622,9 @@ impl ExpectKind {
                 &app.get_current_editor()
                     .borrow()
                     .editor()
-                    .incremental_search_matches,
+                    .incremental_search_matches
+                    .clone()
+                    .unwrap_or_default(),
             ),
         })
     }

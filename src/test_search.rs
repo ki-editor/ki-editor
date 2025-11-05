@@ -45,6 +45,44 @@ fn incremental_search_should_highlight_matches() -> anyhow::Result<()> {
 }
 
 #[test]
+fn incremental_search_matches_highlight_should_have_higher_precedence_than_selection_highlights(
+) -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(TerminalDimensionChanged(Dimension {
+                height: 100,
+                width: 100,
+            })),
+            Editor(SetContent("west bar foo".to_string())),
+            // Select the whole line
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Expect(CurrentSelectedTexts(&["west bar foo"])),
+            Expect(MainEditorRangeStyleKey(
+                "est bar fo",
+                Some(StyleKey::UiPrimarySelectionAnchors),
+            )),
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            App(HandleKeyEvents(keys!("b a r").to_vec())),
+            Expect(MainEditorRangeStyleKey(
+                "bar",
+                Some(StyleKey::UiIncrementalSearchMatch),
+            )),
+        ])
+    })
+}
+
+#[test]
 fn incremental_search_should_clear_matches_upon_prompt_closed() -> anyhow::Result<()> {
     execute_test(move |s| {
         Box::new([
@@ -190,6 +228,35 @@ fn incremental_search_should_update_prompt_title_to_show_current_search_mode() -
             Expect(CurrentComponentTitle(
                 "Local search (Naming Convention Agnostic)".to_string(),
             )),
+        ])
+    })
+}
+
+#[test]
+fn possible_selections_background_should_be_cleared_when_local_search_prompt_is_opened(
+) -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(TerminalDimensionChanged(Dimension {
+                height: 100,
+                width: 100,
+            })),
+            Editor(SetContent("foo bar foo".to_string())),
+            Editor(MatchLiteral("foo".to_string())),
+            Expect(MainEditorRangeStyleKey(
+                "foo",
+                Some(StyleKey::UiPossibleSelection),
+            )),
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            Expect(MainEditorRangeStyleKey("foo", None)),
         ])
     })
 }
