@@ -7,10 +7,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 use crate::{
     app::{Dispatch, DispatchPrompt, Dispatches},
     buffer::Buffer,
-    components::{
-        component::ComponentId,
-        editor::DispatchEditor,
-    },
+    components::{component::ComponentId, editor::DispatchEditor},
     context::Context,
     lsp::completion::Completion,
     search::parse_search_config,
