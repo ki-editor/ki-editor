@@ -5,11 +5,11 @@ use my_proc_macros::key;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
-    app::{Dispatch, DispatchPrompt, Dispatches, Scope},
+    app::{Dispatch, DispatchPrompt, Dispatches},
     buffer::Buffer,
     components::{
         component::ComponentId,
-        editor::{DispatchEditor, IfCurrentNotFound},
+        editor::DispatchEditor,
     },
     context::Context,
     lsp::completion::Completion,

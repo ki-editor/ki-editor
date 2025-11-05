@@ -1,8 +1,8 @@
+#![allow(clippy::single_range_in_vec_init)]
 use crate::{
     app::{Dimension, Scope},
     grid::StyleKey,
-    rectangle::Rectangle,
-    test_app::{execute_test, ExpectKind},
+    test_app::execute_test,
 };
 
 use my_proc_macros::keys;

@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)] // This rule is disabled, because inlined format args can cause rustfmt to not work for portions of the code
+
 /// NOTE: all test cases that involves the clipboard should not be run in parallel
 ///   otherwise the the test suite will fail because multiple tests are trying to
 ///   access the clipboard at the same time.
@@ -130,7 +132,6 @@ pub(crate) enum ExpectKind {
     CompletionDropdownSelectedItem(&'static str),
     JumpChars(&'static [char]),
     CurrentLine(&'static str),
-    CurrentEditorLine(&'static str),
     Not(Box<ExpectKind>),
     CurrentComponentContent(&'static str),
     CurrentComponentContentMatches(&'static lazy_regex::Lazy<regex::Regex>),
@@ -144,7 +145,6 @@ pub(crate) enum ExpectKind {
     /// This is for any component
     CurrentSelectedTexts(&'static [&'static str]),
     /// This is only for the main editor (e.g. not prompt, not completion, etc)
-    CurrentEditorSelectedTexts(&'static [&'static str]),
     CurrentPrimarySelection(&'static str),
     CurrentCursorDirection(Direction),
     CurrentViewAlignment(Option<ViewAlignment>),
@@ -194,7 +194,6 @@ pub(crate) enum ExpectKind {
         matches: &'static lazy_regex::Lazy<regex::Regex>,
         timeout: Duration,
     },
-    CurrentScrollOffSet(usize),
     CurrentEditorIncrementalSearchMatches(Vec<std::ops::Range<usize>>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
@@ -250,13 +249,6 @@ impl ExpectKind {
             CurrentSelectedTexts(selected_texts) => {
                 contextualize(app.get_current_selected_texts(), to_vec(selected_texts))
             }
-            CurrentEditorSelectedTexts(selected_texts) => contextualize(
-                app.get_current_editor()
-                    .borrow()
-                    .editor()
-                    .get_selected_texts(),
-                to_vec(selected_texts),
-            ),
             ComponentsLength(length) => contextualize(app.components().len(), *length),
             Quickfixes(expected_quickfixes) => contextualize(
                 app.get_quickfix_list()
@@ -314,14 +306,6 @@ impl ExpectKind {
             ),
             CurrentLine(line) => contextualize(
                 component.borrow().editor().current_line().unwrap(),
-                line.to_string(),
-            ),
-            CurrentEditorLine(line) => contextualize(
-                app.get_current_editor()
-                    .borrow()
-                    .editor()
-                    .current_line()
-                    .unwrap(),
                 line.to_string(),
             ),
             JumpChars(chars) => contextualize(
@@ -395,6 +379,7 @@ impl ExpectKind {
                         .grid
                         .rows[position.line][position.column]
                         .source;
+
                     if actual_style_key != style_key {
                         log(format!(
                             "Expected {:?} to be styled as {:?}, but got {:?}",
@@ -613,10 +598,6 @@ impl ExpectKind {
                 app.wait_for_app_message(matches, Some(*timeout))?;
                 (true, String::new())
             }
-            CurrentScrollOffSet(expected) => contextualize(
-                *expected,
-                app.current_component().borrow().editor().scroll_offset() as usize,
-            ),
             CurrentEditorIncrementalSearchMatches(expected) => contextualize(
                 expected,
                 &app.get_current_editor()
@@ -660,8 +641,7 @@ fn run_range_style_key_check(
             let actual_style_key = &grid.grid.rows[position.line][position.column].source;
             if actual_style_key != style_key {
                 log(format!(
-                    "Expected {:?} to be styled as {:?}, but got {:?}",
-                    position, style_key, actual_style_key
+                    "Expected {position:?} to be styled as {style_key:?}, but got {actual_style_key:?}"
                 ));
             }
             actual_style_key == style_key

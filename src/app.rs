@@ -1150,11 +1150,9 @@ impl<T: Frontend> App<T> {
                     Scope::Global => None,
                 },
                 leaves_current_line_empty: current_line.is_none(),
-                on_cancelled: Some(Dispatches::one(Dispatch::ToEditor({
-                    let component = self.current_component();
-                    let borrow = component.borrow();
-                    DispatchEditor::ClearIncrementalSearchMatches
-                }))),
+                on_cancelled: Some(Dispatches::one(Dispatch::ToEditor(
+                    DispatchEditor::ClearIncrementalSearchMatches,
+                ))),
                 prompt_history_key: PromptHistoryKey::Search,
                 ..Default::default()
             },
@@ -3165,10 +3163,6 @@ impl Dispatches {
 
     pub(crate) fn empty() -> Dispatches {
         Dispatches(Default::default())
-    }
-
-    pub(crate) fn iter(&self) -> std::slice::Iter<'_, Dispatch> {
-        self.0.iter()
     }
 }
 
