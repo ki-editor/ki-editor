@@ -650,13 +650,42 @@ mod test_line {
     use crate::selection_mode::{PositionBased, SelectionModeTrait};
 
     #[test]
-    fn simple_case() {
+    fn left_right_movement() {
         let buffer = Buffer::new(None, "a\n\nb");
         PositionBased(LineTrimmed).assert_all_selections(
             &buffer,
             Selection::default(),
             &[(0..1, "a"), (2..2, ""), (3..4, "b")],
         );
+    }
+
+    #[test]
+    fn prev_next_movement() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("   a   \n    \nb".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Expect(CurrentSelectedTexts(&["   "])),
+                Editor(MoveSelection(Movement::Next)),
+                Expect(CurrentSelectedTexts(&["a"])),
+                Editor(MoveSelection(Movement::Next)),
+                Expect(CurrentSelectedTexts(&["   \n"])),
+                Editor(MoveSelection(Movement::Next)),
+                Expect(CurrentSelectedTexts(&["    "])),
+                Editor(MoveSelection(Movement::Next)),
+                Expect(CurrentSelectedTexts(&["\n"])),
+                Editor(MoveSelection(Movement::Next)),
+                Expect(CurrentSelectedTexts(&["b"])),
+            ])
+        })
     }
 
     #[test]
