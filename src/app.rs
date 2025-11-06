@@ -56,6 +56,7 @@ use name_variant::NamedVariant;
 #[cfg(test)]
 use shared::language::LanguageId;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
+use std::process::Stdio;
 use std::{
     any::TypeId,
     cell::RefCell,
@@ -2897,7 +2898,11 @@ impl<T: Frontend> App<T> {
                     .iter()
                     .map(|arg| arg.resolve(&leader_context).to_string())
                     .collect_vec();
-                let _output = std::process::Command::new(command).args(&args).spawn()?;
+                let _output = std::process::Command::new(command)
+                    .args(&args)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()?;
                 // self.show_global_info(Info::new( format!("{command} {}", args.join(" ")), format!( "[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n", output.status, String::from_utf8_lossy(&output.stdout).trim(), String::from_utf8_lossy(&output.stderr).trim() ), ))
             }
             LeaderAction::Macro(key_events) => self.handle_key_events(key_events)?,

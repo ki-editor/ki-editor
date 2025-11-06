@@ -30,8 +30,11 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
 fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
     if DirWorking::file_exists("Cargo.toml").resolve(ctx) {
         RunCommand("cargo", vec![Str("run")])
-    } else if FileCurrent::extension().resolve(ctx) == "py" {
-        RunCommand("python", vec![FileCurrent::path()])
+    } else if FileCurrent::extension().resolve(ctx) == "typ" {
+        RunCommand(
+            "tinymist",
+            vec![Str("preview"), Str("--open"), FileCurrent::path()],
+        )
     } else if DirWorking::file_exists_dynamic(SelectionPrimary::content()).resolve(ctx) == false {
         RunCommand(
             "wl-copy",
@@ -58,8 +61,7 @@ fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
 }
 
 fn sample_macro(_ctx: &LeaderContext) -> LeaderAction {
-    // This macro adds new cursor to the next selection that matches the current selection
-    Macro(keys!("e r l esc").to_vec())
+    Macro(keys!("a c d q F e r t i g enter a ; backspace backspace a").to_vec())
 }
 
 fn test(_ctx: &LeaderContext) -> LeaderAction {
