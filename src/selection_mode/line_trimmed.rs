@@ -486,7 +486,6 @@ impl PositionBasedSelectionMode for LineTrimmed {
                             break;
                         };
                         if ch == '\n' {
-                            right_index = right_index + 1;
                             break;
                         } else if ch.is_whitespace() {
                             continue;
@@ -505,7 +504,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
                             end_index = right_last_non_whitespace + 1;
                         } else {
                             start_index = left_first_non_whitespace + 1;
-                            end_index = right_index;
+                            end_index = right_index + 1;
                         }
                     } else {
                         start_index = left_index;
@@ -543,33 +542,26 @@ impl PositionBasedSelectionMode for LineTrimmed {
                     let mut right_index = left_most_non_whitespace;
                     loop {
                         if right_index.0 == buffer.len_chars() {
-                            if right_encountered_non_whitespace {
-                                break right_last_non_whitespace + 1;
-                            } else {
-                                break CharIndex(buffer.len_chars());
-                            }
+                            break;
                         }
 
                         right_index = right_index + 1;
                         let Ok(ch) = buffer.char(right_index) else {
-                            if right_encountered_non_whitespace {
-                                break right_last_non_whitespace + 1;
-                            } else {
-                                break right_index;
-                            }
+                            break;
                         };
                         if ch == '\n' {
-                            if right_encountered_non_whitespace {
-                                break right_last_non_whitespace + 1;
-                            } else {
-                                break right_index;
-                            }
+                            break;
                         } else if ch.is_whitespace() {
                             continue;
                         } else {
                             right_encountered_non_whitespace = true;
                             right_last_non_whitespace = right_index;
                         }
+                    }
+                    if right_encountered_non_whitespace {
+                        right_last_non_whitespace + 1
+                    } else {
+                        cursor_char_index + 1
                     }
                 }
             }
