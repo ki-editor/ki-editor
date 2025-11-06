@@ -1,9 +1,8 @@
 use std::{cmp::Reverse, ops::Range};
 
 use crate::{
-    app::Dispatches, buffer::BufferOwner, char_index_range::CharIndexRange,
-    components::editor::Movement, grid::StyleKey, position::Position,
-    selection_range::SelectionRange,
+    app::Dispatches, buffer::BufferOwner, components::editor::Movement, grid::StyleKey,
+    position::Position, selection_range::SelectionRange,
 };
 
 use itertools::Itertools;
@@ -496,10 +495,12 @@ impl Dropdown {
             content: String,
             highlight_column_range: Option<Range<usize>>,
         }
+        let filtered_item_groups_length = self.filtered_item_groups.len();
         let lines = self
             .filtered_item_groups
             .iter()
-            .flat_map(|group| {
+            .enumerate()
+            .flat_map(|(group_index, group)| {
                 if let Some(group_key) = group.group_key.as_ref() {
                     let items = group.items.iter().map(|item| {
                         let content = item.item.display();
@@ -520,6 +521,17 @@ impl Dropdown {
                     })
                     .into_iter()
                     .chain(items)
+                    // Add a newline to separate groups
+                    .chain(
+                        if group_index < filtered_item_groups_length.saturating_sub(1) {
+                            Some(Line {
+                                content: "".to_string(),
+                                highlight_column_range: None,
+                            })
+                        } else {
+                            None
+                        },
+                    )
                     .collect_vec()
                 } else {
                     group

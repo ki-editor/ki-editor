@@ -62,7 +62,7 @@ impl QuickfixListItem {
                         .trim_matches(|c: char| c.is_whitespace())
                         .to_string()
                 });
-            format!("{}{}", prefix, content)
+            format!("{prefix}{content}")
         })
         .set_info(self.info.clone())
         .set_group({

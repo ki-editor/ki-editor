@@ -888,7 +888,6 @@ impl Editor {
             .into_iter()
             .chain(visible_parent_lines)
             .chain(filtered_highlighted_spans)
-            .chain(extra_decorations)
             .chain(possible_selections)
             .chain(primary_selection_highlight_span)
             .chain(secondary_selections_highlight_spans)
@@ -901,6 +900,7 @@ impl Editor {
             .chain(secondary_selection_cursors)
             .chain(custom_regex_highlights)
             .chain(regex_highlight_rules)
+            .chain(extra_decorations)
             .chain(incremental_search_matches)
             .collect_vec()
     }
