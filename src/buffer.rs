@@ -25,6 +25,7 @@ use shared::{
     canonicalized_path::CanonicalizedPath,
     language::{self, Language},
 };
+use std::time::SystemTime;
 use std::{collections::HashSet, ops::Range};
 use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal2::{traverse, Order};
@@ -59,6 +60,9 @@ pub(crate) struct Buffer {
 
     /// We need to cache this because its computation is expensive.
     cached_hunks: Option<CachedHunks>,
+
+    /// Timestamp of the file when we last read/wrote it
+    last_synced_time: Option<SystemTime>,
 }
 
 #[derive(Debug, Clone)]
@@ -107,6 +111,7 @@ impl Buffer {
             redo_stack: Default::default(),
             batch_id: Default::default(),
             cached_hunks: Default::default(),
+            last_synced_time: None,
         }
     }
 
@@ -120,11 +125,27 @@ impl Buffer {
         self.owner
     }
 
-    pub(crate) fn reload(&mut self) -> anyhow::Result<Dispatches> {
+    pub(crate) fn reload(&mut self, force: bool) -> anyhow::Result<Dispatches> {
         if let Some(path) = self.path() {
+            if let Ok(Some(dispatches)) = self.check_conflict(force, &path) {
+                return Ok(dispatches);
+            }
+
+            // Only reload if the last_modified_time is actually changed
+            // this is to prevent unnecessary rereading, for example,
+            // after saving this file, a file modified notification will be received
+            // and upon handling this notification, we would not want to
+            // read the file again, if the notification is generated
+            // because of the save.
+            if path.last_modified_time().ok() == self.last_synced_time {
+                return Ok(Default::default());
+            }
+
             let updated_content = path.read()?;
+            let dispatches = self.update_content(&updated_content, SelectionSet::default(), 0)?;
+            self.last_synced_time = path.last_modified_time().ok();
             self.dirty = false;
-            self.update_content(&updated_content, SelectionSet::default(), 0)
+            Ok(dispatches)
         } else {
             Ok(Default::default())
         }
@@ -201,7 +222,7 @@ impl Buffer {
     }
 
     pub(crate) fn words(&self) -> Vec<String> {
-        let regex = regex::Regex::new(r"\b\w+").unwrap();
+        let regex = lazy_regex::regex!(r"\b(\w|-)+");
         let str = self.rope.to_string();
         regex
             .find_iter(&str)
@@ -332,8 +353,7 @@ impl Buffer {
 
     pub(crate) fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
-        self.dirty = true;
-        self.owner = BufferOwner::User;
+        self.flag_as_modified()
     }
 
     pub(crate) fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
@@ -607,6 +627,11 @@ impl Buffer {
         Ok((new_selection_set, dispatches, applied_vscode_edits))
     }
 
+    fn flag_as_modified(&mut self) {
+        self.dirty = true;
+        self.owner = BufferOwner::User;
+    }
+
     // Add these methods for undo/redo
     fn apply_edit(&mut self, edit: &Edit, last_visible_line: u16) -> Result<(), anyhow::Error> {
         // We have to get the char index range of positional spans before updating the content
@@ -632,9 +657,7 @@ impl Buffer {
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
             .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
-        self.dirty = true;
-
-        self.owner = BufferOwner::User;
+        self.flag_as_modified();
 
         // Update all the non-positional spans
         self.marks.retain_mut(|mark| {
@@ -699,6 +722,8 @@ impl Buffer {
         buffer.path = Some(path.clone());
         buffer.language = language;
 
+        buffer.last_synced_time = path.last_modified_time().ok();
+
         Ok(buffer)
     }
 
@@ -733,19 +758,52 @@ impl Buffer {
     pub(crate) fn save_without_formatting(
         &mut self,
         force: bool,
-    ) -> anyhow::Result<Option<CanonicalizedPath>> {
+    ) -> anyhow::Result<(Dispatches, Option<CanonicalizedPath>)> {
         if !force && !self.dirty {
-            return Ok(None);
+            return Ok((Dispatches::default(), None));
         }
 
         if let Some(path) = &self.path {
+            if let Ok(Some(dispatches)) = self.check_conflict(force, path) {
+                return Ok((dispatches, Some(path.clone())));
+            }
+
             path.write(&self.content())?;
+
+            self.last_synced_time = path.last_modified_time().ok();
+
             self.dirty = false;
-            Ok(Some(path.clone()))
+            Ok((Dispatches::default(), Some(path.clone())))
         } else {
             log::info!("Buffer has no path");
-            Ok(None)
+            Ok((Dispatches::default(), None))
         }
+    }
+
+    /// Check if the content of this file conflicts with that of the system.
+    /// Return None if no conflict.
+    fn check_conflict(
+        &self,
+        force: bool,
+        path: &CanonicalizedPath,
+    ) -> anyhow::Result<Option<Dispatches>> {
+        if force || !self.dirty {
+            return Ok(None);
+        }
+        let last_modified_time_system = path.last_modified_time()?;
+        let Some(last_modified_time_editor) = &self.last_synced_time else {
+            return Ok(None);
+        };
+
+        Ok(if &last_modified_time_system != last_modified_time_editor {
+            Some(Dispatches::one(Dispatch::ShowBufferSaveConflictPrompt {
+                path: path.clone(),
+                content_editor: self.content(),
+                content_filesystem: path.read()?,
+            }))
+        } else {
+            None
+        })
     }
 
     pub(crate) fn save(
@@ -761,11 +819,12 @@ impl Buffer {
                     current_selection_set,
                     last_visible_line,
                 )?;
-                return Ok((dispatches, self.save_without_formatting(force)?));
+                let (other_dispatches, path) = self.save_without_formatting(force)?;
+                return Ok((dispatches.chain(other_dispatches), path));
             }
         }
 
-        Ok((Default::default(), self.save_without_formatting(force)?))
+        self.save_without_formatting(force)
     }
 
     pub(crate) fn update_content(

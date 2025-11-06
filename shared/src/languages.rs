@@ -30,6 +30,7 @@ pub const LANGUAGES: &[&Language] = &[
     &heex(),
     &html(),
     &idris(),
+    &haskell(),
     &javascript(),
     &javascript_react(),
     &svelte(),
@@ -49,6 +50,7 @@ pub const LANGUAGES: &[&Language] = &[
     &rust(),
     &sql(),
     &swift(),
+    &typst(),
     &toml(),
     &tree_sitter_query(),
     &typescript(),
@@ -517,6 +519,24 @@ const fn idris() -> Language {
     }
 }
 
+const fn haskell() -> Language {
+    Language {
+        extensions: &["hs"],
+        lsp_command: Some(LspCommand {
+            command: Command("haskell-language-server-wrapper", &["--lsp"]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("haskell")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "haskell",
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Haskell),
+        }),
+        line_comment_prefix: Some("--"),
+        block_comment_affixes: Some(("{-", "-}")),
+        ..Language::new()
+    }
+}
+
 const fn javascript() -> Language {
     Language {
         extensions: &["js", "mjs", "cjs"],
@@ -854,6 +874,28 @@ const fn swift() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Swift),
         }),
         line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("/*", "*/")),
+        ..Language::new()
+    }
+}
+
+const fn typst() -> Language {
+    Language {
+        extensions: &["typ"],
+        formatter_command: Some(Command("typstyle", &["-i"])),
+        lsp_command: Some(LspCommand {
+            command: Command("tinymist", &["lsp"]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("typst")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "typst",
+            kind: GrammarConfigKind::FromSource {
+                url: "https://github.com/uben0/tree-sitter-typst",
+                commit: "master",
+                subpath: None,
+            },
+        }),
         block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }

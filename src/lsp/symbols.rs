@@ -12,6 +12,10 @@ pub(crate) struct Symbols {
     pub(crate) symbols: Vec<Symbol>,
 }
 
+/// This limit is defined so that we don't send too much symbols to the main event loop,
+/// which can cause lagginess.
+const WORKSPACE_SYMBOLS_LIMIT: usize = 100;
+
 impl Symbols {
     fn collect_document_symbols(
         document_symbol: &lsp_types::DocumentSymbol,
@@ -64,6 +68,65 @@ impl Symbols {
         };
 
         Ok(Self { symbols })
+    }
+
+    pub(crate) fn try_from_workspace_symbol_response(
+        workspace_symbol_response: lsp_types::WorkspaceSymbolResponse,
+        working_directory: &CanonicalizedPath,
+    ) -> anyhow::Result<Self> {
+        match workspace_symbol_response {
+            lsp_types::WorkspaceSymbolResponse::Flat(symbol_informations) => Ok(Self {
+                symbols: symbol_informations
+                    .into_iter()
+                    .filter_map(|symbol_information| {
+                        let location: Location = symbol_information.location.try_into().ok()?;
+                        Some(Symbol {
+                            name: symbol_information.name,
+                            kind: symbol_information.kind,
+                            container_name: Some(
+                                symbol_information
+                                    .container_name
+                                    .map(|container_name| {
+                                        format!(
+                                            "{} [{}]",
+                                            location.path.try_display_relative(),
+                                            container_name
+                                        )
+                                    })
+                                    .unwrap_or_else(|| {
+                                        location.path.try_display_relative_to(working_directory)
+                                    }),
+                            ),
+                            location,
+                        })
+                    })
+                    .take(WORKSPACE_SYMBOLS_LIMIT)
+                    .collect(),
+            }),
+            lsp_types::WorkspaceSymbolResponse::Nested(workspace_symbols) => Ok(Self {
+                symbols: workspace_symbols
+                    .into_iter()
+                    .filter_map(|workspace_symbol| {
+                        Some(Symbol {
+                            name: workspace_symbol.name,
+                            kind: workspace_symbol.kind,
+                            location: match workspace_symbol.location {
+                                lsp_types::OneOf::Left(location) => location.try_into().ok(),
+                                lsp_types::OneOf::Right(workspace_location) => {
+                                    log::info!(
+                                        "[Symbols] Workspace location is not handled: {} ",
+                                        workspace_location.uri
+                                    );
+                                    None
+                                }
+                            }?,
+                            container_name: workspace_symbol.container_name,
+                        })
+                    })
+                    .take(WORKSPACE_SYMBOLS_LIMIT)
+                    .collect(),
+            }),
+        }
     }
 }
 

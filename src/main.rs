@@ -50,10 +50,13 @@ mod embed;
 mod alternator;
 mod divide_viewport;
 mod env;
+pub(crate) mod file_watcher;
 mod format_path_list;
 pub(crate) mod persistence;
 #[cfg(test)]
 mod test_lsp;
+#[cfg(test)]
+mod test_search;
 mod thread;
 use std::{rc::Rc, sync::Mutex};
 
@@ -100,6 +103,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         ]
         .to_vec(),
         None, // No integration event sender
+        true,
         true,
         false,
         Some(Persistence::load_or_default(

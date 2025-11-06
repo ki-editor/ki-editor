@@ -292,14 +292,8 @@ impl Layout {
         self.background_suggestive_editors.shift_remove(path);
     }
 
-    pub(crate) fn refresh_file_explorer(
-        &self,
-        working_directory: &CanonicalizedPath,
-        context: &Context,
-    ) -> anyhow::Result<()> {
-        self.background_file_explorer
-            .borrow_mut()
-            .refresh(working_directory, context)
+    pub(crate) fn refresh_file_explorer(&self, context: &Context) -> anyhow::Result<()> {
+        self.background_file_explorer.borrow_mut().refresh(context)
     }
 
     pub(crate) fn open_file_explorer(&mut self) {
@@ -359,7 +353,7 @@ impl Layout {
                         .iter()
                         .any(|affected_path| affected_path == &path)
                     {
-                        return Ok(dispatches.chain(buffer.reload()?));
+                        return Ok(dispatches.chain(buffer.reload(true)?));
                     }
                 }
                 Ok(dispatches)
@@ -530,6 +524,10 @@ impl Layout {
         self.background_file_explorer.borrow().content()
     }
 
+    pub(crate) fn file_explorer_expanded_folders(&self) -> Vec<CanonicalizedPath> {
+        self.background_file_explorer.borrow().expanded_folders()
+    }
+
     pub(crate) fn get_quickfix_list_items(
         &self,
         source: &QuickfixListSource,
@@ -629,6 +627,13 @@ impl Layout {
     pub(crate) fn close_global_info(&mut self) {
         self.tree
             .remove_node_child(self.tree.root_id(), ComponentKind::GlobalInfo);
+    }
+
+    pub(crate) fn get_component_by_id(
+        &self,
+        component_id: ComponentId,
+    ) -> Option<Rc<RefCell<dyn Component>>> {
+        self.tree.get_component_by_id(component_id)
     }
 }
 fn layout_kind() -> (LayoutKind, f32) {

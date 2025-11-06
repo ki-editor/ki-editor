@@ -13,7 +13,7 @@ use crate::{
     components::component::Component,
     context::LocalSearchConfig,
     edit::{Action, ActionGroup, Edit, EditTransaction},
-    git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _},
+    git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _, GitRepo},
     list::grep::RegexConfig,
     lsp::completion::PositionalEdit,
     position::Position,
@@ -21,6 +21,7 @@ use crate::{
     rectangle::Rectangle,
     search::parse_search_config,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
+    selection_mode::{ast_grep, NamingConventionAgnostic},
 };
 use crate::{
     app::{Dispatches, RequestParams, Scope},
@@ -284,7 +285,9 @@ impl Component for Editor {
                 self.apply_syntax_highlighting(context)?;
             }
             Save => return self.do_save(false, context),
-            ForceSave => return self.do_save(true, context),
+            ForceSave => {
+                return self.do_save(true, context);
+            }
             ReplaceCurrentSelectionWith(string) => {
                 return self
                     .replace_current_selection_with(|_| Some(Rope::from_str(&string)), context)
@@ -378,6 +381,13 @@ impl Component for Editor {
             }
             RevertHunk(diff_mode) => return self.revert_hunk(context, diff_mode),
             GitBlame => return self.git_blame(context),
+            ReloadFile { force } => return self.reload(force),
+            MergeContent {
+                content_filesystem,
+                content_editor,
+                path,
+            } => return self.merge_content(context, path, content_editor, content_filesystem),
+            ClearIncrementalSearchMatches => self.clear_incremental_search_matches(),
         }
         Ok(Default::default())
     }
@@ -408,6 +418,7 @@ impl Clone for Editor {
             normal_mode_override: self.normal_mode_override.clone(),
             reveal: self.reveal.clone(),
             visible_line_ranges: Default::default(),
+            incremental_search_matches: self.incremental_search_matches.clone(),
         }
     }
 }
@@ -436,6 +447,8 @@ pub(crate) struct Editor {
     /// This is only used when Ki is running as an embedded component,
     /// for example, inside VS Code.
     visible_line_ranges: Option<Vec<Range<usize>>>,
+
+    pub(crate) incremental_search_matches: Option<Vec<Range<usize>>>,
 }
 
 #[derive(Default)]
@@ -670,6 +683,7 @@ impl Editor {
             normal_mode_override: None,
             reveal: None,
             visible_line_ranges: Default::default(),
+            incremental_search_matches: Default::default(),
         }
     }
 
@@ -715,6 +729,7 @@ impl Editor {
             normal_mode_override: None,
             reveal: None,
             visible_line_ranges: Default::default(),
+            incremental_search_matches: Default::default(),
         }
     }
 
@@ -1034,6 +1049,18 @@ impl Editor {
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     let current_range = selection.extended_range();
+
+                    // Let the current_range be at least one character long
+                    // so even if the current_range is empty, the user can
+                    // still delete the character which is apparently under the cursor.
+                    let current_range = if current_range.len() == 0 {
+                        (current_range.start
+                            ..(current_range.start + 1).min(CharIndex(self.buffer().len_chars())))
+                            .into()
+                    } else {
+                        current_range
+                    };
+
                     let default = {
                         let start = current_range.start;
                         (current_range, (start..start + 1).into())
@@ -1069,42 +1096,51 @@ impl Editor {
                             Some(result_selection)
                         }
                     };
-                    let (delete_range, select_range) = {
+                    let (delete_range, select_range) = (|| {
                         if !self.selection_set.mode().is_contiguous() {
-                            default
+                            return default;
                         }
+
                         // If the selection mode is contiguous,
-                        // perform a "kill next/previous" instead
-                        else if let Some(other_selection) = get_selection(&direction)
+                        // perform a "delete until the other selection" instead
+                        // Other selection is a selection which is before/after the current selection
+                        if let Some(other_selection) = get_selection(&direction)
                             .or_else(|| get_selection(&direction.reverse()))
                         {
-                            let other_range = other_selection.selection.range();
-                            if other_range == current_range {
-                                default
-                            } else if other_range.start >= current_range.end {
-                                let delete_range: CharIndexRange =
-                                    (current_range.start..other_range.start).into();
-                                let select_range = {
-                                    other_selection
-                                        .selection
-                                        .extended_range()
-                                        .shift_left(delete_range.len())
-                                };
-                                (delete_range, select_range)
-                            } else {
-                                let delete_range: CharIndexRange =
-                                    (other_range.end..current_range.end).into();
-                                let select_range = other_selection.selection.range();
-                                (delete_range, select_range)
+                            // The other_selection is only consider valid
+                            // if it does not intersect with the range to be deleted
+                            if !other_selection
+                                .selection
+                                .range()
+                                .intersects_with(&current_range)
+                            {
+                                let other_range = other_selection.selection.range();
+                                if other_range == current_range {
+                                    return default;
+                                } else if other_range.start >= current_range.end {
+                                    let delete_range: CharIndexRange =
+                                        (current_range.start..other_range.start).into();
+                                    let select_range = {
+                                        other_selection
+                                            .selection
+                                            .extended_range()
+                                            .shift_left(delete_range.len())
+                                    };
+                                    return (delete_range, select_range);
+                                } else {
+                                    let delete_range: CharIndexRange =
+                                        (other_range.end..current_range.end).into();
+                                    let select_range = other_selection.selection.range();
+                                    return (delete_range, select_range);
+                                }
                             }
                         }
+
                         // If the other selection not found, then only deletes the selection
                         // without moving forward or backward
-                        else {
-                            let range = selection.extended_range();
-                            (range, (range.start..range.start).into())
-                        }
-                    };
+                        let range = selection.extended_range();
+                        (range, (range.start..range.start).into())
+                    })();
                     Ok(ActionGroup::new(
                         [
                             Action::Edit(Edit::new(
@@ -3729,14 +3765,20 @@ impl Editor {
         self.selection_set.is_extended()
     }
 
+    pub(crate) fn current_primary_selection(&self) -> anyhow::Result<String> {
+        Ok(self
+            .buffer()
+            .slice(&self.selection_set.primary_selection().extended_range())?
+            .to_string())
+    }
+
     fn search_current_selection(
         &mut self,
         if_current_not_found: IfCurrentNotFound,
         scope: Scope,
     ) -> Dispatches {
         let dispatches = self
-            .buffer()
-            .slice(&self.selection_set.primary_selection().extended_range())
+            .current_primary_selection()
             .map(|search| {
                 Dispatches::one(Dispatch::UpdateLocalSearchConfig {
                     scope,
@@ -3749,6 +3791,7 @@ impl Editor {
                         .clone(),
                     ),
                     run_search_after_config_updated: true,
+                    component_id: None,
                 })
                 .append(Dispatch::PushPromptHistory {
                     key: super::prompt::PromptHistoryKey::Search,
@@ -3940,6 +3983,7 @@ impl Editor {
                     .clone(),
             ),
             run_search_after_config_updated: true,
+            component_id: None,
         });
         Ok(dispatches)
     }
@@ -4034,6 +4078,64 @@ impl Editor {
             "Git blame".to_string(),
             info,
         ))))
+    }
+
+    fn merge_content(
+        &mut self,
+        context: &Context,
+        file_path: CanonicalizedPath,
+        content_editor: String,
+        content_filesystem: String,
+    ) -> anyhow::Result<Dispatches> {
+        let original = file_path
+            .content_at_last_commit(
+                &DiffMode::UnstagedAgainstCurrentBranch,
+                &GitRepo::try_from(context.current_working_directory())?,
+            )
+            .unwrap_or_default();
+        let merged = match diffy::merge(&original, &content_editor, &content_filesystem) {
+            Ok(merged_without_conflicts) => merged_without_conflicts,
+            Err(merged_with_conflicts) => merged_with_conflicts,
+        };
+        let dispatches = self.update_content(&merged, context)?;
+        Ok(dispatches.chain(self.do_save(true, context)?))
+    }
+
+    fn reload(&mut self, force: bool) -> Result<Dispatches, anyhow::Error> {
+        let dispatches = self.buffer_mut().reload(force)?;
+        Ok(dispatches.chain(self.get_document_did_change_dispatch()))
+    }
+
+    fn clear_incremental_search_matches(&mut self) {
+        self.incremental_search_matches = None
+    }
+
+    pub(crate) fn set_incremental_search_config(&mut self, config: LocalSearchConfig) {
+        let content = self.content();
+        let matches = match config.mode {
+            LocalSearchConfigMode::Regex(regex_config) => regex_config
+                .to_regex(&config.search())
+                .map(|regex| {
+                    regex
+                        .find_iter(&content)
+                        .filter_map(|m| Some(m.ok()?.range()))
+                        .collect_vec()
+                })
+                .unwrap_or_default(),
+            LocalSearchConfigMode::AstGrep => {
+                ast_grep::AstGrep::new(&self.buffer(), &config.search())
+                    .map(|result| result.find_all().map(|m| m.range()).collect_vec())
+                    .unwrap_or_default()
+            }
+            LocalSearchConfigMode::NamingConventionAgnostic => {
+                NamingConventionAgnostic::new(config.search())
+                    .find_all(&content)
+                    .into_iter()
+                    .map(|(range, _)| range.range().clone())
+                    .collect_vec()
+            }
+        };
+        self.incremental_search_matches = Some(matches)
     }
 }
 
@@ -4175,6 +4277,15 @@ pub(crate) enum DispatchEditor {
     RepeatSearch(Scope, IfCurrentNotFound, Option<PriorChange>),
     RevertHunk(DiffMode),
     GitBlame,
+    ReloadFile {
+        force: bool,
+    },
+    MergeContent {
+        content_filesystem: String,
+        content_editor: String,
+        path: CanonicalizedPath,
+    },
+    ClearIncrementalSearchMatches,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

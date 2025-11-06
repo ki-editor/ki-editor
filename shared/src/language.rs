@@ -1,5 +1,6 @@
 use grammar::grammar::GrammarConfiguration;
 use serde_json::Value;
+use tree_sitter::Query;
 
 pub(crate) use crate::process_command::ProcessCommand;
 use crate::{
@@ -82,6 +83,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Heex,
     Toml,
     KiQuickfix,
+    Haskell,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -105,6 +107,7 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::JSON => tree_sitter_json::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::YAML => tree_sitter_yaml::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::HTML => tree_sitter_html::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Haskell => tree_sitter_haskell::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::XML => tree_sitter_xml::LANGUAGE_XML.into(),
             CargoLinkedTreesitterLanguage::Zig => tree_sitter_zig::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Markdown => tree_sitter_md::LANGUAGE.into(),
@@ -124,6 +127,51 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Heex => tree_sitter_heex::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Toml => tree_sitter_toml_ng::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::KiQuickfix => tree_sitter_quickfix::language(),
+        }
+    }
+
+    fn default_highlight_query(&self) -> Option<&str> {
+        match self {
+            CargoLinkedTreesitterLanguage::Typescript => {
+                Some(tree_sitter_typescript::HIGHLIGHTS_QUERY)
+            }
+            CargoLinkedTreesitterLanguage::TSX => Some(tree_sitter_typescript::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Python => Some(tree_sitter_python::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Scheme => Some(tree_sitter_scheme::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::OCaml => Some(tree_sitter_ocaml::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::OCamlInterface => {
+                Some(tree_sitter_ocaml::HIGHLIGHTS_QUERY)
+            }
+            CargoLinkedTreesitterLanguage::Rust => Some(tree_sitter_rust::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Graphql => None,
+            CargoLinkedTreesitterLanguage::Javascript => {
+                Some(tree_sitter_javascript::HIGHLIGHT_QUERY)
+            }
+            CargoLinkedTreesitterLanguage::JSX => Some(tree_sitter_javascript::HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::Svelte => Some(tree_sitter_svelte_ng::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::JSON => Some(tree_sitter_json::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::YAML => Some(tree_sitter_yaml::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::HTML => Some(tree_sitter_html::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Haskell => Some(tree_sitter_haskell::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::XML => Some(tree_sitter_xml::XML_HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::Zig => Some(tree_sitter_zig::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Markdown => Some(tree_sitter_md::HIGHLIGHT_QUERY_BLOCK),
+            CargoLinkedTreesitterLanguage::Go => Some(tree_sitter_go::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Lua => Some(tree_sitter_lua::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Gleam => Some(tree_sitter_gleam::HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::Bash => Some(tree_sitter_bash::HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::C => Some(tree_sitter_c::HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::CPP => Some(tree_sitter_cpp::HIGHLIGHT_QUERY),
+            CargoLinkedTreesitterLanguage::CSS => Some(tree_sitter_css::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Ruby => Some(tree_sitter_ruby::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Nix => Some(tree_sitter_nix::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Fish => Some(tree_sitter_fish::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Diff => Some(tree_sitter_diff::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Elixir => Some(tree_sitter_elixir::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Swift => Some(tree_sitter_swift::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Heex => Some(tree_sitter_heex::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Toml => Some(tree_sitter_toml_ng::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::KiQuickfix => Some(r#" (header) @keyword"#),
         }
     }
 }
@@ -225,20 +273,35 @@ impl Language {
         }
     }
 
+    /// We prioritize using highlight queries from nvim-treesitter
+    /// over the default highlight queries provided by each Treesitter grammar
+    /// repositories because the former produces better syntax highlighting.
+    ///
+    /// However, in the event that the tree-sitter-highlight crates cannot
+    /// handle the nvim-treesitter query due to issues like Neovim-specific directives
+    /// (this is validated through the use of `tree_sitter::Query::new`),
+    /// we will fallback to the default highlight queries.
     pub fn highlight_query(&self) -> Option<String> {
-        // Get highlight query from `nvim-treesitter` first
+        if let Some(query) = self.highlight_query_nvim_treesitter() {
+            match Query::new(&self.tree_sitter_language()?, &query) {
+                Ok(_) => return Some(query),
+                Err(error) => {
+                    log::error!(
+                        "[Language::highlight_query]: Falling back to default query; unable to use highlight query of {} from nvim-treesitter due to error: {error:?}",
+                        self.tree_sitter_grammar_config.clone()?.id
+                    )
+                }
+            }
+        }
+        self.highlight_query_default()
+    }
+
+    pub fn highlight_query_nvim_treesitter(&self) -> Option<String> {
         get_highlight_query(self.tree_sitter_grammar_config.clone()?.id)
             .ok()
-            .map(|result| result.query)
-            .or_else(||
-                // Otherwise, get from the default highlight queries defined in the grammar repo
-                grammar::grammar::load_runtime_file(
-                    &self.tree_sitter_grammar_id()?,
-                    "highlights.scm",
-                )
-                .ok())
-            .map(|query| {
-                query
+            .map(|result| {
+                result
+                    .query
                     // Replace `nvim-treesitter`-specific predicates with builtin predicates supported by `tree-sitter-highlight` crate
                     // Reference: https://github.com/nvim-treesitter/nvim-treesitter/blob/23ba63028c6acca29be6462c0a291fc4a1b9eae8/CONTRIBUTING.md#predicates
                     .replace("lua-match", "match")
@@ -250,6 +313,20 @@ impl Language {
                     .replace("@spell", "")
                     .replace("@nospell", "")
             })
+    }
+
+    fn highlight_query_default(&self) -> Option<String> {
+        let config = self.tree_sitter_grammar_config.as_ref()?;
+        match &config.kind {
+            GrammarConfigKind::CargoLinked(language) => {
+                Some(language.default_highlight_query()?.to_string())
+            }
+            GrammarConfigKind::FromSource { .. } => grammar::grammar::load_runtime_file(
+                &self.tree_sitter_grammar_id()?,
+                "highlights.scm",
+            )
+            .ok(),
+        }
     }
 
     pub fn locals_query(&self) -> Option<&'static str> {

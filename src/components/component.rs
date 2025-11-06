@@ -8,8 +8,6 @@ use crate::{context::Context, grid::Grid, position::Position, rectangle::Rectang
 
 use super::editor::{DispatchEditor, Editor};
 
-// dyn_clone::clone_trait_object!(Component);
-//
 pub(crate) struct GetGridResult {
     pub(crate) grid: Grid,
     pub(crate) cursor: Option<Cursor>,
@@ -119,12 +117,18 @@ pub trait Component: Any + AnyComponent {
     }
 
     fn handle_event(&mut self, context: &Context, event: Event) -> anyhow::Result<Dispatches> {
-        match event {
-            Event::Key(event) => self.handle_key_event(context, event),
-            Event::Paste(content) => self.handle_paste_event(content, context),
-            Event::Mouse(event) => self.handle_mouse_event(event),
-            _ => Ok(Default::default()),
-        }
+        let dispatches = match event {
+            Event::Key(event) => self.handle_key_event(context, event)?,
+            Event::Paste(content) => self.handle_paste_event(content, context)?,
+            Event::Mouse(event) => self.handle_mouse_event(event)?,
+            _ => Default::default(),
+        };
+        self.post_handle_event(dispatches)
+    }
+
+    /// This is meant to be overridden.
+    fn post_handle_event(&self, dispatches: Dispatches) -> anyhow::Result<Dispatches> {
+        Ok(dispatches)
     }
 
     fn handle_paste_event(

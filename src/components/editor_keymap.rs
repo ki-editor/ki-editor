@@ -1,5 +1,6 @@
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+
 use Meaning::*;
 
 use crate::app::Scope;
@@ -27,13 +28,13 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        _____, Char_, _____, _____, Raise, /****/ _____, RplcP, Join_, RplcN, Pst0G,
+        _____, Char_, SchWC, _____, Raise, /****/ _____, RplcP, Join_, RplcN, Pst0G,
     ],
     [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
     ],
     [
-        Redo_, PRplc, RplcX, Del0G, MarkF, /****/ GSrch, ToIdx, _____, _____, SSEnd,
+        Redo_, PRplc, RplcX, Del0G, _____, /****/ GSrch, ToIdx, _____, _____, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -48,7 +49,7 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
         _____, LineP, LineD, LineN, OpenM, /****/ DWrdP, MrkFP, ScrlD, MrkFN, SView,
     ],
     [
-        Undo_, _____, WClse, UPstE, _____, /****/ _____, SHelp, _____, _____, WSwth,
+        Undo_, _____, _____, WClse, MarkF, /****/ _____, SHelp, _____, _____, WSwth,
     ],
 ];
 
@@ -132,7 +133,7 @@ pub(crate) const KEYMAP_SPACE_EDITOR: KeyboardMeaningLayout = [
         QNSav, QSave, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, SaveA, _____, Pipe_, _____, /****/ _____, _____, _____, _____, _____,
+        _____, SaveA, RlBfr, Pipe_, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, RplcA, _____, _____, TSNSx, /****/ _____, _____, _____, _____, _____,
@@ -168,7 +169,7 @@ pub(crate) const KEYMAP_SPACE_PICKER: KeyboardMeaningLayout = [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        Theme, Symbl, File_, Buffr, GitFC, /****/ _____, _____, _____, _____, _____,
+        Theme, SyblD, File_, Buffr, GitFC, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
@@ -180,7 +181,7 @@ pub(crate) const KEYMAP_SPACE_PICKER_SHIFTED: KeyboardMeaningLayout = [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
+        _____, SyblW, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
@@ -670,8 +671,6 @@ pub(crate) enum Meaning {
     Word_,
     /// Transform
     Trsfm,
-    /// Paste (End)
-    UPstE,
     /// Undo
     Undo_,
     /// Up
@@ -760,8 +759,10 @@ pub(crate) enum Meaning {
     LRnme,
     /// Pick Theme
     Theme,
-    /// Pick Symbol
-    Symbl,
+    /// Pick Symbol (Document)
+    SyblD,
+    /// Pick Symbol (Workspace)
+    SyblW,
     /// Pick File
     File_,
     /// Pick Git Status File (against current branch)
@@ -834,6 +835,10 @@ pub(crate) enum Meaning {
     RvHkC,
     /// Git Blame
     GtBlm,
+    /// Reload buffer
+    RlBfr,
+    /// Open search prompt with current selection
+    SchWC,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {
