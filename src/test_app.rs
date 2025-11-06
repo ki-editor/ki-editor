@@ -2063,6 +2063,49 @@ src/main.rs
 }
 
 #[test]
+fn quickfix_list_item_matching_range_should_be_highlighted_as_search() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(SetQuickfixList(
+                crate::quickfix_list::QuickfixListType::Items(
+                    [QuickfixListItem::new(
+                        Location {
+                            path: s.main_rs(),
+                            range: (CharIndex(4)..CharIndex(7)).into(),
+                        },
+                        None,
+                        None,
+                    )]
+                    .to_vec(),
+                ),
+            )),
+            App(OtherWindow),
+            Expect(CurrentComponentContent(
+                "
+src/main.rs
+    1:5  mod foo;
+"
+                .trim(),
+            )),
+            App(TerminalDimensionChanged(Dimension {
+                height: 20,
+                width: 50,
+            })),
+            // Expect "foo" is highlighted as search
+            Expect(RangeStyleKey(
+                "foo",
+                Some(StyleKey::UiIncrementalSearchMatch),
+            )),
+            // Expect that line excluding "foo" is highlighted as primary selection
+            Expect(RangeStyleKey(
+                "1:5  mod ",
+                Some(StyleKey::UiPrimarySelectionAnchors),
+            )),
+        ])
+    })
+}
+
+#[test]
 fn diagnostic_info() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
