@@ -910,8 +910,9 @@ impl Buffer {
         range: &Range<usize>,
     ) -> anyhow::Result<CharIndexRange> {
         Ok((self.byte_to_char(range.start)?
-            ..(self.byte_to_char(range.end.saturating_sub(1))? + 1)
-                .min(CharIndex(self.len_chars())))
+            ..(self.byte_to_char(range.end.saturating_sub(1))?
+                + (if range.end > 0 { 1 } else { 0 }))
+            .min(CharIndex(self.len_chars())))
             .into())
     }
 
