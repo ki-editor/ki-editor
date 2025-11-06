@@ -21,6 +21,7 @@ use crate::{
     rectangle::Rectangle,
     search::parse_search_config,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
+    selection_mode::{ast_grep, NamingConventionAgnostic},
 };
 use crate::{
     app::{Dispatches, RequestParams, Scope},
@@ -386,6 +387,7 @@ impl Component for Editor {
                 content_editor,
                 path,
             } => return self.merge_content(context, path, content_editor, content_filesystem),
+            ClearIncrementalSearchMatches => self.clear_incremental_search_matches(),
         }
         Ok(Default::default())
     }
@@ -416,6 +418,7 @@ impl Clone for Editor {
             normal_mode_override: self.normal_mode_override.clone(),
             reveal: self.reveal.clone(),
             visible_line_ranges: Default::default(),
+            incremental_search_matches: self.incremental_search_matches.clone(),
         }
     }
 }
@@ -444,6 +447,8 @@ pub(crate) struct Editor {
     /// This is only used when Ki is running as an embedded component,
     /// for example, inside VS Code.
     visible_line_ranges: Option<Vec<Range<usize>>>,
+
+    pub(crate) incremental_search_matches: Option<Vec<Range<usize>>>,
 }
 
 #[derive(Default)]
@@ -678,6 +683,7 @@ impl Editor {
             normal_mode_override: None,
             reveal: None,
             visible_line_ranges: Default::default(),
+            incremental_search_matches: Default::default(),
         }
     }
 
@@ -723,6 +729,7 @@ impl Editor {
             normal_mode_override: None,
             reveal: None,
             visible_line_ranges: Default::default(),
+            incremental_search_matches: Default::default(),
         }
     }
 
@@ -3784,6 +3791,7 @@ impl Editor {
                         .clone(),
                     ),
                     run_search_after_config_updated: true,
+                    component_id: None,
                 })
                 .append(Dispatch::PushPromptHistory {
                     key: super::prompt::PromptHistoryKey::Search,
@@ -3975,6 +3983,7 @@ impl Editor {
                     .clone(),
             ),
             run_search_after_config_updated: true,
+            component_id: None,
         });
         Ok(dispatches)
     }
@@ -4095,6 +4104,38 @@ impl Editor {
     fn reload(&mut self, force: bool) -> Result<Dispatches, anyhow::Error> {
         let dispatches = self.buffer_mut().reload(force)?;
         Ok(dispatches.chain(self.get_document_did_change_dispatch()))
+    }
+
+    fn clear_incremental_search_matches(&mut self) {
+        self.incremental_search_matches = None
+    }
+
+    pub(crate) fn set_incremental_search_config(&mut self, config: LocalSearchConfig) {
+        let content = self.content();
+        let matches = match config.mode {
+            LocalSearchConfigMode::Regex(regex_config) => regex_config
+                .to_regex(&config.search())
+                .map(|regex| {
+                    regex
+                        .find_iter(&content)
+                        .filter_map(|m| Some(m.ok()?.range()))
+                        .collect_vec()
+                })
+                .unwrap_or_default(),
+            LocalSearchConfigMode::AstGrep => {
+                ast_grep::AstGrep::new(&self.buffer(), &config.search())
+                    .map(|result| result.find_all().map(|m| m.range()).collect_vec())
+                    .unwrap_or_default()
+            }
+            LocalSearchConfigMode::NamingConventionAgnostic => {
+                NamingConventionAgnostic::new(config.search())
+                    .find_all(&content)
+                    .into_iter()
+                    .map(|(range, _)| range.range().clone())
+                    .collect_vec()
+            }
+        };
+        self.incremental_search_matches = Some(matches)
     }
 }
 
@@ -4244,6 +4285,7 @@ pub(crate) enum DispatchEditor {
         content_editor: String,
         path: CanonicalizedPath,
     },
+    ClearIncrementalSearchMatches,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
