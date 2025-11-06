@@ -20,9 +20,76 @@ impl PositionBasedSelectionMode for LineTrimmed {
         let start_index;
         let end_index;
 
-        if cursor_char_index == CharIndex(buffer.len_chars()) {
-            start_index = CharIndex(buffer.len_chars());
-            end_index = CharIndex(buffer.len_chars());
+        if cursor_char_index == CharIndex(0) {
+            let mut right_index = cursor_char_index;
+            let mut right_atleast_one_non_whitespace = false;
+            let mut right_first_non_whitespace = CharIndex(0);
+            let mut right_last_non_whitespace = CharIndex(0);
+            loop {
+                if right_index == CharIndex(buffer.len_chars()) {
+                    break;
+                }
+                let Ok(ch) = buffer.char(right_index) else {
+                    break;
+                };
+                if ch == '\n' {
+                    break;
+                } else if !ch.is_whitespace() {
+                    if !right_atleast_one_non_whitespace {
+                        right_first_non_whitespace = right_index;
+                    }
+                    right_last_non_whitespace = right_index;
+                    right_atleast_one_non_whitespace = true;
+                }
+                right_index = right_index + 1;
+            }
+            if right_atleast_one_non_whitespace {
+                start_index = right_first_non_whitespace;
+                end_index = right_last_non_whitespace + 1;
+            } else {
+                start_index = right_index;
+                end_index = right_index;
+            }
+        } else if cursor_char_index == CharIndex(buffer.len_chars()) {
+            match if_current_not_found {
+                IfCurrentNotFound::LookForward => {
+                    start_index = CharIndex(buffer.len_chars());
+                    end_index = CharIndex(buffer.len_chars());
+                }
+                IfCurrentNotFound::LookBackward => {
+                    let mut left_index = cursor_char_index;
+                    let mut left_atleast_one_non_whitespace = false;
+                    let mut left_first_non_whitespace = CharIndex(0);
+                    let mut left_last_non_whitespace = CharIndex(0);
+                    loop {
+                        if left_index == CharIndex(0) {
+                            break;
+                        };
+                        left_index = left_index - 1;
+                        let Ok(ch) = buffer.char(left_index) else {
+                            break;
+                        };
+                        if ch == '\n' {
+                            break;
+                        } else if ch.is_whitespace() {
+                            continue;
+                        } else {
+                            if !left_atleast_one_non_whitespace {
+                                left_first_non_whitespace = left_index;
+                            }
+                            left_atleast_one_non_whitespace = true;
+                            left_last_non_whitespace = left_index;
+                        }
+                    }
+                    if left_atleast_one_non_whitespace {
+                        start_index = left_last_non_whitespace;
+                        end_index = left_first_non_whitespace + 1;
+                    } else {
+                        start_index = CharIndex(buffer.len_chars());
+                        end_index = CharIndex(buffer.len_chars());
+                    }
+                }
+            }
         } else {
             let Ok(ch) = buffer.char(cursor_char_index) else {
                 return Ok(None);
