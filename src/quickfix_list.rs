@@ -59,7 +59,7 @@ impl QuickfixListItem {
                     self.location
                         .read_from_buffers(buffers)
                         .unwrap_or_else(|| "[Failed to read file]".to_string())
-                        .trim_matches(|c: char| c.is_whitespace())
+                        .trim_matches(['\n', '\r'])
                         .to_string()
                 });
             format!("{prefix}{content}")
