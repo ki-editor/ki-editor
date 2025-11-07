@@ -112,9 +112,10 @@ fn typescript_lsp_references() -> Result<(), anyhow::Error> {
                 // because trimming will cause match highlighting issues
                 "
 class Hi {
-    hello() {}
+  hello() {}
 }
 "
+                .trim()
                 .to_string(),
             )),
             WaitForAppMessage(lazy_regex::regex!("LspNotification.*Initialized")),
