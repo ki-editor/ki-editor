@@ -62,6 +62,7 @@ impl Editor {
                 width,
             }
         };
+        let marks = context.get_marks(self.path());
         let grid = match &self.reveal {
             None => self.get_grid_with_dimension(
                 context.theme(),
@@ -74,8 +75,11 @@ impl Editor {
                 true,
                 focused,
                 hunks,
+                &marks,
             ),
-            Some(reveal) => self.get_splitted_grid(context, reveal, render_area, focused, hunks),
+            Some(reveal) => {
+                self.get_splitted_grid(context, reveal, render_area, focused, hunks, &marks)
+            }
         };
         let theme = context.theme();
         let window_title_style = if focused {
@@ -123,6 +127,7 @@ impl Editor {
                 false,
                 focused,
                 hunks,
+                &marks,
             )
         };
         let grid = title_grid.merge_vertical(grid);
@@ -180,6 +185,7 @@ impl Editor {
         render_area: Dimension,
         focused: bool,
         hunks: &[SimpleHunk],
+        marks: &[CharIndexRange],
     ) -> crate::grid::Grid {
         let buffer = self.buffer();
         let ranges = match reveal {
@@ -188,6 +194,7 @@ impl Editor {
                     self.selection_set.primary_selection(),
                     context.current_working_directory(),
                     context.quickfix_list_items(),
+                    marks,
                 )
                 .unwrap_or_default()
                 .into_iter()
@@ -199,9 +206,8 @@ impl Editor {
                 .into_iter()
                 .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
                 .collect_vec(),
-            Reveal::Mark => self
-                .buffer()
-                .marks()
+            Reveal::Mark => context
+                .get_marks(buffer.path())
                 .into_iter()
                 .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
                 .collect_vec(),
@@ -265,6 +271,7 @@ impl Editor {
                     true,
                     focused,
                     hunks,
+                    marks,
                 ))
             },
         )
@@ -286,6 +293,7 @@ impl Editor {
         render_line_number: bool,
         focused: bool,
         hunks: &[SimpleHunk],
+        marks: &[CharIndexRange],
     ) -> Grid {
         let editor = self;
         let cursor_position = self.get_cursor_position().unwrap_or_default();
@@ -337,6 +345,7 @@ impl Editor {
                 &visible_parent_lines,
                 protected_range,
                 quickfix_list_items,
+                marks,
             );
             let boundaries = hidden_parent_line_ranges
                 .into_iter()
@@ -531,6 +540,7 @@ impl Editor {
         visible_parent_lines: &[Line],
         protected_range: Option<CharIndexRange>,
         quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
         let buffer = self.buffer();
@@ -555,6 +565,7 @@ impl Editor {
                         working_directory,
                         visible_line_range,
                         quickfix_list_items,
+                        marks,
                     )
                     .unwrap_or_default()
                 }
@@ -585,12 +596,11 @@ impl Editor {
                 Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
             });
 
-        let marks = buffer
-            .marks()
-            .into_iter()
+        let marks_spans = marks
+            .iter()
             .filter(|mark_range| {
                 if let Some(Reveal::Mark) = self.reveal {
-                    Some(mark_range) == protected_range.as_ref()
+                    Some(*mark_range) == protected_range.as_ref()
                 } else {
                     true
                 }
@@ -599,7 +609,7 @@ impl Editor {
                 set_symbol: None,
                 is_cursor: false,
                 source: Source::StyleKey(UiMark),
-                range: HighlightSpanRange::CharIndexRange(mark),
+                range: HighlightSpanRange::CharIndexRange(*mark),
                 is_protected_range_start: false,
             });
         let secondary_selections = &self
@@ -642,8 +652,7 @@ impl Editor {
                 }
                 Some(Reveal::Mark)
                     if protected_range != Some(primary_selection.extended_range())
-                        && buffer
-                            .marks()
+                        && marks
                             .iter()
                             .any(|mark| Some(mark) == protected_range.as_ref()) =>
                 {
@@ -893,7 +902,7 @@ impl Editor {
             .chain(secondary_selections_highlight_spans)
             .chain(primary_selection_anchors)
             .chain(secondary_selection_anchors)
-            .chain(marks)
+            .chain(marks_spans)
             .chain(diagnostics)
             .chain(jumps)
             .chain(primary_selection_secondary_cursor)
@@ -911,12 +920,14 @@ impl Editor {
         working_directory: &CanonicalizedPath,
         line_number_range: &Range<usize>,
         quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> anyhow::Result<Vec<ByteRange>> {
         let object = self.get_selection_mode_trait_object(
             selection,
             true,
             working_directory,
             quickfix_list_items,
+            marks,
         )?;
         if self.selection_set.mode().is_contiguous() {
             return Ok(Vec::new());
@@ -937,12 +948,14 @@ impl Editor {
         selection: &Selection,
         working_directory: &CanonicalizedPath,
         quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> anyhow::Result<Vec<ByteRange>> {
         self.get_selection_mode_trait_object(
             selection,
             true,
             working_directory,
             quickfix_list_items,
+            marks,
         )?
         .revealed_selections(&selection_mode::SelectionModeParams {
             buffer: &self.buffer(),

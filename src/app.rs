@@ -1,5 +1,6 @@
 use crate::{
     buffer::{Buffer, BufferOwner},
+    char_index_range::CharIndexRange,
     clipboard::CopiedTexts,
     components::{
         component::{Component, ComponentId, GetGridResult},
@@ -1004,6 +1005,7 @@ impl<T: Frontend> App<T> {
             Dispatch::UpdateCurrentComponentTitle(title) => {
                 self.update_current_component_title(title)
             }
+            Dispatch::SaveMarks { path, marks } => self.context.save_marks(path, marks),
         }
         Ok(())
     }
@@ -1503,7 +1505,9 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn get_quickfix_list(&self) -> Option<QuickfixList> {
         self.context.quickfix_list_state().as_ref().map(|state| {
-            let items = self.layout.get_quickfix_list_items(&state.source);
+            let items = self
+                .layout
+                .get_quickfix_list_items(&state.source, &self.context);
             // Preload the buffers to avoid unnecessarily rereading the files
             let buffers = items
                 .iter()
@@ -1929,7 +1933,10 @@ impl<T: Frontend> App<T> {
             */
             let other_dispatches = Dispatches::default()
                 .append(component.borrow().editor().dispatch_selection_changed())
-                .append(component.borrow().editor().dispatch_marks_changed())
+                .append(Dispatch::ToHostApp(ToHostApp::MarksChanged(
+                    component.borrow().id(),
+                    self.context.get_marks(component.borrow().editor().path()),
+                )))
                 .append(
                     component
                         .borrow()
@@ -3364,6 +3371,10 @@ pub(crate) enum Dispatch {
         component_id: Option<ComponentId>,
     },
     UpdateCurrentComponentTitle(String),
+    SaveMarks {
+        path: CanonicalizedPath,
+        marks: Vec<CharIndexRange>,
+    },
 }
 
 /// Used to send notify host app about changes

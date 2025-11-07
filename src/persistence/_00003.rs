@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use crate::persistence::Migration;
+use crate::{char_index_range::CharIndexRange, persistence::Migration};
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub(crate) struct Root {
@@ -15,6 +15,7 @@ pub(crate) struct WorkspaceSession {
     /// and we don't want the deserialization of Root to fail because some
     /// path inside marked_files no longer exists.
     pub(crate) marked_files: Vec<PathBuf>,
+    pub(crate) marks: HashMap<PathBuf, Vec<CharIndexRange>>,
 }
 
 impl Default for Root {
@@ -27,17 +28,32 @@ impl Default for Root {
 }
 
 impl Migration for Root {
-    type PreviousVersion = super::_00001::Root;
+    type PreviousVersion = super::_00002::Root;
 
     fn version() -> &'static str {
         file!()
     }
 
     fn migrate_to_current(self) -> anyhow::Result<super::Root> {
-        Ok(super::_00003::Root::from_previous_version(self))
+        Ok(self)
     }
 
-    fn from_previous_version(_: Self::PreviousVersion) -> Self {
-        Self::default()
+    fn from_previous_version(previous: Self::PreviousVersion) -> Self {
+        Self {
+            workspace_sessions: previous
+                .workspace_sessions
+                .into_iter()
+                .map(|(path_buf, workspace_session)| {
+                    (
+                        path_buf,
+                        WorkspaceSession {
+                            marked_files: workspace_session.marked_files,
+                            marks: Default::default(),
+                        },
+                    )
+                })
+                .collect(),
+            version: Self::version().to_string(),
+        }
     }
 }

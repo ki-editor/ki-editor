@@ -237,7 +237,7 @@ impl Component for Editor {
             Insert(string) => return self.insert(&string, context),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
-            ToggleMark => self.toggle_marks(),
+            ToggleMark => return Ok(self.toggle_marks()),
             EnterNormalMode => self.enter_normal_mode(context)?,
             CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
@@ -969,6 +969,7 @@ impl Editor {
         use_current_selection_mode: bool,
         working_directory: &shared::canonicalized_path::CanonicalizedPath,
         quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         if use_current_selection_mode {
             self.selection_set.mode().clone()
@@ -981,6 +982,7 @@ impl Editor {
             &self.cursor_direction,
             working_directory,
             quickfix_list_items,
+            marks,
         )
     }
 
@@ -997,6 +999,7 @@ impl Editor {
             use_current_selection_mode,
             context.current_working_directory(),
             context.quickfix_list_items(),
+            &context.get_marks(self.path()),
         )?;
 
         let line_ranges = if let Some(ranges) = &self.visible_line_ranges {
@@ -1812,11 +1815,19 @@ impl Editor {
         }
     }
 
-    pub(crate) fn toggle_marks(&mut self) {
+    pub(crate) fn toggle_marks(&mut self) -> Dispatches {
         let selections = self
             .selection_set
             .map(|selection| selection.extended_range());
-        self.buffer_mut().save_marks(selections.into());
+
+        self.path()
+            .map(|path| {
+                Dispatches::one(Dispatch::SaveMarks {
+                    path,
+                    marks: selections.iter().copied().collect(),
+                })
+            })
+            .unwrap_or_default()
     }
 
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {
@@ -2141,6 +2152,7 @@ impl Editor {
                                 &self.cursor_direction,
                                 context.current_working_directory(),
                                 context.quickfix_list_items(),
+                                &context.get_marks(self.path()),
                             )
                             .ok()?;
 
@@ -2190,6 +2202,7 @@ impl Editor {
                                 &self.cursor_direction,
                                 context.current_working_directory(),
                                 context.quickfix_list_items(),
+                                &context.get_marks(self.path()),
                             )
                             .ok()?;
                         let params = selection_mode::SelectionModeParams {
@@ -2501,6 +2514,7 @@ impl Editor {
                     true,
                     context.current_working_directory(),
                     context.quickfix_list_items(),
+                    &context.get_marks(self.path()),
                 )?;
                 let buffer = self.buffer.borrow();
                 let gap = object.get_paste_gap(
@@ -2804,10 +2818,6 @@ impl Editor {
         })
     }
 
-    pub(crate) fn dispatch_marks_changed(&self) -> Dispatch {
-        Dispatch::ToHostApp(ToHostApp::MarksChanged(self.id(), self.buffer().marks()))
-    }
-
     pub(crate) fn cursor_keep_primary_only(&mut self) {
         self.mode = Mode::Normal;
         if self.reveal == Some(Reveal::Cursor) {
@@ -3002,7 +3012,7 @@ impl Editor {
 
         // Create dispatches for document changes and buffer edit transaction
         let dispatches = match result {
-            Some((selection_set, edits)) => {
+            Some((selection_set, diff_edits, edits)) => {
                 // Update selection set
                 let dispatches = self.update_selection_set(selection_set, false, context);
 
@@ -3010,9 +3020,10 @@ impl Editor {
                 let dispatch = if let Some(path) = self.buffer().path() {
                     // Create a dispatch to send buffer edit transaction
                     Dispatches::one(Dispatch::ToHostApp(ToHostApp::BufferEditTransaction {
-                        path,
-                        edits,
+                        path: path.clone(),
+                        edits: diff_edits,
                     }))
+                    .append(Dispatch::AppliedEdits { path, edits })
                 } else {
                     Default::default()
                 };

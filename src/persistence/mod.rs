@@ -9,15 +9,18 @@
 //! 3. Each version file should expose a struct call `Root`
 //!    and implement the `Migration` trait.  
 //! 4. Update the `Root` of this file.  
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
+
+use crate::char_index_range::CharIndexRange;
 
 pub(crate) mod _00001;
 pub(crate) mod _00002;
+pub(crate) mod _00003;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct Version(pub(crate) u8);
 
-pub(crate) type Root = _00002::Root;
+pub(crate) type Root = _00003::Root;
 
 pub(crate) struct Persistence {
     path: PathBuf,
@@ -77,26 +80,42 @@ impl Persistence {
         &mut self,
         working_directory: PathBuf,
         marked_files: Vec<PathBuf>,
+        marks: HashMap<PathBuf, Vec<CharIndexRange>>,
     ) {
         if let Some(workspace_session) = self.root.workspace_sessions.get_mut(&working_directory) {
-            workspace_session.marked_files = marked_files
+            workspace_session.marked_files = marked_files;
+            workspace_session.marks = marks
         } else {
-            self.root
-                .workspace_sessions
-                .insert(working_directory, _00002::WorkspaceSession { marked_files });
+            self.root.workspace_sessions.insert(
+                working_directory,
+                _00003::WorkspaceSession {
+                    marked_files,
+                    marks,
+                },
+            );
         }
     }
 
-    pub(crate) fn get_marked_files(&self, workding_directory: PathBuf) -> Option<Vec<PathBuf>> {
+    pub(crate) fn get_marked_files(&self, workding_directory: &PathBuf) -> Option<Vec<PathBuf>> {
         self.root
             .workspace_sessions
-            .get(&workding_directory)
+            .get(workding_directory)
             .map(|session| session.marked_files.clone())
+    }
+
+    pub(crate) fn get_marks(
+        &self,
+        working_directory: &PathBuf,
+    ) -> Option<HashMap<PathBuf, Vec<CharIndexRange>>> {
+        self.root
+            .workspace_sessions
+            .get(working_directory)
+            .map(|working_directory| working_directory.marks.clone())
     }
 }
 
 pub(crate) trait Migration:
-    Default + serde::de::DeserializeOwned + serde::Serialize
+    Default + serde::de::DeserializeOwned + serde::Serialize + std::fmt::Debug
 {
     type PreviousVersion: Migration;
 

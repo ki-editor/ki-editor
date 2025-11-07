@@ -214,6 +214,7 @@ impl SelectionSet {
                         cursor_direction,
                         context.current_working_directory(),
                         context.quickfix_list_items(),
+                        &context.get_marks(buffer.path()),
                     )
                     .ok()?;
 
@@ -502,6 +503,7 @@ impl SelectionMode {
         cursor_direction: &Direction,
         working_directory: &shared::canonicalized_path::CanonicalizedPath,
         quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         let params = SelectionModeParams {
             buffer,
@@ -542,7 +544,9 @@ impl SelectionMode {
                 buffer,
                 working_directory,
             )?)),
-            SelectionMode::Mark => Box::new(IterBased(selection_mode::Mark)),
+            SelectionMode::Mark => Box::new(IterBased(selection_mode::Mark {
+                marks: marks.iter().copied().collect_vec(),
+            })),
             SelectionMode::LocalQuickfix { .. } => Box::new(IterBased(
                 selection_mode::LocalQuickfix::new(params, quickfix_list_items),
             )),
@@ -649,6 +653,7 @@ impl Selection {
             cursor_direction,
             context.current_working_directory(),
             context.quickfix_list_items(),
+            &context.get_marks(buffer.path()),
         )?;
 
         let params = SelectionModeParams {
@@ -802,7 +807,19 @@ impl Sub<usize> for CharIndex {
     }
 }
 
-#[derive(PartialEq, Clone, Debug, Copy, PartialOrd, Eq, Ord, Hash, Default)]
+#[derive(
+    PartialEq,
+    Clone,
+    Debug,
+    Copy,
+    PartialOrd,
+    Eq,
+    Ord,
+    Hash,
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub(crate) struct CharIndex(pub usize);
 
 impl CharIndex {
