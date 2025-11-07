@@ -67,6 +67,7 @@ use std::{
         mpsc::{Receiver, Sender},
         Mutex,
     },
+    thread,
 };
 use std::{sync::Arc, time::Duration};
 use strum::IntoEnumIterator;
@@ -1012,7 +1013,33 @@ impl<T: Frontend> App<T> {
 
                     let leader_action = action_fn(&context);
 
-                    self.handle_leader_action(leader_action)?;
+                    self.handle_leader_action(leader_action, context)?;
+                }
+            }
+            Dispatch::ExecuteLeaderHelpMeaning(meaning) => {
+                if let Some((_, description, action_fn)) =
+                    leader_keymap().into_iter().find(|(m, _, _)| *m == meaning)
+                {
+                    let context = LeaderContext {
+                        path: self.get_current_file_path(),
+                        primary_selection_line_index: self
+                            .current_component()
+                            .borrow()
+                            .get_cursor_position()
+                            .map(|position| position.line)
+                            .unwrap_or_default(),
+                        primary_selection_content: self
+                            .current_component()
+                            .borrow()
+                            .editor()
+                            .primary_selection()
+                            .unwrap_or_default(),
+                        current_working_directory: self.context.current_working_directory().clone(),
+                    };
+
+                    let leader_action = action_fn(&context);
+
+                    self.handle_leader_help_action(leader_action, context, description)?;
                 }
             }
             Dispatch::ShowBufferSaveConflictPrompt {
@@ -2880,23 +2907,11 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn handle_leader_action(&mut self, leader_action: LeaderAction) -> anyhow::Result<()> {
-        let leader_context = LeaderContext {
-            path: self.get_current_file_path(),
-            primary_selection_line_index: self
-                .current_component()
-                .borrow()
-                .get_cursor_position()
-                .map(|position| position.line)
-                .unwrap_or_default(),
-            primary_selection_content: self
-                .current_component()
-                .borrow()
-                .editor()
-                .primary_selection()
-                .unwrap_or_default(),
-            current_working_directory: self.context.current_working_directory().clone(),
-        };
+    fn handle_leader_action(
+        &mut self,
+        leader_action: LeaderAction,
+        leader_context: LeaderContext,
+    ) -> anyhow::Result<()> {
         match leader_action {
             LeaderAction::DoNothing => {}
             LeaderAction::RunCommand(command, args) => {
@@ -2908,8 +2923,7 @@ impl<T: Frontend> App<T> {
                     .args(&resolved_args)
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
-                    .spawn()?;
-                // self.show_global_info(Info::new( format!("{command} {}", args.join(" ")), format!( "[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n", output.status, String::from_utf8_lossy(&output.stdout).trim(), String::from_utf8_lossy(&output.stderr).trim() ), ))
+                    .output()?;
             }
             LeaderAction::ToggleProcess(command, args) => {
                 let resolved_args: Vec<String> = args
@@ -2919,6 +2933,77 @@ impl<T: Frontend> App<T> {
                 self.process_manager.toggle(command, &resolved_args);
             }
             LeaderAction::Macro(key_events) => self.handle_key_events(key_events)?,
+        }
+        Ok(())
+    }
+
+    fn handle_leader_help_action(
+        &mut self,
+        leader_action: LeaderAction,
+        leader_context: LeaderContext,
+        description: &str,
+    ) -> anyhow::Result<()> {
+        match leader_action {
+            LeaderAction::DoNothing => {}
+            LeaderAction::RunCommand(command, args) => {
+                let resolved_args: Vec<String> = args
+                    .iter()
+                    .map(|arg| arg.resolve(&leader_context).to_string())
+                    .collect_vec();
+                let output = std::process::Command::new(command)
+                    .args(&resolved_args)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .output()?;
+                self.show_global_info(Info::new(
+                    format!("Command Debug"),
+                    format!(
+                        "Command: {} {}\n\n[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n",
+                        command,
+                        resolved_args.join(" "),
+                        output.status,
+                        String::from_utf8_lossy(&output.stdout).trim(),
+                        String::from_utf8_lossy(&output.stderr).trim()
+                    ),
+                ))
+            }
+            LeaderAction::ToggleProcess(command, args) => {
+                let resolved_args: Vec<String> = args
+                    .iter()
+                    .map(|arg| arg.resolve(&leader_context).to_string())
+                    .collect_vec();
+                self.process_manager.toggle(command, &resolved_args);
+            }
+            LeaderAction::Macro(key_events) => {
+                let sender = self.sender();
+                // Need a String so the thread can own the data, to avoid dangling pointers
+                let description = description.to_string();
+
+                thread::spawn(move || {
+                    let start_info = Info::new(
+                        "Playing Macro".to_string(),
+                        format!("Executing: '{}'", description),
+                    );
+                    sender
+                        .send(AppMessage::ExternalDispatch(Box::new(
+                            Dispatch::ShowGlobalInfo(start_info),
+                        )))
+                        .ok();
+                    thread::sleep(Duration::from_millis(500));
+
+                    for key in key_events {
+                        let event_to_send = Event::Key(key);
+                        sender.send(AppMessage::Event(event_to_send)).ok();
+                        thread::sleep(Duration::from_millis(800));
+                    }
+                    let end_info = Info::new("Macro Finished".to_string(), description);
+                    sender
+                        .send(AppMessage::ExternalDispatch(Box::new(
+                            Dispatch::ShowGlobalInfo(end_info),
+                        )))
+                        .ok();
+                });
+            }
         }
         Ok(())
     }
@@ -3332,6 +3417,7 @@ pub(crate) enum Dispatch {
         path: CanonicalizedPath,
     },
     ExecuteLeaderMeaning(Meaning),
+    ExecuteLeaderHelpMeaning(Meaning),
     ShowBufferSaveConflictPrompt {
         path: CanonicalizedPath,
         content_filesystem: String,
