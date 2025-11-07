@@ -4153,6 +4153,10 @@ impl Editor {
         };
         self.incremental_search_matches = Some(matches)
     }
+
+    pub(crate) fn initialize_incremental_search_matches(&mut self) {
+        self.incremental_search_matches = Some(Vec::new())
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
