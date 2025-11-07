@@ -4123,9 +4123,16 @@ impl Editor {
 
     pub(crate) fn set_incremental_search_config(&mut self, config: LocalSearchConfig) {
         let content = self.content();
+        let search = config.search();
+        if search.is_empty() {
+            // Don't set incremental search matches if the search string is empty
+            // otherwise it will cause performance issue with rendering
+            // as empty string matches every character of the file.
+            return;
+        }
         let matches = match config.mode {
             LocalSearchConfigMode::Regex(regex_config) => regex_config
-                .to_regex(&config.search())
+                .to_regex(&search)
                 .map(|regex| {
                     regex
                         .find_iter(&content)
@@ -4133,13 +4140,11 @@ impl Editor {
                         .collect_vec()
                 })
                 .unwrap_or_default(),
-            LocalSearchConfigMode::AstGrep => {
-                ast_grep::AstGrep::new(&self.buffer(), &config.search())
-                    .map(|result| result.find_all().map(|m| m.range()).collect_vec())
-                    .unwrap_or_default()
-            }
+            LocalSearchConfigMode::AstGrep => ast_grep::AstGrep::new(&self.buffer(), &search)
+                .map(|result| result.find_all().map(|m| m.range()).collect_vec())
+                .unwrap_or_default(),
             LocalSearchConfigMode::NamingConventionAgnostic => {
-                NamingConventionAgnostic::new(config.search())
+                NamingConventionAgnostic::new(search)
                     .find_all(&content)
                     .into_iter()
                     .map(|(range, _)| range.range().clone())
