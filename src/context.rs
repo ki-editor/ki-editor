@@ -199,12 +199,8 @@ impl Context {
     }
 
     pub(crate) fn get_marks(&self, path: Option<CanonicalizedPath>) -> Vec<CharIndexRange> {
-        path.map(|path| {
-            self.marks
-                .get(&path).cloned()
-                .unwrap_or_default().to_vec()
-        })
-        .unwrap_or_default()
+        path.map(|path| self.marks.get(&path).cloned().unwrap_or_default().to_vec())
+            .unwrap_or_default()
     }
 }
 

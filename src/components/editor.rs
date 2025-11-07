@@ -1824,9 +1824,7 @@ impl Editor {
             .map(|path| {
                 Dispatches::one(Dispatch::SaveMarks {
                     path,
-                    marks: selections
-                        .iter().copied()
-                        .collect(),
+                    marks: selections.iter().copied().collect(),
                 })
             })
             .unwrap_or_default()
@@ -3014,7 +3012,7 @@ impl Editor {
 
         // Create dispatches for document changes and buffer edit transaction
         let dispatches = match result {
-            Some((selection_set, edits)) => {
+            Some((selection_set, diff_edits, edits)) => {
                 // Update selection set
                 let dispatches = self.update_selection_set(selection_set, false, context);
 
@@ -3022,9 +3020,10 @@ impl Editor {
                 let dispatch = if let Some(path) = self.buffer().path() {
                     // Create a dispatch to send buffer edit transaction
                     Dispatches::one(Dispatch::ToHostApp(ToHostApp::BufferEditTransaction {
-                        path,
-                        edits,
+                        path: path.clone(),
+                        edits: diff_edits,
                     }))
+                    .append(Dispatch::AppliedEdits { path, edits })
                 } else {
                     Default::default()
                 };

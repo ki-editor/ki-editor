@@ -1122,51 +1122,55 @@ impl Buffer {
         Ok(start..end)
     }
 
-    pub(crate) fn redo(
-        &mut self,
-        last_visible_line: u16,
-    ) -> Result<Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>)>, anyhow::Error> {
+    pub(crate) fn redo(&mut self, last_visible_line: u16) -> Result<UndoRedoReturn, anyhow::Error> {
         if let Some(history) = self.redo_stack.pop() {
-            let edits = history.unnormalized_edits.clone();
+            let diff_edits = history.unnormalized_edits.clone();
 
             // Apply the edits
-            history
+            let edits = history
                 .edit_transaction
                 .edits()
                 .into_iter()
-                .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
+                .cloned()
+                .collect_vec();
+            edits
+                .clone()
+                .into_iter()
+                .try_fold((), |_, edit| self.apply_edit(&edit, last_visible_line))?;
             self.reparse_tree()?;
 
             let selection_set = history.old_state.selection_set.clone();
             self.undo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((selection_set, edits)))
+            Ok(Some((selection_set, diff_edits, edits)))
         } else {
             Ok(None)
         }
     }
 
-    pub(crate) fn undo(
-        &mut self,
-        last_visible_line: u16,
-    ) -> Result<Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>)>, anyhow::Error> {
+    pub(crate) fn undo(&mut self, last_visible_line: u16) -> Result<UndoRedoReturn, anyhow::Error> {
         if let Some(history) = self.undo_stack.pop() {
-            let edits = history.unnormalized_edits.clone();
+            let diff_edits = history.unnormalized_edits.clone();
 
             // Apply the edits
-            history
+            let edits = history
                 .edit_transaction
                 .edits()
                 .into_iter()
-                .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
+                .cloned()
+                .collect_vec();
+            edits
+                .clone()
+                .into_iter()
+                .try_fold((), |_, edit| self.apply_edit(&edit, last_visible_line))?;
             self.reparse_tree()?;
 
             let selection_set = history.old_state.selection_set.clone();
             self.redo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((selection_set, edits)))
+            Ok(Some((selection_set, diff_edits, edits)))
         } else {
             Ok(None)
         }
@@ -1641,3 +1645,5 @@ impl EditHistory {
         }
     }
 }
+
+type UndoRedoReturn = Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>, Vec<Edit>)>;
