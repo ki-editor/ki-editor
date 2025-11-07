@@ -142,6 +142,6 @@ vscode-build-binaries:
     ls -la ki-vscode/dist/bin/
     echo "Done!"
 
-profile:
+profile args="":
     cargo build --release
-    samply record ./target/release/ki
+    samply record ./target/release/ki {{args}}

@@ -2190,7 +2190,7 @@ impl<T: Frontend> App<T> {
         self.current_component()
             .borrow_mut()
             .editor_mut()
-            .set_incremental_search_config(Default::default());
+            .initialize_incremental_search_matches();
 
         let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
