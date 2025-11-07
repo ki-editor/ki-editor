@@ -1,4 +1,3 @@
-use crate::custom_config::keymap::leader_keymap;
 use crate::{
     buffer::{Buffer, BufferOwner},
     clipboard::CopiedTexts,
@@ -23,6 +22,7 @@ use crate::{
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
+    custom_config::keymap::leader_keymap,
     custom_config::keymap::{LeaderAction, LeaderContext},
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
@@ -42,6 +42,7 @@ use crate::{
     },
     persistence::Persistence,
     position::Position,
+    process_manager::ProcessManager,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     screen::{Screen, Window},
     search::parse_search_config,
@@ -114,6 +115,9 @@ pub(crate) struct App<T: Frontend> {
     /// is synced between Ki and the host application.
     queued_events: Vec<Event>,
     file_watcher_input_sender: Option<Sender<FileWatcherInput>>,
+
+    /// This is used for ToggleProcess in keymaps
+    process_manager: ProcessManager,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
@@ -193,6 +197,8 @@ impl<T: Frontend> App<T> {
             ),
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
+            process_manager: ProcessManager::new(),
+
             enable_lsp,
             sender,
             layout: Layout::new(
@@ -2894,16 +2900,23 @@ impl<T: Frontend> App<T> {
         match leader_action {
             LeaderAction::DoNothing => {}
             LeaderAction::RunCommand(command, args) => {
-                let args = args
+                let resolved_args: Vec<String> = args
                     .iter()
                     .map(|arg| arg.resolve(&leader_context).to_string())
                     .collect_vec();
                 let _output = std::process::Command::new(command)
-                    .args(&args)
+                    .args(&resolved_args)
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
                     .spawn()?;
                 // self.show_global_info(Info::new( format!("{command} {}", args.join(" ")), format!( "[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n", output.status, String::from_utf8_lossy(&output.stdout).trim(), String::from_utf8_lossy(&output.stderr).trim() ), ))
+            }
+            LeaderAction::ToggleProcess(command, args) => {
+                let resolved_args: Vec<String> = args
+                    .iter()
+                    .map(|arg| arg.resolve(&leader_context).to_string())
+                    .collect_vec();
+                self.process_manager.toggle(command, &resolved_args);
             }
             LeaderAction::Macro(key_events) => self.handle_key_events(key_events)?,
         }

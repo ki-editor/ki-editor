@@ -1,4 +1,4 @@
-//! This file is for user to define custom keymap.
+//! This file is for you to define custom keymaps.
 //! The keymap starts with the leader key `\`.
 
 use event::KeyEvent;
@@ -11,9 +11,8 @@ use crate::components::editor_keymap::{
     Meaning::{self, *},
 };
 use std::sync::Arc;
-
 use LeaderAction::*;
-use RunCommandPart::*;
+use Placeholder::*;
 
 pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
     [
@@ -60,6 +59,18 @@ fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
     }
 }
 
+fn sample_process_command(ctx: &LeaderContext) -> LeaderAction {
+    ToggleProcess(
+        "tinymist",
+        vec![
+            Str("preview"),
+            Str("--invert-colors=auto"),
+            Str("--open"),
+            FileCurrent::path(),
+        ],
+    )
+}
+
 fn sample_macro(_ctx: &LeaderContext) -> LeaderAction {
     Macro(keys!("a c d q F e r t i g enter a ; backspace backspace a").to_vec())
 }
@@ -89,7 +100,7 @@ pub(crate) fn leader_keymap() -> Vec<(
     [
         (__Q__, "Sample run command", action(sample_run_command)),
         (__W__, "Sample macro", action(sample_macro)),
-        (__E__, "", do_nothing()),
+        (__E__, "Process", action(sample_process_command)),
         (__R__, "", do_nothing()),
         (__T__, "Test", action(test)),
         (__Y__, "", do_nothing()),
@@ -143,13 +154,14 @@ pub(crate) struct LeaderContext {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum LeaderAction {
-    RunCommand(&'static str, Vec<RunCommandPart>),
-    DoNothing,
+    RunCommand(&'static str, Vec<Placeholder>),
+    ToggleProcess(&'static str, Vec<Placeholder>),
     Macro(Vec<KeyEvent>),
+    DoNothing,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum RunCommandPart {
+pub(crate) enum Placeholder {
     Str(&'static str),
     FileCurrent(FileCurrentKind),
     SelectionPrimary(SelectionPrimaryKind),
@@ -173,43 +185,43 @@ pub(crate) enum SelectionPrimaryKind {
 pub(crate) enum DirWorkingKind {
     Path,
     FileExists(&'static str),
-    FileExistsDynamic(Box<RunCommandPart>),
+    FileExistsDynamic(Box<Placeholder>),
 }
 
 pub(crate) struct FileCurrent;
 impl FileCurrent {
-    pub fn path() -> RunCommandPart {
-        RunCommandPart::FileCurrent(FileCurrentKind::Path)
+    pub fn path() -> Placeholder {
+        Placeholder::FileCurrent(FileCurrentKind::Path)
     }
-    pub fn extension() -> RunCommandPart {
-        RunCommandPart::FileCurrent(FileCurrentKind::Extension)
+    pub fn extension() -> Placeholder {
+        Placeholder::FileCurrent(FileCurrentKind::Extension)
     }
 }
 
 pub(crate) struct SelectionPrimary;
 impl SelectionPrimary {
-    pub fn content() -> RunCommandPart {
-        RunCommandPart::SelectionPrimary(SelectionPrimaryKind::Content)
+    pub fn content() -> Placeholder {
+        Placeholder::SelectionPrimary(SelectionPrimaryKind::Content)
     }
-    pub fn row_index() -> RunCommandPart {
-        RunCommandPart::SelectionPrimary(SelectionPrimaryKind::RowIndex)
+    pub fn row_index() -> Placeholder {
+        Placeholder::SelectionPrimary(SelectionPrimaryKind::RowIndex)
     }
 }
 
 pub(crate) struct DirWorking;
 impl DirWorking {
-    pub fn path() -> RunCommandPart {
-        RunCommandPart::DirCurrent(DirWorkingKind::Path)
+    pub fn path() -> Placeholder {
+        Placeholder::DirCurrent(DirWorkingKind::Path)
     }
     pub fn file_exists(filename: &'static str) -> Condition {
-        Condition(RunCommandPart::DirCurrent(DirWorkingKind::FileExists(
+        Condition(Placeholder::DirCurrent(DirWorkingKind::FileExists(
             filename,
         )))
     }
-    pub fn file_exists_dynamic(filename: RunCommandPart) -> Condition {
-        Condition(RunCommandPart::DirCurrent(
-            DirWorkingKind::FileExistsDynamic(Box::new(filename)),
-        ))
+    pub fn file_exists_dynamic(filename: Placeholder) -> Condition {
+        Condition(Placeholder::DirCurrent(DirWorkingKind::FileExistsDynamic(
+            Box::new(filename),
+        )))
     }
 }
 
@@ -231,7 +243,7 @@ impl ResolvedValue {
     }
 }
 
-pub(crate) struct Condition(RunCommandPart);
+pub(crate) struct Condition(Placeholder);
 
 impl Condition {
     pub(crate) fn resolve(&self, ctx: &LeaderContext) -> bool {
@@ -241,17 +253,17 @@ impl Condition {
         }
     }
 }
-impl From<Condition> for RunCommandPart {
+impl From<Condition> for Placeholder {
     fn from(condition: Condition) -> Self {
         condition.0
     }
 }
 
-impl RunCommandPart {
+impl Placeholder {
     pub(crate) fn resolve(&self, ctx: &LeaderContext) -> ResolvedValue {
         match self {
             Str(str) => ResolvedValue::Str(str.to_string()),
-            RunCommandPart::FileCurrent(kind) => match kind {
+            Placeholder::FileCurrent(kind) => match kind {
                 FileCurrentKind::Path => match &ctx.path {
                     Some(path) => ResolvedValue::Str(path.display_absolute()),
                     None => ResolvedValue::Empty,
@@ -263,7 +275,7 @@ impl RunCommandPart {
                     None => ResolvedValue::Empty,
                 },
             },
-            RunCommandPart::SelectionPrimary(kind) => match kind {
+            Placeholder::SelectionPrimary(kind) => match kind {
                 SelectionPrimaryKind::Content => {
                     ResolvedValue::Str(ctx.primary_selection_content.clone())
                 }
@@ -271,7 +283,7 @@ impl RunCommandPart {
                     ResolvedValue::Int((ctx.primary_selection_line_index + 1) as i64)
                 }
             },
-            RunCommandPart::DirCurrent(kind) => match kind {
+            Placeholder::DirCurrent(kind) => match kind {
                 DirWorkingKind::Path => {
                     ResolvedValue::Str(ctx.current_working_directory.display_absolute())
                 }
