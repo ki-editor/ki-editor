@@ -25,8 +25,8 @@ use shared::{
     canonicalized_path::CanonicalizedPath,
     language::{self, Language},
 };
+use std::ops::Range;
 use std::time::SystemTime;
-use std::{collections::HashSet, ops::Range};
 use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal2::{traverse, Order};
 
@@ -48,7 +48,6 @@ pub(crate) struct Buffer {
     language: Option<Language>,
     path: Option<CanonicalizedPath>,
     highlighted_spans: HighlightedSpans,
-    marks: Vec<CharIndexRange>,
     diagnostics: Vec<Diagnostic>,
     decorations: Vec<Decoration>,
     selection_set_history: History<SelectionSet>,
@@ -101,7 +100,6 @@ impl Buffer {
             },
             path: None,
             highlighted_spans: HighlightedSpans::default(),
-            marks: Vec::new(),
             decorations: Vec::new(),
             diagnostics: Vec::new(),
             selection_set_history: History::new(),
@@ -161,19 +159,6 @@ impl Buffer {
 
     pub(crate) fn set_decorations(&mut self, decorations: &[Decoration]) {
         decorations.clone_into(&mut self.decorations)
-    }
-
-    pub(crate) fn save_marks(&mut self, new_ranges: Vec<CharIndexRange>) {
-        let old_ranges = std::mem::take(&mut self.marks)
-            .into_iter()
-            .collect::<HashSet<_>>();
-        let new_ranges = new_ranges.into_iter().collect::<HashSet<_>>();
-        // We take the symmetric difference between the old ranges and the new ranges
-        // so that user can unmark existing mark
-        self.marks = new_ranges
-            .symmetric_difference(&old_ranges)
-            .cloned()
-            .collect_vec();
     }
 
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {
@@ -567,7 +552,6 @@ impl Buffer {
             .unwrap_or_else(|| current_selection_set.clone());
         let current_buffer_state = BufferState {
             selection_set: current_selection_set,
-            marks: self.marks.clone(),
         };
 
         let inverted_edit_transaction = edit_transaction.inverse();
@@ -593,7 +577,6 @@ impl Buffer {
 
         let new_buffer_state = BufferState {
             selection_set: new_selection_set.clone(),
-            marks: self.marks.clone(),
         };
 
         if update_undo_stack {
@@ -660,14 +643,6 @@ impl Buffer {
         self.flag_as_modified();
 
         // Update all the non-positional spans
-        self.marks.retain_mut(|mark| {
-            if let Some(range) = mark.apply_edit(edit) {
-                *mark = range;
-                true
-            } else {
-                false
-            }
-        });
         self.diagnostics.retain_mut(|diagnostic| {
             if let Some(range) = diagnostic.range.apply_edit(edit) {
                 diagnostic.range = range;
@@ -881,10 +856,6 @@ impl Buffer {
         let end = self.line_to_byte(line + 1)?.saturating_sub(1).max(start);
         assert!(start <= end);
         Ok(ByteRange::new(start..end))
-    }
-
-    pub(crate) fn marks(&self) -> Vec<CharIndexRange> {
-        self.marks.clone()
     }
 
     /// Has the buffer changed since its last save?
@@ -1634,7 +1605,6 @@ fn main() {
 #[derive(Clone, PartialEq)]
 pub(crate) struct BufferState {
     pub(crate) selection_set: SelectionSet,
-    pub(crate) marks: Vec<CharIndexRange>,
 }
 
 impl std::fmt::Display for BufferState {

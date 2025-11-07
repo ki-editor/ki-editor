@@ -531,6 +531,7 @@ impl Layout {
     pub(crate) fn get_quickfix_list_items(
         &self,
         source: &QuickfixListSource,
+        context: &Context,
     ) -> Vec<QuickfixListItem> {
         match source {
             QuickfixListSource::Diagnostic(severity_range) => self
@@ -566,8 +567,8 @@ impl Layout {
                 .into_iter()
                 .flat_map(|buffer| {
                     let buffer = buffer.borrow();
-                    buffer
-                        .marks()
+                    context
+                        .get_marks(buffer.path())
                         .into_iter()
                         .filter_map(|mark| {
                             Some(QuickfixListItem::new(

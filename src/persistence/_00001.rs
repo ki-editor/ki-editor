@@ -3,7 +3,7 @@
 
 use crate::persistence::Migration;
 
-#[derive(serde::Deserialize, serde::Serialize, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Default, Debug)]
 pub(crate) struct Root {
     version: String,
 }

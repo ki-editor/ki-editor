@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use globset::Glob;
 
@@ -9,6 +9,7 @@ use strum::IntoEnumIterator;
 
 use crate::{
     app::{GlobalSearchConfigUpdate, LocalSearchConfigUpdate, Scope},
+    char_index_range::CharIndexRange,
     clipboard::{Clipboard, CopiedTexts},
     components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
@@ -34,10 +35,13 @@ pub(crate) struct Context {
     keyboard_layout_kind: KeyboardLayoutKind,
     location_history_backward: Vec<Location>,
     location_history_forward: Vec<Location>,
+
     // We use CanonicalizedPath instead of CanonicalizedPath because these paths
     // may be deleted during program execution, and CanonicalizedPath
     // requires the path to exist on the filesystem.
     marked_files: IndexSet<CanonicalizedPath>,
+
+    marks: HashMap<CanonicalizedPath, Vec<CharIndexRange>>,
 
     /// This is true, for example, when Ki is running as a VS Code's extension
     is_running_as_embedded: bool,
@@ -90,6 +94,10 @@ impl Context {
                     .iter()
                     .map(|path| path.to_path_buf().clone())
                     .collect_vec(),
+                self.marks
+                    .iter()
+                    .map(|(path, marks)| (path.to_path_buf().clone(), marks.clone()))
+                    .collect(),
             );
 
             if let Err(error) = persistence.write() {
@@ -149,6 +157,54 @@ impl Context {
                 }
             })
         }
+
+        self.marks = std::mem::take(&mut self.marks)
+            .into_iter()
+            .map(|(path, marks)| {
+                (
+                    path,
+                    marks
+                        .into_iter()
+                        .filter_map(|mark| {
+                            edits
+                                .iter()
+                                .try_fold(mark, |mark, edit| mark.apply_edit(edit))
+                        })
+                        .collect(),
+                )
+            })
+            .collect();
+    }
+
+    pub(crate) fn save_marks(&mut self, path: CanonicalizedPath, marks: Vec<CharIndexRange>) {
+        let old_ranges = self
+            .marks
+            .get(&path)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .collect::<HashSet<_>>();
+
+        let new_ranges = marks.into_iter().collect::<HashSet<_>>();
+
+        // We take the symmetric difference between the old ranges and the new ranges
+        // so that user can unmark existing mark
+        self.marks.insert(
+            path,
+            new_ranges
+                .symmetric_difference(&old_ranges)
+                .cloned()
+                .collect_vec(),
+        );
+    }
+
+    pub(crate) fn get_marks(&self, path: Option<CanonicalizedPath>) -> Vec<CharIndexRange> {
+        path.map(|path| {
+            self.marks
+                .get(&path).cloned()
+                .unwrap_or_default().to_vec()
+        })
+        .unwrap_or_default()
     }
 }
 
@@ -163,14 +219,27 @@ impl Context {
             .and_then(|persistence| {
                 Some(
                     persistence
-                        .get_marked_files(current_working_directory.to_path_buf().clone())?
+                        .get_marked_files(current_working_directory.to_path_buf())?
                         .into_iter()
                         .filter_map(|path| CanonicalizedPath::try_from(path).ok())
                         .collect(),
                 )
             })
             .unwrap_or_default();
-        log::info!("Marked paths is {marked_files:?}");
+
+        let marks = persistence
+            .as_ref()
+            .and_then(|persistence| {
+                Some(
+                    persistence
+                        .get_marks(current_working_directory.to_path_buf())?
+                        .into_iter()
+                        .filter_map(|(path, marks)| Some((path.try_into().ok()?, marks)))
+                        .collect(),
+                )
+            })
+            .unwrap_or_default();
+
         Self {
             clipboard: Clipboard::new(),
             theme: Theme::default(),
@@ -197,6 +266,7 @@ impl Context {
             marked_files,
             is_running_as_embedded,
             persistence,
+            marks,
         }
     }
 
@@ -571,10 +641,15 @@ impl LocalSearchConfig {
 
 #[cfg(test)]
 mod test_context {
+    use std::collections::HashMap;
+
     use itertools::Itertools;
     use shared::canonicalized_path::CanonicalizedPath;
 
-    use crate::{context::Context, persistence::Persistence};
+    use crate::{
+        char_index_range::CharIndexRange, context::Context, persistence::Persistence,
+        selection::CharIndex,
+    };
 
     #[test]
     fn test_persistence() -> anyhow::Result<()> {
@@ -585,13 +660,16 @@ mod test_context {
         std::fs::create_dir_all(temp_cwd.clone())?;
 
         let random_file = tempfile::NamedTempFile::new()?.path().to_path_buf();
-        std::fs::write(random_file.clone(), "")?;
+        std::fs::write(random_file.clone(), "foo")?;
+
+        let marks = [(CharIndex(0)..CharIndex(2)).into()].to_vec();
 
         // Save data
         {
             let persistence = Persistence::load_or_default(temp_data_file.clone());
             let mut context = Context::new(temp_cwd.clone().try_into()?, false, Some(persistence));
             context.toggle_path_mark(random_file.clone().try_into()?);
+            context.save_marks(random_file.clone().try_into()?, marks.clone());
             context.persist_data()
         }
 
@@ -605,9 +683,16 @@ mod test_context {
                 .cloned()
                 .collect_vec();
 
-            let expected_marked_files = vec![CanonicalizedPath::try_from(random_file)?];
+            let expected_marked_files = vec![CanonicalizedPath::try_from(random_file.clone())?];
 
-            assert_eq!(actual_marked_files, expected_marked_files)
+            assert_eq!(actual_marked_files, expected_marked_files);
+
+            let actual_marks = context.marks;
+
+            let expected_marks: HashMap<CanonicalizedPath, Vec<CharIndexRange>> =
+                [(random_file.try_into()?, marks)].into_iter().collect();
+
+            assert_eq!(actual_marks, expected_marks)
         }
 
         Ok(())
