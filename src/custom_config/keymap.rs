@@ -29,11 +29,6 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
 fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
     if DirWorking::file_exists("Cargo.toml").resolve(ctx) {
         RunCommand("cargo", vec![Str("run")])
-    } else if FileCurrent::extension().resolve(ctx) == "typ" {
-        RunCommand(
-            "tinymist",
-            vec![Str("preview"), Str("--open"), FileCurrent::path()],
-        )
     } else if DirWorking::file_exists_dynamic(SelectionPrimary::content()).resolve(ctx) == false {
         RunCommand(
             "wl-copy",
@@ -75,6 +70,10 @@ fn sample_macro(_ctx: &LeaderContext) -> LeaderAction {
     Macro(keys!("a c d q F e r t i g enter a ; backspace backspace a").to_vec())
 }
 
+fn sample_to_clipboard(_ctx: &LeaderContext) -> LeaderAction {
+    ToClipboard(vec![FileCurrent::path()])
+}
+
 fn test(_ctx: &LeaderContext) -> LeaderAction {
     RunCommand(
         "kitty",
@@ -101,7 +100,7 @@ pub(crate) fn leader_keymap() -> Vec<(
         (__Q__, "Sample run command", action(sample_run_command)),
         (__W__, "Sample macro", action(sample_macro)),
         (__E__, "Process", action(sample_process_command)),
-        (__R__, "", do_nothing()),
+        (__R__, "Copy File Path", action(sample_to_clipboard)),
         (__T__, "Test", action(test)),
         (__Y__, "", do_nothing()),
         (__U__, "", do_nothing()),
@@ -155,6 +154,7 @@ pub(crate) struct LeaderContext {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum LeaderAction {
     RunCommand(&'static str, Vec<Placeholder>),
+    ToClipboard(Vec<Placeholder>),
     ToggleProcess(&'static str, Vec<Placeholder>),
     Macro(Vec<KeyEvent>),
     DoNothing,

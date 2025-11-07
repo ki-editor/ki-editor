@@ -32,7 +32,7 @@ impl ProcessManager {
                 self.running_processes.insert(key.to_string(), child);
             }
 
-            Err(e) => {}
+            Err(_e) => {}
         }
     }
     fn stop(&mut self, key: &str) {

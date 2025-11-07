@@ -54,6 +54,7 @@ use crate::{
 use event::event::Event;
 use itertools::{Either, Itertools};
 use name_variant::NamedVariant;
+use nonempty::NonEmpty;
 #[cfg(test)]
 use shared::language::LanguageId;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
@@ -2925,6 +2926,15 @@ impl<T: Frontend> App<T> {
                     .stderr(Stdio::null())
                     .output()?;
             }
+            LeaderAction::ToClipboard(text) => {
+                let resolved_text: String = text
+                    .iter()
+                    .map(|arg| arg.resolve(&leader_context).to_string())
+                    .collect_vec()
+                    .join("");
+                self.context
+                    .set_clipboard_content(CopiedTexts::new(NonEmpty::new(resolved_text)))?
+            }
             LeaderAction::ToggleProcess(command, args) => {
                 let resolved_args: Vec<String> = args
                     .iter()
@@ -2956,7 +2966,7 @@ impl<T: Frontend> App<T> {
                     .stderr(Stdio::null())
                     .output()?;
                 self.show_global_info(Info::new(
-                    format!("Command Debug"),
+                    format!("RunCommand Help"),
                     format!(
                         "Command: {} {}\n\n[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n",
                         command,
@@ -2966,6 +2976,21 @@ impl<T: Frontend> App<T> {
                         String::from_utf8_lossy(&output.stderr).trim()
                     ),
                 ))
+            }
+            LeaderAction::ToClipboard(text) => {
+                let resolved_text: String = text
+                    .iter()
+                    .map(|arg| arg.resolve(&leader_context).to_string())
+                    .collect_vec()
+                    .join("");
+                self.context
+                    .set_clipboard_content(CopiedTexts::new(NonEmpty::new(
+                        resolved_text.clone(),
+                    )))?;
+                self.show_global_info(Info::new(
+                    format!("ToClipboard Help"),
+                    format!("Copied Text: {resolved_text}"),
+                ));
             }
             LeaderAction::ToggleProcess(command, args) => {
                 let resolved_args: Vec<String> = args
