@@ -1108,7 +1108,7 @@ pub trait PositionBasedSelectionMode {
         let limit = CharIndex(params.buffer.len_chars());
         let mut current_index: usize = 0;
         while cursor_char_index < limit {
-            if let Some(range) = self.get_current_selection_by_cursor(
+            if let Some(range) = self.get_current_meaningful_selection_by_cursor(
                 params.buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
