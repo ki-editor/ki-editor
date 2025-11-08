@@ -4,7 +4,6 @@ See [https://ki-editor.github.io/ki-editor/](https://ki-editor.github.io/ki-edit
 
 Community chat room: 
 - [ki-editor.zulip.com](https://ki-editor.zulipchat.com/join/zzhagqzl6wyzpqfeqxcsrkin/) (Recommended)
-- [#ki-editor:matrix.org](https://matrix.to/#/#ki-editor:matrix.org)
 
 ## Development
 

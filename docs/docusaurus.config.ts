@@ -109,8 +109,8 @@ const config: Config = {
                     title: "Community",
                     items: [
                         {
-                            label: "Matrix",
-                            href: "https://matrix.to/#/#ki-editor:matrix.org",
+                            label: "Zulip",
+                            href: "https://ki-editor.zulipchat.com/join/zzhagqzl6wyzpqfeqxcsrkin/",
                         },
                     ],
                 },
