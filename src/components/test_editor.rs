@@ -460,7 +460,7 @@ fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             // Go to the middle of the file
-            Editor(MoveSelection(Index(4))),
+            Editor(MoveSelection(Index(2))),
             Expect(CurrentSelectedTexts(&["camelCase"])),
             Editor(EnterInsertMode(Direction::End)),
             Editor(DeleteWordBackward { short: true }),
@@ -4457,7 +4457,7 @@ fn go_to_line_number() -> Result<(), anyhow::Error> {
                 SelectionMode::Line,
             )),
             App(OpenMoveToIndexPrompt(None)),
-            App(HandleKeyEvents(keys!("5 enter").to_vec())),
+            App(HandleKeyEvents(keys!("3 enter").to_vec())),
             Expect(CurrentSelectedTexts(&["spam"])),
         ])
     })
