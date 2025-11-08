@@ -67,7 +67,7 @@ fn sample_process_command(ctx: &LeaderContext) -> LeaderAction {
 }
 
 fn sample_macro(_ctx: &LeaderContext) -> LeaderAction {
-    Macro(keys!("a c d q F e r t i g enter a ; backspace backspace a").to_vec())
+    Macro(keys!("a c d q F e r t i g enter a ; backspace backspace a"))
 }
 
 fn sample_to_clipboard(_ctx: &LeaderContext) -> LeaderAction {
@@ -156,7 +156,7 @@ pub(crate) enum LeaderAction {
     RunCommand(&'static str, Vec<Placeholder>),
     ToClipboard(Vec<Placeholder>),
     ToggleProcess(&'static str, Vec<Placeholder>),
-    Macro(Vec<KeyEvent>),
+    Macro(&'static [KeyEvent]),
     DoNothing,
 }
 

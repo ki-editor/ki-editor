@@ -51,18 +51,19 @@ use crate::{
     thread::{Callback, SendResult},
     ui_tree::{ComponentKind, KindedComponent},
 };
-use event::event::Event;
+use comfy_table::Table;
+use event::{event::Event, KeyEvent};
 use itertools::{Either, Itertools};
 use name_variant::NamedVariant;
 use nonempty::NonEmpty;
 #[cfg(test)]
 use shared::language::LanguageId;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
-use std::process::Stdio;
 use std::{
     any::TypeId,
     cell::RefCell,
     path::{Path, PathBuf},
+    process::Stdio,
     rc::Rc,
     sync::{
         mpsc::{Receiver, Sender},
@@ -2942,7 +2943,7 @@ impl<T: Frontend> App<T> {
                     .collect_vec();
                 self.process_manager.toggle(command, &resolved_args);
             }
-            LeaderAction::Macro(key_events) => self.handle_key_events(key_events)?,
+            LeaderAction::Macro(key_events) => self.handle_key_events(key_events.to_vec())?,
         }
         Ok(())
     }
@@ -2998,30 +2999,122 @@ impl<T: Frontend> App<T> {
                     .map(|arg| arg.resolve(&leader_context).to_string())
                     .collect_vec();
                 self.process_manager.toggle(command, &resolved_args);
+                self.show_global_info(Info::new(
+                    "ToggleProcess Help".to_string(),
+                    format!("Toggled command: {} {}", command, resolved_args.join(" ")),
+                ));
             }
             LeaderAction::Macro(key_events) => {
                 let sender = self.sender();
+
                 // Need a String so the thread can own the data, to avoid dangling pointers
                 let description = description.to_string();
 
+                let editor_component = self.current_component();
+                let editor = editor_component.borrow();
+                let editor_ref = editor.editor();
+                let keymap_legend_config =
+                    editor_ref.get_current_keymap_legend_config(&self.context);
+
+                let descriptions: Vec<String> = key_events
+                    .iter()
+                    .map(|key_event| {
+                        keymap_legend_config
+                            .keymaps()
+                            .get(key_event)
+                            .map(|keymap| keymap.description.clone())
+                            .unwrap_or_else(|| "[Unknown]".to_string())
+                    })
+                    .collect();
+
+                let key_events_raw_vec: Vec<String> =
+                    key_events.iter().map(|key| format!("{:?}", key)).collect();
+
+                let key_events_clone = key_events.to_vec();
+
                 thread::spawn(move || {
+                    let mut initial_table = Table::new();
+                    initial_table
+                        .add_row(key_events_raw_vec.clone())
+                        .add_row(descriptions.clone())
+                        .load_preset(comfy_table::presets::UTF8_FULL)
+                        .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
+
                     let start_info = Info::new(
                         "Playing Macro".to_string(),
-                        format!("Executing: '{}'", description),
+                        format!(
+                            "Description:\n'{}'\n\nKeyEvents:\n{}",
+                            description, initial_table
+                        ),
                     );
                     sender
                         .send(AppMessage::ExternalDispatch(Box::new(
                             Dispatch::ShowGlobalInfo(start_info),
                         )))
                         .ok();
-                    thread::sleep(Duration::from_millis(500));
+                    thread::sleep(Duration::from_millis(1000));
 
-                    for key in key_events {
-                        let event_to_send = Event::Key(key);
+                    for (i, key) in key_events_clone.iter().enumerate() {
+                        let highlighted_keys: Vec<String> = key_events_raw_vec
+                            .iter()
+                            .enumerate()
+                            .map(|(idx, val)| {
+                                if idx == i {
+                                    format!("> {} <", val)
+                                } else {
+                                    val.clone()
+                                }
+                            })
+                            .collect();
+
+                        let highlighted_descs: Vec<String> = descriptions
+                            .iter()
+                            .enumerate()
+                            .map(|(idx, val)| {
+                                if idx == i {
+                                    format!("> {} <", val)
+                                } else {
+                                    val.clone()
+                                }
+                            })
+                            .collect();
+
+                        let mut table = Table::new();
+                        table
+                            .add_row(highlighted_keys)
+                            .add_row(highlighted_descs)
+                            .load_preset(comfy_table::presets::UTF8_FULL)
+                            .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
+
+                        let step_info = Info::new(
+                            "Playing Macro".to_string(),
+                            format!(
+                                "Description:\n'{}'\n\nExecuting Step {} of {}:\n{}",
+                                description,
+                                i + 1,
+                                key_events_clone.len(),
+                                table
+                            ),
+                        );
+
+                        sender
+                            .send(AppMessage::ExternalDispatch(Box::new(
+                                Dispatch::ShowGlobalInfo(step_info),
+                            )))
+                            .ok();
+
+                        let event_to_send = Event::Key(key.clone());
                         sender.send(AppMessage::Event(event_to_send)).ok();
-                        thread::sleep(Duration::from_millis(800));
+                        thread::sleep(Duration::from_millis(1000));
                     }
-                    let end_info = Info::new("Macro Finished".to_string(), description);
+
+                    let end_info = Info::new(
+                        "Macro Finished".to_string(),
+                        format!(
+                            "Description:\n'{}'\n\nKeyEvents:\n{}",
+                            description, initial_table
+                        ),
+                    );
                     sender
                         .send(AppMessage::ExternalDispatch(Box::new(
                             Dispatch::ShowGlobalInfo(end_info),

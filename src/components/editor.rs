@@ -3731,7 +3731,7 @@ impl Editor {
         )))
     }
 
-    fn get_current_keymap_legend_config(
+    pub(crate) fn get_current_keymap_legend_config(
         &self,
         context: &Context,
     ) -> super::keymap_legend::KeymapLegendConfig {
