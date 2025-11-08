@@ -119,7 +119,7 @@ impl Editor {
             editor.get_grid_with_dimension(
                 &theme,
                 context.current_working_directory(),
-                context.quickfix_list_items(),
+                Vec::new(),
                 dimension,
                 0,
                 None,
@@ -127,7 +127,7 @@ impl Editor {
                 false,
                 focused,
                 hunks,
-                &marks,
+                &[],
             )
         };
         let grid = title_grid.merge_vertical(grid);
