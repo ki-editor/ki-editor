@@ -9,7 +9,10 @@
 //! 3. Each version file should expose a struct call `Root`
 //!    and implement the `Migration` trait.  
 //! 4. Update the `Root` of this file.  
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use crate::char_index_range::CharIndexRange;
 
@@ -107,7 +110,7 @@ impl Persistence {
 
     pub(crate) fn get_prompt_histories(
         &self,
-        working_directory: &PathBuf,
+        working_directory: &Path,
     ) -> Option<HashMap<crate::components::prompt::PromptHistoryKey, indexmap::IndexSet<String>>>
     {
         self.root

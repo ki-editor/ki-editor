@@ -89,7 +89,7 @@ impl Context {
         if let Some(persistence) = self.persistence.as_mut() {
             let current_working_directory = self.current_working_directory.to_path_buf();
             persistence.set_workspace_session(
-                &current_working_directory,
+                current_working_directory,
                 WorkspaceSession {
                     marked_files: self
                         .marked_files
