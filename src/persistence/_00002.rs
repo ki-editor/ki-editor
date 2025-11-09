@@ -34,7 +34,7 @@ impl Migration for Root {
     }
 
     fn migrate_to_current(self) -> anyhow::Result<super::Root> {
-        Ok(super::_00003::Root::from_previous_version(self))
+        super::_00003::Root::from_previous_version(self).migrate_to_current()
     }
 
     fn from_previous_version(_: Self::PreviousVersion) -> Self {

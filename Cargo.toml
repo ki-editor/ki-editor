@@ -92,7 +92,7 @@ clap = { version = "~4.5.23", features = ["derive"] }
 rayon = "1.8.0"
 similar = {version = "2.4.0", features = ["unicode", "inline"]}
 tree-sitter-traversal2 = { version = "0.1.4", package = "baz-tree-sitter-traversal" }
-indexmap = "2.2.2"
+indexmap = { version = "2.2.2", features = ["serde"] }
 globset = "0.4.14"
 unicode-width = "~0.2.0"
 lazy-regex = "~3.4.1"

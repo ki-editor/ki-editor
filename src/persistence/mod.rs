@@ -9,18 +9,23 @@
 //! 3. Each version file should expose a struct call `Root`
 //!    and implement the `Migration` trait.  
 //! 4. Update the `Root` of this file.  
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use crate::char_index_range::CharIndexRange;
 
 pub(crate) mod _00001;
 pub(crate) mod _00002;
 pub(crate) mod _00003;
+pub(crate) mod _00004;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct Version(pub(crate) u8);
 
-pub(crate) type Root = _00003::Root;
+pub(crate) type Root = _00004::Root;
+pub(crate) type WorkspaceSession = _00004::WorkspaceSession;
 
 pub(crate) struct Persistence {
     path: PathBuf,
@@ -78,22 +83,12 @@ impl Persistence {
 
     pub(crate) fn set_workspace_session(
         &mut self,
-        working_directory: PathBuf,
-        marked_files: Vec<PathBuf>,
-        marks: HashMap<PathBuf, Vec<CharIndexRange>>,
+        working_directory: &Path,
+        session: WorkspaceSession,
     ) {
-        if let Some(workspace_session) = self.root.workspace_sessions.get_mut(&working_directory) {
-            workspace_session.marked_files = marked_files;
-            workspace_session.marks = marks
-        } else {
-            self.root.workspace_sessions.insert(
-                working_directory,
-                _00003::WorkspaceSession {
-                    marked_files,
-                    marks,
-                },
-            );
-        }
+        self.root
+            .workspace_sessions
+            .insert(working_directory.to_path_buf(), session);
     }
 
     pub(crate) fn get_marked_files(&self, workding_directory: &PathBuf) -> Option<Vec<PathBuf>> {
@@ -110,7 +105,18 @@ impl Persistence {
         self.root
             .workspace_sessions
             .get(working_directory)
-            .map(|working_directory| working_directory.marks.clone())
+            .map(|session| session.marks.clone())
+    }
+
+    pub(crate) fn get_prompt_histories(
+        &self,
+        working_directory: &Path,
+    ) -> Option<HashMap<crate::components::prompt::PromptHistoryKey, indexmap::IndexSet<String>>>
+    {
+        self.root
+            .workspace_sessions
+            .get(working_directory)
+            .map(|session| session.prompt_histories.clone())
     }
 }
 
