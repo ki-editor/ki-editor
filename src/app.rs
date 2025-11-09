@@ -3008,6 +3008,24 @@ impl<T: Frontend> App<T> {
                 ));
             }
             LeaderAction::ToggleProcess(command, args) => {
+                let unresolved_text: String = args
+                    .iter()
+                    .map(|arg| arg.to_string())
+                    .collect_vec()
+                    .join(", ");
+                let resolved_text_with_quotes: String = args
+                    .iter()
+                    .map(|arg| {
+                        let resolved_str = arg.resolve(&leader_context).to_string();
+                        format!("\"{}\"", resolved_str)
+                    })
+                    .collect_vec()
+                    .join(", ");
+                let resolved_text: String = args
+                    .iter()
+                    .map(|arg| arg.resolve(&leader_context).to_string())
+                    .collect_vec()
+                    .join(" ");
                 let resolved_args: Vec<String> = args
                     .iter()
                     .map(|arg| arg.resolve(&leader_context).to_string())
@@ -3015,7 +3033,15 @@ impl<T: Frontend> App<T> {
                 self.process_manager.toggle(command, &resolved_args);
                 self.show_global_info(Info::new(
                     "ToggleProcess Help".to_string(),
-                    format!("Toggled command: {} {}", command, resolved_args.join(" ")),
+                    format!(
+                        "Unresolved ToggledProcess:\nToggleProcess(\"{}\", vec![{}])\nResolved ToggledProcess:\nprocess_manager.toggle(\"{}\", &[{}])\nToggleProcess Command:\n{} {}",
+                        command,
+                        unresolved_text,
+                        command,
+                        resolved_text_with_quotes,
+						command,
+                        resolved_text,
+                    ),
                 ));
             }
             LeaderAction::Macro(key_events) => {

@@ -59,7 +59,7 @@ fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
     }
 }
 
-fn sample_process_command(ctx: &LeaderContext) -> LeaderAction {
+fn sample_toggle_process_command(ctx: &LeaderContext) -> LeaderAction {
     ToggleProcess(
         "tinymist",
         vec![
@@ -104,7 +104,7 @@ pub(crate) fn leader_keymap() -> Vec<(
     [
         (__Q__, "Sample run command", action(sample_run_command)),
         (__W__, "Sample macro", action(sample_macro)),
-        (__E__, "Process", action(sample_process_command)),
+        (__E__, "Process", action(sample_toggle_process_command)),
         (__R__, "Copy File Path", action(sample_to_clipboard)),
         (__T__, "Test", action(test)),
         (__Y__, "", do_nothing()),
