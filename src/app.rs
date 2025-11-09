@@ -2963,6 +2963,11 @@ impl<T: Frontend> App<T> {
                     .iter()
                     .map(|arg| arg.resolve(&leader_context).to_string())
                     .collect_vec();
+                let unresolved_text: String = args
+                    .iter()
+                    .map(|arg| arg.to_string())
+                    .collect_vec()
+                    .join(", ");
                 let output = std::process::Command::new(command)
                     .args(&resolved_args)
                     .stdout(Stdio::null())
@@ -2971,9 +2976,10 @@ impl<T: Frontend> App<T> {
                 self.show_global_info(Info::new(
                     format!("RunCommand Help"),
                     format!(
-                        "Unresolved RunCommand:\nRunCommand(\"`{}`\", vec!`{:?}`)\nResolved RunCommand:\nstd::process::Command::new(`{}`).args(&`{:?}`)\nCommand Line Equivalent:\n{} {}\n\n[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n",
+                        "Description: {}\nUnresolved RunCommand:\nRunCommand(\"{}\", vec![{}])\nResolved RunCommand:\nstd::process::Command::new(\"{}\").args(&{:?})\nRunCommand Command:\n{} {}\n\n[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n",
+                        description,
                         command,
-                        args,
+                        unresolved_text,
                         command,
                         resolved_args,
                         command,
@@ -3002,8 +3008,8 @@ impl<T: Frontend> App<T> {
                 self.show_global_info(Info::new(
                     format!("ToClipboard Help"),
                     format!(
-                        "Unresolved ToClipboard:\nToClipboard(vec![{}])\nCopied Text:\n{}",
-                        unresolved_text, resolved_text
+                        "Description: {}\nUnresolved ToClipboard:\nToClipboard(vec![{}])\nCopied Text:\n{}",
+                        description, unresolved_text, resolved_text
                     ),
                 ));
             }
@@ -3034,7 +3040,8 @@ impl<T: Frontend> App<T> {
                 self.show_global_info(Info::new(
                     "ToggleProcess Help".to_string(),
                     format!(
-                        "Unresolved ToggledProcess:\nToggleProcess(\"{}\", vec![{}])\nResolved ToggledProcess:\nprocess_manager.toggle(\"{}\", &[{}])\nToggleProcess Command:\n{} {}",
+                        "Description: {}\nUnresolved ToggledProcess:\nToggleProcess(\"{}\", vec![{}])\nResolved ToggledProcess:\nprocess_manager.toggle(\"{}\", &[{}])\nToggleProcess Command:\n{} {}",
+                        description,
                         command,
                         unresolved_text,
                         command,
@@ -3076,10 +3083,10 @@ impl<T: Frontend> App<T> {
                 let (width, _height) = self
                     .layout
                     .get_component_by_kind(ComponentKind::GlobalInfo)
-                    .map(|c| (c.borrow().rectangle().width.saturating_sub(2), u16::MAX))
+                    .map(|c| (c.borrow().rectangle().width.saturating_sub(4), u16::MAX))
                     .unwrap_or_else(|| {
                         (
-                            self.layout.terminal_dimension().width.saturating_sub(2),
+                            self.layout.terminal_dimension().width.saturating_sub(4),
                             u16::MAX,
                         )
                     });
@@ -3158,11 +3165,11 @@ impl<T: Frontend> App<T> {
                 .get_component_by_kind(ComponentKind::GlobalInfo)
                 .map(|c| {
                     (
-                        c.borrow().rectangle().width.saturating_sub(2),
+                        c.borrow().rectangle().width.saturating_sub(4),
                         c.borrow().rectangle().height.saturating_sub(2),
                     )
                 })
-                .unwrap_or_else(|| (self.layout.terminal_dimension().width.saturating_sub(2), 10));
+                .unwrap_or_else(|| (self.layout.terminal_dimension().width.saturating_sub(4), 10));
 
             let help_display = player.render_help_display(width, height);
 
@@ -3172,7 +3179,7 @@ impl<T: Frontend> App<T> {
                 player.total_steps()
             );
             let info_content = format!(
-                "Description: '{}'\nNext KeyEvents:\n{}",
+                "Description: {}\nNext KeyEvents:\n{}",
                 player.description(),
                 help_display
             );
