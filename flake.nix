@@ -213,6 +213,8 @@
                     "link-arg=-latomic"
                     "-C"
                     "linker=${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}cc"
+                    "-C"
+                    "link-arg=-fuse-ld=mold"
                   ]
                   else if isWindows
                   then [
@@ -228,7 +230,7 @@
                 ++ extraRustFlags;
 
               # Native build inputs - now using common inputs
-              nativeBuildInputs = commonNativeBuildInputs ++ extraNativeBuildInputs;
+              nativeBuildInputs = commonNativeBuildInputs ++ extraNativeBuildInputs ++ (if isLinux then [pkgs.mold] else []);
 
               # Build inputs
               buildInputs =
@@ -355,7 +357,8 @@
             commonNativeBuildInputs
             ++ platformBuildInputs
             ++ devOnlyPackages
-            ++ [rustToolchain];
+            ++ [rustToolchain]
+            ++ (pkgs.lib.optionals pkgs.stdenv.isLinux [pkgs.mold]);
 
           # Include common environment variables and platform-specific paths
           shellHook = ''
@@ -372,6 +375,7 @@
               else ''
                 export OPENSSL_LIB_DIR=${pkgs.pkgsStatic.openssl.out}/lib
                 export OPENSSL_INCLUDE_DIR=${pkgs.pkgsStatic.openssl.dev}/include
+                export RUSTFLAGS="-C link-arg=-fuse-ld=mold"
               ''
             }
             echo "Creating VERSION file for development..."
