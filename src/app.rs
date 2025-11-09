@@ -2971,7 +2971,11 @@ impl<T: Frontend> App<T> {
                 self.show_global_info(Info::new(
                     format!("RunCommand Help"),
                     format!(
-                        "Command: {} {}\n\n[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n",
+                        "Unresolved RunCommand:\nRunCommand(\"`{}`\", vec!`{:?}`)\nResolved RunCommand:\nstd::process::Command::new(`{}`).args(&`{:?}`)\nCommand Line Equivalent:\n{} {}\n\n[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n",
+                        command,
+                        args,
+                        command,
+                        resolved_args,
                         command,
                         resolved_args.join(" "),
                         output.status,

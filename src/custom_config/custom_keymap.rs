@@ -9,6 +9,7 @@ use event::KeyEvent;
 use my_proc_macros::keys;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::cmp::Ordering;
+use std::fmt;
 
 use crate::components::editor_keymap::{
     KeyboardMeaningLayout,
@@ -39,7 +40,7 @@ fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
             vec![
                 Str("selection:"),
                 SelectionPrimary::content(),
-                Str("at: "),
+                Str("at:"),
                 FileCurrent::path(),
             ],
         )
@@ -356,6 +357,34 @@ impl PartialOrd<i64> for ResolvedValue {
         match self {
             ResolvedValue::Int(val) => val.partial_cmp(other),
             _ => None,
+        }
+    }
+}
+
+impl fmt::Display for Placeholder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Placeholder::Str(s) => write!(f, "Str(\"{}\")", s),
+
+            Placeholder::FileCurrent(kind) => match kind {
+                FileCurrentKind::Path => write!(f, "FileCurrent::path()"),
+                FileCurrentKind::Extension => write!(f, "FileCurrent::extension()"),
+            },
+
+            Placeholder::SelectionPrimary(kind) => match kind {
+                SelectionPrimaryKind::Content => write!(f, "SelectionPrimary::content()"),
+                SelectionPrimaryKind::RowIndex => write!(f, "SelectionPrimary::row_index()"),
+            },
+
+            Placeholder::DirCurrent(kind) => match kind {
+                DirWorkingKind::Path => write!(f, "DirCurrent::path()"),
+                DirWorkingKind::FileExists(filename) => {
+                    write!(f, "DirCurrent::file_exists(\"{}\")", filename)
+                }
+                DirWorkingKind::FileExistsDynamic(placeholder) => {
+                    write!(f, "DirCurrent::FileExistsDynamic({})", placeholder)
+                }
+            },
         }
     }
 }
