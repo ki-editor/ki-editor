@@ -40,6 +40,7 @@ use crate::{
         symbols::Symbols,
         workspace_edit::WorkspaceEdit,
     },
+    macro_help_player::MacroHelpPlayer,
     persistence::Persistence,
     position::Position,
     process_manager::ProcessManager,
@@ -52,7 +53,7 @@ use crate::{
     ui_tree::{ComponentKind, KindedComponent},
 };
 use comfy_table::Table;
-use event::{event::Event, KeyEvent};
+use event::event::Event;
 use itertools::{Either, Itertools};
 use name_variant::NamedVariant;
 use nonempty::NonEmpty;
@@ -1052,6 +1053,7 @@ impl<T: Frontend> App<T> {
                 self.show_buffer_save_conflict_prompt(&path, content_editor, content_filesystem)?
             }
             Dispatch::OpenWorkspaceSymbolsPrompt => self.open_workspace_symbols_prompt()?,
+            Dispatch::PlayMacroStep(player) => self.handle_play_macro_step(player)?,
         }
         Ok(())
     }
@@ -3005,123 +3007,89 @@ impl<T: Frontend> App<T> {
                 ));
             }
             LeaderAction::Macro(key_events) => {
-                let sender = self.sender();
-
-                // Need a String so the thread can own the data, to avoid dangling pointers
-                let description = description.to_string();
-
                 let editor_component = self.current_component();
                 let editor = editor_component.borrow();
-                let editor_ref = editor.editor();
-                let keymap_legend_config =
-                    editor_ref.get_current_keymap_legend_config(&self.context);
+                let keymap_config = editor
+                    .editor()
+                    .get_current_keymap_legend_config(&self.context);
 
-                let descriptions: Vec<String> = key_events
-                    .iter()
-                    .map(|key_event| {
-                        keymap_legend_config
-                            .keymaps()
-                            .get(key_event)
-                            .map(|keymap| keymap.description.clone())
-                            .unwrap_or_else(|| "[Unknown]".to_string())
-                    })
-                    .collect();
+                let player = MacroHelpPlayer::new(
+                    description.to_string(),
+                    key_events.to_vec(),
+                    keymap_config,
+                );
 
-                let key_events_raw_vec: Vec<String> =
-                    key_events.iter().map(|key| format!("{:?}", key)).collect();
-
-                let key_events_clone = key_events.to_vec();
-
-                thread::spawn(move || {
-                    let mut initial_table = Table::new();
-                    initial_table
-                        .add_row(key_events_raw_vec.clone())
-                        .add_row(descriptions.clone())
-                        .load_preset(comfy_table::presets::UTF8_FULL)
-                        .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
-
-                    let start_info = Info::new(
-                        "Playing Macro".to_string(),
-                        format!(
-                            "Description:\n'{}'\n\nKeyEvents:\n{}",
-                            description, initial_table
-                        ),
-                    );
-                    sender
-                        .send(AppMessage::ExternalDispatch(Box::new(
-                            Dispatch::ShowGlobalInfo(start_info),
-                        )))
-                        .ok();
-                    thread::sleep(Duration::from_millis(1000));
-
-                    for (i, key) in key_events_clone.iter().enumerate() {
-                        let highlighted_keys: Vec<String> = key_events_raw_vec
-                            .iter()
-                            .enumerate()
-                            .map(|(idx, val)| {
-                                if idx == i {
-                                    format!("> {} <", val)
-                                } else {
-                                    val.clone()
-                                }
-                            })
-                            .collect();
-
-                        let highlighted_descs: Vec<String> = descriptions
-                            .iter()
-                            .enumerate()
-                            .map(|(idx, val)| {
-                                if idx == i {
-                                    format!("> {} <", val)
-                                } else {
-                                    val.clone()
-                                }
-                            })
-                            .collect();
-
-                        let mut table = Table::new();
-                        table
-                            .add_row(highlighted_keys)
-                            .add_row(highlighted_descs)
-                            .load_preset(comfy_table::presets::UTF8_FULL)
-                            .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
-
-                        let step_info = Info::new(
-                            "Playing Macro".to_string(),
-                            format!(
-                                "Description:\n'{}'\n\nExecuting Step {} of {}:\n{}",
-                                description,
-                                i + 1,
-                                key_events_clone.len(),
-                                table
-                            ),
-                        );
-
-                        sender
-                            .send(AppMessage::ExternalDispatch(Box::new(
-                                Dispatch::ShowGlobalInfo(step_info),
-                            )))
-                            .ok();
-
-                        let event_to_send = Event::Key(key.clone());
-                        sender.send(AppMessage::Event(event_to_send)).ok();
-                        thread::sleep(Duration::from_millis(1000));
-                    }
-
-                    let end_info = Info::new(
-                        "Macro Finished".to_string(),
-                        format!(
-                            "Description:\n'{}'\n\nKeyEvents:\n{}",
-                            description, initial_table
-                        ),
-                    );
-                    sender
-                        .send(AppMessage::ExternalDispatch(Box::new(
-                            Dispatch::ShowGlobalInfo(end_info),
-                        )))
-                        .ok();
-                });
+                self.handle_dispatch(Dispatch::PlayMacroStep(player))?;
             }
+        }
+        Ok(())
+    }
+    fn handle_play_macro_step(&mut self, player: MacroHelpPlayer) -> anyhow::Result<()> {
+        if player.press_key_and_update {
+            if let Some(key_to_send) = player.get_current_key() {
+                self.handle_event(Event::Key(key_to_send))?;
+            }
+
+            self.sender.send(AppMessage::ExternalDispatch(Box::new(
+                Dispatch::PlayMacroStep(player.for_render_phase()),
+            )))?;
+        } else {
+            if player.is_finished() {
+                self.show_global_info(Info::new(
+                    "Macro Finished".to_string(),
+                    format!("Description: {}", player.description()),
+                ));
+                return Ok(());
+            }
+
+            if self
+                .layout
+                .get_component_by_kind(ComponentKind::GlobalInfo)
+                .is_none()
+            {
+                self.show_global_info(Info::new("".to_string(), "".to_string()));
+            }
+
+            let (width, height) = self
+                .layout
+                .get_component_by_kind(ComponentKind::GlobalInfo)
+                .map(|c| {
+                    (
+                        c.borrow().rectangle().width.saturating_sub(2),
+                        c.borrow().rectangle().height.saturating_sub(2),
+                    )
+                })
+                .unwrap_or_else(|| (self.layout.terminal_dimension().width.saturating_sub(2), 10));
+
+            let help_display = player.render_help_display(width, height);
+
+            let info_title = format!(
+                "Playing Macro (Step {}/{})",
+                player.current_step() + 1,
+                player.total_steps()
+            );
+            let info_content = format!(
+                "Description: '{}'\n\nNext KeyEvents:\n{}",
+                player.description(),
+                help_display
+            );
+            self.show_global_info(Info::new(info_title, info_content));
+
+            let sender = self.sender();
+            thread::spawn(move || {
+                let delay = if player.current_step() == 0 {
+                    500
+                } else {
+                    1000
+                };
+                thread::sleep(Duration::from_millis(delay));
+
+                sender
+                    .send(AppMessage::ExternalDispatch(Box::new(
+                        Dispatch::PlayMacroStep(player.for_press_phase()),
+                    )))
+                    .ok();
+            });
         }
         Ok(())
     }
@@ -3546,6 +3514,7 @@ pub(crate) enum Dispatch {
         path: CanonicalizedPath,
     },
     OpenWorkspaceSymbolsPrompt,
+    PlayMacroStep(MacroHelpPlayer),
 }
 
 /// Used to send notify host app about changes
