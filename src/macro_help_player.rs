@@ -61,6 +61,14 @@ impl MacroHelpPlayer {
         self.all_keys.len()
     }
 
+    pub fn all_keys(&self) -> &Vec<KeyEvent> {
+        &self.all_keys
+    }
+
+    pub fn keymap_config(&self) -> &KeymapLegendConfig {
+        &self.keymap_config
+    }
+
     pub fn render_help_display(&self, available_width: u16, available_height: u16) -> String {
         let remaining_keys = &self.all_keys[self.current_step..];
         let descriptions: Vec<String> = remaining_keys
@@ -83,31 +91,31 @@ impl MacroHelpPlayer {
 
         while processed_steps < remaining_keys.len() && lines_used < available_height {
             let mut current_width: u16 = 1;
-            let mut highlighted_keys = Vec::new();
-            let mut highlighted_descs = Vec::new();
+            let mut table_keys = Vec::new();
+            let mut table_descs = Vec::new();
 
             for i in processed_steps..remaining_keys.len() {
                 let key_str = &key_strings[i];
                 let desc = &descriptions[i];
                 let col_width = std::cmp::max(key_str.len(), desc.len()) as u16 + 3;
-                if current_width + col_width > available_width && !highlighted_keys.is_empty() {
+                if current_width + col_width > available_width && !table_keys.is_empty() {
                     break;
                 }
                 current_width += col_width;
-                highlighted_keys.push(key_str.clone());
-                highlighted_descs.push(desc.clone());
+                table_keys.push(key_str.clone());
+                table_descs.push(desc.clone());
                 processed_steps += 1;
             }
 
-            if !highlighted_keys.is_empty() {
+            if !table_keys.is_empty() {
                 if lines_used.saturating_add(5) > available_height {
                     break;
                 }
 
                 let mut table = Table::new();
                 table
-                    .add_row(highlighted_keys)
-                    .add_row(highlighted_descs)
+                    .add_row(table_keys)
+                    .add_row(table_descs)
                     .load_preset(UTF8_FULL)
                     .apply_modifier(UTF8_ROUND_CORNERS);
 
@@ -123,7 +131,7 @@ impl MacroHelpPlayer {
 
         if processed_steps < remaining_keys.len() {
             all_tables_output.push_str(&format!(
-                "\n... and {} more steps.",
+                "\n... and {} more steps",
                 remaining_keys.len() - processed_steps
             ));
         }

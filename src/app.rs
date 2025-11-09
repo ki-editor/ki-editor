@@ -3035,10 +3035,75 @@ impl<T: Frontend> App<T> {
             )))?;
         } else {
             if player.is_finished() {
+                let (width, _height) = self
+                    .layout
+                    .get_component_by_kind(ComponentKind::GlobalInfo)
+                    .map(|c| (c.borrow().rectangle().width.saturating_sub(2), u16::MAX))
+                    .unwrap_or_else(|| {
+                        (
+                            self.layout.terminal_dimension().width.saturating_sub(2),
+                            u16::MAX,
+                        )
+                    });
+
+                let full_key_list = player.all_keys();
+                let descriptions: Vec<String> = full_key_list
+                    .iter()
+                    .map(|key| {
+                        player
+                            .keymap_config()
+                            .keymaps()
+                            .get(key)
+                            .map_or_else(|| "[Unknown]".to_string(), |km| km.description.clone())
+                    })
+                    .collect();
+                let key_strings: Vec<String> = full_key_list
+                    .iter()
+                    .map(|key| format!("{:?}", key))
+                    .collect();
+
+                let mut full_table_output = String::new();
+                let mut processed_steps = 0;
+                while processed_steps < full_key_list.len() {
+                    let mut current_width: u16 = 1;
+                    let mut table_keys = Vec::new();
+                    let mut table_descs = Vec::new();
+                    for i in processed_steps..full_key_list.len() {
+                        let col_width =
+                            std::cmp::max(key_strings[i].len(), descriptions[i].len()) as u16 + 3;
+                        if current_width + col_width > width && !table_keys.is_empty() {
+                            break;
+                        }
+                        current_width += col_width;
+                        table_keys.push(key_strings[i].clone());
+                        table_descs.push(descriptions[i].clone());
+                        processed_steps += 1;
+                    }
+                    if !table_keys.is_empty() {
+                        let mut table = Table::new();
+                        table
+                            .add_row(table_keys)
+                            .add_row(table_descs)
+                            .load_preset(comfy_table::presets::UTF8_FULL)
+                            .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
+                        if !full_table_output.is_empty() {
+                            full_table_output.push('\n');
+                        }
+                        full_table_output.push_str(&table.to_string());
+                    } else {
+                        break;
+                    }
+                }
+
                 self.show_global_info(Info::new(
                     "Macro Finished".to_string(),
-                    format!("Description: {}", player.description()),
+                    format!(
+                        "Description: {}\nFull Macro:\n{}",
+                        player.description(),
+                        full_table_output
+                    ),
                 ));
+
                 return Ok(());
             }
 
@@ -3069,7 +3134,7 @@ impl<T: Frontend> App<T> {
                 player.total_steps()
             );
             let info_content = format!(
-                "Description: '{}'\n\nNext KeyEvents:\n{}",
+                "Description: '{}'\nNext KeyEvents:\n{}",
                 player.description(),
                 help_display
             );
