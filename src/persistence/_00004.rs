@@ -1,6 +1,10 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use crate::{char_index_range::CharIndexRange, persistence::Migration};
+use indexmap::IndexSet;
+
+use crate::{
+    char_index_range::CharIndexRange, components::prompt::PromptHistoryKey, persistence::Migration,
+};
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub(crate) struct Root {
@@ -16,6 +20,7 @@ pub(crate) struct WorkspaceSession {
     /// path inside marked_files no longer exists.
     pub(crate) marked_files: Vec<PathBuf>,
     pub(crate) marks: HashMap<PathBuf, Vec<CharIndexRange>>,
+    pub(crate) prompt_histories: HashMap<PromptHistoryKey, IndexSet<String>>,
 }
 
 impl Default for Root {
@@ -28,14 +33,14 @@ impl Default for Root {
 }
 
 impl Migration for Root {
-    type PreviousVersion = super::_00002::Root;
+    type PreviousVersion = super::_00003::Root;
 
     fn version() -> &'static str {
         file!()
     }
 
     fn migrate_to_current(self) -> anyhow::Result<super::Root> {
-        super::_00004::Root::from_previous_version(self).migrate_to_current()
+        Ok(self)
     }
 
     fn from_previous_version(previous: Self::PreviousVersion) -> Self {
@@ -48,7 +53,8 @@ impl Migration for Root {
                         path_buf,
                         WorkspaceSession {
                             marked_files: workspace_session.marked_files,
-                            marks: Default::default(),
+                            marks: workspace_session.marks,
+                            prompt_histories: Default::default(),
                         },
                     )
                 })

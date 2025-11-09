@@ -13,7 +13,7 @@ use crate::{
     clipboard::{Clipboard, CopiedTexts},
     components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
-    persistence::Persistence,
+    persistence::{Persistence, WorkspaceSession},
     quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
     selection::SelectionMode,
     themes::Theme,
@@ -89,15 +89,20 @@ impl Context {
         if let Some(persistence) = self.persistence.as_mut() {
             let current_working_directory = self.current_working_directory.to_path_buf();
             persistence.set_workspace_session(
-                current_working_directory.clone(),
-                self.marked_files
-                    .iter()
-                    .map(|path| path.to_path_buf().clone())
-                    .collect_vec(),
-                self.marks
-                    .iter()
-                    .map(|(path, marks)| (path.to_path_buf().clone(), marks.clone()))
-                    .collect(),
+                &current_working_directory,
+                WorkspaceSession {
+                    marked_files: self
+                        .marked_files
+                        .iter()
+                        .map(|path| path.to_path_buf().clone())
+                        .collect_vec(),
+                    marks: self
+                        .marks
+                        .iter()
+                        .map(|(path, marks)| (path.to_path_buf().clone(), marks.clone()))
+                        .collect(),
+                    prompt_histories: self.prompt_histories.clone(),
+                },
             );
 
             if let Err(error) = persistence.write() {
@@ -236,6 +241,13 @@ impl Context {
             })
             .unwrap_or_default();
 
+        let prompt_histories = persistence
+            .as_ref()
+            .and_then(|persistence| {
+                persistence.get_prompt_histories(current_working_directory.to_path_buf())
+            })
+            .unwrap_or_default();
+
         Self {
             clipboard: Clipboard::new(),
             theme: Theme::default(),
@@ -246,7 +258,7 @@ impl Context {
             local_search_config: LocalSearchConfig::default(),
             global_search_config: GlobalSearchConfig::default(),
             quickfix_list_state: Default::default(),
-            prompt_histories: Default::default(),
+            prompt_histories,
             last_non_contiguous_selection_mode: None,
             keyboard_layout_kind: {
                 use KeyboardLayoutKind::*;
@@ -639,12 +651,13 @@ impl LocalSearchConfig {
 mod test_context {
     use std::collections::HashMap;
 
+    use indexmap::IndexSet;
     use itertools::Itertools;
     use shared::canonicalized_path::CanonicalizedPath;
 
     use crate::{
-        char_index_range::CharIndexRange, context::Context, persistence::Persistence,
-        selection::CharIndex,
+        char_index_range::CharIndexRange, components::prompt::PromptHistoryKey, context::Context,
+        persistence::Persistence, selection::CharIndex,
     };
 
     #[test]
@@ -664,8 +677,13 @@ mod test_context {
         {
             let persistence = Persistence::load_or_default(temp_data_file.clone());
             let mut context = Context::new(temp_cwd.clone().try_into()?, false, Some(persistence));
+            let mut index_set = IndexSet::new();
+            index_set.insert("Github Light".to_string());
             context.toggle_path_mark(random_file.clone().try_into()?);
             context.save_marks(random_file.clone().try_into()?, marks.clone());
+            context
+                .prompt_histories
+                .insert(PromptHistoryKey::Theme, index_set);
             context.persist_data()
         }
 
@@ -688,7 +706,16 @@ mod test_context {
             let expected_marks: HashMap<CanonicalizedPath, Vec<CharIndexRange>> =
                 [(random_file.try_into()?, marks)].into_iter().collect();
 
-            assert_eq!(actual_marks, expected_marks)
+            assert_eq!(actual_marks, expected_marks);
+
+            let actual_prompt_histories = context.prompt_histories;
+            assert_eq!(
+                actual_prompt_histories
+                    .get(&PromptHistoryKey::Theme)
+                    .unwrap()
+                    .len(),
+                1
+            );
         }
 
         Ok(())

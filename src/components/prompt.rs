@@ -203,7 +203,7 @@ impl PromptItemsBackgroundTask {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(crate) enum PromptHistoryKey {
     MoveToIndex,
     Search,
