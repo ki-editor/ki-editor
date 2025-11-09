@@ -91,6 +91,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         receiver,
         Some(syntax_highlighter_sender),
         [
+            StatusLineComponent::KiCharacter,
             StatusLineComponent::Mode,
             StatusLineComponent::SelectionMode,
             StatusLineComponent::LastSearchString,
