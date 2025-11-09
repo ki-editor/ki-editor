@@ -22,8 +22,8 @@ use crate::{
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
-    custom_config::keymap::leader_keymap,
-    custom_config::keymap::{LeaderAction, LeaderContext},
+    custom_config::custom_keymap::leader_keymap,
+    custom_config::custom_keymap::{LeaderAction, LeaderContext},
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
     frontend::Frontend,

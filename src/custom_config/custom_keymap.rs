@@ -1,5 +1,9 @@
 //! This file is for you to define custom keymaps.
 //! The keymap starts with the leader key `\`.
+//! The keymap help starts with the leader key `|`.
+
+#![allow(dead_code)]
+#![allow(unused_variables)]
 
 use event::KeyEvent;
 use my_proc_macros::keys;
