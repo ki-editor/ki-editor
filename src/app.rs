@@ -2990,13 +2990,21 @@ impl<T: Frontend> App<T> {
                     .map(|arg| arg.resolve(&leader_context).to_string())
                     .collect_vec()
                     .join("");
+                let unresolved_text: String = text
+                    .iter()
+                    .map(|arg| arg.to_string())
+                    .collect_vec()
+                    .join("");
                 self.context
                     .set_clipboard_content(CopiedTexts::new(NonEmpty::new(
                         resolved_text.clone(),
                     )))?;
                 self.show_global_info(Info::new(
                     format!("ToClipboard Help"),
-                    format!("Copied Text: {resolved_text}"),
+                    format!(
+                        "Unresolved ToClipboard:\nToClipboard(vec![{}])\nCopied Text:\n{}",
+                        unresolved_text, resolved_text
+                    ),
                 ));
             }
             LeaderAction::ToggleProcess(command, args) => {
