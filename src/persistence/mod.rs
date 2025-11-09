@@ -83,12 +83,12 @@ impl Persistence {
 
     pub(crate) fn set_workspace_session(
         &mut self,
-        working_directory: &PathBuf,
+        working_directory: &Path,
         session: WorkspaceSession,
     ) {
         self.root
             .workspace_sessions
-            .insert(working_directory.clone(), session);
+            .insert(working_directory.to_path_buf(), session);
     }
 
     pub(crate) fn get_marked_files(&self, workding_directory: &PathBuf) -> Option<Vec<PathBuf>> {
