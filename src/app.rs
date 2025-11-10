@@ -16,19 +16,18 @@ use crate::{
             PromptOnChangeDispatch,
         },
         suggestive_editor::{
-            DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
+            Decoration, DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
         },
     },
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
-    custom_config::custom_keymap::leader_keymap,
-    custom_config::custom_keymap::{LeaderAction, LeaderContext},
+    custom_config::custom_keymap::{leader_keymap, LeaderAction, LeaderContext},
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
     frontend::Frontend,
     git::{self},
-    grid::{Grid, LineUpdate},
+    grid::{Grid, IndexedHighlightGroup, LineUpdate, StyleKey},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
     layout::Layout,
     list::{self, Match, WalkBuilderConfig},
@@ -48,6 +47,7 @@ use crate::{
     screen::{Screen, Window},
     search::parse_search_config,
     selection::{CharIndex, SelectionMode},
+    selection_range::SelectionRange,
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
     thread::{Callback, SendResult},
     ui_tree::{ComponentKind, KindedComponent},
@@ -2963,6 +2963,14 @@ impl<T: Frontend> App<T> {
                     .iter()
                     .map(|arg| arg.resolve(&leader_context).to_string())
                     .collect_vec();
+                let resolved_text_with_quotes: String = args
+                    .iter()
+                    .map(|arg| {
+                        let resolved_str = arg.resolve(&leader_context).to_string();
+                        format!("\"{}\"", resolved_str)
+                    })
+                    .collect_vec()
+                    .join(", ");
                 let unresolved_text: String = args
                     .iter()
                     .map(|arg| arg.to_string())
@@ -2973,22 +2981,70 @@ impl<T: Frontend> App<T> {
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
                     .output()?;
-                self.show_global_info(Info::new(
-                    format!("RunCommand Help"),
-                    format!(
-                        "Description: {}\nUnresolved RunCommand:\nRunCommand(\"{}\", vec![{}])\nResolved RunCommand:\nstd::process::Command::new(\"{}\").args(&{:?})\nRunCommand Command:\n{} {}\n\n[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n",
-                        description,
-                        command,
-                        unresolved_text,
-                        command,
-                        resolved_args,
-                        command,
-                        resolved_args.join(" "),
-                        output.status,
-                        String::from_utf8_lossy(&output.stdout).trim(),
-                        String::from_utf8_lossy(&output.stderr).trim()
-                    ),
-                ))
+
+                let quoted_command = format!("\"{}\"", command);
+                let mut content = String::new();
+                let mut decorations = Vec::new();
+
+                let append_and_decorate =
+                    |content: &mut String, decorations: &mut Vec<Decoration>, s: &str| {
+                        if !s.is_empty() {
+                            let start_byte = content.len();
+                            content.push_str(s);
+                            let end_byte = content.len();
+                            let range = SelectionRange::Byte(start_byte..end_byte);
+                            decorations.push(Decoration::new(
+                                range,
+                                StyleKey::Syntax(IndexedHighlightGroup::new(41)),
+                            ));
+                        }
+                    };
+
+                content.push_str("Description: ");
+                append_and_decorate(&mut content, &mut decorations, description);
+
+                content.push_str("\nUnresolved RunCommand:\nRunCommand(");
+                append_and_decorate(&mut content, &mut decorations, &quoted_command);
+
+                content.push_str(", vec![");
+                append_and_decorate(&mut content, &mut decorations, &unresolved_text);
+
+                content.push_str("])\nResolved RunCommand:\nstd::process::Command::new(");
+                append_and_decorate(&mut content, &mut decorations, &quoted_command);
+
+                content.push_str(").args(&[");
+                append_and_decorate(&mut content, &mut decorations, &resolved_text_with_quotes);
+
+                content.push_str("])\nRunCommand Command:\n");
+                append_and_decorate(&mut content, &mut decorations, &command);
+
+                content.push_str(" ");
+                append_and_decorate(&mut content, &mut decorations, &resolved_args.join(" "));
+
+                content.push_str("\n\n[STATUS]:\n");
+                append_and_decorate(
+                    &mut content,
+                    &mut decorations,
+                    &format!("{:?}", output.status),
+                );
+
+                content.push_str("\n[STDOUT]:\n");
+                append_and_decorate(
+                    &mut content,
+                    &mut decorations,
+                    String::from_utf8_lossy(&output.stdout).trim(),
+                );
+
+                content.push_str("\n[STDERR]:\n");
+                append_and_decorate(
+                    &mut content,
+                    &mut decorations,
+                    String::from_utf8_lossy(&output.stderr).trim(),
+                );
+
+                let info =
+                    Info::new("RunCommand Help".to_string(), content).set_decorations(decorations);
+                self.show_global_info(info);
             }
             LeaderAction::ToClipboard(text) => {
                 let resolved_text: String = text
@@ -3005,13 +3061,35 @@ impl<T: Frontend> App<T> {
                     .set_clipboard_content(CopiedTexts::new(NonEmpty::new(
                         resolved_text.clone(),
                     )))?;
-                self.show_global_info(Info::new(
-                    format!("ToClipboard Help"),
-                    format!(
-                        "Description: {}\nUnresolved ToClipboard:\nToClipboard(vec![{}])\nCopied Text:\n{}",
-                        description, unresolved_text, resolved_text
-                    ),
-                ));
+                let mut content = String::new();
+                let mut decorations = Vec::new();
+
+                let append_and_decorate =
+                    |content: &mut String, decorations: &mut Vec<Decoration>, s: &str| {
+                        if !s.is_empty() {
+                            let start_byte = content.len();
+                            content.push_str(s);
+                            let end_byte = content.len();
+                            let range = SelectionRange::Byte(start_byte..end_byte);
+                            decorations.push(Decoration::new(
+                                range,
+                                StyleKey::Syntax(IndexedHighlightGroup::new(41)),
+                            ));
+                        }
+                    };
+
+                content.push_str("Description: ");
+                append_and_decorate(&mut content, &mut decorations, description);
+
+                content.push_str("\nUnresolved ToClipboard:\nToClipboard(vec![");
+                append_and_decorate(&mut content, &mut decorations, &unresolved_text);
+
+                content.push_str("])\nCopied Text:\n");
+                append_and_decorate(&mut content, &mut decorations, &resolved_text);
+
+                let info =
+                    Info::new("ToClipboard Help".to_string(), content).set_decorations(decorations);
+                self.show_global_info(info);
             }
             LeaderAction::ToggleProcess(command, args) => {
                 let unresolved_text: String = args
@@ -3037,19 +3115,49 @@ impl<T: Frontend> App<T> {
                     .map(|arg| arg.resolve(&leader_context).to_string())
                     .collect_vec();
                 self.process_manager.toggle(command, &resolved_args);
-                self.show_global_info(Info::new(
-                    "ToggleProcess Help".to_string(),
-                    format!(
-                        "Description: {}\nUnresolved ToggledProcess:\nToggleProcess(\"{}\", vec![{}])\nResolved ToggledProcess:\nprocess_manager.toggle(\"{}\", &[{}])\nToggleProcess Command:\n{} {}",
-                        description,
-                        command,
-                        unresolved_text,
-                        command,
-                        resolved_text_with_quotes,
-						command,
-                        resolved_text,
-                    ),
-                ));
+
+                let quoted_command = format!("\"{}\"", command);
+                let mut content = String::new();
+                let mut decorations = Vec::new();
+
+                let append_and_decorate =
+                    |content: &mut String, decorations: &mut Vec<Decoration>, s: &str| {
+                        if !s.is_empty() {
+                            let start_byte = content.len();
+                            content.push_str(s);
+                            let end_byte = content.len();
+                            let range = SelectionRange::Byte(start_byte..end_byte);
+                            decorations.push(Decoration::new(
+                                range,
+                                StyleKey::Syntax(IndexedHighlightGroup::new(41)),
+                            ));
+                        }
+                    };
+
+                content.push_str("Description: ");
+                append_and_decorate(&mut content, &mut decorations, description);
+
+                content.push_str("\nUnresolved ToggledProcess:\nToggleProcess(");
+                append_and_decorate(&mut content, &mut decorations, &quoted_command);
+
+                content.push_str(", vec![");
+                append_and_decorate(&mut content, &mut decorations, &unresolved_text);
+
+                content.push_str("])\nResolved ToggledProcess:\nprocess_manager.toggle(");
+                append_and_decorate(&mut content, &mut decorations, &quoted_command);
+
+                content.push_str(", &[");
+                append_and_decorate(&mut content, &mut decorations, &resolved_text_with_quotes);
+
+                content.push_str("])\nToggleProcess Command:\n");
+                append_and_decorate(&mut content, &mut decorations, command);
+
+                content.push_str(" ");
+                append_and_decorate(&mut content, &mut decorations, &resolved_text);
+
+                let info = Info::new("ToggleProcess Help".to_string(), content)
+                    .set_decorations(decorations);
+                self.show_global_info(info);
             }
             LeaderAction::Macro(key_events) => {
                 let editor_component = self.current_component();
@@ -3140,15 +3248,32 @@ impl<T: Frontend> App<T> {
                     }
                 }
 
-                self.show_global_info(Info::new(
-                    "Macro Finished".to_string(),
-                    format!(
-                        "Description: {}\nFull Macro:\n{}",
-                        player.description(),
-                        full_table_output
-                    ),
-                ));
+                let mut content = String::new();
+                let mut decorations = Vec::new();
 
+                let append_and_decorate =
+                    |content: &mut String, decorations: &mut Vec<Decoration>, s: &str| {
+                        if !s.is_empty() {
+                            let start_byte = content.len();
+                            content.push_str(s);
+                            let end_byte = content.len();
+                            let range = SelectionRange::Byte(start_byte..end_byte);
+                            decorations.push(Decoration::new(
+                                range,
+                                StyleKey::Syntax(IndexedHighlightGroup::new(41)),
+                            ));
+                        }
+                    };
+
+                content.push_str("Description: ");
+                append_and_decorate(&mut content, &mut decorations, player.description());
+
+                content.push_str("\nFull Macro:\n");
+                content.push_str(&full_table_output);
+
+                let info =
+                    Info::new("Macro Finished".to_string(), content).set_decorations(decorations);
+                self.show_global_info(info);
                 return Ok(());
             }
 
@@ -3178,12 +3303,31 @@ impl<T: Frontend> App<T> {
                 player.current_step() + 1,
                 player.total_steps()
             );
-            let info_content = format!(
-                "Description: {}\nNext KeyEvents:\n{}",
-                player.description(),
-                help_display
-            );
-            self.show_global_info(Info::new(info_title, info_content));
+            let mut content = String::new();
+            let mut decorations = Vec::new();
+
+            let append_and_decorate =
+                |content: &mut String, decorations: &mut Vec<Decoration>, s: &str| {
+                    if !s.is_empty() {
+                        let start_byte = content.len();
+                        content.push_str(s);
+                        let end_byte = content.len();
+                        let range = SelectionRange::Byte(start_byte..end_byte);
+                        decorations.push(Decoration::new(
+                            range,
+                            StyleKey::Syntax(IndexedHighlightGroup::new(41)),
+                        ));
+                    }
+                };
+
+            content.push_str("Description: ");
+            append_and_decorate(&mut content, &mut decorations, player.description());
+
+            content.push_str("\nNext KeyEvents:\n");
+            content.push_str(&help_display);
+
+            let info = Info::new(info_title, content).set_decorations(decorations);
+            self.show_global_info(info);
 
             let sender = self.sender();
             thread::spawn(move || {
