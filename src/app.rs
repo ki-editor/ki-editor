@@ -118,6 +118,7 @@ const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
 
 #[derive(Clone)]
 pub(crate) enum StatusLineComponent {
+    KiCharacter,
     CurrentWorkingDirectory,
     GitBranch,
     Mode,
@@ -448,6 +449,7 @@ impl<T: Frontend> App<T> {
                 self.status_line_components
                     .iter()
                     .filter_map(|component| match component {
+                        StatusLineComponent::KiCharacter => Some("Ж".to_string()),
                         StatusLineComponent::CurrentWorkingDirectory => Some(
                             self.working_directory
                                 .display_relative_to_home()
