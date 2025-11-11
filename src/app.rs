@@ -23,7 +23,7 @@ use crate::{
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
-    custom_config::custom_keymap::{leader_keymap, LeaderAction, LeaderContext},
+    custom_config::custom_keymap::{custom_keymaps, LeaderAction, LeaderContext, Placeholder},
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
     frontend::Frontend,
@@ -1004,7 +1004,7 @@ impl<T: Frontend> App<T> {
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
             Dispatch::ExecuteLeaderMeaning(meaning) => {
                 if let Some((_, _, Some(action_fn))) =
-                    leader_keymap().into_iter().find(|(m, _, _)| *m == meaning)
+                    custom_keymaps().into_iter().find(|(m, _, _)| *m == meaning)
                 {
                     let context = LeaderContext {
                         path: self.get_current_file_path(),
@@ -1030,7 +1030,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::ExecuteLeaderHelpMeaning(meaning) => {
                 if let Some((_, description, Some(action_fn))) =
-                    leader_keymap().into_iter().find(|(m, _, _)| *m == meaning)
+                    custom_keymaps().into_iter().find(|(m, _, _)| *m == meaning)
                 {
                     let context = LeaderContext {
                         path: self.get_current_file_path(),
@@ -2977,32 +2977,53 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         match leader_action {
             LeaderAction::DoNothing => {}
-            LeaderAction::RunCommand(command, args) => {
-                let resolved_args: Vec<String> = args
-                    .iter()
-                    .map(|arg| arg.resolve(&leader_context).to_string())
-                    .collect_vec();
-                let _output = std::process::Command::new(command)
-                    .args(&resolved_args)
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .output()?;
+            LeaderAction::RunCommand(command, ref args)
+            | LeaderAction::ToggleProcess(command, ref args) => {
+                let mut final_args = Vec::new();
+                let mut current_arg = String::new();
+                let mut iter = args.iter().peekable();
+
+                while let Some(p) = iter.next() {
+                    if matches!(p, Placeholder::NoSpace) {
+                        continue;
+                    }
+                    current_arg.push_str(&p.resolve(&leader_context).to_string());
+                    if iter
+                        .peek()
+                        .map_or(true, |next_p| !matches!(next_p, &&Placeholder::NoSpace))
+                    {
+                        final_args.push(current_arg.clone());
+                        current_arg.clear();
+                    }
+                }
+
+                if let LeaderAction::RunCommand(_, _) = leader_action {
+                    let _output = std::process::Command::new(command)
+                        .args(&final_args)
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .output()?;
+                } else if let LeaderAction::ToggleProcess(_, _) = leader_action {
+                    self.process_manager.toggle(command, &final_args);
+                }
             }
             LeaderAction::ToClipboard(text) => {
-                let resolved_text: String = text
-                    .iter()
-                    .map(|arg| arg.resolve(&leader_context).to_string())
-                    .collect_vec()
-                    .join("");
+                let mut final_string = String::new();
+                let mut iter = text.iter().peekable();
+                while let Some(p) = iter.next() {
+                    if matches!(p, Placeholder::NoSpace) {
+                        continue;
+                    }
+                    final_string.push_str(&p.resolve(&leader_context).to_string());
+
+                    if let Some(next_p) = iter.peek() {
+                        if !matches!(next_p, &&Placeholder::NoSpace) {
+                            final_string.push_str(" ");
+                        }
+                    }
+                }
                 self.context
-                    .set_clipboard_content(CopiedTexts::new(NonEmpty::new(resolved_text)))?
-            }
-            LeaderAction::ToggleProcess(command, args) => {
-                let resolved_args: Vec<String> = args
-                    .iter()
-                    .map(|arg| arg.resolve(&leader_context).to_string())
-                    .collect_vec();
-                self.process_manager.toggle(command, &resolved_args);
+                    .set_clipboard_content(CopiedTexts::new(NonEmpty::new(final_string)))?
             }
             LeaderAction::Macro(key_events) => self.handle_key_events(key_events.to_vec())?,
         }
@@ -3018,21 +3039,31 @@ impl<T: Frontend> App<T> {
         match leader_action {
             LeaderAction::DoNothing => {}
             LeaderAction::RunCommand(command, args) => {
-                let resolved_args: Vec<String> = args
+                let mut final_args = Vec::new();
+                let mut current_arg = String::new();
+                let mut iter = args.iter().peekable();
+                while let Some(p) = iter.next() {
+                    if matches!(p, Placeholder::NoSpace) {
+                        continue;
+                    }
+                    current_arg.push_str(&p.resolve(&leader_context).to_string());
+                    if iter
+                        .peek()
+                        .map_or(true, |next_p| !matches!(next_p, &&Placeholder::NoSpace))
+                    {
+                        final_args.push(current_arg.clone());
+                        current_arg.clear();
+                    }
+                }
+
+                let resolved_vec_with_quotes: Vec<String> = final_args
                     .iter()
-                    .map(|arg| arg.resolve(&leader_context).to_string())
-                    .collect_vec();
-                let resolved_vec_with_quotes: Vec<String> = args
-                    .iter()
-                    .map(|arg| {
-                        let resolved_str = arg.resolve(&leader_context).to_string();
-                        format!("\"{}\"", resolved_str)
-                    })
+                    .map(|arg| format!("\"{}\"", arg))
                     .collect_vec();
                 let unresolved_vec: Vec<String> =
                     args.iter().map(|arg| arg.to_string()).collect_vec();
                 let output = std::process::Command::new(command)
-                    .args(&resolved_args)
+                    .args(&final_args)
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
                     .output()?;
@@ -3062,9 +3093,9 @@ impl<T: Frontend> App<T> {
                 append_and_decorate(&mut content, &mut decorations, &quoted_command);
 
                 content.push_str(", vec![");
-                for unresolved_arg in unresolved_vec.iter() {
-                    append_and_decorate(&mut content, &mut decorations, &unresolved_arg);
-                    if Some(unresolved_arg) != unresolved_vec.last() {
+                for (i, unresolved_arg) in unresolved_vec.iter().enumerate() {
+                    append_and_decorate(&mut content, &mut decorations, unresolved_arg);
+                    if i < unresolved_vec.len() - 1 {
                         content.push_str(", ");
                     }
                 }
@@ -3073,18 +3104,21 @@ impl<T: Frontend> App<T> {
                 append_and_decorate(&mut content, &mut decorations, &quoted_command);
 
                 content.push_str(").args(&[");
-                for resolved_arg in resolved_vec_with_quotes.iter() {
-                    append_and_decorate(&mut content, &mut decorations, &resolved_arg);
-                    if Some(resolved_arg) != resolved_vec_with_quotes.last() {
+                for (i, resolved_arg) in resolved_vec_with_quotes.iter().enumerate() {
+                    append_and_decorate(&mut content, &mut decorations, resolved_arg);
+                    if i < resolved_vec_with_quotes.len() - 1 {
                         content.push_str(", ");
                     }
                 }
 
                 content.push_str("])\nRunCommand Command:\n");
-                append_and_decorate(&mut content, &mut decorations, &command);
+                append_and_decorate(&mut content, &mut decorations, command);
 
-                content.push_str(" ");
-                append_and_decorate(&mut content, &mut decorations, &resolved_args.join(" "));
+                let command_line_args = final_args.join(" ");
+                if !command_line_args.is_empty() {
+                    content.push_str(" ");
+                    append_and_decorate(&mut content, &mut decorations, &command_line_args);
+                }
 
                 content.push_str("\n\n[STATUS]:\n");
                 append_and_decorate(
@@ -3112,11 +3146,20 @@ impl<T: Frontend> App<T> {
                 self.show_global_info(info);
             }
             LeaderAction::ToClipboard(text) => {
-                let resolved_text: String = text
-                    .iter()
-                    .map(|arg| arg.resolve(&leader_context).to_string())
-                    .collect_vec()
-                    .join("");
+                let mut resolved_text = String::new();
+                let mut iter = text.iter().peekable();
+                while let Some(p) = iter.next() {
+                    if matches!(p, Placeholder::NoSpace) {
+                        continue;
+                    }
+                    resolved_text.push_str(&p.resolve(&leader_context).to_string());
+                    if let Some(next_p) = iter.peek() {
+                        if !matches!(next_p, &&Placeholder::NoSpace) {
+                            resolved_text.push_str(" ");
+                        }
+                    }
+                }
+
                 let unresolved_vec: Vec<String> =
                     text.iter().map(|arg| arg.to_string()).collect_vec();
                 self.context
@@ -3144,9 +3187,9 @@ impl<T: Frontend> App<T> {
                 append_and_decorate(&mut content, &mut decorations, description);
 
                 content.push_str("\nUnresolved ToClipboard:\nToClipboard(vec![");
-                for unresolved_arg in unresolved_vec.iter() {
-                    append_and_decorate(&mut content, &mut decorations, &unresolved_arg);
-                    if Some(unresolved_arg) != unresolved_vec.last() {
+                for (i, unresolved_arg) in unresolved_vec.iter().enumerate() {
+                    append_and_decorate(&mut content, &mut decorations, unresolved_arg);
+                    if i < unresolved_vec.len() - 1 {
                         content.push_str(", ");
                     }
                 }
@@ -3159,25 +3202,31 @@ impl<T: Frontend> App<T> {
                 self.show_global_info(info);
             }
             LeaderAction::ToggleProcess(command, args) => {
+                let mut final_args = Vec::new();
+                let mut current_arg = String::new();
+                let mut iter = args.iter().peekable();
+                while let Some(p) = iter.next() {
+                    if matches!(p, Placeholder::NoSpace) {
+                        continue;
+                    }
+                    current_arg.push_str(&p.resolve(&leader_context).to_string());
+                    if iter
+                        .peek()
+                        .map_or(true, |next_p| !matches!(next_p, &&Placeholder::NoSpace))
+                    {
+                        final_args.push(current_arg.clone());
+                        current_arg.clear();
+                    }
+                }
+
+                self.process_manager.toggle(command, &final_args);
+
                 let unresolved_vec: Vec<String> =
                     args.iter().map(|arg| arg.to_string()).collect_vec();
-                let resolved_vec_with_quotes: Vec<String> = args
+                let resolved_vec_with_quotes: Vec<String> = final_args
                     .iter()
-                    .map(|arg| {
-                        let resolved_str = arg.resolve(&leader_context).to_string();
-                        format!("\"{}\"", resolved_str)
-                    })
+                    .map(|arg| format!("\"{}\"", arg))
                     .collect_vec();
-                let resolved_text: String = args
-                    .iter()
-                    .map(|arg| arg.resolve(&leader_context).to_string())
-                    .collect_vec()
-                    .join(" ");
-                let resolved_args: Vec<String> = args
-                    .iter()
-                    .map(|arg| arg.resolve(&leader_context).to_string())
-                    .collect_vec();
-                self.process_manager.toggle(command, &resolved_args);
 
                 let quoted_command = format!("\"{}\"", command);
                 let mut content = String::new();
@@ -3204,9 +3253,9 @@ impl<T: Frontend> App<T> {
                 append_and_decorate(&mut content, &mut decorations, &quoted_command);
 
                 content.push_str(", vec![");
-                for unresolved_arg in unresolved_vec.iter() {
-                    append_and_decorate(&mut content, &mut decorations, &unresolved_arg);
-                    if Some(unresolved_arg) != unresolved_vec.last() {
+                for (i, unresolved_arg) in unresolved_vec.iter().enumerate() {
+                    append_and_decorate(&mut content, &mut decorations, unresolved_arg);
+                    if i < unresolved_vec.len() - 1 {
                         content.push_str(", ");
                     }
                 }
@@ -3214,9 +3263,9 @@ impl<T: Frontend> App<T> {
                 content.push_str("])\nResolved ToggledProcess:\nprocess_manager.toggle(");
                 append_and_decorate(&mut content, &mut decorations, &quoted_command);
                 content.push_str(", &[");
-                for resolved_arg in resolved_vec_with_quotes.iter() {
-                    append_and_decorate(&mut content, &mut decorations, &resolved_arg);
-                    if Some(resolved_arg) != resolved_vec_with_quotes.last() {
+                for (i, resolved_arg) in resolved_vec_with_quotes.iter().enumerate() {
+                    append_and_decorate(&mut content, &mut decorations, resolved_arg);
+                    if i < resolved_vec_with_quotes.len() - 1 {
                         content.push_str(", ");
                     }
                 }
@@ -3224,8 +3273,11 @@ impl<T: Frontend> App<T> {
                 content.push_str("])\nToggleProcess Command:\n");
                 append_and_decorate(&mut content, &mut decorations, command);
 
-                content.push_str(" ");
-                append_and_decorate(&mut content, &mut decorations, &resolved_text);
+                let command_line_args = final_args.join(" ");
+                if !command_line_args.is_empty() {
+                    content.push_str(" ");
+                    append_and_decorate(&mut content, &mut decorations, &command_line_args);
+                }
 
                 let info = Info::new("ToggleProcess Help".to_string(), content)
                     .set_decorations(decorations);

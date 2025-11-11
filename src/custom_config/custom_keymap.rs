@@ -5,16 +5,14 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use event::KeyEvent;
-use my_proc_macros::keys;
-use shared::canonicalized_path::CanonicalizedPath;
-use std::cmp::Ordering;
-use std::fmt;
-
 use crate::components::editor_keymap::{
     KeyboardMeaningLayout,
     Meaning::{self, *},
 };
+use event::KeyEvent;
+use my_proc_macros::keys;
+use shared::canonicalized_path::CanonicalizedPath;
+use std::{cmp::Ordering, fmt};
 use LeaderAction::*;
 use Placeholder::*;
 
@@ -31,43 +29,24 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
 ];
 
 fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
-    if DirWorking::file_exists("Cargo.toml").resolve(ctx) {
-        RunCommand("cargo", vec![Str("run")])
-    } else if DirWorking::file_exists_dynamic(SelectionPrimary::content()).resolve(ctx) == false {
-        RunCommand(
-            "wl-copy",
-            vec![
-                Str("selection:"),
-                SelectionPrimary::content(),
-                Str("at:"),
-                FileCurrent::path(),
-            ],
-        )
-    } else {
-        RunCommand(
-            "wl-copy",
-            vec![
-                Str("zig?\n"),
-                DirWorking::file_exists("build.zig").into(),
-                Str("\ngo?\n"),
-                DirWorking::file_exists("go.mod").into(),
-                Str("\nhaskell?\n"),
-                DirWorking::file_exists(".cabal").into(),
-            ],
-        )
-    }
-}
-
-fn sample_toggle_process_command(ctx: &LeaderContext) -> LeaderAction {
-    ToggleProcess(
-        "tinymist",
+    // Search selected content using Google
+    RunCommand(
+        "chromium",
         vec![
-            Str("preview"),
-            Str("--invert-colors=auto"),
-            Str("--open"),
-            FileCurrent::path(),
+            Str("https://www.google.com/search?q="),
+            NoSpace,
+            SelectionPrimary::content(),
         ],
     )
+}
+
+fn sample_toggle_process(ctx: &LeaderContext) -> LeaderAction {
+    // Open the currrent file in a new window of Chromium,
+    if FileCurrent::extension().resolve(ctx) == "html" {
+        ToggleProcess("chromium", vec![FileCurrent::path(), Str("--new-window")])
+    } else {
+        DoNothing
+    }
 }
 
 fn sample_macro(_ctx: &LeaderContext) -> LeaderAction {
@@ -75,7 +54,7 @@ fn sample_macro(_ctx: &LeaderContext) -> LeaderAction {
 }
 
 fn sample_to_clipboard(_ctx: &LeaderContext) -> LeaderAction {
-    ToClipboard(vec![Str("Find this:"), FileCurrent::path()])
+    ToClipboard(vec![Str("Hi"), FileCurrent::path()])
 }
 
 fn test(_ctx: &LeaderContext) -> LeaderAction {
@@ -94,18 +73,17 @@ fn test(_ctx: &LeaderContext) -> LeaderAction {
         ],
     )
 }
-
-pub(crate) fn leader_keymap() -> Vec<(
+pub(crate) fn custom_keymaps() -> Vec<(
     Meaning,
     &'static str,
     Option<fn(&LeaderContext) -> LeaderAction>,
 )> {
-    let keymaps: [(Meaning, &str, Option<fn(&LeaderContext) -> LeaderAction>); 30] = [
-        (__Q__, "Sample run command", Some(sample_run_command)),
+    let custom_keymaps: [(Meaning, &str, Option<fn(&LeaderContext) -> LeaderAction>); 30] = [
+        (__Q__, "Sample Run Command", Some(sample_run_command)),
         (__W__, "Sample macro", Some(sample_macro)),
-        (__E__, "Process", Some(sample_toggle_process_command)),
-        (__R__, "Copy File Path", Some(sample_to_clipboard)),
-        (__T__, "Test", Some(test)),
+        (__E__, "Sample toggle process", Some(sample_toggle_process)),
+        (__R__, "Sample to clipboard", Some(sample_to_clipboard)),
+        (__T__, "", None),
         (__Y__, "", None),
         (__U__, "", None),
         (__I__, "", None),
@@ -134,17 +112,8 @@ pub(crate) fn leader_keymap() -> Vec<(
         (_DOT_, "", None),
         (_SLSH, "", None),
     ];
-    keymaps.into_iter().collect()
+    custom_keymaps.into_iter().collect()
 }
-
-pub(crate) struct LeaderContext {
-    pub(crate) path: Option<CanonicalizedPath>,
-    /// 0-based index
-    pub(crate) primary_selection_line_index: usize,
-    pub(crate) primary_selection_content: String,
-    pub(crate) current_working_directory: CanonicalizedPath,
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum LeaderAction {
     RunCommand(&'static str, Vec<Placeholder>),
@@ -157,6 +126,7 @@ pub(crate) enum LeaderAction {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Placeholder {
     Str(&'static str),
+    NoSpace,
     FileCurrent(FileCurrentKind),
     SelectionPrimary(SelectionPrimaryKind),
     DirCurrent(DirWorkingKind),
@@ -180,6 +150,23 @@ pub(crate) enum DirWorkingKind {
     Path,
     FileExists(&'static str),
     FileExistsDynamic(Box<Placeholder>),
+}
+
+pub(crate) enum ResolvedValue {
+    Str(String),
+    Int(i64),
+    Empty,
+    Bool(bool),
+}
+
+pub(crate) struct Condition(Placeholder);
+
+pub(crate) struct LeaderContext {
+    pub(crate) path: Option<CanonicalizedPath>,
+    /// 0-based index
+    pub(crate) primary_selection_line_index: usize,
+    pub(crate) primary_selection_content: String,
+    pub(crate) current_working_directory: CanonicalizedPath,
 }
 
 pub(crate) struct FileCurrent;
@@ -219,13 +206,6 @@ impl DirWorking {
     }
 }
 
-pub(crate) enum ResolvedValue {
-    Str(String),
-    Int(i64),
-    Empty,
-    Bool(bool),
-}
-
 impl ResolvedValue {
     pub(crate) fn to_string(&self) -> String {
         match self {
@@ -236,8 +216,6 @@ impl ResolvedValue {
         }
     }
 }
-
-pub(crate) struct Condition(Placeholder);
 
 impl Condition {
     pub(crate) fn resolve(&self, ctx: &LeaderContext) -> bool {
@@ -257,6 +235,7 @@ impl Placeholder {
     pub(crate) fn resolve(&self, ctx: &LeaderContext) -> ResolvedValue {
         match self {
             Str(str) => ResolvedValue::Str(str.to_string()),
+            Placeholder::NoSpace => ResolvedValue::Empty,
             Placeholder::FileCurrent(kind) => match kind {
                 FileCurrentKind::Path => match &ctx.path {
                     Some(path) => ResolvedValue::Str(path.display_absolute()),
@@ -354,6 +333,7 @@ impl fmt::Display for Placeholder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Placeholder::Str(s) => write!(f, "Str(\"{}\")", s),
+            Placeholder::NoSpace => write!(f, "NoSpace"),
 
             Placeholder::FileCurrent(kind) => match kind {
                 FileCurrentKind::Path => write!(f, "FileCurrent::path()"),
