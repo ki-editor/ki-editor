@@ -49,11 +49,11 @@ fn sample_toggle_process(ctx: &LeaderContext) -> LeaderAction {
     }
 }
 
-fn sample_macro(_ctx: &LeaderContext) -> LeaderAction {
+fn sample_macro(ctx: &LeaderContext) -> LeaderAction {
     Macro(keys!("a c d q F e r t i g enter a ; backspace backspace a"))
 }
 
-fn sample_to_clipboard(_ctx: &LeaderContext) -> LeaderAction {
+fn sample_to_clipboard(ctx: &LeaderContext) -> LeaderAction {
     ToClipboard(vec![
         Str("Referring to:"),
         SelectionPrimary::content(),
@@ -64,7 +64,7 @@ fn sample_to_clipboard(_ctx: &LeaderContext) -> LeaderAction {
     ])
 }
 
-fn test(_ctx: &LeaderContext) -> LeaderAction {
+fn kitty_cargo_test(ctx: &LeaderContext) -> LeaderAction {
     RunCommand(
         "kitty",
         vec![
@@ -74,22 +74,59 @@ fn test(_ctx: &LeaderContext) -> LeaderAction {
             Str("--no-response"),
             Str("--cwd"),
             DirWorking::path(),
-            Str("just"),
+            Str("cargo"),
             Str("test"),
             SelectionPrimary::content(),
         ],
     )
 }
+
+fn tmux_build(ctx: &LeaderContext) -> LeaderAction {
+    // Compile Rust
+    if FileCurrent::extension().resolve(ctx) == "rs" {
+        RunCommand(
+            "sh",
+            vec![
+                Str("-c"),
+                Str("tmux select-window -t :1 && tmux send-keys -t :1 \"cargo build\" C-m"),
+            ],
+        )
+    // Compile Zig
+    } else if FileCurrent::extension().resolve(ctx) == "zig" {
+        RunCommand(
+            "sh",
+            vec![
+                Str("-c"),
+                Str("tmux select-window -t :1 && tmux send-keys -t :1 \"zig build\" C-m"),
+            ],
+        )
+    // Compile a Cobol file
+    } else if FileCurrent::extension().resolve(ctx) == "cbl" {
+        RunCommand(
+            "sh",
+            vec![
+                Str("-c"),
+                Str("tmux select-window -t :1 && tmux send-keys -t :1 \"cobc -x "),
+                FileCurrent::path(),
+                Str("\" C-m"),
+            ],
+        )
+    // Continue adding hipster languages as needed
+    } else {
+        DoNothing
+    }
+}
+
 pub(crate) fn custom_keymaps() -> Vec<(
     Meaning,
     &'static str,
     Option<fn(&LeaderContext) -> LeaderAction>,
 )> {
     let custom_keymaps: [(Meaning, &str, Option<fn(&LeaderContext) -> LeaderAction>); 30] = [
-        (__Q__, "Sample Run Command", Some(sample_run_command)),
-        (__W__, "Sample macro", Some(sample_macro)),
-        (__E__, "Sample toggle process", Some(sample_toggle_process)),
-        (__R__, "Sample to clipboard", Some(sample_to_clipboard)),
+        (__Q__, "Sample RunCommand", Some(sample_run_command)),
+        (__W__, "Sample Macro", Some(sample_macro)),
+        (__E__, "Sample ToggleProcess", Some(sample_toggle_process)),
+        (__R__, "Sample ToClipboard", Some(sample_to_clipboard)),
         (__T__, "", None),
         (__Y__, "", None),
         (__U__, "", None),
@@ -97,8 +134,8 @@ pub(crate) fn custom_keymaps() -> Vec<(
         (__O__, "", None),
         (__P__, "", None),
         // Second row
-        (__A__, "", None),
-        (__S__, "", None),
+        (__A__, "Tmux build", Some(tmux_build)),
+        (__S__, "Kitty cargo test", Some(kitty_cargo_test)),
         (__D__, "", None),
         (__F__, "", None),
         (__G__, "", None),
