@@ -402,9 +402,7 @@ fn print_single_keymap_table(keymap: &KeymapPrintSection) {
     println!("{}:", keymap.name);
 
     let table = keymap.display(
-        crossterm::terminal::size()
-            .map(|(terminal_width, _)| terminal_width / 11)
-            .unwrap_or(8),
+        u16::MAX,
         &KeymapDisplayOption {
             show_alt: true,
             show_shift: true,

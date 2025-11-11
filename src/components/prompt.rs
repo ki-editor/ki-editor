@@ -870,7 +870,7 @@ mod test_prompt {
                 Expect(CurrentComponentContent("foo.\n")),
                 // Navigate upwards and use the history
                 Editor(EnterNormalMode),
-                Editor(MoveSelection(Up)),
+                Editor(MoveSelection(Left)),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(CurrentSearch(Scope::Local, "foo.")),
             ])
