@@ -29,7 +29,7 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
 ];
 
 fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
-    // Search selected content using Google
+    // Search selected content using Google and chromium
     RunCommand(
         "chromium",
         vec![
@@ -54,7 +54,14 @@ fn sample_macro(_ctx: &LeaderContext) -> LeaderAction {
 }
 
 fn sample_to_clipboard(_ctx: &LeaderContext) -> LeaderAction {
-    ToClipboard(vec![Str("Hi"), FileCurrent::path()])
+    ToClipboard(vec![
+        Str("Referring to:"),
+        SelectionPrimary::content(),
+        Str("\nIn file:"),
+        FileCurrent::path(),
+        Str("\nOn line:"),
+        SelectionPrimary::row_index(),
+    ])
 }
 
 fn test(_ctx: &LeaderContext) -> LeaderAction {

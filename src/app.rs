@@ -2977,8 +2977,7 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         match leader_action {
             LeaderAction::DoNothing => {}
-            LeaderAction::RunCommand(command, ref args)
-            | LeaderAction::ToggleProcess(command, ref args) => {
+            LeaderAction::RunCommand(command, ref args) => {
                 let mut final_args = Vec::new();
                 let mut current_arg = String::new();
                 let mut iter = args.iter().peekable();
@@ -2997,15 +2996,31 @@ impl<T: Frontend> App<T> {
                     }
                 }
 
-                if let LeaderAction::RunCommand(_, _) = leader_action {
-                    let _output = std::process::Command::new(command)
-                        .args(&final_args)
-                        .stdout(Stdio::null())
-                        .stderr(Stdio::null())
-                        .output()?;
-                } else if let LeaderAction::ToggleProcess(_, _) = leader_action {
-                    self.process_manager.toggle(command, &final_args);
+                let _ = std::process::Command::new(command)
+                    .args(&final_args)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn();
+            }
+            LeaderAction::ToggleProcess(command, ref args) => {
+                let mut final_args = Vec::new();
+                let mut current_arg = String::new();
+                let mut iter = args.iter().peekable();
+
+                while let Some(p) = iter.next() {
+                    if matches!(p, Placeholder::NoSpace) {
+                        continue;
+                    }
+                    current_arg.push_str(&p.resolve(&leader_context).to_string());
+                    if iter
+                        .peek()
+                        .map_or(true, |next_p| !matches!(next_p, &&Placeholder::NoSpace))
+                    {
+                        final_args.push(current_arg.clone());
+                        current_arg.clear();
+                    }
                 }
+                self.process_manager.toggle(command, &final_args);
             }
             LeaderAction::ToClipboard(text) => {
                 let mut final_string = String::new();
@@ -3039,6 +3054,11 @@ impl<T: Frontend> App<T> {
         match leader_action {
             LeaderAction::DoNothing => {}
             LeaderAction::RunCommand(command, args) => {
+                self.show_global_info(Info::new(
+                    "Running Command...".to_string(),
+                    "Ki is waiting for the command to finish.\nThis is necessary to capture debug info.\nYou can:\nQuit the opened process.\nClose the opened application.\nWait, if the process will resolve itself.".to_string(),
+                ));
+                self.render()?;
                 let mut final_args = Vec::new();
                 let mut current_arg = String::new();
                 let mut iter = args.iter().peekable();
