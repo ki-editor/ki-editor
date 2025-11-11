@@ -181,6 +181,7 @@ impl PositionBasedSelectionMode for Subword {
         buffer: &Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
+        _: crate::char_index_range::CharIndexRange,
     ) -> anyhow::Result<Option<ByteRange>> {
         self.get_current_selection(buffer, cursor_char_index, if_current_not_found, true)
     }
@@ -190,6 +191,7 @@ impl PositionBasedSelectionMode for Subword {
         buffer: &Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
+        _: crate::char_index_range::CharIndexRange,
     ) -> anyhow::Result<Option<ByteRange>> {
         self.get_current_selection(buffer, cursor_char_index, if_current_not_found, false)
     }
@@ -304,14 +306,17 @@ mod test_subword {
                     focus: true,
                 }),
                 Editor(SetContent("".to_string())),
+                Expect(CurrentSelectionMode(SelectionMode::Line)),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
                     crate::selection::SelectionMode::Subword,
                 )),
+                // Expect selection mode not changed because there is zero possible selection
+                Expect(CurrentSelectionMode(SelectionMode::Line)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelection(Up)),
+                Editor(MoveSelection(Left)),
                 Expect(CurrentSelectedTexts(&[""])),
             ])
         })

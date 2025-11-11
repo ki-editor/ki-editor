@@ -1,8 +1,11 @@
+use std::ops::Not;
+
 use itertools::Itertools;
 
 use crate::{
     components::editor::{Direction, IfCurrentNotFound},
     selection::CharIndex,
+    selection_mode::ApplyMovementResult,
 };
 
 use super::{ByteRange, PositionBasedSelectionMode, SelectionModeParams};
@@ -16,6 +19,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
         if_current_not_found: crate::components::editor::IfCurrentNotFound,
+        _: crate::char_index_range::CharIndexRange,
     ) -> anyhow::Result<Option<super::ByteRange>> {
         let start_index;
         let end_index;
@@ -395,131 +399,237 @@ impl PositionBasedSelectionMode for LineTrimmed {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
-        _: crate::components::editor::IfCurrentNotFound,
+        if_current_not_found: crate::components::editor::IfCurrentNotFound,
+        current_selection_range: crate::char_index_range::CharIndexRange,
     ) -> anyhow::Result<Option<super::ByteRange>> {
-        let start_index;
-        let end_index;
+        get_line(
+            buffer,
+            cursor_char_index,
+            if_current_not_found,
+            true,
+            current_selection_range,
+        )
+    }
 
+    fn process_paste_gap(
+        &self,
+        params: &super::SelectionModeParams,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
+        direction: &crate::components::editor::Direction,
+    ) -> String {
+        process_paste_gap(params, prev_gap, next_gap, direction)
+    }
+
+    fn down(
+        &self,
+        params: &super::SelectionModeParams,
+        _sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        let buffer = params.buffer;
+        let start_char_index = {
+            let cursor_char_index = params.cursor_char_index();
+
+            // If current line is already an empty line,
+            // find the next group of empty lines
+            if buffer
+                .get_line_by_char_index(cursor_char_index)?
+                .chars()
+                .all(|char| char.is_whitespace())
+            {
+                let mut index = cursor_char_index;
+                loop {
+                    if index > CharIndex(buffer.len_chars().saturating_sub(1)) {
+                        return Ok(None);
+                    } else if buffer.char(index)?.is_whitespace() {
+                        index = index + 1
+                    } else {
+                        break index;
+                    }
+                }
+            } else {
+                cursor_char_index
+            }
+        };
+        let mut line_index = buffer.char_to_line(start_char_index)?;
+
+        while line_index < buffer.len_lines() {
+            if let Some(slice) = buffer.get_line_by_line_index(line_index) {
+                if slice.chars().all(|char| char.is_whitespace()) {
+                    return Ok(self
+                        .to_index(params, line_index)?
+                        .map(ApplyMovementResult::from_selection));
+                } else {
+                    line_index += 1
+                }
+            } else {
+                break;
+            }
+        }
+        Ok(None)
+    }
+
+    fn up(
+        &self,
+        params: &super::SelectionModeParams,
+        _sticky_column_index: Option<usize>,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        let buffer = params.buffer;
+        let start_char_index = {
+            let cursor_char_index = params.cursor_char_index();
+
+            // If current line is already an empty line,
+            // find the previous group of empty lines
+            if buffer
+                .get_line_by_char_index(cursor_char_index)?
+                .chars()
+                .all(|char| char.is_whitespace())
+            {
+                let mut index = cursor_char_index;
+                loop {
+                    if buffer.char(index)?.is_whitespace() {
+                        if index == CharIndex(0) {
+                            return Ok(None);
+                        } else {
+                            index = index - 1
+                        }
+                    } else {
+                        break index;
+                    }
+                }
+            } else {
+                cursor_char_index
+            }
+        };
+        let mut line_index = buffer.char_to_line(start_char_index)?;
+        while let Some(slice) = buffer.get_line_by_line_index(line_index) {
+            if slice.chars().all(|char| char.is_whitespace()) {
+                return Ok(self
+                    .to_index(params, line_index)?
+                    .map(ApplyMovementResult::from_selection));
+            } else if line_index == 0 {
+                break;
+            } else {
+                line_index -= 1
+            }
+        }
+        Ok(None)
+    }
+}
+
+fn get_line(
+    buffer: &crate::buffer::Buffer,
+    cursor_char_index: crate::selection::CharIndex,
+    if_current_not_found: crate::components::editor::IfCurrentNotFound,
+    newline_is_significant: bool,
+    current_selection_range: crate::char_index_range::CharIndexRange,
+) -> anyhow::Result<Option<super::ByteRange>> {
+    let (start_index, end_index) = 'here: {
+        if cursor_char_index > CharIndex(buffer.len_chars()) {
+            return Ok(None);
+        };
         if cursor_char_index == CharIndex(buffer.len_chars()) {
-            start_index = cursor_char_index;
-            end_index = cursor_char_index;
+            (cursor_char_index, cursor_char_index)
         } else {
-            let Ok(ch) = buffer.char(cursor_char_index) else {
-                return Ok(None);
+            let is_skippable = if newline_is_significant {
+                |c: char| c.is_whitespace() && c != '\n'
+            } else {
+                |c: char| c.is_whitespace()
             };
 
-            if cursor_char_index == CharIndex(buffer.len_chars()) {
-                start_index = cursor_char_index;
-                end_index = cursor_char_index;
-            } else if ch == '\n' {
-                let mut left_atleast_one_non_whitespace = false;
-                let mut left_first_non_whitespace = CharIndex(0);
+            // Check if cursor is on an empty line
 
-                let mut left_index = cursor_char_index;
-                loop {
-                    if left_index.0 == 0 {
-                        break;
-                    }
-
-                    left_index = left_index - 1;
-                    let Ok(ch) = buffer.char(left_index) else {
-                        break;
-                    };
-                    if ch == '\n' {
-                        break;
-                    } else if ch.is_whitespace() {
-                        continue;
-                    } else {
-                        left_atleast_one_non_whitespace = true;
-                        left_first_non_whitespace = left_index;
-                        break;
-                    }
-                }
-
-                if left_atleast_one_non_whitespace {
-                    start_index = left_first_non_whitespace + 1;
-                    end_index = cursor_char_index + 1;
-                } else {
-                    start_index = cursor_char_index;
-                    end_index = cursor_char_index + 1;
-                }
-            } else if ch.is_whitespace() {
+            {
+                let mut trailing_newline_char_index = None;
+                let mut leading_newline_char_index = None;
                 {
-                    let mut left_index = cursor_char_index;
-                    let mut left_atleast_one_non_whitespace = false;
-                    let mut left_last_non_whitespace = CharIndex(0);
-                    let mut left_first_non_whitespace = CharIndex(0);
-                    loop {
-                        if left_index == CharIndex(0) {
-                            break;
+                    let mut index = cursor_char_index;
+                    while buffer
+                        .char(index)
+                        .ok()
+                        .map(|c| c.is_whitespace() && c != '\n')
+                        .unwrap_or(false)
+                        && index > CharIndex(0)
+                    {
+                        index = index - 1;
+                    }
+                    if buffer.char(index).ok() == Some('\n') {
+                        leading_newline_char_index = Some(index);
+                    }
+                }
+                {
+                    let mut index = cursor_char_index;
+                    while buffer
+                        .char(index)
+                        .ok()
+                        .map(|c| c.is_whitespace() && c != '\n')
+                        .unwrap_or(false)
+                    {
+                        index = index + 1
+                    }
+                    if buffer.char(index).ok() == Some('\n') {
+                        trailing_newline_char_index = Some(index);
+                    }
+                }
+                match (leading_newline_char_index, trailing_newline_char_index) {
+                    (Some(leading_newline_char_index), Some(trailing_newline_char_index)) => {
+                        if if_current_not_found == IfCurrentNotFound::LookBackward
+                            && current_selection_range.as_usize_range().is_empty()
+                        {
+                            break 'here (
+                                leading_newline_char_index,
+                                leading_newline_char_index + 1,
+                            );
                         }
-
-                        left_index = left_index - 1;
-                        let Ok(ch) = buffer.char(left_index) else {
-                            break;
-                        };
-                        if ch == '\n' {
-                            left_index = left_index + 1;
-                            break;
-                        } else if ch.is_whitespace() {
-                            continue;
-                        } else {
-                            if !left_atleast_one_non_whitespace {
-                                left_first_non_whitespace = left_index;
-                            }
-                            left_atleast_one_non_whitespace = true;
-                            left_last_non_whitespace = left_index;
+                        if cursor_char_index != trailing_newline_char_index {
+                            break 'here (trailing_newline_char_index, trailing_newline_char_index);
                         }
                     }
-
-                    let mut right_index = cursor_char_index;
-                    let mut right_atleast_one_non_whitespace = false;
-                    let mut right_last_non_whitespace = CharIndex(0);
-                    let mut right_first_non_whitespace = CharIndex(0);
-                    loop {
-                        if right_index == CharIndex(buffer.len_chars()) {
-                            break;
-                        }
-
-                        right_index = right_index + 1;
-                        let Ok(ch) = buffer.char(right_index) else {
-                            break;
-                        };
-                        if ch == '\n' {
-                            break;
-                        } else if ch.is_whitespace() {
-                            continue;
-                        } else {
-                            if !right_atleast_one_non_whitespace {
-                                right_first_non_whitespace = right_index;
-                            }
-                            right_atleast_one_non_whitespace = true;
-                            right_last_non_whitespace = right_index;
-                        }
+                    _ => {
+                        // Do nothing
                     }
+                }
+            };
 
-                    if left_atleast_one_non_whitespace {
-                        if right_atleast_one_non_whitespace {
-                            start_index = left_last_non_whitespace;
-                            end_index = right_last_non_whitespace + 1;
+            let cursor_char_index = match if_current_not_found {
+                IfCurrentNotFound::LookForward => {
+                    let mut index = cursor_char_index;
+                    let len_chars = buffer.len_chars().saturating_sub(1);
+                    loop {
+                        let ch = buffer.char(index)?;
+                        if is_skippable(ch).not() {
+                            break index;
+                        } else if index.0 == len_chars {
+                            return Ok(None);
                         } else {
-                            start_index = left_first_non_whitespace + 1;
-                            end_index = right_index + 1;
-                        }
-                    } else {
-                        start_index = left_index;
-                        if right_atleast_one_non_whitespace {
-                            end_index = right_first_non_whitespace;
-                        } else {
-                            end_index = right_index;
+                            index = index + 1
                         }
                     }
                 }
+                IfCurrentNotFound::LookBackward => {
+                    let mut index = cursor_char_index;
+                    loop {
+                        let ch = buffer.char(index)?;
+                        if is_skippable(ch).not() {
+                            break index;
+                        } else if index.0 == 0 {
+                            return Ok(None);
+                        } else {
+                            index = index - 1
+                        }
+                    }
+                }
+            };
+
+            let ch = buffer.char(cursor_char_index)?;
+
+            if ch == '\n' {
+                (cursor_char_index, cursor_char_index + 1)
             } else {
                 let mut left_index = cursor_char_index;
 
                 let mut left_most_non_whitespace = cursor_char_index;
-                start_index = loop {
+                let start_index = loop {
                     if left_index == CharIndex(0) {
                         break left_most_non_whitespace;
                     }
@@ -536,7 +646,7 @@ impl PositionBasedSelectionMode for LineTrimmed {
                     }
                 };
 
-                end_index = {
+                let end_index = {
                     let mut right_encountered_non_whitespace = false;
                     let mut right_last_non_whitespace = CharIndex(0);
                     let mut right_index = left_most_non_whitespace;
@@ -563,23 +673,14 @@ impl PositionBasedSelectionMode for LineTrimmed {
                     } else {
                         cursor_char_index + 1
                     }
-                }
+                };
+
+                (start_index, end_index)
             }
         }
-        let trimmed_range =
-            buffer.char_index_range_to_byte_range((start_index..end_index).into())?;
-        Ok(Some(ByteRange::new(trimmed_range)))
-    }
-
-    fn process_paste_gap(
-        &self,
-        params: &super::SelectionModeParams,
-        prev_gap: Option<String>,
-        next_gap: Option<String>,
-        direction: &crate::components::editor::Direction,
-    ) -> String {
-        process_paste_gap(params, prev_gap, next_gap, direction)
-    }
+    };
+    let trimmed_range = buffer.char_index_range_to_byte_range((start_index..end_index).into())?;
+    Ok(Some(ByteRange::new(trimmed_range)))
 }
 
 pub(crate) fn process_paste_gap(
@@ -660,22 +761,28 @@ mod test_line {
                     owner: BufferOwner::User,
                     focus: true,
                 }),
-                Editor(SetContent("   a   \n    \nb".to_string())),
+                Editor(SetContent(" a \n \nb".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Line,
                 )),
-                Expect(CurrentSelectedTexts(&["   "])),
-                Editor(MoveSelection(Movement::Next)),
                 Expect(CurrentSelectedTexts(&["a"])),
                 Editor(MoveSelection(Movement::Next)),
-                Expect(CurrentSelectedTexts(&["   \n"])),
+                Expect(CurrentSelectedTexts(&["\n"])),
                 Editor(MoveSelection(Movement::Next)),
-                Expect(CurrentSelectedTexts(&["    "])),
+                Expect(CurrentSelectedTexts(&[""])),
                 Editor(MoveSelection(Movement::Next)),
                 Expect(CurrentSelectedTexts(&["\n"])),
                 Editor(MoveSelection(Movement::Next)),
                 Expect(CurrentSelectedTexts(&["b"])),
+                Editor(MoveSelection(Movement::Previous)),
+                Expect(CurrentSelectedTexts(&["\n"])),
+                Editor(MoveSelection(Movement::Previous)),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(MoveSelection(Movement::Previous)),
+                Expect(CurrentSelectedTexts(&["\n"])),
+                Editor(MoveSelection(Movement::Previous)),
+                Expect(CurrentSelectedTexts(&["a"])),
             ])
         })
     }
@@ -808,7 +915,7 @@ foo
                 )),
                 Editor(Copy),
                 Editor(Paste),
-                Expect(CurrentComponentContent("  \n  foo")),
+                Expect(CurrentComponentContent("  foo\n  foo")),
             ])
         })
     }
@@ -832,7 +939,7 @@ foo
                 Editor(Copy),
                 Editor(SwapCursor),
                 Editor(Paste),
-                Expect(CurrentComponentContent("  \n  foo")),
+                Expect(CurrentComponentContent("  foo\n  foo")),
             ])
         })
     }

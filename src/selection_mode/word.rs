@@ -65,6 +65,7 @@ impl PositionBasedSelectionMode for Word {
         buffer: &crate::buffer::Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
+        _: crate::char_index_range::CharIndexRange,
     ) -> anyhow::Result<Option<ByteRange>> {
         get_current_word_by_cursor(true, buffer, cursor_char_index, if_current_not_found)
     }
@@ -74,6 +75,7 @@ impl PositionBasedSelectionMode for Word {
         buffer: &crate::buffer::Buffer,
         cursor_char_index: CharIndex,
         _: IfCurrentNotFound,
+        _: crate::char_index_range::CharIndexRange,
     ) -> anyhow::Result<Option<ByteRange>> {
         get_current_word_or_whitespace_by_cursor(buffer, cursor_char_index)
     }
@@ -385,14 +387,17 @@ mod test_word {
                     focus: true,
                 }),
                 Editor(SetContent("".to_string())),
+                Expect(CurrentSelectionMode(SelectionMode::Line)),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Word,
                 )),
+                // Expect selection mode not changed because there is zero possible selection
+                Expect(CurrentSelectionMode(SelectionMode::Line)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Left)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelection(Up)),
+                Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&[""])),
             ])
         })

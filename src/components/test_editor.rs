@@ -1579,7 +1579,7 @@ fn main() {
                 use_current_selection_mode: true,
                 prior_change: None,
             }),
-            Expect(JumpChars(&['\n', '\n', ' ', 'b', 'f', '}'])),
+            Expect(JumpChars(&['\n', '\n', 'b', 'f', '}'])),
             App(HandleKeyEvent(key!("f"))),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
         ])
@@ -3452,7 +3452,7 @@ foov foou bar
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(MoveSelectionWithPriorChange(
-                Down,
+                Right,
                 Some(PriorChange::EnterMultiCursorMode),
             )),
             Expect(CurrentSelectedTexts(&["fooz bar fooy", "bar foox foow"])),
@@ -3475,7 +3475,7 @@ foov foou bar
 }
 
 #[test]
-fn select_trailing_whitespace_when_cursor_is_at_last_space_of_current_line() -> anyhow::Result<()> {
+fn select_trailing_newline_when_cursor_is_at_last_space_of_current_line() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -3493,7 +3493,7 @@ fn select_trailing_whitespace_when_cursor_is_at_last_space_of_current_line() -> 
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&[" "])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Expect(CurrentSelectedTexts(&[" \n"])),
+            Expect(CurrentSelectedTexts(&["\n"])),
         ])
     })
 }
@@ -3751,7 +3751,7 @@ yo"
 }
 
 #[test]
-fn empty_lines_navigation() -> anyhow::Result<()> {
+fn empty_lines_navigation_line_full() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -3789,6 +3789,49 @@ bam
             Editor(MoveSelection(Left)),
             Editor(MoveSelection(Down)),
             Expect(CurrentSelectedTexts(&["spam\n"])),
+        ])
+    })
+}
+
+#[test]
+fn empty_lines_navigation_line_trimmed() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+foo
+bar
+
+
+spam
+baz
+
+
+bomb
+bam
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&[""])),
+            Editor(MoveSelection(Left)),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Down)),
+            Editor(MoveSelection(Left)),
+            Expect(CurrentSelectedTexts(&["baz"])),
+            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Up)),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["spam"])),
         ])
     })
 }
@@ -3938,7 +3981,6 @@ fn should_search_backward_if_primary_and_secondary_cursor_swapped() -> anyhow::R
             }),
             Editor(SetContent("  hello world  ".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(MoveSelection(Right)),
             Editor(SwapCursor),
             App(HandleKeyEvent(key!("s"))), // Word selection mode (Qwerty)
             Expect(CurrentSelectedTexts(&["world"])),
@@ -4281,7 +4323,7 @@ spam
 }
 
 #[test]
-fn move_line_down() -> anyhow::Result<()> {
+fn move_line_downward() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -4303,13 +4345,10 @@ foo bar
                 SelectionMode::Line,
             )),
             Expect(CurrentSelectedTexts(&["foo bar"])),
-            Editor(MoveSelection(Down)),
-            Expect(CurrentSelectedTexts(&["    "])),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["spam"])),
-            Editor(MoveSelection(Up)),
+            Editor(MoveSelection(Left)),
             Expect(CurrentSelectedTexts(&["foo bar"])),
-            // moving directly down to meaningful requires Right
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["spam"])),
         ])
@@ -4317,7 +4356,7 @@ foo bar
 }
 
 #[test]
-fn move_line_up() -> anyhow::Result<()> {
+fn move_line_upward() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -4341,13 +4380,10 @@ hello
                 SelectionMode::Line,
             )),
             Expect(CurrentSelectedTexts(&["foo bar"])),
-            Editor(MoveSelection(Up)),
-            Expect(CurrentSelectedTexts(&["    "])),
-            Editor(MoveSelection(Down)),
-            Expect(CurrentSelectedTexts(&["foo bar"])),
-            // moving directly up to meaningful requires Left
             Editor(MoveSelection(Left)),
             Expect(CurrentSelectedTexts(&["baz"])),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["foo bar"])),
         ])
     })
 }
@@ -4366,13 +4402,10 @@ fn move_down_from_indented_line_to_last_dedented_line() -> anyhow::Result<()> {
                 IfCurrentNotFound::LookForward,
                 SelectionMode::Line,
             )),
-            // current selection will be the leading whitespace
-            Expect(CurrentSelectedTexts(&["    "])),
-            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["fo"])),
-            Editor(MoveSelection(Down)),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["b"])),
-            Editor(MoveSelection(Up)),
+            Editor(MoveSelection(Left)),
             Expect(CurrentSelectedTexts(&["fo"])),
         ])
     })
@@ -4392,10 +4425,8 @@ fn delete_forward_last_dedented_lines() -> anyhow::Result<()> {
                 IfCurrentNotFound::LookForward,
                 SelectionMode::Line,
             )),
-            Expect(CurrentSelectedTexts(&["    "])),
-            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["fo"])),
-            Editor(MoveSelection(Down)),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["b"])),
             Editor(Delete),
             Expect(CurrentSelectedTexts(&["fo"])),
@@ -5135,8 +5166,8 @@ zzz
                 Editor(MatchLiteral("xxx".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(EnableSelectionExtension),
-                Editor(MoveSelection(Down)),
-                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Right)),
+                Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["xxx\nyyy\nzzz"])),
                 Editor(dispatch.clone()),
                 Expect(AppGrid(expected_output.to_string())),

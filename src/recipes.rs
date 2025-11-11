@@ -492,7 +492,7 @@ string.
                 .trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("a g k k I"),
+                events: keys!("a g l l I"),
                 expectations: Box::new([CurrentSelectedTexts(&["This is a multiple line string."])]),
                 terminal_height: None,
                 similar_vim_combos: &[],
@@ -879,7 +879,7 @@ foov foou bar
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("a g k r q f o o enter v"),
+                    events: keys!("a g l r q f o o enter v"),
                     expectations: Box::new([
                         CurrentComponentContent(
                             "z bar y
@@ -937,7 +937,7 @@ fn foo() {
                     .trim(),
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("a k g h l r a"),
+                    events: keys!("a l g h l r a"),
                     expectations: Box::new([CurrentSelectedTexts(&["bar();", "spam();", "baz();"])]),
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
@@ -952,7 +952,7 @@ foo ha"
                         .trim(),
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("a g k r q f o o enter s r w r ; - enter"),
+                    events: keys!("a g l r q f o o enter s r w r ; - enter"),
                     expectations: Box::new([CurrentSelectedTexts(&[
                         "foo", "da", "foo", "baz", "foo", "yo",
                     ])]),
