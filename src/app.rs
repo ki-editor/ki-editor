@@ -1003,7 +1003,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
             Dispatch::ExecuteLeaderMeaning(meaning) => {
-                if let Some((_, _, action_fn)) =
+                if let Some((_, _, Some(action_fn))) =
                     leader_keymap().into_iter().find(|(m, _, _)| *m == meaning)
                 {
                     let context = LeaderContext {
@@ -1029,7 +1029,7 @@ impl<T: Frontend> App<T> {
                 }
             }
             Dispatch::ExecuteLeaderHelpMeaning(meaning) => {
-                if let Some((_, description, action_fn)) =
+                if let Some((_, description, Some(action_fn))) =
                     leader_keymap().into_iter().find(|(m, _, _)| *m == meaning)
                 {
                     let context = LeaderContext {

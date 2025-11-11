@@ -15,7 +15,6 @@ use crate::components::editor_keymap::{
     KeyboardMeaningLayout,
     Meaning::{self, *},
 };
-use std::sync::Arc;
 use LeaderAction::*;
 use Placeholder::*;
 
@@ -99,55 +98,45 @@ fn test(_ctx: &LeaderContext) -> LeaderAction {
 pub(crate) fn leader_keymap() -> Vec<(
     Meaning,
     &'static str,
-    Arc<dyn Fn(&LeaderContext) -> LeaderAction + Send + Sync>,
+    Option<fn(&LeaderContext) -> LeaderAction>,
 )> {
-    [
-        (__Q__, "Sample run command", action(sample_run_command)),
-        (__W__, "Sample macro", action(sample_macro)),
-        (__E__, "Process", action(sample_toggle_process_command)),
-        (__R__, "Copy File Path", action(sample_to_clipboard)),
-        (__T__, "Test", action(test)),
-        (__Y__, "", do_nothing()),
-        (__U__, "", do_nothing()),
-        (__I__, "", do_nothing()),
-        (__O__, "", do_nothing()),
-        (__P__, "", do_nothing()),
+    let keymaps: [(Meaning, &str, Option<fn(&LeaderContext) -> LeaderAction>); 30] = [
+        (__Q__, "Sample run command", Some(sample_run_command)),
+        (__W__, "Sample macro", Some(sample_macro)),
+        (__E__, "Process", Some(sample_toggle_process_command)),
+        (__R__, "Copy File Path", Some(sample_to_clipboard)),
+        (__T__, "Test", Some(test)),
+        (__Y__, "", None),
+        (__U__, "", None),
+        (__I__, "", None),
+        (__O__, "", None),
+        (__P__, "", None),
         // Second row
-        (__A__, "", do_nothing()),
-        (__S__, "", do_nothing()),
-        (__D__, "", do_nothing()),
-        (__F__, "", do_nothing()),
-        (__G__, "", do_nothing()),
-        (__H__, "", do_nothing()),
-        (__J__, "", do_nothing()),
-        (__K__, "", do_nothing()),
-        (__L__, "", do_nothing()),
-        (_SEMI, "", do_nothing()),
+        (__A__, "", None),
+        (__S__, "", None),
+        (__D__, "", None),
+        (__F__, "", None),
+        (__G__, "", None),
+        (__H__, "", None),
+        (__J__, "", None),
+        (__K__, "", None),
+        (__L__, "", None),
+        (_SEMI, "", None),
         // Third row
-        (__Z__, "", do_nothing()),
-        (__X__, "", do_nothing()),
-        (__C__, "", do_nothing()),
-        (__V__, "", do_nothing()),
-        (__B__, "", do_nothing()),
-        (__N__, "", do_nothing()),
-        (__M__, "", do_nothing()),
-        (_COMA, "", do_nothing()),
-        (_DOT_, "", do_nothing()),
-        (_SLSH, "", do_nothing()),
-    ]
-    .into_iter()
-    .collect()
+        (__Z__, "", None),
+        (__X__, "", None),
+        (__C__, "", None),
+        (__V__, "", None),
+        (__B__, "", None),
+        (__N__, "", None),
+        (__M__, "", None),
+        (_COMA, "", None),
+        (_DOT_, "", None),
+        (_SLSH, "", None),
+    ];
+    keymaps.into_iter().collect()
 }
 
-fn do_nothing() -> Arc<dyn Fn(&LeaderContext) -> LeaderAction + Send + Sync> {
-    Arc::new(|_: &LeaderContext| DoNothing)
-}
-
-fn action(
-    f: fn(&LeaderContext) -> LeaderAction,
-) -> Arc<dyn Fn(&LeaderContext) -> LeaderAction + Send + Sync> {
-    Arc::new(f)
-}
 pub(crate) struct LeaderContext {
     pub(crate) path: Option<CanonicalizedPath>,
     /// 0-based index
