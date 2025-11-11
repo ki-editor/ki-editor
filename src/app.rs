@@ -2963,19 +2963,15 @@ impl<T: Frontend> App<T> {
                     .iter()
                     .map(|arg| arg.resolve(&leader_context).to_string())
                     .collect_vec();
-                let resolved_text_with_quotes: String = args
+                let resolved_vec_with_quotes: Vec<String> = args
                     .iter()
                     .map(|arg| {
                         let resolved_str = arg.resolve(&leader_context).to_string();
                         format!("\"{}\"", resolved_str)
                     })
-                    .collect_vec()
-                    .join(", ");
-                let unresolved_text: String = args
-                    .iter()
-                    .map(|arg| arg.to_string())
-                    .collect_vec()
-                    .join(", ");
+                    .collect_vec();
+                let unresolved_vec: Vec<String> =
+                    args.iter().map(|arg| arg.to_string()).collect_vec();
                 let output = std::process::Command::new(command)
                     .args(&resolved_args)
                     .stdout(Stdio::null())
@@ -3007,13 +3003,23 @@ impl<T: Frontend> App<T> {
                 append_and_decorate(&mut content, &mut decorations, &quoted_command);
 
                 content.push_str(", vec![");
-                append_and_decorate(&mut content, &mut decorations, &unresolved_text);
+                for unresolved_arg in unresolved_vec.iter() {
+                    append_and_decorate(&mut content, &mut decorations, &unresolved_arg);
+                    if Some(unresolved_arg) != unresolved_vec.last() {
+                        content.push_str(", ");
+                    }
+                }
 
                 content.push_str("])\nResolved RunCommand:\nstd::process::Command::new(");
                 append_and_decorate(&mut content, &mut decorations, &quoted_command);
 
                 content.push_str(").args(&[");
-                append_and_decorate(&mut content, &mut decorations, &resolved_text_with_quotes);
+                for resolved_arg in resolved_vec_with_quotes.iter() {
+                    append_and_decorate(&mut content, &mut decorations, &resolved_arg);
+                    if Some(resolved_arg) != resolved_vec_with_quotes.last() {
+                        content.push_str(", ");
+                    }
+                }
 
                 content.push_str("])\nRunCommand Command:\n");
                 append_and_decorate(&mut content, &mut decorations, &command);
@@ -3052,11 +3058,8 @@ impl<T: Frontend> App<T> {
                     .map(|arg| arg.resolve(&leader_context).to_string())
                     .collect_vec()
                     .join("");
-                let unresolved_text: String = text
-                    .iter()
-                    .map(|arg| arg.to_string())
-                    .collect_vec()
-                    .join("");
+                let unresolved_vec: Vec<String> =
+                    text.iter().map(|arg| arg.to_string()).collect_vec();
                 self.context
                     .set_clipboard_content(CopiedTexts::new(NonEmpty::new(
                         resolved_text.clone(),
@@ -3082,7 +3085,12 @@ impl<T: Frontend> App<T> {
                 append_and_decorate(&mut content, &mut decorations, description);
 
                 content.push_str("\nUnresolved ToClipboard:\nToClipboard(vec![");
-                append_and_decorate(&mut content, &mut decorations, &unresolved_text);
+                for unresolved_arg in unresolved_vec.iter() {
+                    append_and_decorate(&mut content, &mut decorations, &unresolved_arg);
+                    if Some(unresolved_arg) != unresolved_vec.last() {
+                        content.push_str(", ");
+                    }
+                }
 
                 content.push_str("])\nCopied Text:\n");
                 append_and_decorate(&mut content, &mut decorations, &resolved_text);
@@ -3092,19 +3100,15 @@ impl<T: Frontend> App<T> {
                 self.show_global_info(info);
             }
             LeaderAction::ToggleProcess(command, args) => {
-                let unresolved_text: String = args
-                    .iter()
-                    .map(|arg| arg.to_string())
-                    .collect_vec()
-                    .join(", ");
-                let resolved_text_with_quotes: String = args
+                let unresolved_vec: Vec<String> =
+                    args.iter().map(|arg| arg.to_string()).collect_vec();
+                let resolved_vec_with_quotes: Vec<String> = args
                     .iter()
                     .map(|arg| {
                         let resolved_str = arg.resolve(&leader_context).to_string();
                         format!("\"{}\"", resolved_str)
                     })
-                    .collect_vec()
-                    .join(", ");
+                    .collect_vec();
                 let resolved_text: String = args
                     .iter()
                     .map(|arg| arg.resolve(&leader_context).to_string())
@@ -3141,13 +3145,22 @@ impl<T: Frontend> App<T> {
                 append_and_decorate(&mut content, &mut decorations, &quoted_command);
 
                 content.push_str(", vec![");
-                append_and_decorate(&mut content, &mut decorations, &unresolved_text);
+                for unresolved_arg in unresolved_vec.iter() {
+                    append_and_decorate(&mut content, &mut decorations, &unresolved_arg);
+                    if Some(unresolved_arg) != unresolved_vec.last() {
+                        content.push_str(", ");
+                    }
+                }
 
                 content.push_str("])\nResolved ToggledProcess:\nprocess_manager.toggle(");
                 append_and_decorate(&mut content, &mut decorations, &quoted_command);
-
                 content.push_str(", &[");
-                append_and_decorate(&mut content, &mut decorations, &resolved_text_with_quotes);
+                for resolved_arg in resolved_vec_with_quotes.iter() {
+                    append_and_decorate(&mut content, &mut decorations, &resolved_arg);
+                    if Some(resolved_arg) != resolved_vec_with_quotes.last() {
+                        content.push_str(", ");
+                    }
+                }
 
                 content.push_str("])\nToggleProcess Command:\n");
                 append_and_decorate(&mut content, &mut decorations, command);

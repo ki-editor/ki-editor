@@ -76,7 +76,7 @@ fn sample_macro(_ctx: &LeaderContext) -> LeaderAction {
 }
 
 fn sample_to_clipboard(_ctx: &LeaderContext) -> LeaderAction {
-    ToClipboard(vec![FileCurrent::path()])
+    ToClipboard(vec![Str("Find this:"), FileCurrent::path()])
 }
 
 fn test(_ctx: &LeaderContext) -> LeaderAction {
