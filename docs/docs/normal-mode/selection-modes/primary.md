@@ -96,16 +96,19 @@ However, if we use `D` instead, the selection will remain as `hello`, and pressi
 ## `Line`
 
 In this selection mode, the selection is trimmed, which means that the leading
-and trailing spaces of each line are not meaningful. The meaningful selection of
-this mode is the trimmed portion of any line (this may be empty if line is only
-whitespaces). The other two portions of any line are the leading whitespaces and
-the trailing whitespaces (includes the end of line '\n' character).
+and trailing spaces of each line are not meaningful.
 
-| Movement                    | Meaning                                         |
-| --------------------------- | ----------------------------------------------- |
-| Up/Down/Previous/Next       | Move to all kinds of line portions              |
-| First/Last                  | Move to the first/last line of the current file |
-| Right/Left                  | Move to the trimmed portion of the line         |
+The meaningful selection of this mode is the trimmed portion of any line (this may be empty if line is only
+whitespaces).
+
+The meaningless portion of any line is its trailing newline character.
+
+| Movement      | Meaning                                         |
+| ------------- | ----------------------------------------------- |
+| Up/Down       | Move to empty lines above/below                 |
+| Previous/Next | Move to all kinds of line portions              |
+| First/Last    | Move to the first/last line of the current file |
+| Left/Right    | Move to the trimmed portion of the line         |
 
 <TutorialFallback filename="line"/>
 
@@ -137,8 +140,6 @@ If the current selection is selecting `use`, the following table demonstrates ho
 | Include                            | `crate` `:` `:` `{` `components` `:` `:` `editor` `:` `:` `OpenFile` | 11    |
 | Exclude                            | `crate` `components` `editor` `OpenFile`                             | 4     |
 
-
-
 <TutorialFallback filename="word"/>
 
 [^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
@@ -156,7 +157,6 @@ This is useful for renaming identifiers, especially if we only want to change a 
 | --------------------- | ----------------------------------------------- |
 | Up/Down/Previous/Next | Move to all kinds of subword, including symbols |
 | Left/Right            | Move to non-symbol subword only                 |
-
 
 <TutorialFallback filename="subword"/>
 
