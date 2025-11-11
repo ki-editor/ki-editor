@@ -58,6 +58,8 @@ mod format_path_list;
 pub(crate) mod persistence;
 #[cfg(test)]
 mod test_lsp;
+#[cfg(test)]
+mod test_search;
 mod thread;
 use std::{rc::Rc, sync::Mutex};
 
@@ -92,6 +94,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         receiver,
         Some(syntax_highlighter_sender),
         [
+            StatusLineComponent::KiCharacter,
             StatusLineComponent::Mode,
             StatusLineComponent::SelectionMode,
             StatusLineComponent::LastSearchString,

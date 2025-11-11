@@ -62,6 +62,7 @@ impl Editor {
                 width,
             }
         };
+        let marks = context.get_marks(self.path());
         let grid = match &self.reveal {
             None => self.get_grid_with_dimension(
                 context.theme(),
@@ -74,8 +75,11 @@ impl Editor {
                 true,
                 focused,
                 hunks,
+                &marks,
             ),
-            Some(reveal) => self.get_splitted_grid(context, reveal, render_area, focused, hunks),
+            Some(reveal) => {
+                self.get_splitted_grid(context, reveal, render_area, focused, hunks, &marks)
+            }
         };
         let theme = context.theme();
         let window_title_style = if focused {
@@ -115,7 +119,7 @@ impl Editor {
             editor.get_grid_with_dimension(
                 &theme,
                 context.current_working_directory(),
-                context.quickfix_list_items(),
+                Vec::new(),
                 dimension,
                 0,
                 None,
@@ -123,6 +127,7 @@ impl Editor {
                 false,
                 focused,
                 hunks,
+                &[],
             )
         };
         let grid = title_grid.merge_vertical(grid);
@@ -180,6 +185,7 @@ impl Editor {
         render_area: Dimension,
         focused: bool,
         hunks: &[SimpleHunk],
+        marks: &[CharIndexRange],
     ) -> crate::grid::Grid {
         let buffer = self.buffer();
         let ranges = match reveal {
@@ -188,6 +194,7 @@ impl Editor {
                     self.selection_set.primary_selection(),
                     context.current_working_directory(),
                     context.quickfix_list_items(),
+                    marks,
                 )
                 .unwrap_or_default()
                 .into_iter()
@@ -199,9 +206,8 @@ impl Editor {
                 .into_iter()
                 .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
                 .collect_vec(),
-            Reveal::Mark => self
-                .buffer()
-                .marks()
+            Reveal::Mark => context
+                .get_marks(buffer.path())
                 .into_iter()
                 .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
                 .collect_vec(),
@@ -265,6 +271,7 @@ impl Editor {
                     true,
                     focused,
                     hunks,
+                    marks,
                 ))
             },
         )
@@ -286,6 +293,7 @@ impl Editor {
         render_line_number: bool,
         focused: bool,
         hunks: &[SimpleHunk],
+        marks: &[CharIndexRange],
     ) -> Grid {
         let editor = self;
         let cursor_position = self.get_cursor_position().unwrap_or_default();
@@ -337,6 +345,7 @@ impl Editor {
                 &visible_parent_lines,
                 protected_range,
                 quickfix_list_items,
+                marks,
             );
             let boundaries = hidden_parent_line_ranges
                 .into_iter()
@@ -531,44 +540,67 @@ impl Editor {
         visible_parent_lines: &[Line],
         protected_range: Option<CharIndexRange>,
         quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
         let buffer = self.buffer();
-        let possible_selections =
-            if self.selection_set.mode().is_contiguous() && self.reveal.is_none() {
-                Default::default()
-            } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
-                protected_range
-                    .and_then(|protected_range| {
-                        buffer.char_index_range_to_byte_range(protected_range).ok()
-                    })
-                    .into_iter()
-                    .map(ByteRange::new)
-                    .collect()
-            } else {
-                self.possible_selections_in_line_number_range(
-                    self.selection_set.primary_selection(),
-                    working_directory,
-                    visible_line_range,
-                    quickfix_list_items,
-                )
-                .unwrap_or_default()
-            }
-            .into_iter()
-            .map(|range| HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::ByteRange(range.range().clone()),
-                source: Source::StyleKey(UiPossibleSelection),
-                is_protected_range_start: false,
+
+        let possible_selections = if self.incremental_search_matches.is_some() {
+            Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
+        } else {
+            Box::new(
+                if self.selection_set.mode().is_contiguous() && self.reveal.is_none() {
+                    Default::default()
+                } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
+                    protected_range
+                        .and_then(|protected_range| {
+                            buffer.char_index_range_to_byte_range(protected_range).ok()
+                        })
+                        .into_iter()
+                        .map(ByteRange::new)
+                        .collect()
+                } else {
+                    self.possible_selections_in_line_number_range(
+                        self.selection_set.primary_selection(),
+                        working_directory,
+                        visible_line_range,
+                        quickfix_list_items,
+                        marks,
+                    )
+                    .unwrap_or_default()
+                }
+                .into_iter()
+                .map(|range| HighlightSpan {
+                    set_symbol: None,
+                    is_cursor: false,
+                    range: HighlightSpanRange::ByteRange(range.range().clone()),
+                    source: Source::StyleKey(UiPossibleSelection),
+                    is_protected_range_start: false,
+                }),
+            )
+        };
+
+        let incremental_search_matches = self
+            .incremental_search_matches
+            .as_ref()
+            .map(|matches| {
+                Box::new(matches.iter().map(|range| HighlightSpan {
+                    set_symbol: None,
+                    is_cursor: false,
+                    range: HighlightSpanRange::ByteRange(range.clone()),
+                    source: Source::StyleKey(UiIncrementalSearchMatch),
+                    is_protected_range_start: false,
+                })) as Box<dyn Iterator<Item = HighlightSpan>>
+            })
+            .unwrap_or_else(|| {
+                Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
             });
 
-        let marks = buffer
-            .marks()
-            .into_iter()
+        let marks_spans = marks
+            .iter()
             .filter(|mark_range| {
                 if let Some(Reveal::Mark) = self.reveal {
-                    Some(mark_range) == protected_range.as_ref()
+                    Some(*mark_range) == protected_range.as_ref()
                 } else {
                     true
                 }
@@ -577,7 +609,7 @@ impl Editor {
                 set_symbol: None,
                 is_cursor: false,
                 source: Source::StyleKey(UiMark),
-                range: HighlightSpanRange::CharIndexRange(mark),
+                range: HighlightSpanRange::CharIndexRange(*mark),
                 is_protected_range_start: false,
             });
         let secondary_selections = &self
@@ -620,8 +652,7 @@ impl Editor {
                 }
                 Some(Reveal::Mark)
                     if protected_range != Some(primary_selection.extended_range())
-                        && buffer
-                            .marks()
+                        && marks
                             .iter()
                             .any(|mark| Some(mark) == protected_range.as_ref()) =>
                 {
@@ -855,23 +886,31 @@ impl Editor {
         } else {
             Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
         };
+
+        // Note: the order here is important
+        //   - First = lowest precedence
+        //   - Last  = highest precedence
+        //
+        // Highlight spans with higher precedence will overwrite
+        // highlight spans with lower precedence.
         vec![]
             .into_iter()
             .chain(visible_parent_lines)
             .chain(filtered_highlighted_spans)
-            .chain(extra_decorations)
             .chain(possible_selections)
             .chain(primary_selection_highlight_span)
             .chain(secondary_selections_highlight_spans)
             .chain(primary_selection_anchors)
             .chain(secondary_selection_anchors)
-            .chain(marks)
+            .chain(marks_spans)
             .chain(diagnostics)
             .chain(jumps)
             .chain(primary_selection_secondary_cursor)
             .chain(secondary_selection_cursors)
             .chain(custom_regex_highlights)
             .chain(regex_highlight_rules)
+            .chain(extra_decorations)
+            .chain(incremental_search_matches)
             .collect_vec()
     }
 
@@ -881,12 +920,14 @@ impl Editor {
         working_directory: &CanonicalizedPath,
         line_number_range: &Range<usize>,
         quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> anyhow::Result<Vec<ByteRange>> {
         let object = self.get_selection_mode_trait_object(
             selection,
             true,
             working_directory,
             quickfix_list_items,
+            marks,
         )?;
         if self.selection_set.mode().is_contiguous() {
             return Ok(Vec::new());
@@ -907,12 +948,14 @@ impl Editor {
         selection: &Selection,
         working_directory: &CanonicalizedPath,
         quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> anyhow::Result<Vec<ByteRange>> {
         self.get_selection_mode_trait_object(
             selection,
             true,
             working_directory,
             quickfix_list_items,
+            marks,
         )?
         .revealed_selections(&selection_mode::SelectionModeParams {
             buffer: &self.buffer(),

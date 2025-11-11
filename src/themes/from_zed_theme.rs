@@ -253,7 +253,11 @@ fn from_theme_content(theme: ThemeContent) -> Theme {
                 .background_color(background),
             mark: Style::new()
                 .set_some_background_color(from_some_hex(theme.style.conflict_background)),
-            possible_selection_background: from_some_hex(theme.style.search_match_background)
+            possible_selection_background: from_some_hex(
+                theme.style.search_match_background.clone(),
+            )
+            .unwrap_or_default(),
+            incremental_search_match_background: from_some_hex(theme.style.search_match_background)
                 .unwrap_or_default(),
             keymap_hint: Style::new().underline(text_accent),
             keymap_key: Style::new().bold().foreground_color(text_accent),

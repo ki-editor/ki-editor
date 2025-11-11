@@ -21,6 +21,7 @@ use crate::{
     rectangle::Rectangle,
     search::parse_search_config,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
+    selection_mode::{ast_grep, NamingConventionAgnostic},
 };
 use crate::{
     app::{Dispatches, RequestParams, Scope},
@@ -236,7 +237,7 @@ impl Component for Editor {
             Insert(string) => return self.insert(&string, context),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
-            ToggleMark => self.toggle_marks(),
+            ToggleMark => return Ok(self.toggle_marks()),
             EnterNormalMode => self.enter_normal_mode(context)?,
             CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
@@ -386,6 +387,7 @@ impl Component for Editor {
                 content_editor,
                 path,
             } => return self.merge_content(context, path, content_editor, content_filesystem),
+            ClearIncrementalSearchMatches => self.clear_incremental_search_matches(),
         }
         Ok(Default::default())
     }
@@ -416,6 +418,7 @@ impl Clone for Editor {
             normal_mode_override: self.normal_mode_override.clone(),
             reveal: self.reveal.clone(),
             visible_line_ranges: Default::default(),
+            incremental_search_matches: self.incremental_search_matches.clone(),
         }
     }
 }
@@ -444,6 +447,8 @@ pub(crate) struct Editor {
     /// This is only used when Ki is running as an embedded component,
     /// for example, inside VS Code.
     visible_line_ranges: Option<Vec<Range<usize>>>,
+
+    pub(crate) incremental_search_matches: Option<Vec<Range<usize>>>,
 }
 
 #[derive(Default)]
@@ -678,6 +683,7 @@ impl Editor {
             normal_mode_override: None,
             reveal: None,
             visible_line_ranges: Default::default(),
+            incremental_search_matches: Default::default(),
         }
     }
 
@@ -689,6 +695,7 @@ impl Editor {
                 &buffer.borrow(),
                 CharIndex(0),
                 IfCurrentNotFound::LookForward,
+                (CharIndex(0)..CharIndex(0)).into(),
             )
             .unwrap_or_default()
             .and_then(|byte_range| {
@@ -723,6 +730,7 @@ impl Editor {
             normal_mode_override: None,
             reveal: None,
             visible_line_ranges: Default::default(),
+            incremental_search_matches: Default::default(),
         }
     }
 
@@ -962,6 +970,7 @@ impl Editor {
         use_current_selection_mode: bool,
         working_directory: &shared::canonicalized_path::CanonicalizedPath,
         quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         if use_current_selection_mode {
             self.selection_set.mode().clone()
@@ -974,6 +983,7 @@ impl Editor {
             &self.cursor_direction,
             working_directory,
             quickfix_list_items,
+            marks,
         )
     }
 
@@ -990,6 +1000,7 @@ impl Editor {
             use_current_selection_mode,
             context.current_working_directory(),
             context.quickfix_list_items(),
+            &context.get_marks(self.path()),
         )?;
 
         let line_ranges = if let Some(ranges) = &self.visible_line_ranges {
@@ -1805,11 +1816,19 @@ impl Editor {
         }
     }
 
-    pub(crate) fn toggle_marks(&mut self) {
+    pub(crate) fn toggle_marks(&mut self) -> Dispatches {
         let selections = self
             .selection_set
             .map(|selection| selection.extended_range());
-        self.buffer_mut().save_marks(selections.into());
+
+        self.path()
+            .map(|path| {
+                Dispatches::one(Dispatch::SaveMarks {
+                    path,
+                    marks: selections.iter().copied().collect(),
+                })
+            })
+            .unwrap_or_default()
     }
 
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {
@@ -2134,6 +2153,7 @@ impl Editor {
                                 &self.cursor_direction,
                                 context.current_working_directory(),
                                 context.quickfix_list_items(),
+                                &context.get_marks(self.path()),
                             )
                             .ok()?;
 
@@ -2183,6 +2203,7 @@ impl Editor {
                                 &self.cursor_direction,
                                 context.current_working_directory(),
                                 context.quickfix_list_items(),
+                                &context.get_marks(self.path()),
                             )
                             .ok()?;
                         let params = selection_mode::SelectionModeParams {
@@ -2494,6 +2515,7 @@ impl Editor {
                     true,
                     context.current_working_directory(),
                     context.quickfix_list_items(),
+                    &context.get_marks(self.path()),
                 )?;
                 let buffer = self.buffer.borrow();
                 let gap = object.get_paste_gap(
@@ -2797,10 +2819,6 @@ impl Editor {
         })
     }
 
-    pub(crate) fn dispatch_marks_changed(&self) -> Dispatch {
-        Dispatch::ToHostApp(ToHostApp::MarksChanged(self.id(), self.buffer().marks()))
-    }
-
     pub(crate) fn cursor_keep_primary_only(&mut self) {
         self.mode = Mode::Normal;
         if self.reveal == Some(Reveal::Cursor) {
@@ -2995,7 +3013,7 @@ impl Editor {
 
         // Create dispatches for document changes and buffer edit transaction
         let dispatches = match result {
-            Some((selection_set, edits)) => {
+            Some((selection_set, diff_edits, edits)) => {
                 // Update selection set
                 let dispatches = self.update_selection_set(selection_set, false, context);
 
@@ -3003,9 +3021,10 @@ impl Editor {
                 let dispatch = if let Some(path) = self.buffer().path() {
                     // Create a dispatch to send buffer edit transaction
                     Dispatches::one(Dispatch::ToHostApp(ToHostApp::BufferEditTransaction {
-                        path,
-                        edits,
+                        path: path.clone(),
+                        edits: diff_edits,
                     }))
+                    .append(Dispatch::AppliedEdits { path, edits })
                 } else {
                     Default::default()
                 };
@@ -3783,6 +3802,7 @@ impl Editor {
                         .clone(),
                     ),
                     run_search_after_config_updated: true,
+                    component_id: None,
                 })
                 .append(Dispatch::PushPromptHistory {
                     key: super::prompt::PromptHistoryKey::Search,
@@ -3974,6 +3994,7 @@ impl Editor {
                     .clone(),
             ),
             run_search_after_config_updated: true,
+            component_id: None,
         });
         Ok(dispatches)
     }
@@ -4094,6 +4115,47 @@ impl Editor {
     fn reload(&mut self, force: bool) -> Result<Dispatches, anyhow::Error> {
         let dispatches = self.buffer_mut().reload(force)?;
         Ok(dispatches.chain(self.get_document_did_change_dispatch()))
+    }
+
+    fn clear_incremental_search_matches(&mut self) {
+        self.incremental_search_matches = None
+    }
+
+    pub(crate) fn set_incremental_search_config(&mut self, config: LocalSearchConfig) {
+        let content = self.content();
+        let search = config.search();
+        if search.is_empty() {
+            // Don't set incremental search matches if the search string is empty
+            // otherwise it will cause performance issue with rendering
+            // as empty string matches every character of the file.
+            return;
+        }
+        let matches = match config.mode {
+            LocalSearchConfigMode::Regex(regex_config) => regex_config
+                .to_regex(&search)
+                .map(|regex| {
+                    regex
+                        .find_iter(&content)
+                        .filter_map(|m| Some(m.ok()?.range()))
+                        .collect_vec()
+                })
+                .unwrap_or_default(),
+            LocalSearchConfigMode::AstGrep => ast_grep::AstGrep::new(&self.buffer(), &search)
+                .map(|result| result.find_all().map(|m| m.range()).collect_vec())
+                .unwrap_or_default(),
+            LocalSearchConfigMode::NamingConventionAgnostic => {
+                NamingConventionAgnostic::new(search)
+                    .find_all(&content)
+                    .into_iter()
+                    .map(|(range, _)| range.range().clone())
+                    .collect_vec()
+            }
+        };
+        self.incremental_search_matches = Some(matches)
+    }
+
+    pub(crate) fn initialize_incremental_search_matches(&mut self) {
+        self.incremental_search_matches = Some(Vec::new())
     }
 }
 
@@ -4243,6 +4305,7 @@ pub(crate) enum DispatchEditor {
         content_editor: String,
         path: CanonicalizedPath,
     },
+    ClearIncrementalSearchMatches,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

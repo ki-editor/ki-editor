@@ -1,5 +1,6 @@
 use crate::{
     buffer::{Buffer, BufferOwner},
+    char_index_range::CharIndexRange,
     clipboard::CopiedTexts,
     components::{
         component::{Component, ComponentId, GetGridResult},
@@ -128,6 +129,7 @@ const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
 
 #[derive(Clone)]
 pub(crate) enum StatusLineComponent {
+    KiCharacter,
     CurrentWorkingDirectory,
     GitBranch,
     Mode,
@@ -460,6 +462,7 @@ impl<T: Frontend> App<T> {
                 self.status_line_components
                     .iter()
                     .filter_map(|component| match component {
+                        StatusLineComponent::KiCharacter => Some("Ж".to_string()),
                         StatusLineComponent::CurrentWorkingDirectory => Some(
                             self.working_directory
                                 .display_relative_to_home()
@@ -877,6 +880,10 @@ impl<T: Frontend> App<T> {
             Dispatch::HandleKeyEvent(key_event) => {
                 self.handle_event(Event::Key(key_event))?;
             }
+            #[cfg(test)]
+            Dispatch::HandleEvent(event) => {
+                self.handle_event(event)?;
+            }
             Dispatch::GetRepoGitHunks(diff_mode) => self.get_repo_git_hunks(diff_mode)?,
             Dispatch::SaveAll => self.save_all()?,
             #[cfg(test)]
@@ -896,11 +903,13 @@ impl<T: Frontend> App<T> {
                 scope,
                 if_current_not_found,
                 run_search_after_config_updated,
+                component_id,
             } => self.update_local_search_config(
                 update,
                 scope,
                 if_current_not_found,
                 run_search_after_config_updated,
+                component_id,
             )?,
             Dispatch::UpdateGlobalSearchConfig { update } => {
                 self.update_global_search_config(update)?;
@@ -1054,6 +1063,17 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::OpenWorkspaceSymbolsPrompt => self.open_workspace_symbols_prompt()?,
             Dispatch::PlayMacroStep(player) => self.handle_play_macro_step(player)?,
+            Dispatch::GetAndHandlePromptOnChangeDispatches => {
+                self.get_and_handle_prompt_on_change_dispatches()?
+            }
+            Dispatch::SetIncrementalSearchConfig {
+                config,
+                component_id,
+            } => self.set_incremental_search_config(config, component_id),
+            Dispatch::UpdateCurrentComponentTitle(title) => {
+                self.update_current_component_title(title)
+            }
+            Dispatch::SaveMarks { path, marks } => self.context.save_marks(path, marks),
         }
         Ok(())
     }
@@ -1081,7 +1101,11 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn local_search(&mut self, if_current_not_found: IfCurrentNotFound) -> anyhow::Result<()> {
+    fn local_search(
+        &mut self,
+        if_current_not_found: IfCurrentNotFound,
+        component_id: Option<ComponentId>,
+    ) -> anyhow::Result<()> {
         let config = self.context.local_search_config(Scope::Local);
         let search = config.search();
         if !search.is_empty() {
@@ -1095,7 +1119,9 @@ impl<T: Frontend> App<T> {
                         },
                     },
                 ),
-                self.current_component(),
+                component_id
+                    .and_then(|component_id| self.get_component_by_id(component_id))
+                    .unwrap_or_else(|| self.current_component()),
             )?;
         }
 
@@ -1186,7 +1212,17 @@ impl<T: Frontend> App<T> {
                     if_current_not_found,
                     run_search_after_config_updated: true,
                 },
+                on_change: match scope {
+                    Scope::Local => Some({
+                        let component_id = self.current_component().borrow().id();
+                        PromptOnChangeDispatch::SetIncrementalSearchConfig { component_id }
+                    }),
+                    Scope::Global => None,
+                },
                 leaves_current_line_empty: current_line.is_none(),
+                on_cancelled: Some(Dispatches::one(Dispatch::ToEditor(
+                    DispatchEditor::ClearIncrementalSearchMatches,
+                ))),
                 prompt_history_key: PromptHistoryKey::Search,
                 ..Default::default()
             },
@@ -1537,7 +1573,9 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn get_quickfix_list(&self) -> Option<QuickfixList> {
         self.context.quickfix_list_state().as_ref().map(|state| {
-            let items = self.layout.get_quickfix_list_items(&state.source);
+            let items = self
+                .layout
+                .get_quickfix_list_items(&state.source, &self.context);
             // Preload the buffers to avoid unnecessarily rereading the files
             let buffers = items
                 .iter()
@@ -1908,11 +1946,19 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     pub(crate) fn get_current_selected_texts(&self) -> Vec<String> {
-        let _content = self.current_component().borrow().content();
         self.current_component()
             .borrow()
             .editor()
             .get_selected_texts()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn get_current_editor(&self) -> Rc<RefCell<dyn Component>> {
+        let component = self
+            .layout
+            .get_component_by_kind(ComponentKind::SuggestiveEditor)
+            .unwrap();
+        component.clone()
     }
 
     #[cfg(test)]
@@ -1955,7 +2001,10 @@ impl<T: Frontend> App<T> {
             */
             let other_dispatches = Dispatches::default()
                 .append(component.borrow().editor().dispatch_selection_changed())
-                .append(component.borrow().editor().dispatch_marks_changed())
+                .append(Dispatch::ToHostApp(ToHostApp::MarksChanged(
+                    component.borrow().id(),
+                    self.context.get_marks(component.borrow().editor().path()),
+                )))
                 .append(
                     component
                         .borrow()
@@ -2024,11 +2073,12 @@ impl<T: Frontend> App<T> {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
         run_search_after_config_updated: bool,
+        component_id: Option<ComponentId>,
     ) -> Result<(), anyhow::Error> {
         self.context.update_local_search_config(update, scope);
         if run_search_after_config_updated {
             match scope {
-                Scope::Local => self.local_search(if_current_not_found)?,
+                Scope::Local => self.local_search(if_current_not_found, component_id)?,
                 Scope::Global => {
                     self.global_search()?;
                 }
@@ -2176,7 +2226,8 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     pub(crate) fn current_completion_dropdown_info(&self) -> Option<Rc<RefCell<dyn Component>>> {
-        self.layout.current_completion_dropdown_info()
+        self.layout
+            .get_component_by_kind(ComponentKind::DropdownInfo)
     }
 
     fn open_prompt(
@@ -2200,6 +2251,14 @@ impl<T: Frontend> App<T> {
             self.context
                 .push_history_prompt(prompt_config.prompt_history_key, line)
         }
+
+        // Initialize the incremental search matches
+        // so that the possible selections highlights will be "cleared" (i.e., not rendered)
+        self.current_component()
+            .borrow_mut()
+            .editor_mut()
+            .initialize_incremental_search_matches();
+
         let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
         let (prompt, dispatches) = Prompt::new(prompt_config, history);
@@ -3520,6 +3579,45 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         }
         Ok(())
     }
+
+    fn get_component_by_id(&self, component_id: ComponentId) -> Option<Rc<RefCell<dyn Component>>> {
+        self.layout.get_component_by_id(component_id)
+    }
+
+    fn get_and_handle_prompt_on_change_dispatches(&mut self) -> anyhow::Result<()> {
+        let dispatches = {
+            let component = self.layout.get_current_component();
+            let mut component_mut = component.borrow_mut();
+            let Some(prompt) = component_mut.as_any_mut().downcast_mut::<Prompt>() else {
+                return Ok(());
+            };
+            prompt.get_on_change_dispatches()
+        };
+        self.handle_dispatches(dispatches)
+    }
+
+    fn set_incremental_search_config(
+        &self,
+        config: crate::context::LocalSearchConfig,
+        component_id: Option<ComponentId>,
+    ) {
+        let Some(component_id) = component_id else {
+            return;
+        };
+        let Some(component) = self.get_component_by_id(component_id) else {
+            return;
+        };
+        let mut borrow = component.borrow_mut();
+        borrow.editor_mut().set_incremental_search_config(config)
+    }
+
+    fn update_current_component_title(&self, title: String) {
+        {
+            let comp = self.current_component();
+            let mut borrow = comp.borrow_mut();
+            borrow.set_title(title)
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -3682,6 +3780,8 @@ pub(crate) enum Dispatch {
     },
     SetGlobalMode(Option<GlobalMode>),
     #[cfg(test)]
+    HandleEvent(Event),
+    #[cfg(test)]
     HandleKeyEvent(event::KeyEvent),
     #[cfg(test)]
     HandleKeyEvents(Vec<event::KeyEvent>),
@@ -3699,6 +3799,8 @@ pub(crate) enum Dispatch {
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
         run_search_after_config_updated: bool,
+        /// If None, then this search will run in the current component
+        component_id: Option<ComponentId>,
     },
     UpdateGlobalSearchConfig {
         update: GlobalSearchConfigUpdate,
@@ -3782,6 +3884,16 @@ pub(crate) enum Dispatch {
     },
     OpenWorkspaceSymbolsPrompt,
     PlayMacroStep(MacroHelpPlayer),
+    GetAndHandlePromptOnChangeDispatches,
+    SetIncrementalSearchConfig {
+        config: crate::context::LocalSearchConfig,
+        component_id: Option<ComponentId>,
+    },
+    UpdateCurrentComponentTitle(String),
+    SaveMarks {
+        path: CanonicalizedPath,
+        marks: Vec<CharIndexRange>,
+    },
 }
 
 /// Used to send notify host app about changes
@@ -3967,6 +4079,7 @@ impl DispatchPrompt {
                             scope,
                             if_current_not_found,
                             run_search_after_config_updated,
+                            component_id: None,
                         },
                         Scope::Global => Dispatch::UpdateGlobalSearchConfig {
                             update: GlobalSearchConfigUpdate::Config(search_config),
@@ -3977,7 +4090,8 @@ impl DispatchPrompt {
                         format!("{error:?}"),
                     )),
                 };
-                Ok(Dispatches::one(dispatch))
+                Ok(Dispatches::one(dispatch)
+                    .append(Dispatch::ToEditor(ClearIncrementalSearchMatches)))
             }
             DispatchPrompt::AddPath => {
                 Ok(Dispatches::new([Dispatch::AddPath(text.into())].to_vec()))

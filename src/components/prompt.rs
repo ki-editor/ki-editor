@@ -7,9 +7,10 @@ use shared::canonicalized_path::CanonicalizedPath;
 use crate::{
     app::{Dispatch, DispatchPrompt, Dispatches},
     buffer::Buffer,
-    components::editor::DispatchEditor,
+    components::{component::ComponentId, editor::DispatchEditor},
     context::Context,
     lsp::completion::Completion,
+    search::parse_search_config,
     selection::SelectionMode,
     thread::Callback,
 };
@@ -36,6 +37,7 @@ pub(crate) struct Prompt {
 #[derive(Debug, Clone)]
 pub(crate) enum PromptOnChangeDispatch {
     RequestWorkspaceSymbol(CanonicalizedPath),
+    SetIncrementalSearchConfig { component_id: ComponentId },
 }
 
 impl PromptOnChangeDispatch {
@@ -45,6 +47,19 @@ impl PromptOnChangeDispatch {
                 Dispatches::one(Dispatch::RequestWorkspaceSymbols {
                     query: context.current_line.to_string(),
                     path: path.clone(),
+                })
+            }
+            PromptOnChangeDispatch::SetIncrementalSearchConfig { component_id } => {
+                let search_config = parse_search_config(&context.current_line)
+                    .unwrap_or_default()
+                    .local_config;
+                Dispatches::one(Dispatch::UpdateCurrentComponentTitle(format!(
+                    "Local search ({})",
+                    search_config.mode.display()
+                )))
+                .append(Dispatch::SetIncrementalSearchConfig {
+                    config: search_config,
+                    component_id: Some(*component_id),
                 })
             }
         }
@@ -188,7 +203,7 @@ impl PromptItemsBackgroundTask {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(crate) enum PromptHistoryKey {
     MoveToIndex,
     Search,
@@ -346,6 +361,17 @@ impl Prompt {
             });
         }
     }
+
+    pub(crate) fn get_on_change_dispatches(&self) -> Dispatches {
+        self.on_change
+            .as_ref()
+            .map(|on_change| {
+                on_change.to_dispatches(&PromptContext {
+                    current_line: self.editor().current_line().unwrap_or_default(),
+                })
+            })
+            .unwrap_or_default()
+    }
 }
 
 impl Component for Prompt {
@@ -415,25 +441,18 @@ impl Component for Prompt {
             }
             _ => {
                 let dispatches = self.editor.handle_key_event(context, event)?;
-                Ok(dispatches
-                    .chain(
-                        self.editor
-                            .completion_dropdown_current_item()
-                            .map(|item| item.on_focused())
-                            .unwrap_or_default(),
-                    )
-                    .chain(
-                        self.on_change
-                            .as_ref()
-                            .map(|on_change| {
-                                on_change.to_dispatches(&PromptContext {
-                                    current_line: self.editor().current_line().unwrap_or_default(),
-                                })
-                            })
-                            .unwrap_or_default(),
-                    ))
+                Ok(dispatches.chain(
+                    self.editor
+                        .completion_dropdown_current_item()
+                        .map(|item| item.on_focused())
+                        .unwrap_or_default(),
+                ))
             }
         }
+    }
+
+    fn post_handle_event(&self, dispatches: Dispatches) -> anyhow::Result<Dispatches> {
+        Ok(dispatches.append(Dispatch::GetAndHandlePromptOnChangeDispatches))
     }
 }
 impl Prompt {
@@ -837,6 +856,7 @@ mod test_prompt {
                     scope: Scope::Local,
                     if_current_not_found: IfCurrentNotFound::LookForward,
                     run_search_after_config_updated: false,
+                    component_id: None,
                 }),
                 App(OpenSearchPrompt {
                     scope: Scope::Local,
@@ -850,7 +870,7 @@ mod test_prompt {
                 Expect(CurrentComponentContent("foo.\n")),
                 // Navigate upwards and use the history
                 Editor(EnterNormalMode),
-                Editor(MoveSelection(Up)),
+                Editor(MoveSelection(Left)),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(CurrentSearch(Scope::Local, "foo.")),
             ])

@@ -27,7 +27,7 @@ fn reveal_styling() -> anyhow::Result<()> {
             Editor(SetContent("foo\nbar".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Expect(CurrentSelectedTexts(&["foo"])),
-            Editor(MoveSelection(Down)),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["bar"])),
             Editor(ToggleReveal(Reveal::Cursor)),
             Expect(GridCellStyleKey(

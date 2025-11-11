@@ -370,12 +370,6 @@ impl Layout {
             .and_then(|node_id| Some(self.tree.get(node_id)?.data().component().clone()))
     }
 
-    #[cfg(test)]
-    pub(crate) fn current_completion_dropdown_info(&self) -> Option<Rc<RefCell<dyn Component>>> {
-        self.get_current_node_child_id(ComponentKind::DropdownInfo)
-            .and_then(|node_id| Some(self.tree.get(node_id)?.data().component().clone()))
-    }
-
     pub(crate) fn open_dropdown(&mut self, context: &Context) -> Option<Rc<RefCell<Editor>>> {
         let dropdown = Rc::new(RefCell::new(Editor::from_text(
             Some(tree_sitter_quickfix::language()),
@@ -537,6 +531,7 @@ impl Layout {
     pub(crate) fn get_quickfix_list_items(
         &self,
         source: &QuickfixListSource,
+        context: &Context,
     ) -> Vec<QuickfixListItem> {
         match source {
             QuickfixListSource::Diagnostic(severity_range) => self
@@ -572,8 +567,8 @@ impl Layout {
                 .into_iter()
                 .flat_map(|buffer| {
                     let buffer = buffer.borrow();
-                    buffer
-                        .marks()
+                    context
+                        .get_marks(buffer.path())
                         .into_iter()
                         .filter_map(|mark| {
                             Some(QuickfixListItem::new(
@@ -633,6 +628,13 @@ impl Layout {
     pub(crate) fn close_global_info(&mut self) {
         self.tree
             .remove_node_child(self.tree.root_id(), ComponentKind::GlobalInfo);
+    }
+
+    pub(crate) fn get_component_by_id(
+        &self,
+        component_id: ComponentId,
+    ) -> Option<Rc<RefCell<dyn Component>>> {
+        self.tree.get_component_by_id(component_id)
     }
 }
 fn layout_kind() -> (LayoutKind, f32) {
