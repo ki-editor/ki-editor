@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use Meaning::*;
 
-use crate::{app::Scope, custom_config::custom_keymap::KEYMAP_LEADER};
+use crate::{app::Scope, custom_config::custom_keymap::CUSTOM_KEYMAP_LAYOUT};
 
 pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
     // a = Easiest to access
@@ -391,7 +391,7 @@ impl KeySet {
                     .zip(layout.into_iter().flatten()),
             ),
             leader: HashMap::from_iter(
-                KEYMAP_LEADER
+                CUSTOM_KEYMAP_LAYOUT
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten()),

@@ -9,7 +9,7 @@ use crate::{
     app::{Dispatch, Dispatches, FilePickerKind, Scope},
     components::editor::{Movement, PriorChange},
     context::{Context, LocalSearchConfigMode, Search},
-    custom_config::custom_keymap::custom_keymaps,
+    custom_config::custom_keymap::custom_keymap,
     git::DiffMode,
     list::grep::RegexConfig,
     quickfix_list::{DiagnosticSeverityRange, QuickfixListType},
@@ -1296,7 +1296,7 @@ impl Editor {
                 &meanings
                     .into_iter()
                     .filter_map(|meaning| {
-                        let (_, description, _) = custom_keymaps()
+                        let (_, description, _) = custom_keymap()
                             .into_iter()
                             .find(|(m, _, _)| &meaning == m)?;
                         Some(Keymap::new(
@@ -1327,7 +1327,7 @@ impl Editor {
                 &meanings
                     .into_iter()
                     .filter_map(|meaning| {
-                        let (_, description, _) = custom_keymaps()
+                        let (_, description, _) = custom_keymap()
                             .into_iter()
                             .find(|(m, _, _)| &meaning == m)?;
                         Some(Keymap::new(

@@ -1,4 +1,4 @@
-//! This file is for you to define custom keymaps.
+//! This file is for you to define your custom keymap.
 //! The keymap starts with the leader key `\`.
 //! The keymap help starts with the leader key `|`.
 
@@ -13,10 +13,10 @@ use event::KeyEvent;
 use my_proc_macros::keys;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{cmp::Ordering, fmt};
-use LeaderAction::*;
+use CustomAction::*;
 use Placeholder::*;
 
-pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
+pub(crate) const CUSTOM_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
     [
         __Q__, __W__, __E__, __R__, __T__, /****/ __Y__, __U__, __I__, __O__, __P__,
     ],
@@ -28,7 +28,7 @@ pub(crate) const KEYMAP_LEADER: KeyboardMeaningLayout = [
     ],
 ];
 
-fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
+fn sample_run_command(ctx: &CustomContext) -> CustomAction {
     // Search selected content using Google and chromium
     RunCommand(
         "chromium",
@@ -40,31 +40,34 @@ fn sample_run_command(ctx: &LeaderContext) -> LeaderAction {
     )
 }
 
-fn sample_toggle_process(ctx: &LeaderContext) -> LeaderAction {
+fn sample_toggle_process(ctx: &CustomContext) -> CustomAction {
     // Open the currrent file in a new window of Chromium,
     if FileCurrent::extension().resolve(ctx) == "html" {
-        ToggleProcess("chromium", vec![FileCurrent::path(), Str("--new-window")])
+        ToggleProcess(
+            "chromium",
+            vec![FileCurrent::path_root(), Str("--new-window")],
+        )
     } else {
         DoNothing
     }
 }
 
-fn sample_macro(ctx: &LeaderContext) -> LeaderAction {
+fn sample_macro(ctx: &CustomContext) -> CustomAction {
     Macro(keys!("a c d q F e r t i g enter a ; backspace backspace a"))
 }
 
-fn sample_to_clipboard(ctx: &LeaderContext) -> LeaderAction {
+fn sample_to_clipboard(ctx: &CustomContext) -> CustomAction {
     ToClipboard(vec![
         Str("Referring to:"),
         SelectionPrimary::content(),
         Str("\nIn file:"),
-        FileCurrent::path(),
+        FileCurrent::path_root(),
         Str("\nOn line:"),
         SelectionPrimary::row_index(),
     ])
 }
 
-fn kitty_cargo_test(ctx: &LeaderContext) -> LeaderAction {
+fn kitty_cargo_test(ctx: &CustomContext) -> CustomAction {
     RunCommand(
         "kitty",
         vec![
@@ -73,7 +76,7 @@ fn kitty_cargo_test(ctx: &LeaderContext) -> LeaderAction {
             Str("--hold"),
             Str("--no-response"),
             Str("--cwd"),
-            DirWorking::path(),
+            DirWorking::path_root(),
             Str("cargo"),
             Str("test"),
             SelectionPrimary::content(),
@@ -81,9 +84,9 @@ fn kitty_cargo_test(ctx: &LeaderContext) -> LeaderAction {
     )
 }
 
-fn tmux_build(ctx: &LeaderContext) -> LeaderAction {
+fn tmux_build(ctx: &CustomContext) -> CustomAction {
     // Compile Rust
-    if FileCurrent::extension().resolve(ctx) == "rs" {
+    if DirWorking::file_exists("Cargo.toml").resolve(ctx) {
         RunCommand(
             "sh",
             vec![
@@ -100,14 +103,14 @@ fn tmux_build(ctx: &LeaderContext) -> LeaderAction {
                 Str("tmux select-window -t :1 && tmux send-keys -t :1 \"zig build\" C-m"),
             ],
         )
-    // Compile a Cobol file
+    // Compile Cobol
     } else if FileCurrent::extension().resolve(ctx) == "cbl" {
         RunCommand(
             "sh",
             vec![
                 Str("-c"),
                 Str("tmux select-window -t :1 && tmux send-keys -t :1 \"cobc -x "),
-                FileCurrent::path(),
+                FileCurrent::path_root(),
                 Str("\" C-m"),
             ],
         )
@@ -117,12 +120,12 @@ fn tmux_build(ctx: &LeaderContext) -> LeaderAction {
     }
 }
 
-pub(crate) fn custom_keymaps() -> Vec<(
+pub(crate) fn custom_keymap() -> Vec<(
     Meaning,
     &'static str,
-    Option<fn(&LeaderContext) -> LeaderAction>,
+    Option<fn(&CustomContext) -> CustomAction>,
 )> {
-    let custom_keymaps: [(Meaning, &str, Option<fn(&LeaderContext) -> LeaderAction>); 30] = [
+    let custom_keymap: [(Meaning, &str, Option<fn(&CustomContext) -> CustomAction>); 30] = [
         (__Q__, "Sample RunCommand", Some(sample_run_command)),
         (__W__, "Sample Macro", Some(sample_macro)),
         (__E__, "Sample ToggleProcess", Some(sample_toggle_process)),
@@ -156,10 +159,10 @@ pub(crate) fn custom_keymaps() -> Vec<(
         (_DOT_, "", None),
         (_SLSH, "", None),
     ];
-    custom_keymaps.into_iter().collect()
+    custom_keymap.into_iter().collect()
 }
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum LeaderAction {
+pub(crate) enum CustomAction {
     RunCommand(&'static str, Vec<Placeholder>),
     ToClipboard(Vec<Placeholder>),
     ToggleProcess(&'static str, Vec<Placeholder>),
@@ -178,7 +181,7 @@ pub(crate) enum Placeholder {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum FileCurrentKind {
-    Path,
+    PathRoot,
     Extension,
 }
 
@@ -191,7 +194,7 @@ pub(crate) enum SelectionPrimaryKind {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum DirWorkingKind {
-    Path,
+    PathRoot,
     FileExists(&'static str),
     FileExistsDynamic(Box<Placeholder>),
 }
@@ -205,7 +208,7 @@ pub(crate) enum ResolvedValue {
 
 pub(crate) struct Condition(Placeholder);
 
-pub(crate) struct LeaderContext {
+pub(crate) struct CustomContext {
     pub(crate) path: Option<CanonicalizedPath>,
     /// 0-based index
     pub(crate) primary_selection_line_index: usize,
@@ -215,8 +218,8 @@ pub(crate) struct LeaderContext {
 
 pub(crate) struct FileCurrent;
 impl FileCurrent {
-    pub fn path() -> Placeholder {
-        Placeholder::FileCurrent(FileCurrentKind::Path)
+    pub fn path_root() -> Placeholder {
+        Placeholder::FileCurrent(FileCurrentKind::PathRoot)
     }
     pub fn extension() -> Placeholder {
         Placeholder::FileCurrent(FileCurrentKind::Extension)
@@ -235,8 +238,8 @@ impl SelectionPrimary {
 
 pub(crate) struct DirWorking;
 impl DirWorking {
-    pub fn path() -> Placeholder {
-        Placeholder::DirCurrent(DirWorkingKind::Path)
+    pub fn path_root() -> Placeholder {
+        Placeholder::DirCurrent(DirWorkingKind::PathRoot)
     }
     pub fn file_exists(filename: &'static str) -> Condition {
         Condition(Placeholder::DirCurrent(DirWorkingKind::FileExists(
@@ -262,7 +265,7 @@ impl ResolvedValue {
 }
 
 impl Condition {
-    pub(crate) fn resolve(&self, ctx: &LeaderContext) -> bool {
+    pub(crate) fn resolve(&self, ctx: &CustomContext) -> bool {
         match self.0.resolve(ctx) {
             ResolvedValue::Bool(b) => b,
             _ => false,
@@ -276,12 +279,12 @@ impl From<Condition> for Placeholder {
 }
 
 impl Placeholder {
-    pub(crate) fn resolve(&self, ctx: &LeaderContext) -> ResolvedValue {
+    pub(crate) fn resolve(&self, ctx: &CustomContext) -> ResolvedValue {
         match self {
             Str(str) => ResolvedValue::Str(str.to_string()),
             Placeholder::NoSpace => ResolvedValue::Empty,
             Placeholder::FileCurrent(kind) => match kind {
-                FileCurrentKind::Path => match &ctx.path {
+                FileCurrentKind::PathRoot => match &ctx.path {
                     Some(path) => ResolvedValue::Str(path.display_absolute()),
                     None => ResolvedValue::Empty,
                 },
@@ -301,7 +304,7 @@ impl Placeholder {
                 }
             },
             Placeholder::DirCurrent(kind) => match kind {
-                DirWorkingKind::Path => {
+                DirWorkingKind::PathRoot => {
                     ResolvedValue::Str(ctx.current_working_directory.display_absolute())
                 }
                 DirWorkingKind::FileExists(file_name) => {
@@ -380,7 +383,7 @@ impl fmt::Display for Placeholder {
             Placeholder::NoSpace => write!(f, "NoSpace"),
 
             Placeholder::FileCurrent(kind) => match kind {
-                FileCurrentKind::Path => write!(f, "FileCurrent::path()"),
+                FileCurrentKind::PathRoot => write!(f, "FileCurrent::path()"),
                 FileCurrentKind::Extension => write!(f, "FileCurrent::extension()"),
             },
 
@@ -390,7 +393,7 @@ impl fmt::Display for Placeholder {
             },
 
             Placeholder::DirCurrent(kind) => match kind {
-                DirWorkingKind::Path => write!(f, "DirCurrent::path()"),
+                DirWorkingKind::PathRoot => write!(f, "DirCurrent::path()"),
                 DirWorkingKind::FileExists(filename) => {
                     write!(f, "DirCurrent::file_exists(\"{}\")", filename)
                 }

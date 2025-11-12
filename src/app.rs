@@ -23,7 +23,7 @@ use crate::{
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
-    custom_config::custom_keymap::{custom_keymaps, LeaderAction, LeaderContext, Placeholder},
+    custom_config::custom_keymap::{custom_keymap, CustomAction, CustomContext, Placeholder},
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
     frontend::Frontend,
@@ -1004,9 +1004,9 @@ impl<T: Frontend> App<T> {
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
             Dispatch::ExecuteLeaderMeaning(meaning) => {
                 if let Some((_, _, Some(action_fn))) =
-                    custom_keymaps().into_iter().find(|(m, _, _)| *m == meaning)
+                    custom_keymap().into_iter().find(|(m, _, _)| *m == meaning)
                 {
-                    let context = LeaderContext {
+                    let context = CustomContext {
                         path: self.get_current_file_path(),
                         primary_selection_line_index: self
                             .current_component()
@@ -1030,9 +1030,9 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::ExecuteLeaderHelpMeaning(meaning) => {
                 if let Some((_, description, Some(action_fn))) =
-                    custom_keymaps().into_iter().find(|(m, _, _)| *m == meaning)
+                    custom_keymap().into_iter().find(|(m, _, _)| *m == meaning)
                 {
-                    let context = LeaderContext {
+                    let context = CustomContext {
                         path: self.get_current_file_path(),
                         primary_selection_line_index: self
                             .current_component()
@@ -2972,12 +2972,12 @@ impl<T: Frontend> App<T> {
 
     fn handle_leader_action(
         &mut self,
-        leader_action: LeaderAction,
-        leader_context: LeaderContext,
+        leader_action: CustomAction,
+        leader_context: CustomContext,
     ) -> anyhow::Result<()> {
         match leader_action {
-            LeaderAction::DoNothing => {}
-            LeaderAction::RunCommand(command, ref args) => {
+            CustomAction::DoNothing => {}
+            CustomAction::RunCommand(command, ref args) => {
                 let mut final_args = Vec::new();
                 let mut current_arg = String::new();
                 let mut iter = args.iter().peekable();
@@ -3002,7 +3002,7 @@ impl<T: Frontend> App<T> {
                     .stderr(Stdio::null())
                     .spawn();
             }
-            LeaderAction::ToggleProcess(command, ref args) => {
+            CustomAction::ToggleProcess(command, ref args) => {
                 let mut final_args = Vec::new();
                 let mut current_arg = String::new();
                 let mut iter = args.iter().peekable();
@@ -3022,7 +3022,7 @@ impl<T: Frontend> App<T> {
                 }
                 self.process_manager.toggle(command, &final_args);
             }
-            LeaderAction::ToClipboard(text) => {
+            CustomAction::ToClipboard(text) => {
                 let mut final_string = String::new();
                 let mut iter = text.iter().peekable();
                 while let Some(p) = iter.next() {
@@ -3040,20 +3040,20 @@ impl<T: Frontend> App<T> {
                 self.context
                     .set_clipboard_content(CopiedTexts::new(NonEmpty::new(final_string)))?
             }
-            LeaderAction::Macro(key_events) => self.handle_key_events(key_events.to_vec())?,
+            CustomAction::Macro(key_events) => self.handle_key_events(key_events.to_vec())?,
         }
         Ok(())
     }
 
     fn handle_leader_help_action(
         &mut self,
-        leader_action: LeaderAction,
-        leader_context: LeaderContext,
+        leader_action: CustomAction,
+        leader_context: CustomContext,
         description: &str,
     ) -> anyhow::Result<()> {
         match leader_action {
-            LeaderAction::DoNothing => {}
-            LeaderAction::RunCommand(command, args) => {
+            CustomAction::DoNothing => {}
+            CustomAction::RunCommand(command, args) => {
                 self.show_global_info(Info::new(
                     "Running Command...".to_string(),
                     "Ki is waiting for the command to finish.\nThis is necessary to capture debug info.\nYou can:\nQuit the opened process.\nClose the opened application.\nWait, if the process will resolve itself.".to_string(),
@@ -3165,7 +3165,7 @@ impl<T: Frontend> App<T> {
                     Info::new("RunCommand Help".to_string(), content).set_decorations(decorations);
                 self.show_global_info(info);
             }
-            LeaderAction::ToClipboard(text) => {
+            CustomAction::ToClipboard(text) => {
                 let mut resolved_text = String::new();
                 let mut iter = text.iter().peekable();
                 while let Some(p) = iter.next() {
@@ -3221,7 +3221,7 @@ impl<T: Frontend> App<T> {
                     Info::new("ToClipboard Help".to_string(), content).set_decorations(decorations);
                 self.show_global_info(info);
             }
-            LeaderAction::ToggleProcess(command, args) => {
+            CustomAction::ToggleProcess(command, args) => {
                 let mut final_args = Vec::new();
                 let mut current_arg = String::new();
                 let mut iter = args.iter().peekable();
@@ -3303,7 +3303,7 @@ impl<T: Frontend> App<T> {
                     .set_decorations(decorations);
                 self.show_global_info(info);
             }
-            LeaderAction::Macro(key_events) => {
+            CustomAction::Macro(key_events) => {
                 let editor_component = self.current_component();
                 let editor = editor_component.borrow();
                 let keymap_config = editor
