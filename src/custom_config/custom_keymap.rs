@@ -61,7 +61,7 @@ fn sample_to_clipboard(ctx: &CustomContext) -> CustomAction {
         Str("Referring to:"),
         SelectionPrimary::content(),
         Str("\nIn file:"),
-        FileCurrent::path_root(),
+        FileCurrent::path_local(),
         Str("\nOn line:"),
         SelectionPrimary::row_index(),
     ])
@@ -181,8 +181,9 @@ pub(crate) enum Placeholder {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum FileCurrentKind {
-    PathRoot,
     Extension,
+    PathRoot,
+    PathLocal,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -218,11 +219,14 @@ pub(crate) struct CustomContext {
 
 pub(crate) struct FileCurrent;
 impl FileCurrent {
+    pub fn extension() -> Placeholder {
+        Placeholder::FileCurrent(FileCurrentKind::Extension)
+    }
     pub fn path_root() -> Placeholder {
         Placeholder::FileCurrent(FileCurrentKind::PathRoot)
     }
-    pub fn extension() -> Placeholder {
-        Placeholder::FileCurrent(FileCurrentKind::Extension)
+    pub fn path_local() -> Placeholder {
+        Placeholder::FileCurrent(FileCurrentKind::PathLocal)
     }
 }
 
@@ -284,13 +288,25 @@ impl Placeholder {
             Str(str) => ResolvedValue::Str(str.to_string()),
             Placeholder::NoSpace => ResolvedValue::Empty,
             Placeholder::FileCurrent(kind) => match kind {
+                FileCurrentKind::Extension => match &ctx.path {
+                    Some(path) => {
+                        ResolvedValue::Str(path.extension().unwrap_or_default().to_string())
+                    }
+                    None => ResolvedValue::Empty,
+                },
                 FileCurrentKind::PathRoot => match &ctx.path {
                     Some(path) => ResolvedValue::Str(path.display_absolute()),
                     None => ResolvedValue::Empty,
                 },
-                FileCurrentKind::Extension => match &ctx.path {
+                FileCurrentKind::PathLocal => match &ctx.path {
                     Some(path) => {
-                        ResolvedValue::Str(path.extension().unwrap_or_default().to_string())
+                        let relative_path = path
+                            .as_ref()
+                            .strip_prefix(&ctx.current_working_directory)
+                            .unwrap_or_else(|_| path.as_ref())
+                            .display()
+                            .to_string();
+                        ResolvedValue::Str(relative_path)
                     }
                     None => ResolvedValue::Empty,
                 },
@@ -385,6 +401,7 @@ impl fmt::Display for Placeholder {
             Placeholder::FileCurrent(kind) => match kind {
                 FileCurrentKind::PathRoot => write!(f, "FileCurrent::path()"),
                 FileCurrentKind::Extension => write!(f, "FileCurrent::extension()"),
+                FileCurrentKind::PathLocal => write!(f, "FileCurrent::path_local()"),
             },
 
             Placeholder::SelectionPrimary(kind) => match kind {
