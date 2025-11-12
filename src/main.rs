@@ -51,6 +51,8 @@ mod embed;
 
 mod alternator;
 pub(crate) mod custom_config;
+pub(crate) mod handle_custom_action;
+
 mod divide_viewport;
 mod env;
 pub(crate) mod file_watcher;
