@@ -43,3 +43,14 @@ impl ProcessManager {
         }
     }
 }
+
+impl Drop for ProcessManager {
+    fn drop(&mut self) {
+        for (key, child) in self.running_processes.iter_mut() {
+            log::info!("Shutting down toggled process on exit: {}", key);
+            if let Err(e) = child.kill() {
+                log::error!("Failed to kill process '{}' on exit: {}", key, e);
+            }
+        }
+    }
+}
