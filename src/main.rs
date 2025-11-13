@@ -114,7 +114,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
 
     let sender = app.sender();
 
-    let crossterm_join_handle = std::thread::spawn(move || loop {
+    std::thread::spawn(move || loop {
         if crossterm::event::read()
             .map_err(|error| anyhow::anyhow!("{:?}", error))
             .and_then(|event| Ok(sender.send(AppMessage::Event(event.into()))?))
@@ -126,8 +126,6 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
 
     app.run(config.entry_path)
         .map_err(|error| anyhow::anyhow!("screen.run {:?}", error))?;
-
-    crossterm_join_handle.join().unwrap();
 
     Ok(())
 }
