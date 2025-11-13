@@ -252,12 +252,12 @@ impl<T: Frontend> App<T> {
         self.render()?;
 
         while let Ok(message) = self.receiver.recv() {
-            self.process_message(message).unwrap_or_else(|e| {
+            let should_quit = self.process_message(message).unwrap_or_else(|e| {
                 self.show_global_info(Info::new("ERROR".to_string(), e.to_string()));
                 false
             });
 
-            if self.should_quit() {
+            if should_quit || self.should_quit() {
                 break;
             }
 
@@ -312,9 +312,9 @@ impl<T: Frontend> App<T> {
     pub(crate) fn quit(&mut self) -> anyhow::Result<()> {
         self.prepare_to_suspend_or_quit()?;
 
-        // self.lsp_manager.shutdown();
+        self.lsp_manager.shutdown();
 
-        std::process::exit(0);
+        Ok(())
     }
 
     #[cfg(windows)]
