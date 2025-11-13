@@ -1,3 +1,4 @@
+use crate::custom_config::keymap::leader_keymap;
 use crate::{
     buffer::{Buffer, BufferOwner},
     char_index_range::CharIndexRange,
@@ -23,6 +24,7 @@ use crate::{
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
+    custom_config::keymap::{LeaderAction, LeaderContext},
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
     frontend::Frontend,
@@ -991,6 +993,32 @@ impl<T: Frontend> App<T> {
                 self.add_quickfix_list_entries(locations)?
             }
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
+            Dispatch::ExecuteLeaderMeaning(meaning) => {
+                if let Some((_, _, action_fn)) =
+                    leader_keymap().into_iter().find(|(m, _, _)| *m == meaning)
+                {
+                    let context = LeaderContext {
+                        path: self.get_current_file_path(),
+                        primary_selection_line_index: self
+                            .current_component()
+                            .borrow()
+                            .get_cursor_position()
+                            .map(|position| position.line)
+                            .unwrap_or_default(),
+                        primary_selection_content: self
+                            .current_component()
+                            .borrow()
+                            .editor()
+                            .primary_selection()
+                            .unwrap_or_default(),
+                        current_working_directory: self.context.current_working_directory().clone(),
+                    };
+
+                    let leader_action = action_fn(&context);
+
+                    self.handle_leader_action(leader_action)?;
+                }
+            }
             Dispatch::ShowBufferSaveConflictPrompt {
                 path,
                 content_editor,
@@ -2110,7 +2138,6 @@ impl<T: Frontend> App<T> {
         self.layout.get_buffer_contents_map()
     }
 
-    #[cfg(test)]
     fn handle_key_events(&mut self, key_events: Vec<event::KeyEvent>) -> anyhow::Result<()> {
         for key_event in key_events.into_iter() {
             self.handle_event(Event::Key(key_event.to_owned()))?;
@@ -2907,6 +2934,37 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
+    fn handle_leader_action(&mut self, leader_action: LeaderAction) -> anyhow::Result<()> {
+        let leader_context = LeaderContext {
+            path: self.get_current_file_path(),
+            primary_selection_line_index: self
+                .current_component()
+                .borrow()
+                .get_cursor_position()
+                .map(|position| position.line)
+                .unwrap_or_default(),
+            primary_selection_content: self
+                .current_component()
+                .borrow()
+                .editor()
+                .primary_selection()
+                .unwrap_or_default(),
+            current_working_directory: self.context.current_working_directory().clone(),
+        };
+        match leader_action {
+            LeaderAction::DoNothing => {}
+            LeaderAction::RunCommand(command, args) => {
+                let args = args
+                    .iter()
+                    .map(|arg| arg.resolve(&leader_context).to_string())
+                    .collect_vec();
+                let _output = std::process::Command::new(command).args(&args).spawn()?;
+                // self.show_global_info(Info::new( format!("{command} {}", args.join(" ")), format!( "[STATUS]:\n{:?}\n\n[STDOUT]:\n{}\n\n[STDERR]:\n{}\n\n", output.status, String::from_utf8_lossy(&output.stdout).trim(), String::from_utf8_lossy(&output.stderr).trim() ), ))
+            }
+            LeaderAction::Macro(key_events) => self.handle_key_events(key_events)?,
+        }
+        Ok(())
+    }
     fn get_diff(before: &str, after: &str) -> String {
         let input = imara_diff::InternedInput::new(before, after);
         let mut diff = imara_diff::Diff::compute(imara_diff::Algorithm::Histogram, &input);
@@ -3359,6 +3417,7 @@ pub(crate) enum Dispatch {
         edits: Vec<Edit>,
         path: CanonicalizedPath,
     },
+    ExecuteLeaderMeaning(Meaning),
     ShowBufferSaveConflictPrompt {
         path: CanonicalizedPath,
         content_filesystem: String,
