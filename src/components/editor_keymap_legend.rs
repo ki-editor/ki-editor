@@ -583,14 +583,6 @@ impl Editor {
                 "Switch window".to_string(),
                 Dispatch::OtherWindow,
             ),
-            Keymap::new_extended(
-                context
-                    .keyboard_layout_kind()
-                    .get_insert_key(&Meaning::SHelp),
-                "Help".to_string(),
-                "Help".to_string(),
-                Dispatch::ToEditor(DispatchEditor::ShowHelp),
-            ),
             #[cfg(unix)]
             Keymap::new("ctrl+z", "Suspend".to_string(), Dispatch::Suspend),
         ]

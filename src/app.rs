@@ -476,8 +476,10 @@ impl<T: Frontend> App<T> {
                         StatusLineComponent::LastDispatch => self.last_action_description.clone(),
                         StatusLineComponent::LastSearchString => last_search_string.clone(),
                         StatusLineComponent::Help => {
-                            let key = self.keyboard_layout_kind().get_insert_key(&Meaning::SHelp);
-                            Some(format!("Help({key})"))
+                            let key = self
+                                .keyboard_layout_kind()
+                                .get_space_keymap(&Meaning::SHelp);
+                            Some(format!("Help(Space+{key})"))
                         }
                         StatusLineComponent::KeyboardLayout => {
                             Some(self.keyboard_layout_kind().display().to_string())
