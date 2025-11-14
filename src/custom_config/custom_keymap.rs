@@ -27,7 +27,7 @@ pub(crate) const CUSTOM_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
 ];
 
 fn sample_run_command(ctx: &CustomContext) -> CustomAction {
-    // Search selected content using Google and chromium
+    // Search selected content using Google and Chromium
     RunCommand(
         "chromium",
         vec![
@@ -39,11 +39,21 @@ fn sample_run_command(ctx: &CustomContext) -> CustomAction {
 }
 
 fn sample_toggle_process(ctx: &CustomContext) -> CustomAction {
-    // Open the currrent file in a new window of Chromium,
+    // Render the current file in a new window of Chromium
     if FileCurrent::extension().resolve(ctx) == "html" {
         ToggleProcess(
             "chromium",
             vec![FileCurrent::path_root(), Str("--new-window")],
+        )
+    } else if FileCurrent::extension().resolve(ctx) == "typ" {
+        ToggleProcess(
+            "tinymist",
+            vec![
+                Str("preview"),
+                Str("--invert-colors=auto"),
+                Str("--open"),
+                FileCurrent::path_root(),
+            ],
         )
     } else {
         DoNothing
