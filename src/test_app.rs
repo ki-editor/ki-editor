@@ -1551,6 +1551,73 @@ fn global_marks() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+fn global_marks_updated_by_edits() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            Editor(ToggleMark),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            Editor(ToggleMark),
+            App(SetQuickfixList(
+                crate::quickfix_list::QuickfixListType::Mark,
+            )),
+            Expect(Quickfixes(Box::new([
+                QuickfixListItem::new(
+                    Location {
+                        path: s.foo_rs(),
+                        range: (CharIndex(0)..CharIndex(3)).into(),
+                    },
+                    None,
+                    None,
+                ),
+                QuickfixListItem::new(
+                    Location {
+                        path: s.main_rs(),
+                        range: (CharIndex(0)..CharIndex(3)).into(),
+                    },
+                    None,
+                    None,
+                ),
+            ]))),
+            // Modify foo.rs to update the mark's position
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("x x x").to_vec())),
+            // Get global marks again
+            Expect(Quickfixes(Box::new([
+                QuickfixListItem::new(
+                    Location {
+                        path: s.foo_rs(),
+                        // Expect the range of mark in foo.rs is updated
+                        range: (CharIndex(3)..CharIndex(6)).into(),
+                    },
+                    None,
+                    None,
+                ),
+                QuickfixListItem::new(
+                    Location {
+                        path: s.main_rs(),
+                        // Expect the range of mark in main.rs remain unchanged
+                        range: (CharIndex(0)..CharIndex(3)).into(),
+                    },
+                    None,
+                    None,
+                ),
+            ]))),
+        ])
+    })
+}
+
+#[test]
 fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
@@ -2802,9 +2869,24 @@ fn doc_assets_export_keymaps_json() {
 
     #[derive(Serialize)]
     struct KeyJson {
-        normal: Option<String>,
-        alted: Option<String>,
-        shifted: Option<String>,
+        normal: Option<KeyAction>,
+        alted: Option<KeyAction>,
+        shifted: Option<KeyAction>,
+    }
+
+    #[derive(Serialize)]
+    struct KeyAction {
+        label: String,
+        docs: Option<String>,
+    }
+
+    impl KeyAction {
+        fn from_keymap(keymap: &Keymap) -> Self {
+            KeyAction {
+                label: keymap.display(),
+                docs: keymap.docs(),
+            }
+        }
     }
 
     #[derive(Serialize)]
@@ -2836,9 +2918,9 @@ fn doc_assets_export_keymaps_json() {
                     RowsJson(
                         keys.iter()
                             .map(|key| {
-                                let normal = key.normal.as_ref().map(Keymap::display);
-                                let alted = key.alted.as_ref().map(Keymap::display);
-                                let shifted = key.shifted.as_ref().map(Keymap::display);
+                                let normal = key.normal.as_ref().map(KeyAction::from_keymap);
+                                let alted = key.alted.as_ref().map(KeyAction::from_keymap);
+                                let shifted = key.shifted.as_ref().map(KeyAction::from_keymap);
 
                                 KeyJson {
                                     normal,

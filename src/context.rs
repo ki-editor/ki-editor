@@ -165,18 +165,22 @@ impl Context {
 
         self.marks = std::mem::take(&mut self.marks)
             .into_iter()
-            .map(|(path, marks)| {
-                (
-                    path,
-                    marks
-                        .into_iter()
-                        .filter_map(|mark| {
-                            edits
-                                .iter()
-                                .try_fold(mark, |mark, edit| mark.apply_edit(edit))
-                        })
-                        .collect(),
-                )
+            .map(|(p, marks)| {
+                if p == path {
+                    (
+                        p,
+                        marks
+                            .into_iter()
+                            .filter_map(|mark| {
+                                edits
+                                    .iter()
+                                    .try_fold(mark, |mark, edit| mark.apply_edit(edit))
+                            })
+                            .collect(),
+                    )
+                } else {
+                    (p, marks)
+                }
             })
             .collect();
     }
