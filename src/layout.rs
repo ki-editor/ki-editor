@@ -562,25 +562,20 @@ impl Layout {
                         .collect_vec()
                 })
                 .collect_vec(),
-            QuickfixListSource::Mark => self
-                .buffers()
+            QuickfixListSource::Mark => context
+                .marks()
                 .into_iter()
-                .flat_map(|buffer| {
-                    let buffer = buffer.borrow();
-                    context
-                        .get_marks(buffer.path())
-                        .into_iter()
-                        .filter_map(|mark| {
-                            Some(QuickfixListItem::new(
-                                Location {
-                                    path: buffer.path()?,
-                                    range: mark,
-                                },
-                                None,
-                                None,
-                            ))
-                        })
-                        .collect_vec()
+                .flat_map(|(path, marks)| {
+                    marks.iter().map(|mark| {
+                        QuickfixListItem::new(
+                            Location {
+                                path: path.clone(),
+                                range: mark.clone(),
+                            },
+                            None,
+                            None,
+                        )
+                    })
                 })
                 .collect_vec(),
             QuickfixListSource::Custom(items) => items.iter().cloned().collect_vec(),

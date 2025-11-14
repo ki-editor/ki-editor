@@ -207,6 +207,10 @@ impl Context {
         path.map(|path| self.marks.get(&path).cloned().unwrap_or_default().to_vec())
             .unwrap_or_default()
     }
+
+    pub(crate) fn marks(&self) -> &HashMap<CanonicalizedPath, Vec<CharIndexRange>> {
+        &self.marks
+    }
 }
 
 impl Context {
