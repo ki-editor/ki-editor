@@ -2802,9 +2802,24 @@ fn doc_assets_export_keymaps_json() {
 
     #[derive(Serialize)]
     struct KeyJson {
-        normal: Option<String>,
-        alted: Option<String>,
-        shifted: Option<String>,
+        normal: Option<KeyAction>,
+        alted: Option<KeyAction>,
+        shifted: Option<KeyAction>,
+    }
+
+    #[derive(Serialize)]
+    struct KeyAction {
+        label: String,
+        docs: Option<String>,
+    }
+
+    impl KeyAction {
+        fn from_keymap(keymap: &Keymap) -> Self {
+            KeyAction {
+                label: keymap.display(),
+                docs: keymap.docs(),
+            }
+        }
     }
 
     #[derive(Serialize)]
@@ -2836,9 +2851,9 @@ fn doc_assets_export_keymaps_json() {
                     RowsJson(
                         keys.iter()
                             .map(|key| {
-                                let normal = key.normal.as_ref().map(Keymap::display);
-                                let alted = key.alted.as_ref().map(Keymap::display);
-                                let shifted = key.shifted.as_ref().map(Keymap::display);
+                                let normal = key.normal.as_ref().map(KeyAction::from_keymap);
+                                let alted = key.alted.as_ref().map(KeyAction::from_keymap);
+                                let shifted = key.shifted.as_ref().map(KeyAction::from_keymap);
 
                                 KeyJson {
                                     normal,
