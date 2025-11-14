@@ -564,13 +564,13 @@ impl Layout {
                 .collect_vec(),
             QuickfixListSource::Mark => context
                 .marks()
-                .into_iter()
+                .iter()
                 .flat_map(|(path, marks)| {
                     marks.iter().map(|mark| {
                         QuickfixListItem::new(
                             Location {
                                 path: path.clone(),
-                                range: mark.clone(),
+                                range: *mark,
                             },
                             None,
                             None,
