@@ -421,7 +421,6 @@ impl PositionBasedSelectionMode for LineTrimmed {
         let buffer = params.buffer;
         let start_char_index = {
             let cursor_char_index = params.cursor_char_index();
-            dbg!(cursor_char_index);
 
             // If current line is already an empty line,
             // find the next group of empty lines
@@ -449,7 +448,6 @@ impl PositionBasedSelectionMode for LineTrimmed {
         while line_index < buffer.len_lines() {
             if let Some(slice) = buffer.get_line_by_line_index(line_index) {
                 if slice.chars().all(|char| char.is_whitespace()) {
-                    dbg!(line_index);
                     return Ok(self
                         .to_index(params, line_index)?
                         .map(ApplyMovementResult::from_selection));
