@@ -458,10 +458,9 @@ fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn snake_case(camelCase: String) {}".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            // Go to the middle of the file
-            Editor(MoveSelection(Index(2))),
+            Editor(MatchLiteral("camelCase".to_string())),
             Expect(CurrentSelectedTexts(&["camelCase"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnterInsertMode(Direction::End)),
             Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent("fn snake_case(camel: String) {}")),
@@ -1579,7 +1578,7 @@ fn main() {
                 use_current_selection_mode: true,
                 prior_change: None,
             }),
-            Expect(JumpChars(&['\n', '\n', 'b', 'f', '}'])),
+            Expect(JumpChars(&['b', 'f', '}'])),
             App(HandleKeyEvent(key!("f"))),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
         ])
@@ -3475,7 +3474,7 @@ foov foou bar
 }
 
 #[test]
-fn select_trailing_newline_when_cursor_is_at_last_space_of_current_line() -> anyhow::Result<()> {
+fn select_next_line_when_cursor_is_at_last_space_of_current_line() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -3493,7 +3492,7 @@ fn select_trailing_newline_when_cursor_is_at_last_space_of_current_line() -> any
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&[" "])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Expect(CurrentSelectedTexts(&["\n"])),
+            Expect(CurrentSelectedTexts(&["yo"])),
         ])
     })
 }
@@ -3742,7 +3741,7 @@ yo"
                 .to_string(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&[""])),
             Editor(Delete),
             Expect(CurrentSelectedTexts(&["world"])),
@@ -3822,15 +3821,15 @@ bam
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Down)),
             Expect(CurrentSelectedTexts(&[""])),
-            Editor(MoveSelection(Left)),
+            Editor(MoveSelection(Previous)),
             Expect(CurrentSelectedTexts(&["bar"])),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Editor(MoveSelection(Down)),
-            Editor(MoveSelection(Left)),
+            Editor(MoveSelection(Previous)),
             Expect(CurrentSelectedTexts(&["baz"])),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Editor(MoveSelection(Up)),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["spam"])),
         ])
     })
@@ -4738,6 +4737,7 @@ fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> 
                     SelectionMode::Line,
                 )),
                 Editor(MoveSelection(Last)),
+                Editor(MoveSelection(Next)),
                 Expect(EditorCursorPosition(Position::new(1, 0))),
                 Expect(CurrentSelectedTexts(&[""])),
                 Editor(SetSelectionMode(
@@ -5287,9 +5287,9 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(Open),
+            Editor(EnterInsertMode(Direction::End)),
             // Insert one new line
-            App(HandleKeyEvents(keys!("a l p h a esc").to_vec())),
+            App(HandleKeyEvents(keys!("enter a l p h a esc").to_vec())),
             // Modify one line
             Editor(MatchLiteral("main".to_string())),
             Editor(Delete),

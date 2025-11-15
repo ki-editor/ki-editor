@@ -124,9 +124,9 @@ baz"
                 .trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("A l l l j j"),
+                events: keys!("a i i i k k"),
                 expectations: Box::new([CurrentSelectedTexts(&[
-                    "\n",
+                    "",
                 ])]),
                 terminal_height: None,
                 similar_vim_combos: &["{", "}"],
