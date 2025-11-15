@@ -121,7 +121,7 @@ impl PositionBasedSelectionMode for LineFull {
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
         _: crate::components::editor::IfCurrentNotFound,
-        _: crate::char_index_range::CharIndexRange,
+         
     ) -> anyhow::Result<Option<super::ByteRange>> {
         let line_index = buffer.char_to_line(cursor_char_index)?;
         let line_start_char_index = buffer.line_to_char(line_index)?;

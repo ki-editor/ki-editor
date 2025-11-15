@@ -1331,7 +1331,7 @@ fn main() {
             }),
             Expect(CurrentComponentContent(original_content)),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(Delete),
+            Editor(DeleteNoGap),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
                 GitHunk(diff_mode),
@@ -1447,10 +1447,7 @@ fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
                 width: 200,
                 height: 6,
             })),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(SelectAll),
-            Editor(Delete),
-            Editor(Insert(
+            Editor(SetContent(
                 "
 fn first () {
   second();

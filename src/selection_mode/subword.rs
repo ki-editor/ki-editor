@@ -181,7 +181,7 @@ impl PositionBasedSelectionMode for Subword {
         buffer: &Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
-        _: crate::char_index_range::CharIndexRange,
+         
     ) -> anyhow::Result<Option<ByteRange>> {
         self.get_current_selection(buffer, cursor_char_index, if_current_not_found, true)
     }
@@ -191,7 +191,7 @@ impl PositionBasedSelectionMode for Subword {
         buffer: &Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
-        _: crate::char_index_range::CharIndexRange,
+         
     ) -> anyhow::Result<Option<ByteRange>> {
         self.get_current_selection(buffer, cursor_char_index, if_current_not_found, false)
     }

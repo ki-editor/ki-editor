@@ -702,7 +702,6 @@ pub trait PositionBasedSelectionMode {
                 buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
-                params.current_selection.range(),
             )? {
                 Some(range) => {
                     if !range_intersects(
@@ -736,7 +735,6 @@ pub trait PositionBasedSelectionMode {
         buffer: &Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
-        current_selection_range: CharIndexRange,
     ) -> anyhow::Result<Option<ByteRange>>;
 
     /// This includes all selections, including meaningless ones
@@ -745,13 +743,11 @@ pub trait PositionBasedSelectionMode {
         buffer: &Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
-        current_selection_range: CharIndexRange,
     ) -> anyhow::Result<Option<ByteRange>> {
         self.get_current_meaningful_selection_by_cursor(
             buffer,
             cursor_char_index,
             if_current_not_found,
-            current_selection_range,
         )
     }
 
@@ -760,7 +756,6 @@ pub trait PositionBasedSelectionMode {
             params.buffer,
             CharIndex(0),
             IfCurrentNotFound::LookForward,
-            params.current_selection.range(),
         )?
         .map(|byte_range| byte_range.to_selection(params.buffer, params.current_selection))
         .transpose()
@@ -771,7 +766,6 @@ pub trait PositionBasedSelectionMode {
             params.buffer,
             CharIndex(params.buffer.len_chars()),
             IfCurrentNotFound::LookBackward,
-            params.current_selection.range(),
         )?
         .map(|byte_range| byte_range.to_selection(params.buffer, params.current_selection))
         .transpose()
@@ -789,7 +783,6 @@ pub trait PositionBasedSelectionMode {
                 .end
                 .min(CharIndex(params.buffer.len_chars().saturating_sub(1))),
             IfCurrentNotFound::LookForward,
-            params.current_selection.range(),
         )?
         .map(|range| {
             params
@@ -808,7 +801,6 @@ pub trait PositionBasedSelectionMode {
             params.buffer,
             params.current_selection.range().start - 1,
             IfCurrentNotFound::LookBackward,
-            params.current_selection.range(),
         )?
         .map(|range| {
             params
@@ -831,7 +823,6 @@ pub trait PositionBasedSelectionMode {
                 .end
                 .min(CharIndex(params.buffer.len_chars())),
             IfCurrentNotFound::LookForward,
-            params.current_selection.range(),
         )?
         .map(|range| {
             params
@@ -850,7 +841,6 @@ pub trait PositionBasedSelectionMode {
             params.buffer,
             params.current_selection.range().start - 1,
             IfCurrentNotFound::LookBackward,
-            params.current_selection.range(),
         )?
         .map(|range| {
             params
@@ -887,7 +877,6 @@ pub trait PositionBasedSelectionMode {
                 params.buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
-                params.current_selection.range(),
             )? {
                 cursor_char_index = self.next_char_index(
                     params,
@@ -918,7 +907,6 @@ pub trait PositionBasedSelectionMode {
             params.buffer,
             cursor_char_index,
             IfCurrentNotFound::LookBackward,
-            params.current_selection.range(),
         )? {
             if range.range.start == 0 || Some(&range) == result.first() {
                 result.insert(0, range);
@@ -1030,12 +1018,9 @@ pub trait PositionBasedSelectionMode {
             )
         };
         loop {
-            if let Some(result) = self.get_current_selection_by_cursor(
-                buffer,
-                new_cursor_char_index,
-                first_look,
-                params.current_selection.range(),
-            )? {
+            if let Some(result) =
+                self.get_current_selection_by_cursor(buffer, new_cursor_char_index, first_look)?
+            {
                 if buffer.byte_to_line(result.range.start)? == new_position.line {
                     let selection = (*current_selection)
                         .clone()
@@ -1047,12 +1032,9 @@ pub trait PositionBasedSelectionMode {
                     }));
                 }
             }
-            if let Some(result) = self.get_current_selection_by_cursor(
-                buffer,
-                new_cursor_char_index,
-                second_look,
-                params.current_selection.range(),
-            )? {
+            if let Some(result) =
+                self.get_current_selection_by_cursor(buffer, new_cursor_char_index, second_look)?
+            {
                 if buffer.byte_to_line(result.range.start)? == new_position.line {
                     let selection = (*current_selection)
                         .clone()
@@ -1095,14 +1077,12 @@ pub trait PositionBasedSelectionMode {
             params.buffer,
             params.cursor_char_index(),
             if_current_not_found,
-            params.current_selection.range(),
         )?;
         let range = if range.is_none() {
             self.get_current_selection_by_cursor(
                 params.buffer,
                 params.cursor_char_index(),
                 if_current_not_found.inverse(),
-                params.current_selection.range(),
             )?
         } else {
             range
@@ -1128,11 +1108,10 @@ pub trait PositionBasedSelectionMode {
         let limit = CharIndex(params.buffer.len_chars());
         let mut current_index: usize = 0;
         while cursor_char_index < limit {
-            if let Some(range) = self.get_current_meaningful_selection_by_cursor(
+            if let Some(range) = self.get_current_selection_by_cursor(
                 params.buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
-                params.current_selection.range(),
             )? {
                 if current_index == index {
                     return Ok(Some(range.to_selection(buffer, current_selection)?));

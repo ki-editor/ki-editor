@@ -695,7 +695,6 @@ impl Editor {
                 &buffer.borrow(),
                 CharIndex(0),
                 IfCurrentNotFound::LookForward,
-                (CharIndex(0)..CharIndex(0)).into(),
             )
             .unwrap_or_default()
             .and_then(|byte_range| {
