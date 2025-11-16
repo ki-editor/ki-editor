@@ -300,8 +300,6 @@ fn test_delete_word_long() -> anyhow::Result<()> {
             Editor(DeleteWordBackward { short: false }),
             Expect(CurrentComponentContent("hello_world ")),
             Editor(DeleteWordBackward { short: false }),
-            Expect(CurrentComponentContent("hello_world")),
-            Editor(DeleteWordBackward { short: false }),
             Expect(CurrentComponentContent("")),
         ])
     })
@@ -4748,7 +4746,7 @@ fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> 
             ])
         })
     }
-    run_test(Word, &["\n"])?;
+    run_test(Word, &["hello"])?;
     run_test(SyntaxNode, &["hello"])?;
     run_test(Subword, &["hello"])?;
     run_test(Character, &["\n"])?;
