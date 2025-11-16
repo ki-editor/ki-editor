@@ -121,10 +121,10 @@ Same as [Line](#line), however, leading whitespaces and trailing whitespaces, in
 
 Each unit is a sequence of alphanumeric characters including `-` and `_`.
 
-| Movement              | Meaning                                                      |
-| --------------------- | ------------------------------------------------------------ |
-| Up/Down/Previous/Next | Move to all kinds of word, including symbols and whitespaces |
-| Left/Right            | Move to non-symbol word only                                 |
+| Movement              | Meaning                                      |
+| --------------------- | -------------------------------------------- |
+| Up/Down/Previous/Next | Move to all kinds of word, including symbols |
+| Left/Right            | Move to non-symbol word only                 |
 
 Suppose the following example:
 
