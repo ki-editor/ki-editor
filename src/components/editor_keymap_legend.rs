@@ -1102,6 +1102,13 @@ impl Editor {
                     "Git Blame".to_string(),
                     Dispatch::ToEditor(DispatchEditor::GitBlame),
                 ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_context_keymap(&Meaning::GoFil),
+                    "Go to File".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::GoToFile),
+                ),
             ]),
         }
     }

@@ -3732,3 +3732,23 @@ fn unable_to_close_marked_files_that_became_a_directory() -> Result<(), anyhow::
         ])
     })
 }
+
+#[test]
+fn go_to_file_under_selection() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(s.foo_rs().display_absolute())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Editor(GoToFile),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+        ])
+    })
+}
