@@ -468,7 +468,9 @@ impl PositionBasedSelectionMode for LineTrimmed {
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         let buffer = params.buffer;
         let start_char_index = {
-            let cursor_char_index = params.cursor_char_index();
+            let cursor_char_index = params
+                .cursor_char_index()
+                .min(CharIndex(buffer.len_chars()) - 1);
 
             // If current line is already an empty line,
             // find the previous group of empty lines
@@ -497,8 +499,20 @@ impl PositionBasedSelectionMode for LineTrimmed {
         while let Some(slice) = buffer.get_line_by_line_index(line_index) {
             if slice.chars().all(|char| char.is_whitespace()) {
                 return Ok(self
-                    .to_index(params, line_index)?
-                    .map(ApplyMovementResult::from_selection));
+                    .get_current_selection_by_cursor(
+                        params.buffer,
+                        buffer.line_to_char(line_index)?,
+                        IfCurrentNotFound::LookBackward,
+                    )?
+                    .and_then(|byte_range| {
+                        Some(ApplyMovementResult::from_selection(
+                            params.current_selection.clone().set_range(
+                                buffer
+                                    .byte_range_to_char_index_range(byte_range.range())
+                                    .ok()?,
+                            ),
+                        ))
+                    }));
             } else if line_index == 0 {
                 break;
             } else {
@@ -655,6 +669,7 @@ pub(crate) fn process_paste_gap(
 mod test_line {
     use crate::buffer::BufferOwner;
     use crate::components::editor::Movement;
+    use crate::position::Position;
     use crate::selection::SelectionMode;
     use crate::test_app::*;
 
@@ -1032,6 +1047,40 @@ foo
                 Expect(CurrentSelectedTexts(&["5│  █ifth();"])),
                 Editor(MoveSelection(Movement::Left)),
                 Expect(CurrentSelectedTexts(&["1│fn first () {"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn able_to_move_up_when_at_last_empty_line() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    "
+world
+
+hello
+"
+                    .to_string(),
+                )),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(MoveSelection(Movement::Last)),
+                Expect(CurrentSelectedTexts(&["hello"])),
+                Editor(MoveSelection(Movement::Next)),
+                Expect(CurrentSelectedTexts(&[""])),
+                Expect(ExpectKind::EditorCursorPosition(Position::new(4, 0))),
+                Editor(MoveSelection(Movement::Up)),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(MoveSelection(Movement::Left)),
+                Expect(CurrentSelectedTexts(&["world"])),
             ])
         })
     }
