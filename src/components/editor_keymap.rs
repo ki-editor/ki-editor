@@ -148,7 +148,7 @@ pub(crate) const KEYMAP_SPACE_CONTEXT: KeyboardMeaningLayout = [
         _____, LHovr, LCdAc, LRnme, RvHkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, _____, GtBlm, /****/ _____, _____, _____, _____, _____,
+        _____, GoFil, _____, _____, GtBlm, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -839,6 +839,8 @@ pub(crate) enum Meaning {
     RlBfr,
     /// Open search prompt with current selection
     SchWC,
+    /// Go to file
+    GoFil,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

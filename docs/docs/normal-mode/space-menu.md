@@ -52,6 +52,10 @@ Revert hunk(s) intersecting with selection(s) to latest commit of main/master br
 
 Show the Git Blame of the current line(s).
 
+### `Go to File`
+
+Go to file under selection.
+
 ## `Pick`
 
 <KeymapFallback filename="Space Pick"/>

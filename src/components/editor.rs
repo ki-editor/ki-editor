@@ -388,6 +388,7 @@ impl Component for Editor {
                 path,
             } => return self.merge_content(context, path, content_editor, content_filesystem),
             ClearIncrementalSearchMatches => self.clear_incremental_search_matches(),
+            GoToFile => return self.go_to_file(),
         }
         Ok(Default::default())
     }
@@ -4157,6 +4158,14 @@ impl Editor {
     pub(crate) fn initialize_incremental_search_matches(&mut self) {
         self.incremental_search_matches = Some(Vec::new())
     }
+
+    fn go_to_file(&self) -> Result<Dispatches, anyhow::Error> {
+        Ok(Dispatches::one(Dispatch::OpenFile {
+            path: self.current_primary_selection()?.try_into()?,
+            owner: crate::buffer::BufferOwner::User,
+            focus: true,
+        }))
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4306,6 +4315,7 @@ pub(crate) enum DispatchEditor {
         path: CanonicalizedPath,
     },
     ClearIncrementalSearchMatches,
+    GoToFile,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
