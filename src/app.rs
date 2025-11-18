@@ -2193,11 +2193,7 @@ impl<T: Frontend> App<T> {
 
         let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
-        let (prompt, dispatches) = Prompt::new(prompt_config, history);
-
-        if let Some(line) = current_line {
-            self.context.push_history_prompt(key, line)
-        }
+        let (prompt, dispatches) = Prompt::new(prompt_config, current_line, history);
 
         self.layout.add_and_focus_prompt(
             ComponentKind::Prompt,

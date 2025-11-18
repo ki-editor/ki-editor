@@ -231,14 +231,23 @@ impl Default for PromptHistoryKey {
 }
 
 impl Prompt {
-    pub(crate) fn new(config: PromptConfig, history: Vec<String>) -> (Self, Dispatches) {
+    pub(crate) fn new(
+        config: PromptConfig,
+        current_line: Option<String>,
+        history: Vec<String>,
+    ) -> (Self, Dispatches) {
         let text = {
-            if history.is_empty() {
+            let entries = history
+                .clone()
+                .into_iter()
+                .chain(current_line)
+                .collect_vec();
+            if entries.is_empty() {
                 "".to_string()
             } else {
                 format!(
                     "{}{}",
-                    history.join("\n"),
+                    entries.join("\n"),
                     if config.leaves_current_line_empty {
                         "\n"
                     } else {
