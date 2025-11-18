@@ -268,13 +268,13 @@ impl Prompt {
                 .to_vec(),
             )
         };
-        // TODO: set cursor to last line
         editor.set_title(config.title.clone());
         editor.set_completion(Completion {
             items: config
                 .items()
                 .into_iter()
                 .chain(history.into_iter().map(DropdownItem::new))
+                .unique_by(|item| item.display())
                 .collect(),
             trigger_characters: vec![" ".to_string()],
         });
@@ -827,14 +827,14 @@ mod test_prompt {
                     scope: Scope::Local,
                     if_current_not_found: IfCurrentNotFound::LookForward,
                 }),
-                App(HandleKeyEvents(keys!("f o enter").to_vec())), // Populate search history with "fo"
+                App(HandleKeyEvents(keys!("x x enter").to_vec())), // Populate search history with "xx"
                 App(OpenSearchPrompt {
                     scope: Scope::Local,
                     if_current_not_found: IfCurrentNotFound::LookForward,
                 }),
-                Expect(CurrentComponentContent("fo\n")),
+                Expect(CurrentComponentContent("xx\n")),
                 App(HandleKeyEvents(keys!("f o alt+l").to_vec())),
-                Expect(CurrentComponentContent("fo\nfoo")),
+                Expect(CurrentComponentContent("xx\nfoo")),
             ])
         })
     }
