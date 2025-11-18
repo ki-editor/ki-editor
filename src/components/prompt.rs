@@ -271,7 +271,11 @@ impl Prompt {
         // TODO: set cursor to last line
         editor.set_title(config.title.clone());
         editor.set_completion(Completion {
-            items: config.items(),
+            items: config
+                .items()
+                .into_iter()
+                .chain(history.into_iter().map(DropdownItem::new))
+                .collect(),
             trigger_characters: vec![" ".to_string()],
         });
         let dispatches = dispatches.chain(editor.render_completion_dropdown(true));
@@ -873,6 +877,43 @@ mod test_prompt {
                 Editor(MoveSelection(Left)),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(CurrentSearch(Scope::Local, "foo.")),
+            ])
+        })
+    }
+
+    #[test]
+    fn completion_item_should_include_historical_entries() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foox bar spam fooy".to_string())),
+                App(UpdateLocalSearchConfig {
+                    update: LocalSearchConfigUpdate::Mode(
+                        crate::context::LocalSearchConfigMode::Regex(RegexConfig {
+                            escaped: false,
+                            case_sensitive: false,
+                            match_whole_word: false,
+                        }),
+                    ),
+                    scope: Scope::Local,
+                    if_current_not_found: IfCurrentNotFound::LookForward,
+                    run_search_after_config_updated: false,
+                    component_id: None,
+                }),
+                App(OpenSearchPrompt {
+                    scope: Scope::Local,
+                    if_current_not_found: IfCurrentNotFound::LookForward,
+                }),
+                App(HandleKeyEvents(keys!("q q q enter").to_vec())), // Populate search history with "qqq"
+                App(OpenSearchPrompt {
+                    scope: Scope::Local,
+                    if_current_not_found: IfCurrentNotFound::LookForward,
+                }),
+                Expect(CompletionDropdownContentMatches(lazy_regex::regex!("qqq"))),
             ])
         })
     }
