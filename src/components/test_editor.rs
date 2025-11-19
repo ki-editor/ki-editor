@@ -5586,3 +5586,41 @@ snake_case
         ])
     })
 }
+
+#[test]
+fn last_wrapped_line_with_trailing_newline_char() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam baz\n".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            App(TerminalDimensionChanged(Dimension {
+                height: 10,
+                width: 300,
+            })),
+            // Expect Line 2 is present due to the trailing newline char
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+1│█oo bar spam baz
+2│"
+                .to_string(),
+            )),
+            // Decrease the rendering area to induce text wrapping
+            App(TerminalDimensionChanged(Dimension {
+                height: 10,
+                width: 17,
+            })),
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+1│█oo bar spam
+↪│baz
+2│"
+                .to_string(),
+            )),
+        ])
+    })
+}

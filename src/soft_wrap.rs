@@ -175,12 +175,15 @@ pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
     // Need to reduce the width by 1 for wrapping,
     // that one space is reserved for rendering cursor at the last column
     let wrap_width = width.saturating_sub(1);
-    let lines = text
+    let lines = ropey::Rope::from_str(text)
         .lines()
         .enumerate()
         .filter_map(|(line_number, line)| {
-            let items = re.split(line).collect_vec();
-            let wrapped_lines: Vec<String> = wrap_items(&items, wrap_width);
+            let items = re
+                .split(&line.to_string())
+                .map(|s| s.trim_end_matches('\n').to_string())
+                .collect_vec();
+            let wrapped_lines: Vec<String> = wrap_items(items, wrap_width);
             let (primary, wrapped) = wrapped_lines.split_first()?;
             Some(WrappedLine {
                 primary: primary.to_string(),
@@ -208,7 +211,7 @@ pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
     result
 }
 
-pub(crate) fn wrap_items(items: &[&str], wrap_width: usize) -> Vec<String> {
+pub(crate) fn wrap_items(items: Vec<String>, wrap_width: usize) -> Vec<String> {
     if wrap_width == 0 {
         return Vec::new();
     }
@@ -364,6 +367,14 @@ mod test_soft_wrap {
 
         // Although the container width is same as the content length,
         // the content is still wrapped, because `wrap_width = container_width - 1`.
+        assert_eq!(wrapped_lines.wrapped_lines_count(), 2);
+    }
+
+    #[test]
+    fn trailing_newline_char_of_content_should_add_one_more_line() {
+        let content = "foo bar\n";
+        let wrapped_lines = soft_wrap(content, 10);
+
         assert_eq!(wrapped_lines.wrapped_lines_count(), 2);
     }
 
