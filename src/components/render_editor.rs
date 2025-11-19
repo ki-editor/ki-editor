@@ -149,15 +149,12 @@ impl Editor {
             vec![]
         } else {
             let wrapped_items = wrap_items(
-                &get_formatted_paths(
+                get_formatted_paths(
                     &context.get_marked_files(),
                     &self.path()?,
                     context.current_working_directory(),
                     self.buffer().dirty(),
-                )
-                .iter()
-                .map(|s| s.as_str())
-                .collect_vec(),
+                ),
                 // Reference: NEED_TO_REDUCE_WIDTH_BY_1
                 (dimension.width as usize).saturating_sub(1),
             );
