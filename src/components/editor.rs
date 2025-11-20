@@ -922,12 +922,13 @@ impl Editor {
     pub(crate) fn align_selection_to_top(&mut self) {
         let selection_first_line = self
             .buffer()
-            .char_to_line(
-                self.selection_set
-                    .primary_selection()
-                    .extended_range()
-                    .start,
-            )
+            .char_to_line({
+                let range = self.selection_set.primary_selection().extended_range();
+                match self.cursor_direction {
+                    Direction::Start => range.start,
+                    Direction::End => range.end,
+                }
+            })
             .unwrap_or_default() as u16;
         self.scroll_offset = selection_first_line;
     }
