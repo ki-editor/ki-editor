@@ -120,13 +120,13 @@ impl KeymapPrintSection {
     }
 
     /// Returns None if the terminal width is too small
-    pub(crate) fn display(&self, terminal_width: u16, option: &KeymapDisplayOption) -> String {
+    pub(crate) fn display(&self, terminal_width: usize, option: &KeymapDisplayOption) -> String {
         let table = self.display_full(terminal_width, option);
 
-        fn get_content_width(table: &Table) -> u16 {
+        fn get_content_width(table: &Table) -> usize {
             let content_width: u16 = table.column_max_content_widths().iter().sum();
             // column content, separators, padding & editor margins
-            content_width + 12 + 22 + 2
+            content_width as usize + 12 + 22 + 2
         }
 
         let exmatrix_keybindings = ["* Pick Keyboard"].join(&" ".repeat(4));
@@ -153,11 +153,15 @@ impl KeymapPrintSection {
         &self.keys
     }
 
-    fn display_full(&self, terminal_width: u16, option: &KeymapDisplayOption) -> Table {
+    fn display_full(&self, terminal_width: usize, option: &KeymapDisplayOption) -> Table {
         self.display_one_side(terminal_width, option, 0, 10, 5)
     }
 
-    fn display_stacked(&self, terminal_width: u16, option: &KeymapDisplayOption) -> (Table, Table) {
+    fn display_stacked(
+        &self,
+        terminal_width: usize,
+        option: &KeymapDisplayOption,
+    ) -> (Table, Table) {
         let left = self.display_one_side(terminal_width, option, 0, 5, 5);
         let right = self.display_one_side(terminal_width, option, 5, 5, 0);
         (left, right)
@@ -165,14 +169,14 @@ impl KeymapPrintSection {
 
     fn display_one_side(
         &self,
-        terminal_width: u16,
+        terminal_width: usize,
         option: &KeymapDisplayOption,
         skip: usize,
         take: usize,
         modifiers_column_index: usize,
     ) -> Table {
         let columns_count = take;
-        let max_column_width = terminal_width / columns_count as u16;
+        let max_column_width = terminal_width / columns_count;
         let mut table = Table::new();
         let table_rows = self.keys.iter().map(|row| {
             let cells = row.iter().skip(skip).take(take);
@@ -215,11 +219,11 @@ impl KeymapPrintSection {
                         .lines()
                         .map(|line| line.chars().count())
                         .max()
-                        .unwrap_or_default() as u16
+                        .unwrap_or_default()
                 })
                 .max()
                 .unwrap_or_default();
-            ColumnConstraint::LowerBoundary(Width::Fixed(min_width.min(max_column_width)))
+            ColumnConstraint::LowerBoundary(Width::Fixed(min_width.min(max_column_width) as u16))
         };
 
         table
@@ -229,7 +233,7 @@ impl KeymapPrintSection {
                 columns.insert(modifiers_column_index, Absolute(Fixed(1)));
                 columns
             })
-            .set_width(terminal_width)
+            .set_width(terminal_width as u16)
             .load_preset(comfy_table::presets::UTF8_FULL)
             .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
         table
@@ -402,7 +406,7 @@ fn print_single_keymap_table(keymap: &KeymapPrintSection) {
     println!("{}:", keymap.name);
 
     let table = keymap.display(
-        u16::MAX,
+        usize::MAX,
         &KeymapDisplayOption {
             show_alt: true,
             show_shift: true,
