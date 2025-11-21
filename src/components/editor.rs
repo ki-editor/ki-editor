@@ -1700,6 +1700,7 @@ impl Editor {
         context: &Context,
         prior_change: Option<PriorChange>,
     ) -> anyhow::Result<Dispatches> {
+        self.clear_incremental_search_matches();
         self.handle_prior_change(prior_change);
         if self.mode == Mode::MultiCursor {
             let selection_set = self.selection_set.clone().set_mode(selection_mode.clone());
