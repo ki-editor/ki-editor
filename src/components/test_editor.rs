@@ -2245,7 +2245,7 @@ fn surround() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
-            App(HandleKeyEvents(keys!("g y j").to_vec())),
+            App(HandleKeyEvents(keys!("g , j").to_vec())),
             Expect(CurrentComponentContent("fn main() { (x.y()) }")),
             Expect(SelectionExtensionEnabled(false)),
         ])
@@ -2593,7 +2593,7 @@ fn select_surround_inside() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g h j").to_vec())),
+            App(HandleKeyEvents(keys!("g u j").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2611,7 +2611,7 @@ fn select_surround_around() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g ; j").to_vec())),
+            App(HandleKeyEvents(keys!("g o j").to_vec())),
             Expect(CurrentSelectedTexts(&["(world)"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -4129,7 +4129,7 @@ fn surround_extended_selection() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
-            App(HandleKeyEvents(keys!("g y j").to_vec())),
+            App(HandleKeyEvents(keys!("g , j").to_vec())),
             Expect(CurrentComponentContent("(foo bar)")),
         ])
     })
@@ -4624,7 +4624,7 @@ fuor
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["foo", "for", "fuor"])),
             // Keep only selections matching `r/f.o`
-            App(HandleKeyEvents(keys!("r h r / f . o enter").to_vec())),
+            App(HandleKeyEvents(keys!("r u r / f . o enter").to_vec())),
             Expect(CurrentSelectedTexts(&["foo", "fuor"])),
         ])
     })
