@@ -564,8 +564,6 @@ pub(crate) enum Movement {
     Index(usize),
     Jump(CharIndexRange),
     Expand,
-    DeleteBackward,
-    DeleteForward,
     Previous,
     Next,
 }
@@ -591,10 +589,8 @@ impl Movement {
             Movement::Index(index) => MovementApplicandum::Index(index),
             Movement::Jump(chars) => MovementApplicandum::Jump(chars),
             Movement::Expand => MovementApplicandum::Expand,
-            Movement::DeleteForward => MovementApplicandum::DeleteForward,
             Movement::Previous => MovementApplicandum::Previous,
             Movement::Next => MovementApplicandum::Next,
-            Movement::DeleteBackward => MovementApplicandum::DeleteBackward,
         }
     }
 }
@@ -618,8 +614,6 @@ pub(crate) enum MovementApplicandum {
     Index(usize),
     Jump(CharIndexRange),
     Expand,
-    DeleteBackward,
-    DeleteForward,
     Next,
     Previous,
 }
@@ -1078,8 +1072,8 @@ impl Editor {
                         let start_selection =
                             &selection.clone().collapsed_to_anchor_range(direction);
                         let movement = match (direction, with_gap) {
-                            (Direction::Start, true) => Movement::DeleteBackward,
-                            (Direction::End, true) => Movement::DeleteForward,
+                            (Direction::Start, true) => Movement::Left,
+                            (Direction::End, true) => Movement::Right,
                             (Direction::Start, false) => Movement::Previous,
                             (Direction::End, false) => Movement::Next,
                         };

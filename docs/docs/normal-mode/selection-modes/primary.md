@@ -115,7 +115,7 @@ The meaningless selections are empty lines.
 
 Full Line.
 
-Same as [Line](#line), however, leading whitespaces and trailing whitespaces, including newline characters are also selected. And, Right/Left goes to the next empty (whitespaces only) line, this behavior is similar to move by paragraph.
+Same as [Line](#line), however, leading whitespaces and trailing whitespaces, including newline characters are also selected.
 
 ## `Word`
 
