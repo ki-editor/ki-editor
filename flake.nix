@@ -52,6 +52,7 @@
           fd
           cargo-watch
           cargo-machete
+          cargo-nextest
           samply
 
           # For testing LSP

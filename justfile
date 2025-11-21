@@ -48,16 +48,16 @@ vscode-lint-fix:
 	npm run lint:fix
 
 test testname="":
-    @echo "Running cargo test..."
+    @echo "Running cargo nextest..."
     git config --get --global user.name  || git config --global user.name  Tester 
     git config --get --global user.email || git config --global user.email tester@gmail.com
-    cargo test --workspace -- --skip 'doc_assets_' --nocapture -- {{testname}}
+    cargo nextest run --workspace -- --skip 'doc_assets_' {{testname}}
     
 tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
 
 doc-assets testname="":
-    cargo test --workspace -- --nocapture 'doc_assets_' {{testname}}
+    cargo nextest run --workspace -- 'doc_assets_' {{testname}}
     
 # This command helps you locate the actual recipe that is failing
 doc-assets-get-recipes-error:
@@ -74,7 +74,7 @@ codecov:
     
 
 watch-test testname:
-	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains --ignore 'tests/mock_repos/*' --ignore 'docs/static/*.json' -- cargo test --workspace  -- --nocapture -- {{testname}}
+	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains --ignore 'tests/mock_repos/*' --ignore 'docs/static/*.json' -- cargo nextest run --workspace  -- {{testname}}
 	
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo clippy --workspace --tests
