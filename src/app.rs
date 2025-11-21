@@ -114,7 +114,7 @@ pub(crate) struct App<T: Frontend> {
     file_watcher_input_sender: Option<Sender<FileWatcherInput>>,
 }
 
-const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
+const GLOBAL_TITLE_BAR_HEIGHT: usize = 1;
 
 #[derive(Clone)]
 pub(crate) enum StatusLineComponent {
@@ -357,8 +357,8 @@ impl<T: Frontend> App<T> {
         match event {
             Event::Resize(columns, rows) => {
                 self.resize(Dimension {
-                    height: rows,
-                    width: columns,
+                    height: rows as usize,
+                    width: columns as usize,
                 });
             }
             event => {
@@ -418,7 +418,7 @@ impl<T: Frontend> App<T> {
                     let cursor_position = cursor.position();
 
                     // If cursor position is not in view
-                    if cursor_position.line >= rectangle.dimension().height as usize {
+                    if cursor_position.line >= rectangle.dimension().height {
                         break 'cursor_calc None;
                     }
 
@@ -524,7 +524,7 @@ impl<T: Frontend> App<T> {
                     width: dimension.width,
                     height: 1,
                     origin: Position {
-                        line: dimension.height as usize,
+                        line: dimension.height,
                         column: 0,
                     },
                 },
@@ -1010,6 +1010,9 @@ impl<T: Frontend> App<T> {
                 self.update_current_component_title(title)
             }
             Dispatch::SaveMarks { path, marks } => self.context.save_marks(path, marks),
+            Dispatch::ToSuggestiveEditor(dispatch) => {
+                self.handle_dispatch_suggestive_editor(dispatch)?;
+            }
         }
         Ok(())
     }
@@ -1671,7 +1674,7 @@ impl<T: Frontend> App<T> {
             let title = keymap_legend_config.title.clone();
             let body = keymap_legend_config.display(
                 self.context.keyboard_layout_kind(),
-                u16::MAX,
+                usize::MAX,
                 &KeymapDisplayOption {
                     show_alt: false,
                     show_shift: true,
@@ -2796,11 +2799,10 @@ impl<T: Frontend> App<T> {
                 return Ok(());
             };
 
-            let viewport_height: u32 = self
+            let viewport_height = self
                 .current_completion_dropdown()
                 .map(|component| component.borrow().rectangle().height)
-                .unwrap_or(10)
-                .into();
+                .unwrap_or(10);
 
             prompt.handle_nucleo_updated(viewport_height)
         };
@@ -3110,24 +3112,24 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct Dimension {
-    pub(crate) height: u16,
-    pub(crate) width: u16,
+    pub(crate) height: usize,
+    pub(crate) width: usize,
 }
 
 impl Dimension {
     #[cfg(test)]
     pub(crate) fn area(&self) -> usize {
-        self.height as usize * self.width as usize
+        self.height * self.width
     }
 
     #[cfg(test)]
     pub(crate) fn positions(&self) -> std::collections::HashSet<Position> {
-        (0..self.height as usize)
-            .flat_map(|line| (0..self.width as usize).map(move |column| Position { column, line }))
+        (0..self.height)
+            .flat_map(|line| (0..self.width).map(move |column| Position { column, line }))
             .collect()
     }
 
-    fn decrement_height(&self, global_title_bar_height: u16) -> Dimension {
+    fn decrement_height(&self, global_title_bar_height: usize) -> Dimension {
         Dimension {
             height: self.height.saturating_sub(global_title_bar_height),
             width: self.width,
@@ -3379,6 +3381,7 @@ pub(crate) enum Dispatch {
         path: CanonicalizedPath,
         marks: Vec<CharIndexRange>,
     },
+    ToSuggestiveEditor(DispatchSuggestiveEditor),
 }
 
 /// Used to send notify host app about changes

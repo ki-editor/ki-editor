@@ -435,7 +435,7 @@ pub(crate) struct Editor {
 
     /// This means the number of lines to be skipped from the top during rendering.
     /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
-    scroll_offset: u16,
+    scroll_offset: usize,
     rectangle: Rectangle,
     buffer: Rc<RefCell<Buffer>>,
     title: Option<String>,
@@ -564,8 +564,6 @@ pub(crate) enum Movement {
     Index(usize),
     Jump(CharIndexRange),
     Expand,
-    DeleteBackward,
-    DeleteForward,
     Previous,
     Next,
 }
@@ -591,10 +589,8 @@ impl Movement {
             Movement::Index(index) => MovementApplicandum::Index(index),
             Movement::Jump(chars) => MovementApplicandum::Jump(chars),
             Movement::Expand => MovementApplicandum::Expand,
-            Movement::DeleteForward => MovementApplicandum::DeleteForward,
             Movement::Previous => MovementApplicandum::Previous,
             Movement::Next => MovementApplicandum::Next,
-            Movement::DeleteBackward => MovementApplicandum::DeleteBackward,
         }
     }
 }
@@ -618,8 +614,6 @@ pub(crate) enum MovementApplicandum {
     Index(usize),
     Jump(CharIndexRange),
     Expand,
-    DeleteBackward,
-    DeleteForward,
     Next,
     Previous,
 }
@@ -636,12 +630,12 @@ impl Editor {
     pub(crate) fn get_parent_lines_given_line_index_and_scroll_offset(
         &self,
         line_index: usize,
-        scroll_offset: u16,
+        scroll_offset: usize,
     ) -> anyhow::Result<(Vec<Line>, Vec<Line>)> {
         let parent_lines = self.buffer().get_parent_lines(line_index)?;
         Ok(parent_lines
             .into_iter()
-            .partition(|line| line.line < scroll_offset as usize))
+            .partition(|line| line.line < scroll_offset))
     }
 
     pub(crate) fn show_info(&mut self, info: Info, context: &Context) -> Result<(), anyhow::Error> {
@@ -831,13 +825,11 @@ impl Editor {
             .char_index_range_to_line_range(primary_selection_range)
             .unwrap_or_default();
         let render_area = self.render_area(context);
-        let out_of_viewport = |row: u16| {
+        let out_of_viewport = |row: usize| {
             row.saturating_sub(self.scroll_offset) > render_area.height.saturating_sub(1)
                 || row < self.scroll_offset
         };
-        if out_of_viewport(line_range.start as u16)
-            || out_of_viewport(line_range.end.saturating_sub(1) as u16)
-        {
+        if out_of_viewport(line_range.start) || out_of_viewport(line_range.end.saturating_sub(1)) {
             self.align_selection_to_center(context);
             self.current_view_alignment = None;
         }
@@ -853,7 +845,7 @@ impl Editor {
     /// The algorithm works backwards from the maximum possible offset, testing each position
     /// until it finds one where the target line is visible in the rendered grid. This finds
     /// the best alignment position for both center and bottom alignment scenarios.
-    fn align_selection<F: Fn(u16) -> u16>(
+    fn align_selection<F: Fn(usize) -> usize>(
         &mut self,
         context: &Context,
         line_range_to_target: impl Fn(Range<usize>) -> usize,
@@ -870,11 +862,11 @@ impl Editor {
             .height
             .saturating_sub(self.window_title_height(context));
 
-        let target_line_index = if available_height <= line_range.len() as u16 {
+        let target_line_index = if available_height <= line_range.len() {
             // Use cursor row if there are not enough spaces to fit all lines of the selection
-            self.cursor_row() as u16
+            self.cursor_row()
         } else {
-            line_range_to_target(line_range.clone()) as u16
+            line_range_to_target(line_range.clone())
         };
         for i in (0..available_height_multiplier(available_height)).rev() {
             let new_scroll_offset = target_line_index.saturating_sub(i);
@@ -922,13 +914,14 @@ impl Editor {
     pub(crate) fn align_selection_to_top(&mut self) {
         let selection_first_line = self
             .buffer()
-            .char_to_line(
-                self.selection_set
-                    .primary_selection()
-                    .extended_range()
-                    .start,
-            )
-            .unwrap_or_default() as u16;
+            .char_to_line({
+                let range = self.selection_set.primary_selection().extended_range();
+                match self.cursor_direction {
+                    Direction::Start => range.start,
+                    Direction::End => range.end,
+                }
+            })
+            .unwrap_or_default();
         self.scroll_offset = selection_first_line;
     }
 
@@ -1077,8 +1070,8 @@ impl Editor {
                         let start_selection =
                             &selection.clone().collapsed_to_anchor_range(direction);
                         let movement = match (direction, with_gap) {
-                            (Direction::Start, true) => Movement::DeleteBackward,
-                            (Direction::End, true) => Movement::DeleteForward,
+                            (Direction::Start, true) => Movement::Left,
+                            (Direction::End, true) => Movement::Right,
                             (Direction::Start, false) => Movement::Previous,
                             (Direction::End, false) => Movement::Next,
                         };
@@ -1912,11 +1905,11 @@ impl Editor {
     #[allow(dead_code)]
     pub(crate) fn set_cursor_position(
         &mut self,
-        row: u16,
-        column: u16,
+        row: usize,
+        column: usize,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        let start = (self.buffer.borrow().line_to_char(row as usize)?) + column.into();
+        let start = (self.buffer.borrow().line_to_char(row)?) + column;
         let primary = self
             .selection_set
             .primary_selection()
@@ -2299,8 +2292,8 @@ impl Editor {
 
     fn apply_scroll(&mut self, direction: Direction, scroll_height: usize) {
         self.scroll_offset = match direction {
-            Direction::Start => self.scroll_offset.saturating_sub(scroll_height as u16),
-            Direction::End => self.scroll_offset.saturating_add(scroll_height as u16),
+            Direction::Start => self.scroll_offset.saturating_sub(scroll_height),
+            Direction::End => self.scroll_offset.saturating_add(scroll_height),
         };
     }
 
@@ -2659,7 +2652,7 @@ impl Editor {
         self.set_selection_set(self.selection_set.clamp(CharIndex(len_chars))?, context);
 
         let len_lines = self.buffer().len_lines();
-        self.scroll_offset = self.scroll_offset.clamp(0, len_lines as u16);
+        self.scroll_offset = self.scroll_offset.clamp(0, len_lines);
 
         Ok(())
     }
@@ -2776,13 +2769,13 @@ impl Editor {
 
     pub(crate) fn visible_line_range_given_scroll_offset_and_height(
         &self,
-        scroll_offset: u16,
-        height: u16,
+        scroll_offset: usize,
+        height: usize,
     ) -> Range<usize> {
         let start = scroll_offset;
-        let end = (start as usize + height as usize).min(self.buffer().len_lines());
+        let end = (start + height).min(self.buffer().len_lines());
 
-        start as usize..end
+        start..end
     }
 
     pub(crate) fn add_cursor_to_all_selections(
@@ -2876,7 +2869,7 @@ impl Editor {
                 .max()
                 .unwrap_or_default()
         } else {
-            self.dimension().height as usize
+            self.dimension().height
         };
         height / 2
     }
@@ -3046,7 +3039,7 @@ impl Editor {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_scroll_offset(&mut self, scroll_offset: u16) {
+    pub(crate) fn set_scroll_offset(&mut self, scroll_offset: usize) {
         self.scroll_offset = scroll_offset
     }
 
@@ -3157,7 +3150,7 @@ impl Editor {
         self.mode = Mode::Replace
     }
 
-    pub(crate) fn scroll_offset(&self) -> u16 {
+    pub(crate) fn scroll_offset(&self) -> usize {
         self.scroll_offset
     }
 
@@ -3819,8 +3812,8 @@ impl Editor {
         self.selection_set.primary_selection().extended_range()
     }
 
-    pub(crate) fn window_title_height(&self, context: &Context) -> u16 {
-        self.title(context).lines().count() as u16
+    pub(crate) fn window_title_height(&self, context: &Context) -> usize {
+        self.title(context).lines().count()
     }
 
     fn execute_completion(
@@ -3845,7 +3838,7 @@ impl Editor {
         }
     }
 
-    fn last_visible_line(&self, context: &Context) -> u16 {
+    fn last_visible_line(&self, context: &Context) -> usize {
         (self.render_area(context).height + self.scroll_offset).saturating_sub(1)
     }
 
@@ -4184,7 +4177,7 @@ pub(crate) enum HandleEventResult {
 pub(crate) enum DispatchEditor {
     Surround(String, String),
     #[cfg(test)]
-    SetScrollOffset(u16),
+    SetScrollOffset(usize),
     ShowJumps {
         use_current_selection_mode: bool,
         prior_change: Option<PriorChange>,

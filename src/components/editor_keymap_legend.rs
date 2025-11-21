@@ -1133,7 +1133,7 @@ impl Editor {
                 Keymap::new(
                     context
                         .keyboard_layout_kind()
-                        .get_space_editor_keymap(&Meaning::TSNSx),
+                        .get_space_context_keymap(&Meaning::TSNSx),
                     "TS Node Sexp".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
                 ),

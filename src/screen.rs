@@ -111,8 +111,8 @@ impl Screen {
             .map(|cell| cell.position.line)
             .unwrap_or_default();
         Dimension {
-            width: (max_column + 1) as u16,
-            height: (max_line + 1) as u16,
+            width: (max_column + 1),
+            height: (max_line + 1),
         }
     }
 

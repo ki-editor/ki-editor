@@ -1769,7 +1769,7 @@ fn main() {
                     .map(|column_index| {
                         Not(Box::new(GridCellBackground(
                             5,
-                            column_index as usize,
+                            column_index,
                             parent_lines_background,
                         )))
                     })
@@ -3774,17 +3774,17 @@ bam
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
             Expect(CurrentSelectedTexts(&["foo\n"])),
-            Editor(MoveSelection(Right)),
-            Expect(CurrentSelectedTexts(&["\n"])),
-            Editor(MoveSelection(Up)),
-            Expect(CurrentSelectedTexts(&["bar\n"])),
             Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["\n"])),
+            Editor(MoveSelection(Left)),
+            Expect(CurrentSelectedTexts(&["bar\n"])),
             Editor(MoveSelection(Right)),
-            Editor(MoveSelection(Up)),
-            Expect(CurrentSelectedTexts(&["baz\n"])),
             Editor(MoveSelection(Down)),
             Editor(MoveSelection(Left)),
-            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["baz\n"])),
+            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Up)),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["spam\n"])),
         ])
     })
@@ -4982,7 +4982,7 @@ fn main() {
 #[test]
 fn last_line_of_multiline_selection_should_be_at_bottom_when_aligning_bottom() -> anyhow::Result<()>
 {
-    fn run_test(width: u16, height: u16, expected_output: &'static str) -> anyhow::Result<()> {
+    fn run_test(width: usize, height: usize, expected_output: &'static str) -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -5052,7 +5052,7 @@ fn main() {
 #[test]
 fn middle_line_of_multiline_selection_should_be_centered_when_aligning_center() -> anyhow::Result<()>
 {
-    fn run_test(width: u16, height: u16, expected_output: &'static str) -> anyhow::Result<()> {
+    fn run_test(width: usize, height: usize, expected_output: &'static str) -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -5582,6 +5582,116 @@ kebab-case
 snake_case
 "
                 .trim(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn last_wrapped_line_with_trailing_newline_char() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam baz\n".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            App(TerminalDimensionChanged(Dimension {
+                height: 10,
+                width: 300,
+            })),
+            // Expect Line 2 is present due to the trailing newline char
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+1│█oo bar spam baz
+2│"
+                .to_string(),
+            )),
+            // Decrease the rendering area to induce text wrapping
+            App(TerminalDimensionChanged(Dimension {
+                height: 10,
+                width: 17,
+            })),
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+1│█oo bar spam
+↪│baz
+2│"
+                .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn align_view_with_cursor_direction_end_and_selection_exceeds_viewport_height() -> anyhow::Result<()>
+{
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+fn main() {
+    x();
+    y();
+    z();
+    a();
+    b();
+    c();
+    d();
+} // last line
+"
+                .to_string(),
+            )),
+            Editor(MatchLiteral("fn".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            App(TerminalDimensionChanged(Dimension {
+                height: 7,
+                width: 300,
+            })),
+            Editor(SwapCursor),
+            Editor(AlignViewTop),
+            // Expect the cursor is not gone
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+ 2│fn main() {
+10│█ // last line
+11│"
+                .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn files_longer_than_65535_lines() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                (0..65536).map(|i| format!("Line {}", i + 1)).join("\n"),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            App(TerminalDimensionChanged(Dimension {
+                height: 7,
+                width: 300,
+            })),
+            Editor(MoveSelection(Last)),
+            Expect(AppGrid(
+                " 🙈  .gitignore [*]
+65535│Line 65535
+65536│█ine 65536"
+                    .to_string(),
             )),
         ])
     })
