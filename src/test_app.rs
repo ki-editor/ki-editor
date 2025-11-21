@@ -619,6 +619,7 @@ fn run_range_style_key_check(
 ) -> (bool, String) {
     let grid = component.borrow_mut().editor_mut().get_grid(context, false);
     let grid_string = grid.to_string();
+    println!("grid_string = {grid_string}");
     let matches = grid_string.match_indices(search).collect_vec();
     let byte_range = match matches.split_first() {
         Some(((byte_start, str), [])) => *byte_start..byte_start + str.len(),

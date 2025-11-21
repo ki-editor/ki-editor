@@ -187,6 +187,14 @@ pub trait Component: Any + AnyComponent {
     ) -> anyhow::Result<Dispatches> {
         self.editor_mut().handle_dispatch_editor(context, dispatch)
     }
+
+    fn on_unmounted(&self) -> Dispatches {
+        self.editor().on_unmounted_dispatches()
+    }
+
+    fn set_on_unmounted(&mut self, dispatches: Dispatches) {
+        self.editor_mut().set_on_unmounted_dispatches(dispatches)
+    }
 }
 
 /// Modified from https://github.com/helix-editor/helix/blob/91da0dc172dde1a972be7708188a134db70562c3/helix-term/src/compositor.rs#L212

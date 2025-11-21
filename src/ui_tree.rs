@@ -3,7 +3,10 @@ use std::{cell::RefCell, rc::Rc};
 use itertools::Itertools;
 use nary_tree::{NodeId, NodeMut, NodeRef, RemoveBehavior};
 
-use crate::components::{component::Component, editor::Editor};
+use crate::{
+    app::Dispatches,
+    components::{component::Component, editor::Editor},
+};
 
 pub(crate) struct UiTree {
     tree: nary_tree::Tree<KindedComponent>,
@@ -37,18 +40,14 @@ impl UiTree {
     }
 
     /// The root will never be removed to ensure that this tree always contain one component
-    pub(crate) fn remove(
-        &mut self,
-        node_id: NodeId,
-        change_focus: bool,
-    ) -> Option<KindedComponent> {
+    pub(crate) fn remove(&mut self, node_id: NodeId, change_focus: bool) -> Dispatches {
         if node_id == self.root_id() {
-            return None;
+            return Default::default();
         }
         let parent_id = self
             .get(node_id)
             .and_then(|node| Some(node.parent()?.node_id()));
-        let removed = self.tree.remove(node_id, RemoveBehavior::DropChildren);
+        let dispatches = self.remove_node_by_node_id(node_id);
         if change_focus {
             if let Some(parent_id) = parent_id {
                 self.set_focus_component_id(parent_id);
@@ -57,33 +56,43 @@ impl UiTree {
             }
             debug_assert!(self.get(self.focused_component_id).is_some());
         }
-        removed
+        dispatches
+    }
+
+    fn remove_node_by_node_id(&mut self, node_id: NodeId) -> Dispatches {
+        if let Some(removed) = self.tree.remove(node_id, RemoveBehavior::DropChildren) {
+            removed.component().borrow().on_unmounted()
+        } else {
+            Default::default()
+        }
     }
 
     fn get_mut(&mut self, id: NodeId) -> Option<NodeMut<'_, KindedComponent>> {
         self.tree.get_mut(id)
     }
 
-    pub(crate) fn remain_only_current_component(&mut self) {
+    pub(crate) fn remain_only_current_component(&mut self) -> Dispatches {
         if !self
             .root()
             .children()
             .any(|child| child.node_id() == self.focused_component_id())
         {
-            return;
+            return Default::default();
         }
         let current_component_id = self.focused_component_id();
         let root = self.root();
         let root_id = root.node_id();
-        for node_id in root
+        let dispatches = root
             .traverse_pre_order()
             .filter(|node| node.node_id() != root_id && node.node_id() != self.focused_component_id)
             .map(|node| node.node_id())
             .collect_vec()
-        {
-            self.remove(node_id, false);
-        }
-        debug_assert_eq!(current_component_id, self.focused_component_id())
+            .into_iter()
+            .fold(Dispatches::default(), |dispatches, node_id| {
+                dispatches.chain(self.remove(node_id, false))
+            });
+        debug_assert_eq!(current_component_id, self.focused_component_id());
+        dispatches
     }
 
     /// Append `component` to the Node of given `node_id`
@@ -132,24 +141,23 @@ impl UiTree {
         self.root().node_id()
     }
 
-    pub(crate) fn remove_current_child(&mut self, kind: ComponentKind) -> Option<KindedComponent> {
+    pub(crate) fn remove_current_child(&mut self, kind: ComponentKind) -> Dispatches {
         self.remove_node_child(self.focused_component_id, kind)
     }
 
-    pub(crate) fn remove_node_child(
-        &mut self,
-        node_id: NodeId,
-        kind: ComponentKind,
-    ) -> Option<KindedComponent> {
+    pub(crate) fn remove_node_child(&mut self, node_id: NodeId, kind: ComponentKind) -> Dispatches {
         if let Some(node) = self.tree.get_mut(node_id) {
-            let node_id = node
+            let Some(node) = node
                 .as_ref()
                 .traverse_pre_order()
-                .find(|node| node.node_id() != node_id && node.data().kind == kind)?
-                .node_id();
+                .find(|node| node.node_id() != node_id && node.data().kind == kind)
+            else {
+                return Default::default();
+            };
+            let node_id = node.node_id();
             self.remove(node_id, false)
         } else {
-            None
+            Default::default()
         }
     }
 
@@ -211,9 +219,12 @@ impl UiTree {
         kind: ComponentKind,
         component: Rc<RefCell<dyn Component>>,
         focus: bool,
-    ) -> NodeId {
-        self.remove_node_child(id, kind);
-        self.append_component(id, KindedComponent::new(kind, component), focus)
+    ) -> (Dispatches, NodeId) {
+        let dispatches = self.remove_node_child(id, kind);
+        (
+            dispatches,
+            self.append_component(id, KindedComponent::new(kind, component), focus),
+        )
     }
 
     pub(crate) fn replace_current_node_child(
@@ -221,10 +232,11 @@ impl UiTree {
         kind: ComponentKind,
         component: Rc<RefCell<dyn Component>>,
         focus: bool,
-    ) -> NodeId {
+    ) -> Dispatches {
         let id = self.focused_component_id;
-        self.remove_node_child(id, kind);
-        self.append_component(id, KindedComponent::new(kind, component), focus)
+        let dispatches = self.remove_node_child(id, kind);
+        self.append_component(id, KindedComponent::new(kind, component), focus);
+        dispatches
     }
 
     pub(crate) fn close_current_and_focus_parent(&mut self) {
@@ -245,20 +257,23 @@ impl UiTree {
         kind: ComponentKind,
         component: Rc<RefCell<dyn Component>>,
         focus: bool,
-    ) -> NodeId {
+    ) -> (Dispatches, NodeId) {
         self.replace_node_child(self.root_id(), kind, component, focus)
     }
 
-    pub(crate) fn remove_all_root_children(&mut self) {
+    pub(crate) fn remove_all_root_children(&mut self) -> Dispatches {
         let children_ids = self
             .root()
             .children()
             .map(|node| node.node_id())
             .collect_vec();
-        for child_id in children_ids {
-            self.tree.remove(child_id, RemoveBehavior::DropChildren);
-        }
+        let dispatches = children_ids
+            .into_iter()
+            .fold(Dispatches::default(), |dispatches, child_id| {
+                dispatches.chain(self.remove_node_by_node_id(child_id))
+            });
         debug_assert_eq!(self.root().children().count(), 0);
+        dispatches
     }
 
     pub(crate) fn get_component_by_kind(

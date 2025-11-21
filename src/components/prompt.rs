@@ -30,7 +30,6 @@ pub(crate) struct Prompt {
     enter_selects_first_matching_item: bool,
     prompt_history_key: PromptHistoryKey,
     on_change: Option<PromptOnChangeDispatch>,
-    on_cancelled: Option<Dispatches>,
     matcher: Option<PromptMatcher>,
 }
 
@@ -295,18 +294,18 @@ impl Prompt {
             None
         };
 
-        (
-            Prompt {
-                editor,
-                on_enter: config.on_enter,
-                enter_selects_first_matching_item: config.enter_selects_first_matching_item,
-                prompt_history_key: config.prompt_history_key,
-                on_cancelled: config.on_cancelled,
-                on_change: config.on_change,
-                matcher,
-            },
-            dispatches,
-        )
+        let mut component = Prompt {
+            editor,
+            on_enter: config.on_enter,
+            enter_selects_first_matching_item: config.enter_selects_first_matching_item,
+            prompt_history_key: config.prompt_history_key,
+            on_change: config.on_change,
+            matcher,
+        };
+
+        component.set_on_unmounted(config.on_cancelled.unwrap_or_default());
+
+        (component, dispatches)
     }
 
     fn replace_current_query_with_focused_item(
@@ -401,8 +400,7 @@ impl Component for Prompt {
     ) -> anyhow::Result<Dispatches> {
         match event {
             key!("esc") if self.editor().mode == Mode::Normal => {
-                Ok(Dispatches::one(Dispatch::CloseCurrentWindow)
-                    .chain(self.on_cancelled.clone().unwrap_or_default()))
+                Ok(Dispatches::one(Dispatch::CloseCurrentWindow))
             }
             key!("tab") => self.replace_current_query_with_focused_item(context, event),
             _ if event.display() == context.keyboard_layout_kind().get_key(&Meaning::MrkFN) => {

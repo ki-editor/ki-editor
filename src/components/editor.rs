@@ -420,6 +420,7 @@ impl Clone for Editor {
             reveal: self.reveal.clone(),
             visible_line_ranges: Default::default(),
             incremental_search_matches: self.incremental_search_matches.clone(),
+            on_unmounted_dispatches: Default::default(),
         }
     }
 }
@@ -450,6 +451,7 @@ pub(crate) struct Editor {
     visible_line_ranges: Option<Vec<Range<usize>>>,
 
     pub(crate) incremental_search_matches: Option<Vec<Range<usize>>>,
+    on_unmounted_dispatches: Dispatches,
 }
 
 #[derive(Default)]
@@ -679,6 +681,7 @@ impl Editor {
             reveal: None,
             visible_line_ranges: Default::default(),
             incremental_search_matches: Default::default(),
+            on_unmounted_dispatches: Default::default(),
         }
     }
 
@@ -725,6 +728,7 @@ impl Editor {
             reveal: None,
             visible_line_ranges: Default::default(),
             incremental_search_matches: Default::default(),
+            on_unmounted_dispatches: Default::default(),
         }
     }
 
@@ -4158,6 +4162,14 @@ impl Editor {
             owner: crate::buffer::BufferOwner::User,
             focus: true,
         }))
+    }
+
+    pub(crate) fn on_unmounted_dispatches(&self) -> Dispatches {
+        self.on_unmounted_dispatches.clone()
+    }
+
+    pub(crate) fn set_on_unmounted_dispatches(&mut self, dispatches: Dispatches) {
+        self.on_unmounted_dispatches = dispatches
     }
 }
 

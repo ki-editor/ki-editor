@@ -243,7 +243,8 @@ impl<T: Frontend> App<T> {
 
         if let Some(entry_path) = entry_path {
             if entry_path.as_ref().is_dir() {
-                self.layout.open_file_explorer();
+                let dispatches = self.layout.open_file_explorer();
+                self.handle_dispatches(dispatches)?;
             } else {
                 self.open_file(&entry_path, BufferOwner::User, true, true)?;
             }
@@ -840,7 +841,7 @@ impl<T: Frontend> App<T> {
             }
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
-            Dispatch::RemainOnlyCurrentComponent => self.layout.remain_only_current_component(),
+            Dispatch::RemainOnlyCurrentComponent => self.remain_only_current_component()?,
             Dispatch::ToEditor(dispatch_editor) => self.handle_dispatch_editor(dispatch_editor)?,
             Dispatch::GotoLocation(location) => self.go_to_location(&location, true)?,
             Dispatch::OpenMoveToIndexPrompt(prior_change) => {
@@ -921,11 +922,12 @@ impl<T: Frontend> App<T> {
             }
             #[cfg(test)]
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
-            Dispatch::CloseDropdown => self.layout.close_dropdown(),
-            Dispatch::CloseEditorInfo => self.layout.close_editor_info(),
-            Dispatch::CloseGlobalInfo => self.layout.close_global_info(),
+            Dispatch::CloseDropdown => self.close_dropdown()?,
+            Dispatch::CloseEditorInfo => self.close_editor_info()?,
+            Dispatch::CloseGlobalInfo => self.close_global_info()?,
             Dispatch::RenderDropdown { render } => {
-                if let Some(dropdown) = self.layout.open_dropdown(&self.context) {
+                if let Some((dispatches, dropdown)) = self.layout.open_dropdown(&self.context) {
+                    self.handle_dispatches(dispatches)?;
                     self.render_dropdown(dropdown, render)?;
                 }
             }
@@ -1029,7 +1031,9 @@ impl<T: Frontend> App<T> {
     }
 
     fn close_current_window(&mut self) -> anyhow::Result<()> {
-        if let Some(removed_path) = self.layout.close_current_window(&self.context) {
+        if let (dispatches, Some(removed_path)) = self.layout.close_current_window(&self.context) {
+            dbg!(&dispatches);
+            self.handle_dispatches(dispatches)?;
             self.send_file_watcher_input(FileWatcherInput::SyncOpenedPaths(
                 self.layout.get_opened_files(),
             ));
@@ -1338,7 +1342,8 @@ impl<T: Frontend> App<T> {
         }
 
         // Check if the file is opened before so that we won't notify the LSP twice
-        if let Some(matching_editor) = self.layout.open_file(path, focus) {
+        if let Some((dispatches, matching_editor)) = self.layout.open_file(path, focus) {
+            self.handle_dispatches(dispatches)?;
             return Ok(matching_editor);
         }
 
@@ -1356,8 +1361,10 @@ impl<T: Frontend> App<T> {
         self.layout.add_suggestive_editor(component.clone());
 
         if focus {
-            self.layout
+            let (dispatches, _) = self
+                .layout
                 .replace_and_focus_current_suggestive_editor(component.clone());
+            self.handle_dispatches(dispatches)?;
         }
         if let Some(language) = language {
             self.request_syntax_highlight(component_id, batch_id, language, content)?;
@@ -1560,6 +1567,11 @@ impl<T: Frontend> App<T> {
         }
         self.layout
             .show_global_info(info, &self.context)
+            .map(|dispatches| {
+                let _ = self.handle_dispatches(dispatches).map_err(|err| {
+                    log::error!("Error handling the dispatches after showing global info: {err:?}");
+                });
+            })
             .unwrap_or_else(|err| {
                 log::error!("Error showing info: {err:?}");
             });
@@ -2264,18 +2276,16 @@ impl<T: Frontend> App<T> {
         editor: Rc<RefCell<Editor>>,
         render: DropdownRender,
     ) -> Result<(), anyhow::Error> {
-        let dispatches = editor
+        let dispatches_1 = editor
             .borrow_mut()
             .render_dropdown(&mut self.context, &render)?;
         editor.borrow_mut().set_title(render.title);
 
-        match render.info {
-            Some(info) => {
-                self.layout.show_dropdown_info(info, &self.context)?;
-            }
+        let dispatches_2 = match render.info {
+            Some(info) => self.layout.show_dropdown_info(info, &self.context)?,
             _ => self.layout.hide_dropdown_info(),
-        }
-        self.handle_dispatches(dispatches)
+        };
+        self.handle_dispatches(dispatches_1.chain(dispatches_2))
     }
 
     #[cfg(test)]
@@ -2311,8 +2321,8 @@ impl<T: Frontend> App<T> {
                     info: Some(info.display()),
                 });
         }
-        self.layout.show_editor_info(info, &self.context)?;
-        Ok(())
+        let dispatches = self.layout.show_editor_info(info, &self.context)?;
+        self.handle_dispatches(dispatches)
     }
 
     #[cfg(test)]
@@ -2392,7 +2402,7 @@ impl<T: Frontend> App<T> {
         self.layout.get_component_by_kind(kind)
     }
 
-    fn hide_editor_info(&mut self) {
+    fn hide_editor_info(&mut self) -> Dispatches {
         self.layout.hide_editor_info()
     }
 
@@ -2416,7 +2426,8 @@ impl<T: Frontend> App<T> {
                 self.show_editor_info(info)?;
             }
         } else {
-            self.hide_editor_info()
+            let dispatches = self.hide_editor_info();
+            self.handle_dispatches(dispatches)?;
         }
         Ok(())
     }
@@ -3107,6 +3118,26 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
             let mut borrow = comp.borrow_mut();
             borrow.set_title(title)
         }
+    }
+
+    fn close_global_info(&mut self) -> anyhow::Result<()> {
+        let dispatches = self.layout.close_global_info();
+        self.handle_dispatches(dispatches)
+    }
+
+    fn remain_only_current_component(&mut self) -> anyhow::Result<()> {
+        let dispatches = self.layout.remain_only_current_component();
+        self.handle_dispatches(dispatches)
+    }
+
+    fn close_dropdown(&mut self) -> anyhow::Result<()> {
+        let dispatches = self.layout.close_dropdown();
+        self.handle_dispatches(dispatches)
+    }
+
+    fn close_editor_info(&mut self) -> anyhow::Result<()> {
+        let dispatches = self.layout.close_editor_info();
+        self.handle_dispatches(dispatches)
     }
 }
 
