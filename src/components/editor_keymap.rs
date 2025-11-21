@@ -262,6 +262,13 @@ pub(crate) const WORKMAN: KeyboardLayout = [
     ["z", "x", "m", "c", "v", "k", "l", ",", ".", "/"],
 ];
 
+/// Refer http://adnw.de/index.php?n=Main.OptimierungF%c3%bcrDieGeradeTastaturMitDaumen-Shift
+pub(crate) const PUQ: KeyboardLayout = [
+    ["p", "u", ":", ",", "q", "g", "c", "l", "m", "f"],
+    ["h", "i", "e", "a", "o", "d", "t", "r", "n", "s"],
+    ["k", "y", ".", "'", "x", "j", "v", "w", "b", "z"],
+];
+
 struct KeySet {
     normal: HashMap<Meaning, &'static str>,
     shifted: HashMap<Meaning, &'static str>,
@@ -401,6 +408,7 @@ static COLEMAK_DH_SEMI_QUOTE_KEYSET: Lazy<KeySet> =
 static DVORAK_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK));
 static DVORAK_IU_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK_IU));
 static WORKMAN_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(WORKMAN));
+static PUQ_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(PUQ));
 
 #[derive(Debug, Clone, strum_macros::EnumIter, PartialEq, Eq)]
 pub(crate) enum KeyboardLayoutKind {
@@ -411,6 +419,7 @@ pub(crate) enum KeyboardLayoutKind {
     ColemakDH,
     ColemakDHSemiQuote,
     Workman,
+    Puq,
 }
 
 impl KeyboardLayoutKind {
@@ -423,6 +432,7 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::ColemakDHSemiQuote => "COLEMAK-DH;",
             KeyboardLayoutKind::DvorakIU => "DVORAK-IU",
             KeyboardLayoutKind::Workman => "WORKMAN",
+            KeyboardLayoutKind::Puq => "PUQ",
         }
     }
 
@@ -435,6 +445,7 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
             KeyboardLayoutKind::DvorakIU => &DVORAK_IU,
             KeyboardLayoutKind::Workman => &WORKMAN,
+            KeyboardLayoutKind::Puq => &PUQ,
         }
     }
 
@@ -546,6 +557,7 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
             KeyboardLayoutKind::DvorakIU => &DVORAK_IU_KEYSET,
             KeyboardLayoutKind::Workman => &WORKMAN_KEYSET,
+            KeyboardLayoutKind::Puq => &PUQ_KEYSET,
         }
     }
 }
