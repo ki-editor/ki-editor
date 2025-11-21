@@ -127,7 +127,6 @@ pub(crate) enum ExpectKind {
     DropdownInfosCount(usize),
     QuickfixListContent(String),
     CompletionDropdownContent(&'static str),
-    CompletionDropdownContentMatches(&'static lazy_regex::Lazy<regex::Regex>),
     CompletionDropdownInfoContent(&'static str),
     CompletionDropdownIsOpen(bool),
     CompletionDropdownSelectedItem(&'static str),
@@ -406,13 +405,6 @@ impl ExpectKind {
                     .borrow()
                     .content(),
                 content.to_string(),
-            ),
-            CompletionDropdownContentMatches(regex) => contextualize_regex_match(
-                &app.current_completion_dropdown()
-                    .unwrap()
-                    .borrow()
-                    .content(),
-                regex,
             ),
             CompletionDropdownInfoContent(content) => contextualize(
                 app.current_completion_dropdown_info()
