@@ -1010,6 +1010,9 @@ impl<T: Frontend> App<T> {
                 self.update_current_component_title(title)
             }
             Dispatch::SaveMarks { path, marks } => self.context.save_marks(path, marks),
+            Dispatch::ToSuggestiveEditor(dispatch) => {
+                self.handle_dispatch_suggestive_editor(dispatch)?;
+            }
         }
         Ok(())
     }
@@ -3374,6 +3377,7 @@ pub(crate) enum Dispatch {
         path: CanonicalizedPath,
         marks: Vec<CharIndexRange>,
     },
+    ToSuggestiveEditor(DispatchSuggestiveEditor),
 }
 
 /// Used to send notify host app about changes
