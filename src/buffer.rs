@@ -271,8 +271,6 @@ impl Buffer {
             .map(|language| parser.set_language(&language))
             .and_then(|_| parser.parse(text, None));
         let rope = Rope::from_str(text);
-        dbg!(rope.len_lines());
-        dbg!(rope.len_lines());
         // let start_char_index = edit.start;
         // let old_end_char_index = edit.end();
         // let new_end_char_index = edit.start + edit.new.len_chars();

@@ -356,7 +356,7 @@ impl Grid {
                 max_line_number,
             } => (
                 start_line_number,
-                dbg!(max_line_number).max(1).to_string().len(),
+                max_line_number.max(1).to_string().len(),
                 1,
             ),
         };
