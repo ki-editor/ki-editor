@@ -196,14 +196,14 @@ pub(crate) enum RenderContentLineNumber {
 impl Grid {
     pub(crate) fn new(dimension: Dimension) -> Grid {
         let mut cells: Vec<Vec<Cell>> = vec![];
-        cells.resize_with(dimension.height.into(), || {
+        cells.resize_with(dimension.height, || {
             let mut cells = vec![];
-            cells.resize_with(dimension.width.into(), Cell::default);
+            cells.resize_with(dimension.width, Cell::default);
             cells
         });
         Grid {
             rows: cells,
-            width: dimension.width.into(),
+            width: dimension.width,
         }
     }
 
@@ -249,8 +249,8 @@ impl Grid {
 
     pub(crate) fn dimension(&self) -> Dimension {
         Dimension {
-            height: self.rows.len() as u16,
-            width: self.width as u16,
+            height: self.rows.len(),
+            width: self.width,
         }
     }
 
@@ -274,13 +274,13 @@ impl Grid {
         top
     }
 
-    pub(crate) fn clamp_bottom(self, by: u16) -> Grid {
+    pub(crate) fn clamp_bottom(self, by: usize) -> Grid {
         let mut grid = self;
         let dimension = grid.dimension();
         let height = dimension.height.saturating_sub(by);
 
         if dimension.height > height {
-            grid.rows.truncate(height as usize);
+            grid.rows.truncate(height);
         }
         grid
     }
@@ -305,11 +305,10 @@ impl Grid {
     ) -> Vec<CellUpdate> {
         let dimension = self.dimension();
         let grid = self;
-        let column_range =
-            column_start.unwrap_or(0)..column_end.unwrap_or(dimension.width as usize);
+        let column_range = column_start.unwrap_or(0)..column_end.unwrap_or(dimension.width);
         // Trim or Pad end with spaces
         let content = format!("{:<width$}", content, width = column_range.len());
-        let take = grid.dimension().width as usize;
+        let take = grid.dimension().width;
         content
             .chars()
             .take(take)
@@ -361,7 +360,7 @@ impl Grid {
                 1,
             ),
         };
-        let content_container_width = (width as usize)
+        let content_container_width = width
             .saturating_sub(max_line_number_len)
             .saturating_sub(line_number_separator_width);
 
@@ -406,7 +405,7 @@ impl Grid {
                         style: line_update.style,
                         position: Position {
                             line,
-                            column: column_index as usize,
+                            column: column_index,
                         },
                         ..Default::default()
                     },
@@ -447,7 +446,7 @@ impl Grid {
             should_be_calibrated: bool,
         }
         let grid: Grid = Grid::new(Dimension {
-            height: (height as usize).max(wrapped_lines.wrapped_lines_count()) as u16,
+            height: height.max(wrapped_lines.wrapped_lines_count()),
             width,
         });
         let line_numbers = {
@@ -560,9 +559,10 @@ impl Grid {
                     {
                         Box::new(calibrated_position.into_iter().enumerate().map(
                             move |(index, position)| CellUpdate {
-                                position: position.move_right(
-                                    (max_line_number_len + line_number_separator_width) as u16,
-                                ),
+                                position:
+                                    position.move_right(
+                                        max_line_number_len + line_number_separator_width,
+                                    ),
                                 symbol: if index == 0 {
                                     update.cell_update.symbol
                                 } else {
@@ -598,7 +598,7 @@ impl Grid {
                 .line
                 .saturating_sub(min_line)
                 .saturating_add(1)
-                .saturating_sub(height as usize);
+                .saturating_sub(height);
 
             let min_renderable_line = min_line + extra_height;
             calibrated

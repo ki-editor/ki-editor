@@ -10,8 +10,8 @@ pub(crate) struct MockFrontend {
     writer: Box<dyn MyWriter>,
 }
 
-const WIDTH: u16 = 80;
-const HEIGHT: u16 = 24;
+const WIDTH: usize = 80;
+const HEIGHT: usize = 24;
 const DIMENSION: crate::app::Dimension = crate::app::Dimension {
     width: WIDTH,
     height: HEIGHT,

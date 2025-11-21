@@ -1769,7 +1769,7 @@ fn main() {
                     .map(|column_index| {
                         Not(Box::new(GridCellBackground(
                             5,
-                            column_index as usize,
+                            column_index,
                             parent_lines_background,
                         )))
                     })
@@ -4982,7 +4982,7 @@ fn main() {
 #[test]
 fn last_line_of_multiline_selection_should_be_at_bottom_when_aligning_bottom() -> anyhow::Result<()>
 {
-    fn run_test(width: u16, height: u16, expected_output: &'static str) -> anyhow::Result<()> {
+    fn run_test(width: usize, height: usize, expected_output: &'static str) -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -5052,7 +5052,7 @@ fn main() {
 #[test]
 fn middle_line_of_multiline_selection_should_be_centered_when_aligning_center() -> anyhow::Result<()>
 {
-    fn run_test(width: u16, height: u16, expected_output: &'static str) -> anyhow::Result<()> {
+    fn run_test(width: usize, height: usize, expected_output: &'static str) -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -5664,6 +5664,34 @@ fn main() {
 10│█ // last line
 11│"
                 .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn files_longer_than_65535_lines() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                (0..65536).map(|i| format!("Line {}", i + 1)).join("\n"),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            App(TerminalDimensionChanged(Dimension {
+                height: 7,
+                width: 300,
+            })),
+            Editor(MoveSelection(Last)),
+            Expect(AppGrid(
+                " 🙈  .gitignore [*]
+65535│Line 65535
+65536│█ine 65536"
+                    .to_string(),
             )),
         ])
     })
