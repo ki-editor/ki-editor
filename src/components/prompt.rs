@@ -80,7 +80,7 @@ impl PromptMatcher {
             .reparse(0, filter, Default::default(), Default::default(), false);
     }
 
-    fn handle_nucleo_updated(&mut self, viewport_height: u32) -> Vec<DropdownItem> {
+    fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Vec<DropdownItem> {
         let nucleo = &mut self.nucleo;
 
         nucleo.tick(10);
@@ -91,7 +91,10 @@ impl PromptMatcher {
         let scroll_offset = 0;
 
         snapshot
-            .matched_items(scroll_offset..viewport_height.min(snapshot.matched_item_count()))
+            .matched_items(
+                scroll_offset as u32
+                    ..viewport_height.min(snapshot.matched_item_count() as usize) as u32,
+            )
             .map(|item| item.data.clone())
             .collect_vec()
     }
@@ -327,7 +330,7 @@ impl Prompt {
         self.editor.render_completion_dropdown(true)
     }
 
-    pub(crate) fn handle_nucleo_updated(&mut self, viewport_height: u32) -> Dispatches {
+    pub(crate) fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Dispatches {
         let Some(matcher) = self.matcher.as_mut() else {
             return Default::default();
         };

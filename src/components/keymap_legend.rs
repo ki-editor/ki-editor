@@ -43,7 +43,7 @@ impl Keymaps {
     fn display(
         &self,
         keyboard_layout_kind: &KeyboardLayoutKind,
-        terminal_width: u16,
+        terminal_width: usize,
         option: &KeymapDisplayOption,
     ) -> String {
         KeymapPrintSection::from_keymaps(
@@ -74,7 +74,7 @@ impl KeymapLegendConfig {
     pub(crate) fn display(
         &self,
         keyboard_layout_kind: &KeyboardLayoutKind,
-        width: u16,
+        width: usize,
         option: &KeymapDisplayOption,
     ) -> String {
         self.keymaps.display(keyboard_layout_kind, width, option)

@@ -270,6 +270,7 @@ impl Buffer {
         let tree = language
             .map(|language| parser.set_language(&language))
             .and_then(|_| parser.parse(text, None));
+        let rope = Rope::from_str(text);
         // let start_char_index = edit.start;
         // let old_end_char_index = edit.end();
         // let new_end_char_index = edit.start + edit.new.len_chars();
@@ -301,7 +302,7 @@ impl Buffer {
         //     .parse(&self.rope.to_string(), Some(&self.tree))
         //     .unwrap();
 
-        (Rope::from_str(text), tree)
+        (rope, tree)
     }
 
     pub(crate) fn given_range_is_node(&self, range: &CharIndexRange) -> bool {
@@ -544,7 +545,7 @@ impl Buffer {
         current_selection_set: SelectionSet,
         reparse_tree: bool,
         update_undo_stack: bool,
-        last_visible_line: u16,
+        last_visible_line: usize,
     ) -> Result<(SelectionSet, Dispatches, Vec<ki_protocol_types::DiffEdit>), anyhow::Error> {
         let new_selection_set = edit_transaction
             .non_empty_selections()
@@ -616,18 +617,16 @@ impl Buffer {
     }
 
     // Add these methods for undo/redo
-    fn apply_edit(&mut self, edit: &Edit, last_visible_line: u16) -> Result<(), anyhow::Error> {
+    fn apply_edit(&mut self, edit: &Edit, last_visible_line: usize) -> Result<(), anyhow::Error> {
         // We have to get the char index range of positional spans before updating the content
         if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
             let last_line_len_bytes = self
-                .get_line_by_line_index(last_visible_line as usize)
+                .get_line_by_line_index(last_visible_line)
                 .map(|slice| slice.len_bytes())
                 .unwrap_or_default();
 
-            let range_end = self
-                .line_to_byte(last_visible_line as usize)
-                .unwrap_or_default()
-                + last_line_len_bytes;
+            let range_end =
+                self.line_to_byte(last_visible_line).unwrap_or_default() + last_line_len_bytes;
             let affected_range = byte_range.start..range_end;
 
             self.highlighted_spans.apply_edit_mut(
@@ -785,7 +784,7 @@ impl Buffer {
         &mut self,
         current_selection_set: SelectionSet,
         force: bool,
-        last_visible_line: u16,
+        last_visible_line: usize,
     ) -> anyhow::Result<(Dispatches, Option<CanonicalizedPath>)> {
         if force || self.dirty {
             if let Some(formatted_content) = self.get_formatted_content() {
@@ -806,7 +805,7 @@ impl Buffer {
         &mut self,
         new_content: &str,
         current_selection_set: SelectionSet,
-        last_visible_line: u16,
+        last_visible_line: usize,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
         let (_, dispatches, _) = self.apply_edit_transaction(
@@ -989,7 +988,7 @@ impl Buffer {
         &mut self,
         config: LocalSearchConfig,
         current_selection_set: SelectionSet,
-        last_visible_line: u16,
+        last_visible_line: usize,
     ) -> anyhow::Result<(
         bool,
         SelectionSet,
@@ -1122,7 +1121,10 @@ impl Buffer {
         Ok(start..end)
     }
 
-    pub(crate) fn redo(&mut self, last_visible_line: u16) -> Result<UndoRedoReturn, anyhow::Error> {
+    pub(crate) fn redo(
+        &mut self,
+        last_visible_line: usize,
+    ) -> Result<UndoRedoReturn, anyhow::Error> {
         if let Some(history) = self.redo_stack.pop() {
             let diff_edits = history.unnormalized_edits.clone();
 
@@ -1149,7 +1151,10 @@ impl Buffer {
         }
     }
 
-    pub(crate) fn undo(&mut self, last_visible_line: u16) -> Result<UndoRedoReturn, anyhow::Error> {
+    pub(crate) fn undo(
+        &mut self,
+        last_visible_line: usize,
+    ) -> Result<UndoRedoReturn, anyhow::Error> {
         if let Some(history) = self.undo_stack.pop() {
             let diff_edits = history.unnormalized_edits.clone();
 
