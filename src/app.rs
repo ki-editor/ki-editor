@@ -2187,6 +2187,11 @@ impl<T: Frontend> App<T> {
         prompt_config: PromptConfig,
         current_line: Option<String>,
     ) -> anyhow::Result<()> {
+        if let Some(line) = current_line {
+            self.context
+                .push_history_prompt(prompt_config.prompt_history_key, line)
+        }
+
         // Initialize the incremental search matches
         // so that the possible selections highlights will be "cleared" (i.e., not rendered)
         self.current_component()
@@ -2196,7 +2201,7 @@ impl<T: Frontend> App<T> {
 
         let key = prompt_config.prompt_history_key;
         let history = self.context.get_prompt_history(key);
-        let (prompt, dispatches) = Prompt::new(prompt_config, current_line, history);
+        let (prompt, dispatches) = Prompt::new(prompt_config, history);
 
         self.layout.add_and_focus_prompt(
             ComponentKind::Prompt,
