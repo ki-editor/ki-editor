@@ -419,7 +419,7 @@ pub(crate) enum KeyboardLayoutKind {
     ColemakDH,
     ColemakDHSemiQuote,
     Workman,
-    PUQ,
+    Puq,
 }
 
 impl KeyboardLayoutKind {
@@ -432,7 +432,7 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::ColemakDHSemiQuote => "COLEMAK-DH;",
             KeyboardLayoutKind::DvorakIU => "DVORAK-IU",
             KeyboardLayoutKind::Workman => "WORKMAN",
-            KeyboardLayoutKind::PUQ => "PUQ",
+            KeyboardLayoutKind::Puq => "PUQ",
         }
     }
 
@@ -445,7 +445,7 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
             KeyboardLayoutKind::DvorakIU => &DVORAK_IU,
             KeyboardLayoutKind::Workman => &WORKMAN,
-            KeyboardLayoutKind::PUQ => &PUQ,
+            KeyboardLayoutKind::Puq => &PUQ,
         }
     }
 
@@ -557,7 +557,7 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
             KeyboardLayoutKind::DvorakIU => &DVORAK_IU_KEYSET,
             KeyboardLayoutKind::Workman => &WORKMAN_KEYSET,
-            KeyboardLayoutKind::PUQ => &PUQ_KEYSET,
+            KeyboardLayoutKind::Puq => &PUQ_KEYSET,
         }
     }
 }
