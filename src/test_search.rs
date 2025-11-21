@@ -2,10 +2,10 @@
 use crate::{
     app::{Dimension, Scope},
     grid::StyleKey,
-    test_app::execute_test,
+    test_app::{execute_test, ExpectKind},
 };
 
-use my_proc_macros::keys;
+use my_proc_macros::{key, keys};
 use serial_test::serial;
 
 use crate::{
@@ -257,6 +257,52 @@ fn possible_selections_background_should_be_cleared_when_local_search_prompt_is_
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             Expect(MainEditorRangeStyleKey("foo", None)),
+        ])
+    })
+}
+
+#[test]
+fn incremental_search_highlight_should_be_when_selection_mode_changes() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("bar foo spam foo".to_string())),
+            App(TerminalDimensionChanged(Dimension {
+                height: 100,
+                width: 100,
+            })),
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            Expect(CurrentComponentTitle("Local search".to_string())),
+            App(HandleKeyEvents(keys!("s p a m").to_vec())),
+            Expect(MainEditorRangeStyleKey(
+                "spam",
+                Some(StyleKey::UiIncrementalSearchMatch),
+            )),
+            // Switch to main component window
+            App(OtherWindow),
+            App(OtherWindow),
+            Expect(CurrentComponentTitle(
+                "\u{200b} 🙈 .gitignore [*] \u{200b}".to_string(),
+            )),
+            // Closes all other window by pressing esc
+            App(HandleKeyEvent(key!("esc"))),
+            // Since the prompt is not closed normally, the incremental search highlight should still be present
+            Expect(MainEditorRangeStyleKey(
+                "spam",
+                Some(StyleKey::UiIncrementalSearchMatch),
+            )),
+            Editor(MatchLiteral("foo".to_string())),
+            Expect(ExpectKind::RangeStyleKey(
+                "foo",
+                Some(StyleKey::UiPossibleSelection),
+            )),
         ])
     })
 }
