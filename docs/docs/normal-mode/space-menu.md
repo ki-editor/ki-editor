@@ -26,11 +26,17 @@ The space menu can be brought up by pressing `space`.
 
 ## Context Actions (only applicable in the main editor):
 
+This are actions that are related to the current selection(s). Similar to the right-click context menu in Windows or Mac OS.
+
 <KeymapFallback filename="Space Context"/>
 
 ### `Code Actions`
 
 Request code actions.
+
+### `TS Node Sexp`
+
+Show the Tree-sitter node S-expression of the current selection.
 
 ### `Hover`
 
@@ -148,10 +154,6 @@ Replace all matches across all files of the current working directory with the s
 For example, if the search query is `l hello_world bye_moon`, it will replaces all `hello_world` across all files with `bye_moon`.
 
 See more at [Search in Ki](docs/normal-mode/search-config.md).
-
-### `TS Node Sexp`
-
-Show the Tree-sitter node S-expression of the current selection.
 
 ## `Explorer`
 
