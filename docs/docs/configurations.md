@@ -42,6 +42,7 @@ For configuring keyboard layout, with the following possible values:
 1. `COLEMAK-DH`
 1. `COLEMAK-DH;`
 1. `WORKMAN`
+1. `PUQ`
 
 [^1]: For example, see [dwm](https://wiki.archlinux.org/title/dwm#Configuration) and [Xmonad](https://xmonad.org/TUTORIAL.html)
 [^2]: Neovim usually let's you glide through until it commits kamikaze
