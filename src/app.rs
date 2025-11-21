@@ -114,7 +114,7 @@ pub(crate) struct App<T: Frontend> {
     file_watcher_input_sender: Option<Sender<FileWatcherInput>>,
 }
 
-const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
+const GLOBAL_TITLE_BAR_HEIGHT: usize = 1;
 
 #[derive(Clone)]
 pub(crate) enum StatusLineComponent {
@@ -252,12 +252,12 @@ impl<T: Frontend> App<T> {
         self.render()?;
 
         while let Ok(message) = self.receiver.recv() {
-            self.process_message(message).unwrap_or_else(|e| {
+            let should_quit = self.process_message(message).unwrap_or_else(|e| {
                 self.show_global_info(Info::new("ERROR".to_string(), e.to_string()));
                 false
             });
 
-            if self.should_quit() {
+            if should_quit || self.should_quit() {
                 break;
             }
 
@@ -312,9 +312,9 @@ impl<T: Frontend> App<T> {
     pub(crate) fn quit(&mut self) -> anyhow::Result<()> {
         self.prepare_to_suspend_or_quit()?;
 
-        // self.lsp_manager.shutdown();
+        self.lsp_manager.shutdown();
 
-        std::process::exit(0);
+        Ok(())
     }
 
     #[cfg(windows)]
@@ -357,8 +357,8 @@ impl<T: Frontend> App<T> {
         match event {
             Event::Resize(columns, rows) => {
                 self.resize(Dimension {
-                    height: rows,
-                    width: columns,
+                    height: rows as usize,
+                    width: columns as usize,
                 });
             }
             event => {
@@ -418,7 +418,7 @@ impl<T: Frontend> App<T> {
                     let cursor_position = cursor.position();
 
                     // If cursor position is not in view
-                    if cursor_position.line >= rectangle.dimension().height as usize {
+                    if cursor_position.line >= rectangle.dimension().height {
                         break 'cursor_calc None;
                     }
 
@@ -476,8 +476,10 @@ impl<T: Frontend> App<T> {
                         StatusLineComponent::LastDispatch => self.last_action_description.clone(),
                         StatusLineComponent::LastSearchString => last_search_string.clone(),
                         StatusLineComponent::Help => {
-                            let key = self.keyboard_layout_kind().get_insert_key(&Meaning::SHelp);
-                            Some(format!("Help({key})"))
+                            let key = self
+                                .keyboard_layout_kind()
+                                .get_space_keymap(&Meaning::SHelp);
+                            Some(format!("Help(Space+{key})"))
                         }
                         StatusLineComponent::KeyboardLayout => {
                             Some(self.keyboard_layout_kind().display().to_string())
@@ -522,7 +524,7 @@ impl<T: Frontend> App<T> {
                     width: dimension.width,
                     height: 1,
                     origin: Position {
-                        line: dimension.height as usize,
+                        line: dimension.height,
                         column: 0,
                     },
                 },
@@ -1008,6 +1010,9 @@ impl<T: Frontend> App<T> {
                 self.update_current_component_title(title)
             }
             Dispatch::SaveMarks { path, marks } => self.context.save_marks(path, marks),
+            Dispatch::ToSuggestiveEditor(dispatch) => {
+                self.handle_dispatch_suggestive_editor(dispatch)?;
+            }
         }
         Ok(())
     }
@@ -1669,7 +1674,7 @@ impl<T: Frontend> App<T> {
             let title = keymap_legend_config.title.clone();
             let body = keymap_legend_config.display(
                 self.context.keyboard_layout_kind(),
-                u16::MAX,
+                usize::MAX,
                 &KeymapDisplayOption {
                     show_alt: false,
                     show_shift: true,
@@ -2794,11 +2799,10 @@ impl<T: Frontend> App<T> {
                 return Ok(());
             };
 
-            let viewport_height: u32 = self
+            let viewport_height = self
                 .current_completion_dropdown()
                 .map(|component| component.borrow().rectangle().height)
-                .unwrap_or(10)
-                .into();
+                .unwrap_or(10);
 
             prompt.handle_nucleo_updated(viewport_height)
         };
@@ -3108,24 +3112,24 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct Dimension {
-    pub(crate) height: u16,
-    pub(crate) width: u16,
+    pub(crate) height: usize,
+    pub(crate) width: usize,
 }
 
 impl Dimension {
     #[cfg(test)]
     pub(crate) fn area(&self) -> usize {
-        self.height as usize * self.width as usize
+        self.height * self.width
     }
 
     #[cfg(test)]
     pub(crate) fn positions(&self) -> std::collections::HashSet<Position> {
-        (0..self.height as usize)
-            .flat_map(|line| (0..self.width as usize).map(move |column| Position { column, line }))
+        (0..self.height)
+            .flat_map(|line| (0..self.width).map(move |column| Position { column, line }))
             .collect()
     }
 
-    fn decrement_height(&self, global_title_bar_height: u16) -> Dimension {
+    fn decrement_height(&self, global_title_bar_height: usize) -> Dimension {
         Dimension {
             height: self.height.saturating_sub(global_title_bar_height),
             width: self.width,
@@ -3377,6 +3381,7 @@ pub(crate) enum Dispatch {
         path: CanonicalizedPath,
         marks: Vec<CharIndexRange>,
     },
+    ToSuggestiveEditor(DispatchSuggestiveEditor),
 }
 
 /// Used to send notify host app about changes

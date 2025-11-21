@@ -49,7 +49,7 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
         _____, LineP, LineD, LineN, OpenM, /****/ DWrdP, MrkFP, ScrlD, MrkFN, SView,
     ],
     [
-        Undo_, _____, _____, WClse, MarkF, /****/ _____, SHelp, _____, _____, WSwth,
+        Undo_, _____, _____, WClse, MarkF, /****/ _____, _____, _____, _____, WSwth,
     ],
 ];
 
@@ -136,19 +136,19 @@ pub(crate) const KEYMAP_SPACE_EDITOR: KeyboardMeaningLayout = [
         _____, SaveA, RlBfr, Pipe_, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, RplcA, _____, _____, TSNSx, /****/ _____, _____, _____, _____, _____,
+        _____, RplcA, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
 pub(crate) const KEYMAP_SPACE_CONTEXT: KeyboardMeaningLayout = [
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, _____, _____, TSNSx, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, LHovr, LCdAc, LRnme, RvHkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, _____, GtBlm, /****/ _____, _____, _____, _____, _____,
+        _____, GoFil, _____, _____, GtBlm, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -839,6 +839,8 @@ pub(crate) enum Meaning {
     RlBfr,
     /// Open search prompt with current selection
     SchWC,
+    /// Go to file
+    GoFil,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {
