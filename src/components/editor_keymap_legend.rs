@@ -1287,10 +1287,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::SchCC),
                 "Search Clipboard".to_string(),
                 "Search clipboard content".to_string(),
-                Dispatch::ToEditor(DispatchEditor::SearchClipboardContent(
-                    if_current_not_found,
-                    scope,
-                )),
+                Dispatch::ToEditor(DispatchEditor::SearchClipboardContent(scope)),
             ),
         ]
         .to_vec()

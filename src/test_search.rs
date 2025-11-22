@@ -329,10 +329,7 @@ fn search_current_clipboard_content() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["bar"])),
             Expect(RangeStyleKey("bar", None)),
             Editor(Copy),
-            Editor(SearchClipboardContent(
-                IfCurrentNotFound::LookForward,
-                Scope::Local,
-            )),
+            Editor(SearchClipboardContent(Scope::Local)),
             Expect(RangeStyleKey("bar", Some(StyleKey::UiPossibleSelection))),
         ])
     })

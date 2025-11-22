@@ -389,8 +389,8 @@ impl Component for Editor {
             } => return self.merge_content(context, path, content_editor, content_filesystem),
             ClearIncrementalSearchMatches => self.clear_incremental_search_matches(),
             GoToFile => return self.go_to_file(),
-            SearchClipboardContent(if_current_not_found, scope) => {
-                return Ok(self.search_clipboard_content(if_current_not_found, scope, context))
+            SearchClipboardContent(scope) => {
+                return Ok(self.search_clipboard_content(scope, context))
             }
         }
         Ok(Default::default())
@@ -3784,16 +3784,15 @@ impl Editor {
             .unwrap_or_default()
     }
 
-    fn search_clipboard_content(
-        &mut self,
-        if_current_not_found: IfCurrentNotFound,
-        scope: Scope,
-        context: &Context,
-    ) -> Dispatches {
+    fn search_clipboard_content(&mut self, scope: Scope, context: &Context) -> Dispatches {
         context
             .get_clipboard_content(0)
             .map(|copied_texts| {
-                self.search_for_content(if_current_not_found, scope, copied_texts.get(0))
+                self.search_for_content(
+                    self.cursor_direction.reverse().to_if_current_not_found(),
+                    scope,
+                    copied_texts.get(0),
+                )
             })
             .unwrap_or_default()
     }
@@ -4325,7 +4324,7 @@ pub(crate) enum DispatchEditor {
     },
     ClearIncrementalSearchMatches,
     GoToFile,
-    SearchClipboardContent(IfCurrentNotFound, Scope),
+    SearchClipboardContent(Scope),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
