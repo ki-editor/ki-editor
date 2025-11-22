@@ -407,11 +407,11 @@ impl Editor {
             ),
         ]
         .into_iter()
-        .chain(Some(self.search_current_selection_keymap(
+        .chain(self.search_current_keymap(
             context,
             Scope::Local,
-            IfCurrentNotFound::LookForward,
-        )))
+            self.cursor_direction.reverse().to_if_current_not_found(),
+        ))
         .chain(self.keymap_actions_overridable(normal_mode_override, none_if_no_override, context))
         .chain(self.keymap_clipboard_related_actions(false, normal_mode_override.clone(), context))
         .collect_vec()
@@ -1267,21 +1267,30 @@ impl Editor {
         }
     }
 
-    fn search_current_selection_keymap(
+    fn search_current_keymap(
         &self,
         context: &Context,
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
-    ) -> Keymap {
-        Keymap::new_extended(
-            context.keyboard_layout_kind().get_key(&Meaning::SrchC),
-            "This".to_string(),
-            "Search current selection".to_string(),
-            Dispatch::ToEditor(DispatchEditor::SearchCurrentSelection(
-                if_current_not_found,
-                scope,
-            )),
-        )
+    ) -> Vec<Keymap> {
+        [
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::SchCS),
+                "Search This".to_string(),
+                "Search current selection".to_string(),
+                Dispatch::ToEditor(DispatchEditor::SearchCurrentSelection(
+                    if_current_not_found,
+                    scope,
+                )),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::SchCC),
+                "Search Clipboard".to_string(),
+                "Search clipboard content".to_string(),
+                Dispatch::ToEditor(DispatchEditor::SearchClipboardContent(scope)),
+            ),
+        ]
+        .to_vec()
     }
 
     pub(crate) fn secondary_selection_modes_keymap_legend_config(
@@ -1527,11 +1536,7 @@ impl Editor {
                 ),
             ]
             .into_iter()
-            .chain(Some(self.search_current_selection_keymap(
-                context,
-                scope,
-                if_current_not_found,
-            )))
+            .chain(self.search_current_keymap(context, scope, if_current_not_found))
             .collect_vec(),
         };
         KeymapLegendConfig {

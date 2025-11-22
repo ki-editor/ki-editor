@@ -18,11 +18,15 @@ import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 Opens the search prompt.
 
-### `This`
+### `Search This`
 
 Searches the current selection.
 
 <TutorialFallback filename="search-current-selection"/>
+
+### `Search Clipboard`
+
+Searches with the content of the clipboard.
 
 ### `With`
 

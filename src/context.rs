@@ -308,11 +308,11 @@ impl Context {
     ///
     /// This method should never fail, if `use_system_clipboard` is true but
     /// the system clipboard is inaccessible, the app clipboard will be used.
-    pub(crate) fn get_clipboard_content(
-        &self,
-        use_system_clipboard: bool,
-        history_offset: isize,
-    ) -> Option<CopiedTexts> {
+    pub(crate) fn get_clipboard_content(&self, history_offset: isize) -> Option<CopiedTexts> {
+        // Always use the system clipboard if the content of the system clipboard is no longer the same
+        // with the content of the app clipboard
+        let use_system_clipboard = !self.clipboards_synced();
+
         if use_system_clipboard {
             match self.clipboard.get_from_system_clipboard() {
                 Ok(copied_texts) => return Some(copied_texts),

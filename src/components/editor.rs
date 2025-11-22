@@ -389,6 +389,9 @@ impl Component for Editor {
             } => return self.merge_content(context, path, content_editor, content_filesystem),
             ClearIncrementalSearchMatches => self.clear_incremental_search_matches(),
             GoToFile => return self.go_to_file(),
+            SearchClipboardContent(scope) => {
+                return Ok(self.search_clipboard_content(scope, context))
+            }
         }
         Ok(Default::default())
     }
@@ -1375,9 +1378,7 @@ impl Editor {
         with_gap: bool,
     ) -> anyhow::Result<Dispatches> {
         let clipboards_differ: bool = !context.clipboards_synced();
-        let use_system_clipboard = clipboards_differ;
-
-        let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0) else {
+        let Some(copied_texts) = context.get_clipboard_content(0) else {
             return Ok(Default::default());
         };
         let direction = self.cursor_direction.reverse();
@@ -1400,18 +1401,13 @@ impl Editor {
         cut: bool,
         history_offset: isize,
     ) -> anyhow::Result<Dispatches> {
-        // Always use the system clipboard if the content of the system clipboard is no longer the same
-        // with the content of the app clipboard
-        let use_system_clipboard: bool = !context.clipboards_synced();
         let dispatches = if cut {
             self.copy()?
         } else {
             Default::default()
         };
 
-        let Some(copied_texts) =
-            context.get_clipboard_content(use_system_clipboard, history_offset)
-        else {
+        let Some(copied_texts) = context.get_clipboard_content(history_offset) else {
             return Ok(Default::default());
         };
 
@@ -3783,28 +3779,46 @@ impl Editor {
         if_current_not_found: IfCurrentNotFound,
         scope: Scope,
     ) -> Dispatches {
-        let dispatches = self
-            .current_primary_selection()
-            .map(|search| {
-                Dispatches::one(Dispatch::UpdateLocalSearchConfig {
+        self.current_primary_selection()
+            .map(|search| self.search_for_content(if_current_not_found, scope, search.to_string()))
+            .unwrap_or_default()
+    }
+
+    fn search_clipboard_content(&mut self, scope: Scope, context: &Context) -> Dispatches {
+        context
+            .get_clipboard_content(0)
+            .map(|copied_texts| {
+                self.search_for_content(
+                    self.cursor_direction.reverse().to_if_current_not_found(),
                     scope,
-                    if_current_not_found,
-                    update: crate::app::LocalSearchConfigUpdate::Config(
-                        LocalSearchConfig::new(
-                            LocalSearchConfigMode::Regex(RegexConfig::literal()),
-                        )
-                        .set_search(search.to_string())
-                        .clone(),
-                    ),
-                    run_search_after_config_updated: true,
-                    component_id: None,
-                })
-                .append(Dispatch::PushPromptHistory {
-                    key: super::prompt::PromptHistoryKey::Search,
-                    line: search.to_string(),
-                })
+                    copied_texts.get(0),
+                )
             })
-            .unwrap_or_default();
+            .unwrap_or_default()
+    }
+
+    fn search_for_content(
+        &mut self,
+        if_current_not_found: IfCurrentNotFound,
+        scope: Scope,
+        content: String,
+    ) -> Dispatches {
+        let dispatches = Dispatches::one(Dispatch::UpdateLocalSearchConfig {
+            scope,
+            if_current_not_found,
+            update: crate::app::LocalSearchConfigUpdate::Config(
+                LocalSearchConfig::new(LocalSearchConfigMode::Regex(RegexConfig::literal()))
+                    .set_search(content.to_string())
+                    .clone(),
+            ),
+            run_search_after_config_updated: true,
+            component_id: None,
+        })
+        .append(Dispatch::PushPromptHistory {
+            key: super::prompt::PromptHistoryKey::Search,
+            line: content.to_string(),
+        });
+
         self.disable_selection_extension();
         dispatches
     }
@@ -4310,6 +4324,7 @@ pub(crate) enum DispatchEditor {
     },
     ClearIncrementalSearchMatches,
     GoToFile,
+    SearchClipboardContent(Scope),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
