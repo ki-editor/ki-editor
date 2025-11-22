@@ -16,7 +16,7 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchL, SWord, SrchC, MultC, Swap_, /****/ First, InstP, Up___, InstN, Last_,
+        SrchL, SWord, SchCS, MultC, Swap_, /****/ First, InstP, Up___, InstN, Last_,
     ],
     [
         Line_, Word_, Sytx_, Chng_, Extnd, /****/ Prev_, Left_, Down_, Right, Next_,
@@ -28,7 +28,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        _____, Char_, SchWC, _____, Raise, /****/ _____, RplcP, Join_, RplcN, _____,
+        SchWC, Char_, SchCC, _____, Raise, /****/ _____, RplcP, Join_, RplcN, _____,
     ],
     [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
@@ -82,7 +82,7 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// This keymap should be almost identical with that of Find Local
 pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
     [
-        Srch_, _____, SrchC, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
+        Srch_, _____, SchCS, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
@@ -670,7 +670,9 @@ pub(crate) enum Meaning {
     /// Scroll up
     ScrlU,
     /// Search current selection
-    SrchC,
+    SchCS,
+    /// Search current clipboard content
+    SchCC,
     /// Search (local)
     SrchL,
     /// Select Fine Syntax Node

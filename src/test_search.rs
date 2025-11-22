@@ -306,3 +306,34 @@ fn incremental_search_highlight_should_be_when_selection_mode_changes() -> anyho
         ])
     })
 }
+
+#[test]
+#[serial]
+fn search_current_clipboard_content() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("bar foo bar spam".to_string())),
+            App(TerminalDimensionChanged(Dimension {
+                height: 100,
+                width: 100,
+            })),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookBackward,
+                SelectionMode::Word,
+            )),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Expect(RangeStyleKey("bar", None)),
+            Editor(Copy),
+            Editor(SearchClipboardContent(
+                IfCurrentNotFound::LookForward,
+                Scope::Local,
+            )),
+            Expect(RangeStyleKey("bar", Some(StyleKey::UiPossibleSelection))),
+        ])
+    })
+}
