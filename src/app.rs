@@ -449,7 +449,7 @@ impl<T: Frontend> App<T> {
                 self.status_line_components
                     .iter()
                     .filter_map(|component| match component {
-                        StatusLineComponent::KiCharacter => Some("Ж".to_string()),
+                        StatusLineComponent::KiCharacter => Some("ⵣ".to_string()),
                         StatusLineComponent::CurrentWorkingDirectory => Some(
                             self.working_directory
                                 .display_relative_to_home()
