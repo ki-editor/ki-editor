@@ -35,30 +35,6 @@ fn find_word_end(
     last_char_index
 }
 
-fn find_whitespace_start(rope: &Rope, current: CharIndex) -> CharIndex {
-    // Create a reverse range from current.0 down to 1 (not including 0)
-    for i in (1..=current.0).rev() {
-        let prev_char = rope.char(i - 1);
-        if !prev_char.is_whitespace() || prev_char == '\n' {
-            return CharIndex(i);
-        }
-    }
-    // If we've examined all characters to the start, return index 0
-    CharIndex(0)
-}
-
-fn find_whitespace_end(rope: &Rope, current: CharIndex, last_char_index: CharIndex) -> CharIndex {
-    // Create a range from current.0+1 to last_char_index.0
-    for i in (current.0 + 1)..=last_char_index.0 {
-        let char = rope.char(i);
-        if !char.is_whitespace() || char == '\n' {
-            return CharIndex(i - 1);
-        }
-    }
-    // If we've examined all characters to the end, return the last index
-    last_char_index
-}
-
 impl PositionBasedSelectionMode for Word {
     fn get_current_meaningful_selection_by_cursor(
         &self,
@@ -73,9 +49,9 @@ impl PositionBasedSelectionMode for Word {
         &self,
         buffer: &crate::buffer::Buffer,
         cursor_char_index: CharIndex,
-        _: IfCurrentNotFound,
+        if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<ByteRange>> {
-        get_current_word_or_whitespace_by_cursor(buffer, cursor_char_index)
+        get_current_word_by_cursor(false, buffer, cursor_char_index, if_current_not_found)
     }
 
     fn process_paste_gap(
@@ -186,46 +162,6 @@ fn get_current_word_by_cursor(
     )))
 }
 
-fn get_current_word_or_whitespace_by_cursor(
-    buffer: &crate::buffer::Buffer,
-    cursor_char_index: crate::selection::CharIndex,
-) -> anyhow::Result<Option<super::ByteRange>> {
-    let Some(last_char_index) = buffer.last_char_index() else {
-        return Ok(None);
-    };
-
-    let cursor_char_index = cursor_char_index.min(last_char_index);
-    let rope = buffer.rope();
-
-    let current = cursor_char_index;
-
-    let current_char = rope.char(current.0);
-
-    // Handle single symbol case or newline char case
-    if current_char == '\n' || is_symbol(current_char) {
-        let current_byte = rope.try_char_to_byte(current.0)?;
-        return Ok(Some(ByteRange::new(current_byte..current_byte + 1)));
-    }
-
-    // Handle whitespace
-    if current_char.is_whitespace() {
-        let start = find_whitespace_start(rope, current);
-        let end = find_whitespace_end(rope, current, last_char_index) + 1;
-
-        return Ok(Some(ByteRange::new(
-            rope.try_char_to_byte(start.0)?..rope.try_char_to_byte(end.0)?,
-        )));
-    }
-
-    // Handle words
-    let start = find_word_start(rope, current, is_word);
-    let end = find_word_end(rope, current, last_char_index, is_word) + 1;
-
-    Ok(Some(ByteRange::new(
-        rope.try_char_to_byte(start.0)?..rope.try_char_to_byte(end.0)?,
-    )))
-}
-
 #[cfg(test)]
 mod test_word {
     use crate::buffer::BufferOwner;
@@ -304,30 +240,7 @@ mod test_word {
                     use_current_selection_mode: true,
                     prior_change: None,
                 }),
-                Expect(JumpChars(&[' ', 'f', '?', 'b', ':', 's'])),
-            ])
-        })
-    }
-
-    #[test]
-    fn newline_character_is_counted_as_one_word() -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent("  \n   ".to_string())),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    SelectionMode::Word,
-                )),
-                Expect(CurrentSelectedTexts(&["  "])),
-                Editor(MoveSelection(Next)),
-                Expect(CurrentSelectedTexts(&["\n"])),
-                Editor(MoveSelection(Next)),
-                Expect(CurrentSelectedTexts(&["   "])),
+                Expect(JumpChars(&['f', '?', 'b', ':', 's'])),
             ])
         })
     }
@@ -385,14 +298,17 @@ mod test_word {
                     focus: true,
                 }),
                 Editor(SetContent("".to_string())),
+                Expect(CurrentSelectionMode(SelectionMode::Line)),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Word,
                 )),
+                // Expect selection mode not changed because there is zero possible selection
+                Expect(CurrentSelectionMode(SelectionMode::Line)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Left)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelection(Up)),
+                Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&[""])),
             ])
         })
@@ -448,7 +364,7 @@ mod test_word {
     }
 
     #[test]
-    fn next_previous_include_whitespace() -> anyhow::Result<()> {
+    fn next_previous_include_symbol() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -456,33 +372,26 @@ mod test_word {
                     owner: BufferOwner::User,
                     focus: true,
                 }),
-                Editor(SetContent("foo  bar   baz\nspam".to_string())),
+                Editor(SetContent("foo$bar#baz".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
                     SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&["foo"])),
                 Editor(MoveSelection(Next)),
-                Expect(CurrentSelectedTexts(&["  "])),
+                Expect(CurrentSelectedTexts(&["$"])),
                 Editor(MoveSelection(Next)),
                 Expect(CurrentSelectedTexts(&["bar"])),
                 Editor(MoveSelection(Next)),
-                Expect(CurrentSelectedTexts(&["   "])),
+                Expect(CurrentSelectedTexts(&["#"])),
                 Editor(MoveSelection(Next)),
                 Expect(CurrentSelectedTexts(&["baz"])),
-                Editor(MoveSelection(Next)),
-                Expect(CurrentSelectedTexts(&["\n"])),
-                Editor(MoveSelection(Next)),
-                Expect(CurrentSelectedTexts(&["spam"])),
                 Editor(MoveSelection(Previous)),
-                Editor(MoveSelection(Previous)),
-                Expect(CurrentSelectedTexts(&["baz"])),
-                Editor(MoveSelection(Previous)),
-                Expect(CurrentSelectedTexts(&["   "])),
+                Expect(CurrentSelectedTexts(&["#"])),
                 Editor(MoveSelection(Previous)),
                 Expect(CurrentSelectedTexts(&["bar"])),
                 Editor(MoveSelection(Previous)),
-                Expect(CurrentSelectedTexts(&["  "])),
+                Expect(CurrentSelectedTexts(&["$"])),
                 Editor(MoveSelection(Previous)),
                 Expect(CurrentSelectedTexts(&["foo"])),
             ])

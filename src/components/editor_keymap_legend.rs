@@ -583,14 +583,6 @@ impl Editor {
                 "Switch window".to_string(),
                 Dispatch::OtherWindow,
             ),
-            Keymap::new_extended(
-                context
-                    .keyboard_layout_kind()
-                    .get_insert_key(&Meaning::SHelp),
-                "Help".to_string(),
-                "Help".to_string(),
-                Dispatch::ToEditor(DispatchEditor::ShowHelp),
-            ),
             #[cfg(unix)]
             Keymap::new("ctrl+z", "Suspend".to_string(), Dispatch::Suspend),
         ]
@@ -1110,6 +1102,13 @@ impl Editor {
                     "Git Blame".to_string(),
                     Dispatch::ToEditor(DispatchEditor::GitBlame),
                 ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_context_keymap(&Meaning::GoFil),
+                    "Go to File".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::GoToFile),
+                ),
             ]),
         }
     }
@@ -1134,7 +1133,7 @@ impl Editor {
                 Keymap::new(
                     context
                         .keyboard_layout_kind()
-                        .get_space_editor_keymap(&Meaning::TSNSx),
+                        .get_space_context_keymap(&Meaning::TSNSx),
                     "TS Node Sexp".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
                 ),

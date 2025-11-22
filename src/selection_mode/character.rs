@@ -154,9 +154,9 @@ mod test_character {
                     SelectionMode::Character,
                 )),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelection(Up)),
+                Editor(MoveSelection(Left)),
                 Expect(CurrentSelectedTexts(&[""])),
             ])
         })

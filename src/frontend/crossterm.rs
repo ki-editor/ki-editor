@@ -41,7 +41,9 @@ impl Frontend for Crossterm {
             std::env::var("KI_TERMINAL_WIDTH"),
             std::env::var("KI_TERMINAL_HEIGHT"),
         ) {
-            if let (Ok(width), Ok(height)) = (width_str.parse::<u16>(), height_str.parse::<u16>()) {
+            if let (Ok(width), Ok(height)) =
+                (width_str.parse::<usize>(), height_str.parse::<usize>())
+            {
                 log::debug!("Using terminal dimensions from environment: {width}x{height}");
                 return Ok(crate::app::Dimension { width, height });
             }
@@ -51,7 +53,10 @@ impl Frontend for Crossterm {
         match terminal::size() {
             Ok((width, height)) => {
                 log::debug!("Detected terminal dimensions: {width}x{height}");
-                Ok(crate::app::Dimension { width, height })
+                Ok(crate::app::Dimension {
+                    width: width as usize,
+                    height: height as usize,
+                })
             }
             Err(e) => {
                 log::warn!("Failed to get terminal dimensions: {e}");

@@ -363,14 +363,6 @@ impl<T: PositionBasedSelectionMode> SelectionModeTrait for PositionBased<T> {
             .selections_in_line_number_ranges(params, line_number_ranges)
     }
 
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.delete_forward(params)
-    }
-
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.delete_backward(params)
-    }
-
     fn current(
         &self,
         params: &SelectionModeParams,
@@ -445,8 +437,6 @@ pub trait SelectionModeTrait {
                 sticky_column_index,
             } => self.down(params, sticky_column_index),
             MovementApplicandum::Expand => self.expand(params),
-            MovementApplicandum::DeleteBackward => convert(self.delete_backward(params)),
-            MovementApplicandum::DeleteForward => convert(self.delete_forward(params)),
             MovementApplicandum::Next => convert(self.next(params)),
             MovementApplicandum::Previous => convert(self.previous(params)),
         }
@@ -538,14 +528,6 @@ pub trait SelectionModeTrait {
         index: usize,
     ) -> anyhow::Result<Option<Selection>>;
 
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.right(params)
-    }
-
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.left(params)
-    }
-
     /// First meaningful selection
     fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
 
@@ -626,8 +608,8 @@ pub trait SelectionModeTrait {
         let selection = params.current_selection;
         let get_in_between_gap = |direction: Direction| {
             let other = match direction {
-                Direction::Start => self.delete_backward(params),
-                Direction::End => self.delete_forward(params),
+                Direction::Start => self.left(params),
+                Direction::End => self.right(params),
             }
             .ok()??;
             if other.range() == selection.range() {
@@ -849,14 +831,6 @@ pub trait PositionBasedSelectionMode {
                 .update_with_byte_range(params.buffer, range)
         })
         .transpose()
-    }
-
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.right(params)
-    }
-
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.left(params)
     }
 
     fn revealed_selections<'a>(
@@ -1108,7 +1082,7 @@ pub trait PositionBasedSelectionMode {
         let limit = CharIndex(params.buffer.len_chars());
         let mut current_index: usize = 0;
         while cursor_char_index < limit {
-            if let Some(range) = self.get_current_meaningful_selection_by_cursor(
+            if let Some(range) = self.get_current_selection_by_cursor(
                 params.buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
@@ -1238,14 +1212,6 @@ impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.0.left(params)
-    }
-
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.delete_forward(params)
-    }
-
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.delete_backward(params)
     }
 
     fn process_paste_gap(
@@ -1606,14 +1572,6 @@ pub(crate) trait IterBasedSelectionMode {
                             && range.range.end < byte_range.end))
             })
             .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
-    }
-
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.next(params)
-    }
-
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.previous(params)
     }
 
     /// This uses `all_selections` instead of `iter_filtered`.
