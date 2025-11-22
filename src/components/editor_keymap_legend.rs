@@ -407,7 +407,11 @@ impl Editor {
             ),
         ]
         .into_iter()
-        .chain(self.search_current_keymap(context, Scope::Local, IfCurrentNotFound::LookForward))
+        .chain(self.search_current_keymap(
+            context,
+            Scope::Local,
+            self.cursor_direction.reverse().to_if_current_not_found(),
+        ))
         .chain(self.keymap_actions_overridable(normal_mode_override, none_if_no_override, context))
         .chain(self.keymap_clipboard_related_actions(false, normal_mode_override.clone(), context))
         .collect_vec()
