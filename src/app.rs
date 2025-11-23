@@ -847,7 +847,6 @@ impl<T: Frontend> App<T> {
                 self.open_move_to_index_prompt(prior_change)?
             }
             Dispatch::QuitAll => self.quit_all()?,
-            Dispatch::SaveQuitAll => self.save_quit_all()?,
             Dispatch::RevealInExplorer(path) => self.reveal_path_in_explorer(&path)?,
             Dispatch::OpenMoveFilePrompt => self.open_move_file_prompt()?,
             Dispatch::OpenDuplicateFilePrompt => self.open_copy_file_prompt()?,
@@ -1759,12 +1758,6 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn sender(&self) -> Sender<AppMessage> {
         self.sender.clone()
-    }
-
-    fn save_quit_all(&mut self) -> anyhow::Result<()> {
-        self.save_all()?;
-        self.quit_all()?;
-        Ok(())
     }
 
     fn save_all(&self) -> anyhow::Result<()> {
@@ -3248,7 +3241,6 @@ pub(crate) enum Dispatch {
     GotoLocation(Location),
     OpenMoveToIndexPrompt(Option<PriorChange>),
     QuitAll,
-    SaveQuitAll,
     RevealInExplorer(CanonicalizedPath),
     OpenMoveFilePrompt,
     OpenDuplicateFilePrompt,
