@@ -405,9 +405,6 @@ impl Component for Prompt {
                     .chain(self.on_cancelled.clone().unwrap_or_default()))
             }
             key!("tab") => self.replace_current_query_with_focused_item(context, event),
-            _ if event.display() == context.keyboard_layout_kind().get_key(&Meaning::MrkFN) => {
-                self.replace_current_query_with_focused_item(context, event)
-            }
             key!("enter") => {
                 let (line, dispatches) = if self.enter_selects_first_matching_item
                     && self.editor.completion_dropdown_current_item().is_some()
