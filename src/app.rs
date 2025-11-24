@@ -46,7 +46,7 @@ use crate::{
     search::parse_search_config,
     selection::{CharIndex, SelectionMode},
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
-    thread::{Callback, SendResult},
+    thread::{debounce, Callback, SendResult},
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
@@ -112,6 +112,9 @@ pub(crate) struct App<T: Frontend> {
     /// is synced between Ki and the host application.
     queued_events: Vec<Event>,
     file_watcher_input_sender: Option<Sender<FileWatcherInput>>,
+    /// Used for debouncing LSP Completion request, so that we don't overwhelm
+    /// the server with too many requests, and also Ki with too many incoming Completion responses
+    debounce_lsp_request_completion: Callback<()>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: usize = 1;
@@ -193,6 +196,21 @@ impl<T: Frontend> App<T> {
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             enable_lsp,
+            debounce_lsp_request_completion: {
+                let sender = sender.clone();
+                debounce(
+                    Callback::new(Arc::new(move |_| {
+                        if let Err(err) = sender.send(AppMessage::ExternalDispatch(Box::new(
+                            Dispatch::RequestCompletionDebounced,
+                        ))) {
+                            log::error!(
+                                "Failed to send RequestCompletionDebounced to App due to {err:?}"
+                            )
+                        }
+                    })),
+                    Duration::from_millis(300),
+                )
+            },
             sender,
             layout: Layout::new(
                 dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT),
@@ -625,7 +643,8 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenFilePicker(kind) => {
                 self.open_file_picker(kind)?;
             }
-            Dispatch::RequestCompletion => {
+            Dispatch::RequestCompletion => self.debounce_lsp_request_completion.call(()),
+            Dispatch::RequestCompletionDebounced => {
                 if let Some(params) = self.get_request_params() {
                     self.lsp_manager.send_message(
                         params.path.clone(),
@@ -3374,6 +3393,7 @@ pub(crate) enum Dispatch {
         marks: Vec<CharIndexRange>,
     },
     ToSuggestiveEditor(DispatchSuggestiveEditor),
+    RequestCompletionDebounced,
 }
 
 /// Used to send notify host app about changes
