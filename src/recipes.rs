@@ -1736,7 +1736,7 @@ fn multicursors() -> RecipeGroup {
                 expectations: Box::new([CurrentSelectedTexts(&["bar", "spam"])]),
                 terminal_height: None,
                 similar_vim_combos: &[],
-                only: true,
+                only: false,
             },
         ]
         .to_vec(),
