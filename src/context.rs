@@ -497,7 +497,7 @@ impl Context {
     }
 
     pub(crate) fn mark_file(&mut self, path: CanonicalizedPath) -> (usize, bool) {
-        return self.marked_files.insert_sorted(path);
+        self.marked_files.insert_sorted(path)
     }
 
     /// Returns true if the path to be removed is in the list
