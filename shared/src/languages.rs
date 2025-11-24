@@ -42,6 +42,7 @@ pub const LANGUAGES: &[&Language] = &[
     &nix(),
     &ocaml(),
     &ocaml_interface(),
+    &odin(),
     &dune(),
     &python(),
     &rescript(),
@@ -721,6 +722,24 @@ const fn ocaml_interface() -> Language {
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::OCamlInterface),
         }),
         block_comment_affixes: Some(("(*", "*)")),
+        ..Language::new()
+    }
+}
+
+const fn odin() -> Language {
+    Language {
+        extensions: &["odin"],
+        formatter_command: Some(Command("odinfmt", &["-stdin"])),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "odin",
+            kind: GrammarConfigKind::FromSource {
+                url: "https://github.com/tree-sitter-grammars/tree-sitter-odin",
+                commit: "master",
+                subpath: None,
+            },
+        }),
+        line_comment_prefix: Some("//"),
+        block_comment_affixes: Some(("/*", "*/")),
         ..Language::new()
     }
 }
