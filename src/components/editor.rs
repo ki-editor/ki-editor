@@ -391,6 +391,7 @@ impl Component for Editor {
             SearchClipboardContent(scope) => {
                 return Ok(self.search_clipboard_content(scope, context))
             }
+            PressSpace => return Ok(self.press_space(context)),
         }
         Ok(Default::default())
     }
@@ -4173,6 +4174,16 @@ impl Editor {
             focus: true,
         }))
     }
+
+    fn press_space(&self, context: &Context) -> Dispatches {
+        match self.mode {
+            Mode::Normal => Dispatches::one(Dispatch::ShowKeymapLegend(
+                self.space_keymap_legend_config(context),
+            )),
+            Mode::Insert => Dispatches::default(),
+            _ => Dispatches::one(Dispatch::ToEditor(EnterNormalMode)),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4323,6 +4334,7 @@ pub(crate) enum DispatchEditor {
     ClearIncrementalSearchMatches,
     GoToFile,
     SearchClipboardContent(Scope),
+    PressSpace,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

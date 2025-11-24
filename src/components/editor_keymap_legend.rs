@@ -667,11 +667,6 @@ impl Editor {
                         Dispatch::ToEditor(MoveCharacterForward),
                     ),
                     Keymap::new(
-                        "esc",
-                        "Enter normal mode".to_string(),
-                        Dispatch::ToEditor(EnterNormalMode),
-                    ),
-                    Keymap::new(
                         "backspace",
                         "Delete character backward".to_string(),
                         Dispatch::ToEditor(Backspace),
@@ -739,12 +734,12 @@ impl Editor {
         }
     }
 
-    pub(crate) fn keymap_others(&self, context: &Context) -> Vec<Keymap> {
+    pub(crate) fn keymap_others(&self) -> Vec<Keymap> {
         [
             Keymap::new(
                 "space",
-                "Search (List)".to_string(),
-                Dispatch::ShowKeymapLegend(self.space_keymap_legend_config(context)),
+                "Space".to_string(),
+                Dispatch::ToEditor(DispatchEditor::PressSpace),
             ),
             Keymap::new(
                 "esc",
@@ -850,7 +845,7 @@ impl Editor {
             .chain(self.keymap_primary_selection_modes(context, prior_change))
             .chain(self.keymap_secondary_selection_modes_init(context, prior_change))
             .chain(self.keymap_actions(&normal_mode_override, false, context, prior_change))
-            .chain(self.keymap_others(context))
+            .chain(self.keymap_others())
             .chain(self.keymap_universal(context))
             .collect_vec()
     }
