@@ -394,6 +394,7 @@ impl Component for Editor {
             }
             PressSpace => return Ok(self.press_space(context)),
             Delete => todo!(),
+            DeleteNoGap => todo!(),
         }
         Ok(Default::default())
     }
