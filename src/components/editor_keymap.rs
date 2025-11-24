@@ -130,13 +130,13 @@ pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_SPACE_EDITOR: KeyboardMeaningLayout = [
     [
-        QNSav, QSave, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, SaveA, RlBfr, Pipe_, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, RlBfr, Pipe_, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, RplcA, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        _____, RplcA, SaveA, QNSav, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -763,8 +763,6 @@ pub(crate) enum Meaning {
     SHelp,
     /// Quit No Save
     QNSav,
-    /// Quit Save
-    QSave,
     /// Save All
     SaveA,
     /// File Explorer

@@ -1147,13 +1147,6 @@ impl Editor {
                 Keymap::new(
                     context
                         .keyboard_layout_kind()
-                        .get_space_editor_keymap(&Meaning::QSave),
-                    "Save All Quit".to_string(),
-                    Dispatch::SaveQuitAll,
-                ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
                         .get_space_editor_keymap(&Meaning::QNSav),
                     "Quit No Save".to_string(),
                     Dispatch::QuitAll,
