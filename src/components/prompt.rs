@@ -19,7 +19,7 @@ use super::{
     component::Component,
     dropdown::DropdownItem,
     editor::{Editor, Mode},
-    editor_keymap::Meaning,
+    editor_keymap::{alted, Meaning},
     suggestive_editor::{DispatchSuggestiveEditor, SuggestiveEditor, SuggestiveEditorFilter},
 };
 
@@ -405,6 +405,11 @@ impl Component for Prompt {
                     .chain(self.on_cancelled.clone().unwrap_or_default()))
             }
             key!("tab") => self.replace_current_query_with_focused_item(context, event),
+            _ if event.display()
+                == alted(context.keyboard_layout_kind().get_key(&Meaning::Rplc_)) =>
+            {
+                self.replace_current_query_with_focused_item(context, event)
+            }
             key!("enter") => {
                 let (line, dispatches) = if self.enter_selects_first_matching_item
                     && self.editor.completion_dropdown_current_item().is_some()
@@ -831,7 +836,7 @@ mod test_prompt {
                     if_current_not_found: IfCurrentNotFound::LookForward,
                 }),
                 Expect(CurrentComponentContent("fo\n")),
-                App(HandleKeyEvents(keys!("f o alt+l").to_vec())),
+                App(HandleKeyEvents(keys!("f o alt+x").to_vec())),
                 Expect(CurrentComponentContent("fo\nfoo")),
             ])
         })

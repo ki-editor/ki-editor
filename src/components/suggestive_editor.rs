@@ -801,9 +801,9 @@ mod test_suggestive_editor {
                 Expect(CompletionDropdownSelectedItem("Spongebob")),
                 App(HandleKeyEvent(key!("up"))),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
-                App(HandleKeyEvent(key!("alt+k"))),
+                App(HandleKeyEvent(key!("alt+l"))),
                 Expect(CompletionDropdownSelectedItem("Spongebob")),
-                App(HandleKeyEvent(key!("alt+i"))),
+                App(HandleKeyEvent(key!("alt+j"))),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
             ])
         })
@@ -1183,7 +1183,7 @@ pub(crate) fn completion_item_keymaps(context: &Context) -> Keymaps {
             Dispatch::MoveToCompletionItem(Direction::Start),
         ),
         Keymap::new_extended(
-            alted(context.keyboard_layout_kind().get_key(&Meaning::Down_)),
+            alted(context.keyboard_layout_kind().get_key(&Meaning::Rplc_)),
             "Select Comp".to_string(),
             "Select Completion Item".to_string(),
             Dispatch::SelectCompletionItem,
