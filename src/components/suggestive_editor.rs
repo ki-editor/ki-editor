@@ -1184,8 +1184,8 @@ pub(crate) fn completion_item_keymaps(context: &Context) -> Keymaps {
         ),
         Keymap::new_extended(
             alted(context.keyboard_layout_kind().get_key(&Meaning::Rplc_)),
-            "Select Comp".to_string(),
-            "Select Completion Item".to_string(),
+            "Replace Comp".to_string(),
+            "Replace Completion Item".to_string(),
             Dispatch::SelectCompletionItem,
         ),
     ])
