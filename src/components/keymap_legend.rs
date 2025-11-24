@@ -315,7 +315,6 @@ impl Component for KeymapLegend {
                     self.editor.enter_normal_mode(context)?;
                     Ok(Default::default())
                 }
-                key!("ctrl+c") => Ok(Dispatches::one(Dispatch::CloseCurrentWindow)),
                 key_event => {
                     if let Some(keymap) = self
                         .config

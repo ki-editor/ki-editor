@@ -1715,17 +1715,30 @@ fn syntax_node() -> RecipeGroup {
 fn multicursors() -> RecipeGroup {
     RecipeGroup {
         filename: "multi-cursor",
-        recipes: [Recipe {
-            description: "Non-movements keys escape multicursor mode",
-            content: "hello world hello world".trim(),
-            file_extension: "rs",
-            prepare_events: &[],
-            events: keys!("s e r l f z"),
-            expectations: Box::new([CurrentComponentContent("z world z world")]),
-            terminal_height: None,
-            similar_vim_combos: &[],
-            only: false,
-        }]
+        recipes: [
+            Recipe {
+                description: "Non-movements keys exit multicursor mode",
+                content: "hello world hello world".trim(),
+                file_extension: "rs",
+                prepare_events: &[],
+                events: keys!("s e r l f z"),
+                expectations: Box::new([CurrentComponentContent("z world z world")]),
+                terminal_height: None,
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                description: "Use space to exit multicursor mode",
+                content: "foo bar spam baz".trim(),
+                file_extension: "rs",
+                prepare_events: &[],
+                events: keys!("s r l space l"),
+                expectations: Box::new([CurrentSelectedTexts(&["bar", "spam"])]),
+                terminal_height: None,
+                similar_vim_combos: &[],
+                only: true,
+            },
+        ]
         .to_vec(),
     }
 }
