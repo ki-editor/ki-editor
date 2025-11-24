@@ -2447,7 +2447,7 @@ fn cycle_window() -> anyhow::Result<()> {
                 SuggestiveEditor(DispatchSuggestiveEditor::Completion(completion.clone())),
                 Expect(ComponentCount(3)),
                 // Move to the next completion item (which is 'Spongebob squarepants')
-                App(HandleKeyEvent(key!("alt+k"))),
+                App(HandleKeyEvent(key!("alt+l"))),
                 Expect(CurrentComponentContent("")),
                 App(OtherWindow),
                 Expect(ComponentCount(3)),
@@ -3299,7 +3299,7 @@ fn using_suggested_search_term() -> anyhow::Result<()> {
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             Expect(CompletionDropdownContent("bar\nfoo\nspam")),
-            App(HandleKeyEvents(keys!("f o alt+l").to_vec())),
+            App(HandleKeyEvents(keys!("f o alt+x").to_vec())),
             Expect(CurrentComponentContent("foo")),
         ])
     })

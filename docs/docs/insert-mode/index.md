@@ -25,11 +25,11 @@ The following keybindings only work when the completion dropdown is opened.
 
 <KeymapFallback filename="Completion Items"/>
 
-| Label         | Meaning                        |
-| ------------- | ------------------------------ |
-| `Comp →`      | Next completion item           |
-| `← Comp`      | Previous completion item       |
-| `Select Comp` | Select current completion item |
+| Label          | Meaning                                     |
+| -------------- | ------------------------------------------- |
+| `Comp →`       | Next completion item                        |
+| `← Comp`       | Previous completion item                    |
+| `Replace Comp` | Replace current completion item |
 
 ## Other
 

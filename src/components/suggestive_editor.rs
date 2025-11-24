@@ -16,7 +16,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::dropdown::{Dropdown, DropdownConfig};
 use super::editor::{Direction, DispatchEditor, IfCurrentNotFound};
-use super::editor_keymap::Meaning;
+use super::editor_keymap::{alted, Meaning};
 use super::keymap_legend::{Keymap, Keymaps};
 use super::{
     component::Component,
@@ -801,9 +801,9 @@ mod test_suggestive_editor {
                 Expect(CompletionDropdownSelectedItem("Spongebob")),
                 App(HandleKeyEvent(key!("up"))),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
-                App(HandleKeyEvent(key!("alt+k"))),
+                App(HandleKeyEvent(key!("alt+l"))),
                 Expect(CompletionDropdownSelectedItem("Spongebob")),
-                App(HandleKeyEvent(key!("alt+i"))),
+                App(HandleKeyEvent(key!("alt+j"))),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
             ])
         })
@@ -1171,27 +1171,21 @@ impl Decoration {
 pub(crate) fn completion_item_keymaps(context: &Context) -> Keymaps {
     Keymaps::new(&[
         Keymap::new_extended(
-            context
-                .keyboard_layout_kind()
-                .get_insert_key(&Meaning::ScrlD),
+            alted(context.keyboard_layout_kind().get_key(&Meaning::Right)),
             Direction::End.format_action("Comp"),
             "Next Completion Item".to_string(),
             Dispatch::MoveToCompletionItem(Direction::End),
         ),
         Keymap::new_extended(
-            context
-                .keyboard_layout_kind()
-                .get_insert_key(&Meaning::ScrlU),
+            alted(context.keyboard_layout_kind().get_key(&Meaning::Left_)),
             Direction::Start.format_action("Comp"),
             "Previous Completion Item".to_string(),
             Dispatch::MoveToCompletionItem(Direction::Start),
         ),
         Keymap::new_extended(
-            context
-                .keyboard_layout_kind()
-                .get_insert_key(&Meaning::MrkFN),
-            "Select Comp".to_string(),
-            "Select Completion Item".to_string(),
+            alted(context.keyboard_layout_kind().get_key(&Meaning::Rplc_)),
+            "Replace Comp".to_string(),
+            "Replace Completion Item".to_string(),
             Dispatch::SelectCompletionItem,
         ),
     ])
