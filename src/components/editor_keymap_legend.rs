@@ -396,11 +396,6 @@ impl Editor {
                 Dispatch::ToEditor(Dedent),
             ),
             Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Del0G),
-                "Delete 0 Gap".to_string(),
-                Dispatch::ToEditor(DeleteNoGap),
-            ),
-            Keymap::new(
                 "*",
                 "Keyboard".to_string(),
                 Dispatch::OpenKeyboardLayoutPrompt,
@@ -435,7 +430,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::Delte),
                 Direction::End.format_action("Delete"),
                 Direction::End.format_action("Delete"),
-                Dispatch::ToEditor(Delete),
+                Dispatch::ToEditor(EnterDeleteMode),
             )
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
             Keymap::new_extended(

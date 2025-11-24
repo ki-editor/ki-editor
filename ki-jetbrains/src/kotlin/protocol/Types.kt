@@ -167,6 +167,8 @@ enum class EditorMode(val string: String) {
 	Swap("swap"),
 	@SerialName("replace")
 	Replace("replace"),
+	@SerialName("delete")
+	Delete("delete"),
 }
 
 @Serializable

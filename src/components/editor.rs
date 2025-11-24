@@ -57,6 +57,7 @@ pub(crate) enum Mode {
     FindOneChar(IfCurrentNotFound),
     Swap,
     Replace,
+    Delete,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
@@ -232,8 +233,6 @@ impl Component for Editor {
             EnableSelectionExtension => self.enable_selection_extension(),
             DisableSelectionExtension => self.disable_selection_extension(),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction, context),
-            Delete => return self.delete(context, true),
-            DeleteNoGap => return self.delete(context, false),
             Insert(string) => return self.insert(&string, context),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
@@ -242,6 +241,7 @@ impl Component for Editor {
             CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
             EnterSwapMode => self.enter_swap_mode(),
+            EnterDeleteMode => self.enter_delete_mode(),
             ReplacePattern { config } => {
                 let selection_set = self.selection_set.clone();
                 let (_, selection_set, dispatches, _) =
@@ -393,6 +393,7 @@ impl Component for Editor {
                 return Ok(self.search_clipboard_content(scope, context))
             }
             PressSpace => return Ok(self.press_space(context)),
+            Delete => todo!(),
         }
         Ok(Default::default())
     }
@@ -1037,10 +1038,10 @@ impl Editor {
         Ok(Dispatches::one(self.dispatch_jumps_changed()))
     }
 
-    pub(crate) fn delete(
+    fn delete_with_movement(
         &mut self,
         context: &Context,
-        with_gap: bool,
+        movement: Movement,
     ) -> anyhow::Result<Dispatches> {
         // to copy deleted item to clipboard copy_dispatch should be self.copy()?
         let copy_dispatches: Dispatches = Default::default();
@@ -1073,12 +1074,6 @@ impl Editor {
                         // will not be found
                         let start_selection =
                             &selection.clone().collapsed_to_anchor_range(direction);
-                        let movement = match (direction, with_gap) {
-                            (Direction::Start, true) => Movement::Left,
-                            (Direction::End, true) => Movement::Right,
-                            (Direction::Start, false) => Movement::Previous,
-                            (Direction::End, false) => Movement::Next,
-                        };
                         let result_selection = Selection::get_selection_(
                             &buffer,
                             start_selection,
@@ -1803,7 +1798,8 @@ impl Editor {
                     context,
                 )
                 .map(|_| Default::default()),
-            _ => Ok(Default::default()),
+            Mode::Delete => self.delete_with_movement(context, movement),
+            Mode::FindOneChar(_) | Mode::Insert => Ok(Default::default()),
         }
     }
 
@@ -2748,6 +2744,7 @@ impl Editor {
                 Mode::FindOneChar(_) => "ONE".to_string(),
                 Mode::Swap => "SWAP".to_string(),
                 Mode::Replace => "RPLCE".to_string(),
+                Mode::Delete => "DELTE".to_string(),
             }
         }
     }
@@ -4185,6 +4182,10 @@ impl Editor {
             _ => Dispatches::one(Dispatch::ToEditor(EnterNormalMode)),
         }
     }
+
+    fn enter_delete_mode(&mut self) {
+        self.mode = Mode::Delete
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4245,8 +4246,6 @@ pub(crate) enum DispatchEditor {
     ReplaceWithPattern,
     SelectLine(Movement),
     Backspace,
-    Delete,
-    DeleteNoGap,
     Insert(String),
     MoveToLineStart,
     MoveToLineEnd,
@@ -4337,6 +4336,9 @@ pub(crate) enum DispatchEditor {
     GoToFile,
     SearchClipboardContent(Scope),
     PressSpace,
+    EnterDeleteMode,
+    Delete,
+    DeleteNoGap,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
