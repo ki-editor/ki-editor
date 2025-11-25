@@ -1,84 +1,85 @@
 {
-    "name": "quickfix",
-    "rules": {
-        "source_file": {
-            "type": "REPEAT1",
-            "content": {
-                "type": "SYMBOL",
-                "name": "section"
-            }
-        },
-        "section": {
-            "type": "SEQ",
-            "members": [
-                {
-                    "type": "SYMBOL",
-                    "name": "header"
-                },
-                {
-                    "type": "STRING",
-                    "value": "\n"
-                },
-                {
-                    "type": "SYMBOL",
-                    "name": "values"
-                }
-            ]
-        },
-        "header": {
-            "type": "SYMBOL",
-            "name": "word"
-        },
-        "values": {
-            "type": "REPEAT1",
-            "content": {
-                "type": "SYMBOL",
-                "name": "value"
-            }
-        },
-        "value": {
-            "type": "SEQ",
-            "members": [
-                {
-                    "type": "STRING",
-                    "value": "    "
-                },
-                {
-                    "type": "SYMBOL",
-                    "name": "word"
-                },
-                {
-                    "type": "CHOICE",
-                    "members": [
-                        {
-                            "type": "STRING",
-                            "value": "\n"
-                        },
-                        {
-                            "type": "BLANK"
-                        }
-                    ]
-                }
-            ]
-        },
-        "word": {
-            "type": "PATTERN",
-            "value": "[^\\n]+"
-        }
+  "name": "quickfix",
+  "rules": {
+    "source_file": {
+      "type": "REPEAT1",
+      "content": {
+        "type": "SYMBOL",
+        "name": "section"
+      }
     },
-    "extras": [
+    "section": {
+      "type": "SEQ",
+      "members": [
         {
-            "type": "PATTERN",
-            "value": " "
+          "type": "SYMBOL",
+          "name": "header"
         },
         {
-            "type": "STRING",
-            "value": "\n"
+          "type": "STRING",
+          "value": "\n"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "values"
         }
-    ],
-    "conflicts": [],
-    "precedences": [],
-    "externals": [],
-    "inline": [],
-    "supertypes": []
+      ]
+    },
+    "header": {
+      "type": "SYMBOL",
+      "name": "word"
+    },
+    "values": {
+      "type": "REPEAT1",
+      "content": {
+        "type": "SYMBOL",
+        "name": "value"
+      }
+    },
+    "value": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "    "
+        },
+        {
+          "type": "SYMBOL",
+          "name": "word"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": "\n"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        }
+      ]
+    },
+    "word": {
+      "type": "PATTERN",
+      "value": "[^\\n]+"
+    }
+  },
+  "extras": [
+    {
+      "type": "PATTERN",
+      "value": " "
+    },
+    {
+      "type": "STRING",
+      "value": "\n"
+    }
+  ],
+  "conflicts": [],
+  "precedences": [],
+  "externals": [],
+  "inline": [],
+  "supertypes": []
 }
+

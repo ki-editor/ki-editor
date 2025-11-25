@@ -1,9 +1,15 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
+use crate::components::editor_keymap::Meaning;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{cmp::Ordering, fmt};
 use Placeholder::*;
+pub(crate) type CustomActionKeymap = (
+    Meaning,
+    &'static str,
+    Option<fn(&CustomContext) -> CustomAction>,
+);
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum CustomAction {
@@ -100,17 +106,6 @@ impl DirWorking {
     }
 }
 
-impl ResolvedValue {
-    pub(crate) fn to_string(&self) -> String {
-        match self {
-            ResolvedValue::Str(string) => string.clone(),
-            ResolvedValue::Int(integer) => integer.to_string(),
-            ResolvedValue::Bool(bool) => bool.to_string(),
-            ResolvedValue::Empty => String::new(),
-        }
-    }
-}
-
 impl Condition {
     pub(crate) fn resolve(&self, ctx: &CustomContext) -> bool {
         match self.0.resolve(ctx) {
@@ -169,7 +164,7 @@ impl Placeholder {
                 DirWorkingKind::FileExists(file_name) => {
                     let exists = ctx
                         .current_working_directory
-                        .join(*file_name)
+                        .join(file_name)
                         .map(|path| path.exists())
                         .unwrap_or(false);
                     ResolvedValue::Bool(exists)
@@ -238,7 +233,7 @@ impl PartialOrd<i64> for ResolvedValue {
 impl fmt::Display for Placeholder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Placeholder::Str(s) => write!(f, "Str(\"{}\")", s),
+            Placeholder::Str(s) => write!(f, "Str(\"{s}\")"),
             Placeholder::NoSpace => write!(f, "NoSpace"),
 
             Placeholder::FileCurrent(kind) => match kind {
@@ -255,12 +250,23 @@ impl fmt::Display for Placeholder {
             Placeholder::DirCurrent(kind) => match kind {
                 DirWorkingKind::PathRoot => write!(f, "DirCurrent::path()"),
                 DirWorkingKind::FileExists(filename) => {
-                    write!(f, "DirCurrent::file_exists(\"{}\")", filename)
+                    write!(f, "DirCurrent::file_exists(\"{filename}\")")
                 }
                 DirWorkingKind::FileExistsDynamic(placeholder) => {
-                    write!(f, "DirCurrent::FileExistsDynamic({})", placeholder)
+                    write!(f, "DirCurrent::FileExistsDynamic({placeholder})")
                 }
             },
+        }
+    }
+}
+
+impl fmt::Display for ResolvedValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ResolvedValue::Str(s) => write!(f, "{s}"),
+            ResolvedValue::Int(i) => write!(f, "{i}"),
+            ResolvedValue::Bool(b) => write!(f, "{b}"),
+            ResolvedValue::Empty => Ok(()), // Write nothing for Empty
         }
     }
 }

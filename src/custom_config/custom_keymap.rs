@@ -8,8 +8,10 @@
 
 use crate::components::editor_keymap::KeyboardMeaningLayout;
 use crate::components::editor_keymap::Meaning::{self, *};
-use crate::handle_custom_action::{CustomAction, CustomAction::*, CustomContext, Placeholder::*};
-use crate::handle_custom_action::{DirWorking, FileCurrent, SelectionPrimary};
+use crate::handle_custom_action::{
+    CustomAction, CustomAction::*, CustomActionKeymap, CustomContext,
+};
+use crate::handle_custom_action::{DirWorking, FileCurrent, Placeholder::*, SelectionPrimary};
 
 fn sample_run_command(ctx: &CustomContext) -> CustomAction {
     // Search selected content using Google and Chromium
@@ -125,12 +127,8 @@ pub(crate) const CUSTOM_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
 
 // Assign keybinds here, with respect to the qwerty layout above
 // Compile, relaunch and press `\` (direct) or `|` (help) to use these
-pub(crate) fn custom_keymap() -> Vec<(
-    Meaning,
-    &'static str,
-    Option<fn(&CustomContext) -> CustomAction>,
-)> {
-    let custom_keymap: [(Meaning, &str, Option<fn(&CustomContext) -> CustomAction>); 30] = [
+pub(crate) fn custom_keymap() -> Vec<CustomActionKeymap> {
+    let custom_keymap: [CustomActionKeymap; 30] = [
         // Key, Description, Function
         (__Q__, "Sample RunCommand", Some(sample_run_command)),
         (__W__, "Sample ToggleProcess", Some(sample_toggle_process)),

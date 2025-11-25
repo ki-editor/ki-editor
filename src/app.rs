@@ -2984,7 +2984,7 @@ impl<T: Frontend> App<T> {
                     current_arg.push_str(&p.resolve(&leader_context).to_string());
                     if iter
                         .peek()
-                        .map_or(true, |next_p| !matches!(next_p, &&Placeholder::NoSpace))
+                        .is_none_or(|next_p| !matches!(next_p, &&Placeholder::NoSpace))
                     {
                         final_args.push(current_arg.clone());
                         current_arg.clear();
@@ -3009,7 +3009,7 @@ impl<T: Frontend> App<T> {
                     current_arg.push_str(&p.resolve(&leader_context).to_string());
                     if iter
                         .peek()
-                        .map_or(true, |next_p| !matches!(next_p, &&Placeholder::NoSpace))
+                        .is_none_or(|next_p| !matches!(next_p, &&Placeholder::NoSpace))
                     {
                         final_args.push(current_arg.clone());
                         current_arg.clear();
@@ -3028,7 +3028,7 @@ impl<T: Frontend> App<T> {
 
                     if let Some(next_p) = iter.peek() {
                         if !matches!(next_p, &&Placeholder::NoSpace) {
-                            final_string.push_str(" ");
+                            final_string.push(' ');
                         }
                     }
                 }
@@ -3063,7 +3063,7 @@ impl<T: Frontend> App<T> {
                     current_arg.push_str(&p.resolve(&leader_context).to_string());
                     if iter
                         .peek()
-                        .map_or(true, |next_p| !matches!(next_p, &&Placeholder::NoSpace))
+                        .is_none_or(|next_p| !matches!(next_p, &&Placeholder::NoSpace))
                     {
                         final_args.push(current_arg.clone());
                         current_arg.clear();
@@ -3072,7 +3072,7 @@ impl<T: Frontend> App<T> {
 
                 let resolved_vec_with_quotes: Vec<String> = final_args
                     .iter()
-                    .map(|arg| format!("\"{}\"", arg))
+                    .map(|arg| format!("\"{arg}\""))
                     .collect_vec();
                 let unresolved_vec: Vec<String> =
                     args.iter().map(|arg| arg.to_string()).collect_vec();
@@ -3082,7 +3082,7 @@ impl<T: Frontend> App<T> {
                     .stderr(Stdio::null())
                     .output()?;
 
-                let quoted_command = format!("\"{}\"", command);
+                let quoted_command = format!("\"{command}\"");
                 let mut content = String::new();
                 let mut decorations = Vec::new();
 
@@ -3130,7 +3130,7 @@ impl<T: Frontend> App<T> {
 
                 let command_line_args = final_args.join(" ");
                 if !command_line_args.is_empty() {
-                    content.push_str(" ");
+                    content.push(' ');
                     append_and_decorate(&mut content, &mut decorations, &command_line_args);
                 }
 
@@ -3169,7 +3169,7 @@ impl<T: Frontend> App<T> {
                     resolved_text.push_str(&p.resolve(&leader_context).to_string());
                     if let Some(next_p) = iter.peek() {
                         if !matches!(next_p, &&Placeholder::NoSpace) {
-                            resolved_text.push_str(" ");
+                            resolved_text.push(' ');
                         }
                     }
                 }
@@ -3226,7 +3226,7 @@ impl<T: Frontend> App<T> {
                     current_arg.push_str(&p.resolve(&leader_context).to_string());
                     if iter
                         .peek()
-                        .map_or(true, |next_p| !matches!(next_p, &&Placeholder::NoSpace))
+                        .is_none_or(|next_p| !matches!(next_p, &&Placeholder::NoSpace))
                     {
                         final_args.push(current_arg.clone());
                         current_arg.clear();
@@ -3239,10 +3239,10 @@ impl<T: Frontend> App<T> {
                     args.iter().map(|arg| arg.to_string()).collect_vec();
                 let resolved_vec_with_quotes: Vec<String> = final_args
                     .iter()
-                    .map(|arg| format!("\"{}\"", arg))
+                    .map(|arg| format!("\"{arg}\""))
                     .collect_vec();
 
-                let quoted_command = format!("\"{}\"", command);
+                let quoted_command = format!("\"{command}\"");
                 let mut content = String::new();
                 let mut decorations = Vec::new();
 
@@ -3289,7 +3289,7 @@ impl<T: Frontend> App<T> {
 
                 let command_line_args = final_args.join(" ");
                 if !command_line_args.is_empty() {
-                    content.push_str(" ");
+                    content.push(' ');
                     append_and_decorate(&mut content, &mut decorations, &command_line_args);
                 }
 
