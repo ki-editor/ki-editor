@@ -12,6 +12,11 @@ impl ProcessManager {
         }
     }
 
+    pub fn contains(&mut self, command: &'static str, args: &[String]) -> bool {
+        let key = format!("{} {}", command, args.join(" "));
+        self.running_processes.contains_key(&key)
+    }
+
     pub fn toggle(&mut self, command: &'static str, args: &[String]) {
         let key = format!("{} {}", command, args.join(" "));
         if self.running_processes.contains_key(&key) {

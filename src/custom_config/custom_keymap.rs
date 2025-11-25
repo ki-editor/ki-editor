@@ -12,8 +12,6 @@ use crate::components::editor_keymap::Meaning::{self, *};
 use crate::handle_custom_action::{CustomAction, CustomAction::*, CustomContext, Placeholder::*};
 use crate::handle_custom_action::{DirWorking, FileCurrent, SelectionPrimary};
 
-use my_proc_macros::keys;
-
 pub(crate) const CUSTOM_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
     [
         __Q__, __W__, __E__, __R__, __T__, /****/ __Y__, __U__, __I__, __O__, __P__,
@@ -58,10 +56,6 @@ fn sample_toggle_process(ctx: &CustomContext) -> CustomAction {
     } else {
         DoNothing
     }
-}
-
-fn sample_macro(ctx: &CustomContext) -> CustomAction {
-    Macro(keys!("a c d q F e r t i g enter a ; backspace backspace a"))
 }
 
 fn sample_to_clipboard(ctx: &CustomContext) -> CustomAction {
@@ -137,9 +131,9 @@ pub(crate) fn custom_keymap() -> Vec<(
 )> {
     let custom_keymap: [(Meaning, &str, Option<fn(&CustomContext) -> CustomAction>); 30] = [
         (__Q__, "Sample RunCommand", Some(sample_run_command)),
-        (__W__, "Sample Macro", Some(sample_macro)),
-        (__E__, "Sample ToggleProcess", Some(sample_toggle_process)),
-        (__R__, "Sample ToClipboard", Some(sample_to_clipboard)),
+        (__W__, "Sample ToggleProcess", Some(sample_toggle_process)),
+        (__E__, "Sample ToClipboard", Some(sample_to_clipboard)),
+        (__R__, "", None),
         (__T__, "", None),
         (__Y__, "", None),
         (__U__, "", None),

@@ -41,7 +41,6 @@ use crate::{
         symbols::Symbols,
         workspace_edit::WorkspaceEdit,
     },
-    macro_help_player::MacroHelpPlayer,
     persistence::Persistence,
     position::Position,
     process_manager::ProcessManager,
@@ -1064,7 +1063,6 @@ impl<T: Frontend> App<T> {
                 self.show_buffer_save_conflict_prompt(&path, content_editor, content_filesystem)?
             }
             Dispatch::OpenWorkspaceSymbolsPrompt => self.open_workspace_symbols_prompt()?,
-            Dispatch::PlayMacroStep(player) => self.handle_play_macro_step(player)?,
             Dispatch::GetAndHandlePromptOnChangeDispatches => {
                 self.get_and_handle_prompt_on_change_dispatches()?
             }
@@ -3038,7 +3036,6 @@ impl<T: Frontend> App<T> {
                 self.context
                     .set_clipboard_content(CopiedTexts::new(NonEmpty::new(final_string)))?
             }
-            CustomAction::Macro(key_events) => self.handle_key_events(key_events.to_vec())?,
         }
         Ok(())
     }
@@ -3301,193 +3298,6 @@ impl<T: Frontend> App<T> {
                     .set_decorations(decorations);
                 self.show_global_info(info);
             }
-            CustomAction::Macro(key_events) => {
-                let editor_component = self.current_component();
-                let editor = editor_component.borrow();
-                let keymap_config = editor
-                    .editor()
-                    .get_current_keymap_legend_config(&self.context);
-
-                let player = MacroHelpPlayer::new(
-                    description.to_string(),
-                    key_events.to_vec(),
-                    keymap_config,
-                );
-
-                self.handle_dispatch(Dispatch::PlayMacroStep(player))?;
-            }
-        }
-        Ok(())
-    }
-    fn handle_play_macro_step(&mut self, player: MacroHelpPlayer) -> anyhow::Result<()> {
-        if player.press_key_and_update {
-            if let Some(key_to_send) = player.get_current_key() {
-                self.handle_event(Event::Key(key_to_send))?;
-            }
-
-            self.sender.send(AppMessage::ExternalDispatch(Box::new(
-                Dispatch::PlayMacroStep(player.for_render_phase()),
-            )))?;
-        } else {
-            if player.is_finished() {
-                let (width, _height) = self
-                    .layout
-                    .get_component_by_kind(ComponentKind::GlobalInfo)
-                    .map(|c| (c.borrow().rectangle().width.saturating_sub(4), u16::MAX))
-                    .unwrap_or_else(|| {
-                        (
-                            self.layout.terminal_dimension().width.saturating_sub(4),
-                            u16::MAX,
-                        )
-                    });
-
-                let full_key_list = player.all_keys();
-                let descriptions: Vec<String> = full_key_list
-                    .iter()
-                    .map(|key| {
-                        player
-                            .keymap_config()
-                            .keymaps()
-                            .get(key)
-                            .map_or_else(|| "[Unknown]".to_string(), |km| km.description.clone())
-                    })
-                    .collect();
-                let key_strings: Vec<String> = full_key_list
-                    .iter()
-                    .map(|key| format!("{:?}", key))
-                    .collect();
-
-                let mut full_table_output = String::new();
-                let mut processed_steps = 0;
-                while processed_steps < full_key_list.len() {
-                    let mut current_width: u16 = 1;
-                    let mut table_keys = Vec::new();
-                    let mut table_descs = Vec::new();
-                    for i in processed_steps..full_key_list.len() {
-                        let col_width =
-                            std::cmp::max(key_strings[i].len(), descriptions[i].len()) as u16 + 3;
-                        if usize::from(current_width + col_width) > width && !table_keys.is_empty()
-                        {
-                            break;
-                        }
-                        current_width += col_width;
-                        table_keys.push(key_strings[i].clone());
-                        table_descs.push(descriptions[i].clone());
-                        processed_steps += 1;
-                    }
-                    if !table_keys.is_empty() {
-                        let mut table = Table::new();
-                        table
-                            .add_row(table_keys)
-                            .add_row(table_descs)
-                            .load_preset(comfy_table::presets::UTF8_FULL)
-                            .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
-                        if !full_table_output.is_empty() {
-                            full_table_output.push('\n');
-                        }
-                        full_table_output.push_str(&table.to_string());
-                    } else {
-                        break;
-                    }
-                }
-
-                let mut content = String::new();
-                let mut decorations = Vec::new();
-
-                let append_and_decorate =
-                    |content: &mut String, decorations: &mut Vec<Decoration>, s: &str| {
-                        if !s.is_empty() {
-                            let start_byte = content.len();
-                            content.push_str(s);
-                            let end_byte = content.len();
-                            let range = SelectionRange::Byte(start_byte..end_byte);
-                            decorations.push(Decoration::new(
-                                range,
-                                StyleKey::Syntax(IndexedHighlightGroup::new(41)),
-                            ));
-                        }
-                    };
-
-                content.push_str("Description: ");
-                append_and_decorate(&mut content, &mut decorations, player.description());
-
-                content.push_str("\nFull Macro:\n");
-                content.push_str(&full_table_output);
-
-                let info =
-                    Info::new("Macro Finished".to_string(), content).set_decorations(decorations);
-                self.show_global_info(info);
-                return Ok(());
-            }
-
-            if self
-                .layout
-                .get_component_by_kind(ComponentKind::GlobalInfo)
-                .is_none()
-            {
-                self.show_global_info(Info::new("".to_string(), "".to_string()));
-            }
-
-            let (width, height) = self
-                .layout
-                .get_component_by_kind(ComponentKind::GlobalInfo)
-                .map(|c| {
-                    (
-                        c.borrow().rectangle().width.saturating_sub(4),
-                        c.borrow().rectangle().height.saturating_sub(2),
-                    )
-                })
-                .unwrap_or_else(|| (self.layout.terminal_dimension().width.saturating_sub(4), 10));
-
-            let help_display =
-                player.render_help_display(width.try_into().unwrap(), height.try_into().unwrap());
-
-            let info_title = format!(
-                "Playing Macro (Step {}/{})",
-                player.current_step() + 1,
-                player.total_steps()
-            );
-            let mut content = String::new();
-            let mut decorations = Vec::new();
-
-            let append_and_decorate =
-                |content: &mut String, decorations: &mut Vec<Decoration>, s: &str| {
-                    if !s.is_empty() {
-                        let start_byte = content.len();
-                        content.push_str(s);
-                        let end_byte = content.len();
-                        let range = SelectionRange::Byte(start_byte..end_byte);
-                        decorations.push(Decoration::new(
-                            range,
-                            StyleKey::Syntax(IndexedHighlightGroup::new(41)),
-                        ));
-                    }
-                };
-
-            content.push_str("Description: ");
-            append_and_decorate(&mut content, &mut decorations, player.description());
-
-            content.push_str("\nNext KeyEvents:\n");
-            content.push_str(&help_display);
-
-            let info = Info::new(info_title, content).set_decorations(decorations);
-            self.show_global_info(info);
-
-            let sender = self.sender();
-            thread::spawn(move || {
-                let delay = if player.current_step() == 0 {
-                    500
-                } else {
-                    1000
-                };
-                thread::sleep(Duration::from_millis(delay));
-
-                sender
-                    .send(AppMessage::ExternalDispatch(Box::new(
-                        Dispatch::PlayMacroStep(player.for_press_phase()),
-                    )))
-                    .ok();
-            });
         }
         Ok(())
     }
@@ -3954,7 +3764,6 @@ pub(crate) enum Dispatch {
         path: CanonicalizedPath,
     },
     OpenWorkspaceSymbolsPrompt,
-    PlayMacroStep(MacroHelpPlayer),
     GetAndHandlePromptOnChangeDispatches,
     SetIncrementalSearchConfig {
         config: crate::context::LocalSearchConfig,
