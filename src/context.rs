@@ -491,13 +491,9 @@ impl Context {
         if let Some(index) = self.marked_files.get_index_of(&path) {
             self.unmark_path_impl(index, path)
         } else {
-            let _ = self.mark_file(path);
+            let _ = self.marked_files.insert_sorted(path);
             None
         }
-    }
-
-    pub(crate) fn mark_file(&mut self, path: CanonicalizedPath) -> (usize, bool) {
-        self.marked_files.insert_sorted(path)
     }
 
     /// Returns true if the path to be removed is in the list

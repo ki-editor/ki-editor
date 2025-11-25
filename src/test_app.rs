@@ -1514,14 +1514,14 @@ fn global_marks() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            App(MarkFileAndToggleMark),
+            Editor(ToggleMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            App(MarkFileAndToggleMark),
+            Editor(ToggleMark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Mark,
             )),
@@ -1557,14 +1557,14 @@ fn global_marks_updated_by_edits() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            App(MarkFileAndToggleMark),
+            Editor(ToggleMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            App(MarkFileAndToggleMark),
+            Editor(ToggleMark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Mark,
             )),
@@ -1624,7 +1624,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             Editor(SetContent("foo bar foo bar".to_string())),
-            App(MarkFileAndToggleMark),
+            Editor(ToggleMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
