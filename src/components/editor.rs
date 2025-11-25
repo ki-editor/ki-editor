@@ -62,6 +62,7 @@ pub(crate) enum Mode {
 
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
 pub(crate) enum PriorChange {
+    EnterDeleteMode,
     EnterMultiCursorMode,
     EnableSelectionExtension,
 }
@@ -240,7 +241,6 @@ impl Component for Editor {
             CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
             EnterSwapMode => self.enter_swap_mode(),
-            EnterDeleteMode => self.enter_delete_mode(),
             ReplacePattern { config } => {
                 let selection_set = self.selection_set.clone();
                 let (_, selection_set, dispatches, _) =
@@ -264,6 +264,7 @@ impl Component for Editor {
             MoveToLineEnd => return self.move_to_line_end(),
             SelectLine(movement) => return self.select_line(movement, context),
             Redo => return self.redo(context),
+            DeleteOne => return self.delete_one(context),
             Change => return self.change(context),
             ChangeCut => return self.change_cut(context),
             #[cfg(test)]
@@ -1644,6 +1645,35 @@ impl Editor {
             }
         }
         .map(|dispatches| dispatches.append(self.dispatch_jumps_changed()))
+    }
+
+    // This is similar to Ki's Change, except it enters normal mode
+    pub(crate) fn delete_one(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let range = selection.extended_range();
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(self.buffer().rope(), range, Rope::new())),
+                            Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range((range.start..range.start).into())
+                                    .set_initial_range(None),
+                            ),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect(),
+        );
+
+        let _ = self.enter_normal_mode(context);
+
+        Ok(self.apply_edit_transaction(edit_transaction, context)?)
     }
 
     /// Similar to Change in Vim, but does not copy the current selection
@@ -4012,6 +4042,7 @@ impl Editor {
     pub(crate) fn handle_prior_change(&mut self, prior_change: Option<PriorChange>) {
         if let Some(prior_change) = prior_change {
             match prior_change {
+                PriorChange::EnterDeleteMode => self.mode = Mode::Delete,
                 PriorChange::EnterMultiCursorMode => self.mode = Mode::MultiCursor,
                 PriorChange::EnableSelectionExtension => self.enable_selection_extension(),
             }
@@ -4219,10 +4250,6 @@ impl Editor {
             _ => Dispatches::one(Dispatch::ToEditor(EnterNormalMode)),
         }
     }
-
-    fn enter_delete_mode(&mut self) {
-        self.mode = Mode::Delete
-    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4274,6 +4301,7 @@ pub(crate) enum DispatchEditor {
     SetRectangle(Rectangle),
     EnableSelectionExtension,
     DisableSelectionExtension,
+    DeleteOne,
     Change,
     ChangeCut,
     EnterInsertMode(Direction),
@@ -4372,7 +4400,6 @@ pub(crate) enum DispatchEditor {
     GoToFile,
     SearchClipboardContent(Scope),
     PressSpace,
-    EnterDeleteMode,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

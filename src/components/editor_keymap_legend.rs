@@ -427,13 +427,6 @@ impl Editor {
             )
             .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Delte),
-                Direction::End.format_action("Delete"),
-                Direction::End.format_action("Delete"),
-                Dispatch::ToEditor(EnterDeleteMode),
-            )
-            .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::InstP),
                 Direction::Start.format_action("Insert"),
                 Direction::Start.format_action("Insert"),
@@ -772,6 +765,16 @@ impl Editor {
     ) -> Vec<Keymap> {
         [
             Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::Delte),
+                "Delete".to_string(),
+                "Enter Delete mode".to_string(),
+                Dispatch::ShowKeymapLegend(self.delete_mode_keymap_legend_config(context)),
+            )
+            .override_keymap(
+                normal_mode_override.delete.clone().as_ref(),
+                none_if_no_override,
+            ),
+            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::MultC),
                 "Multi Curs".to_string(),
                 "Enter Multi-cursor mode".to_string(),
@@ -806,6 +809,11 @@ impl Editor {
                 &self
                     .normal_mode_keymaps(context, normal_mode_override, prior_change)
                     .into_iter()
+                    .chain(Some(Keymap::new(
+                        context.keyboard_layout_kind().get_key(&Meaning::Delte),
+                        "Delete".to_string(),
+                        Dispatch::ShowKeymapLegend(self.delete_mode_keymap_legend_config(context)),
+                    )))
                     .chain(Some(Keymap::new(
                         context.keyboard_layout_kind().get_key(&Meaning::MultC),
                         "Multi-cursor".to_string(),
@@ -845,6 +853,28 @@ impl Editor {
             .collect_vec()
     }
 
+    pub(crate) fn delete_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Delete".to_string(),
+            keymaps: Keymaps::new(
+                &self
+                    .normal_mode_keymaps(
+                        context,
+                        Some(delete_mode_normal_mode_override(
+                            self.cursor_direction.reverse(),
+                        )),
+                        Some(PriorChange::EnterDeleteMode),
+                    )
+                    .into_iter()
+                    .chain(Some(Keymap::new(
+                        context.keyboard_layout_kind().get_key(&Meaning::Delte),
+                        "Delete One".to_string(),
+                        Dispatch::ToEditor(DeleteOne),
+                    )))
+                    .collect_vec(),
+            ),
+        }
+    }
     pub(crate) fn multicursor_mode_keymap_legend_config(
         &self,
         context: &Context,
@@ -1715,6 +1745,12 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
             description: "Select All",
             dispatch: Dispatch::ToEditor(SelectAll),
         }),
+        ..Default::default()
+    }
+}
+
+pub(crate) fn delete_mode_normal_mode_override(direction: Direction) -> NormalModeOverride {
+    NormalModeOverride {
         ..Default::default()
     }
 }
