@@ -8,21 +8,8 @@
 
 use crate::components::editor_keymap::KeyboardMeaningLayout;
 use crate::components::editor_keymap::Meaning::{self, *};
-
 use crate::handle_custom_action::{CustomAction, CustomAction::*, CustomContext, Placeholder::*};
 use crate::handle_custom_action::{DirWorking, FileCurrent, SelectionPrimary};
-
-pub(crate) const CUSTOM_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
-    [
-        __Q__, __W__, __E__, __R__, __T__, /****/ __Y__, __U__, __I__, __O__, __P__,
-    ],
-    [
-        __A__, __S__, __D__, __F__, __G__, /****/ __H__, __J__, __K__, __L__, _SEMI,
-    ],
-    [
-        __Z__, __X__, __C__, __V__, __B__, /****/ __N__, __M__, _COMA, _DOT_, _SLSH,
-    ],
-];
 
 fn sample_run_command(ctx: &CustomContext) -> CustomAction {
     // Search selected content using Google and Chromium
@@ -124,12 +111,27 @@ fn tmux_build(ctx: &CustomContext) -> CustomAction {
     }
 }
 
+pub(crate) const CUSTOM_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
+    [
+        __Q__, __W__, __E__, __R__, __T__, /****/ __Y__, __U__, __I__, __O__, __P__,
+    ],
+    [
+        __A__, __S__, __D__, __F__, __G__, /****/ __H__, __J__, __K__, __L__, _SEMI,
+    ],
+    [
+        __Z__, __X__, __C__, __V__, __B__, /****/ __N__, __M__, _COMA, _DOT_, _SLSH,
+    ],
+];
+
+// Assign keybinds here, with respect to the qwerty layout above
+// Compile, relaunch and press `\` (direct) or `|` (help) to use these
 pub(crate) fn custom_keymap() -> Vec<(
     Meaning,
     &'static str,
     Option<fn(&CustomContext) -> CustomAction>,
 )> {
     let custom_keymap: [(Meaning, &str, Option<fn(&CustomContext) -> CustomAction>); 30] = [
+        // Key, Description, Function
         (__Q__, "Sample RunCommand", Some(sample_run_command)),
         (__W__, "Sample ToggleProcess", Some(sample_toggle_process)),
         (__E__, "Sample ToClipboard", Some(sample_to_clipboard)),
