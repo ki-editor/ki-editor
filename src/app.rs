@@ -2169,6 +2169,14 @@ impl<T: Frontend> App<T> {
         self.layout.get_buffer_contents_map()
     }
 
+    #[cfg(test)]
+    fn handle_key_events(&mut self, key_events: Vec<event::KeyEvent>) -> anyhow::Result<()> {
+        for key_event in key_events.into_iter() {
+            self.handle_event(Event::Key(key_event.to_owned()))?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn handle_dispatch_suggestive_editor(
         &mut self,
         dispatch: DispatchSuggestiveEditor,
