@@ -620,6 +620,14 @@ impl Movement {
             _ => Direction::End,
         }
     }
+
+    fn downgrade(&self) -> Movement {
+        match self {
+            Movement::Right => Movement::Next,
+            Movement::Left => Movement::Previous,
+            _ => *self,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1122,8 +1130,16 @@ impl Editor {
                         // If the selection mode is contiguous,
                         // perform a "delete until the other selection" instead
                         // Other selection is a selection which is before/after the current selection
-                        if let Some(other_selection) =
-                            get_selection(&movement).or_else(|| get_selection(&movement.reverse()))
+                        if let Some(other_selection) = get_selection(&movement)
+                            .or_else(|| get_selection(&movement.reverse()))
+                            // If no selection is found using `movement`, then try downgrading it.
+                            // Downgrading is only applicable for the Left/Right movement,
+                            // which transform into Previous/Next.
+                            // This is necessary, because in some cases, there are no longer meaningful selections,
+                            // and only meaningless selections are left,
+                            // so we will have to "downgrade" the movement so that we can obtain the meaningless selections.
+                            .or_else(|| get_selection(&movement.downgrade()))
+                            .or_else(|| get_selection(&movement.downgrade().reverse()))
                         {
                             // The other_selection is only consider valid
                             // if it does not intersect with the range to be deleted

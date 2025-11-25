@@ -5726,3 +5726,23 @@ fn files_longer_than_65535_lines() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn delete_until_no_more_meaningful_selection_should_not_stuck() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("a = hello()".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnterDeleteMode),
+            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentComponentContent("()")),
+            Expect(CurrentSelectedTexts(&["("])),
+        ])
+    })
+}
