@@ -261,7 +261,7 @@ mod test_word {
                 )),
                 Expect(CurrentSelectedTexts(&["foo"])),
                 Editor(EnterDeleteMode),
-                Editor(MoveSelection(Right)),
+                Editor(MoveSelection(Next)),
                 Expect(CurrentSelectedTexts(&["."])),
             ])
         })

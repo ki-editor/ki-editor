@@ -229,7 +229,7 @@ fn delete_should_not_kill_if_not_possible_2() -> anyhow::Result<()> {
             Editor(EnterDeleteMode),
             Editor(MoveSelection(Right)),
             Expect(CurrentComponentContent("fn main() {}")),
-            Expect(CurrentSelectedTexts(&[""])),
+            Expect(CurrentSelectedTexts(&[")"])),
         ])
     })
 }
