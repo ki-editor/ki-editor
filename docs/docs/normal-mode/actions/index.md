@@ -165,6 +165,9 @@ Toggles a bookmark at the current selection, allowing you to navigate elsewhere
 in the codebase while maintaining a reference to your focal point without
 memorizing its exact location.
 
+Marking a selection additionally also marks the file, however unmarking all of
+the marked selections does not unmark the file.
+
 ### `Mark File`
 
 Mark/unmark the current file. This feature allows you to efficiently manage and switch
