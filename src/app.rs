@@ -53,7 +53,6 @@ use crate::{
     thread::{Callback, SendResult},
     ui_tree::{ComponentKind, KindedComponent},
 };
-use comfy_table::Table;
 use event::event::Event;
 use itertools::{Either, Itertools};
 use name_variant::NamedVariant;
@@ -71,7 +70,6 @@ use std::{
         mpsc::{Receiver, Sender},
         Mutex,
     },
-    thread,
 };
 use std::{sync::Arc, time::Duration};
 use strum::IntoEnumIterator;
@@ -2169,13 +2167,6 @@ impl<T: Frontend> App<T> {
     #[cfg(test)]
     pub(crate) fn get_buffer_contents_map(&self) -> BufferContentsMap {
         self.layout.get_buffer_contents_map()
-    }
-
-    fn handle_key_events(&mut self, key_events: Vec<event::KeyEvent>) -> anyhow::Result<()> {
-        for key_event in key_events.into_iter() {
-            self.handle_event(Event::Key(key_event.to_owned()))?;
-        }
-        Ok(())
     }
 
     pub(crate) fn handle_dispatch_suggestive_editor(

@@ -23,7 +23,6 @@ mod app;
 #[cfg(test)]
 mod generate_recipes;
 pub(crate) mod history;
-pub(crate) mod macro_help_player;
 mod non_empty_extensions;
 mod osc52;
 pub(crate) mod process_manager;

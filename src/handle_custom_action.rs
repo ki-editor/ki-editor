@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use event::KeyEvent;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{cmp::Ordering, fmt};
 use Placeholder::*;
@@ -11,7 +10,6 @@ pub(crate) enum CustomAction {
     RunCommand(&'static str, Vec<Placeholder>),
     ToClipboard(Vec<Placeholder>),
     ToggleProcess(&'static str, Vec<Placeholder>),
-    Macro(&'static [KeyEvent]),
     DoNothing,
 }
 
