@@ -260,7 +260,8 @@ mod test_word {
                     SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&["foo"])),
-                Editor(DeleteNoGap),
+                Editor(EnterDeleteMode),
+                Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["."])),
             ])
         })
@@ -281,7 +282,8 @@ mod test_word {
                     SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&["foo"])),
-                Editor(Delete),
+                Editor(EnterDeleteMode),
+                Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["bar"])),
                 Expect(CurrentComponentContent("bar.spam")),
             ])

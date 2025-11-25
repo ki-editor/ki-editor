@@ -232,7 +232,7 @@ fn saving_a_file_should_not_refreshes_the_buffer_due_to_incoming_file_modified_n
                 focus: true,
             }),
             Editor(MatchLiteral("mod".to_string())),
-            Editor(Delete),
+            Editor(EnterDeleteMode),
             Editor(Save),
             WaitForDuration(Duration::from_secs(2)),
             WaitForAppMessage(regex!("FileWatcherEvent.*ContentModified")),

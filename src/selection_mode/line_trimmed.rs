@@ -987,7 +987,8 @@ foo
                 Editor(MoveSelection(Movement::Last)),
                 Editor(MoveSelection(Movement::Next)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(Delete),
+                Editor(EnterDeleteMode),
+                Editor(MoveSelection(Right)),
                 Expect(CurrentComponentContent("hello")),
             ])
         })
@@ -1010,8 +1011,8 @@ foo
                 Editor(MoveSelection(Movement::Last)),
                 Editor(MoveSelection(Movement::Next)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(SwapCursor),
-                Editor(Delete),
+                Editor(EnterDeleteMode),
+                Editor(MoveSelection(Left)),
                 Expect(CurrentComponentContent("hello")),
             ])
         })

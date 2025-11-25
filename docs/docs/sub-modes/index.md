@@ -10,5 +10,5 @@ There are 3 submodes in Ki:
 
 1. Swap (`r`)
 2. Multi-cursor (`t`)
-3. Extend (`f`)
-
+3. Delete (`v`)
+4. Extend (`g`)

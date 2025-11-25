@@ -393,8 +393,6 @@ impl Component for Editor {
                 return Ok(self.search_clipboard_content(scope, context))
             }
             PressSpace => return Ok(self.press_space(context)),
-            Delete => todo!(),
-            DeleteNoGap => todo!(),
         }
         Ok(Default::default())
     }
@@ -597,6 +595,29 @@ impl Movement {
             Movement::Expand => MovementApplicandum::Expand,
             Movement::Previous => MovementApplicandum::Previous,
             Movement::Next => MovementApplicandum::Next,
+        }
+    }
+
+    fn reverse(&self) -> Movement {
+        match self {
+            Movement::Left => Movement::Right,
+            Movement::Right => Movement::Left,
+            Movement::Up => Movement::Down,
+            Movement::Down => Movement::Up,
+            Movement::First => Movement::Last,
+            Movement::Last => Movement::First,
+            Movement::Previous => Movement::Next,
+            Movement::Next => Movement::Previous,
+            _ => *self,
+        }
+    }
+
+    fn to_direction(self) -> Direction {
+        use Movement::*;
+        match self {
+            Right | Next | Last => Direction::End,
+            Left | Previous | First => Direction::Start,
+            _ => Direction::End,
         }
     }
 }
@@ -1046,7 +1067,6 @@ impl Editor {
     ) -> anyhow::Result<Dispatches> {
         // to copy deleted item to clipboard copy_dispatch should be self.copy()?
         let copy_dispatches: Dispatches = Default::default();
-        let direction = self.cursor_direction.reverse();
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -1069,12 +1089,13 @@ impl Editor {
                         (current_range, (start..start + 1).into())
                     };
 
-                    let get_selection = |direction: &Direction| {
+                    let get_selection = |movement: &Movement| {
                         // The start selection is used for getting the next/previous selection
                         // It cannot be the extended selection, otherwise the next/previous selection
                         // will not be found
-                        let start_selection =
-                            &selection.clone().collapsed_to_anchor_range(direction);
+                        let start_selection = &selection
+                            .clone()
+                            .collapsed_to_anchor_range(&movement.to_direction());
                         let result_selection = Selection::get_selection_(
                             &buffer,
                             start_selection,
@@ -1101,8 +1122,8 @@ impl Editor {
                         // If the selection mode is contiguous,
                         // perform a "delete until the other selection" instead
                         // Other selection is a selection which is before/after the current selection
-                        if let Some(other_selection) = get_selection(&direction)
-                            .or_else(|| get_selection(&direction.reverse()))
+                        if let Some(other_selection) =
+                            get_selection(&movement).or_else(|| get_selection(&movement.reverse()))
                         {
                             // The other_selection is only consider valid
                             // if it does not intersect with the range to be deleted
@@ -4338,8 +4359,6 @@ pub(crate) enum DispatchEditor {
     SearchClipboardContent(Scope),
     PressSpace,
     EnterDeleteMode,
-    Delete,
-    DeleteNoGap,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
