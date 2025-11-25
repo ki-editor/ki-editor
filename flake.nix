@@ -231,7 +231,14 @@
                 ++ extraRustFlags;
 
               # Native build inputs - now using common inputs
-              nativeBuildInputs = commonNativeBuildInputs ++ extraNativeBuildInputs ++ (if isLinux then [pkgs.mold] else []);
+              nativeBuildInputs =
+                commonNativeBuildInputs
+                ++ extraNativeBuildInputs
+                ++ (
+                  if isLinux
+                  then [pkgs.mold]
+                  else []
+                );
 
               # Build inputs
               buildInputs =
