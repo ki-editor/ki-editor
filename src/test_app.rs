@@ -1331,7 +1331,7 @@ fn main() {
             }),
             Expect(CurrentComponentContent(original_content)),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(Delete),
+            Editor(DeleteNoGap),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
                 GitHunk(diff_mode),
@@ -1447,10 +1447,7 @@ fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
                 width: 200,
                 height: 6,
             })),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(SelectAll),
-            Editor(Delete),
-            Editor(Insert(
+            Editor(SetContent(
                 "
 fn first () {
   second();
@@ -1540,6 +1537,73 @@ fn global_marks() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
+                        range: (CharIndex(0)..CharIndex(3)).into(),
+                    },
+                    None,
+                    None,
+                ),
+            ]))),
+        ])
+    })
+}
+
+#[test]
+fn global_marks_updated_by_edits() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            Editor(ToggleMark),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            Editor(ToggleMark),
+            App(SetQuickfixList(
+                crate::quickfix_list::QuickfixListType::Mark,
+            )),
+            Expect(Quickfixes(Box::new([
+                QuickfixListItem::new(
+                    Location {
+                        path: s.foo_rs(),
+                        range: (CharIndex(0)..CharIndex(3)).into(),
+                    },
+                    None,
+                    None,
+                ),
+                QuickfixListItem::new(
+                    Location {
+                        path: s.main_rs(),
+                        range: (CharIndex(0)..CharIndex(3)).into(),
+                    },
+                    None,
+                    None,
+                ),
+            ]))),
+            // Modify foo.rs to update the mark's position
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("x x x").to_vec())),
+            // Get global marks again
+            Expect(Quickfixes(Box::new([
+                QuickfixListItem::new(
+                    Location {
+                        path: s.foo_rs(),
+                        // Expect the range of mark in foo.rs is updated
+                        range: (CharIndex(3)..CharIndex(6)).into(),
+                    },
+                    None,
+                    None,
+                ),
+                QuickfixListItem::new(
+                    Location {
+                        path: s.main_rs(),
+                        // Expect the range of mark in main.rs remain unchanged
                         range: (CharIndex(0)..CharIndex(3)).into(),
                     },
                     None,
@@ -2334,7 +2398,7 @@ fn should_be_able_to_handle_key_event_even_when_no_file_is_opened() -> anyhow::R
     execute_test(|_| {
         Box::new([
             Expect(CurrentComponentContent("")),
-            App(HandleKeyEvents(keys!("h h e l l o").to_vec())),
+            App(HandleKeyEvents(keys!("u h e l l o").to_vec())),
             Expect(CurrentComponentContent("hello")),
         ])
     })
@@ -2383,7 +2447,7 @@ fn cycle_window() -> anyhow::Result<()> {
                 SuggestiveEditor(DispatchSuggestiveEditor::Completion(completion.clone())),
                 Expect(ComponentCount(3)),
                 // Move to the next completion item (which is 'Spongebob squarepants')
-                App(HandleKeyEvent(key!("alt+k"))),
+                App(HandleKeyEvent(key!("alt+l"))),
                 Expect(CurrentComponentContent("")),
                 App(OtherWindow),
                 Expect(ComponentCount(3)),
@@ -3235,7 +3299,7 @@ fn using_suggested_search_term() -> anyhow::Result<()> {
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             Expect(CompletionDropdownContent("bar\nfoo\nspam")),
-            App(HandleKeyEvents(keys!("f o alt+l").to_vec())),
+            App(HandleKeyEvents(keys!("f o alt+x").to_vec())),
             Expect(CurrentComponentContent("foo")),
         ])
     })
@@ -3665,6 +3729,26 @@ fn unable_to_close_marked_files_that_became_a_directory() -> Result<(), anyhow::
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Expect(MarkedFiles([s.main_rs()].to_vec())),
             Expect(GlobalInfo("The file mark \"foo\" is removed from the list as it cannot be opened due to the following error:\n\nThe path \"foo\" is not a file.")),
+        ])
+    })
+}
+
+#[test]
+fn go_to_file_under_selection() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(s.foo_rs().display_absolute())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Editor(GoToFile),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
         ])
     })
 }

@@ -165,18 +165,22 @@ impl Context {
 
         self.marks = std::mem::take(&mut self.marks)
             .into_iter()
-            .map(|(path, marks)| {
-                (
-                    path,
-                    marks
-                        .into_iter()
-                        .filter_map(|mark| {
-                            edits
-                                .iter()
-                                .try_fold(mark, |mark, edit| mark.apply_edit(edit))
-                        })
-                        .collect(),
-                )
+            .map(|(p, marks)| {
+                if p == path {
+                    (
+                        p,
+                        marks
+                            .into_iter()
+                            .filter_map(|mark| {
+                                edits
+                                    .iter()
+                                    .try_fold(mark, |mark, edit| mark.apply_edit(edit))
+                            })
+                            .collect(),
+                    )
+                } else {
+                    (p, marks)
+                }
             })
             .collect();
     }
@@ -206,6 +210,10 @@ impl Context {
     pub(crate) fn get_marks(&self, path: Option<CanonicalizedPath>) -> Vec<CharIndexRange> {
         path.map(|path| self.marks.get(&path).cloned().unwrap_or_default().to_vec())
             .unwrap_or_default()
+    }
+
+    pub(crate) fn marks(&self) -> &HashMap<CanonicalizedPath, Vec<CharIndexRange>> {
+        &self.marks
     }
 }
 
@@ -300,11 +308,11 @@ impl Context {
     ///
     /// This method should never fail, if `use_system_clipboard` is true but
     /// the system clipboard is inaccessible, the app clipboard will be used.
-    pub(crate) fn get_clipboard_content(
-        &self,
-        use_system_clipboard: bool,
-        history_offset: isize,
-    ) -> Option<CopiedTexts> {
+    pub(crate) fn get_clipboard_content(&self, history_offset: isize) -> Option<CopiedTexts> {
+        // Always use the system clipboard if the content of the system clipboard is no longer the same
+        // with the content of the app clipboard
+        let use_system_clipboard = !self.clipboards_synced();
+
         if use_system_clipboard {
             match self.clipboard.get_from_system_clipboard() {
                 Ok(copied_texts) => return Some(copied_texts),

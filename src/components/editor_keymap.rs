@@ -16,25 +16,25 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchL, SWord, SrchC, MultC, Swap_, /****/ Open_, Prev_, Up___, Next_, Paste,
+        SrchL, SWord, SchCS, MultC, Swap_, /****/ First, InstP, Up___, InstN, Last_,
     ],
     [
-        Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
+        Line_, Word_, Sytx_, Chng_, Extnd, /****/ Prev_, Left_, Down_, Right, Next_,
     ],
     [
-        Undo_, Rplc_, Copy_, Delte, Mark_, /****/ LSrch, Jump_, First, Last_, XAchr,
+        Undo_, Rplc_, Copy_, Delte, Mark_, /****/ LSrch, Jump_, Open_, Paste, XAchr,
     ],
 ];
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        _____, Char_, SchWC, _____, Raise, /****/ _____, RplcP, Join_, RplcN, Pst0G,
+        SchWC, Char_, SchCC, _____, Raise, /****/ _____, RplcP, Join_, RplcN, _____,
     ],
     [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
     ],
     [
-        Redo_, PRplc, RplcX, Del0G, _____, /****/ GSrch, ToIdx, _____, _____, SSEnd,
+        Redo_, PRplc, RplcX, Del0G, _____, /****/ GSrch, ToIdx, _____, Pst0G, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -49,7 +49,7 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
         _____, LineP, LineD, LineN, OpenM, /****/ DWrdP, MrkFP, ScrlD, MrkFN, SView,
     ],
     [
-        Undo_, _____, _____, WClse, MarkF, /****/ _____, SHelp, _____, _____, WSwth,
+        Undo_, _____, _____, WClse, MarkF, /****/ _____, _____, _____, _____, WSwth,
     ],
 ];
 
@@ -82,7 +82,7 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// This keymap should be almost identical with that of Find Local
 pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
     [
-        Srch_, _____, SrchC, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
+        Srch_, _____, SchCS, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
@@ -130,25 +130,25 @@ pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_SPACE_EDITOR: KeyboardMeaningLayout = [
     [
-        QNSav, QSave, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, SaveA, RlBfr, Pipe_, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, RlBfr, Pipe_, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, RplcA, _____, _____, TSNSx, /****/ _____, _____, _____, _____, _____,
+        _____, RplcA, SaveA, QNSav, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
 pub(crate) const KEYMAP_SPACE_CONTEXT: KeyboardMeaningLayout = [
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, _____, _____, TSNSx, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, LHovr, LCdAc, LRnme, RvHkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, _____, GtBlm, /****/ _____, _____, _____, _____, _____,
+        _____, GoFil, _____, _____, GtBlm, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -260,6 +260,13 @@ pub(crate) const WORKMAN: KeyboardLayout = [
     ["q", "d", "r", "w", "b", "j", "f", "u", "p", ";"],
     ["a", "s", "h", "t", "g", "y", "n", "e", "o", "i"],
     ["z", "x", "m", "c", "v", "k", "l", ",", ".", "/"],
+];
+
+/// Refer http://adnw.de/index.php?n=Main.OptimierungF%c3%bcrDieGeradeTastaturMitDaumen-Shift
+pub(crate) const PUQ: KeyboardLayout = [
+    ["p", "u", ":", ",", "q", "g", "c", "l", "m", "f"],
+    ["h", "i", "e", "a", "o", "d", "t", "r", "n", "s"],
+    ["k", "y", ".", "'", "x", "j", "v", "w", "b", "z"],
 ];
 
 struct KeySet {
@@ -408,6 +415,7 @@ static COLEMAK_DH_SEMI_QUOTE_KEYSET: Lazy<KeySet> =
 static DVORAK_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK));
 static DVORAK_IU_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK_IU));
 static WORKMAN_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(WORKMAN));
+static PUQ_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(PUQ));
 
 #[derive(Debug, Clone, strum_macros::EnumIter, PartialEq, Eq)]
 pub(crate) enum KeyboardLayoutKind {
@@ -418,6 +426,7 @@ pub(crate) enum KeyboardLayoutKind {
     ColemakDH,
     ColemakDHSemiQuote,
     Workman,
+    Puq,
 }
 
 impl KeyboardLayoutKind {
@@ -430,6 +439,7 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::ColemakDHSemiQuote => "COLEMAK-DH;",
             KeyboardLayoutKind::DvorakIU => "DVORAK-IU",
             KeyboardLayoutKind::Workman => "WORKMAN",
+            KeyboardLayoutKind::Puq => "PUQ",
         }
     }
 
@@ -442,6 +452,7 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
             KeyboardLayoutKind::DvorakIU => &DVORAK_IU,
             KeyboardLayoutKind::Workman => &WORKMAN,
+            KeyboardLayoutKind::Puq => &PUQ,
         }
     }
 
@@ -562,6 +573,7 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
             KeyboardLayoutKind::DvorakIU => &DVORAK_IU_KEYSET,
             KeyboardLayoutKind::Workman => &WORKMAN_KEYSET,
+            KeyboardLayoutKind::Puq => &PUQ_KEYSET,
         }
     }
 }
@@ -674,7 +686,9 @@ pub(crate) enum Meaning {
     /// Scroll up
     ScrlU,
     /// Search current selection
-    SrchC,
+    SchCS,
+    /// Search current clipboard content
+    SchCC,
     /// Search (local)
     SrchL,
     /// Select Fine Syntax Node
@@ -765,8 +779,6 @@ pub(crate) enum Meaning {
     SHelp,
     /// Quit No Save
     QNSav,
-    /// Quit Save
-    QSave,
     /// Save All
     SaveA,
     /// File Explorer
@@ -917,6 +929,8 @@ pub(crate) enum Meaning {
     RlBfr,
     /// Open search prompt with current selection
     SchWC,
+    /// Go to file
+    GoFil,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

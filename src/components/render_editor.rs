@@ -50,11 +50,11 @@ impl Editor {
         &self,
         context: &Context,
         focused: bool,
-        scroll_offset: u16,
+        scroll_offset: usize,
         hunks: &[SimpleHunk],
     ) -> GetGridResult {
         let title = self.title(context);
-        let title_grid_height = title.lines().count() as u16;
+        let title_grid_height = title.lines().count();
         let render_area = {
             let Dimension { height, width } = self.dimension();
             Dimension {
@@ -149,17 +149,14 @@ impl Editor {
             vec![]
         } else {
             let wrapped_items = wrap_items(
-                &get_formatted_paths(
+                get_formatted_paths(
                     &context.get_marked_files(),
                     &self.path()?,
                     context.current_working_directory(),
                     self.buffer().dirty(),
-                )
-                .iter()
-                .map(|s| s.as_str())
-                .collect_vec(),
+                ),
                 // Reference: NEED_TO_REDUCE_WIDTH_BY_1
-                (dimension.width as usize).saturating_sub(1),
+                dimension.width.saturating_sub(1),
             );
 
             trim_array(
@@ -167,14 +164,14 @@ impl Editor {
                 wrapped_items.len().saturating_sub(1)..wrapped_items.len(),
                 wrapped_items
                     .len()
-                    .saturating_sub(dimension.height.saturating_sub(1).into()),
+                    .saturating_sub(dimension.height.saturating_sub(1)),
             )
             .trimmed_array
         };
         let result = result.join("\n");
 
         // Ensure that at least one height is spared for rendering the editor's content
-        debug_assert!(result.lines().count() <= dimension.height.saturating_sub(1) as usize);
+        debug_assert!(result.lines().count() <= dimension.height.saturating_sub(1));
         Some(result)
     }
 
@@ -224,7 +221,7 @@ impl Editor {
         .collect_vec();
         let viewport_sections = divide_viewport(
             &ranges,
-            render_area.height as usize,
+            render_area.height,
             buffer
                 .char_index_range_to_byte_range(
                     self.selection_set.primary_selection().extended_range(),
@@ -262,10 +259,10 @@ impl Editor {
                     context.current_working_directory(),
                     context.quickfix_list_items(),
                     Dimension {
-                        height: viewport_section.height() as u16,
+                        height: viewport_section.height(),
                         width: self.dimension().width,
                     },
-                    window.start as u16,
+                    window.start,
                     Some(protected_range),
                     true,
                     true,
@@ -287,7 +284,7 @@ impl Editor {
         working_directory: &CanonicalizedPath,
         quickfix_list_items: Vec<&QuickfixListItem>,
         dimension: Dimension,
-        scroll_offset: u16,
+        scroll_offset: usize,
         protected_range: Option<CharIndexRange>,
         borderize_first_line: bool,
         render_line_number: bool,
@@ -308,7 +305,8 @@ impl Editor {
                 .unwrap_or_default()
         });
 
-        let len_lines = rope.len_lines().max(1) as u16;
+        let len_lines = rope.len_lines().max(1);
+
         let (hidden_parent_lines, visible_parent_lines) = self
             .get_parent_lines_given_line_index_and_scroll_offset(
                 protected_range_start_line.unwrap_or_default(),
@@ -318,8 +316,8 @@ impl Editor {
         let visible_lines = rope
             .lines()
             .enumerate()
-            .skip(scroll_offset as usize)
-            .take(height as usize)
+            .skip(scroll_offset)
+            .take(height)
             .map(|(line_index, slice)| (line_index, slice.to_string()));
 
         let visible_lines_grid: Grid = Grid::new(Dimension { height, width });
@@ -391,7 +389,7 @@ impl Editor {
                         if render_line_number {
                             RenderContentLineNumber::LineNumber {
                                 start_line_index: line.line,
-                                max_line_number: len_lines as usize,
+                                max_line_number: len_lines,
                             }
                         } else {
                             RenderContentLineNumber::NoLineNumber
@@ -438,8 +436,8 @@ impl Editor {
                 &visible_lines_content,
                 if render_line_number {
                     RenderContentLineNumber::LineNumber {
-                        start_line_index: scroll_offset as usize,
-                        max_line_number: len_lines as usize,
+                        start_line_index: scroll_offset,
+                        max_line_number: len_lines,
                     }
                 } else {
                     RenderContentLineNumber::NoLineNumber
@@ -448,7 +446,7 @@ impl Editor {
                     .into_iter()
                     .filter_map(|cell_update| {
                         Some(CellUpdate {
-                            position: cell_update.position.move_up(scroll_offset as usize)?,
+                            position: cell_update.position.move_up(scroll_offset)?,
                             ..cell_update
                         })
                     })
@@ -461,7 +459,7 @@ impl Editor {
                 {
                     Some(
                         cursor_position
-                            .set_line(cursor_position.line.saturating_sub(scroll_offset as usize)),
+                            .set_line(cursor_position.line.saturating_sub(scroll_offset)),
                     )
                 } else {
                     None
@@ -482,9 +480,8 @@ impl Editor {
                 max_hidden_parent_lines_count,
             );
             let clamped_hidden_parent_lines_grid = hidden_parent_lines_grid.clamp_bottom(
-                (trim_result.remaining_trim_count
-                    + (hidden_parent_lines_count - max_hidden_parent_lines_count))
-                    as u16,
+                trim_result.remaining_trim_count
+                    + (hidden_parent_lines_count - max_hidden_parent_lines_count),
             );
             let trimmed_visible_lines_grid = Grid {
                 width: visible_lines_grid.width,
@@ -508,7 +505,7 @@ impl Editor {
                     {
                         (0..width)
                             .map(|column| CellUpdate {
-                                position: Position::new(0, column as usize),
+                                position: Position::new(0, column),
                                 symbol: None,
                                 style: Style::new()
                                     .background_color(theme.ui.section_divider_background),
@@ -525,8 +522,8 @@ impl Editor {
             result.apply_cell_updates(section_divider_cell_updates)
         };
 
-        debug_assert_eq!(grid.rows.len(), height as usize);
-        debug_assert!(grid.rows.iter().all(|row| row.len() == width as usize));
+        debug_assert_eq!(grid.rows.len(), height);
+        debug_assert!(grid.rows.iter().all(|row| row.len() == width));
         grid
     }
 
@@ -1244,8 +1241,8 @@ mod test_render_editor {
                 origin: Default::default(),
                 width: (u8::arbitrary(g) / 10).max(
                     MAX_CHARACTER_WIDTH + LINE_NUMBER_UI_WIDTH + PADDING_FOR_CURSOR_AT_LAST_COLUMN,
-                ) as u16,
-                height: ((u8::arbitrary(g) / 10) as u16).max(1),
+                ) as usize,
+                height: (u8::arbitrary(g) / 10).max(1) as usize,
             }
         }
     }
@@ -1258,8 +1255,7 @@ mod test_render_editor {
         let grid = editor.get_grid(&Context::default(), false);
         let cells = grid.grid.to_positioned_cells();
         cells.into_iter().all(|cell| {
-            cell.position.line < (rectangle.height as usize)
-                && cell.position.column < (rectangle.width as usize)
+            cell.position.line < rectangle.height && cell.position.column < rectangle.width
         })
     }
 }

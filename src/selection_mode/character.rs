@@ -27,7 +27,6 @@ impl PositionBasedSelectionMode for Character {
         buffer: &crate::buffer::Buffer,
         cursor_char_index: crate::selection::CharIndex,
         _: IfCurrentNotFound,
-        _: crate::char_index_range::CharIndexRange,
     ) -> anyhow::Result<Option<ByteRange>> {
         let Some(last_char_index) = buffer.last_char_index() else {
             return Ok(None);

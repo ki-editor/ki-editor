@@ -12,8 +12,8 @@ use crate::{
 /// A struct to represent a rectangle with origin, width and height
 pub(crate) struct Rectangle {
     pub(crate) origin: Position,
-    pub(crate) width: u16,
-    pub(crate) height: u16,
+    pub(crate) width: usize,
+    pub(crate) height: usize,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -21,33 +21,27 @@ pub(crate) struct Rectangle {
 pub(crate) struct Border {
     pub(crate) direction: BorderDirection,
     pub(crate) start: Position,
-    pub(crate) length: u16,
+    pub(crate) length: usize,
 }
 
 impl Border {
     #[cfg(test)]
     fn area(&self, dimension: &Dimension) -> usize {
         match self.direction {
-            BorderDirection::Horizontal => {
-                dimension.width.saturating_sub(self.start.column as u16) as usize
-            }
-            BorderDirection::Vertical => {
-                dimension.height.saturating_sub(self.start.line as u16) as usize
-            }
+            BorderDirection::Horizontal => dimension.width.saturating_sub(self.start.column),
+            BorderDirection::Vertical => dimension.height.saturating_sub(self.start.line),
         }
     }
 
     fn positions(&self) -> HashSet<Position> {
         match self.direction {
-            BorderDirection::Horizontal => (self.start.column
-                ..(self.start.column + self.length as usize))
+            BorderDirection::Horizontal => (self.start.column..(self.start.column + self.length))
                 .map(|column| Position {
                     line: self.start.line,
                     column,
                 })
                 .collect(),
-            BorderDirection::Vertical => (self.start.line
-                ..(self.start.line + self.length as usize))
+            BorderDirection::Vertical => (self.start.line..(self.start.line + self.length))
                 .map(|line| Position {
                     line,
                     column: self.start.column,
@@ -82,7 +76,7 @@ impl Border {
             .collect()
     }
 
-    fn new_vertical(start: Position, length: u16) -> Border {
+    fn new_vertical(start: Position, length: usize) -> Border {
         Border {
             direction: BorderDirection::Vertical,
             start,
@@ -90,7 +84,7 @@ impl Border {
         }
     }
 
-    fn new_horizontal(position: Position, length: u16) -> Border {
+    fn new_horizontal(position: Position, length: usize) -> Border {
         Border {
             direction: BorderDirection::Horizontal,
             start: position,
@@ -126,14 +120,14 @@ pub(crate) fn spread(length: usize, count: usize) -> Vec<usize> {
 struct Split {
     kind: SplitKind,
     /// 0-based, can be either a line or a column
-    origin: u16,
+    origin: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum SplitKind {
     Rectangle {
         /// Can be either the length or the width
-        size: u16,
+        size: usize,
     },
     Border,
 }
@@ -142,10 +136,10 @@ fn split(length: usize, count: usize) -> Vec<Split> {
     let border_count = count - 1;
     let rectangles = spread(length - border_count, count)
         .into_iter()
-        .map(|size| SplitKind::Rectangle { size: size as u16 });
+        .map(|size| SplitKind::Rectangle { size });
 
     Itertools::intersperse(rectangles, SplitKind::Border)
-        .scan(0_u16, |origin, kind| {
+        .scan(0, |origin, kind| {
             let size = match kind {
                 SplitKind::Rectangle { size } => size,
                 SplitKind::Border => 1,
@@ -175,7 +169,7 @@ impl Rectangle {
             };
             let rectangle2 = Rectangle {
                 origin: Position {
-                    column: self.origin.column + (width1 as usize) + 1,
+                    column: self.origin.column + width1 + 1,
                     ..self.origin
                 },
                 width: width2,
@@ -185,7 +179,7 @@ impl Rectangle {
             let border = Border {
                 direction: BorderDirection::Vertical,
                 start: Position {
-                    column: self.origin.column + (width1 as usize),
+                    column: self.origin.column + width1,
                     line: self.origin.line,
                 },
                 length: self.height,
@@ -201,7 +195,7 @@ impl Rectangle {
             };
             let rectangle2 = Rectangle {
                 origin: Position {
-                    line: self.origin.line + height1 as usize + 1,
+                    line: self.origin.line + height1 + 1,
                     ..self.origin
                 },
                 height: height2,
@@ -211,7 +205,7 @@ impl Rectangle {
             let border = Border {
                 direction: BorderDirection::Horizontal,
                 start: Position {
-                    line: self.origin.line + height1 as usize,
+                    line: self.origin.line + height1,
                     column: self.origin.column,
                 },
                 length: self.width,
@@ -251,10 +245,10 @@ impl Rectangle {
     }
 
     fn split_vertically(&self, count: usize) -> Vec<Element> {
-        split(self.width as usize, count)
+        split(self.width, count)
             .into_iter()
             .map(|split| {
-                let column = self.origin.column + split.origin as usize;
+                let column = self.origin.column + split.origin;
                 let position = Position {
                     column,
                     ..self.origin
@@ -274,10 +268,10 @@ impl Rectangle {
     }
 
     fn split_horizontally(&self, count: usize) -> Vec<Element> {
-        split(self.height as usize, count)
+        split(self.height, count)
             .into_iter()
             .map(|split| {
-                let line = self.origin.line + split.origin as usize;
+                let line = self.origin.line + split.origin;
                 let position = Position {
                     line,
                     ..self.origin
@@ -394,12 +388,12 @@ impl Rectangle {
         let up = Rectangle {
             origin: self.origin,
             width: self.width,
-            height: line as u16,
+            height: line,
         };
         let bottom = Rectangle {
             origin: self.origin.move_down(line),
             width: self.width,
-            height: self.height.saturating_sub(line as u16),
+            height: self.height.saturating_sub(line),
         };
         (up, bottom)
     }
@@ -407,12 +401,12 @@ impl Rectangle {
     pub(crate) fn split_vertically_at(&self, column: usize) -> (Rectangle, Rectangle) {
         let left = Rectangle {
             origin: self.origin,
-            width: column as u16,
+            width: column,
             height: self.height,
         };
         let right = Rectangle {
-            origin: self.origin.move_right(column as u16),
-            width: self.width.saturating_sub(column as u16),
+            origin: self.origin.move_right(column),
+            width: self.width.saturating_sub(column),
             height: self.height,
         };
         (left, right)
@@ -420,14 +414,14 @@ impl Rectangle {
 
     #[cfg(test)]
     fn area(&self) -> usize {
-        self.width as usize * self.height as usize
+        self.width * self.height
     }
 
     #[cfg(test)]
     fn positions(&self) -> HashSet<Position> {
-        (self.origin.line..self.origin.line + self.height as usize)
+        (self.origin.line..self.origin.line + self.height)
             .flat_map(|line| {
-                (self.origin.column..self.origin.column + self.width as usize)
+                (self.origin.column..self.origin.column + self.width)
                     .map(move |column| Position { line, column })
             })
             .collect()
@@ -447,7 +441,7 @@ impl Rectangle {
                 column: self.origin.column.saturating_add(width),
                 ..self.origin
             },
-            width: self.width.saturating_sub(width as u16),
+            width: self.width.saturating_sub(width),
             ..*self
         }
     }
@@ -572,7 +566,7 @@ mod test_rectangle {
             fn arbitrary(g: &mut Gen) -> Dimension {
                 Dimension {
                     width: 10,
-                    height: *g.choose(&(10..20).collect::<Vec<u16>>()).unwrap(),
+                    height: *g.choose(&(10..20).collect::<Vec<usize>>()).unwrap(),
                 }
             }
         }

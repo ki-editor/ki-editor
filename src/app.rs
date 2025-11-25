@@ -126,7 +126,7 @@ pub(crate) struct App<T: Frontend> {
     process_manager: ProcessManager,
 }
 
-const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
+const GLOBAL_TITLE_BAR_HEIGHT: usize = 1;
 
 #[derive(Clone)]
 pub(crate) enum StatusLineComponent {
@@ -371,8 +371,8 @@ impl<T: Frontend> App<T> {
         match event {
             Event::Resize(columns, rows) => {
                 self.resize(Dimension {
-                    height: rows,
-                    width: columns,
+                    height: rows as usize,
+                    width: columns as usize,
                 });
             }
             event => {
@@ -432,7 +432,7 @@ impl<T: Frontend> App<T> {
                     let cursor_position = cursor.position();
 
                     // If cursor position is not in view
-                    if cursor_position.line >= rectangle.dimension().height as usize {
+                    if cursor_position.line >= rectangle.dimension().height {
                         break 'cursor_calc None;
                     }
 
@@ -463,7 +463,7 @@ impl<T: Frontend> App<T> {
                 self.status_line_components
                     .iter()
                     .filter_map(|component| match component {
-                        StatusLineComponent::KiCharacter => Some("Ж".to_string()),
+                        StatusLineComponent::KiCharacter => Some("ⵣ".to_string()),
                         StatusLineComponent::CurrentWorkingDirectory => Some(
                             self.working_directory
                                 .display_relative_to_home()
@@ -490,8 +490,10 @@ impl<T: Frontend> App<T> {
                         StatusLineComponent::LastDispatch => self.last_action_description.clone(),
                         StatusLineComponent::LastSearchString => last_search_string.clone(),
                         StatusLineComponent::Help => {
-                            let key = self.keyboard_layout_kind().get_insert_key(&Meaning::SHelp);
-                            Some(format!("Help({key})"))
+                            let key = self
+                                .keyboard_layout_kind()
+                                .get_space_keymap(&Meaning::SHelp);
+                            Some(format!("Help(Space+{key})"))
                         }
                         StatusLineComponent::KeyboardLayout => {
                             Some(self.keyboard_layout_kind().display().to_string())
@@ -536,7 +538,7 @@ impl<T: Frontend> App<T> {
                     width: dimension.width,
                     height: 1,
                     origin: Position {
-                        line: dimension.height as usize,
+                        line: dimension.height,
                         column: 0,
                     },
                 },
@@ -859,7 +861,6 @@ impl<T: Frontend> App<T> {
                 self.open_move_to_index_prompt(prior_change)?
             }
             Dispatch::QuitAll => self.quit_all()?,
-            Dispatch::SaveQuitAll => self.save_quit_all()?,
             Dispatch::RevealInExplorer(path) => self.reveal_path_in_explorer(&path)?,
             Dispatch::OpenMoveFilePrompt => self.open_move_file_prompt()?,
             Dispatch::OpenDuplicateFilePrompt => self.open_copy_file_prompt()?,
@@ -1075,6 +1076,9 @@ impl<T: Frontend> App<T> {
                 self.update_current_component_title(title)
             }
             Dispatch::SaveMarks { path, marks } => self.context.save_marks(path, marks),
+            Dispatch::ToSuggestiveEditor(dispatch) => {
+                self.handle_dispatch_suggestive_editor(dispatch)?;
+            }
         }
         Ok(())
     }
@@ -1736,7 +1740,7 @@ impl<T: Frontend> App<T> {
             let title = keymap_legend_config.title.clone();
             let body = keymap_legend_config.display(
                 self.context.keyboard_layout_kind(),
-                u16::MAX,
+                usize::MAX,
                 &KeymapDisplayOption {
                     show_alt: false,
                     show_shift: true,
@@ -1821,12 +1825,6 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn sender(&self) -> Sender<AppMessage> {
         self.sender.clone()
-    }
-
-    fn save_quit_all(&mut self) -> anyhow::Result<()> {
-        self.save_all()?;
-        self.quit_all()?;
-        Ok(())
     }
 
     fn save_all(&self) -> anyhow::Result<()> {
@@ -2860,11 +2858,10 @@ impl<T: Frontend> App<T> {
                 return Ok(());
             };
 
-            let viewport_height: u32 = self
+            let viewport_height = self
                 .current_completion_dropdown()
                 .map(|component| component.borrow().rectangle().height)
-                .unwrap_or(10)
-                .into();
+                .unwrap_or(10);
 
             prompt.handle_nucleo_updated(viewport_height)
         };
@@ -3369,7 +3366,8 @@ impl<T: Frontend> App<T> {
                     for i in processed_steps..full_key_list.len() {
                         let col_width =
                             std::cmp::max(key_strings[i].len(), descriptions[i].len()) as u16 + 3;
-                        if current_width + col_width > width && !table_keys.is_empty() {
+                        if usize::from(current_width + col_width) > width && !table_keys.is_empty()
+                        {
                             break;
                         }
                         current_width += col_width;
@@ -3441,7 +3439,8 @@ impl<T: Frontend> App<T> {
                 })
                 .unwrap_or_else(|| (self.layout.terminal_dimension().width.saturating_sub(4), 10));
 
-            let help_display = player.render_help_display(width, height);
+            let help_display =
+                player.render_help_display(width.try_into().unwrap(), height.try_into().unwrap());
 
             let info_title = format!(
                 "Playing Macro (Step {}/{})",
@@ -3695,24 +3694,24 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct Dimension {
-    pub(crate) height: u16,
-    pub(crate) width: u16,
+    pub(crate) height: usize,
+    pub(crate) width: usize,
 }
 
 impl Dimension {
     #[cfg(test)]
     pub(crate) fn area(&self) -> usize {
-        self.height as usize * self.width as usize
+        self.height * self.width
     }
 
     #[cfg(test)]
     pub(crate) fn positions(&self) -> std::collections::HashSet<Position> {
-        (0..self.height as usize)
-            .flat_map(|line| (0..self.width as usize).map(move |column| Position { column, line }))
+        (0..self.height)
+            .flat_map(|line| (0..self.width).map(move |column| Position { column, line }))
             .collect()
     }
 
-    fn decrement_height(&self, global_title_bar_height: u16) -> Dimension {
+    fn decrement_height(&self, global_title_bar_height: usize) -> Dimension {
         Dimension {
             height: self.height.saturating_sub(global_title_bar_height),
             width: self.width,
@@ -3831,7 +3830,6 @@ pub(crate) enum Dispatch {
     GotoLocation(Location),
     OpenMoveToIndexPrompt(Option<PriorChange>),
     QuitAll,
-    SaveQuitAll,
     RevealInExplorer(CanonicalizedPath),
     OpenMoveFilePrompt,
     OpenDuplicateFilePrompt,
@@ -3967,6 +3965,7 @@ pub(crate) enum Dispatch {
         path: CanonicalizedPath,
         marks: Vec<CharIndexRange>,
     },
+    ToSuggestiveEditor(DispatchSuggestiveEditor),
 }
 
 /// Used to send notify host app about changes

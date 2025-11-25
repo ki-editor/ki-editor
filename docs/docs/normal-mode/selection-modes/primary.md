@@ -98,17 +98,16 @@ However, if we use `D` instead, the selection will remain as `hello`, and pressi
 In this selection mode, the selection is trimmed, which means that the leading
 and trailing spaces of each line are not meaningful.
 
-The meaningful selection of this mode is the trimmed portion of any line (this may be empty if line is only
-whitespaces).
+The meaningful selection of this mode is the trimmed portion of any non-empty line.
 
-The meaningless portion of any line is its trailing newline character.
+The meaningless selections are empty lines.
 
-| Movement      | Meaning                                         |
-| ------------- | ----------------------------------------------- |
-| Up/Down       | Move to empty lines above/below                 |
-| Previous/Next | Move to all kinds of line portions              |
-| First/Last    | Move to the first/last line of the current file |
-| Left/Right    | Move to the trimmed portion of the line         |
+| Movement      | Meaning                                                   |
+| ------------- | --------------------------------------------------------- |
+| Up/Down       | Move to the nearest empty lines above/below               |
+| Previous/Next | Move to all kinds of line portions                        |
+| First/Last    | Move to the first/last non-empty line of the current file |
+| Left/Right    | Move to the previous/next non-empty line                  |
 
 <TutorialFallback filename="line"/>
 
@@ -116,16 +115,16 @@ The meaningless portion of any line is its trailing newline character.
 
 Full Line.
 
-Same as [Line](#line), however, leading whitespaces and trailing whitespaces, including newline characters are also selected. And, Right/Left goes to the next empty (whitespaces only) line, this behavior is similar to move by paragraph.
+Same as [Line](#line), however, leading whitespaces and trailing whitespaces, including newline characters are also selected.
 
 ## `Word`
 
 Each unit is a sequence of alphanumeric characters including `-` and `_`.
 
-| Movement              | Meaning                                                      |
-| --------------------- | ------------------------------------------------------------ |
-| Up/Down/Previous/Next | Move to all kinds of word, including symbols and whitespaces |
-| Left/Right            | Move to non-symbol word only                                 |
+| Movement              | Meaning                                      |
+| --------------------- | -------------------------------------------- |
+| Up/Down/Previous/Next | Move to all kinds of word, including symbols |
+| Left/Right            | Move to non-symbol word only                 |
 
 Suppose the following example:
 

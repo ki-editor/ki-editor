@@ -23,10 +23,10 @@ impl Position {
         }
     }
 
-    pub(crate) fn move_right(&self, by: u16) -> Position {
+    pub(crate) fn move_right(&self, by: usize) -> Position {
         Position {
             line: self.line,
-            column: self.column + by as usize,
+            column: self.column + by,
         }
     }
 

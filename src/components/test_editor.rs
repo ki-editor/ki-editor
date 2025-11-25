@@ -300,8 +300,6 @@ fn test_delete_word_long() -> anyhow::Result<()> {
             Editor(DeleteWordBackward { short: false }),
             Expect(CurrentComponentContent("hello_world ")),
             Editor(DeleteWordBackward { short: false }),
-            Expect(CurrentComponentContent("hello_world")),
-            Editor(DeleteWordBackward { short: false }),
             Expect(CurrentComponentContent("")),
         ])
     })
@@ -458,10 +456,9 @@ fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn snake_case(camelCase: String) {}".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            // Go to the middle of the file
-            Editor(MoveSelection(Index(2))),
+            Editor(MatchLiteral("camelCase".to_string())),
             Expect(CurrentSelectedTexts(&["camelCase"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnterInsertMode(Direction::End)),
             Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent("fn snake_case(camel: String) {}")),
@@ -1579,7 +1576,7 @@ fn main() {
                 use_current_selection_mode: true,
                 prior_change: None,
             }),
-            Expect(JumpChars(&['\n', '\n', 'b', 'f', '}'])),
+            Expect(JumpChars(&['b', 'f', '}'])),
             App(HandleKeyEvent(key!("f"))),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
         ])
@@ -1772,7 +1769,7 @@ fn main() {
                     .map(|column_index| {
                         Not(Box::new(GridCellBackground(
                             5,
-                            column_index as usize,
+                            column_index,
                             parent_lines_background,
                         )))
                     })
@@ -2245,7 +2242,7 @@ fn surround() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
-            App(HandleKeyEvents(keys!("g y j").to_vec())),
+            App(HandleKeyEvents(keys!("g , j").to_vec())),
             Expect(CurrentComponentContent("fn main() { (x.y()) }")),
             Expect(SelectionExtensionEnabled(false)),
         ])
@@ -2593,7 +2590,7 @@ fn select_surround_inside() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g h j").to_vec())),
+            App(HandleKeyEvents(keys!("g u j").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2611,7 +2608,7 @@ fn select_surround_around() -> Result<(), anyhow::Error> {
             }),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            App(HandleKeyEvents(keys!("g ; j").to_vec())),
+            App(HandleKeyEvents(keys!("g o j").to_vec())),
             Expect(CurrentSelectedTexts(&["(world)"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -3475,7 +3472,7 @@ foov foou bar
 }
 
 #[test]
-fn select_trailing_newline_when_cursor_is_at_last_space_of_current_line() -> anyhow::Result<()> {
+fn select_next_line_when_cursor_is_at_last_space_of_current_line() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -3493,7 +3490,7 @@ fn select_trailing_newline_when_cursor_is_at_last_space_of_current_line() -> any
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&[" "])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Expect(CurrentSelectedTexts(&["\n"])),
+            Expect(CurrentSelectedTexts(&["yo"])),
         ])
     })
 }
@@ -3742,7 +3739,7 @@ yo"
                 .to_string(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&[""])),
             Editor(Delete),
             Expect(CurrentSelectedTexts(&["world"])),
@@ -3777,17 +3774,17 @@ bam
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
             Expect(CurrentSelectedTexts(&["foo\n"])),
-            Editor(MoveSelection(Right)),
-            Expect(CurrentSelectedTexts(&["\n"])),
-            Editor(MoveSelection(Up)),
-            Expect(CurrentSelectedTexts(&["bar\n"])),
             Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["\n"])),
+            Editor(MoveSelection(Left)),
+            Expect(CurrentSelectedTexts(&["bar\n"])),
             Editor(MoveSelection(Right)),
-            Editor(MoveSelection(Up)),
-            Expect(CurrentSelectedTexts(&["baz\n"])),
             Editor(MoveSelection(Down)),
             Editor(MoveSelection(Left)),
-            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["baz\n"])),
+            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Up)),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["spam\n"])),
         ])
     })
@@ -3822,15 +3819,15 @@ bam
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Down)),
             Expect(CurrentSelectedTexts(&[""])),
-            Editor(MoveSelection(Left)),
+            Editor(MoveSelection(Previous)),
             Expect(CurrentSelectedTexts(&["bar"])),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Editor(MoveSelection(Down)),
-            Editor(MoveSelection(Left)),
+            Editor(MoveSelection(Previous)),
             Expect(CurrentSelectedTexts(&["baz"])),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Editor(MoveSelection(Up)),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["spam"])),
         ])
     })
@@ -4129,7 +4126,7 @@ fn surround_extended_selection() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
-            App(HandleKeyEvents(keys!("g y j").to_vec())),
+            App(HandleKeyEvents(keys!("g , j").to_vec())),
             Expect(CurrentComponentContent("(foo bar)")),
         ])
     })
@@ -4624,7 +4621,7 @@ fuor
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["foo", "for", "fuor"])),
             // Keep only selections matching `r/f.o`
-            App(HandleKeyEvents(keys!("r h r / f . o enter").to_vec())),
+            App(HandleKeyEvents(keys!("r u r / f . o enter").to_vec())),
             Expect(CurrentSelectedTexts(&["foo", "fuor"])),
         ])
     })
@@ -4738,6 +4735,7 @@ fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> 
                     SelectionMode::Line,
                 )),
                 Editor(MoveSelection(Last)),
+                Editor(MoveSelection(Next)),
                 Expect(EditorCursorPosition(Position::new(1, 0))),
                 Expect(CurrentSelectedTexts(&[""])),
                 Editor(SetSelectionMode(
@@ -4748,7 +4746,7 @@ fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> 
             ])
         })
     }
-    run_test(Word, &["\n"])?;
+    run_test(Word, &["hello"])?;
     run_test(SyntaxNode, &["hello"])?;
     run_test(Subword, &["hello"])?;
     run_test(Character, &["\n"])?;
@@ -4984,7 +4982,7 @@ fn main() {
 #[test]
 fn last_line_of_multiline_selection_should_be_at_bottom_when_aligning_bottom() -> anyhow::Result<()>
 {
-    fn run_test(width: u16, height: u16, expected_output: &'static str) -> anyhow::Result<()> {
+    fn run_test(width: usize, height: usize, expected_output: &'static str) -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -5054,7 +5052,7 @@ fn main() {
 #[test]
 fn middle_line_of_multiline_selection_should_be_centered_when_aligning_center() -> anyhow::Result<()>
 {
-    fn run_test(width: u16, height: u16, expected_output: &'static str) -> anyhow::Result<()> {
+    fn run_test(width: usize, height: usize, expected_output: &'static str) -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -5287,9 +5285,9 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(Open),
+            Editor(EnterInsertMode(Direction::End)),
             // Insert one new line
-            App(HandleKeyEvents(keys!("a l p h a esc").to_vec())),
+            App(HandleKeyEvents(keys!("enter a l p h a esc").to_vec())),
             // Modify one line
             Editor(MatchLiteral("main".to_string())),
             Editor(Delete),
@@ -5584,6 +5582,116 @@ kebab-case
 snake_case
 "
                 .trim(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn last_wrapped_line_with_trailing_newline_char() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam baz\n".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            App(TerminalDimensionChanged(Dimension {
+                height: 10,
+                width: 300,
+            })),
+            // Expect Line 2 is present due to the trailing newline char
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+1│█oo bar spam baz
+2│"
+                .to_string(),
+            )),
+            // Decrease the rendering area to induce text wrapping
+            App(TerminalDimensionChanged(Dimension {
+                height: 10,
+                width: 17,
+            })),
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+1│█oo bar spam
+↪│baz
+2│"
+                .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn align_view_with_cursor_direction_end_and_selection_exceeds_viewport_height() -> anyhow::Result<()>
+{
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+fn main() {
+    x();
+    y();
+    z();
+    a();
+    b();
+    c();
+    d();
+} // last line
+"
+                .to_string(),
+            )),
+            Editor(MatchLiteral("fn".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            App(TerminalDimensionChanged(Dimension {
+                height: 7,
+                width: 300,
+            })),
+            Editor(SwapCursor),
+            Editor(AlignViewTop),
+            // Expect the cursor is not gone
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+ 2│fn main() {
+10│█ // last line
+11│"
+                .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn files_longer_than_65535_lines() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                (0..65536).map(|i| format!("Line {}", i + 1)).join("\n"),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            App(TerminalDimensionChanged(Dimension {
+                height: 7,
+                width: 300,
+            })),
+            Editor(MoveSelection(Last)),
+            Expect(AppGrid(
+                " 🙈  .gitignore [*]
+65535│Line 65535
+65536│█ine 65536"
+                    .to_string(),
             )),
         ])
     })

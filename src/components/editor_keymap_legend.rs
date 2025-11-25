@@ -408,11 +408,11 @@ impl Editor {
             ),
         ]
         .into_iter()
-        .chain(Some(self.search_current_selection_keymap(
+        .chain(self.search_current_keymap(
             context,
             Scope::Local,
-            IfCurrentNotFound::LookForward,
-        )))
+            self.cursor_direction.reverse().to_if_current_not_found(),
+        ))
         .chain(self.keymap_actions_overridable(normal_mode_override, none_if_no_override, context))
         .chain(self.keymap_clipboard_related_actions(false, normal_mode_override.clone(), context))
         .collect_vec()
@@ -584,14 +584,6 @@ impl Editor {
                 "Switch window".to_string(),
                 Dispatch::OtherWindow,
             ),
-            Keymap::new_extended(
-                context
-                    .keyboard_layout_kind()
-                    .get_insert_key(&Meaning::SHelp),
-                "Help".to_string(),
-                "Help".to_string(),
-                Dispatch::ToEditor(DispatchEditor::ShowHelp),
-            ),
             #[cfg(unix)]
             Keymap::new("ctrl+z", "Suspend".to_string(), Dispatch::Suspend),
         ]
@@ -676,11 +668,6 @@ impl Editor {
                         Dispatch::ToEditor(MoveCharacterForward),
                     ),
                     Keymap::new(
-                        "esc",
-                        "Enter normal mode".to_string(),
-                        Dispatch::ToEditor(EnterNormalMode),
-                    ),
-                    Keymap::new(
                         "backspace",
                         "Delete character backward".to_string(),
                         Dispatch::ToEditor(Backspace),
@@ -748,27 +735,17 @@ impl Editor {
         }
     }
 
-    pub(crate) fn keymap_others(&self, context: &Context) -> Vec<Keymap> {
+    pub(crate) fn keymap_others(&self) -> Vec<Keymap> {
         [
             Keymap::new(
                 "space",
-                "Search (List)".to_string(),
-                Dispatch::ShowKeymapLegend(self.space_keymap_legend_config(context)),
+                "Space".to_string(),
+                Dispatch::ToEditor(DispatchEditor::PressSpace),
             ),
             Keymap::new(
                 "esc",
                 "Remain only this window".to_string(),
                 Dispatch::ToEditor(DispatchEditor::HandleEsc),
-            ),
-            Keymap::new(
-                "backslash",
-                "Leader".to_string(),
-                Dispatch::ShowKeymapLegend(self.leader_keymap_legend_config(context)),
-            ),
-            Keymap::new(
-                "pipe",
-                "Leader Help".to_string(),
-                Dispatch::ShowKeymapLegend(self.leader_help_keymap_legend_config(context)),
             ),
         ]
         .to_vec()
@@ -786,6 +763,16 @@ impl Editor {
                 "Swap".to_string(),
                 "Enter Swap mode".to_string(),
                 Dispatch::ToEditor(EnterSwapMode),
+            )),
+            Some(Keymap::new(
+                "backslash",
+                "Leader".to_string(),
+                Dispatch::ShowKeymapLegend(self.leader_keymap_legend_config(context)),
+            )),
+            Some(Keymap::new(
+                "pipe",
+                "Leader Help".to_string(),
+                Dispatch::ShowKeymapLegend(self.leader_help_keymap_legend_config(context)),
             )),
         ]
         .into_iter()
@@ -869,7 +856,7 @@ impl Editor {
             .chain(self.keymap_primary_selection_modes(context, prior_change))
             .chain(self.keymap_secondary_selection_modes_init(context, prior_change))
             .chain(self.keymap_actions(&normal_mode_override, false, context, prior_change))
-            .chain(self.keymap_others(context))
+            .chain(self.keymap_others())
             .chain(self.keymap_universal(context))
             .collect_vec()
     }
@@ -1121,6 +1108,13 @@ impl Editor {
                     "Git Blame".to_string(),
                     Dispatch::ToEditor(DispatchEditor::GitBlame),
                 ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_context_keymap(&Meaning::GoFil),
+                    "Go to File".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::GoToFile),
+                ),
             ]),
         }
     }
@@ -1145,7 +1139,7 @@ impl Editor {
                 Keymap::new(
                     context
                         .keyboard_layout_kind()
-                        .get_space_editor_keymap(&Meaning::TSNSx),
+                        .get_space_context_keymap(&Meaning::TSNSx),
                     "TS Node Sexp".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
                 ),
@@ -1160,13 +1154,6 @@ impl Editor {
                         .get_space_editor_keymap(&Meaning::SaveA),
                     "Save All".to_string(),
                     Dispatch::SaveAll,
-                ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_editor_keymap(&Meaning::QSave),
-                    "Save All Quit".to_string(),
-                    Dispatch::SaveQuitAll,
                 ),
                 Keymap::new(
                     context
@@ -1341,21 +1328,30 @@ impl Editor {
         }
     }
 
-    fn search_current_selection_keymap(
+    fn search_current_keymap(
         &self,
         context: &Context,
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
-    ) -> Keymap {
-        Keymap::new_extended(
-            context.keyboard_layout_kind().get_key(&Meaning::SrchC),
-            "This".to_string(),
-            "Search current selection".to_string(),
-            Dispatch::ToEditor(DispatchEditor::SearchCurrentSelection(
-                if_current_not_found,
-                scope,
-            )),
-        )
+    ) -> Vec<Keymap> {
+        [
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::SchCS),
+                "Search This".to_string(),
+                "Search current selection".to_string(),
+                Dispatch::ToEditor(DispatchEditor::SearchCurrentSelection(
+                    if_current_not_found,
+                    scope,
+                )),
+            ),
+            Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::SchCC),
+                "Search Clipboard".to_string(),
+                "Search clipboard content".to_string(),
+                Dispatch::ToEditor(DispatchEditor::SearchClipboardContent(scope)),
+            ),
+        ]
+        .to_vec()
     }
 
     pub(crate) fn secondary_selection_modes_keymap_legend_config(
@@ -1601,11 +1597,7 @@ impl Editor {
                 ),
             ]
             .into_iter()
-            .chain(Some(self.search_current_selection_keymap(
-                context,
-                scope,
-                if_current_not_found,
-            )))
+            .chain(self.search_current_keymap(context, scope, if_current_not_found))
             .collect_vec(),
         };
         KeymapLegendConfig {
