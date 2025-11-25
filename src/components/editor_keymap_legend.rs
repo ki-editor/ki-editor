@@ -9,6 +9,7 @@ use crate::{
     app::{Dispatch, Dispatches, FilePickerKind, Scope},
     components::editor::{Movement, PriorChange},
     context::{Context, LocalSearchConfigMode, Search},
+    custom_config::custom_keymap::custom_keymap,
     git::DiffMode,
     list::grep::RegexConfig,
     quickfix_list::{DiagnosticSeverityRange, QuickfixListType},
@@ -310,7 +311,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::Mark_),
                 "Mark Sel".to_string(),
                 "Toggle Selection Mark".to_string(),
-                Dispatch::MarkFileAndToggleMark,
+                Dispatch::ToEditor(ToggleMark),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::MarkF),
@@ -762,6 +763,16 @@ impl Editor {
                 "Swap".to_string(),
                 "Enter Swap mode".to_string(),
                 Dispatch::ToEditor(EnterSwapMode),
+            )),
+            Some(Keymap::new(
+                "backslash",
+                "Leader".to_string(),
+                Dispatch::ShowKeymapLegend(self.leader_keymap_legend_config(context)),
+            )),
+            Some(Keymap::new(
+                "pipe",
+                "Leader Help".to_string(),
+                Dispatch::ShowKeymapLegend(self.leader_help_keymap_legend_config(context)),
             )),
         ]
         .into_iter()
@@ -1251,6 +1262,68 @@ impl Editor {
                     .into_vec(),
                 )
                 .collect_vec(),
+            ),
+        }
+    }
+
+    pub(crate) fn leader_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+        use Meaning::*;
+        let meanings = [
+            // First row
+            __Q__, __W__, __E__, __R__, __T__, __Y__, __U__, __I__, __O__, __P__,
+            // Second row
+            __A__, __S__, __D__, __F__, __G__, __H__, __J__, __K__, __L__, _SEMI,
+            // Third row
+            __Z__, __X__, __C__, __V__, __B__, __N__, __M__, _COMA, _DOT_, _SLSH,
+        ];
+        KeymapLegendConfig {
+            title: "Leader".to_string(),
+
+            keymaps: Keymaps::new(
+                &meanings
+                    .into_iter()
+                    .filter_map(|meaning| {
+                        let (_, description, _) = custom_keymap()
+                            .into_iter()
+                            .find(|(m, _, _)| &meaning == m)?;
+                        Some(Keymap::new(
+                            context.keyboard_layout_kind().get_leader_keymap(&meaning),
+                            description.to_string(),
+                            Dispatch::ExecuteLeaderMeaning(meaning),
+                        ))
+                    })
+                    .collect_vec(),
+            ),
+        }
+    }
+
+    pub(crate) fn leader_help_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+        use Meaning::*;
+        let meanings = [
+            // First row
+            __Q__, __W__, __E__, __R__, __T__, __Y__, __U__, __I__, __O__, __P__,
+            // Second row
+            __A__, __S__, __D__, __F__, __G__, __H__, __J__, __K__, __L__, _SEMI,
+            // Third row
+            __Z__, __X__, __C__, __V__, __B__, __N__, __M__, _COMA, _DOT_, _SLSH,
+        ];
+        KeymapLegendConfig {
+            title: "Leader Help".to_string(),
+
+            keymaps: Keymaps::new(
+                &meanings
+                    .into_iter()
+                    .filter_map(|meaning| {
+                        let (_, description, _) = custom_keymap()
+                            .into_iter()
+                            .find(|(m, _, _)| &meaning == m)?;
+                        Some(Keymap::new(
+                            context.keyboard_layout_kind().get_leader_keymap(&meaning),
+                            description.to_string(),
+                            Dispatch::ExecuteLeaderHelpMeaning(meaning),
+                        ))
+                    })
+                    .collect_vec(),
             ),
         }
     }

@@ -25,6 +25,7 @@ mod generate_recipes;
 pub(crate) mod history;
 mod non_empty_extensions;
 mod osc52;
+pub(crate) mod process_manager;
 mod quickfix_list;
 #[cfg(test)]
 mod recipes;
@@ -48,6 +49,9 @@ mod utils;
 mod embed;
 
 mod alternator;
+pub(crate) mod custom_config;
+pub(crate) mod handle_custom_action;
+
 mod divide_viewport;
 mod env;
 pub(crate) mod file_watcher;

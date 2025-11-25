@@ -237,6 +237,7 @@ impl Component for Editor {
             Insert(string) => return self.insert(&string, context),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
+            ToggleMark => return Ok(self.toggle_marks()),
             EnterNormalMode => self.enter_normal_mode(context)?,
             CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
@@ -3553,7 +3554,6 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    #[cfg(test)]
     pub(crate) fn primary_selection(&self) -> anyhow::Result<String> {
         Ok(self
             .buffer()
@@ -3741,7 +3741,7 @@ impl Editor {
         )))
     }
 
-    fn get_current_keymap_legend_config(
+    pub(crate) fn get_current_keymap_legend_config(
         &self,
         context: &Context,
     ) -> super::keymap_legend::KeymapLegendConfig {
@@ -4256,6 +4256,7 @@ pub(crate) enum DispatchEditor {
         kind: SurroundKind,
     },
     Open,
+    ToggleMark,
     EnterNormalMode,
     EnterSwapMode,
     EnterReplaceMode,

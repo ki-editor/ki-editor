@@ -17,17 +17,19 @@ use crate::{
             PromptOnChangeDispatch,
         },
         suggestive_editor::{
-            DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
+            Decoration, DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
         },
     },
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
+    custom_config::custom_keymap::custom_keymap,
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
     frontend::Frontend,
     git::{self},
-    grid::{Grid, LineUpdate},
+    grid::{Grid, IndexedHighlightGroup, LineUpdate, StyleKey},
+    handle_custom_action::{CustomAction, CustomContext, Placeholder},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
     layout::Layout,
     list::{self, Match, WalkBuilderConfig},
@@ -41,10 +43,12 @@ use crate::{
     },
     persistence::Persistence,
     position::Position,
+    process_manager::ProcessManager,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     screen::{Screen, Window},
     search::parse_search_config,
     selection::{CharIndex, SelectionMode},
+    selection_range::SelectionRange,
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
     thread::{Callback, SendResult},
     ui_tree::{ComponentKind, KindedComponent},
@@ -52,6 +56,7 @@ use crate::{
 use event::event::Event;
 use itertools::{Either, Itertools};
 use name_variant::NamedVariant;
+use nonempty::NonEmpty;
 #[cfg(test)]
 use shared::language::LanguageId;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
@@ -59,6 +64,7 @@ use std::{
     any::TypeId,
     cell::RefCell,
     path::{Path, PathBuf},
+    process::Stdio,
     rc::Rc,
     sync::{
         mpsc::{Receiver, Sender},
@@ -112,6 +118,9 @@ pub(crate) struct App<T: Frontend> {
     /// is synced between Ki and the host application.
     queued_events: Vec<Event>,
     file_watcher_input_sender: Option<Sender<FileWatcherInput>>,
+
+    /// This is used for ToggleProcess in keymaps
+    process_manager: ProcessManager,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: usize = 1;
@@ -192,6 +201,8 @@ impl<T: Frontend> App<T> {
             ),
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
+            process_manager: ProcessManager::new(),
+
             enable_lsp,
             sender,
             layout: Layout::new(
@@ -970,7 +981,6 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_prompt()?,
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
-            Dispatch::MarkFileAndToggleMark => self.mark_file_and_toggle_mark()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
             Dispatch::ToHostApp(to_host_app) => self.handle_to_host_app(to_host_app)?,
             Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
@@ -991,6 +1001,58 @@ impl<T: Frontend> App<T> {
                 self.add_quickfix_list_entries(locations)?
             }
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
+            Dispatch::ExecuteLeaderMeaning(meaning) => {
+                if let Some((_, _, Some(action_fn))) =
+                    custom_keymap().into_iter().find(|(m, _, _)| *m == meaning)
+                {
+                    let context = CustomContext {
+                        path: self.get_current_file_path(),
+                        primary_selection_line_index: self
+                            .current_component()
+                            .borrow()
+                            .get_cursor_position()
+                            .map(|position| position.line)
+                            .unwrap_or_default(),
+                        primary_selection_content: self
+                            .current_component()
+                            .borrow()
+                            .editor()
+                            .primary_selection()
+                            .unwrap_or_default(),
+                        current_working_directory: self.context.current_working_directory().clone(),
+                    };
+
+                    let leader_action = action_fn(&context);
+
+                    self.handle_leader_action(leader_action, context)?;
+                }
+            }
+            Dispatch::ExecuteLeaderHelpMeaning(meaning) => {
+                if let Some((_, description, Some(action_fn))) =
+                    custom_keymap().into_iter().find(|(m, _, _)| *m == meaning)
+                {
+                    let context = CustomContext {
+                        path: self.get_current_file_path(),
+                        primary_selection_line_index: self
+                            .current_component()
+                            .borrow()
+                            .get_cursor_position()
+                            .map(|position| position.line)
+                            .unwrap_or_default(),
+                        primary_selection_content: self
+                            .current_component()
+                            .borrow()
+                            .editor()
+                            .primary_selection()
+                            .unwrap_or_default(),
+                        current_working_directory: self.context.current_working_directory().clone(),
+                    };
+
+                    let leader_action = action_fn(&context);
+
+                    self.handle_leader_help_action(leader_action, context, description)?;
+                }
+            }
             Dispatch::ShowBufferSaveConflictPrompt {
                 path,
                 content_editor,
@@ -2591,23 +2653,9 @@ impl<T: Frontend> App<T> {
         }
     }
 
-    fn mark_file_and_toggle_mark(&mut self) -> anyhow::Result<()> {
-        if let Some(path) = self.get_current_file_path() {
-            let _ = self.context.mark_file(path);
-        }
-        let dispatches = self
-            .current_component()
-            .borrow_mut()
-            .editor_mut()
-            .toggle_marks();
-        let _ = self.handle_dispatches(dispatches);
-        Ok(())
-    }
-
     fn toggle_file_mark(&mut self) -> anyhow::Result<()> {
         if let Some(path) = self.get_current_file_path() {
             if let Some(new_path) = self.context.toggle_path_mark(path).cloned() {
-                // unmarking should change focus to the next marked file
                 self.open_file(&new_path, BufferOwner::User, true, true)?;
             }
         }
@@ -2917,6 +2965,341 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
+    fn handle_leader_action(
+        &mut self,
+        leader_action: CustomAction,
+        leader_context: CustomContext,
+    ) -> anyhow::Result<()> {
+        match leader_action {
+            CustomAction::DoNothing => {}
+            CustomAction::RunCommand(command, ref args) => {
+                let mut final_args = Vec::new();
+                let mut current_arg = String::new();
+                let mut iter = args.iter().peekable();
+
+                while let Some(p) = iter.next() {
+                    if matches!(p, Placeholder::NoSpace) {
+                        continue;
+                    }
+                    current_arg.push_str(&p.resolve(&leader_context).to_string());
+                    if iter
+                        .peek()
+                        .is_none_or(|next_p| !matches!(next_p, &&Placeholder::NoSpace))
+                    {
+                        final_args.push(current_arg.clone());
+                        current_arg.clear();
+                    }
+                }
+
+                let _ = std::process::Command::new(command)
+                    .args(&final_args)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn();
+            }
+            CustomAction::ToggleProcess(command, ref args) => {
+                let mut final_args = Vec::new();
+                let mut current_arg = String::new();
+                let mut iter = args.iter().peekable();
+
+                while let Some(p) = iter.next() {
+                    if matches!(p, Placeholder::NoSpace) {
+                        continue;
+                    }
+                    current_arg.push_str(&p.resolve(&leader_context).to_string());
+                    if iter
+                        .peek()
+                        .is_none_or(|next_p| !matches!(next_p, &&Placeholder::NoSpace))
+                    {
+                        final_args.push(current_arg.clone());
+                        current_arg.clear();
+                    }
+                }
+                self.process_manager.toggle(command, &final_args);
+            }
+            CustomAction::ToClipboard(text) => {
+                let mut final_string = String::new();
+                let mut iter = text.iter().peekable();
+                while let Some(p) = iter.next() {
+                    if matches!(p, Placeholder::NoSpace) {
+                        continue;
+                    }
+                    final_string.push_str(&p.resolve(&leader_context).to_string());
+
+                    if let Some(next_p) = iter.peek() {
+                        if !matches!(next_p, &&Placeholder::NoSpace) {
+                            final_string.push(' ');
+                        }
+                    }
+                }
+                self.context
+                    .set_clipboard_content(CopiedTexts::new(NonEmpty::new(final_string)))?
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_leader_help_action(
+        &mut self,
+        leader_action: CustomAction,
+        leader_context: CustomContext,
+        description: &str,
+    ) -> anyhow::Result<()> {
+        match leader_action {
+            CustomAction::DoNothing => {}
+            CustomAction::RunCommand(command, args) => {
+                self.show_global_info(Info::new(
+                    "Running Command...".to_string(),
+                    "Ki is waiting for the command to finish.\nThis is necessary to capture debug info.\nYou can:\nQuit the opened process.\nClose the opened application.\nWait, if the process will resolve itself.".to_string(),
+                ));
+                self.render()?;
+                let mut final_args = Vec::new();
+                let mut current_arg = String::new();
+                let mut iter = args.iter().peekable();
+                while let Some(p) = iter.next() {
+                    if matches!(p, Placeholder::NoSpace) {
+                        continue;
+                    }
+                    current_arg.push_str(&p.resolve(&leader_context).to_string());
+                    if iter
+                        .peek()
+                        .is_none_or(|next_p| !matches!(next_p, &&Placeholder::NoSpace))
+                    {
+                        final_args.push(current_arg.clone());
+                        current_arg.clear();
+                    }
+                }
+
+                let resolved_vec_with_quotes: Vec<String> = final_args
+                    .iter()
+                    .map(|arg| format!("\"{arg}\""))
+                    .collect_vec();
+                let unresolved_vec: Vec<String> =
+                    args.iter().map(|arg| arg.to_string()).collect_vec();
+                let output = std::process::Command::new(command)
+                    .args(&final_args)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .output()?;
+
+                let quoted_command = format!("\"{command}\"");
+                let mut content = String::new();
+                let mut decorations = Vec::new();
+
+                let append_and_decorate =
+                    |content: &mut String, decorations: &mut Vec<Decoration>, s: &str| {
+                        if !s.is_empty() {
+                            let start_byte = content.len();
+                            content.push_str(s);
+                            let end_byte = content.len();
+                            let range = SelectionRange::Byte(start_byte..end_byte);
+                            decorations.push(Decoration::new(
+                                range,
+                                StyleKey::Syntax(IndexedHighlightGroup::new(41)),
+                            ));
+                        }
+                    };
+
+                content.push_str("Description: ");
+                append_and_decorate(&mut content, &mut decorations, description);
+
+                content.push_str("\nUnresolved RunCommand:\nRunCommand(");
+                append_and_decorate(&mut content, &mut decorations, &quoted_command);
+
+                content.push_str(", vec![");
+                for (i, unresolved_arg) in unresolved_vec.iter().enumerate() {
+                    append_and_decorate(&mut content, &mut decorations, unresolved_arg);
+                    if i < unresolved_vec.len() - 1 {
+                        content.push_str(", ");
+                    }
+                }
+
+                content.push_str("])\nResolved RunCommand:\nstd::process::Command::new(");
+                append_and_decorate(&mut content, &mut decorations, &quoted_command);
+
+                content.push_str(").args(&[");
+                for (i, resolved_arg) in resolved_vec_with_quotes.iter().enumerate() {
+                    append_and_decorate(&mut content, &mut decorations, resolved_arg);
+                    if i < resolved_vec_with_quotes.len() - 1 {
+                        content.push_str(", ");
+                    }
+                }
+
+                content.push_str("])\nRunCommand Command:\n");
+                append_and_decorate(&mut content, &mut decorations, command);
+
+                let command_line_args = final_args.join(" ");
+                if !command_line_args.is_empty() {
+                    content.push(' ');
+                    append_and_decorate(&mut content, &mut decorations, &command_line_args);
+                }
+
+                content.push_str("\n\n[STATUS]:\n");
+                append_and_decorate(
+                    &mut content,
+                    &mut decorations,
+                    &format!("{:?}", output.status),
+                );
+
+                content.push_str("\n[STDOUT]:\n");
+                append_and_decorate(
+                    &mut content,
+                    &mut decorations,
+                    String::from_utf8_lossy(&output.stdout).trim(),
+                );
+
+                content.push_str("\n[STDERR]:\n");
+                append_and_decorate(
+                    &mut content,
+                    &mut decorations,
+                    String::from_utf8_lossy(&output.stderr).trim(),
+                );
+
+                let info =
+                    Info::new("RunCommand Help".to_string(), content).set_decorations(decorations);
+                self.show_global_info(info);
+            }
+            CustomAction::ToClipboard(text) => {
+                let mut resolved_text = String::new();
+                let mut iter = text.iter().peekable();
+                while let Some(p) = iter.next() {
+                    if matches!(p, Placeholder::NoSpace) {
+                        continue;
+                    }
+                    resolved_text.push_str(&p.resolve(&leader_context).to_string());
+                    if let Some(next_p) = iter.peek() {
+                        if !matches!(next_p, &&Placeholder::NoSpace) {
+                            resolved_text.push(' ');
+                        }
+                    }
+                }
+
+                let unresolved_vec: Vec<String> =
+                    text.iter().map(|arg| arg.to_string()).collect_vec();
+                self.context
+                    .set_clipboard_content(CopiedTexts::new(NonEmpty::new(
+                        resolved_text.clone(),
+                    )))?;
+                let mut content = String::new();
+                let mut decorations = Vec::new();
+
+                let append_and_decorate =
+                    |content: &mut String, decorations: &mut Vec<Decoration>, s: &str| {
+                        if !s.is_empty() {
+                            let start_byte = content.len();
+                            content.push_str(s);
+                            let end_byte = content.len();
+                            let range = SelectionRange::Byte(start_byte..end_byte);
+                            decorations.push(Decoration::new(
+                                range,
+                                StyleKey::Syntax(IndexedHighlightGroup::new(41)),
+                            ));
+                        }
+                    };
+
+                content.push_str("Description: ");
+                append_and_decorate(&mut content, &mut decorations, description);
+
+                content.push_str("\nUnresolved ToClipboard:\nToClipboard(vec![");
+                for (i, unresolved_arg) in unresolved_vec.iter().enumerate() {
+                    append_and_decorate(&mut content, &mut decorations, unresolved_arg);
+                    if i < unresolved_vec.len() - 1 {
+                        content.push_str(", ");
+                    }
+                }
+
+                content.push_str("])\nCopied Text:\n");
+                append_and_decorate(&mut content, &mut decorations, &resolved_text);
+
+                let info =
+                    Info::new("ToClipboard Help".to_string(), content).set_decorations(decorations);
+                self.show_global_info(info);
+            }
+            CustomAction::ToggleProcess(command, args) => {
+                let mut final_args = Vec::new();
+                let mut current_arg = String::new();
+                let mut iter = args.iter().peekable();
+                while let Some(p) = iter.next() {
+                    if matches!(p, Placeholder::NoSpace) {
+                        continue;
+                    }
+                    current_arg.push_str(&p.resolve(&leader_context).to_string());
+                    if iter
+                        .peek()
+                        .is_none_or(|next_p| !matches!(next_p, &&Placeholder::NoSpace))
+                    {
+                        final_args.push(current_arg.clone());
+                        current_arg.clear();
+                    }
+                }
+
+                self.process_manager.toggle(command, &final_args);
+
+                let unresolved_vec: Vec<String> =
+                    args.iter().map(|arg| arg.to_string()).collect_vec();
+                let resolved_vec_with_quotes: Vec<String> = final_args
+                    .iter()
+                    .map(|arg| format!("\"{arg}\""))
+                    .collect_vec();
+
+                let quoted_command = format!("\"{command}\"");
+                let mut content = String::new();
+                let mut decorations = Vec::new();
+
+                let append_and_decorate =
+                    |content: &mut String, decorations: &mut Vec<Decoration>, s: &str| {
+                        if !s.is_empty() {
+                            let start_byte = content.len();
+                            content.push_str(s);
+                            let end_byte = content.len();
+                            let range = SelectionRange::Byte(start_byte..end_byte);
+                            decorations.push(Decoration::new(
+                                range,
+                                StyleKey::Syntax(IndexedHighlightGroup::new(41)),
+                            ));
+                        }
+                    };
+
+                content.push_str("Description: ");
+                append_and_decorate(&mut content, &mut decorations, description);
+
+                content.push_str("\nUnresolved ToggledProcess:\nToggleProcess(");
+                append_and_decorate(&mut content, &mut decorations, &quoted_command);
+
+                content.push_str(", vec![");
+                for (i, unresolved_arg) in unresolved_vec.iter().enumerate() {
+                    append_and_decorate(&mut content, &mut decorations, unresolved_arg);
+                    if i < unresolved_vec.len() - 1 {
+                        content.push_str(", ");
+                    }
+                }
+
+                content.push_str("])\nResolved ToggledProcess:\nprocess_manager.toggle(");
+                append_and_decorate(&mut content, &mut decorations, &quoted_command);
+                content.push_str(", &[");
+                for (i, resolved_arg) in resolved_vec_with_quotes.iter().enumerate() {
+                    append_and_decorate(&mut content, &mut decorations, resolved_arg);
+                    if i < resolved_vec_with_quotes.len() - 1 {
+                        content.push_str(", ");
+                    }
+                }
+
+                content.push_str("])\nToggleProcess Command:\n");
+                append_and_decorate(&mut content, &mut decorations, command);
+
+                let command_line_args = final_args.join(" ");
+                if !command_line_args.is_empty() {
+                    content.push(' ');
+                    append_and_decorate(&mut content, &mut decorations, &command_line_args);
+                }
+
+                let info = Info::new("ToggleProcess Help".to_string(), content)
+                    .set_decorations(decorations);
+                self.show_global_info(info);
+            }
+        }
+        Ok(())
+    }
     fn get_diff(before: &str, after: &str) -> String {
         let input = imara_diff::InternedInput::new(before, after);
         let mut diff = imara_diff::Diff::compute(imara_diff::Algorithm::Histogram, &input);
@@ -3346,7 +3729,6 @@ pub(crate) enum Dispatch {
     OpenKeyboardLayoutPrompt,
     NavigateForward,
     NavigateBack,
-    MarkFileAndToggleMark,
     ToggleFileMark,
     Suspend,
 
@@ -3369,6 +3751,8 @@ pub(crate) enum Dispatch {
         edits: Vec<Edit>,
         path: CanonicalizedPath,
     },
+    ExecuteLeaderMeaning(Meaning),
+    ExecuteLeaderHelpMeaning(Meaning),
     ShowBufferSaveConflictPrompt {
         path: CanonicalizedPath,
         content_filesystem: String,

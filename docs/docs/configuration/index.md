@@ -1,3 +1,7 @@
+---
+sidebar_position: 1
+---
+
 # Configurations
 
 At the moment, configuration files are not supported, because I'm in favor of compile-time configuration [^1], for the following reasons:
@@ -17,6 +21,7 @@ However, I'm open to suggestions, I might even create a new language for that.
 | Type      | Path                      |
 | --------- | ------------------------- |
 | Languages | `shared/src/languages.rs` |
+| Specialty Keymaps | `src/custom_config/custom_keymap.rs` |
 
 ## Environment variables for configurations
 
