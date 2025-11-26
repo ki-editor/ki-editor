@@ -2162,9 +2162,10 @@ impl<T: Frontend> App<T> {
                 )?;
             self.handle_dispatches(dispatches)
         } else {
-            Err(anyhow::anyhow!(
-                "The current component is neither Prompt or SuggestiveEditor, thus `App::handle_dispatch_suggestive_editor` does nothing."
-            ))
+            // Ignore this dispatch if the current component is neither Prompt nor SuggestiveEditor
+            // We don't raise an error here because in some cases, it is possible that the Prompt/SuggestiveEditor
+            // has been removed before this dispatch can be handled.
+            Ok(())
         }
     }
 
