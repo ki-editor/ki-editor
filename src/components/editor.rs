@@ -237,7 +237,6 @@ impl Component for Editor {
             Insert(string) => return self.insert(&string, context),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
-            ToggleMark => return Ok(self.toggle_marks()),
             EnterNormalMode => self.enter_normal_mode(context)?,
             CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
@@ -4257,7 +4256,6 @@ pub(crate) enum DispatchEditor {
         kind: SurroundKind,
     },
     Open,
-    ToggleMark,
     EnterNormalMode,
     EnterSwapMode,
     EnterReplaceMode,

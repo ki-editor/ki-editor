@@ -989,6 +989,7 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_prompt()?,
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
+            Dispatch::MarkFileAndToggleMark => self.mark_file_and_toggle_mark()?,
             Dispatch::ToggleFileMark => self.toggle_file_mark()?,
             Dispatch::ToHostApp(to_host_app) => self.handle_to_host_app(to_host_app)?,
             Dispatch::FromHostApp(from_host_app) => self.handle_from_host_app(from_host_app)?,
@@ -2609,9 +2610,23 @@ impl<T: Frontend> App<T> {
         }
     }
 
+    fn mark_file_and_toggle_mark(&mut self) -> anyhow::Result<()> {
+        if let Some(path) = self.get_current_file_path() {
+            let _ = self.context.mark_file(path);
+        }
+        let dispatches = self
+            .current_component()
+            .borrow_mut()
+            .editor_mut()
+            .toggle_marks();
+        let _ = self.handle_dispatches(dispatches);
+        Ok(())
+    }
+
     fn toggle_file_mark(&mut self) -> anyhow::Result<()> {
         if let Some(path) = self.get_current_file_path() {
             if let Some(new_path) = self.context.toggle_path_mark(path).cloned() {
+                // unmarking should change focus to the next marked file
                 self.open_file(&new_path, BufferOwner::User, true, true)?;
             }
         }
@@ -3350,6 +3365,7 @@ pub(crate) enum Dispatch {
     OpenKeyboardLayoutPrompt,
     NavigateForward,
     NavigateBack,
+    MarkFileAndToggleMark,
     ToggleFileMark,
     Suspend,
 
