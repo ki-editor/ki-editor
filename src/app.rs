@@ -3035,10 +3035,20 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                     )?;
                 }
             }
-            FileWatcherEvent::PathCreated
-            | FileWatcherEvent::PathRemoved(_)
-            | FileWatcherEvent::PathRenamed(_) => {
+            FileWatcherEvent::PathCreated | FileWatcherEvent::PathRemoved(_) => {
                 self.layout.refresh_file_explorer(&self.context)?;
+            }
+            FileWatcherEvent::PathRenamed {
+                source,
+                destination,
+            } => {
+                self.context
+                    .handle_file_renamed(source.clone(), destination.clone());
+                self.layout.refresh_file_explorer(&self.context)?;
+                self.handle_dispatch_editor(DispatchEditor::PathRenamed {
+                    source,
+                    destination,
+                })?
             }
         }
         Ok(())
