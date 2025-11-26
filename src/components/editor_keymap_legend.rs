@@ -667,6 +667,11 @@ impl Editor {
                         Dispatch::ToEditor(MoveCharacterForward),
                     ),
                     Keymap::new(
+                        "esc",
+                        "Enter normal mode".to_string(),
+                        Dispatch::ToEditor(EnterNormalMode),
+                    ),
+                    Keymap::new(
                         "backspace",
                         "Delete character backward".to_string(),
                         Dispatch::ToEditor(Backspace),
