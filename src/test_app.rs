@@ -3127,6 +3127,43 @@ fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
 }
 
 #[test]
+fn toggling_global_quickfix_should_show_quickfix_list() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(HandleLspNotification(LspNotification::Definition(
+                Default::default(),
+                GotoDefinitionResponse::Multiple(
+                    [
+                        Location {
+                            path: s.foo_rs(),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
+                        },
+                        Location {
+                            path: s.foo_rs(),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
+                        },
+                    ]
+                    .to_vec(),
+                ),
+            ))),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            App(Dispatch::RemainOnlyCurrentComponent),
+            Expect(ComponentCount(1)),
+            App(Dispatch::SetGlobalMode(Some(
+                crate::context::GlobalMode::QuickfixListItem,
+            ))),
+            Expect(ComponentCount(2)),
+        ])
+    })
+}
+
+#[test]
 fn mark_files_tabline_wrapping_no_word_break() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
