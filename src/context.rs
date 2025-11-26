@@ -215,6 +215,21 @@ impl Context {
     pub(crate) fn marks(&self) -> &HashMap<CanonicalizedPath, Vec<CharIndexRange>> {
         &self.marks
     }
+
+    pub(crate) fn handle_file_renamed(
+        &mut self,
+        source: std::path::PathBuf,
+        destination: CanonicalizedPath,
+    ) {
+        if let Some(path) = self
+            .marked_files
+            .iter()
+            .find(|path| path.to_path_buf() == &source)
+        {
+            self.marked_files.shift_remove(&path.clone());
+            self.marked_files.insert(destination);
+        }
+    }
 }
 
 impl Context {

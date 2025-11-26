@@ -45,6 +45,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 use std::{
     cell::{Ref, RefCell, RefMut},
     ops::{Not, Range},
+    path::PathBuf,
     rc::Rc,
 };
 use DispatchEditor::*;
@@ -392,6 +393,10 @@ impl Component for Editor {
                 return Ok(self.search_clipboard_content(scope, context))
             }
             PressSpace => return Ok(self.press_space(context)),
+            PathRenamed {
+                source,
+                destination,
+            } => self.handle_path_renamed(source, destination),
         }
         Ok(Default::default())
     }
@@ -4184,6 +4189,13 @@ impl Editor {
             _ => Dispatches::one(Dispatch::ToEditor(EnterNormalMode)),
         }
     }
+
+    fn handle_path_renamed(&mut self, source: PathBuf, destination: CanonicalizedPath) {
+        let Some(path) = self.path() else { return };
+        if path.to_path_buf() == &source {
+            self.buffer_mut().update_path(destination)
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4335,6 +4347,10 @@ pub(crate) enum DispatchEditor {
     GoToFile,
     SearchClipboardContent(Scope),
     PressSpace,
+    PathRenamed {
+        source: PathBuf,
+        destination: CanonicalizedPath,
+    },
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
