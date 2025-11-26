@@ -882,7 +882,7 @@ impl<T: Frontend> App<T> {
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
             } => self.context.set_clipboard_content(contents)?,
-            Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
+            Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode)?,
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
                 self.handle_event(Event::Key(key_event))?;
@@ -2010,8 +2010,12 @@ impl<T: Frontend> App<T> {
         self.current_component().borrow().path()
     }
 
-    fn set_global_mode(&mut self, mode: Option<GlobalMode>) {
-        self.context.set_mode(mode);
+    fn set_global_mode(&mut self, mode: Option<GlobalMode>) -> anyhow::Result<()> {
+        self.context.set_mode(mode.clone());
+        if let Some(GlobalMode::QuickfixListItem) = mode {
+            self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
+        }
+        Ok(())
     }
 
     #[cfg(test)]
