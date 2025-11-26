@@ -140,7 +140,7 @@ struct EventHandler {
 
 impl EventHandler {
     fn handle_event(&mut self, event: notify::Event, callback: &Callback<FileWatcherEvent>) {
-        let Some(path) = event.paths.get(0) else {
+        let Some(path) = event.paths.first() else {
             return;
         };
         let path = path.to_path_buf();
