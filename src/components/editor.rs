@@ -62,7 +62,6 @@ pub(crate) enum Mode {
 
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
 pub(crate) enum PriorChange {
-    EnterDeleteMode,
     EnterMultiCursorMode,
     EnableSelectionExtension,
 }
@@ -264,7 +263,8 @@ impl Component for Editor {
             MoveToLineEnd => return self.move_to_line_end(),
             SelectLine(movement) => return self.select_line(movement, context),
             Redo => return self.redo(context),
-            DeleteOne => return self.delete_one(context),
+            EnterDeleteMode => return self.enter_delete_mode(),
+            HandleDeleteMode => return self.handle_delete_mode(context),
             Change => return self.change(context),
             ChangeCut => return self.change_cut(context),
             #[cfg(test)]
@@ -1673,7 +1673,7 @@ impl Editor {
 
         let _ = self.enter_normal_mode(context);
 
-        Ok(self.apply_edit_transaction(edit_transaction, context)?)
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
     /// Similar to Change in Vim, but does not copy the current selection
@@ -4042,7 +4042,6 @@ impl Editor {
     pub(crate) fn handle_prior_change(&mut self, prior_change: Option<PriorChange>) {
         if let Some(prior_change) = prior_change {
             match prior_change {
-                PriorChange::EnterDeleteMode => self.mode = Mode::Delete,
                 PriorChange::EnterMultiCursorMode => self.mode = Mode::MultiCursor,
                 PriorChange::EnableSelectionExtension => self.enable_selection_extension(),
             }
@@ -4250,6 +4249,19 @@ impl Editor {
             _ => Dispatches::one(Dispatch::ToEditor(EnterNormalMode)),
         }
     }
+
+    fn enter_delete_mode(&mut self) -> anyhow::Result<Dispatches> {
+        self.mode = Mode::Delete;
+        Ok(Default::default())
+    }
+
+    fn handle_delete_mode(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        match self.mode {
+            Mode::Normal => Ok(Dispatches::one(Dispatch::ToEditor(EnterDeleteMode))),
+            Mode::Delete => self.delete_one(context),
+            _ => Ok(Default::default()),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4301,7 +4313,6 @@ pub(crate) enum DispatchEditor {
     SetRectangle(Rectangle),
     EnableSelectionExtension,
     DisableSelectionExtension,
-    DeleteOne,
     Change,
     ChangeCut,
     EnterInsertMode(Direction),
@@ -4324,6 +4335,8 @@ pub(crate) enum DispatchEditor {
     EnterNormalMode,
     EnterSwapMode,
     EnterReplaceMode,
+    EnterDeleteMode,
+    HandleDeleteMode,
     CursorAddToAllSelections,
     CyclePrimarySelection(Direction),
     CursorKeepPrimaryOnly,
