@@ -58,6 +58,7 @@ pub(crate) enum Mode {
     FindOneChar(IfCurrentNotFound),
     Swap,
     Replace,
+    Delete,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
@@ -233,8 +234,6 @@ impl Component for Editor {
             EnableSelectionExtension => self.enable_selection_extension(),
             DisableSelectionExtension => self.disable_selection_extension(),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction, context),
-            Delete => return self.delete(context, true),
-            DeleteNoGap => return self.delete(context, false),
             Insert(string) => return self.insert(&string, context),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal, context),
@@ -265,6 +264,8 @@ impl Component for Editor {
             MoveToLineEnd => return self.move_to_line_end(),
             SelectLine(movement) => return self.select_line(movement, context),
             Redo => return self.redo(context),
+            EnterDeleteMode => return self.enter_delete_mode(),
+            HandleDeleteMode => return self.handle_delete_mode(context),
             Change => return self.change(context),
             ChangeCut => return self.change_cut(context),
             #[cfg(test)]
@@ -599,6 +600,37 @@ impl Movement {
             Movement::Expand => MovementApplicandum::Expand,
             Movement::Previous => MovementApplicandum::Previous,
             Movement::Next => MovementApplicandum::Next,
+        }
+    }
+
+    fn reverse(&self) -> Movement {
+        match self {
+            Movement::Left => Movement::Right,
+            Movement::Right => Movement::Left,
+            Movement::Up => Movement::Down,
+            Movement::Down => Movement::Up,
+            Movement::First => Movement::Last,
+            Movement::Last => Movement::First,
+            Movement::Previous => Movement::Next,
+            Movement::Next => Movement::Previous,
+            _ => *self,
+        }
+    }
+
+    fn to_direction(self) -> Direction {
+        use Movement::*;
+        match self {
+            Right | Next | Last => Direction::End,
+            Left | Previous | First => Direction::Start,
+            _ => Direction::End,
+        }
+    }
+
+    fn downgrade(&self) -> Movement {
+        match self {
+            Movement::Right => Movement::Next,
+            Movement::Left => Movement::Previous,
+            _ => *self,
         }
     }
 }
@@ -1041,14 +1073,13 @@ impl Editor {
         Ok(Dispatches::one(self.dispatch_jumps_changed()))
     }
 
-    pub(crate) fn delete(
+    fn delete_with_movement(
         &mut self,
         context: &Context,
-        with_gap: bool,
+        movement: Movement,
     ) -> anyhow::Result<Dispatches> {
         // to copy deleted item to clipboard copy_dispatch should be self.copy()?
         let copy_dispatches: Dispatches = Default::default();
-        let direction = self.cursor_direction.reverse();
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -1071,18 +1102,13 @@ impl Editor {
                         (current_range, (start..start + 1).into())
                     };
 
-                    let get_selection = |direction: &Direction| {
+                    let get_selection = |movement: &Movement| {
                         // The start selection is used for getting the next/previous selection
                         // It cannot be the extended selection, otherwise the next/previous selection
                         // will not be found
-                        let start_selection =
-                            &selection.clone().collapsed_to_anchor_range(direction);
-                        let movement = match (direction, with_gap) {
-                            (Direction::Start, true) => Movement::Left,
-                            (Direction::End, true) => Movement::Right,
-                            (Direction::Start, false) => Movement::Previous,
-                            (Direction::End, false) => Movement::Next,
-                        };
+                        let start_selection = &selection
+                            .clone()
+                            .collapsed_to_anchor_range(&movement.to_direction());
                         let result_selection = Selection::get_selection_(
                             &buffer,
                             start_selection,
@@ -1102,15 +1128,18 @@ impl Editor {
                         }
                     };
                     let (delete_range, select_range) = (|| {
-                        if !self.selection_set.mode().is_contiguous() {
-                            return default;
-                        }
-
-                        // If the selection mode is contiguous,
-                        // perform a "delete until the other selection" instead
+                        // Perform a "delete until the other selection" instead
                         // Other selection is a selection which is before/after the current selection
-                        if let Some(other_selection) = get_selection(&direction)
-                            .or_else(|| get_selection(&direction.reverse()))
+                        if let Some(other_selection) = get_selection(&movement)
+                            .or_else(|| get_selection(&movement.reverse()))
+                            // If no selection is found using `movement`, then try downgrading it.
+                            // Downgrading is only applicable for the Left/Right movement,
+                            // which transform into Previous/Next.
+                            // This is necessary, because in some cases, there are no longer meaningful selections,
+                            // and only meaningless selections are left,
+                            // so we will have to "downgrade" the movement so that we can obtain the meaningless selections.
+                            .or_else(|| get_selection(&movement.downgrade()))
+                            .or_else(|| get_selection(&movement.downgrade().reverse()))
                         {
                             // The other_selection is only consider valid
                             // if it does not intersect with the range to be deleted
@@ -1618,6 +1647,35 @@ impl Editor {
         .map(|dispatches| dispatches.append(self.dispatch_jumps_changed()))
     }
 
+    // This is similar to Ki's Change, except it enters normal mode
+    pub(crate) fn delete_one(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let range = selection.extended_range();
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(self.buffer().rope(), range, Rope::new())),
+                            Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range((range.start..range.start).into())
+                                    .set_initial_range(None),
+                            ),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect(),
+        );
+
+        let _ = self.enter_normal_mode(context);
+
+        self.apply_edit_transaction(edit_transaction, context)
+    }
+
     /// Similar to Change in Vim, but does not copy the current selection
     pub(crate) fn change(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
@@ -1807,7 +1865,8 @@ impl Editor {
                     context,
                 )
                 .map(|_| Default::default()),
-            _ => Ok(Default::default()),
+            Mode::Delete => self.delete_with_movement(context, movement),
+            Mode::FindOneChar(_) | Mode::Insert => Ok(Default::default()),
         }
     }
 
@@ -2752,6 +2811,7 @@ impl Editor {
                 Mode::FindOneChar(_) => "ONE".to_string(),
                 Mode::Swap => "SWAP".to_string(),
                 Mode::Replace => "RPLCE".to_string(),
+                Mode::Delete => "DELTE".to_string(),
             }
         }
     }
@@ -4190,6 +4250,19 @@ impl Editor {
         }
     }
 
+    fn enter_delete_mode(&mut self) -> anyhow::Result<Dispatches> {
+        self.mode = Mode::Delete;
+        Ok(Default::default())
+    }
+
+    fn handle_delete_mode(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        match self.mode {
+            Mode::Normal => Ok(Dispatches::one(Dispatch::ToEditor(EnterDeleteMode))),
+            Mode::Delete => self.delete_one(context),
+            _ => Ok(Default::default()),
+        }
+    }
+
     fn handle_path_renamed(&mut self, source: PathBuf, destination: CanonicalizedPath) {
         let Some(path) = self.path() else { return };
         if path.to_path_buf() == &source {
@@ -4256,8 +4329,6 @@ pub(crate) enum DispatchEditor {
     ReplaceWithPattern,
     SelectLine(Movement),
     Backspace,
-    Delete,
-    DeleteNoGap,
     Insert(String),
     MoveToLineStart,
     MoveToLineEnd,
@@ -4271,6 +4342,8 @@ pub(crate) enum DispatchEditor {
     EnterNormalMode,
     EnterSwapMode,
     EnterReplaceMode,
+    EnterDeleteMode,
+    HandleDeleteMode,
     CursorAddToAllSelections,
     CyclePrimarySelection(Direction),
     CursorKeepPrimaryOnly,

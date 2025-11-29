@@ -1,2 +1,2 @@
 [profile.default]
-retries = 3
+retries = { backoff = "exponential", count = 3, delay = "5s" }
