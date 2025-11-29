@@ -6,9 +6,9 @@ import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # Intro
 
-There are 3 submodes in Ki:
+The following are the submodes in Ki:
 
 1. Swap (`r`)
 2. Multi-cursor (`t`)
-3. Delete (`v`)
-4. Extend (`g`)
+3. Extend (`g`)
+4. Delete (`v`)

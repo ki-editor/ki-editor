@@ -1123,12 +1123,7 @@ impl Editor {
                         }
                     };
                     let (delete_range, select_range) = (|| {
-                        if !self.selection_set.mode().is_contiguous() {
-                            return default;
-                        }
-
-                        // If the selection mode is contiguous,
-                        // perform a "delete until the other selection" instead
+                        // Perform a "delete until the other selection" instead
                         // Other selection is a selection which is before/after the current selection
                         if let Some(other_selection) = get_selection(&movement)
                             .or_else(|| get_selection(&movement.reverse()))

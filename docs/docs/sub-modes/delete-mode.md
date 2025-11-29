@@ -9,4 +9,8 @@ In this submode, every core movement means:
 
 <TutorialFallback filename="delete"/>
 
-<TutorialFallback filename="delete-0-gap"/>
+<TutorialFallback filename="delete-finer-movement"/>
+
+Sometimes, one might want to only delete the current selection without deleting gaps.
+
+<TutorialFallback filename="delete-0-gap" />

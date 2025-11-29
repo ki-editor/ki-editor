@@ -233,7 +233,7 @@ Why?
             ].to_vec(),
         },
         RecipeGroup {
-            filename: "delete-0-gap",
+            filename: "delete-finer-movement",
             recipes: [
                 Recipe {
                     description: "Delete word",
@@ -265,6 +265,45 @@ Why?
                     prepare_events: keys!("w ;"),
                     events: keys!("d v ; ; ;"),
                     expectations: Box::new([CurrentSelectedTexts(&[","]), CurrentComponentContent("[, 1 + 1]")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                }
+            ].to_vec(),
+        },
+        RecipeGroup {
+            filename: "delete-0-gap",
+            recipes: [
+                Recipe {
+                    description: "Delete word",
+                    content: "hello  world"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("s v v l"),
+                    expectations: Box::new([CurrentSelectedTexts(&["world"])]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Delete subword",
+                    content: "kebab-case".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w v v l v v"),
+                    expectations: Box::new([CurrentSelectedTexts(&[""]), CurrentComponentContent("-")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Delete sibling nodes",
+                    content: "[{foo: bar}, spam, 1 + 1]".trim(),
+                    file_extension: "js",
+                    prepare_events: keys!("w ;"),
+                    events: keys!("d v l v"),
+                    expectations: Box::new([CurrentSelectedTexts(&[""]), CurrentComponentContent("[, 1 + 1]")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
