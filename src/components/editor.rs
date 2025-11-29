@@ -4262,6 +4262,13 @@ impl Editor {
             _ => Ok(Default::default()),
         }
     }
+
+    fn handle_path_renamed(&mut self, source: PathBuf, destination: CanonicalizedPath) {
+        let Some(path) = self.path() else { return };
+        if path.to_path_buf() == &source {
+            self.buffer_mut().update_path(destination)
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
