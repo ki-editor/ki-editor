@@ -3130,6 +3130,43 @@ fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
 }
 
 #[test]
+fn toggling_global_quickfix_should_show_quickfix_list() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(HandleLspNotification(LspNotification::Definition(
+                Default::default(),
+                GotoDefinitionResponse::Multiple(
+                    [
+                        Location {
+                            path: s.foo_rs(),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
+                        },
+                        Location {
+                            path: s.foo_rs(),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
+                        },
+                    ]
+                    .to_vec(),
+                ),
+            ))),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            App(Dispatch::RemainOnlyCurrentComponent),
+            Expect(ComponentCount(1)),
+            App(Dispatch::SetGlobalMode(Some(
+                crate::context::GlobalMode::QuickfixListItem,
+            ))),
+            Expect(ComponentCount(2)),
+        ])
+    })
+}
+
+#[test]
 fn mark_files_tabline_wrapping_no_word_break() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -3752,6 +3789,35 @@ fn go_to_file_under_selection() -> Result<(), anyhow::Error> {
             )),
             Editor(GoToFile),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Error> {
+    execute_test(|_| {
+        Box::new([
+            App(HandleKeyEvents(keys!("space k d").to_vec())),
+            WaitForAppMessage(regex!("NucleoTickDebounced")),
+            WaitForAppMessage(regex!("NucleoTickDebounced")),
+            App(HandleKeyEvents(keys!("f o o . r s enter").to_vec())),
+            Expect(CurrentComponentTitle(
+                "\u{200b} 🦀 foo.rs \u{200b}".to_string(),
+            )),
+            App(HandleKeyEvent(key!("alt+v"))),
+            Expect(AppGrid(
+                "[ROOT] (Cannot be saved)
+1│█
+
+
+
+
+
+
+
+ Close current window"
+                    .to_string(),
+            )),
         ])
     })
 }

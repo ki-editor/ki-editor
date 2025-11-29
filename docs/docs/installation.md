@@ -62,7 +62,7 @@ cargo install --locked --path .
   - with `nix profile`:
 
 ```sh
-nix profile install github:ki-editor/ki-editor
+nix profile add github:ki-editor/ki-editor
 ```
 
   - or as part of nix configuration, e.g.:

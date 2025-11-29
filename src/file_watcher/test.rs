@@ -9,7 +9,7 @@ use crate::{
     grid::{IndexedHighlightGroup, StyleKey},
     test_app::{
         execute_test_custom,
-        ExpectKind::*,
+        ExpectKind::{self, *},
         RunTestOptions, State,
         Step::{self, *},
     },
@@ -128,7 +128,6 @@ fn path_removal_should_refresh_explorer() -> Result<(), anyhow::Error> {
             App(RevealInExplorer(s.main_rs())),
             Expect(CurrentComponentContentMatches(regex!("main.rs"))),
             WaitForDuration(Duration::from_secs(1)),
-            // Add a new file named new_file
             Shell("rm", [s.main_rs().display_absolute()].to_vec()),
             WaitForAppMessage(regex!("FileWatcherEvent.*PathRemoved")),
             Expect(Not(Box::new(CurrentComponentContentMatches(regex!(
@@ -147,7 +146,6 @@ fn path_rename_should_refresh_explorer() -> Result<(), anyhow::Error> {
                 "renamed.rs"
             ))))),
             WaitForDuration(Duration::from_secs(2)),
-            // Add a new file named new_file
             Shell(
                 "mv",
                 [
@@ -285,6 +283,82 @@ fn file_reloading_due_to_file_watcher_event_should_recompute_syntax_highlighting
                     IndexedHighlightGroup::from_str("comment").unwrap(),
                 )),
             )),
+        ])
+    })
+}
+
+#[test]
+fn path_rename_should_refresh_file_marks() -> Result<(), anyhow::Error> {
+    execute_file_watcher_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            Expect(ExpectKind::MarkedFiles([s.main_rs()].to_vec())),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            WaitForDuration(Duration::from_secs(2)),
+            Shell(
+                "mv",
+                [
+                    s.main_rs().display_absolute(),
+                    s.new_path("src/renamed.rs").display().to_string(),
+                ]
+                .to_vec(),
+            ),
+            WaitForDuration(Duration::from_secs(2)),
+            WaitForAppMessage(regex!("FileWatcherEvent.*PathRenamed")),
+            ExpectLater(Box::new(move || {
+                MarkedFiles(
+                    [s.clone()
+                        .temp_dir()
+                        .join("src")
+                        .unwrap()
+                        .join("renamed.rs")
+                        .unwrap()]
+                    .to_vec(),
+                )
+            })),
+        ])
+    })
+}
+
+#[test]
+fn path_rename_should_update_active_buffer() -> Result<(), anyhow::Error> {
+    execute_file_watcher_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            WaitForDuration(Duration::from_secs(2)),
+            Shell(
+                "mv",
+                [
+                    s.main_rs().display_absolute(),
+                    s.new_path("src/renamed.rs").display().to_string(),
+                ]
+                .to_vec(),
+            ),
+            WaitForDuration(Duration::from_secs(2)),
+            WaitForAppMessage(regex!("FileWatcherEvent.*PathRenamed")),
+            ExpectLater(Box::new(move || {
+                CurrentComponentPath(Some(
+                    s.clone()
+                        .temp_dir()
+                        .join("src")
+                        .unwrap()
+                        .join("renamed.rs")
+                        .unwrap(),
+                ))
+            })),
         ])
     })
 }

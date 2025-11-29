@@ -46,7 +46,7 @@ use crate::{
     search::parse_search_config,
     selection::{CharIndex, SelectionMode},
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
-    thread::{Callback, SendResult},
+    thread::{debounce, Callback, SendResult},
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
@@ -112,6 +112,9 @@ pub(crate) struct App<T: Frontend> {
     /// is synced between Ki and the host application.
     queued_events: Vec<Event>,
     file_watcher_input_sender: Option<Sender<FileWatcherInput>>,
+    /// Used for debouncing LSP Completion request, so that we don't overwhelm
+    /// the server with too many requests, and also Ki with too many incoming Completion responses
+    debounce_lsp_request_completion: Callback<()>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: usize = 1;
@@ -193,6 +196,21 @@ impl<T: Frontend> App<T> {
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             enable_lsp,
+            debounce_lsp_request_completion: {
+                let sender = sender.clone();
+                debounce(
+                    Callback::new(Arc::new(move |_| {
+                        if let Err(err) = sender.send(AppMessage::ExternalDispatch(Box::new(
+                            Dispatch::RequestCompletionDebounced,
+                        ))) {
+                            log::error!(
+                                "Failed to send RequestCompletionDebounced to App due to {err:?}"
+                            )
+                        }
+                    })),
+                    Duration::from_millis(300),
+                )
+            },
             sender,
             layout: Layout::new(
                 dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT),
@@ -625,7 +643,8 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenFilePicker(kind) => {
                 self.open_file_picker(kind)?;
             }
-            Dispatch::RequestCompletion => {
+            Dispatch::RequestCompletion => self.debounce_lsp_request_completion.call(()),
+            Dispatch::RequestCompletionDebounced => {
                 if let Some(params) = self.get_request_params() {
                     self.lsp_manager.send_message(
                         params.path.clone(),
@@ -863,7 +882,7 @@ impl<T: Frontend> App<T> {
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
             } => self.context.set_clipboard_content(contents)?,
-            Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
+            Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode)?,
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
                 self.handle_event(Event::Key(key_event))?;
@@ -1991,8 +2010,12 @@ impl<T: Frontend> App<T> {
         self.current_component().borrow().path()
     }
 
-    fn set_global_mode(&mut self, mode: Option<GlobalMode>) {
-        self.context.set_mode(mode);
+    fn set_global_mode(&mut self, mode: Option<GlobalMode>) -> anyhow::Result<()> {
+        self.context.set_mode(mode.clone());
+        if let Some(GlobalMode::QuickfixListItem) = mode {
+            self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
+        }
+        Ok(())
     }
 
     #[cfg(test)]
@@ -2143,9 +2166,10 @@ impl<T: Frontend> App<T> {
                 )?;
             self.handle_dispatches(dispatches)
         } else {
-            Err(anyhow::anyhow!(
-                "The current component is neither Prompt or SuggestiveEditor, thus `App::handle_dispatch_suggestive_editor` does nothing."
-            ))
+            // Ignore this dispatch if the current component is neither Prompt nor SuggestiveEditor
+            // We don't raise an error here because in some cases, it is possible that the Prompt/SuggestiveEditor
+            // has been removed before this dispatch can be handled.
+            Ok(())
         }
     }
 
@@ -3011,10 +3035,20 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                     )?;
                 }
             }
-            FileWatcherEvent::PathCreated
-            | FileWatcherEvent::PathRemoved(_)
-            | FileWatcherEvent::PathRenamed(_) => {
+            FileWatcherEvent::PathCreated | FileWatcherEvent::PathRemoved(_) => {
                 self.layout.refresh_file_explorer(&self.context)?;
+            }
+            FileWatcherEvent::PathRenamed {
+                source,
+                destination,
+            } => {
+                self.context
+                    .handle_file_renamed(source.clone(), destination.clone());
+                self.layout.refresh_file_explorer(&self.context)?;
+                self.handle_dispatch_editor(DispatchEditor::PathRenamed {
+                    source,
+                    destination,
+                })?
             }
         }
         Ok(())
@@ -3390,6 +3424,7 @@ pub(crate) enum Dispatch {
         marks: Vec<CharIndexRange>,
     },
     ToSuggestiveEditor(DispatchSuggestiveEditor),
+    RequestCompletionDebounced,
 }
 
 /// Used to send notify host app about changes

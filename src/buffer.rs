@@ -342,6 +342,10 @@ impl Buffer {
         self.flag_as_modified()
     }
 
+    pub(crate) fn update_path(&mut self, path: CanonicalizedPath) {
+        self.path = Some(path)
+    }
+
     pub(crate) fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
         Ok(self
             .rope
