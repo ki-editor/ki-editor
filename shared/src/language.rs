@@ -53,6 +53,7 @@ pub enum CargoLinkedTreesitterLanguage {
     Typescript,
     TSX,
     Python,
+    Julia,
     Scheme,
     OCaml,
     OCamlInterface,
@@ -94,6 +95,7 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::TSX => tree_sitter_typescript::LANGUAGE_TSX.into(),
             CargoLinkedTreesitterLanguage::Python => tree_sitter_python::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Julia => tree_sitter_julia::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::Scheme => tree_sitter_scheme::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::OCaml => tree_sitter_ocaml::LANGUAGE_OCAML.into(),
             CargoLinkedTreesitterLanguage::OCamlInterface => {
@@ -137,6 +139,7 @@ impl CargoLinkedTreesitterLanguage {
             }
             CargoLinkedTreesitterLanguage::TSX => Some(tree_sitter_typescript::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::Python => Some(tree_sitter_python::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::Julia => None,
             CargoLinkedTreesitterLanguage::Scheme => Some(tree_sitter_scheme::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::OCaml => Some(tree_sitter_ocaml::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::OCamlInterface => {
