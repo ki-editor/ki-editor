@@ -27,6 +27,8 @@ pub(crate) use DispatchEditor::*;
 pub(crate) use Movement::*;
 pub(crate) use SelectionMode::*;
 
+use crate::components::editor::PriorChange;
+
 use shared::{
     canonicalized_path::CanonicalizedPath,
     language::{self, LanguageId},
@@ -1213,8 +1215,10 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(EnterDeleteMode),
-            Editor(MoveSelection(Next)),
+            Editor(MoveSelectionWithPriorChange(
+                Next,
+                Some(PriorChange::EnterDeleteMode),
+            )),
             Editor(EnterNormalMode),
             // Insert a comment at the first line of foo.rs
             App(OpenFile {
@@ -1333,8 +1337,10 @@ fn main() {
             }),
             Expect(CurrentComponentContent(original_content)),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(EnterDeleteMode),
-            Editor(MoveSelection(Next)),
+            Editor(MoveSelectionWithPriorChange(
+                Next,
+                Some(PriorChange::EnterDeleteMode),
+            )),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
                 GitHunk(diff_mode),

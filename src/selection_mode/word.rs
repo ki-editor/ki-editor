@@ -165,6 +165,7 @@ fn get_current_word_by_cursor(
 #[cfg(test)]
 mod test_word {
     use crate::buffer::BufferOwner;
+    use crate::components::editor::PriorChange;
     use crate::selection::SelectionMode;
     use crate::test_app::*;
 
@@ -260,8 +261,10 @@ mod test_word {
                     SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&["foo"])),
-                Editor(EnterDeleteMode),
-                Editor(MoveSelection(Next)),
+                Editor(MoveSelectionWithPriorChange(
+                    Next,
+                    Some(PriorChange::EnterDeleteMode),
+                )),
                 Expect(CurrentSelectedTexts(&["."])),
             ])
         })
@@ -282,8 +285,10 @@ mod test_word {
                     SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&["foo"])),
-                Editor(EnterDeleteMode),
-                Editor(MoveSelection(Right)),
+                Editor(MoveSelectionWithPriorChange(
+                    Right,
+                    Some(PriorChange::EnterDeleteMode),
+                )),
                 Expect(CurrentSelectedTexts(&["bar"])),
                 Expect(CurrentComponentContent("bar.spam")),
             ])
