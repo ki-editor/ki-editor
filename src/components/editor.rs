@@ -1574,7 +1574,7 @@ impl Editor {
                 if let Some(jumps) = self.jumps.take() {
                     self.handle_jump_mode(context, key_event, jumps)
                 } else if let Mode::Insert = self.mode {
-                    return self.handle_insert_mode(key_event, context);
+                    self.handle_insert_mode(key_event, context)
                 } else if let Mode::FindOneChar(_) = self.mode {
                     self.handle_find_one_char_mode(
                         IfCurrentNotFound::LookForward,
@@ -1673,7 +1673,7 @@ impl Editor {
 
         let _ = self.enter_normal_mode(context);
 
-        Ok(self.apply_edit_transaction(edit_transaction, context)?)
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
     /// Similar to Change in Vim, but does not copy the current selection

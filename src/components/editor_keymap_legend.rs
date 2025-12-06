@@ -709,7 +709,7 @@ impl Editor {
         {
             Ok(dispatches)
         } else if let KeyCode::Char(c) = event.code {
-            return self.insert(&c.to_string(), context);
+            self.insert(&c.to_string(), context)
         } else {
             Ok(Default::default())
         }
