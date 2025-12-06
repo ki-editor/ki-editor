@@ -47,7 +47,7 @@ There are several syntax nodes that start with `f`[^1]:
 - `fox.bar` (member expression)
 - `fox.bar()` (call expression)
 
-Suppose the cursor is below `f`, pressing `s` selects `fox.bar()`, because `fox.bar()` is the largest node that starts with `f`.
+Suppose the cursor is below `f`, pressing `d` selects `fox.bar()`, because `fox.bar()` is the largest node that starts with `f`.
 
 [^1]: You can try it out at [https://astexplorer.net/](https://astexplorer.net/), using the `@typescript-eslint/parser`.
 
