@@ -1687,7 +1687,7 @@ fn syntax_node() -> RecipeGroup {
                 description: "Select Parent",
                 content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                 file_extension: "json",
-                prepare_events: keys!("z l l"),
+                prepare_events: keys!("w l"),
                 events: keys!("d i i i i"),
                 expectations: Box::new([CurrentSelectedTexts(&[
                     "[{\"x\": 123}, true, {\"y\": {}}]",
