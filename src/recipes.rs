@@ -1677,7 +1677,7 @@ fn syntax_node() -> RecipeGroup {
                 content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                 file_extension: "json",
                 prepare_events: keys!("w ;"),
-                events: keys!("d h h h ; ;"),
+                events: keys!("d p h h h ; ;"),
                 expectations: Box::new([CurrentSelectedTexts(&[","])]),
                 terminal_height: None,
                 similar_vim_combos: &[],
