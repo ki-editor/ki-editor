@@ -89,7 +89,7 @@ hello.world().foo().bar().spam().wise();
 
 If we press `d`, the whole expression will be selected[^1], and we will need to press `k` several times to shrink the selection down to `hello.world()`.
 
-However, if we use `D` instead, the selection will remain as `hello`, and pressing `j` multiple times will get us to `hello.world()`.
+However, if we use `D` instead, the selection will remain as `hello`, and pressing `i` multiple times will get us to `hello.world()`.
 
 [^1]: See [Largest Node](#largest-node)
 
