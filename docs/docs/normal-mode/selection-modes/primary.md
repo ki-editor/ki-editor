@@ -47,7 +47,7 @@ There are several syntax nodes that start with `f`[^1]:
 - `fox.bar` (member expression)
 - `fox.bar()` (call expression)
 
-Suppose the cursor is below `f`, pressing `s` selects `fox.bar()`, because `fox.bar()` is the largest node that starts with `f`.
+Suppose the cursor is below `f`, pressing `d` selects `fox.bar()`, because `fox.bar()` is the largest node that starts with `f`.
 
 [^1]: You can try it out at [https://astexplorer.net/](https://astexplorer.net/), using the `@typescript-eslint/parser`.
 
@@ -89,7 +89,7 @@ hello.world().foo().bar().spam().wise();
 
 If we press `d`, the whole expression will be selected[^1], and we will need to press `k` several times to shrink the selection down to `hello.world()`.
 
-However, if we use `D` instead, the selection will remain as `hello`, and pressing `k` multiple times will get us to `hello.world()`.
+However, if we use `D` instead, the selection will remain as `hello`, and pressing `i` multiple times will get us to `hello.world()`.
 
 [^1]: See [Largest Node](#largest-node)
 
