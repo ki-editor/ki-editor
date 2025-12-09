@@ -426,6 +426,12 @@ impl Editor {
                 Dispatch::ToEditor(Change),
             )
             .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Delte),
+                Direction::End.format_action("Delete"),
+                Dispatch::Null,
+            )
+            .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::InstP),
                 Direction::Start.format_action("Insert"),

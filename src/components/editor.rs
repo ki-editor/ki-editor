@@ -4257,6 +4257,10 @@ impl Editor {
             self.buffer_mut().update_path(destination)
         }
     }
+
+    fn enter_delete_mode(&mut self) {
+        self.mode = Mode::Delete
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]

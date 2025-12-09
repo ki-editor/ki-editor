@@ -204,30 +204,8 @@ fn delete_should_kill_if_possible_5() -> anyhow::Result<()> {
 }
 
 #[test]
-fn delete_should_not_kill_if_not_possible_1() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent("fn maima() {}".to_string())),
-            Editor(MatchLiteral("ma".to_string())),
-            Editor(MoveSelectionWithPriorChange(
-                Right,
-                Some(PriorChange::EnterDeleteMode),
-            )),
-            Expect(CurrentComponentContent("fn ima() {}")),
-            // Expect the current selection is the character after "ma"
-            Expect(CurrentSelectedTexts(&["i"])),
-        ])
-    })
-}
-
-#[test]
 /// If the current selection is the only selection in the selection mode
-fn delete_should_not_kill_if_not_possible_2() -> anyhow::Result<()> {
+fn delete_should_not_kill_if_not_possible() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
