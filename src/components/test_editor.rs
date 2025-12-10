@@ -2404,11 +2404,7 @@ fn next_prev_after_current_selection_is_deleted() -> anyhow::Result<()> {
                         },
                     },
                 )),
-                Editor(MoveSelectionWithPriorChange(
-                    Right,
-                    Some(PriorChange::EnterDeleteMode),
-                )),
-                Editor(EnterNormalMode),
+                Editor(DeleteOne),
                 Editor(MoveSelection(if next { Right } else { Left })),
                 Expect(CurrentSelectedTexts(&["2"])),
             ])
@@ -5399,10 +5395,7 @@ fn move_to_hunks_consisting_of_only_a_single_empty_line_and_delete_it() -> anyho
             )),
             Expect(CurrentSelectedTexts(&[""])),
             // Delete the empty line hunk
-            Editor(MoveSelectionWithPriorChange(
-                Right,
-                Some(PriorChange::EnterDeleteMode),
-            )),
+            Editor(DeleteOne),
             // Expect the leading new line is deleted
             Expect(CurrentComponentContent("target/\n")),
         ])

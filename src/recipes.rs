@@ -291,8 +291,8 @@ Why?
                     content: "kebab-case".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w v v l v v"),
-                    expectations: Box::new([CurrentSelectedTexts(&[""]), CurrentComponentContent("-")]),
+                    events: keys!("w v ; ;"),
+                    expectations: Box::new([CurrentSelectedTexts(&["case"]), CurrentComponentContent("case")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
@@ -302,8 +302,8 @@ Why?
                     content: "[{foo: bar}, spam, 1 + 1]".trim(),
                     file_extension: "js",
                     prepare_events: keys!("w ;"),
-                    events: keys!("d v l v"),
-                    expectations: Box::new([CurrentSelectedTexts(&[""]), CurrentComponentContent("[, 1 + 1]")]),
+                    events: keys!("d v ; ; ; space"),
+                    expectations: Box::new([CurrentSelectedTexts(&[","]), CurrentComponentContent("[, 1 + 1]")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
@@ -918,7 +918,7 @@ foov foou bar
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("a g l r q f o o enter v l"),
+                    events: keys!("a g l r q f o o enter v v"),
                     expectations: Box::new([
                         CurrentComponentContent(
                             "z bar y

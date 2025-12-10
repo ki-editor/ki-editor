@@ -398,6 +398,11 @@ impl Component for Editor {
                 source,
                 destination,
             } => self.handle_path_renamed(source, destination),
+            ShowKeymapLegendDelete => {
+                return Ok(Dispatches::one(Dispatch::ShowKeymapLegend(
+                    self.delete_mode_keymap_legend_config(context),
+                )))
+            }
         }
         Ok(Default::default())
     }
@@ -1106,9 +1111,11 @@ impl Editor {
                         // The start selection is used for getting the next/previous selection
                         // It cannot be the extended selection, otherwise the next/previous selection
                         // will not be found
+
                         let start_selection = &selection
                             .clone()
                             .collapsed_to_anchor_range(&movement.to_direction());
+
                         let result_selection = Selection::get_selection_(
                             &buffer,
                             start_selection,
@@ -1121,6 +1128,7 @@ impl Editor {
                         )
                         .ok()
                         .flatten()?;
+
                         if result_selection.selection.range() == start_selection.range() {
                             None
                         } else {
@@ -1652,14 +1660,27 @@ impl Editor {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
-                    let range = selection.extended_range();
+                    let delete_range = selection.extended_range();
+
+                    // Ensure the delete range is at least one character long
+
+                    let delete_range = if delete_range.len() == 0 {
+                        (delete_range.start..delete_range.start + 1).into()
+                    } else {
+                        delete_range
+                    };
+
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit::new(self.buffer().rope(), range, Rope::new())),
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                delete_range,
+                                Rope::new(),
+                            )),
                             Action::Select(
                                 selection
                                     .clone()
-                                    .set_range((range.start..range.start).into())
+                                    .set_range((delete_range.start..delete_range.start + 1).into())
                                     .set_initial_range(None),
                             ),
                         ]
@@ -4257,10 +4278,6 @@ impl Editor {
             self.buffer_mut().update_path(destination)
         }
     }
-
-    fn enter_delete_mode(&mut self) {
-        self.mode = Mode::Delete
-    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4415,6 +4432,7 @@ pub(crate) enum DispatchEditor {
         source: PathBuf,
         destination: CanonicalizedPath,
     },
+    ShowKeymapLegendDelete,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

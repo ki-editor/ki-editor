@@ -429,7 +429,7 @@ impl Editor {
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Delte),
                 Direction::End.format_action("Delete"),
-                Dispatch::Null,
+                Dispatch::ToEditor(DispatchEditor::ShowKeymapLegendDelete),
             )
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
             Keymap::new_extended(
@@ -872,11 +872,6 @@ impl Editor {
                         Some(PriorChange::EnterDeleteMode),
                     )
                     .into_iter()
-                    .chain(Some(Keymap::new(
-                        context.keyboard_layout_kind().get_key(&Meaning::Delte),
-                        "Delete One".to_string(),
-                        Dispatch::ToEditor(DeleteOne),
-                    )))
                     .collect_vec(),
             ),
         }
@@ -1758,6 +1753,10 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
 
 pub(crate) fn delete_mode_normal_mode_override() -> NormalModeOverride {
     NormalModeOverride {
+        delete: Some(KeymapOverride {
+            description: "Delete",
+            dispatch: Dispatch::ToEditor(DeleteOne),
+        }),
         ..Default::default()
     }
 }
