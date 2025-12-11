@@ -3,6 +3,8 @@ import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # `Delete`
 
+## Intro
+
 In this submode, every core movement means:
 
 > delete current \<selection mode\> selection until the \<movement\> selection.
@@ -11,6 +13,12 @@ In this submode, every core movement means:
 
 <TutorialFallback filename="delete-finer-movement"/>
 
-Sometimes, one might want to only delete the current selection without deleting gaps.
+## Other actions
 
-<TutorialFallback filename="delete-0-gap" />
+<KeymapFallback filename="Delete"/>
+
+| Label      | Meaning                                                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| `Delete 1` | Delete the current selection without moving to another selection. This is equivalent to Change → Enter Normal Mode. |
+
+<TutorialFallback filename="delete-one" />
