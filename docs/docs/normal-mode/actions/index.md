@@ -67,43 +67,6 @@ In Syntax Mode, exceptionally, it inserts a gap next to the current selection.
 
 <TutorialFallback filename="open"/>
 
-### `Delete`
-
-Delete until the left/right selection.
-
-`Delete` is directional[^directionality].
-
-This deletes the current selection(s), however, if the current selection mode is
-[contiguous](../selection-modes/index.md#contiguity), it will delete until the
-next/previous selection, and selects the next/previous selection.
-
-But, if the current selection is the last/first selection, it will delete until the
-previous/next selection instead, and selects the previous/next selection.
-
-For example, consider the following Javascript code:
-
-```js
-hello(x, y);
-```
-
-Assuming the current selection mode is [Syntax Node](../selection-modes/primary.md#syntax), and the current selection is `x`, pressing `d` results in the following:
-
-```js
-hello(y);
-```
-
-<TutorialFallback filename="delete"/>
-
-### `Delete 0 Gap`
-
-Delete until the previous/next selection.
-
-This is similar to `Delete`, but it doesn't delete the meaningless gaps between selections.
-
-Meaningless gaps are usually whitespaces, or insignificant nodes like comma or semicolon in the Syntax Node selection mode.
-
-<TutorialFallback filename="delete-0-gap"/>
-
 ### `Change`
 
 This deletes the current selected text, and enter [Insert mode](../../insert-mode/index.md).
@@ -185,7 +148,7 @@ To move between marked files, see [here](../other-movements#-markedmarked-).
 This workflow is designed to streamline your editing process by allowing quick
 access to your primary files. During an editing session, you often work on
 primary files while occasionally referring to other less important files. Using
-the number keys, you can quickly jump back to your main files, enhancing your
+`alt+j` and `alt+l` (on Qwerty), you can quickly jump back to your main files, enhancing your
 productivity and focus.
 
 By utilizing file marking, you can efficiently navigate your editing
