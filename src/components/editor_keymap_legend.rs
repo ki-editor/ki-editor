@@ -1754,7 +1754,7 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
 pub(crate) fn delete_mode_normal_mode_override() -> NormalModeOverride {
     NormalModeOverride {
         delete: Some(KeymapOverride {
-            description: "Delete",
+            description: "Delete 1",
             dispatch: Dispatch::ToEditor(DeleteOne),
         }),
         ..Default::default()

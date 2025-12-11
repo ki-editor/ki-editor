@@ -272,38 +272,16 @@ Why?
             ].to_vec(),
         },
         RecipeGroup {
-            filename: "delete-0-gap",
+            filename: "delete-one",
             recipes: [
                 Recipe {
-                    description: "Delete word",
-                    content: "hello  world"
+                    description: "Delete 1",
+                    content: "hello world"
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s v v l"),
-                    expectations: Box::new([CurrentSelectedTexts(&["world"])]),
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-                Recipe {
-                    description: "Delete subword",
-                    content: "kebab-case".trim(),
-                    file_extension: "md",
-                    prepare_events: &[],
-                    events: keys!("w v ; ;"),
-                    expectations: Box::new([CurrentSelectedTexts(&["case"]), CurrentComponentContent("case")]),
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-                Recipe {
-                    description: "Delete sibling nodes",
-                    content: "[{foo: bar}, spam, 1 + 1]".trim(),
-                    file_extension: "js",
-                    prepare_events: keys!("w ;"),
-                    events: keys!("d v ; ; ; space"),
-                    expectations: Box::new([CurrentSelectedTexts(&[","]), CurrentComponentContent("[, 1 + 1]")]),
+                    events: keys!("s v v"),
+                    expectations: Box::new([CurrentSelectedTexts(&[" "])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
