@@ -35,6 +35,7 @@ pub const LANGUAGES: &[&Language] = &[
     &javascript_react(),
     &svelte(),
     &json(),
+    &julia(),
     &just(),
     &ki_quickfix(),
     &lua(),
@@ -602,6 +603,33 @@ const fn json() -> Language {
             id: "json",
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::JSON),
         }),
+        ..Language::new()
+    }
+}
+
+const fn julia() -> Language {
+    Language {
+        extensions: &["jl"],
+        /* lsp_command: Some(LspCommand {
+            command: Command(
+                "julia",
+                &[
+                    "--startup-file=no",
+                    "--history-file=no",
+                    "--quiet",
+                    "-e",
+                    "'using LanguageServer; runserver()'",
+                ],
+            ),
+            ..LspCommand::default()
+        }), */
+        lsp_language_id: Some(LanguageId::new("julia")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "julia",
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Julia),
+        }),
+        line_comment_prefix: Some("#"),
+        block_comment_affixes: Some(("#=", "=#")),
         ..Language::new()
     }
 }
