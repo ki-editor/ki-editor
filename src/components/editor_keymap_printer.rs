@@ -13,6 +13,7 @@ use crate::{
     components::{
         editor::{Direction, Editor},
         editor_keymap::{shifted, KeyboardLayout},
+        editor_keymap_legend::delete_mode_normal_mode_override,
     },
     context::Context,
 };
@@ -346,6 +347,15 @@ impl KeymapPrintSections {
                 "Extend".to_string(),
                 &Keymaps::new(&editor.keymap_overridable(
                     &extend_mode_normal_mode_override(&context),
+                    true,
+                    &context,
+                )),
+                layout,
+            ),
+            KeymapPrintSection::from_keymaps(
+                "Delete".to_string(),
+                &Keymaps::new(&editor.keymap_overridable(
+                    &delete_mode_normal_mode_override(),
                     true,
                     &context,
                 )),

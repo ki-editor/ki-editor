@@ -5,7 +5,7 @@ use lazy_regex::regex;
 use crate::{
     app::{Dimension, Dispatch::*},
     buffer::BufferOwner,
-    components::editor::DispatchEditor,
+    components::editor::{DispatchEditor, Movement, PriorChange},
     grid::{IndexedHighlightGroup, StyleKey},
     test_app::{
         execute_test_custom,
@@ -230,7 +230,10 @@ fn saving_a_file_should_not_refreshes_the_buffer_due_to_incoming_file_modified_n
                 focus: true,
             }),
             Editor(MatchLiteral("mod".to_string())),
-            Editor(Delete),
+            Editor(MoveSelectionWithPriorChange(
+                Movement::Right,
+                Some(PriorChange::EnterDeleteMode),
+            )),
             Editor(Save),
             WaitForDuration(Duration::from_secs(2)),
             WaitForAppMessage(regex!("FileWatcherEvent.*ContentModified")),

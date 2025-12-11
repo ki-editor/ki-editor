@@ -396,11 +396,6 @@ impl Editor {
                 Dispatch::ToEditor(Dedent),
             ),
             Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Del0G),
-                "Delete 0 Gap".to_string(),
-                Dispatch::ToEditor(DeleteNoGap),
-            ),
-            Keymap::new(
                 "*",
                 "Keyboard".to_string(),
                 Dispatch::OpenKeyboardLayoutPrompt,
@@ -431,11 +426,10 @@ impl Editor {
                 Dispatch::ToEditor(Change),
             )
             .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
-            Keymap::new_extended(
+            Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Delte),
                 Direction::End.format_action("Delete"),
-                Direction::End.format_action("Delete"),
-                Dispatch::ToEditor(Delete),
+                Dispatch::ToEditor(DispatchEditor::ShowKeymapLegendDelete),
             )
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
             Keymap::new_extended(
@@ -721,7 +715,7 @@ impl Editor {
         {
             Ok(dispatches)
         } else if let KeyCode::Char(c) = event.code {
-            return self.insert(&c.to_string(), context);
+            self.insert(&c.to_string(), context)
         } else {
             Ok(Default::default())
         }
@@ -782,6 +776,13 @@ impl Editor {
     ) -> Vec<Keymap> {
         [
             Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::Delte),
+                "Delete".to_string(),
+                "Enter Delete Mode".to_string(),
+                Dispatch::ShowKeymapLegend(self.delete_mode_keymap_legend_config(context)),
+            )
+            .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
+            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::MultC),
                 "Multi Curs".to_string(),
                 "Enter Multi-cursor mode".to_string(),
@@ -816,6 +817,11 @@ impl Editor {
                 &self
                     .normal_mode_keymaps(context, normal_mode_override, prior_change)
                     .into_iter()
+                    .chain(Some(Keymap::new(
+                        context.keyboard_layout_kind().get_key(&Meaning::Delte),
+                        "Delete".to_string(),
+                        Dispatch::ShowKeymapLegend(self.delete_mode_keymap_legend_config(context)),
+                    )))
                     .chain(Some(Keymap::new(
                         context.keyboard_layout_kind().get_key(&Meaning::MultC),
                         "Multi-cursor".to_string(),
@@ -853,6 +859,22 @@ impl Editor {
             .chain(self.keymap_others())
             .chain(self.keymap_universal(context))
             .collect_vec()
+    }
+
+    pub(crate) fn delete_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Delete".to_string(),
+            keymaps: Keymaps::new(
+                &self
+                    .normal_mode_keymaps(
+                        context,
+                        Some(delete_mode_normal_mode_override()),
+                        Some(PriorChange::EnterDeleteMode),
+                    )
+                    .into_iter()
+                    .collect_vec(),
+            ),
+        }
     }
 
     pub(crate) fn multicursor_mode_keymap_legend_config(
@@ -1724,6 +1746,16 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
         v: Some(KeymapOverride {
             description: "Select All",
             dispatch: Dispatch::ToEditor(SelectAll),
+        }),
+        ..Default::default()
+    }
+}
+
+pub(crate) fn delete_mode_normal_mode_override() -> NormalModeOverride {
+    NormalModeOverride {
+        delete: Some(KeymapOverride {
+            description: "Delete 1",
+            dispatch: Dispatch::ToEditor(DeleteOne),
         }),
         ..Default::default()
     }
