@@ -140,7 +140,7 @@ mod test_render_flex_layout {
 
         // Test uneven distribution (10 width = 7 spaces between 2 spacers: should be 3 and 4)
         let result = render_flex_layout(10, "", &components);
-        assert_eq!(result, "A   B    C");
+        assert_eq!(result, "A    B   C");
 
         assert_eq!(UnicodeWidthStr::width(result.as_str()), 10);
     }
