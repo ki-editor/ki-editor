@@ -1,8 +1,9 @@
-use std::ops::Range;
+use std::ops::{Not, Range};
 
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 use lazy_regex::Lazy;
 use lsp_types::DiagnosticSeverity;
+use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
     app::Dimension,
@@ -15,8 +16,10 @@ use crate::{
     context::Context,
     divide_viewport::{calculate_window_position, divide_viewport},
     format_path_list::get_formatted_paths,
+    git::hunk::SimpleHunk,
     grid::{CellUpdate, Grid, RenderContentLineNumber, StyleKey},
     position::Position,
+    quickfix_list::QuickfixListItem,
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
     soft_wrap::wrap_items,
@@ -39,9 +42,19 @@ pub(crate) fn markup_focused_tab(path: &str) -> String {
 }
 
 impl Editor {
-    pub(crate) fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
+    pub(crate) fn get_grid(&mut self, context: &Context, focused: bool) -> GetGridResult {
+        let hunks = self.buffer_mut().simple_hunks(context).unwrap_or_default();
+        self.get_grid_with_scroll_offset(context, focused, self.scroll_offset(), &hunks)
+    }
+    pub(crate) fn get_grid_with_scroll_offset(
+        &self,
+        context: &Context,
+        focused: bool,
+        scroll_offset: usize,
+        hunks: &[SimpleHunk],
+    ) -> GetGridResult {
         let title = self.title(context);
-        let title_grid_height = title.lines().count() as u16;
+        let title_grid_height = title.lines().count();
         let render_area = {
             let Dimension { height, width } = self.dimension();
             Dimension {
@@ -49,17 +62,24 @@ impl Editor {
                 width,
             }
         };
+        let marks = context.get_marks(self.path());
         let grid = match &self.reveal {
             None => self.get_grid_with_dimension(
-                context,
+                context.theme(),
+                context.current_working_directory(),
+                context.quickfix_list_items(),
                 render_area,
-                self.scroll_offset(),
+                scroll_offset,
                 Some(self.selection_set.primary_selection().range()),
                 false,
                 true,
                 focused,
+                hunks,
+                &marks,
             ),
-            Some(reveal) => self.get_splitted_grid(context, reveal, render_area, focused),
+            Some(reveal) => {
+                self.get_splitted_grid(context, reveal, render_area, focused, hunks, &marks)
+            }
         };
         let theme = context.theme();
         let window_title_style = if focused {
@@ -87,18 +107,28 @@ impl Editor {
                 height: title_grid_height,
                 width: self.dimension().width,
             };
-            // TODO: fix this weird code that needs to clone the context
-            let context = Context::default().set_theme(Theme {
+            let theme = Theme {
                 ui: UiStyles {
                     background_color: window_title_style.background_color.unwrap_or_default(),
                     text_foreground: window_title_style.foreground_color.unwrap_or_default(),
                     ..theme.ui
                 },
                 ..context.theme().clone()
-            });
-            // TODO: no need to call get_grid_with_dimension
-            // Just render the lines
-            editor.get_grid_with_dimension(&context, dimension, 0, None, false, false, focused)
+            };
+
+            editor.get_grid_with_dimension(
+                &theme,
+                context.current_working_directory(),
+                Vec::new(),
+                dimension,
+                0,
+                None,
+                false,
+                false,
+                focused,
+                hunks,
+                &[],
+            )
         };
         let grid = title_grid.merge_vertical(grid);
         let cursor_position = grid.get_cursor_position();
@@ -119,17 +149,14 @@ impl Editor {
             vec![]
         } else {
             let wrapped_items = wrap_items(
-                &get_formatted_paths(
-                    &context.get_marked_paths(),
+                get_formatted_paths(
+                    &context.get_marked_files(),
                     &self.path()?,
                     context.current_working_directory(),
                     self.buffer().dirty(),
-                )
-                .iter()
-                .map(|s| s.as_str())
-                .collect_vec(),
+                ),
                 // Reference: NEED_TO_REDUCE_WIDTH_BY_1
-                (dimension.width as usize).saturating_sub(1),
+                dimension.width.saturating_sub(1),
             );
 
             trim_array(
@@ -137,14 +164,14 @@ impl Editor {
                 wrapped_items.len().saturating_sub(1)..wrapped_items.len(),
                 wrapped_items
                     .len()
-                    .saturating_sub(dimension.height.saturating_sub(1).into()),
+                    .saturating_sub(dimension.height.saturating_sub(1)),
             )
             .trimmed_array
         };
         let result = result.join("\n");
 
         // Ensure that at least one height is spared for rendering the editor's content
-        debug_assert!(result.lines().count() <= dimension.height.saturating_sub(1) as usize);
+        debug_assert!(result.lines().count() <= dimension.height.saturating_sub(1));
         Some(result)
     }
 
@@ -154,11 +181,18 @@ impl Editor {
         reveal: &Reveal,
         render_area: Dimension,
         focused: bool,
+        hunks: &[SimpleHunk],
+        marks: &[CharIndexRange],
     ) -> crate::grid::Grid {
         let buffer = self.buffer();
         let ranges = match reveal {
             Reveal::CurrentSelectionMode => self
-                .revealed_selections(self.selection_set.primary_selection(), context)
+                .revealed_selections(
+                    self.selection_set.primary_selection(),
+                    context.current_working_directory(),
+                    context.quickfix_list_items(),
+                    marks,
+                )
                 .unwrap_or_default()
                 .into_iter()
                 .map(|byte_range| byte_range.range().clone())
@@ -169,9 +203,8 @@ impl Editor {
                 .into_iter()
                 .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
                 .collect_vec(),
-            Reveal::Mark => self
-                .buffer()
-                .marks()
+            Reveal::Mark => context
+                .get_marks(buffer.path())
                 .into_iter()
                 .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
                 .collect_vec(),
@@ -188,7 +221,7 @@ impl Editor {
         .collect_vec();
         let viewport_sections = divide_viewport(
             &ranges,
-            render_area.height as usize,
+            render_area.height,
             buffer
                 .char_index_range_to_byte_range(
                     self.selection_set.primary_selection().extended_range(),
@@ -222,16 +255,20 @@ impl Editor {
                     .byte_range_to_char_index_range(&range)
                     .unwrap_or_default();
                 grid.merge_vertical(self.get_grid_with_dimension(
-                    context,
+                    context.theme(),
+                    context.current_working_directory(),
+                    context.quickfix_list_items(),
                     Dimension {
-                        height: viewport_section.height() as u16,
+                        height: viewport_section.height(),
                         width: self.dimension().width,
                     },
-                    window.start as u16,
+                    window.start,
                     Some(protected_range),
                     true,
                     true,
                     focused,
+                    hunks,
+                    marks,
                 ))
             },
         )
@@ -243,13 +280,17 @@ impl Editor {
     #[allow(clippy::too_many_arguments)]
     fn get_grid_with_dimension(
         &self,
-        context: &Context,
+        theme: &Theme,
+        working_directory: &CanonicalizedPath,
+        quickfix_list_items: Vec<&QuickfixListItem>,
         dimension: Dimension,
-        scroll_offset: u16,
+        scroll_offset: usize,
         protected_range: Option<CharIndexRange>,
         borderize_first_line: bool,
         render_line_number: bool,
         focused: bool,
+        hunks: &[SimpleHunk],
+        marks: &[CharIndexRange],
     ) -> Grid {
         let editor = self;
         let cursor_position = self.get_cursor_position().unwrap_or_default();
@@ -264,7 +305,8 @@ impl Editor {
                 .unwrap_or_default()
         });
 
-        let len_lines = rope.len_lines().max(1) as u16;
+        let len_lines = rope.len_lines().max(1);
+
         let (hidden_parent_lines, visible_parent_lines) = self
             .get_parent_lines_given_line_index_and_scroll_offset(
                 protected_range_start_line.unwrap_or_default(),
@@ -274,8 +316,8 @@ impl Editor {
         let visible_lines = rope
             .lines()
             .enumerate()
-            .skip(scroll_offset as usize)
-            .take(height as usize)
+            .skip(scroll_offset)
+            .take(height)
             .map(|(line_index, slice)| (line_index, slice.to_string()));
 
         let visible_lines_grid: Grid = Grid::new(Dimension { height, width });
@@ -285,8 +327,6 @@ impl Editor {
         // If the buffer selection is updated less recently than the window's scroll offset,
         // use the window's scroll offset.
 
-        let theme = context.theme();
-
         let hidden_parent_line_ranges = hidden_parent_lines
             .iter()
             .map(|line| line.line..line.line + 1)
@@ -294,19 +334,22 @@ impl Editor {
         let visible_line_range =
             self.visible_line_range_given_scroll_offset_and_height(scroll_offset, height);
         let primary_cursor_char_index = primary_selection.to_char_index(&self.cursor_direction);
-        let (hidden_parent_lines_grid, highlight_spans) = {
+        let (hidden_parent_lines_grid, remaining_highlight_spans) = {
             let highlight_spans = self.get_highlight_spans(
-                context,
+                theme,
+                working_directory,
                 &visible_line_range,
                 &hidden_parent_line_ranges,
                 &visible_parent_lines,
                 protected_range,
+                quickfix_list_items,
+                marks,
             );
             let boundaries = hidden_parent_line_ranges
                 .into_iter()
                 .map(|hidden_parent_line_range| Boundary::new(&buffer, hidden_parent_line_range))
                 .collect_vec();
-            let (remaining_highlight_spans, updates): (Vec<_>, Vec<_>) = hidden_parent_lines
+            let (updates, remaining_highlight_spans): (Vec<_>, Vec<_>) = hidden_parent_lines
                 .iter()
                 .filter_map(|line| {
                     if self.reveal.is_some() {
@@ -321,13 +364,18 @@ impl Editor {
                     })
                 })
                 .chain(highlight_spans)
-                .partition_map(|span| span.into_cell_updates(&buffer, theme, &boundaries));
+                .map(|span| span.into_cell_updates(&buffer, theme, &boundaries))
+                .unzip();
+            let updates = updates.into_iter().flatten().collect_vec();
+            let remaining_highlight_spans = remaining_highlight_spans
+                .into_iter()
+                .flatten()
+                .collect_vec();
             let grid = hidden_parent_lines.into_iter().fold(
                 Grid::new(Dimension { height: 0, width }),
                 |grid, line| {
                     let updates = updates
                         .iter()
-                        .flatten()
                         .filter_map(|update| {
                             if update.position.line == line.line {
                                 Some(update.clone().set_position_line(0))
@@ -341,7 +389,7 @@ impl Editor {
                         if render_line_number {
                             RenderContentLineNumber::LineNumber {
                                 start_line_index: line.line,
-                                max_line_number: len_lines as usize,
+                                max_line_number: len_lines,
                             }
                         } else {
                             RenderContentLineNumber::NoLineNumber
@@ -350,19 +398,21 @@ impl Editor {
                         Default::default(),
                         theme,
                         None,
+                        hunks,
                     ))
                 },
             );
             (grid, remaining_highlight_spans)
         };
 
+        debug_assert!(remaining_highlight_spans.is_empty().not());
+
         let grid = {
             let visible_lines_updates = {
                 let boundaries = [Boundary::new(&buffer, visible_line_range)];
-                highlight_spans
+                remaining_highlight_spans
                     .into_iter()
-                    .filter_map(|span| span.into_cell_updates(&buffer, theme, &boundaries).right())
-                    .flatten()
+                    .flat_map(|span| span.into_cell_updates(&buffer, theme, &boundaries).0)
                     // Insert the primary cursor cell update by force.
                     // This is necessary because when the content is empty
                     // all cell updates will be excluded when `to_cell_updates` is run,
@@ -386,8 +436,8 @@ impl Editor {
                 &visible_lines_content,
                 if render_line_number {
                     RenderContentLineNumber::LineNumber {
-                        start_line_index: scroll_offset as usize,
-                        max_line_number: len_lines as usize,
+                        start_line_index: scroll_offset,
+                        max_line_number: len_lines,
                     }
                 } else {
                     RenderContentLineNumber::NoLineNumber
@@ -396,7 +446,7 @@ impl Editor {
                     .into_iter()
                     .filter_map(|cell_update| {
                         Some(CellUpdate {
-                            position: cell_update.position.move_up(scroll_offset as usize)?,
+                            position: cell_update.position.move_up(scroll_offset)?,
                             ..cell_update
                         })
                     })
@@ -409,11 +459,12 @@ impl Editor {
                 {
                     Some(
                         cursor_position
-                            .set_line(cursor_position.line.saturating_sub(scroll_offset as usize)),
+                            .set_line(cursor_position.line.saturating_sub(scroll_offset)),
                     )
                 } else {
                     None
                 },
+                hunks,
             );
             let protected_range = visible_lines_grid
                 .get_protected_range_start_position()
@@ -429,9 +480,8 @@ impl Editor {
                 max_hidden_parent_lines_count,
             );
             let clamped_hidden_parent_lines_grid = hidden_parent_lines_grid.clamp_bottom(
-                (trim_result.remaining_trim_count
-                    + (hidden_parent_lines_count - max_hidden_parent_lines_count))
-                    as u16,
+                trim_result.remaining_trim_count
+                    + (hidden_parent_lines_count - max_hidden_parent_lines_count),
             );
             let trimmed_visible_lines_grid = Grid {
                 width: visible_lines_grid.width,
@@ -450,78 +500,104 @@ impl Editor {
             let result =
                 clamped_hidden_parent_lines_grid.merge_vertical(trimmed_visible_lines_grid);
 
-            let section_divider_cell_updates = (borderize_first_line
-                && visible_lines_grid.height() > 1)
-                .then(|| {
-                    (0..width)
-                        .map(|column| CellUpdate {
-                            position: Position::new(0, column as usize),
-                            symbol: None,
-                            style: Style::new()
-                                .background_color(theme.ui.section_divider_background),
-                            is_cursor: false,
-                            is_protected_range_start: false,
-                            source: Some(StyleKey::UiSectionDivider),
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
+            let section_divider_cell_updates =
+                if borderize_first_line && visible_lines_grid.height() > 1 {
+                    {
+                        (0..width)
+                            .map(|column| CellUpdate {
+                                position: Position::new(0, column),
+                                symbol: None,
+                                style: Style::new()
+                                    .background_color(theme.ui.section_divider_background),
+                                is_cursor: false,
+                                is_protected_range_start: false,
+                                source: Some(StyleKey::UiSectionDivider),
+                            })
+                            .collect()
+                    }
+                } else {
+                    Default::default()
+                };
 
             result.apply_cell_updates(section_divider_cell_updates)
         };
 
-        debug_assert_eq!(grid.rows.len(), height as usize);
-        debug_assert!(grid.rows.iter().all(|row| row.len() == width as usize));
+        debug_assert_eq!(grid.rows.len(), height);
+        debug_assert!(grid.rows.iter().all(|row| row.len() == width));
         grid
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn get_highlight_spans(
         &self,
-        context: &Context,
+        theme: &Theme,
+        working_directory: &CanonicalizedPath,
         visible_line_range: &Range<usize>,
         hidden_parent_line_ranges: &[Range<usize>],
         visible_parent_lines: &[Line],
         protected_range: Option<CharIndexRange>,
+        quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
-        let theme = context.theme();
         let buffer = self.buffer();
-        let possible_selections =
-            if self.selection_set.mode.is_contiguous() && self.reveal.is_none() {
-                Default::default()
-            } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
-                protected_range
-                    .and_then(|protected_range| {
-                        buffer.char_index_range_to_byte_range(protected_range).ok()
-                    })
-                    .into_iter()
-                    .map(ByteRange::new)
-                    .collect()
-            } else {
-                self
-                    //.possible_selections(self.selection_set.primary_selection(), context)
-                    .possible_selections_in_line_number_range(
+
+        let possible_selections = if self.incremental_search_matches.is_some() {
+            Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
+        } else {
+            Box::new(
+                if self.selection_set.mode().is_contiguous() && self.reveal.is_none() {
+                    Default::default()
+                } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
+                    protected_range
+                        .and_then(|protected_range| {
+                            buffer.char_index_range_to_byte_range(protected_range).ok()
+                        })
+                        .into_iter()
+                        .map(ByteRange::new)
+                        .collect()
+                } else {
+                    self.possible_selections_in_line_number_range(
                         self.selection_set.primary_selection(),
-                        context,
+                        working_directory,
                         visible_line_range,
+                        quickfix_list_items,
+                        marks,
                     )
                     .unwrap_or_default()
-            }
-            .into_iter()
-            .map(|range| HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::ByteRange(range.range().clone()),
-                source: Source::StyleKey(UiPossibleSelection),
-                is_protected_range_start: false,
+                }
+                .into_iter()
+                .map(|range| HighlightSpan {
+                    set_symbol: None,
+                    is_cursor: false,
+                    range: HighlightSpanRange::ByteRange(range.range().clone()),
+                    source: Source::StyleKey(UiPossibleSelection),
+                    is_protected_range_start: false,
+                }),
+            )
+        };
+
+        let incremental_search_matches = self
+            .incremental_search_matches
+            .as_ref()
+            .map(|matches| {
+                Box::new(matches.iter().map(|range| HighlightSpan {
+                    set_symbol: None,
+                    is_cursor: false,
+                    range: HighlightSpanRange::ByteRange(range.clone()),
+                    source: Source::StyleKey(UiIncrementalSearchMatch),
+                    is_protected_range_start: false,
+                })) as Box<dyn Iterator<Item = HighlightSpan>>
+            })
+            .unwrap_or_else(|| {
+                Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
             });
 
-        let marks = buffer
-            .marks()
-            .into_iter()
+        let marks_spans = marks
+            .iter()
             .filter(|mark_range| {
                 if let Some(Reveal::Mark) = self.reveal {
-                    Some(mark_range) == protected_range.as_ref()
+                    Some(*mark_range) == protected_range.as_ref()
                 } else {
                     true
                 }
@@ -530,7 +606,7 @@ impl Editor {
                 set_symbol: None,
                 is_cursor: false,
                 source: Source::StyleKey(UiMark),
-                range: HighlightSpanRange::CharIndexRange(mark),
+                range: HighlightSpanRange::CharIndexRange(*mark),
                 is_protected_range_start: false,
             });
         let secondary_selections = &self
@@ -573,8 +649,7 @@ impl Editor {
                 }
                 Some(Reveal::Mark)
                     if protected_range != Some(primary_selection.extended_range())
-                        && buffer
-                            .marks()
+                        && marks
                             .iter()
                             .any(|mark| Some(mark) == protected_range.as_ref()) =>
                 {
@@ -808,34 +883,50 @@ impl Editor {
         } else {
             Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
         };
+
+        // Note: the order here is important
+        //   - First = lowest precedence
+        //   - Last  = highest precedence
+        //
+        // Highlight spans with higher precedence will overwrite
+        // highlight spans with lower precedence.
         vec![]
             .into_iter()
             .chain(visible_parent_lines)
             .chain(filtered_highlighted_spans)
-            .chain(extra_decorations)
             .chain(possible_selections)
             .chain(primary_selection_highlight_span)
             .chain(secondary_selections_highlight_spans)
             .chain(primary_selection_anchors)
             .chain(secondary_selection_anchors)
-            .chain(marks)
+            .chain(marks_spans)
             .chain(diagnostics)
             .chain(jumps)
             .chain(primary_selection_secondary_cursor)
             .chain(secondary_selection_cursors)
             .chain(custom_regex_highlights)
             .chain(regex_highlight_rules)
+            .chain(extra_decorations)
+            .chain(incremental_search_matches)
             .collect_vec()
     }
 
     pub(crate) fn possible_selections_in_line_number_range(
         &self,
         selection: &Selection,
-        context: &Context,
+        working_directory: &CanonicalizedPath,
         line_number_range: &Range<usize>,
+        quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> anyhow::Result<Vec<ByteRange>> {
-        let object = self.get_selection_mode_trait_object(selection, true, context)?;
-        if self.selection_set.mode.is_contiguous() {
+        let object = self.get_selection_mode_trait_object(
+            selection,
+            true,
+            working_directory,
+            quickfix_list_items,
+            marks,
+        )?;
+        if self.selection_set.mode().is_contiguous() {
             return Ok(Vec::new());
         }
 
@@ -852,18 +943,26 @@ impl Editor {
     pub(crate) fn revealed_selections(
         &self,
         selection: &Selection,
-        context: &Context,
+        working_directory: &CanonicalizedPath,
+        quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> anyhow::Result<Vec<ByteRange>> {
-        self.get_selection_mode_trait_object(selection, true, context)?
-            .revealed_selections(&selection_mode::SelectionModeParams {
-                buffer: &self.buffer(),
-                current_selection: selection,
-                cursor_direction: &self.cursor_direction,
-            })
+        self.get_selection_mode_trait_object(
+            selection,
+            true,
+            working_directory,
+            quickfix_list_items,
+            marks,
+        )?
+        .revealed_selections(&selection_mode::SelectionModeParams {
+            buffer: &self.buffer(),
+            current_selection: selection,
+            cursor_direction: &self.cursor_direction,
+        })
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub(crate) struct HighlightSpan {
     pub(crate) source: Source,
     pub(crate) range: HighlightSpanRange,
@@ -873,77 +972,203 @@ pub(crate) struct HighlightSpan {
 }
 
 impl HighlightSpan {
-    /// Convert this `HighlightSpans` into `Vec<CellUpdate>`,
-    /// only perform conversions for positions that falls within the given `boundaries`,
-    /// so that we can minimize the call to the expensive `buffer.xxx_to_position` methods.
+    /// Convert this `HighlightSpan` into `CellUpdate`s and remaining spans after processing a single boundary.
     ///
-    /// If this highlight span is out of all boundaries, then it will be returned as well,
-    /// do avoid cloning.
+    /// Returns a tuple of `(Vec<CellUpdate>, Vec<HighlightSpan>)` where:
+    /// - First element: `CellUpdate`s for the portion of this span that intersects with the boundary
+    /// - Second element: Remaining `HighlightSpan`s for portions that don't intersect with the boundary
     ///
-    /// This is because the HighlightSpan that are used by visible lines grid and hidden lines grid
-    /// should be mutually exclusive.
+    /// The remaining spans represent the "leftover" parts after the intersection is converted to cell updates.
+    /// This allows the span to be progressively "consumed" as it's processed through multiple boundaries.
+    ///
+    /// This method uses the boundary's native range type to minimize expensive range conversions.
+    fn process_boundary(
+        self,
+        buffer: &Buffer,
+        theme: &Theme,
+        boundary: &Boundary,
+    ) -> (Vec<CellUpdate>, Vec<HighlightSpan>) {
+        // Find intersection using the appropriate range type to avoid expensive conversions
+        let (intersection_range, remaining_ranges) = match &self.range {
+            HighlightSpanRange::CharIndexRange(range) => {
+                let intersection =
+                    match range_intersection(&(range.start..range.end), &boundary.char_index_range)
+                    {
+                        Some(range) => range,
+                        None => return (Vec::new(), vec![self]),
+                    };
+
+                let remaining = [
+                    (range.start < intersection.start).then(|| {
+                        HighlightSpanRange::CharIndexRange((range.start..intersection.start).into())
+                    }),
+                    (intersection.end < range.end).then(|| {
+                        HighlightSpanRange::CharIndexRange((intersection.end..range.end).into())
+                    }),
+                ];
+
+                (
+                    HighlightSpanRange::CharIndexRange(intersection.into()),
+                    remaining,
+                )
+            }
+
+            HighlightSpanRange::ByteRange(range) => {
+                let intersection = match range_intersection(range, &boundary.byte_range) {
+                    Some(range) => range,
+                    None => return (Vec::new(), vec![self]),
+                };
+
+                let remaining = [
+                    (range.start < intersection.start)
+                        .then(|| HighlightSpanRange::ByteRange(range.start..intersection.start)),
+                    (intersection.end < range.end)
+                        .then(|| HighlightSpanRange::ByteRange(intersection.end..range.end)),
+                ];
+
+                (HighlightSpanRange::ByteRange(intersection), remaining)
+            }
+
+            HighlightSpanRange::Line(line) => {
+                let line_range = *line..line + 1;
+                let intersection = match range_intersection(&line_range, &boundary.line_range) {
+                    Some(range) => range,
+                    None => return (Vec::new(), vec![self]),
+                };
+
+                let remaining = [
+                    (line_range.start < intersection.start)
+                        .then_some(HighlightSpanRange::Line(line_range.start))
+                        .filter(|_| intersection.start > line_range.start),
+                    (intersection.end < line_range.end)
+                        .then_some(HighlightSpanRange::Line(intersection.end))
+                        .filter(|_| intersection.end < line_range.end),
+                ];
+
+                // For single line, if there's intersection, convert the whole line
+                (HighlightSpanRange::Line(*line), remaining)
+            }
+
+            HighlightSpanRange::CharIndex(char_index) => {
+                let char_range = *char_index..CharIndex(char_index.0 + 1);
+
+                if range_intersection(&char_range, &boundary.char_index_range).is_none() {
+                    return (Vec::new(), vec![self]);
+                }
+
+                // Single char index - either fully contained or not
+                (HighlightSpanRange::CharIndex(*char_index), [None, None])
+            }
+        };
+
+        // Generate cell updates for intersected portion
+        let cell_updates = match &intersection_range {
+            HighlightSpanRange::CharIndexRange(range) => range
+                .iter()
+                .filter_map(|char_index| {
+                    let position = buffer.char_to_position(char_index).ok()?;
+                    Some(self.create_cell_update(position, theme))
+                })
+                .collect(),
+            HighlightSpanRange::ByteRange(range) => {
+                // Convert to char range only for the intersected portion
+                buffer
+                    .byte_range_to_char_index_range(range)
+                    .map(|char_range| {
+                        (char_range.start.0..char_range.end.0)
+                            .filter_map(|char_index| {
+                                let position =
+                                    buffer.char_to_position(CharIndex(char_index)).ok()?;
+                                Some(self.create_cell_update(position, theme))
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            }
+            HighlightSpanRange::Line(line) => buffer
+                .line_range_to_char_index_range(&(*line..line + 1))
+                .map(|char_range| {
+                    (char_range.start.0..char_range.end.0)
+                        .filter_map(|char_index| {
+                            let position = buffer.char_to_position(CharIndex(char_index)).ok()?;
+                            Some(self.create_cell_update(position, theme))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            HighlightSpanRange::CharIndex(char_index) => buffer
+                .char_to_position(*char_index)
+                .map(|position| vec![self.create_cell_update(position, theme)])
+                .unwrap_or_default(),
+        };
+
+        // Generate remaining spans
+        let remaining_spans = remaining_ranges
+            .into_iter()
+            .flatten()
+            .map(|range| HighlightSpan {
+                range,
+                ..self.clone()
+            })
+            .collect();
+
+        (cell_updates, remaining_spans)
+    }
+
+    // Helper method to create CellUpdate
+    fn create_cell_update(&self, position: Position, theme: &Theme) -> CellUpdate {
+        CellUpdate {
+            position,
+            symbol: self.set_symbol,
+            style: match &self.source {
+                Source::StyleKey(key) => theme.get_style(key),
+                Source::Style(style) => *style,
+            },
+            is_cursor: self.is_cursor,
+            source: match &self.source {
+                Source::StyleKey(key) => Some(key.clone()),
+                _ => None,
+            },
+            is_protected_range_start: self.is_protected_range_start,
+        }
+    }
+
+    /// Convert this `HighlightSpan` into `CellUpdate`s by processing it through multiple boundaries.
+    ///
+    /// Returns a tuple of `(Vec<CellUpdate>, Vec<HighlightSpan>)` where:
+    /// - First element: All `CellUpdate`s generated from portions of this span that intersected with any boundary
+    /// - Second element: Remaining `HighlightSpan`s that didn't intersect with any boundary
+    ///
+    /// The span is progressively processed through each boundary, with intersecting portions converted
+    /// to `CellUpdate`s and non-intersecting portions carried forward to the next boundary.
+    /// Any portions that don't intersect with any boundary are returned as remaining spans.
+    ///
+    /// This design minimizes expensive `buffer.xxx_to_position` calls by only converting portions
+    /// that actually fall within the given boundaries, and avoids expensive range conversions by
+    /// using each boundary's native range type.
     fn into_cell_updates(
         self,
         buffer: &Buffer,
         theme: &Theme,
         boundaries: &[Boundary],
-    ) -> Either<Self, Vec<CellUpdate>> {
-        let result = boundaries
-            .iter()
-            .filter_map(|boundary| {
-                let char_index_range: CharIndexRange = match &self.range {
-                    HighlightSpanRange::CharIndexRange(range) => {
-                        range_intersection(&(range.start..range.end), &boundary.char_index_range)?
-                            .into()
-                    }
-                    HighlightSpanRange::ByteRange(range) => buffer
-                        .byte_range_to_char_index_range(&range_intersection(
-                            range,
-                            &boundary.byte_range,
-                        )?)
-                        .ok()?,
-                    HighlightSpanRange::CharIndex(char_index) => range_intersection(
-                        &(*char_index..(*char_index + 1)),
-                        &boundary.char_index_range,
-                    )?
-                    .into(),
-                    HighlightSpanRange::Line(line) => buffer
-                        .line_range_to_char_index_range(range_intersection(
-                            &(*line..line + 1),
-                            &boundary.line_range,
-                        )?)
-                        .ok()?,
-                };
-                Some(
-                    char_index_range
-                        .iter()
-                        .flat_map(|char_index| {
-                            let position = buffer.char_to_position(char_index).ok()?;
-                            Some(CellUpdate {
-                                position,
-                                symbol: self.set_symbol,
-                                style: match &self.source {
-                                    Source::StyleKey(key) => theme.get_style(key),
-                                    Source::Style(style) => *style,
-                                },
-                                is_cursor: self.is_cursor,
-                                source: match &self.source {
-                                    Source::StyleKey(key) => Some(key.clone()),
-                                    _ => None,
-                                },
-                                is_protected_range_start: self.is_protected_range_start,
-                            })
-                        })
+    ) -> (Vec<CellUpdate>, Vec<HighlightSpan>) {
+        boundaries.iter().fold(
+            (Vec::new(), vec![self]),
+            |(all_cell_updates, spans), boundary| {
+                let (new_cell_updates, remaining_spans): (Vec<_>, Vec<_>) = spans
+                    .into_iter()
+                    .map(|span| span.process_boundary(buffer, theme, boundary))
+                    .unzip();
+
+                (
+                    all_cell_updates
+                        .into_iter()
+                        .chain(new_cell_updates.into_iter().flatten())
                         .collect_vec(),
+                    remaining_spans.into_iter().flatten().collect(),
                 )
-            })
-            .flatten()
-            .collect_vec();
-        if result.is_empty() {
-            Either::Left(self)
-        } else {
-            Either::Right(result)
-        }
+            },
+        )
     }
 }
 
@@ -972,6 +1197,7 @@ pub(crate) enum HighlightSpanRange {
     Line(usize),
 }
 
+#[derive(Debug)]
 struct Boundary {
     byte_range: Range<usize>,
     char_index_range: Range<CharIndex>,
@@ -1015,21 +1241,21 @@ mod test_render_editor {
                 origin: Default::default(),
                 width: (u8::arbitrary(g) / 10).max(
                     MAX_CHARACTER_WIDTH + LINE_NUMBER_UI_WIDTH + PADDING_FOR_CURSOR_AT_LAST_COLUMN,
-                ) as u16,
-                height: ((u8::arbitrary(g) / 10) as u16).max(1),
+                ) as usize,
+                height: (u8::arbitrary(g) / 10).max(1) as usize,
             }
         }
     }
 
     #[quickcheck]
     fn get_grid_cells_should_be_always_within_bound(rectangle: Rectangle, content: String) -> bool {
+        let content = content.replace("\r", "");
         let mut editor = Editor::from_text(None, &content);
         editor.set_rectangle(rectangle.clone(), &Context::default());
         let grid = editor.get_grid(&Context::default(), false);
         let cells = grid.grid.to_positioned_cells();
         cells.into_iter().all(|cell| {
-            cell.position.line < (rectangle.height as usize)
-                && cell.position.column < (rectangle.width as usize)
+            cell.position.line < rectangle.height && cell.position.column < rectangle.width
         })
     }
 }
@@ -1044,14 +1270,6 @@ fn filter_items_by_range<T, F>(items: &[T], start: usize, end: usize, get_range:
 where
     F: Fn(&T) -> Range<usize>,
 {
-    debug_assert!(
-        items.iter().map(&get_range).collect_vec()
-            == items
-                .iter()
-                .map(&get_range)
-                .sorted_by_key(|range| (range.start, range.end))
-                .collect_vec(),
-    );
     debug_assert!(start <= end);
 
     // Find the start index

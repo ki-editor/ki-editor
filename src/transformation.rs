@@ -11,10 +11,27 @@ pub(crate) enum Transformation {
     Case(convert_case::Case),
     Join,
     Wrap,
-    PipeToShell { command: String },
-    ReplaceWithCopiedText { copied_texts: CopiedTexts },
-    RegexReplace { regex: MyRegex, replacement: String },
-    NamingConventionAgnosticReplace { search: String, replacement: String },
+    PipeToShell {
+        command: String,
+    },
+    ReplaceWithCopiedText {
+        copied_texts: CopiedTexts,
+    },
+    RegexReplace {
+        regex: MyRegex,
+        replacement: String,
+    },
+    NamingConventionAgnosticReplace {
+        search: String,
+        replacement: String,
+    },
+    ToggleLineComment {
+        prefix: &'static str,
+    },
+    ToggleBlockComment {
+        open: &'static str,
+        close: &'static str,
+    },
 }
 
 impl std::fmt::Display for Transformation {
@@ -23,7 +40,7 @@ impl std::fmt::Display for Transformation {
             Transformation::Case(case) => write!(
                 f,
                 "{}",
-                format!("{:?}", case).to_case(convert_case::Case::Title)
+                format!("{case:?}").to_case(convert_case::Case::Title)
             ),
             Transformation::Join => write!(f, "Join",),
             Transformation::Wrap => write!(f, "Wrap",),
@@ -45,6 +62,12 @@ impl std::fmt::Display for Transformation {
                 f,
                 "Naming convention-Agnostic: Replace `{search}` with `{replacement}`",
             ),
+            Transformation::ToggleLineComment { prefix } => {
+                write!(f, "Toggle Line Comment `{prefix}`")
+            }
+            Transformation::ToggleBlockComment { open, close } => {
+                write!(f, "Toggle Block Comment `{open} {close}`")
+            }
         }
     }
 }
@@ -96,6 +119,22 @@ impl Transformation {
                 search,
                 replacement,
             } => NamingConventionAgnostic::replace(&string, search, replacement),
+            Transformation::ToggleLineComment { prefix } => Ok(if string.starts_with(prefix) {
+                string.trim_start_matches(prefix).trim_start().to_string()
+            } else {
+                format!("{prefix} {string}")
+            }),
+            Transformation::ToggleBlockComment { open, close } => {
+                Ok(if string.starts_with(open) && string.ends_with(close) {
+                    string
+                        .trim_start_matches(open)
+                        .trim_end_matches(close)
+                        .trim()
+                        .to_string()
+                } else {
+                    format!("{open} {string} {close}")
+                })
+            }
         }
     }
 }
@@ -132,5 +171,33 @@ who lives in a pineapple under the sea? Spongebob Squarepants! absorbent and yel
 "
             .trim().to_string()).unwrap();
         assert_eq!(result, "who lives in a pineapple under the sea? Spongebob Squarepants! absorbent and\nyellow and porous is he? Spongebob Squarepants")
+    }
+
+    #[test]
+    fn toggle_line_comment() {
+        let transformation = Transformation::ToggleLineComment { prefix: "//" };
+        assert_eq!(
+            transformation.apply(0, "hello".to_string()).unwrap(),
+            "// hello"
+        );
+        assert_eq!(
+            transformation.apply(0, "// hello".to_string()).unwrap(),
+            "hello"
+        );
+    }
+    #[test]
+    fn toggle_block_comment() {
+        let transformation = Transformation::ToggleBlockComment {
+            open: "/*",
+            close: "*/",
+        };
+        assert_eq!(
+            transformation.apply(0, "hello".to_string()).unwrap(),
+            "/* hello */"
+        );
+        assert_eq!(
+            transformation.apply(0, "/* hello */".to_string()).unwrap(),
+            "hello"
+        );
     }
 }

@@ -13,8 +13,8 @@ pub(crate) mod line_full;
 pub(crate) mod line_trimmed;
 pub(crate) mod local_quickfix;
 pub(crate) mod regex;
+pub(crate) mod subword;
 pub(crate) mod syntax_node;
-pub(crate) mod token;
 pub(crate) mod word;
 pub(crate) use self::regex::Regex;
 pub(crate) use ast_grep::AstGrep;
@@ -30,9 +30,8 @@ pub(crate) use mark::Mark;
 pub(crate) use naming_convention_agnostic::NamingConventionAgnostic;
 use position_pair::ParsedChar;
 use std::ops::Range;
+pub(crate) use subword::Subword;
 pub(crate) use syntax_node::SyntaxNode;
-pub(crate) use syntax_token::SyntaxToken;
-pub(crate) use token::Token;
 pub(crate) use top_node::TopNode;
 pub(crate) use word::Word;
 
@@ -266,7 +265,6 @@ impl SelectionModeParams<'_> {
 #[derive(Debug, Clone)]
 pub(crate) struct ApplyMovementResult {
     pub(crate) selection: Selection,
-    pub(crate) mode: Option<crate::selection::SelectionMode>,
     pub(crate) sticky_column_index: Option<usize>,
 }
 
@@ -274,7 +272,6 @@ impl ApplyMovementResult {
     pub(crate) fn from_selection(selection: Selection) -> Self {
         Self {
             selection,
-            mode: None,
             sticky_column_index: None,
         }
     }
@@ -308,12 +305,12 @@ impl<T: PositionBasedSelectionMode> SelectionModeTrait for PositionBased<T> {
         self.0.to_index(params, index)
     }
 
-    fn alpha(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.alpha(params)
+    fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.0.first(params)
     }
 
-    fn beta(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.beta(params)
+    fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.0.last(params)
     }
 
     fn right(
@@ -366,14 +363,6 @@ impl<T: PositionBasedSelectionMode> SelectionModeTrait for PositionBased<T> {
             .selections_in_line_number_ranges(params, line_number_ranges)
     }
 
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.delete_forward(params)
-    }
-
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.delete_backward(params)
-    }
-
     fn current(
         &self,
         params: &SelectionModeParams,
@@ -391,6 +380,14 @@ impl<T: PositionBasedSelectionMode> SelectionModeTrait for PositionBased<T> {
     ) -> String {
         self.0
             .process_paste_gap(params, prev_gap, next_gap, direction)
+    }
+
+    fn next(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.0.next(params)
+    }
+
+    fn previous(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.0.previous(params)
     }
 }
 
@@ -423,13 +420,12 @@ pub trait SelectionModeTrait {
         }
         match movement {
             MovementApplicandum::Right => convert(self.right(params)),
-
             MovementApplicandum::Left => convert(self.left(params)),
-            MovementApplicandum::Beta => convert(self.beta(params)),
+            MovementApplicandum::Last => convert(self.last(params)),
             MovementApplicandum::Current(if_current_not_found) => {
                 convert(self.current(params, if_current_not_found))
             }
-            MovementApplicandum::Alpha => convert(self.alpha(params)),
+            MovementApplicandum::First => convert(self.first(params)),
             MovementApplicandum::Index(index) => convert(self.to_index(params, index)),
             MovementApplicandum::Jump(range) => Ok(Some(ApplyMovementResult::from_selection(
                 params.current_selection.clone().set_range(range),
@@ -441,8 +437,8 @@ pub trait SelectionModeTrait {
                 sticky_column_index,
             } => self.down(params, sticky_column_index),
             MovementApplicandum::Expand => self.expand(params),
-            MovementApplicandum::DeleteBackward => convert(self.delete_backward(params)),
-            MovementApplicandum::DeleteForward => convert(self.delete_forward(params)),
+            MovementApplicandum::Next => convert(self.next(params)),
+            MovementApplicandum::Previous => convert(self.previous(params)),
         }
     }
 
@@ -459,6 +455,10 @@ pub trait SelectionModeTrait {
         params: &SelectionModeParams,
         sticky_column_index: Option<usize>,
     ) -> anyhow::Result<Option<ApplyMovementResult>>;
+
+    fn next(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
+
+    fn previous(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
 
     fn selections_in_line_number_ranges(
         &self,
@@ -528,17 +528,11 @@ pub trait SelectionModeTrait {
         index: usize,
     ) -> anyhow::Result<Option<Selection>>;
 
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.right(params)
-    }
+    /// First meaningful selection
+    fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
 
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.left(params)
-    }
-
-    fn alpha(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
-
-    fn beta(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
+    /// Last meaningful selection
+    fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
 
     fn current(
         &self,
@@ -614,8 +608,8 @@ pub trait SelectionModeTrait {
         let selection = params.current_selection;
         let get_in_between_gap = |direction: Direction| {
             let other = match direction {
-                Direction::Start => self.delete_backward(params),
-                Direction::End => self.delete_forward(params),
+                Direction::Start => self.left(params),
+                Direction::End => self.right(params),
             }
             .ok()??;
             if other.range() == selection.range() {
@@ -717,15 +711,30 @@ pub trait PositionBasedSelectionMode {
         };
         Ok(result)
     }
-    fn get_current_selection_by_cursor(
+
+    fn get_current_meaningful_selection_by_cursor(
         &self,
         buffer: &Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<ByteRange>>;
 
-    fn alpha(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.get_current_selection_by_cursor(
+    /// This includes all selections, including meaningless ones
+    fn get_current_selection_by_cursor(
+        &self,
+        buffer: &Buffer,
+        cursor_char_index: CharIndex,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<ByteRange>> {
+        self.get_current_meaningful_selection_by_cursor(
+            buffer,
+            cursor_char_index,
+            if_current_not_found,
+        )
+    }
+
+    fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.get_current_meaningful_selection_by_cursor(
             params.buffer,
             CharIndex(0),
             IfCurrentNotFound::LookForward,
@@ -734,10 +743,10 @@ pub trait PositionBasedSelectionMode {
         .transpose()
     }
 
-    fn beta(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.get_current_selection_by_cursor(
+    fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.get_current_meaningful_selection_by_cursor(
             params.buffer,
-            CharIndex(params.buffer.len_chars()) - 1,
+            CharIndex(params.buffer.len_chars()),
             IfCurrentNotFound::LookBackward,
         )?
         .map(|byte_range| byte_range.to_selection(params.buffer, params.current_selection))
@@ -748,7 +757,7 @@ pub trait PositionBasedSelectionMode {
         &self,
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.get_current_selection_by_cursor(
+        self.get_current_meaningful_selection_by_cursor(
             params.buffer,
             params
                 .current_selection
@@ -770,7 +779,7 @@ pub trait PositionBasedSelectionMode {
         &self,
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        self.get_current_selection_by_cursor(
+        self.get_current_meaningful_selection_by_cursor(
             params.buffer,
             params.current_selection.range().start - 1,
             IfCurrentNotFound::LookBackward,
@@ -784,12 +793,44 @@ pub trait PositionBasedSelectionMode {
         .transpose()
     }
 
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.right(params)
+    fn next(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.get_current_selection_by_cursor(
+            params.buffer,
+            params
+                .current_selection
+                .range()
+                .end
+                .min(CharIndex(params.buffer.len_chars())),
+            IfCurrentNotFound::LookForward,
+        )?
+        .map(|range| {
+            params
+                .current_selection
+                .clone()
+                .update_with_byte_range(params.buffer, range)
+        })
+        .transpose()
     }
 
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.left(params)
+    fn previous(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.get_current_selection_by_cursor(
+            params.buffer,
+            params.current_selection.range().start - 1,
+            IfCurrentNotFound::LookBackward,
+        )?
+        .map(|range| {
+            params
+                .current_selection
+                .clone()
+                .update_with_byte_range(params.buffer, range)
+        })
+        .transpose()
     }
 
     fn revealed_selections<'a>(
@@ -806,7 +847,7 @@ pub trait PositionBasedSelectionMode {
         let mut cursor_char_index = CharIndex(0);
         let mut result = Vec::new();
         while cursor_char_index < CharIndex(params.buffer.len_chars()) {
-            if let Some(range) = self.get_current_selection_by_cursor(
+            if let Some(range) = self.get_current_meaningful_selection_by_cursor(
                 params.buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
@@ -834,9 +875,9 @@ pub trait PositionBasedSelectionMode {
         &'a self,
         params: &SelectionModeParams<'a>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        let mut cursor_char_index = CharIndex(params.buffer.len_chars() - 1);
+        let mut cursor_char_index = CharIndex(params.buffer.len_chars());
         let mut result = Vec::new();
-        while let Some(range) = self.get_current_selection_by_cursor(
+        while let Some(range) = self.get_current_meaningful_selection_by_cursor(
             params.buffer,
             cursor_char_index,
             IfCurrentNotFound::LookBackward,
@@ -961,12 +1002,10 @@ pub trait PositionBasedSelectionMode {
                         .set_info(result.info);
                     return Ok(Some(ApplyMovementResult {
                         selection,
-                        mode: None,
                         sticky_column_index,
                     }));
                 }
             }
-
             if let Some(result) =
                 self.get_current_selection_by_cursor(buffer, new_cursor_char_index, second_look)?
             {
@@ -977,7 +1016,6 @@ pub trait PositionBasedSelectionMode {
                         .set_info(result.info);
                     return Ok(Some(ApplyMovementResult {
                         selection,
-                        mode: None,
                         sticky_column_index,
                     }));
                 }
@@ -1084,7 +1122,7 @@ impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
         &'a self,
         params: &SelectionModeParams<'a>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        Ok(self.0.all_selections(params)?.collect_vec())
+        Ok(self.0.all_meaningful_selections(params)?.collect_vec())
     }
 
     fn revealed_selections<'a>(
@@ -1099,7 +1137,7 @@ impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
         &'a self,
         params: &SelectionModeParams<'a>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        Ok(self.0.all_selections(params)?.collect_vec())
+        Ok(self.0.all_meaningful_selections(params)?.collect_vec())
     }
 
     fn expand(&self, params: &SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
@@ -1131,6 +1169,13 @@ impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
             .selections_in_line_number_ranges(params, line_number_ranges)
     }
 
+    fn next(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.0.next(params)
+    }
+    fn previous(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.0.previous(params)
+    }
+
     fn to_index(
         &self,
         params: &SelectionModeParams,
@@ -1139,11 +1184,11 @@ impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
         self.0.to_index(params, index)
     }
 
-    fn alpha(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.0.first(params)
     }
 
-    fn beta(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.0.last(params)
     }
 
@@ -1167,14 +1212,6 @@ impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.0.left(params)
-    }
-
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.delete_forward(params)
-    }
-
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.delete_backward(params)
     }
 
     fn process_paste_gap(
@@ -1230,6 +1267,14 @@ pub(crate) trait IterBasedSelectionMode {
         ))
     }
 
+    fn all_meaningful_selections<'a>(
+        &'a self,
+        params: &SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
+        self.iter_filtered(params)
+    }
+
+    #[cfg(test)]
     fn all_selections<'a>(
         &'a self,
         params: &SelectionModeParams<'a>,
@@ -1433,7 +1478,6 @@ pub(crate) trait IterBasedSelectionMode {
             .transpose()?;
         Ok(selection.map(|selection| ApplyMovementResult {
             selection,
-            mode: None,
             sticky_column_index: Some(sticky_column_index.unwrap_or(current_position.column)),
         }))
     }
@@ -1486,6 +1530,13 @@ pub(crate) trait IterBasedSelectionMode {
     }
 
     fn right(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.right_default_impl(params)
+    }
+
+    fn right_default_impl(
+        &self,
+        params: &SelectionModeParams,
+    ) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection.clone();
         let buffer = params.buffer;
         let byte_range = buffer.char_index_range_to_byte_range(current_selection.range())?;
@@ -1500,6 +1551,10 @@ pub(crate) trait IterBasedSelectionMode {
     }
 
     fn left(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.left_default_impl(params)
+    }
+
+    fn left_default_impl(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection.clone();
         let buffer = params.buffer;
         let byte_range = buffer.char_index_range_to_byte_range(current_selection.range())?;
@@ -1518,18 +1573,11 @@ pub(crate) trait IterBasedSelectionMode {
             })
             .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
     }
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.right(params)
-    }
-
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.left(params)
-    }
 
     /// This uses `all_selections` instead of `iter_filtered`.
     fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         Ok(self
-            .all_selections(params)?
+            .all_meaningful_selections(params)?
             .sorted()
             .next()
             .and_then(|range| {
@@ -1542,14 +1590,22 @@ pub(crate) trait IterBasedSelectionMode {
     /// This uses `all_selections` instead of `iter_filtered`.
     fn last(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         Ok(self
-            .all_selections(params)?
+            .all_meaningful_selections(params)?
             .sorted()
-            .last()
+            .next_back()
             .and_then(|range| {
                 range
                     .to_selection(params.buffer, params.current_selection)
                     .ok()
             }))
+    }
+
+    fn next(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.right(params)
+    }
+
+    fn previous(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.left(params)
     }
 
     fn current(
@@ -1579,7 +1635,9 @@ pub(crate) trait IterBasedSelectionMode {
             self.iter_filtered(params)?
                 .filter_map(|byte_range| {
                     // Get intersecting matches
-                    if byte_range.range.contains(&cursor_byte) {
+                    if byte_range.range.start == cursor_byte
+                        || byte_range.range.contains(&cursor_byte)
+                    {
                         let line = buffer.byte_to_line(byte_range.range.start).ok()?;
                         Some((line, byte_range))
                     } else {
@@ -1603,8 +1661,8 @@ pub(crate) trait IterBasedSelectionMode {
         // If no intersecting match found, look in the given direction
         else {
             let result = match if_current_not_found {
-                IfCurrentNotFound::LookForward => self.right(params),
-                IfCurrentNotFound::LookBackward => self.left(params),
+                IfCurrentNotFound::LookForward => self.right_default_impl(params),
+                IfCurrentNotFound::LookBackward => self.left_default_impl(params),
             }?;
             if let Some(result) = result {
                 Ok(Some(result))
@@ -1612,8 +1670,8 @@ pub(crate) trait IterBasedSelectionMode {
                 // Look in another direction if matching selection is not found in the
                 // preferred direction
                 match if_current_not_found {
-                    IfCurrentNotFound::LookForward => self.left(params),
-                    IfCurrentNotFound::LookBackward => self.right(params),
+                    IfCurrentNotFound::LookForward => self.left_default_impl(params),
+                    IfCurrentNotFound::LookBackward => self.right_default_impl(params),
                 }
             }
         }
@@ -1744,12 +1802,12 @@ mod test_selection_mode {
 
     #[test]
     fn first() {
-        test(MovementApplicandum::Alpha, 0..1, 0..6);
+        test(MovementApplicandum::First, 0..1, 0..6);
     }
 
     #[test]
     fn last() {
-        test(MovementApplicandum::Beta, 0..0, 3..5);
+        test(MovementApplicandum::Last, 0..0, 3..5);
     }
 
     #[test]

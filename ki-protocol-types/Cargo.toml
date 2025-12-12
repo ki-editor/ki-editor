@@ -1,0 +1,8 @@
+[package]
+name = "ki-protocol-types"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+typeshare = { git = "https://github.com/tomjw64/typeshare", branch = "allow-override-for-disallowed-types" }

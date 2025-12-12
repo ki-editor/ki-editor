@@ -24,13 +24,14 @@ There are two Syntax Node selection modes:
 - Coarse: faster movement, lower accuracy
 - Fine: higher accuracy, slower movement
 
-| Movement                                       | Meaning                              |
-| ---------------------------------------------- | ------------------------------------ |
-| [Left/Right](../core-movements.md#--leftright) | Next/Previous **named** sibling node |
-| Up                                             | Parent node                          |
-| Down                                           | First **named** child                |
-| Current                                        | Select the largest node              |
-| Jump                                           | Jump to largest node                 |
+| Movement                                           | Meaning                                              |
+| -------------------------------------------------- | ---------------------------------------------------- |
+| [Left/Right](../core-movements.md#--leftright)     | Next/Previous **named** sibling node                 |
+| [Previous/Next](../core-movements.md#previousnext) | Next/Previous sibling node, including anonymous ones |
+| Up                                                 | Parent node                                          |
+| Down                                               | First **named** child                                |
+| Current                                            | Select the largest node                              |
+| Jump                                               | Jump to largest node                                 |
 
 ### Largest Node
 
@@ -46,7 +47,7 @@ There are several syntax nodes that start with `f`[^1]:
 - `fox.bar` (member expression)
 - `fox.bar()` (call expression)
 
-Suppose the cursor is below `f`, pressing `s` selects `fox.bar()`, because `fox.bar()` is the largest node that starts with `f`.
+Suppose the cursor is below `f`, pressing `d` selects `fox.bar()`, because `fox.bar()` is the largest node that starts with `f`.
 
 [^1]: You can try it out at [https://astexplorer.net/](https://astexplorer.net/), using the `@typescript-eslint/parser`.
 
@@ -59,7 +60,7 @@ For example, "," are usually unnamed (
 anonymous) in most language grammars, thus it will be skipped when using the
 Previous/Next movement in Syntax Node.
 
-See more at [https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-anonymous-nodes](https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-anonymous-nodes).
+See more at [https://tree-sitter.github.io/tree-sitter/using-parsers/2-basic-parsing.html#named-vs-anonymous-nodes](https://tree-sitter.github.io/tree-sitter/using-parsers/2-basic-parsing.html#named-vs-anonymous-nodes).
 
 ### Examples
 
@@ -69,13 +70,14 @@ See more at [https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-an
 
 Fine Syntax Node.
 
-| Movement                                       | Meaning                                          |
-| ---------------------------------------------- | ------------------------------------------------ |
-| [Left/Right](../core-movements.md#--leftright) | Next/Previous sibling node (including anonymous) |
-| Up                                             | Parent node                                      |
-| Shrink                                         | First child (including anonymous)                |
-| Current                                        | Smallest node that matches the current selection |
-| Jump                                           | Jump to smallest node                            |
+| Movement                                           | Meaning                                              |
+| -------------------------------------------------- | ---------------------------------------------------- |
+| [Left/Right](../core-movements.md#--leftright)     | Next/Previous **named** sibling node                 |
+| [Previous/Next](../core-movements.md#previousnext) | Next/Previous sibling node, including anonymous ones |
+| Up                                                 | Parent node                                          |
+| Shrink                                             | First child (including anonymous)                    |
+| Current                                            | Smallest node that matches the current selection     |
+| Jump                                               | Jump to smallest node                                |
 
 Fine Syntax Node is useful when you start to expand the selection starting from the current smallest node.
 
@@ -85,28 +87,27 @@ Suppose we have the following Javascript expression, and the current selection i
 hello.world().foo().bar().spam().wise();
 ```
 
-If we press `s`, the whole expression will be selected[^1], and we will need to press `b` several times to shrink the selection down to `hello.world()`.
+If we press `d`, the whole expression will be selected[^1], and we will need to press `k` several times to shrink the selection down to `hello.world()`.
 
-However, if we use `S` instead, the selection will remain as `hello`, and pressing `t` multiple times will get us to `hello.world()`.
+However, if we use `D` instead, the selection will remain as `hello`, and pressing `i` multiple times will get us to `hello.world()`.
 
 [^1]: See [Largest Node](#largest-node)
 
 ## `Line`
 
 In this selection mode, the selection is trimmed, which means that the leading
-and trailing spaces of each line are not selected.
+and trailing spaces of each line are not meaningful.
 
-| Movement   | Meaning                                         |
-| ---------- | ----------------------------------------------- |
-| Up/Down    | Move to line above/below                        |
-| Alpha/Beta | Move to the first/last line of the current file |
-| Left       | Move to the parent line                         |
+The meaningful selection of this mode is the trimmed portion of any non-empty line.
 
-Parent lines are highlighted lines that represent the parent nodes of the current selection.
+The meaningless selections are empty lines.
 
-This is useful for example when you are within the body of a function and you want to jump to the function name.
-
-This is also practical in the [File Explorer](../../components/file-explorer.md) because the file explorer is rendered using YAML, so going to Parent Line means going to the parent folder!
+| Movement      | Meaning                                                   |
+| ------------- | --------------------------------------------------------- |
+| Up/Down       | Move to the nearest empty lines above/below               |
+| Previous/Next | Move to all kinds of line portions                        |
+| First/Last    | Move to the first/last non-empty line of the current file |
+| Left/Right    | Move to the previous/next non-empty line                  |
 
 <TutorialFallback filename="line"/>
 
@@ -114,28 +115,16 @@ This is also practical in the [File Explorer](../../components/file-explorer.md)
 
 Full Line.
 
-Same as [Line](#line), however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.
+Same as [Line](#line), however, leading whitespaces and trailing whitespaces, including newline characters are also selected.
 
-## `Token`
-
-Token.
+## `Word`
 
 Each unit is a sequence of alphanumeric characters including `-` and `_`.
 
-| Movement   | Symbols | Alphanumeric |
-| ---------- | ------- | ------------ |
-| Left/Right |         | ✓            |
-| Alpha/Beta | ✓       |              |
-| Jump       | ✓       | ✓            |
-| Up/Down    | ✓       | ✓            |
-| Current    | ✓       | ✓            |
-
-Left/Right movement skips symbols, while Alpha/Beta movement moves to symbols only.
-
-This means Left/Right movements are optimized for navigating alphanumeric tokens,
-while Alpha/Beta movements are optimized for symbolic tokens, which is useful for navigating sentences.
-
-Why don't Left/Right movements also navigate symbols? Because they would be too slow; it would take a lot of unnecessary keypresses to reach the target.
+| Movement              | Meaning                                      |
+| --------------------- | -------------------------------------------- |
+| Up/Down/Previous/Next | Move to all kinds of word, including symbols |
+| Left/Right            | Move to non-symbol word only                 |
 
 Suppose the following example:
 
@@ -150,38 +139,25 @@ If the current selection is selecting `use`, the following table demonstrates ho
 | Include                            | `crate` `:` `:` `{` `components` `:` `:` `editor` `:` `:` `OpenFile` | 11    |
 | Exclude                            | `crate` `components` `editor` `OpenFile`                             | 4     |
 
-Why do we need the Alpha/Beta movements to navigate symbols? Because sometimes, we just need to move to a symbol.
-
-For example, in the following code, suppose we wanted to add an `&` symbol before `[Color]`.
-
-```rs
-fn apply_style(&self, colors: [Color]);
-```
-
-If there are no movements for Token which navigate to symbols, then we are forced to change the selection mode to either Word or Char, before inserting.
-
-<TutorialFallback filename="token"/>
-
-[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
-[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
-
-## `Word`
-
-This selects word within a token.
-
-For example, `myOatPepperBanana` consists of 4 short words, namely: `my`, `Oat`, `Pepper` and `Banana`.
-
-This is useful for renaming identifiers, especially if we only want to change a single word of the name. [^1]
-
 <TutorialFallback filename="word"/>
 
-## `Word*`
+[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
+[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 
-Fine Word.
+## `Subword`
 
-This is similar to [Word](#word), except that it does not skip symbols.
+This selects subword within a subword.
 
-<TutorialFallback filename="fine-word"/>
+For example, `myOatPepperBanana` consists of 4 short subword, namely: `my`, `Oat`, `Pepper` and `Banana`.
+
+This is useful for renaming identifiers, especially if we only want to change a single subword of the name. [^1]
+
+| Movement              | Meaning                                         |
+| --------------------- | ----------------------------------------------- |
+| Up/Down/Previous/Next | Move to all kinds of subword, including symbols |
+| Left/Right            | Move to non-symbol subword only                 |
+
+<TutorialFallback filename="subword"/>
 
 ## `Char`
 
@@ -189,6 +165,6 @@ Character.
 
 In this selection mode, the movements behave like the usual editor, where [Left/Right](./../core-movements.md#--leftright) means left/right, and so on.
 
-[Alpha/Beta](./../core-movements.md#--alphabeta) means the first/last character of the current word.
+[First/Last](./../core-movements.md#firstlast) means the first/last character of the current word.
 
 <TutorialFallback filename="char"/>

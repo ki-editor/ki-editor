@@ -1,0 +1,235 @@
+{
+    "name": "ki-editor-vscode",
+    "version": "0.0.16",
+    "description": "VSCode extension for Ki Editor (Preview)",
+    "main": "./dist/extension.js",
+    "publisher": "ki-editor",
+    "author": {
+        "name": "Ki Editor Contributors",
+        "url": "https://github.com/ki-editor/ki-editor"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ki-editor/ki-editor.git"
+    },
+    "homepage": "https://github.com/ki-editor/ki-editor",
+    "bugs": {
+        "url": "https://github.com/ki-editor/ki-editor/issues"
+    },
+    "license": "MPL-2.0",
+    "keywords": ["ki", "editor", "modal", "vim", "text-editor"],
+    "categories": ["Programming Languages", "Keymaps", "Other"],
+    "icon": "images/ki-logo.png",
+    "preview": true,
+    "scripts": {
+        "compile": "tsc -p .",
+        "compile:sourcemaps": "tsc -p . --sourceMap true",
+        "watch": "tsc -watch -p . --sourceMap true",
+        "bundle": "bun scripts/bundle.ts",
+        "package": "vsce package",
+        "publish": "vsce publish",
+        "vscode:prepublish": "bun scripts/bundle.ts"
+    },
+    "activationEvents": ["onStartupFinished"],
+    "contributes": {
+        "configuration": {
+            "title": "Ki Editor",
+            "properties": {
+                "ki.backendPath": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Optional path to the Ki editor backend executable. If not specified, the bundled platform-specific binary will be used."
+                },
+                "ki.enableDebugLogging": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable debug logging"
+                },
+                "ki.maxFileSize": {
+                    "type": "number",
+                    "default": 2097152,
+                    "description": "Maximum file size to process (in bytes)"
+                }
+            }
+        },
+        "commands": [
+            {
+                "command": "ki.showLogs",
+                "title": "Ki: Show Logs",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.pingKi",
+                "title": "Ki: Ping Backend",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.restartKi",
+                "title": "Ki: Restart Backend",
+                "category": "Ki"
+            },
+            {
+                "command": "ki.specialKey.escape",
+                "title": "Ki: Handle Escape Key"
+            },
+            {
+                "command": "ki.specialKey.enter",
+                "title": "Ki: Handle Enter Key"
+            },
+            {
+                "command": "ki.specialKey.backspace",
+                "title": "Ki: Handle Backspace Key"
+            },
+            {
+                "command": "ki.specialKey.delete",
+                "title": "Ki: Handle Delete Key"
+            },
+            {
+                "command": "ki.specialKey.tab",
+                "title": "Ki: Handle Tab Key"
+            },
+            {
+                "command": "ki.specialKey.home",
+                "title": "Ki: Handle Home Key"
+            },
+            {
+                "command": "ki.specialKey.end",
+                "title": "Ki: Handle End Key"
+            },
+            {
+                "command": "ki.specialKey.pageup",
+                "title": "Ki: Handle PageUp Key"
+            },
+            {
+                "command": "ki.specialKey.pagedown",
+                "title": "Ki: Handle PageDown Key"
+            },
+            {
+                "command": "ki.specialKey.up",
+                "title": "Ki: Handle Up Arrow Key"
+            },
+            {
+                "command": "ki.specialKey.down",
+                "title": "Ki: Handle Down Arrow Key"
+            },
+            {
+                "command": "ki.specialKey.left",
+                "title": "Ki: Handle Left Arrow Key"
+            },
+            {
+                "command": "ki.specialKey.right",
+                "title": "Ki: Handle Right Arrow Key"
+            },
+            {
+                "command": "ki.installTreeSitterGrammars",
+                "title": "Ki: Install Tree-sitter Grammars"
+            }
+        ],
+        "keybindings": [
+            {
+                "command": "ki.restartKi",
+                "key": "ctrl+k ctrl+r",
+                "mac": "cmd+k cmd+r",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "ki.specialKey.escape",
+                "key": "escape",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "ki.specialKey.enter",
+                "key": "enter",
+                "when": "editorTextFocus && !ki.isInsertMode"
+            },
+            {
+                "command": "ki.specialKey.backspace",
+                "key": "backspace",
+                "when": "editorTextFocus && !ki.isInsertMode"
+            },
+            {
+                "command": "ki.specialKey.delete",
+                "key": "delete",
+                "when": "editorTextFocus && !ki.isInsertMode"
+            },
+            {
+                "command": "ki.specialKey.tab",
+                "key": "tab",
+                "when": "editorTextFocus && !ki.isInsertMode"
+            },
+            {
+                "command": "ki.specialKey.home",
+                "key": "home",
+                "when": "editorTextFocus && !ki.isInsertMode"
+            },
+            {
+                "command": "ki.specialKey.end",
+                "key": "end",
+                "when": "editorTextFocus && !ki.isInsertMode"
+            },
+            {
+                "command": "ki.specialKey.pageup",
+                "key": "pageup",
+                "when": "editorTextFocus && !ki.isInsertMode"
+            },
+            {
+                "command": "ki.specialKey.pagedown",
+                "key": "pagedown",
+                "when": "editorTextFocus && !ki.isInsertMode"
+            },
+            {
+                "command": "ki.specialKey.up",
+                "key": "up",
+                "when": "editorTextFocus && !ki.isInsertMode"
+            },
+            {
+                "command": "ki.specialKey.down",
+                "key": "down",
+                "when": "editorTextFocus && !ki.isInsertMode"
+            },
+            {
+                "command": "ki.specialKey.left",
+                "key": "left",
+                "when": "editorTextFocus && !ki.isInsertMode"
+            },
+            {
+                "command": "ki.specialKey.right",
+                "key": "right",
+                "when": "editorTextFocus && !ki.isInsertMode"
+            }
+        ]
+    },
+    "devDependencies": {
+        "@types/bun": "latest",
+        "@types/jest": "29.5.14",
+        "@types/node": "^20.11.0",
+        "@types/vscode": "1.99.1",
+        "@types/ws": "8.18.1",
+        "bun": "^1.0.30",
+        "bun-types": "^1.0.30",
+        "jest": "^29.7.0",
+        "jest-junit": "^16.0.0",
+        "ts-jest": "^29.1.0",
+        "ts-unused-exports": "^11.0.1",
+        "typescript": "^5.3.0",
+        "vsce": "^2.15.0"
+    },
+    "engines": {
+        "vscode": "^1.99.0"
+    },
+    "files": ["dist/**", "images/**", "README.md", "CHANGELOG.md", "LICENSE"],
+    "jest-junit": {
+        "outputDirectory": "reports",
+        "outputName": "jest-junit.xml",
+        "ancestorSeparator": " › ",
+        "uniqueOutputName": "false",
+        "suiteNameTemplate": "{filepath}",
+        "classNameTemplate": "{classname}",
+        "titleTemplate": "{title}"
+    },
+    "dependencies": {
+        "async-mutex": "0.5.0",
+        "ws": "8.18.1",
+        "zod": "^3.25.51"
+    }
+}

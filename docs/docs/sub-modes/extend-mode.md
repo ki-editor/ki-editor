@@ -41,6 +41,7 @@ This is a group of actions that is related to "surround" or "enclosures".
 - `'` Single Quote
 - `"` Double Quote
 - <code>`</code> Backtick
+- `<></>` XML Tag 
 
 <TutorialFallback filename="surround"/>
 

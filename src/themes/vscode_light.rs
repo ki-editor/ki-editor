@@ -1,7 +1,7 @@
 use super::{DiagnosticStyles, HighlightName, Theme, UiStyles};
 use crate::{
     style::{fg, Style},
-    themes::SyntaxStyles,
+    themes::{GitGutterStyles, SyntaxStyles},
 };
 use my_proc_macros::hex;
 
@@ -62,6 +62,7 @@ pub fn vscode_light() -> Theme {
                 .background_color(hex!("#ffffff")),
             mark: Style::new().background_color(hex!("#ffcc00")),
             possible_selection_background: hex!("#f6f7b2"),
+            incremental_search_match_background: hex!("#f6f7b2"),
             keymap_hint: Style::new().underline(hex!("#af00db")),
             keymap_key: Style::new().bold().foreground_color(hex!("#af00db")),
             keymap_arrow: Style::new().foreground_color(hex!("#808080")),
@@ -69,5 +70,6 @@ pub fn vscode_light() -> Theme {
         },
         diagnostic: DiagnosticStyles::default(),
         hunk: super::HunkStyles::light(),
+        git_gutter: GitGutterStyles::new(),
     }
 }

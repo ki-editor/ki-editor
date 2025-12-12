@@ -1,6 +1,6 @@
 use std::{collections::HashSet, fmt};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Event {
     Key(KeyEvent),
     FocusGained,
@@ -71,7 +71,7 @@ impl KeyEvent {
             KeyCode::BackTab => String::from("backtab"),
             KeyCode::Delete => String::from("delete"),
             KeyCode::Insert => String::from("insert"),
-            KeyCode::F(n) => format!("F{}", n),
+            KeyCode::F(n) => format!("F{n}"),
             KeyCode::Null => String::from("Null"),
             KeyCode::Esc => String::from("esc"),
             // Add more cases as needed
@@ -142,7 +142,7 @@ impl KeyModifiers {
     pub fn display(&self) -> String {
         match self {
             KeyModifiers::None => "".to_string(),
-            _ => format!("{:?}", self)
+            _ => format!("{self:?}")
                 .to_lowercase()
                 .split(" ")
                 .collect::<Vec<_>>()

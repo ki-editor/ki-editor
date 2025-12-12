@@ -127,7 +127,7 @@ Command failed with exit code: 127
 
 STDERR =
 
-bash: yo: command not found
+bash: line 1: yo: command not found
 
 
 STDOUT =

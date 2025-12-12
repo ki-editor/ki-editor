@@ -14,12 +14,6 @@ every [selection modes](./selection-modes/index.md).
 
 There are 9 movements in total:
 
-1. [Left/Right](#--leftright)
-1. [Up/Down](#--updown)
-1. [Alpha/Beta](#--alphabeta)
-1. [Jump](#jump)
-1. [To Index](#index-jump-to-index)
-1. [Current](#current)
 
 ## Keymap
 
@@ -27,14 +21,26 @@ There are 9 movements in total:
 
 ### `◀` `▶` Left/Right
 
-Left/Right means move to the previous/next selection of the current selection mode.
+Left/Right means move to the previous/next **meaningful** selection of the current selection mode.
 
 For example:
 
 | Selection Mode | Meaning                     |
 | -------------- | --------------------------- |
 | Syntax Node    | Next/Previous named sibling |
-| Full Line      | Next/Previous empty line    |
+| Word           | Non-symbol word             |
+
+### Previous/Next
+
+Previous/Next means move to the previous/next selection of the current selection mode, **without** skipping any selections (generally).
+
+For example:
+
+| Selection Mode | Meaning                                |
+| -------------- | -------------------------------------- |
+| Syntax Node    | Sibling nodes including anonymous ones |
+| Word           | All words including symbols            |
+| Line           | Empty lines                            |
 
 ### `▲` `▼` Up/Down
 
@@ -56,22 +62,18 @@ The sticky column will be cleared once any non-vertical movement is executed.
 
 <TutorialFallback filename="sticky-column"/>
 
-### `◀◀` `▶▶` Alpha/Beta
+### First/Last
 
-By default, Alpha/Beta moves to the First/Last selection of the current selection mode.
+By default, First/Last moves to the first/last selection of the current selection mode.
 
-However, since First/Last functionality isn't equally useful across all selection modes, certain modes like Token override this default behavior to provide more practical functionality.
-
-This is why the movement was renamed from First/Last to the more generic Alpha/Beta.
-
-| Selection Mode   | Meaning                              |
-| ---------------- | ------------------------------------ |
-| Syntax Node      | First/Last named sibling             |
-| Quickfix         | First/Last item                      |
-| Char             | First/Last char in the current word  |
-| Word             | First/Last word in the current token |
-| Token            | Previous/Next symbolic tokens        |
-| Line & Full Line | First/Last line of the current file  |
+| Selection Mode   | Meaning                                |
+| ---------------- | -------------------------------------- |
+| Syntax Node      | First/Last named sibling               |
+| Quickfix         | First/Last item                        |
+| Char             | First/Last char in the current subword |
+| Subword          | First/Last subword in the current word |
+| Word             | Previous/Next symbolic words           |
+| Line & Full Line | First/Last line of the current file    |
 
 ### `Jump`
 
@@ -82,7 +84,7 @@ It allows you to jump to your desired position (as long as it is within the scre
 It works like this:
 
 1. Choose your selection mode
-1. Press `f`
+1. Press `;`
 1. Press the first letter of the selection that you want to jump to.
 1. Press the letter that appears on top of the selection.
 1. Done.
@@ -90,8 +92,8 @@ It works like this:
 Recommended selection modes:
 
 1. Syntax Node
+1. Subword
 1. Word
-1. Token
 
 This movement can also work with the Swap mode to swap two syntax expressions that are far apart.
 
@@ -119,7 +121,7 @@ There's no specific keybinding for Current because it is triggered whenever a
 selection mode is chosen.
 
 For example, choosing the Line selection mode causes the current line to be
-selected, choosing the Word selection mode causes the current word to be selected.
+selected, choosing the Subword selection mode causes the current subword to be selected.
 
 In cases where there's no matching selection under the cursor, the Current movement chooses the nearest selection based on the following criteria (in order):
 

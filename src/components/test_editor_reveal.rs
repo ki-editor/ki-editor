@@ -27,7 +27,7 @@ fn reveal_styling() -> anyhow::Result<()> {
             Editor(SetContent("foo\nbar".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Expect(CurrentSelectedTexts(&["foo"])),
-            Editor(MoveSelection(Down)),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["bar"])),
             Editor(ToggleReveal(Reveal::Cursor)),
             Expect(GridCellStyleKey(
@@ -75,23 +75,20 @@ zeta
                 .to_string(),
             )),
             Editor(MatchLiteral("mark-x".to_string())),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(MatchLiteral("mark-y".to_string())),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(MatchLiteral("zeta".to_string())),
             Expect(EditorGrid(
-                "
-🦀  main.rs [*]
-3│phi
+                "# 🦀  main.rs [*]
 4│mark-y
 5│█eta
-"
-                .trim(),
+",
             )),
             Editor(ToggleReveal(Reveal::Mark)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 2│mark-x
 4│mark-y
 5│█eta
@@ -101,7 +98,7 @@ zeta
             Editor(MatchLiteral("phi".to_string())),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 2│mark-x
 3│█hi
 4│mark-y
@@ -111,7 +108,7 @@ zeta
             Editor(MatchLiteral("beta".to_string())),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 1│█eta
 2│mark-x
 4│mark-y
@@ -509,12 +506,12 @@ fn total_count_of_rendered_marks_should_equal_total_count_of_actual_marks() -> a
             })),
             Editor(MatchLiteral("foo".to_string())),
             Editor(CursorAddToAllSelections),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(CursorKeepPrimaryOnly),
             Editor(ToggleReveal(Reveal::Mark)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 1│█oo foo foo
 1│foo foo foo
 1│foo foo foo
@@ -621,7 +618,7 @@ fn reveal_cursor_selection_extension() -> anyhow::Result<()> {
                 .trim(),
             )),
             Editor(EnableSelectionExtension),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(MoveSelection(Right)),
             Expect(EditorGrid(
                 "
