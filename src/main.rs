@@ -100,11 +100,14 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
                 StatusLine::new(
                     [
                         KiCharacter,
+                        KeyboardLayout,
                         Mode,
                         SelectionMode,
                         Reveal,
+                        LastSearchString,
                         Spacer,
                         LastDispatch,
+                        Help,
                     ]
                     .to_vec(),
                 ),
@@ -114,9 +117,6 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
                         CurrentWorkingDirectory,
                         CurrentFileParentFolder,
                         Spacer,
-                        LastSearchString,
-                        KeyboardLayout,
-                        Help,
                         LineColumn,
                     ]
                     .to_vec(),
