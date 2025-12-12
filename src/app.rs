@@ -525,9 +525,9 @@ impl<T: Frontend> App<T> {
                                     .unwrap_or_else(|| self.working_directory.display_absolute()),
                             ))
                         }
-                        StatusLineComponent::GitBranch => {
-                            self.current_branch().map(FlexLayoutComponent::Text)
-                        }
+                        StatusLineComponent::GitBranch => self
+                            .current_branch()
+                            .map(|branch| FlexLayoutComponent::Text(format!("⎇ {branch}"))),
                         StatusLineComponent::Mode => {
                             let mode = self
                                 .context
