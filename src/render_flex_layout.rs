@@ -69,7 +69,7 @@ mod test_render_flex_layout {
 
         // Width = 10, "Hello" takes 5, so spacer should be 5 spaces
         let result = render_flex_layout(10, "", &components);
-        assert_eq!(result, vec!["     ", "Hello"]);
+        assert_eq!(result, "     Hello");
 
         // Join all parts to verify total width
         assert_eq!(UnicodeWidthStr::width(result.as_str()), 10);
@@ -85,7 +85,7 @@ mod test_render_flex_layout {
 
         // Width = 15, "Left" takes 4, "Right" takes 5, so spacer should be 6 spaces
         let result = render_flex_layout(15, "", &components);
-        assert_eq!(result, vec!["Left", "      ", "Right"]);
+        assert_eq!(result, "Left      Right");
 
         // Join all parts to verify total width
         assert_eq!(UnicodeWidthStr::width(result.as_str()), 15);
@@ -100,7 +100,7 @@ mod test_render_flex_layout {
 
         // Width = 10, "Hello" takes 5, so spacer should be 5 spaces
         let result = render_flex_layout(10, "", &components);
-        assert_eq!(result, vec!["Hello", "     "]);
+        assert_eq!(result, "Hello     ");
 
         // Join all parts to verify total width
         assert_eq!(UnicodeWidthStr::width(result.as_str()), 10);
@@ -115,7 +115,7 @@ mod test_render_flex_layout {
 
         // Width = 10, which is exactly the width of "HelloWorld"
         let result = render_flex_layout(10, "", &components);
-        assert_eq!(result, vec!["Hello", "World"]);
+        assert_eq!(result, "HelloWorld");
 
         // Join all parts to verify total width
         assert_eq!(UnicodeWidthStr::width(result.as_str()), 10);
@@ -133,14 +133,14 @@ mod test_render_flex_layout {
 
         // Width = 9, "A", "B", and "C" each take 1, so 6 spaces distributed between 2 spacers: 3 each
         let result = render_flex_layout(9, "", &components);
-        assert_eq!(result, vec!["A", "   ", "B", "   ", "C"]);
+        assert_eq!(result, "A   B   C");
 
         // Join all parts to verify total width
         assert_eq!(UnicodeWidthStr::width(result.as_str()), 9);
 
         // Test uneven distribution (10 width = 7 spaces between 2 spacers: should be 3 and 4)
         let result = render_flex_layout(10, "", &components);
-        assert_eq!(result, vec!["A", "    ", "B", "   ", "C"]);
+        assert_eq!(result, "A   B    C");
 
         assert_eq!(UnicodeWidthStr::width(result.as_str()), 10);
     }
@@ -156,11 +156,11 @@ mod test_render_flex_layout {
         // Width = 9, which is less than the fixed components (10)
         // Spacer should get 0 width since there's no remaining space
         let result = render_flex_layout(9, "", &components);
-        assert_eq!(result, vec!["Hello", "", "World"]);
+        assert_eq!(result, "HelloWorld");
 
         // With even less width
         let result = render_flex_layout(5, "", &components);
-        assert_eq!(result, vec!["Hello", "", "World"]);
+        assert_eq!(result, "HelloWorld");
 
         // Join all parts to verify total width
         assert_eq!(UnicodeWidthStr::width(result.as_str()), 10); // Still 10 despite requesting 5
@@ -177,7 +177,7 @@ mod test_render_flex_layout {
         // Each Chinese character typically has width 2, so fixed width is 8
         // With width 12, spacer should be 4 spaces
         let result = render_flex_layout(12, "", &components);
-        assert_eq!(result, vec!["你好", "    ", "世界"]);
+        assert_eq!(result, "你好    世界");
 
         assert_eq!(UnicodeWidthStr::width(result.as_str()), 12);
     }
@@ -191,6 +191,6 @@ mod test_render_flex_layout {
 
         // Width = 0, spacers should have 0 width
         let result = render_flex_layout(0, "", &components);
-        assert_eq!(result, vec!["Hello", ""]);
+        assert_eq!(result, "Hello");
     }
 }

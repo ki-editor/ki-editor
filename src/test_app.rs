@@ -27,7 +27,7 @@ pub(crate) use DispatchEditor::*;
 pub(crate) use Movement::*;
 pub(crate) use SelectionMode::*;
 
-use crate::components::editor::PriorChange;
+use crate::{app::StatusLine, components::editor::PriorChange};
 
 use shared::{
     canonicalized_path::CanonicalizedPath,
@@ -692,7 +692,10 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
     execute_test_helper(
         || Box::new(NullWriter),
         false,
-        [StatusLineComponent::LastDispatch].to_vec(),
+        [StatusLine::new(
+            [StatusLineComponent::LastDispatch].to_vec(),
+        )]
+        .to_vec(),
         callback,
         true,
         RunTestOptions {
@@ -711,7 +714,10 @@ pub(crate) fn execute_test_custom(
     execute_test_helper(
         || Box::new(NullWriter),
         false,
-        [StatusLineComponent::LastDispatch].to_vec(),
+        [StatusLine::new(
+            [StatusLineComponent::LastDispatch].to_vec(),
+        )]
+        .to_vec(),
         callback,
         true,
         options,
@@ -726,12 +732,15 @@ pub(crate) fn execute_recipe(
     execute_test_helper(
         || Box::new(StringWriter::new()),
         true,
-        [
-            StatusLineComponent::Mode,
-            StatusLineComponent::SelectionMode,
-            StatusLineComponent::LastSearchString,
-            StatusLineComponent::LastDispatch,
-        ]
+        [StatusLine::new(
+            [
+                StatusLineComponent::Mode,
+                StatusLineComponent::SelectionMode,
+                StatusLineComponent::LastSearchString,
+                StatusLineComponent::LastDispatch,
+            ]
+            .to_vec(),
+        )]
         .to_vec(),
         callback,
         assert_last_step_is_expect,
@@ -746,7 +755,7 @@ pub(crate) fn execute_recipe(
 fn execute_test_helper(
     writer: fn() -> Box<dyn MyWriter>,
     render: bool,
-    status_line_components: Vec<StatusLineComponent>,
+    status_lines: Vec<StatusLine>,
     callback: impl Fn(State) -> Box<[Step]>,
     assert_last_step_is_expect: bool,
     options: RunTestOptions,
@@ -829,7 +838,7 @@ fn execute_test_helper(
         let buffer_contents = app.get_buffer_contents_map();
         Ok(buffer_contents)
     };
-    run_test(options, writer, status_line_components, callback)
+    run_test(options, writer, status_lines, callback)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -842,7 +851,7 @@ pub(crate) struct RunTestOptions {
 fn run_test(
     options: RunTestOptions,
     writer: fn() -> Box<dyn MyWriter>,
-    status_line_components: Vec<StatusLineComponent>,
+    status_lines: Vec<StatusLine>,
     callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<BufferContentsMap>,
 ) -> anyhow::Result<TestOutput> {
     TestRunner::run(move |temp_dir| {
@@ -850,7 +859,7 @@ fn run_test(
         let app = App::new(
             frontend.clone(),
             temp_dir.clone(),
-            status_line_components.clone(),
+            status_lines.clone(),
             options,
         )?;
         let buffer_contents_map = callback(app, temp_dir)?;

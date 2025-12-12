@@ -489,7 +489,8 @@ impl<T: Frontend> App<T> {
         let leading_padding = 1;
         let title = self.global_title.clone().unwrap_or_else(|| {
             let separator = "   ";
-            let width = (dimension.width as usize)
+            let width = dimension
+                .width
                 .saturating_sub(leading_padding)
                 .saturating_sub(1); // This is the extra space for rendering cursor at the last column
             render_flex_layout::render_flex_layout(
@@ -615,7 +616,7 @@ impl<T: Frontend> App<T> {
                 width: dimension.width,
                 height: 1,
                 origin: Position {
-                    line: (dimension.height as usize) + index,
+                    line: dimension.height + index,
                     column: 0,
                 },
             },
