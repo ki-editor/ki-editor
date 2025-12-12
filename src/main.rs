@@ -100,13 +100,13 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
                 StatusLine::new(
                     [
                         KiCharacter,
-                        KeyboardLayout,
                         Mode,
                         SelectionMode,
                         Reveal,
                         LastSearchString,
                         Spacer,
                         LastDispatch,
+                        KeyboardLayout,
                         Help,
                     ]
                     .to_vec(),
