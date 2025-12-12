@@ -9,7 +9,7 @@ import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 ## Intro
 
-This mode can be entered by pressing `f` (Qwerty), it is a short-lived mode where the next keypress
+This mode can be entered by pressing `g` (Qwerty), it is a short-lived mode where the next keypress
 leads to one of the following:
 
 1. Surround-related actions
