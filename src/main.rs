@@ -114,10 +114,11 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
                 StatusLine::new(
                     [
                         GitBranch,
-                        CurrentWorkingDirectory,
+                        LineColumn,
+                        Spacer,
                         CurrentFileParentFolder,
                         Spacer,
-                        LineColumn,
+                        CurrentWorkingDirectory,
                     ]
                     .to_vec(),
                 ),
