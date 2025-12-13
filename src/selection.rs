@@ -476,7 +476,7 @@ impl SelectionMode {
             SelectionMode::Line => "LINE".to_string(),
             SelectionMode::LineFull => "LINE*".to_string(),
             SelectionMode::Character => "CHAR".to_string(),
-            SelectionMode::Custom => "CUSTOM".to_string(),
+            SelectionMode::Custom => "CUSTM".to_string(),
             SelectionMode::SyntaxNode => "NODE".to_string(),
             SelectionMode::SyntaxNodeFine => "NODE*".to_string(),
             SelectionMode::Find { .. } => "FIND".to_string(),

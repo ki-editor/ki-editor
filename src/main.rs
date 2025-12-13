@@ -12,6 +12,7 @@ mod grid;
 mod integration_event;
 #[cfg(test)]
 mod integration_test;
+mod render_flex_layout;
 mod search;
 
 mod layout;
@@ -67,7 +68,10 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 use app::{App, StatusLineComponent};
 
-use crate::{app::AppMessage, persistence::Persistence};
+use crate::{
+    app::{AppMessage, StatusLine},
+    persistence::Persistence,
+};
 
 fn main() {
     cli::cli().unwrap();
@@ -90,19 +94,38 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         sender,
         receiver,
         Some(syntax_highlighter_sender),
-        [
-            StatusLineComponent::KiCharacter,
-            StatusLineComponent::Mode,
-            StatusLineComponent::SelectionMode,
-            StatusLineComponent::LastSearchString,
-            StatusLineComponent::Reveal,
-            StatusLineComponent::CurrentWorkingDirectory,
-            StatusLineComponent::GitBranch,
-            StatusLineComponent::KeyboardLayout,
-            StatusLineComponent::Help,
-            StatusLineComponent::LastDispatch,
-        ]
-        .to_vec(),
+        {
+            use StatusLineComponent::*;
+            [
+                StatusLine::new(
+                    [
+                        KiCharacter,
+                        Mode,
+                        SelectionMode,
+                        Reveal,
+                        LastSearchString,
+                        Spacer,
+                        LastDispatch,
+                        KeyboardLayout,
+                        Help,
+                    ]
+                    .to_vec(),
+                ),
+                StatusLine::new(
+                    [
+                        GitBranch,
+                        LineColumn,
+                        Spacer,
+                        CurrentFileParentFolder,
+                        Spacer,
+                        CurrentWorkingDirectory,
+                    ]
+                    .to_vec(),
+                ),
+            ]
+            .into_iter()
+            .collect()
+        },
         None, // No integration event sender
         true,
         true,
