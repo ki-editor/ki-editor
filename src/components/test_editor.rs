@@ -4001,6 +4001,38 @@ fn search_current_selection() -> anyhow::Result<()> {
 }
 
 #[test]
+fn search_current_selection_history_should_be_prepended_with_l() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("w / o fx".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnableSelectionExtension),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["w / o"])),
+            Editor(SearchCurrentSelection(
+                IfCurrentNotFound::LookForward,
+                Scope::Local,
+            )),
+            Expect(CurrentSelectedTexts(&["w / o"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["fx"])),
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            Expect(CurrentComponentContent(r#"l/w \/ o\n"#)),
+        ])
+    })
+}
+
+#[test]
 fn should_search_backward_if_primary_and_secondary_cursor_swapped() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

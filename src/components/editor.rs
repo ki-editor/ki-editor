@@ -3902,7 +3902,7 @@ impl Editor {
         })
         .append(Dispatch::PushPromptHistory {
             key: super::prompt::PromptHistoryKey::Search,
-            line: content.to_string(),
+            line: format!("l/{}", content.replace("/", r#"\/"#)),
         });
 
         self.disable_selection_extension();
