@@ -509,7 +509,7 @@ impl<T: Frontend> App<T> {
                             .ok()
                             .map(|position| {
                                 FlexLayoutComponent::Text(format!(
-                                    "{}:{}",
+                                    "{: >4}:{: <3}",
                                     position.line + 1,
                                     position.column + 1
                                 ))
