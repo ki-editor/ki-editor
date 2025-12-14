@@ -3994,7 +3994,7 @@ fn search_current_selection() -> anyhow::Result<()> {
             Expect(SelectionExtensionEnabled(false)),
             Expect(PromptHistory(
                 PromptHistoryKey::Search,
-                ["foo bar".to_string()].to_vec(),
+                ["l/foo bar".to_string()].to_vec(),
             )),
         ])
     })
@@ -4027,7 +4027,10 @@ fn search_current_selection_history_should_be_prepended_with_l() -> anyhow::Resu
                 scope: Scope::Local,
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
-            Expect(CurrentComponentContent(r#"l/w \/ o\n"#)),
+            Expect(PromptHistory(
+                PromptHistoryKey::Search,
+                ["l/w \\/ o\n".to_string()].to_vec(),
+            )),
         ])
     })
 }
