@@ -24,7 +24,7 @@ impl SpawnCommandResult {
 }
 
 impl ProcessCommand {
-    pub fn new(command: &str, args: &[&str]) -> Self {
+    pub fn new(command: &str, args: &Vec<String>) -> Self {
         Self {
             command: command.to_string(),
             args: args.iter().map(|s| s.to_string()).collect(),
@@ -117,7 +117,7 @@ mod test_process_command {
 
     #[test]
     fn failed_command_includes_exit_code_and_stderr() {
-        let err = ProcessCommand::new("bash", &["-c", "yo"])
+        let err = ProcessCommand::new("bash", &["-c".to_string(), "yo".to_string()].to_vec())
             .run_with_input("hello")
             .unwrap_err();
         assert_eq!(

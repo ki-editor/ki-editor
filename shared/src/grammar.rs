@@ -1,9 +1,12 @@
 use grammar::grammar::GrammarConfiguration;
 
+use crate::config::AppConfig;
+
 pub(crate) fn grammar_configs() -> Vec<GrammarConfiguration> {
-    crate::languages::LANGUAGES
+    AppConfig::singleton()
+        .languages()
         .iter()
-        .flat_map(|language| language.tree_sitter_grammar_config())
+        .flat_map(|(_, language)| language.tree_sitter_grammar_config())
         .collect()
 }
 pub fn build_grammars() {

@@ -21,6 +21,11 @@ url = "2.5.0"
 which = "~7.0.0"
 etcetera = "0.8"
 itertools.workspace = true
+json_value_merge = "2.0.1"
+
+serde_path_to_error = "0.1.20"
+
+config = { version = "0.15.19", features = ["convert-case", "json", "json5", "ron", "toml", "yaml", "corn"] }
 
 # Tree sitter grammars
 tree-sitter-bash = "0.25.0"
@@ -55,6 +60,7 @@ tree-sitter-svelte-ng = "1.0.2"
 tree-sitter-scheme = "0.24.7"
 tree-sitter-haskell = "0.23.1"
 tree-sitter-julia = "0.23.1"
+
 
 
 [dev-dependencies]

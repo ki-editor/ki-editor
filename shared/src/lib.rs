@@ -1,10 +1,11 @@
 pub mod canonicalized_path;
+pub mod config;
 pub mod download;
 pub(crate) mod formatter;
 pub mod get_minimal_unique_paths;
 pub mod grammar;
 pub mod icons;
 pub mod language;
-pub(crate) mod languages;
+pub mod languages;
 pub mod process_command;
 pub mod ts_highlight_query;

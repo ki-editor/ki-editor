@@ -119,7 +119,7 @@ impl LspManager {
 
         #[cfg(test)]
         self.lsp_server_initialized_args_history
-            .push((language_id, opened_documents.clone()));
+            .push((language_id.clone(), opened_documents.clone()));
 
         self.lsp_server_process_channels
             .get_mut(&language_id)

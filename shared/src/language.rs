@@ -1,19 +1,18 @@
 use grammar::grammar::GrammarConfiguration;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tree_sitter::Query;
 
 pub(crate) use crate::process_command::ProcessCommand;
 use crate::{
-    canonicalized_path::CanonicalizedPath, formatter::Formatter,
+    canonicalized_path::CanonicalizedPath, config::AppConfig, formatter::Formatter,
     ts_highlight_query::get_highlight_query,
 };
 
-pub(crate) use crate::languages::LANGUAGES;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 /// As defined by the LSP protocol.
 /// See sections below https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#range
-pub struct LanguageId(&'static str);
+pub struct LanguageId(String);
 
 impl std::fmt::Display for LanguageId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -22,33 +21,41 @@ impl std::fmt::Display for LanguageId {
 }
 
 impl LanguageId {
-    pub const fn new(id: &'static str) -> Self {
-        Self(id)
+    pub fn new(id: &'static str) -> Self {
+        Self(id.to_string())
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Command(pub &'static str, pub &'static [&'static str]);
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Command {
+    command: String,
+    arguments: Vec<String>,
+}
 impl Command {
-    pub const fn default() -> Command {
-        Command("", &[])
+    pub fn new(command: &'static str, arguments: &[&'static str]) -> Self {
+        Self {
+            command: command.to_string(),
+            arguments: arguments.into_iter().map(|arg| arg.to_string()).collect(),
+        }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Language {
-    pub(crate) extensions: &'static [&'static str],
-    pub(crate) file_names: &'static [&'static str],
+    pub(crate) extensions: Vec<String>,
+    pub(crate) file_names: Vec<String>,
     pub(crate) lsp_language_id: Option<LanguageId>,
     pub(crate) lsp_command: Option<LspCommand>,
     pub(crate) tree_sitter_grammar_config: Option<GrammarConfig>,
-    pub(crate) highlight_query: Option<&'static str>,
+    pub(crate) highlight_query: Option<String>,
     pub(crate) formatter_command: Option<Command>,
-    pub(crate) line_comment_prefix: Option<&'static str>,
-    pub(crate) block_comment_affixes: Option<(&'static str, &'static str)>,
+    pub(crate) line_comment_prefix: Option<String>,
+    pub(crate) block_comment_affixes: Option<(String, String)>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CargoLinkedTreesitterLanguage {
     Typescript,
     TSX,
@@ -179,13 +186,14 @@ impl CargoLinkedTreesitterLanguage {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LspCommand {
     pub(crate) command: Command,
-    pub(crate) initialization_options: Option<&'static str>,
+    pub(crate) initialization_options: Option<String>,
 }
 impl LspCommand {
-    pub const fn default() -> LspCommand {
+    pub fn default() -> LspCommand {
         LspCommand {
             command: Command::default(),
             initialization_options: None,
@@ -196,8 +204,8 @@ impl LspCommand {
 impl Language {
     pub const fn new() -> Self {
         Self {
-            extensions: &[""],
-            file_names: &[""],
+            extensions: Vec::new(),
+            file_names: Vec::new(),
             lsp_language_id: None,
             highlight_query: None,
             lsp_command: None,
@@ -208,16 +216,16 @@ impl Language {
         }
     }
 
-    fn file_names(&self) -> &'static [&'static str] {
-        self.file_names
+    fn file_names(&self) -> &Vec<String> {
+        &self.file_names
     }
 
-    pub fn line_comment_prefix(&self) -> Option<&'static str> {
-        self.line_comment_prefix
+    pub fn line_comment_prefix(&self) -> Option<String> {
+        self.line_comment_prefix.clone()
     }
 
-    pub fn block_comment_affixes(&self) -> Option<(&'static str, &'static str)> {
-        self.block_comment_affixes
+    pub fn block_comment_affixes(&self) -> Option<(String, String)> {
+        self.block_comment_affixes.clone()
     }
 }
 
@@ -227,52 +235,52 @@ impl Default for Language {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GrammarConfig {
-    pub id: &'static str,
+    pub id: String,
     pub kind: GrammarConfigKind,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GrammarConfigKind {
     /// This is the recommended over `FromSource`, as `FromSource`
     /// is not reliable across different operating system.
     CargoLinked(CargoLinkedTreesitterLanguage),
     FromSource {
-        url: &'static str,
-        commit: &'static str,
-        subpath: Option<&'static str>,
+        url: String,
+        commit: String,
+        subpath: Option<String>,
     },
 }
 
 impl Language {
-    fn extensions(&self) -> &'static [&'static str] {
-        self.extensions
+    fn extensions(&self) -> &Vec<String> {
+        &self.extensions
     }
 
     pub fn initialization_options(&self) -> Option<Value> {
-        serde_json::from_str(self.lsp_command.clone()?.initialization_options?).ok()
+        serde_json::from_str(&self.lsp_command.clone()?.initialization_options?).ok()
     }
 
     pub fn tree_sitter_language(&self) -> Option<tree_sitter::Language> {
         let config = self.tree_sitter_grammar_config.as_ref()?;
         match &config.kind {
             GrammarConfigKind::CargoLinked(language) => Some(language.to_tree_sitter_language()),
-            GrammarConfigKind::FromSource { .. } => grammar::grammar::get_language(config.id).ok(),
+            GrammarConfigKind::FromSource { .. } => grammar::grammar::get_language(&config.id).ok(),
         }
     }
 
     pub(crate) fn tree_sitter_grammar_config(&self) -> Option<GrammarConfiguration> {
-        match self.tree_sitter_grammar_config.as_ref()?.kind {
+        match &self.tree_sitter_grammar_config.as_ref()?.kind {
             GrammarConfigKind::CargoLinked(_) => None,
             GrammarConfigKind::FromSource {
                 url,
                 commit,
                 subpath,
-            } => self
-                .tree_sitter_grammar_config
-                .as_ref()
-                .map(|config| GrammarConfiguration::remote(config.id, url, commit, subpath)),
+            } => self.tree_sitter_grammar_config.as_ref().map(|config| {
+                GrammarConfiguration::remote(&config.id, &url, &commit, subpath.clone())
+            }),
         }
     }
 
@@ -300,7 +308,7 @@ impl Language {
     }
 
     pub fn highlight_query_nvim_treesitter(&self) -> Option<String> {
-        get_highlight_query(self.tree_sitter_grammar_config.clone()?.id)
+        get_highlight_query(&self.tree_sitter_grammar_config.clone()?.id)
             .ok()
             .map(|result| {
                 result
@@ -341,9 +349,9 @@ impl Language {
     }
 
     pub fn lsp_process_command(&self) -> Option<ProcessCommand> {
-        self.lsp_command
-            .as_ref()
-            .map(|command| ProcessCommand::new(command.command.0, command.command.1))
+        self.lsp_command.as_ref().map(|command| {
+            ProcessCommand::new(&command.command.command, &command.command.arguments)
+        })
     }
 
     pub fn tree_sitter_grammar_id(&self) -> Option<String> {
@@ -351,13 +359,13 @@ impl Language {
     }
 
     pub fn id(&self) -> Option<LanguageId> {
-        self.lsp_language_id
+        self.lsp_language_id.clone()
     }
 
     fn formatter_command(&self) -> Option<ProcessCommand> {
         self.formatter_command
             .as_ref()
-            .map(|command| ProcessCommand::new(command.0, command.1))
+            .map(|command| ProcessCommand::new(&command.command, &command.arguments))
     }
 
     pub fn formatter(&self) -> Option<Formatter> {
@@ -372,18 +380,20 @@ pub fn from_path(path: &CanonicalizedPath) -> Option<Language> {
 }
 
 pub fn from_extension(extension: &str) -> Option<Language> {
-    LANGUAGES
+    AppConfig::singleton()
+        .languages()
         .iter()
-        .find(|language| language.extensions().contains(&extension))
-        .map(|language| (*language).clone())
+        .find(|(_, language)| language.extensions().contains(&extension.to_string()))
+        .map(|(_, language)| (*language).clone())
 }
 
 pub(crate) fn from_filename(path: &CanonicalizedPath) -> Option<Language> {
     let file_name = path.file_name()?;
-    LANGUAGES
+    AppConfig::singleton()
+        .languages()
         .iter()
-        .find(|language| language.file_names().contains(&file_name.as_str()))
-        .map(|language| (*language).clone())
+        .find(|(_, language)| language.file_names().contains(&file_name))
+        .map(|(_, language)| (*language).clone())
 }
 
 use regex::Regex;
@@ -410,14 +420,16 @@ pub fn from_content_directive(content: &str) -> Option<Language> {
         .and_then(|captures| captures.get(1).map(|mode| mode.as_str().to_string()));
 
     language_id.and_then(|id| {
-        LANGUAGES
+        AppConfig::singleton()
+            .languages()
             .iter()
-            .find(|language| {
+            .find(|(_, language)| {
                 language
                     .lsp_language_id
+                    .clone()
                     .is_some_and(|lsp_id| lsp_id.0 == id)
             })
-            .map(|language| (*language).clone())
+            .map(|(_, language)| (*language).clone())
     })
 }
 
