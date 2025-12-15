@@ -4029,7 +4029,7 @@ fn search_current_selection_history_should_be_prepended_with_l() -> anyhow::Resu
             }),
             Expect(PromptHistory(
                 PromptHistoryKey::Search,
-                ["l/w \\/ o\n".to_string()].to_vec(),
+                ["l/w \\/ o".to_string()].to_vec(),
             )),
         ])
     })
