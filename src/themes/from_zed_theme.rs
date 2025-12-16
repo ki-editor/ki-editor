@@ -97,7 +97,7 @@ pub(crate) fn theme_descriptors() -> Vec<ThemeDescriptor> {
         ("Tokyo Night", ZED_THEME_TOKYO_NIGHT_URL),
     ]
     .iter()
-    .map(|(name, url)| ThemeDescriptor::ZedThemeURLMap(name, url))
+    .map(|(name, url)| ThemeDescriptor::ZedTheme(name, url))
     .collect()
 }
 

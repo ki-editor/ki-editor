@@ -144,14 +144,14 @@
     "KeyboardLayoutKind": {
       "type": "string",
       "enum": [
-        "Qwerty",
-        "Dvorak",
-        "DvorakIU",
-        "Colemak",
-        "ColemakDH",
-        "ColemakDHSemiQuote",
-        "Workman",
-        "Puq"
+        "qwerty",
+        "dvorak",
+        "dvorak-i-u",
+        "colemak",
+        "colemak-d-h",
+        "colemak-d-h-semi-quote",
+        "workman",
+        "puq"
       ]
     },
     "Language": {

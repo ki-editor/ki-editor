@@ -5,10 +5,7 @@ use serde_json::Value;
 use tree_sitter::Query;
 
 pub(crate) use crate::process_command::ProcessCommand;
-use crate::{
-    canonicalized_path::CanonicalizedPath, formatter::Formatter,
-    ts_highlight_query::get_highlight_query,
-};
+use crate::{formatter::Formatter, ts_highlight_query::get_highlight_query};
 
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,

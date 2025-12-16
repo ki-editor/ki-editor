@@ -415,6 +415,7 @@ static PUQ_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(PUQ));
 #[derive(
     Debug, Clone, strum_macros::EnumIter, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Copy,
 )]
+#[serde(rename_all = "kebab-case")]
 pub(crate) enum KeyboardLayoutKind {
     Qwerty,
     Dvorak,
