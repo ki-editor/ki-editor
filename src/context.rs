@@ -283,15 +283,7 @@ impl Context {
             quickfix_list_state: Default::default(),
             prompt_histories,
             last_non_contiguous_selection_mode: None,
-            keyboard_layout_kind: {
-                use KeyboardLayoutKind::*;
-                crate::env::parse_env(
-                    "KI_EDITOR_KEYBOARD",
-                    &KeyboardLayoutKind::iter().collect_vec(),
-                    |layout| layout.display(),
-                    Qwerty,
-                )
-            },
+            keyboard_layout_kind: crate::config::AppConfig::singleton().keyboard_layout_kind(),
             location_history_backward: Vec::new(),
             location_history_forward: Vec::new(),
             marked_files,

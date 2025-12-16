@@ -1,4 +1,6 @@
 use once_cell::sync::Lazy;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use Meaning::*;
@@ -410,7 +412,9 @@ static DVORAK_IU_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK_IU));
 static WORKMAN_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(WORKMAN));
 static PUQ_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(PUQ));
 
-#[derive(Debug, Clone, strum_macros::EnumIter, PartialEq, Eq)]
+#[derive(
+    Debug, Clone, strum_macros::EnumIter, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Copy,
+)]
 pub(crate) enum KeyboardLayoutKind {
     Qwerty,
     Dvorak,

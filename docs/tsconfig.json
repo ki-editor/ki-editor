@@ -1,6 +1,12 @@
 {
     // This file is not used in compilation. It is here just for a nice editor experience.
     "extends": "@docusaurus/tsconfig",
+    "types": [
+        "node",
+        "@docusaurus/module-type-aliases",
+        "@docusaurus/theme-classic",
+        "docusaurus-json-schema-plugin"
+    ],
     "compilerOptions": {
         "lib": ["ES2021", "DOM", "DOM.Iterable"],
         "baseUrl": ".",

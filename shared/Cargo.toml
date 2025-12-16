@@ -21,7 +21,7 @@ url = "2.5.0"
 which = "~7.0.0"
 etcetera = "0.8"
 itertools.workspace = true
-figment = { version = "0.10.19", features = ["json", "toml", "yaml"] }
+schemars.workspace = true
 
 # Tree sitter grammars
 tree-sitter-bash = "0.25.0"
@@ -56,6 +56,7 @@ tree-sitter-svelte-ng = "1.0.2"
 tree-sitter-scheme = "0.24.7"
 tree-sitter-haskell = "0.23.1"
 tree-sitter-julia = "0.23.1"
+
 
 
 

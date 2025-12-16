@@ -22,7 +22,7 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use nary_tree::NodeId;
 use shared::canonicalized_path::CanonicalizedPath;
-use shared::language::from_extension;
+use crate::config::from_extension;
 use std::{cell::RefCell, rc::Rc};
 
 #[cfg(test)]

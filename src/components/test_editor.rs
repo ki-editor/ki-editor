@@ -1993,7 +1993,7 @@ fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
                 .trim()
                 .to_string(),
             )),
-            Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+            Editor(SetLanguage(crate::config::from_extension("rs").unwrap())),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
                 width: 100,
@@ -2066,7 +2066,7 @@ fn main() { // too long
                 width: 14,
                 height: 4,
             })),
-            Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+            Editor(SetLanguage(crate::config::from_extension("rs").unwrap())),
             Editor(MatchLiteral("bar".to_string())),
             Editor(ApplySyntaxHighlight),
             Editor(SetRectangle(Rectangle {
@@ -2240,7 +2240,7 @@ fn saving_should_not_destroy_mark_if_selections_not_modified() -> anyhow::Result
                 focus: true,
             }),
             Editor(SetContent(input.to_string())),
-            Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+            Editor(SetLanguage(crate::config::from_extension("rs").unwrap())),
             Editor(MatchLiteral("bar".to_string())),
             App(MarkFileAndToggleMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
@@ -2503,7 +2503,7 @@ fn main() {
                     .trim()
                     .to_string(),
                 )),
-                Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+                Editor(SetLanguage(crate::config::from_extension("rs").unwrap())),
                 Editor(MatchLiteral("let foo = 1;".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,

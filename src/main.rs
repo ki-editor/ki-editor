@@ -49,6 +49,7 @@ mod utils;
 mod embed;
 
 mod alternator;
+pub(crate) mod config;
 mod divide_viewport;
 mod env;
 pub(crate) mod file_watcher;

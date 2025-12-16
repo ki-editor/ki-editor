@@ -72,7 +72,7 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                                         App(HandleKeyEvent(key!("esc"))),
                                         Editor(SetContent(recipe.content.to_string())),
                                         Editor(SetLanguage(
-                                            shared::language::from_extension(recipe.file_extension)
+                                            crate::config::from_extension(recipe.file_extension)
                                                 .unwrap(),
                                         )),
                                     ]

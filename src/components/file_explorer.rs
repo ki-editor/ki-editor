@@ -49,7 +49,7 @@ impl FileExplorer {
         let tree = Tree::new(path)?;
         let text = tree.render();
         let mut editor = Editor::from_text(
-            shared::language::from_extension("yaml")
+            crate::config::from_extension("yaml")
                 .and_then(|language| language.tree_sitter_language()),
             &format!("{text}\n"),
         );

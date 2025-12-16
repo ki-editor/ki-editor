@@ -1,15 +1,18 @@
 use grammar::grammar::GrammarConfiguration;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tree_sitter::Query;
 
 pub(crate) use crate::process_command::ProcessCommand;
 use crate::{
-    canonicalized_path::CanonicalizedPath, config::AppConfig, formatter::Formatter,
+    canonicalized_path::CanonicalizedPath, formatter::Formatter,
     ts_highlight_query::get_highlight_query,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 /// As defined by the LSP protocol.
 /// See sections below https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#range
 pub struct LanguageId(String);
@@ -26,7 +29,7 @@ impl LanguageId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Command {
     pub command: String,
@@ -41,21 +44,27 @@ impl Command {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Language {
+    #[schemars(example = &["ts", "tsx"])]
     pub(crate) extensions: Vec<String>,
+    /// For files without extensions.
+    #[schemars(example = &["Dockerfile"])]
     pub(crate) file_names: Vec<String>,
     pub(crate) lsp_language_id: Option<LanguageId>,
     pub(crate) lsp_command: Option<LspCommand>,
     pub(crate) tree_sitter_grammar_config: Option<GrammarConfig>,
-    pub(crate) highlight_query: Option<String>,
-    pub(crate) formatter_command: Option<Command>,
+    /// The formatter command will receive the content from STDIN
+    /// and is expected to return the formatted output to STDOUT.
+    pub(crate) formatter: Option<Command>,
+    #[schemars(example = "//")]
     pub(crate) line_comment_prefix: Option<String>,
+    #[schemars(example = ("/*", "*/"))]
     pub(crate) block_comment_affixes: Option<(String, String)>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum CargoLinkedTreesitterLanguage {
     Typescript,
     TSX,
@@ -186,11 +195,11 @@ impl CargoLinkedTreesitterLanguage {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LspCommand {
     pub(crate) command: Command,
-    pub(crate) initialization_options: Option<String>,
+    pub(crate) initialization_options: Option<serde_json::Value>,
 }
 impl LspCommand {
     pub fn default() -> LspCommand {
@@ -207,17 +216,20 @@ impl Language {
             extensions: Vec::new(),
             file_names: Vec::new(),
             lsp_language_id: None,
-            highlight_query: None,
             lsp_command: None,
             tree_sitter_grammar_config: None,
-            formatter_command: None,
+            formatter: None,
             line_comment_prefix: None,
             block_comment_affixes: None,
         }
     }
 
-    fn file_names(&self) -> &Vec<String> {
+    pub fn file_names(&self) -> &Vec<String> {
         &self.file_names
+    }
+
+    pub fn lsp_language_id(&self) -> &Option<LanguageId> {
+        &self.lsp_language_id
     }
 
     pub fn line_comment_prefix(&self) -> Option<String> {
@@ -235,14 +247,14 @@ impl Default for Language {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GrammarConfig {
     pub id: String,
     pub kind: GrammarConfigKind,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum GrammarConfigKind {
     /// This is the recommended over `FromSource`, as `FromSource`
     /// is not reliable across different operating system.
@@ -255,12 +267,12 @@ pub enum GrammarConfigKind {
 }
 
 impl Language {
-    fn extensions(&self) -> &Vec<String> {
+    pub fn extensions(&self) -> &Vec<String> {
         &self.extensions
     }
 
     pub fn initialization_options(&self) -> Option<Value> {
-        serde_json::from_str(&self.lsp_command.clone()?.initialization_options?).ok()
+        self.lsp_command.clone()?.initialization_options
     }
 
     pub fn tree_sitter_language(&self) -> Option<tree_sitter::Language> {
@@ -271,7 +283,7 @@ impl Language {
         }
     }
 
-    pub(crate) fn tree_sitter_grammar_config(&self) -> Option<GrammarConfiguration> {
+    pub fn tree_sitter_grammar_config(&self) -> Option<GrammarConfiguration> {
         match &self.tree_sitter_grammar_config.as_ref()?.kind {
             GrammarConfigKind::CargoLinked(_) => None,
             GrammarConfigKind::FromSource {
@@ -363,116 +375,12 @@ impl Language {
     }
 
     fn formatter_command(&self) -> Option<ProcessCommand> {
-        self.formatter_command
+        self.formatter
             .as_ref()
             .map(|command| ProcessCommand::new(&command.command, &command.arguments))
     }
 
     pub fn formatter(&self) -> Option<Formatter> {
         self.formatter_command().map(Formatter::from)
-    }
-}
-
-pub fn from_path(path: &CanonicalizedPath) -> Option<Language> {
-    path.extension()
-        .and_then(from_extension)
-        .or_else(|| from_filename(path))
-}
-
-pub fn from_extension(extension: &str) -> Option<Language> {
-    AppConfig::singleton()
-        .languages()
-        .iter()
-        .find(|(_, language)| language.extensions().contains(&extension.to_string()))
-        .map(|(_, language)| (*language).clone())
-}
-
-pub(crate) fn from_filename(path: &CanonicalizedPath) -> Option<Language> {
-    let file_name = path.file_name()?;
-    AppConfig::singleton()
-        .languages()
-        .iter()
-        .find(|(_, language)| language.file_names().contains(&file_name))
-        .map(|(_, language)| (*language).clone())
-}
-
-use regex::Regex;
-
-/// Detect the language from the first line of the file content.
-///
-/// Standard shebang format is checked as well as vim's `ft=` method and various
-/// other editors supporting `mode:`.
-///
-/// For example, a file opened that has any of the following first lines will be
-/// detected as bash.
-///
-/// - `#!/bin/bash`
-/// - `# vim: ft=bash`
-/// - `# mode: bash
-///
-/// Spaces and other content on the line do not matter.
-pub fn from_content_directive(content: &str) -> Option<Language> {
-    let first_line = content.lines().next()?;
-
-    let re = Regex::new(r"(?:(?:^#!.*/)|(?:mode:)|(?:ft\s*=))\s*(\w+)").unwrap();
-    let language_id = re
-        .captures(first_line)
-        .and_then(|captures| captures.get(1).map(|mode| mode.as_str().to_string()));
-
-    language_id.and_then(|id| {
-        AppConfig::singleton()
-            .languages()
-            .iter()
-            .find(|(_, language)| {
-                language
-                    .lsp_language_id
-                    .clone()
-                    .is_some_and(|lsp_id| lsp_id.0 == id)
-            })
-            .map(|(_, language)| (*language).clone())
-    })
-}
-
-#[cfg(test)]
-mod test_language {
-    use super::*;
-    use std::fs::File;
-    #[test]
-    fn test_from_path() -> anyhow::Result<()> {
-        fn run_test_case(filename: &str, expected_language_id: &'static str) -> anyhow::Result<()> {
-            let tempdir = tempfile::tempdir()?;
-            let path = tempdir.path().join(filename);
-            File::create(path.clone())?;
-            let result = from_path(&path.to_string_lossy().to_string().try_into()?).unwrap();
-            assert_eq!(
-                result.tree_sitter_grammar_id().unwrap(),
-                expected_language_id
-            );
-            Ok(())
-        }
-        run_test_case("hello.rs", "rust")?;
-        run_test_case("justfile", "just")?;
-        Ok(())
-    }
-
-    #[test]
-    fn test_from_content_directive() -> anyhow::Result<()> {
-        fn run_test_case(content: &str, expected_language_id: &'static str) -> anyhow::Result<()> {
-            let result = from_content_directive(content).unwrap();
-            assert_eq!(
-                result.tree_sitter_grammar_id().unwrap(),
-                expected_language_id
-            );
-            Ok(())
-        }
-
-        run_test_case("#!/bin/bash", "bash")?;
-        run_test_case("#!/usr/local/bin/bash", "bash")?;
-        run_test_case("// mode: python", "python")?;
-        run_test_case("-- tab_spaces: 5, mode: bash, use_tabs: false", "bash")?;
-        run_test_case("-- tab_spaces: 5, mode:bash, use_tabs: false", "bash")?;
-        run_test_case("-- vim: ft = bash", "bash")?;
-
-        Ok(())
     }
 }

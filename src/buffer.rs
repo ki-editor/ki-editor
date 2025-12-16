@@ -685,7 +685,8 @@ impl Buffer {
     ) -> anyhow::Result<Buffer> {
         let content = path.read()?;
         let language = if enable_tree_sitter {
-            language::from_path(path).or_else(|| language::from_content_directive(&content))
+            crate::config::from_path(path)
+                .or_else(|| crate::config::from_content_directive(&content))
         } else {
             None
         };
@@ -1227,7 +1228,7 @@ mod test_buffer {
     #[test]
     fn get_parent_lines_1() {
         let buffer = Buffer::new(
-            shared::language::from_extension("yaml")
+            crate::config::from_extension("yaml")
                 .unwrap()
                 .tree_sitter_language(),
             "
@@ -1259,7 +1260,7 @@ mod test_buffer {
     #[test]
     fn get_parent_lines_2() {
         let buffer = Buffer::new(
-            shared::language::from_extension("rs")
+            crate::config::from_extension("rs")
                 .unwrap()
                 .tree_sitter_language(),
             "
@@ -1300,7 +1301,7 @@ fn f(
         use super::*;
         fn test(input: &str, config: LocalSearchConfig, expected: &str) -> anyhow::Result<()> {
             let mut buffer = Buffer::new(
-                shared::language::from_extension("rs")
+                crate::config::from_extension("rs")
                     .unwrap()
                     .tree_sitter_language(),
                 input,

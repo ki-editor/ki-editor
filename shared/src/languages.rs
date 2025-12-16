@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use serde_json::json;
+
 use crate::language::{CargoLinkedTreesitterLanguage, GrammarConfigKind};
 
 use super::language::{Command, GrammarConfig, Language, LanguageId, LspCommand};
@@ -77,7 +79,7 @@ fn bash() -> Language {
     Language {
         extensions: to_vec(&["sh", "bash"]),
         file_names: to_vec(&[".bashrc", ".bash_profile", "bashrc", "bash_profile"]),
-        formatter_command: Some(Command::new("shfmt", &[".sh", ".bash"])),
+        formatter: Some(Command::new("shfmt", &[".sh", ".bash"])),
         lsp_command: Some(LspCommand {
             command: Command::new("bash-language-server", &["start"]),
             ..LspCommand::default()
@@ -95,7 +97,7 @@ fn bash() -> Language {
 fn fish() -> Language {
     Language {
         extensions: to_vec(&["fish"]),
-        formatter_command: Some(Command::new("fish --no-execute ", &[".fish"])),
+        formatter: Some(Command::new("fish --no-execute ", &[".fish"])),
         lsp_command: Some(LspCommand {
             command: Command::new("fish-lsp", &["start"]),
             ..LspCommand::default()
@@ -113,7 +115,7 @@ fn fish() -> Language {
 fn c() -> Language {
     Language {
         extensions: to_vec(&["c", "h"]),
-        formatter_command: Some(Command::new("clang-format", &[])),
+        formatter: Some(Command::new("clang-format", &[])),
         lsp_command: Some(LspCommand {
             command: Command::new("clangd", &[]),
             ..LspCommand::default()
@@ -186,7 +188,7 @@ fn cpp() -> Language {
             "cc", "hh", "c++", "cpp", "hpp", "h", "ipp", "tpp", "cxx", "hxx", "ixx", "txx", "ino",
             "cu", "cuh", "cppm", "h++", "ii", "inl",
         ]),
-        formatter_command: Some(Command::new("clang-format", &[])),
+        formatter: Some(Command::new("clang-format", &[])),
         lsp_command: Some(LspCommand {
             command: Command::new("clangd", &[]),
             ..LspCommand::default()
@@ -220,7 +222,7 @@ fn csv() -> Language {
 fn c_sharp() -> Language {
     Language {
         extensions: to_vec(&["cs", "csx", "cake"]),
-        formatter_command: Some(Command::new("csharpier", &["format", "--write-stdout"])),
+        formatter: Some(Command::new("csharpier", &["format", "--write-stdout"])),
         lsp_command: Some(LspCommand {
             command: Command::new("omnisharp", &["--languageserver"]),
             ..LspCommand::default()
@@ -243,7 +245,7 @@ fn c_sharp() -> Language {
 fn css() -> Language {
     Language {
         extensions: to_vec(&["css"]),
-        formatter_command: Some(Command::new("prettierd", &[".css"])),
+        formatter: Some(Command::new("prettierd", &[".css"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "css".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::CSS),
@@ -283,7 +285,7 @@ fn dockerfile() -> Language {
 fn elixir() -> Language {
     Language {
         extensions: to_vec(&["ex", "exs"]),
-        formatter_command: Some(Command::new("mix", &["format", "-"])),
+        formatter: Some(Command::new("mix", &["format", "-"])),
         lsp_command: Some(LspCommand {
             command: Command::new("elixir-ls", &[]),
             initialization_options: None,
@@ -301,7 +303,7 @@ fn elixir() -> Language {
 fn fsharp() -> Language {
     Language {
         extensions: to_vec(&["fs", "fsi", "fsx", "fsscript"]),
-        formatter_command: None,
+        formatter: None,
         lsp_command: Some(LspCommand {
             // Use --log-file and --log-level arguments to debug fsautocomplete issues.
             // Example: --log-file /path/to/fsac.log --log-level debug
@@ -407,7 +409,7 @@ fn gitrebase() -> Language {
 fn gleam() -> Language {
     Language {
         extensions: to_vec(&["gleam"]),
-        formatter_command: Some(Command::new("gleam", &["format", "--stdin"])),
+        formatter: Some(Command::new("gleam", &["format", "--stdin"])),
         lsp_command: Some(LspCommand {
             command: Command::new("gleam", &["lsp"]),
             ..LspCommand::default()
@@ -425,7 +427,7 @@ fn gleam() -> Language {
 fn go() -> Language {
     Language {
         extensions: to_vec(&["go"]),
-        formatter_command: Some(Command::new("gofmt", &[])),
+        formatter: Some(Command::new("gofmt", &[])),
         lsp_command: Some(LspCommand {
             command: Command::new("gopls", &[]),
             ..LspCommand::default()
@@ -444,10 +446,12 @@ fn go() -> Language {
 fn graphql() -> Language {
     Language {
         extensions: to_vec(&["graphql", "gql"]),
-        formatter_command: Some(Command::new("prettierd", &[".graphql"])),
+        formatter: Some(Command::new("prettierd", &[".graphql"])),
         lsp_command: Some(LspCommand {
             command: Command::new("graphql-lsp", &["server", "-m", "stream"]),
-            initialization_options: Some(r#"{ "graphql-config.load.legacy": true }"#.to_string()),
+            initialization_options: Some(
+                json! {r#"{ "graphql-config.load.legacy": true }"#.to_string()},
+            ),
         }),
         lsp_language_id: Some(LanguageId::new("graphql")),
         tree_sitter_grammar_config: Some(GrammarConfig {
@@ -477,7 +481,7 @@ fn hare() -> Language {
 fn heex() -> Language {
     Language {
         extensions: to_vec(&["heex"]),
-        formatter_command: Some(Command::new(
+        formatter: Some(Command::new(
             "mix",
             &["format", "--stdin-filename", "file.heex", "-"],
         )),
@@ -498,7 +502,7 @@ fn heex() -> Language {
 fn html() -> Language {
     Language {
         extensions: to_vec(&["htm", "html", "svg"]),
-        formatter_command: Some(Command::new("prettierd", &[".html"])),
+        formatter: Some(Command::new("prettierd", &[".html"])),
         lsp_command: Some(LspCommand {
             command: Command::new("emmet-language-server", &["--stdio"]),
             ..LspCommand::default()
@@ -554,7 +558,7 @@ fn haskell() -> Language {
 fn javascript() -> Language {
     Language {
         extensions: to_vec(&["js", "mjs", "cjs"]),
-        formatter_command: Some(Command::new("prettierd", &[".js"])),
+        formatter: Some(Command::new("prettierd", &[".js"])),
         lsp_command: Some(LspCommand {
             command: Command::new("typescript-language-server", &["--stdio"]),
             ..LspCommand::default()
@@ -573,7 +577,7 @@ fn javascript() -> Language {
 fn javascriptreact() -> Language {
     Language {
         extensions: to_vec(&["jsx"]),
-        formatter_command: Some(Command::new("prettierd", &[".jsx"])),
+        formatter: Some(Command::new("prettierd", &[".jsx"])),
         lsp_command: Some(LspCommand {
             command: Command::new("typescript-language-server", &["--stdio"]),
             ..LspCommand::default()
@@ -610,7 +614,7 @@ fn svelte() -> Language {
 fn json() -> Language {
     Language {
         extensions: to_vec(&["json"]),
-        formatter_command: Some(Command::new("prettierd", &[".json"])),
+        formatter: Some(Command::new("prettierd", &[".json"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "json".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::JSON),
@@ -677,7 +681,7 @@ fn kiquickfix() -> Language {
 fn lua() -> Language {
     Language {
         extensions: to_vec(&["lua"]),
-        formatter_command: Some(Command::new("stylua", &["-"])),
+        formatter: Some(Command::new("stylua", &["-"])),
         lsp_command: Some(LspCommand {
             command: Command::new("lua-language-server", &[]),
             ..LspCommand::default()
@@ -696,7 +700,7 @@ fn lua() -> Language {
 fn markdown() -> Language {
     Language {
         extensions: to_vec(&["md", "mdx"]),
-        formatter_command: Some(Command::new("prettierd", &[".md"])),
+        formatter: Some(Command::new("prettierd", &[".md"])),
         lsp_command: Some(LspCommand {
             command: Command::new("marksman", &["server"]),
             ..LspCommand::default()
@@ -713,7 +717,7 @@ fn markdown() -> Language {
 
 fn nix() -> Language {
     Language {
-        formatter_command: Some(Command::new("nixfmt", &[])),
+        formatter: Some(Command::new("nixfmt", &[])),
         extensions: to_vec(&["nix"]),
         lsp_command: Some(LspCommand {
             command: Command::new("nil", &[]),
@@ -733,7 +737,7 @@ fn nix() -> Language {
 fn ocaml() -> Language {
     Language {
         extensions: to_vec(&["ml"]),
-        formatter_command: Some(Command::new("ocamlformat", &["-", "--impl"])),
+        formatter: Some(Command::new("ocamlformat", &["-", "--impl"])),
         lsp_command: Some(LspCommand {
             command: Command::new("ocamllsp", &["--stdio"]),
             ..LspCommand::default()
@@ -751,7 +755,7 @@ fn ocaml() -> Language {
 fn ocaml_interface() -> Language {
     Language {
         extensions: to_vec(&["mli"]),
-        formatter_command: Some(Command::new("ocamlformat", &["-", "--intf"])),
+        formatter: Some(Command::new("ocamlformat", &["-", "--intf"])),
         lsp_command: Some(LspCommand {
             command: Command::new("ocamllsp", &["--stdio"]),
             ..LspCommand::default()
@@ -769,7 +773,7 @@ fn ocaml_interface() -> Language {
 fn odin() -> Language {
     Language {
         extensions: to_vec(&["odin"]),
-        formatter_command: Some(Command::new("odinfmt", &["-stdin"])),
+        formatter: Some(Command::new("odinfmt", &["-stdin"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "odin".to_string(),
             kind: GrammarConfigKind::FromSource {
@@ -787,7 +791,7 @@ fn odin() -> Language {
 fn dune() -> Language {
     Language {
         extensions: to_vec(&["dune-project", "dune"]),
-        formatter_command: Some(Command::new("dune", &["format-dune-file"])),
+        formatter: Some(Command::new("dune", &["format-dune-file"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "dune".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Scheme),
@@ -800,7 +804,7 @@ fn dune() -> Language {
 fn python() -> Language {
     Language {
         extensions: to_vec(&["py"]),
-        formatter_command: Some(Command::new("ruff", &["format", "--stdin-filename", ".py"])),
+        formatter: Some(Command::new("ruff", &["format", "--stdin-filename", ".py"])),
         lsp_command: Some(LspCommand {
             command: Command::new("pyright-langserver", &["--stdio"]),
             ..LspCommand::default()
@@ -818,7 +822,7 @@ fn python() -> Language {
 fn rescript() -> Language {
     Language {
         extensions: to_vec(&["res"]),
-        formatter_command: Some(Command::new(
+        formatter: Some(Command::new(
             "./node_modules/.bin/rescript",
             &["format", "-stdin", ".res"],
         )),
@@ -845,7 +849,7 @@ fn ruby() -> Language {
     Language {
         extensions: to_vec(&["rb", "rbs", "gemspec", "rake", "podspec"]),
         file_names: to_vec(&["Gemfile", "Rakefile", "Podfile", "Fastfile", "config.ru"]),
-        formatter_command: Some(Command::new(
+        formatter: Some(Command::new(
             "rubocop",
             &["--fix-layout", "--stdin", "/dev/null", "--stderr"],
         )),
@@ -866,7 +870,7 @@ fn ruby() -> Language {
 fn roc() -> Language {
     Language {
         extensions: to_vec(&["roc"]),
-        formatter_command: Some(Command::new("roc", &["format", "--stdin", "--stdout"])),
+        formatter: Some(Command::new("roc", &["format", "--stdin", "--stdout"])),
         lsp_command: None,
         lsp_language_id: Some(LanguageId::new("roc")),
         tree_sitter_grammar_config: Some(GrammarConfig {
@@ -885,7 +889,7 @@ fn roc() -> Language {
 fn rust() -> Language {
     Language {
         extensions: to_vec(&["rs"]),
-        formatter_command: Some(Command::new("rustfmt", &["--edition=2021"])),
+        formatter: Some(Command::new("rustfmt", &["--edition=2021"])),
         lsp_command: Some(LspCommand {
             command: Command::new("rust-analyzer", &[]),
             ..LspCommand::default()
@@ -904,7 +908,7 @@ fn rust() -> Language {
 fn sql() -> Language {
     Language {
         extensions: to_vec(&["sql", "pgsql", "mssql", "mysql"]),
-        formatter_command: Some(Command::new("sql-formatter", &["--language", "postgresql"])),
+        formatter: Some(Command::new("sql-formatter", &["--language", "postgresql"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "sql".to_string(),
             kind: GrammarConfigKind::FromSource {
@@ -922,7 +926,7 @@ fn sql() -> Language {
 fn swift() -> Language {
     Language {
         extensions: to_vec(&["swift"]),
-        formatter_command: Some(Command::new("swiftformat", &[])),
+        formatter: Some(Command::new("swiftformat", &[])),
         lsp_command: Some(LspCommand {
             command: Command::new("sourcekit-lsp", &[]),
             ..LspCommand::default()
@@ -941,7 +945,7 @@ fn swift() -> Language {
 fn typst() -> Language {
     Language {
         extensions: to_vec(&["typ"]),
-        formatter_command: Some(Command::new("typstyle", &["-i"])),
+        formatter: Some(Command::new("typstyle", &["-i"])),
         lsp_command: Some(LspCommand {
             command: Command::new("tinymist", &["lsp"]),
             ..LspCommand::default()
@@ -991,7 +995,7 @@ fn tree_sitter_query() -> Language {
 fn typescript() -> Language {
     Language {
         extensions: to_vec(&["ts", "mts", "cts"]),
-        formatter_command: Some(Command::new("prettierd", &[".ts"])),
+        formatter: Some(Command::new("prettierd", &[".ts"])),
         lsp_command: Some(LspCommand {
             command: Command::new("typescript-language-server", &["--stdio"]),
             ..LspCommand::default()
@@ -1010,7 +1014,7 @@ fn typescript() -> Language {
 fn typescriptreact() -> Language {
     Language {
         extensions: to_vec(&["tsx"]),
-        formatter_command: Some(Command::new("prettierd", &[".tsx"])),
+        formatter: Some(Command::new("prettierd", &[".tsx"])),
         lsp_command: Some(LspCommand {
             command: Command::new("typescript-language-server", &["--stdio"]),
             ..LspCommand::default()
@@ -1073,7 +1077,7 @@ fn yaml() -> Language {
 fn zig() -> Language {
     Language {
         extensions: to_vec(&["zig"]),
-        formatter_command: Some(Command::new("zig", &["fmt", "--stdin"])),
+        formatter: Some(Command::new("zig", &["fmt", "--stdin"])),
         lsp_command: Some(LspCommand {
             command: Command::new("zls", &[]),
             ..LspCommand::default()

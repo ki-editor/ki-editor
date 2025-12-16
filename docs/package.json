@@ -21,6 +21,7 @@
         "@mdx-js/react": "^3.0.0",
         "@xterm/addon-fit": "^0.10.0",
         "clsx": "^2.0.0",
+        "docusaurus-json-schema-plugin": "^1.15.0",
         "docusaurus-lunr-search": "^3.6.0",
         "prism-react-renderer": "^2.3.0",
         "react": "^18.0.0",

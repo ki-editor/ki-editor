@@ -51,7 +51,7 @@ impl LspManager {
         _error: &str,
         f: impl Fn(&LspServerProcessChannel) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
-        language::from_path(path)
+        crate::config::from_path(path)
             .and_then(|language| self.lsp_server_process_channels.get(&language.id()?))
             .map(f)
             .unwrap_or_else(|| Ok(()))
@@ -78,7 +78,7 @@ impl LspManager {
     /// 2. Notify the LSP server process that a new file is opened.
     /// 3. Do nothing if the LSP server process is spawned but not yet initialized.
     pub(crate) fn open_file(&mut self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
-        let Some(language) = language::from_path(&path) else {
+        let Some(language) = crate::config::from_path(&path) else {
             return Ok(());
         };
         let Some(language_id) = language.id() else {
