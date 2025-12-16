@@ -29,8 +29,8 @@ impl LanguageId {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Command {
-    command: String,
-    arguments: Vec<String>,
+    pub command: String,
+    pub arguments: Vec<String>,
 }
 impl Command {
     pub fn new(command: &'static str, arguments: &[&'static str]) -> Self {

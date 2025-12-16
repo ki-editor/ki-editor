@@ -1,8 +1,8 @@
 use std::{collections::HashMap, io::Read, path::PathBuf, str::FromStr};
 
-use config::Config;
-
 use crate::language::{self, Language};
+use figment::providers;
+use figment::providers::Format;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -20,32 +20,16 @@ impl AppConfig {
         }
     }
     pub(crate) fn load_from_current_directory() -> anyhow::Result<Self> {
-        let settings = Config::builder()
-            .add_source(
-                config::File::with_name(&::grammar::config_dir().join("config").to_string_lossy())
-                    .required(false),
-            )
-            .add_source(
-                config::File::with_name(
-                    &PathBuf::from_str(".")?
-                        .join(".ki")
-                        .join("config")
-                        .to_string_lossy(),
-                )
-                .required(false),
-            )
-            .build()?;
-        let value = &settings.try_deserialize::<Value>()?;
-        let mut default = serde_json::to_value(AppConfig::default())?;
-        json_value_merge::Merge::merge(&mut default, value);
-        let result: Value = serde_json::from_value(default)?;
-
-        let stringified = serde_json::to_string_pretty(&result)?;
-
-        let deserializer = &mut serde_json::Deserializer::from_str(&stringified);
-
-        let result = serde_path_to_error::deserialize(deserializer)?;
-        Ok(result)
+        let config: AppConfig =
+            figment::Figment::from(providers::Serialized::defaults(&AppConfig::default()))
+                .merge(providers::Json::file(
+                    PathBuf::from_str(".")?.join(".ki").join("config.json"),
+                ))
+                .merge(providers::Json::file(
+                    ::grammar::config_dir().join("config.json"),
+                ))
+                .extract()?;
+        Ok(config)
     }
     pub fn singleton() -> &'static AppConfig {
         static INSTANCE: OnceCell<AppConfig> = OnceCell::new();
