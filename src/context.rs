@@ -273,7 +273,7 @@ impl Context {
 
         Self {
             clipboard: Clipboard::new(),
-            theme: Theme::default(),
+            theme: crate::config::AppConfig::singleton().theme(),
             mode: None,
             #[cfg(test)]
             highlight_configs: crate::syntax_highlight::HighlightConfigs::new(),

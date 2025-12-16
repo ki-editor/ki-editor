@@ -673,6 +673,8 @@ impl LspServerProcess {
                     path,
                 } = pending_response_request;
 
+                log::info!("LspServerProcess::handle_reply: {}", method.as_str());
+
                 match method.as_str() {
                     "initialize" => {
                         log::info!("Initialize response: {response:?}");
@@ -931,6 +933,7 @@ impl LspServerProcess {
 
                 let method = request.method;
                 // Parse the reply as Notification
+                log::info!("LspServerProcess::handle_notification: {}", method.as_str());
                 match method.as_str() {
                     "textDocument/publishDiagnostics" => {
                         let params: <lsp_notification!("textDocument/publishDiagnostics") as Notification>::Params =

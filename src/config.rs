@@ -16,6 +16,7 @@ use shared::language::{self, Language};
 pub(crate) struct AppConfig {
     languages: HashMap<String, Language>,
     keyboard_layout: KeyboardLayoutKind,
+    theme: Option<String>,
 }
 
 impl AppConfig {
@@ -23,6 +24,7 @@ impl AppConfig {
         Self {
             languages: shared::languages::languages(),
             keyboard_layout: KeyboardLayoutKind::Qwerty,
+            theme: None,
         }
     }
 
@@ -59,6 +61,15 @@ impl AppConfig {
 
     pub(crate) fn keyboard_layout_kind(&self) -> KeyboardLayoutKind {
         self.keyboard_layout
+    }
+
+    pub(crate) fn theme(&self) -> crate::themes::Theme {
+        let theme = self.theme.clone().unwrap_or_default();
+        crate::themes::theme_descriptor::all()
+            .iter()
+            .find(|descriptor| descriptor.name() == theme)
+            .map(|descriptor| descriptor.to_theme())
+            .unwrap_or_else(|| crate::themes::Theme::default())
     }
 }
 

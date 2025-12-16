@@ -11,6 +11,12 @@
       "additionalProperties": {
         "$ref": "#/$defs/Language"
       }
+    },
+    "theme": {
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "additionalProperties": false,
@@ -146,10 +152,10 @@
       "enum": [
         "qwerty",
         "dvorak",
-        "dvorak-i-u",
+        "dvorak-iu",
         "colemak",
-        "colemak-d-h",
-        "colemak-d-h-semi-quote",
+        "colemak-dh",
+        "colemak-dh-semi-quote",
         "workman",
         "puq"
       ]

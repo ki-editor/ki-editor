@@ -3,11 +3,6 @@ use itertools::Itertools;
 
 pub(crate) type ThemeFn = fn() -> Theme;
 
-pub(crate) enum BuiltInTheme {
-    VscodeDark,
-    VscodeLight,
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum ThemeDescriptor {
     ThemeFn(String, ThemeFn),
