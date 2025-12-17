@@ -46,6 +46,7 @@
         devOnlyPackages = with pkgs; [
           python3
           which
+          rust-analyzer
           just
           alejandra
           fd
@@ -53,7 +54,6 @@
           cargo-machete
           cargo-nextest
           samply
-          biome
 
           # For testing LSP
           typescript-language-server

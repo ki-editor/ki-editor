@@ -57,9 +57,6 @@ tree-sitter-haskell = "0.23.1"
 tree-sitter-julia = "0.23.1"
 
 
-
-
-
 [dev-dependencies]
 quickcheck.workspace = true
 quickcheck_macros.workspace = true
