@@ -71,10 +71,10 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                                         // Editor(ApplySyntaxHighlight),
                                         App(HandleKeyEvent(key!("esc"))),
                                         Editor(SetContent(recipe.content.to_string())),
-                                        Editor(SetLanguage(
+                                        Editor(SetLanguage(Box::new(
                                             crate::config::from_extension(recipe.file_extension)
                                                 .unwrap(),
-                                        )),
+                                        ))),
                                     ]
                                     .into_iter()
                                     .chain(Some(App(HandleKeyEvents(

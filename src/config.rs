@@ -9,7 +9,7 @@ use figment::providers;
 use figment::providers::Format;
 use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use shared::canonicalized_path::CanonicalizedPath;
 use shared::language::{self, Language};
 

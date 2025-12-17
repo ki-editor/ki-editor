@@ -30,10 +30,7 @@ pub(crate) use SelectionMode::*;
 
 use crate::{app::StatusLine, components::editor::PriorChange};
 
-use shared::{
-    canonicalized_path::CanonicalizedPath,
-    language::{self, LanguageId},
-};
+use shared::{canonicalized_path::CanonicalizedPath, language::LanguageId};
 
 #[cfg(test)]
 use crate::layout::BufferContentsMap;
@@ -2950,7 +2947,7 @@ fn doc_assets_export_keymaps_json() {
 
 #[test]
 fn doc_assets_export_app_config_json_schema() -> anyhow::Result<()> {
-    let path = format!("docs/static/app_config_json_schema.json");
+    let path = "docs/static/app_config_json_schema.json".to_string();
     let schema = schema_for!(crate::config::AppConfig);
     let json = serde_json::to_string_pretty(&schema)?;
     std::fs::write(path, json)?;
@@ -3548,7 +3545,7 @@ fn lsp_initialization_should_only_send_relevant_opened_documents() -> anyhow::Re
                 focus: true,
             }),
             App(HandleLspNotification(LspNotification::Initialized(
-                crate::config::from_extension("ts").unwrap(),
+                Box::new(crate::config::from_extension("ts").unwrap()),
             ))),
             Expect(LspServerInitializedArgs(Some((
                 LanguageId::new("typescript"),

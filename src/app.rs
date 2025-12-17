@@ -1521,14 +1521,14 @@ impl<T: Frontend> App<T> {
                     .buffers()
                     .into_iter()
                     .filter_map(|buffer| {
-                        if buffer.borrow().language()? == language {
+                        if buffer.borrow().language()? == *language {
                             buffer.borrow().path()
                         } else {
                             None
                         }
                     })
                     .collect_vec();
-                self.lsp_manager.initialized(language, opened_documents);
+                self.lsp_manager.initialized(*language, opened_documents);
                 Ok(())
             }
             LspNotification::PublishDiagnostics(params) => {

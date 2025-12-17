@@ -36,7 +36,7 @@ impl Command {
     pub fn new(command: &'static str, arguments: &[&'static str]) -> Self {
         Self {
             command: command.to_string(),
-            arguments: arguments.into_iter().map(|arg| arg.to_string()).collect(),
+            arguments: arguments.iter().map(|arg| arg.to_string()).collect(),
         }
     }
 }
@@ -192,19 +192,11 @@ impl CargoLinkedTreesitterLanguage {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(deny_unknown_fields)]
 pub struct LspCommand {
     pub(crate) command: Command,
     pub(crate) initialization_options: Option<serde_json::Value>,
-}
-impl LspCommand {
-    pub fn default() -> LspCommand {
-        LspCommand {
-            command: Command::default(),
-            initialization_options: None,
-        }
-    }
 }
 
 impl Language {
@@ -288,7 +280,7 @@ impl Language {
                 commit,
                 subpath,
             } => self.tree_sitter_grammar_config.as_ref().map(|config| {
-                GrammarConfiguration::remote(&config.id, &url, &commit, subpath.clone())
+                GrammarConfiguration::remote(&config.id, url, commit, subpath.clone())
             }),
         }
     }

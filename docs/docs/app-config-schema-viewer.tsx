@@ -2,8 +2,6 @@ import JSONSchemaViewer from "@theme/JSONSchemaViewer";
 import JSONSchemaEditor from "@theme/JSONSchemaEditor";
 
 import Schema from "@site/static/app_config_json_schema.json";
-
-import jsf from "json-schema-faker";
 export function AppConfigSchemaViewer() {
     const sample = {
         theme: "VS Code (Light)",

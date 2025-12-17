@@ -92,7 +92,7 @@ impl Transformation {
                 result
             }),
             Transformation::PipeToShell { command } => {
-                ProcessCommand::new("bash", &["-c".to_string(), command.to_string()].to_vec())
+                ProcessCommand::new("bash", ["-c".to_string(), command.to_string()].as_ref())
                     .run_with_input(&string)
             }
             Transformation::ReplaceWithCopiedText { copied_texts } => {

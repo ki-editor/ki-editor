@@ -24,7 +24,7 @@ impl SpawnCommandResult {
 }
 
 impl ProcessCommand {
-    pub fn new(command: &str, args: &Vec<String>) -> Self {
+    pub fn new(command: &str, args: &[String]) -> Self {
         Self {
             command: command.to_string(),
             args: args.iter().map(|s| s.to_string()).collect(),

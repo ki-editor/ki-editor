@@ -3237,7 +3237,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "tempfile",
  "tree-sitter",
  "tree-sitter-bash",
  "tree-sitter-c",

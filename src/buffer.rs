@@ -21,10 +21,7 @@ use crate::{
 use itertools::Itertools;
 use regex::Regex;
 use ropey::Rope;
-use shared::{
-    canonicalized_path::CanonicalizedPath,
-    language::{self, Language},
-};
+use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::ops::Range;
 use std::time::SystemTime;
 use tree_sitter::{Node, Parser, Tree};

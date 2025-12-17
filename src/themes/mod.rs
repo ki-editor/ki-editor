@@ -26,7 +26,7 @@ pub(crate) struct Theme {
     pub(crate) git_gutter: GitGutterStyles,
 }
 
-use schemars::{schema_for_value, JsonSchema, Schema, SchemaGenerator};
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 
 impl Serialize for Theme {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -70,8 +70,7 @@ impl<'de> Deserialize<'de> for Theme {
                     .ok_or_else(|| {
                         let valid_themes: Vec<_> = descriptors.iter().map(|d| d.name()).collect();
                         E::custom(format!(
-                            "'{}' is not a valid theme. Available: {:?}",
-                            value, valid_themes
+                            "'{value}' is not a valid theme. Available: {valid_themes:?}"
                         ))
                     })
             }

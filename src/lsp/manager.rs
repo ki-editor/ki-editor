@@ -5,7 +5,7 @@ use crate::app::AppMessage;
 use super::process::{FromEditor, LspServerProcessChannel};
 use shared::{
     canonicalized_path::CanonicalizedPath,
-    language::{self, Language, LanguageId},
+    language::{Language, LanguageId},
 };
 
 pub(crate) struct LspManager {

@@ -67,13 +67,9 @@ use frontend::crossterm::Crossterm;
 use log::LevelFilter;
 use shared::canonicalized_path::CanonicalizedPath;
 
-use app::{App, StatusLineComponent};
+use app::App;
 
-use crate::{
-    app::{AppMessage, StatusLine},
-    config::AppConfig,
-    persistence::Persistence,
-};
+use crate::{app::AppMessage, config::AppConfig, persistence::Persistence};
 
 fn main() {
     cli::cli().unwrap();
