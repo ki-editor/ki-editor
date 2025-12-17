@@ -140,7 +140,7 @@ class Hi {
             Expect(CurrentComponentContent(
                 "
 foo.ts
-    2:3    hello() {}"
+    2:5      hello() {}"
                     .trim(),
             )),
             // Expect `hello` is styled as search matches
