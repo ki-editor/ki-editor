@@ -125,6 +125,7 @@ pub(crate) struct StatusLine {
     components: Vec<StatusLineComponent>,
 }
 impl StatusLine {
+    #[cfg(test)]
     pub(crate) fn new(components: Vec<StatusLineComponent>) -> Self {
         Self { components }
     }

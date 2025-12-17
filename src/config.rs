@@ -19,16 +19,16 @@ pub(crate) struct AppConfig {
     languages: HashMap<String, Language>,
     keyboard_layout: KeyboardLayoutKind,
     theme: Theme,
-    status_lines: Option<Vec<StatusLine>>,
+    status_lines: Vec<StatusLine>,
 }
+
+const DEFAULT_CONFIG: &str = include_str!("config_default.json");
 
 impl AppConfig {
     fn default() -> Self {
         Self {
             languages: shared::languages::languages(),
-            keyboard_layout: KeyboardLayoutKind::Qwerty,
-            theme: Theme::default(),
-            status_lines: None,
+            ..serde_json::from_str(DEFAULT_CONFIG).unwrap()
         }
     }
 
@@ -41,6 +41,7 @@ impl AppConfig {
                 .merge(providers::Json::file(
                     ::grammar::config_dir().join("config.json"),
                 ))
+                .merge(providers::Env::prefixed("KI_"))
                 .extract()?;
         Ok(config)
     }
@@ -72,39 +73,7 @@ impl AppConfig {
     }
 
     pub(crate) fn status_lines(&self) -> Vec<crate::app::StatusLine> {
-        if let Some(status_lines) = &self.status_lines {
-            return status_lines.clone();
-        }
-        use crate::app::StatusLineComponent::*;
-        [
-            StatusLine::new(
-                [
-                    KiCharacter,
-                    Mode,
-                    SelectionMode,
-                    Reveal,
-                    LastSearchString,
-                    Spacer,
-                    LastDispatch,
-                    KeyboardLayout,
-                    Help,
-                ]
-                .to_vec(),
-            ),
-            StatusLine::new(
-                [
-                    GitBranch,
-                    LineColumn,
-                    Spacer,
-                    CurrentFileParentFolder,
-                    Spacer,
-                    CurrentWorkingDirectory,
-                ]
-                .to_vec(),
-            ),
-        ]
-        .into_iter()
-        .collect()
+        self.status_lines.clone()
     }
 }
 
@@ -207,5 +176,20 @@ mod test_language {
         run_test_case("-- vim: ft = bash", "bash")?;
 
         Ok(())
+    }
+}
+
+mod test_config {
+    #[test]
+    /// This test case is necessary to prevent invalid `config_default.json`
+    /// from being committed to the master branch.
+    fn default_app_config_should_be_construtable() {
+        super::AppConfig::default();
+    }
+
+    #[test]
+    fn doc_assets_default_config_json() {
+        let path = "docs/static/config_default.json";
+        std::fs::write(path, super::DEFAULT_CONFIG).unwrap()
     }
 }
