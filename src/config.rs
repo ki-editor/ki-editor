@@ -37,10 +37,10 @@ impl AppConfig {
         let workspace_config = |extension: &str| {
             current_directory
                 .join(".ki")
-                .join(&format!("config.{extension}"))
+                .join(format!("config.{extension}"))
         };
         let global_config =
-            |extension: &str| ::grammar::config_dir().join(&format!("config.{extension}"));
+            |extension: &str| ::grammar::config_dir().join(format!("config.{extension}"));
         let config: AppConfig =
             figment::Figment::from(providers::Serialized::defaults(&AppConfig::default()))
                 .merge(providers::Json::file(global_config("json")))
