@@ -13,10 +13,7 @@
       }
     },
     "status_lines": {
-      "type": [
-        "array",
-        "null"
-      ],
+      "type": "array",
       "items": {
         "$ref": "#/$defs/StatusLine"
       }
@@ -29,7 +26,8 @@
   "required": [
     "languages",
     "keyboard_layout",
-    "theme"
+    "theme",
+    "status_lines"
   ],
   "$defs": {
     "CargoLinkedTreesitterLanguage": {
@@ -305,21 +303,29 @@
       ]
     },
     "StatusLineComponent": {
-      "type": "string",
-      "enum": [
-        "KiCharacter",
-        "CurrentWorkingDirectory",
-        "GitBranch",
-        "Mode",
-        "SelectionMode",
-        "LastDispatch",
-        "LineColumn",
-        "LastSearchString",
-        "Help",
-        "KeyboardLayout",
-        "Reveal",
-        "Spacer",
-        "CurrentFileParentFolder"
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "KiCharacter",
+            "CurrentWorkingDirectory",
+            "GitBranch",
+            "Mode",
+            "SelectionMode",
+            "LastDispatch",
+            "LineColumn",
+            "LastSearchString",
+            "Help",
+            "KeyboardLayout",
+            "Reveal",
+            "CurrentFileParentFolder"
+          ]
+        },
+        {
+          "description": "A spacer pushes its preceding group of components to the left,\nand the following to the right.\n\nIf a status line contains more than one spacers,\neach spacer will be given the similar width.",
+          "type": "string",
+          "const": "Spacer"
+        }
       ]
     },
     "Theme": {
