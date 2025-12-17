@@ -111,7 +111,7 @@ chrono = "0.4.39"
 ki-protocol-types = { path = "ki-protocol-types" }
 uuid = { version = "1.4.1", features = ["v4", "serde"] }
 url = { version = "2.5.2" }
-figment = { version = "0.10.19", features = ["json", "toml", "yaml", "env"] }
+figment = { version = "0.10.19", features = ["json", "toml", "yaml"] }
 
 # Add tungstenite for WebSocket support
 tungstenite = { version = "0.21", features = [

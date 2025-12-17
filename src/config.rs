@@ -33,15 +33,22 @@ impl AppConfig {
     }
 
     pub(crate) fn load_from_current_directory() -> anyhow::Result<Self> {
+        let current_directory = PathBuf::from_str(".")?;
+        let workspace_config = |extension: &str| {
+            current_directory
+                .join(".ki")
+                .join(&format!("config.{extension}"))
+        };
+        let global_config =
+            |extension: &str| ::grammar::config_dir().join(&format!("config.{extension}"));
         let config: AppConfig =
             figment::Figment::from(providers::Serialized::defaults(&AppConfig::default()))
-                .merge(providers::Json::file(
-                    PathBuf::from_str(".")?.join(".ki").join("config.json"),
-                ))
-                .merge(providers::Json::file(
-                    ::grammar::config_dir().join("config.json"),
-                ))
-                .merge(providers::Env::prefixed("KI_"))
+                .merge(providers::Json::file(global_config("json")))
+                .merge(providers::Yaml::file(global_config("yaml")))
+                .merge(providers::Toml::file(global_config("toml")))
+                .merge(providers::Json::file(workspace_config("json")))
+                .merge(providers::Yaml::file(workspace_config("yaml")))
+                .merge(providers::Toml::file(workspace_config("toml")))
                 .extract()?;
         Ok(config)
     }
