@@ -3817,12 +3817,13 @@ fn go_to_file_under_selection() -> Result<(), anyhow::Error> {
 
 #[test]
 fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Error> {
-    execute_test(|_| {
+    execute_test(|s| {
         Box::new([
-            App(HandleKeyEvents(keys!("space k d").to_vec())),
-            WaitForAppMessage(regex!("NucleoTickDebounced")),
-            WaitForAppMessage(regex!("NucleoTickDebounced")),
-            App(HandleKeyEvents(keys!("f o o . r s enter").to_vec())),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Expect(CurrentComponentTitle(
                 "\u{200b} 🦀 foo.rs \u{200b}".to_string(),
             )),
