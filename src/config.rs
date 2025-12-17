@@ -3,11 +3,12 @@ use std::{collections::HashMap, io::Read, path::PathBuf, str::FromStr};
 use regex::Regex;
 
 use crate::components::editor_keymap::KeyboardLayoutKind;
+use crate::themes::Theme;
 use figment::providers;
 use figment::providers::Format;
 use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use shared::canonicalized_path::CanonicalizedPath;
 use shared::language::{self, Language};
 
@@ -16,7 +17,7 @@ use shared::language::{self, Language};
 pub(crate) struct AppConfig {
     languages: HashMap<String, Language>,
     keyboard_layout: KeyboardLayoutKind,
-    theme: Option<String>,
+    theme: Theme,
 }
 
 impl AppConfig {
@@ -24,7 +25,7 @@ impl AppConfig {
         Self {
             languages: shared::languages::languages(),
             keyboard_layout: KeyboardLayoutKind::Qwerty,
-            theme: None,
+            theme: Theme::default(),
         }
     }
 
@@ -63,13 +64,8 @@ impl AppConfig {
         self.keyboard_layout
     }
 
-    pub(crate) fn theme(&self) -> crate::themes::Theme {
-        let theme = self.theme.clone().unwrap_or_default();
-        crate::themes::theme_descriptor::all()
-            .iter()
-            .find(|descriptor| descriptor.name() == theme)
-            .map(|descriptor| descriptor.to_theme())
-            .unwrap_or_else(|| crate::themes::Theme::default())
+    pub(crate) fn theme(&self) -> &Theme {
+        &self.theme
     }
 }
 

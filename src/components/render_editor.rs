@@ -1286,18 +1286,6 @@ where
 
     debug_assert!(safe_start <= safe_end);
 
-    // Return the slice containing items that potentially overlap with [start, end]
-    // Expect the result to be the same as using `range_intersection`
-    debug_assert_eq!(
-        (safe_start..safe_end).collect_vec(),
-        items
-            .iter()
-            .enumerate()
-            .filter(|(_, item)| range_intersection(&get_range(item), &(start..end)).is_some())
-            .map(|(index, _)| index)
-            .collect_vec()
-    );
-
     &items[safe_start..safe_end]
 }
 

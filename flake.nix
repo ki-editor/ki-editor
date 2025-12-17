@@ -53,6 +53,7 @@
           cargo-machete
           cargo-nextest
           samply
+          biome
 
           # For testing LSP
           typescript-language-server
