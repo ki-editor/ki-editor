@@ -1,4 +1,6 @@
+// @ts-expect-error - docusaurus-json-schema-plugin types not resolving
 import JSONSchemaViewer from "@theme/JSONSchemaViewer";
+// @ts-expect-error - docusaurus-json-schema-plugin types not resolving
 import JSONSchemaEditor from "@theme/JSONSchemaEditor";
 import Schema from "@site/static/app_config_json_schema.json";
 import DefaultConfig from "@site/static/config_default.json";
