@@ -2,6 +2,7 @@ use std::{collections::HashMap, io::Read, path::PathBuf, str::FromStr};
 
 use regex::Regex;
 
+use crate::app::StatusLine;
 use crate::components::editor_keymap::KeyboardLayoutKind;
 use crate::themes::Theme;
 use figment::providers;
@@ -18,6 +19,7 @@ pub(crate) struct AppConfig {
     languages: HashMap<String, Language>,
     keyboard_layout: KeyboardLayoutKind,
     theme: Theme,
+    status_lines: Option<Vec<StatusLine>>,
 }
 
 impl AppConfig {
@@ -26,6 +28,7 @@ impl AppConfig {
             languages: shared::languages::languages(),
             keyboard_layout: KeyboardLayoutKind::Qwerty,
             theme: Theme::default(),
+            status_lines: None,
         }
     }
 
@@ -66,6 +69,42 @@ impl AppConfig {
 
     pub(crate) fn theme(&self) -> &Theme {
         &self.theme
+    }
+
+    pub(crate) fn status_lines(&self) -> Vec<crate::app::StatusLine> {
+        if let Some(status_lines) = &self.status_lines {
+            return status_lines.clone();
+        }
+        use crate::app::StatusLineComponent::*;
+        [
+            StatusLine::new(
+                [
+                    KiCharacter,
+                    Mode,
+                    SelectionMode,
+                    Reveal,
+                    LastSearchString,
+                    Spacer,
+                    LastDispatch,
+                    KeyboardLayout,
+                    Help,
+                ]
+                .to_vec(),
+            ),
+            StatusLine::new(
+                [
+                    GitBranch,
+                    LineColumn,
+                    Spacer,
+                    CurrentFileParentFolder,
+                    Spacer,
+                    CurrentWorkingDirectory,
+                ]
+                .to_vec(),
+            ),
+        ]
+        .into_iter()
+        .collect()
     }
 }
 

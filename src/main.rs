@@ -71,6 +71,7 @@ use app::{App, StatusLineComponent};
 
 use crate::{
     app::{AppMessage, StatusLine},
+    config::AppConfig,
     persistence::Persistence,
 };
 
@@ -95,38 +96,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         sender,
         receiver,
         Some(syntax_highlighter_sender),
-        {
-            use StatusLineComponent::*;
-            [
-                StatusLine::new(
-                    [
-                        KiCharacter,
-                        Mode,
-                        SelectionMode,
-                        Reveal,
-                        LastSearchString,
-                        Spacer,
-                        LastDispatch,
-                        KeyboardLayout,
-                        Help,
-                    ]
-                    .to_vec(),
-                ),
-                StatusLine::new(
-                    [
-                        GitBranch,
-                        LineColumn,
-                        Spacer,
-                        CurrentFileParentFolder,
-                        Spacer,
-                        CurrentWorkingDirectory,
-                    ]
-                    .to_vec(),
-                ),
-            ]
-            .into_iter()
-            .collect()
-        },
+        AppConfig::singleton().status_lines(),
         None, // No integration event sender
         true,
         true,
