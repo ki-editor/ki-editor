@@ -36,13 +36,13 @@ lint:
     cargo clippy --workspace -- -D warnings
     cargo clippy --tests -- -D warnings
     cargo machete
+    npm run lint
     @just vscode-lint
     
+[working-directory: 'ki-vscode']
 vscode-lint:
-    cd ki-vscode
     npm install
     ./node_modules/.bin/ts-unused-exports tsconfig.json --ignoreFiles="src/protocol/types"
-    npm run lint
     
 lint-fix:
 	cargo clippy --workspace --tests --fix --allow-staged --allow-dirty
