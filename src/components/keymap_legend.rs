@@ -273,7 +273,7 @@ impl KeymapLegend {
                 show_alt: true,
                 show_shift: true,
             },
-            keymap_layout_kind: context.keyboard_layout_kind().clone(),
+            keymap_layout_kind: *context.keyboard_layout_kind(),
         }
     }
 

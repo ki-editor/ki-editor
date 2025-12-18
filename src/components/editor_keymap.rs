@@ -1,4 +1,6 @@
 use once_cell::sync::Lazy;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use Meaning::*;
@@ -410,14 +412,16 @@ static DVORAK_IU_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK_IU));
 static WORKMAN_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(WORKMAN));
 static PUQ_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(PUQ));
 
-#[derive(Debug, Clone, strum_macros::EnumIter, PartialEq, Eq)]
+#[derive(
+    Debug, Clone, strum_macros::EnumIter, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Copy,
+)]
 pub(crate) enum KeyboardLayoutKind {
     Qwerty,
     Dvorak,
-    DvorakIU,
+    DvorakIu,
     Colemak,
-    ColemakDH,
-    ColemakDHSemiQuote,
+    ColemakDh,
+    ColemakDhSemiQuote,
     Workman,
     Puq,
 }
@@ -428,9 +432,9 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::Qwerty => "QWERTY",
             KeyboardLayoutKind::Dvorak => "DVORAK",
             KeyboardLayoutKind::Colemak => "COLEMAK",
-            KeyboardLayoutKind::ColemakDH => "COLEMAK-DH",
-            KeyboardLayoutKind::ColemakDHSemiQuote => "COLEMAK-DH;",
-            KeyboardLayoutKind::DvorakIU => "DVORAK-IU",
+            KeyboardLayoutKind::ColemakDh => "COLEMAK-DH",
+            KeyboardLayoutKind::ColemakDhSemiQuote => "COLEMAK-DH;",
+            KeyboardLayoutKind::DvorakIu => "DVORAK-IU",
             KeyboardLayoutKind::Workman => "WORKMAN",
             KeyboardLayoutKind::Puq => "PUQ",
         }
@@ -441,9 +445,9 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::Qwerty => &QWERTY,
             KeyboardLayoutKind::Dvorak => &DVORAK,
             KeyboardLayoutKind::Colemak => &COLEMAK,
-            KeyboardLayoutKind::ColemakDH => &COLEMAK_DH,
-            KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
-            KeyboardLayoutKind::DvorakIU => &DVORAK_IU,
+            KeyboardLayoutKind::ColemakDh => &COLEMAK_DH,
+            KeyboardLayoutKind::ColemakDhSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
+            KeyboardLayoutKind::DvorakIu => &DVORAK_IU,
             KeyboardLayoutKind::Workman => &WORKMAN,
             KeyboardLayoutKind::Puq => &PUQ,
         }
@@ -553,9 +557,9 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::Qwerty => &QWERTY_KEYSET,
             KeyboardLayoutKind::Dvorak => &DVORAK_KEYSET,
             KeyboardLayoutKind::Colemak => &COLEMAK_KEYSET,
-            KeyboardLayoutKind::ColemakDH => &COLEMAK_DH_KEYSET,
-            KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
-            KeyboardLayoutKind::DvorakIU => &DVORAK_IU_KEYSET,
+            KeyboardLayoutKind::ColemakDh => &COLEMAK_DH_KEYSET,
+            KeyboardLayoutKind::ColemakDhSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
+            KeyboardLayoutKind::DvorakIu => &DVORAK_IU_KEYSET,
             KeyboardLayoutKind::Workman => &WORKMAN_KEYSET,
             KeyboardLayoutKind::Puq => &PUQ_KEYSET,
         }

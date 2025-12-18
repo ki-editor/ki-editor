@@ -11,27 +11,12 @@ pub(crate) enum Transformation {
     Case(convert_case::Case),
     Join,
     Wrap,
-    PipeToShell {
-        command: String,
-    },
-    ReplaceWithCopiedText {
-        copied_texts: CopiedTexts,
-    },
-    RegexReplace {
-        regex: MyRegex,
-        replacement: String,
-    },
-    NamingConventionAgnosticReplace {
-        search: String,
-        replacement: String,
-    },
-    ToggleLineComment {
-        prefix: &'static str,
-    },
-    ToggleBlockComment {
-        open: &'static str,
-        close: &'static str,
-    },
+    PipeToShell { command: String },
+    ReplaceWithCopiedText { copied_texts: CopiedTexts },
+    RegexReplace { regex: MyRegex, replacement: String },
+    NamingConventionAgnosticReplace { search: String, replacement: String },
+    ToggleLineComment { prefix: String },
+    ToggleBlockComment { open: String, close: String },
 }
 
 impl std::fmt::Display for Transformation {
@@ -107,7 +92,8 @@ impl Transformation {
                 result
             }),
             Transformation::PipeToShell { command } => {
-                ProcessCommand::new("bash", &["-c", command]).run_with_input(&string)
+                ProcessCommand::new("bash", ["-c".to_string(), command.to_string()].as_ref())
+                    .run_with_input(&string)
             }
             Transformation::ReplaceWithCopiedText { copied_texts } => {
                 Ok(copied_texts.get(selection_index))
@@ -175,7 +161,9 @@ who lives in a pineapple under the sea? Spongebob Squarepants! absorbent and yel
 
     #[test]
     fn toggle_line_comment() {
-        let transformation = Transformation::ToggleLineComment { prefix: "//" };
+        let transformation = Transformation::ToggleLineComment {
+            prefix: "//".to_string(),
+        };
         assert_eq!(
             transformation.apply(0, "hello".to_string()).unwrap(),
             "// hello"
@@ -188,8 +176,8 @@ who lives in a pineapple under the sea? Spongebob Squarepants! absorbent and yel
     #[test]
     fn toggle_block_comment() {
         let transformation = Transformation::ToggleBlockComment {
-            open: "/*",
-            close: "*/",
+            open: "/*".to_string(),
+            close: "*/".to_string(),
         };
         assert_eq!(
             transformation.apply(0, "hello".to_string()).unwrap(),

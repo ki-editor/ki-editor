@@ -49,6 +49,7 @@ mod utils;
 mod embed;
 
 mod alternator;
+pub(crate) mod config;
 mod divide_viewport;
 mod env;
 pub(crate) mod file_watcher;
@@ -66,12 +67,9 @@ use frontend::crossterm::Crossterm;
 use log::LevelFilter;
 use shared::canonicalized_path::CanonicalizedPath;
 
-use app::{App, StatusLineComponent};
+use app::App;
 
-use crate::{
-    app::{AppMessage, StatusLine},
-    persistence::Persistence,
-};
+use crate::{app::AppMessage, config::AppConfig, persistence::Persistence};
 
 fn main() {
     cli::cli().unwrap();
@@ -94,38 +92,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         sender,
         receiver,
         Some(syntax_highlighter_sender),
-        {
-            use StatusLineComponent::*;
-            [
-                StatusLine::new(
-                    [
-                        KiCharacter,
-                        Mode,
-                        SelectionMode,
-                        Reveal,
-                        LastSearchString,
-                        Spacer,
-                        LastDispatch,
-                        KeyboardLayout,
-                        Help,
-                    ]
-                    .to_vec(),
-                ),
-                StatusLine::new(
-                    [
-                        GitBranch,
-                        LineColumn,
-                        Spacer,
-                        CurrentFileParentFolder,
-                        Spacer,
-                        CurrentWorkingDirectory,
-                    ]
-                    .to_vec(),
-                ),
-            ]
-            .into_iter()
-            .collect()
-        },
+        AppConfig::singleton().status_lines(),
         None, // No integration event sender
         true,
         true,

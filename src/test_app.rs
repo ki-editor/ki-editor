@@ -10,6 +10,7 @@ use lazy_regex::regex;
 use lsp_types::Url;
 use my_proc_macros::{hex, key, keys};
 
+use schemars::schema_for;
 use serde::Serialize;
 use serial_test::serial;
 use strum::IntoEnumIterator;
@@ -29,10 +30,7 @@ pub(crate) use SelectionMode::*;
 
 use crate::{app::StatusLine, components::editor::PriorChange};
 
-use shared::{
-    canonicalized_path::CanonicalizedPath,
-    language::{self, LanguageId},
-};
+use shared::{canonicalized_path::CanonicalizedPath, language::LanguageId};
 
 #[cfg(test)]
 use crate::layout::BufferContentsMap;
@@ -2947,6 +2945,15 @@ fn doc_assets_export_keymaps_json() {
     });
 }
 
+#[test]
+fn doc_assets_export_app_config_json_schema() -> anyhow::Result<()> {
+    let path = "docs/static/app_config_json_schema.json".to_string();
+    let schema = schema_for!(crate::config::AppConfig);
+    let json = serde_json::to_string_pretty(&schema)?;
+    std::fs::write(path, json)?;
+    Ok(())
+}
+
 #[serial]
 #[test]
 fn multi_paste_2() -> Result<(), anyhow::Error> {
@@ -3538,7 +3545,7 @@ fn lsp_initialization_should_only_send_relevant_opened_documents() -> anyhow::Re
                 focus: true,
             }),
             App(HandleLspNotification(LspNotification::Initialized(
-                language::from_extension("ts").unwrap(),
+                Box::new(crate::config::from_extension("ts").unwrap()),
             ))),
             Expect(LspServerInitializedArgs(Some((
                 LanguageId::new("typescript"),
@@ -3810,12 +3817,13 @@ fn go_to_file_under_selection() -> Result<(), anyhow::Error> {
 
 #[test]
 fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Error> {
-    execute_test(|_| {
+    execute_test(|s| {
         Box::new([
-            App(HandleKeyEvents(keys!("space k d").to_vec())),
-            WaitForAppMessage(regex!("NucleoTickDebounced")),
-            WaitForAppMessage(regex!("NucleoTickDebounced")),
-            App(HandleKeyEvents(keys!("f o o . r s enter").to_vec())),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
             Expect(CurrentComponentTitle(
                 "\u{200b} 🦀 foo.rs \u{200b}".to_string(),
             )),

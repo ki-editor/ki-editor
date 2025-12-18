@@ -138,6 +138,7 @@ const config: Config = {
 
     // Refer https://github.com/praveenn77/docusaurus-lunr-search
     plugins: [require.resolve("docusaurus-lunr-search")],
+    themes: ["docusaurus-json-schema-plugin"],
 };
 
 export default config;

@@ -280,7 +280,7 @@ impl Component for Editor {
             #[cfg(test)]
             SetScrollOffset(n) => self.set_scroll_offset(n),
             #[cfg(test)]
-            SetLanguage(language) => self.set_language(language)?,
+            SetLanguage(language) => self.set_language(*language)?,
             #[cfg(test)]
             ApplySyntaxHighlight => {
                 self.apply_syntax_highlighting(context)?;
@@ -4367,7 +4367,7 @@ pub(crate) enum DispatchEditor {
         short: bool,
     },
     #[cfg(test)]
-    SetLanguage(shared::language::Language),
+    SetLanguage(Box<shared::language::Language>),
     #[cfg(test)]
     ApplySyntaxHighlight,
     ReplaceCurrentSelectionWith(String),

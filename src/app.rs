@@ -53,6 +53,8 @@ use crate::{
 use event::event::Event;
 use itertools::{Either, Itertools};
 use name_variant::NamedVariant;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use shared::language::LanguageId;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
@@ -118,16 +120,17 @@ pub(crate) struct App<T: Frontend> {
     debounce_lsp_request_completion: Callback<()>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 pub(crate) struct StatusLine {
     components: Vec<StatusLineComponent>,
 }
 impl StatusLine {
+    #[cfg(test)]
     pub(crate) fn new(components: Vec<StatusLineComponent>) -> Self {
         Self { components }
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 pub(crate) enum StatusLineComponent {
     KiCharacter,
     CurrentWorkingDirectory,
@@ -140,6 +143,11 @@ pub(crate) enum StatusLineComponent {
     Help,
     KeyboardLayout,
     Reveal,
+    /// A spacer pushes its preceding group of components to the left,
+    /// and the following to the right.
+    ///
+    /// If a status line contains more than one spacers,
+    /// each spacer will be given the similar width.
     Spacer,
     CurrentFileParentFolder,
 }
@@ -1514,14 +1522,14 @@ impl<T: Frontend> App<T> {
                     .buffers()
                     .into_iter()
                     .filter_map(|buffer| {
-                        if buffer.borrow().language()? == language {
+                        if buffer.borrow().language()? == *language {
                             buffer.borrow().path()
                         } else {
                             None
                         }
                     })
                     .collect_vec();
-                self.lsp_manager.initialized(language, opened_documents);
+                self.lsp_manager.initialized(*language, opened_documents);
                 Ok(())
             }
             LspNotification::PublishDiagnostics(params) => {

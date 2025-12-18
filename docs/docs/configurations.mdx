@@ -1,0 +1,17 @@
+import { AppConfigSchemaViewerFallback } from "./AppConfigSchemaViewerFallback.tsx"
+
+# Configurations
+
+Ki supports two levels of configurations:
+
+1. **Global**:  
+   a. Windows: `%LOCALAPPDATA%\ki\config.(json|yaml|toml)`  
+   b. MacOS/Linux: `~/.config/ki/config.(json|yaml|toml)`
+2. **Workspace**:  
+   a. `./.ki/config.json`
+
+Note: Workspace config overrides Global config.
+
+## Schema
+
+<AppConfigSchemaViewerFallback/>

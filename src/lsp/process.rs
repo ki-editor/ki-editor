@@ -60,7 +60,7 @@ struct PendingResponseRequest {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum LspNotification {
-    Initialized(Language),
+    Initialized(Box<Language>),
     PublishDiagnostics(PublishDiagnosticsParams),
     Completion(ResponseContext, Completion),
     Hover(Hover),
@@ -673,6 +673,8 @@ impl LspServerProcess {
                     path,
                 } = pending_response_request;
 
+                log::info!("LspServerProcess::handle_reply: {}", method.as_str());
+
                 match method.as_str() {
                     "initialize" => {
                         log::info!("Initialize response: {response:?}");
@@ -689,7 +691,7 @@ impl LspServerProcess {
 
                         self.app_message_sender
                             .send(AppMessage::LspNotification(Box::new(
-                                LspNotification::Initialized(self.language.clone()),
+                                LspNotification::Initialized(Box::new(self.language.clone())),
                             )))?;
                     }
                     "textDocument/completion" => {
@@ -931,6 +933,7 @@ impl LspServerProcess {
 
                 let method = request.method;
                 // Parse the reply as Notification
+                log::info!("LspServerProcess::handle_notification: {}", method.as_str());
                 match method.as_str() {
                     "textDocument/publishDiagnostics" => {
                         let params: <lsp_notification!("textDocument/publishDiagnostics") as Notification>::Params =
