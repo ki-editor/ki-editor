@@ -1,1 +1,0 @@
-"use strict";(self.webpackChunkdocu=self.webpackChunkdocu||[]).push([[1668],{1394:e=>{e.exports=JSON.parse('{"tags":[{"label":"documentation","permalink":"/ki-editor/blog/tags/documentation","count":1}]}')}}]);

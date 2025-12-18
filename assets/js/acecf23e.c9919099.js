@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkdocu=globalThis.webpackChunkdocu||[]).push([[1903],{1912(o){o.exports=JSON.parse('{"blogBasePath":"/ki-editor/blog","blogTitle":"Blog","authorsListPath":"/ki-editor/blog/authors"}')}}]);
