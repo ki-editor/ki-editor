@@ -2601,6 +2601,22 @@ impl Editor {
                     },
                     direction,
                 );
+                // Ensure the gap only contain at most one newline character
+                let gap: String = gap
+                    .chars()
+                    .scan(false, |newline_found, c| {
+                        if c == '\n' {
+                            if *newline_found {
+                                None
+                            } else {
+                                *newline_found = true;
+                                Some(c)
+                            }
+                        } else {
+                            Some(c)
+                        }
+                    })
+                    .collect();
                 Ok((selection.clone(), gap.into()))
             })
             .into_iter()
@@ -2609,16 +2625,6 @@ impl Editor {
 
     fn open(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
         let direction = self.cursor_direction.reverse();
-        let dispatches = if self.selection_set.mode().is_syntax_node() {
-            Dispatches::default()
-        } else {
-            self.set_selection_mode(
-                IfCurrentNotFound::LookForward,
-                SelectionMode::Line,
-                context,
-                None,
-            )?
-        };
         let edit_transaction = EditTransaction::from_action_groups(
             self.get_selection_set_with_gap(&direction, context)?
                 .into_iter()
@@ -2656,10 +2662,9 @@ impl Editor {
                 .collect_vec(),
         );
 
-        Ok(dispatches.chain(
-            self.apply_edit_transaction(edit_transaction, context)?
-                .append(Dispatch::ToEditor(EnterInsertMode(direction))),
-        ))
+        Ok(self
+            .apply_edit_transaction(edit_transaction, context)?
+            .append(Dispatch::ToEditor(EnterInsertMode(direction))))
     }
 
     pub(crate) fn apply_positional_edits(

@@ -855,7 +855,7 @@ def main():
                 .to_string(),
             )),
             Editor(MatchLiteral("hello".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SwapCursor),
             Editor(Open),
             Expect(CurrentComponentContent(
@@ -917,8 +917,8 @@ fn main() {
                 .to_string(),
             )),
             Editor(MatchLiteral("hello".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Expect(CurrentSelectedTexts(&["hello"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectedTexts(&["// hello"])),
             Editor(Open),
             Editor(Insert("// world".to_string())),
             Expect(CurrentComponentContent(
@@ -929,6 +929,44 @@ fn main() {
 }
 "
                 .trim(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn open_max_gap_contains_at_most_one_newline_character() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+foo
+    
+    bar
+
+spam
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(Open),
+            Editor(Insert("world".to_string())),
+            Expect(CurrentComponentContent(
+                "
+foo
+    
+    bar
+    world
+
+spam"
+                    .trim(),
             )),
         ])
     })
