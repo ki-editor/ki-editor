@@ -1,12 +1,14 @@
 default:
     npm install
-    @just tree-sitter-quickfix 
-    @just fmt-check 
-    @just build 
-    @just vscode-build 
+    @just check 
+    @just build-all 
     @just lint 
     @just test 
     @just doc 
+    
+check: build fmt-check lint 
+    
+build-all: tree-sitter-quickfix build vscode-build
     
 install:
     rm -r ~/.cache/ki/zed-themes || echo "ok" 
