@@ -47,6 +47,7 @@
           python3
           which
           rust-analyzer
+          biome
           just
           alejandra
           fd
