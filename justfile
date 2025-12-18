@@ -39,7 +39,9 @@ lint:
     @just vscode-lint
     
 vscode-lint:
-    cd ki-vscode && ./node_modules/.bin/ts-unused-exports tsconfig.json --ignoreFiles="src/protocol/types"
+    cd ki-vscode
+    npm install
+    ./node_modules/.bin/ts-unused-exports tsconfig.json --ignoreFiles="src/protocol/types"
     npm run lint
     
 lint-fix:
@@ -48,17 +50,19 @@ lint-fix:
 
 vscode-lint-fix:
 	npm run lint:fix
-
-test testname="":
-    @echo "Running cargo nextest..."
+	
+test-setup:
     git config --get --global user.name  || git config --global user.name  Tester 
     git config --get --global user.email || git config --global user.email tester@gmail.com
+
+test testname="": test-setup
+    @echo "Running cargo nextest..."
     cargo nextest run --workspace -- --skip 'doc_assets_' {{testname}}
     
 tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
 
-doc-assets testname="":
+doc-assets testname="": test-setup
     cargo nextest run --workspace -- 'doc_assets_' {{testname}}
     
 # This command helps you locate the actual recipe that is failing
