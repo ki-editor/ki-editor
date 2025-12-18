@@ -565,13 +565,6 @@ impl SelectionMode {
                 | SelectionMode::SyntaxNodeFine
         )
     }
-
-    pub(crate) fn is_syntax_node(&self) -> bool {
-        matches!(
-            self,
-            SelectionMode::SyntaxNode | SelectionMode::SyntaxNodeFine
-        )
-    }
 }
 
 impl From<Selection> for ApplyMovementResult {

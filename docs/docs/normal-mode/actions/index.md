@@ -62,8 +62,12 @@ Open next to current selection.
 
 `Open` is directional[^directionality].
 
-`Open` inserts a newline with the respective indent of the current line,
-In Syntax Mode, exceptionally, it inserts a gap next to the current selection.
+Open inserts a gap between the current and the previous/next selection.
+
+For example:
+
+1. In the Line selection mode, Open opens a newline.
+2. In Syntax Node selection mode, Open will insert the separator under certain conditions.
 
 <TutorialFallback filename="open"/>
 

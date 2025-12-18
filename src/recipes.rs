@@ -682,19 +682,30 @@ function foo() {
                     only: false,
                 },
                 Recipe {
-                    description: "Open: non-syntax node selection mode",
+                    description: "Open: Line selection mode",
                     content: "
 fn foo() {
     bar();
 }".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w , x esc / , y"),
+                    events: keys!("a , x esc / , y"),
                     expectations: Box::new([CurrentComponentContent("fn foo() {
     y
     x
     bar();
 }")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Open: Word selection mode",
+                    content: "foo bar spam".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w , h i"),
+                    expectations: Box::new([CurrentComponentContent("foo hi bar spam")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
