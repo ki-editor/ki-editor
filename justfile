@@ -36,6 +36,7 @@ lint:
     cargo clippy --workspace -- -D warnings
     cargo clippy --tests -- -D warnings
     cargo machete
+    npm install
     npm run lint
     @just vscode-lint
     
