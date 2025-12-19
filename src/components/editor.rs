@@ -403,6 +403,8 @@ impl Component for Editor {
                     self.delete_mode_keymap_legend_config(context),
                 )))
             }
+            CopyAbsolutePath => return self.copy_current_file_absolute_path(),
+            CopyRelativePath => return self.copy_current_file_relative_path(context),
         }
         Ok(Default::default())
     }
@@ -4283,6 +4285,35 @@ impl Editor {
             self.buffer_mut().update_path(destination)
         }
     }
+
+    fn copy_current_file_absolute_path(&self) -> Result<Dispatches, anyhow::Error> {
+        if let Some(path) = self.path() {
+            Ok(Dispatches::one(Dispatch::SetClipboardContent {
+                copied_texts: CopiedTexts::new(NonEmpty::new(path.display_absolute())),
+            }))
+        } else {
+            Err(anyhow::anyhow!(
+                "Failed to copy file path as the current buffer does not have a file path."
+            ))
+        }
+    }
+
+    fn copy_current_file_relative_path(
+        &self,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        if let Some(path) = self.path() {
+            Ok(Dispatches::one(Dispatch::SetClipboardContent {
+                copied_texts: CopiedTexts::new(NonEmpty::new(
+                    path.display_relative_to(context.current_working_directory())?,
+                )),
+            }))
+        } else {
+            Err(anyhow::anyhow!(
+                "Failed to copy file path as the current buffer does not have a file path."
+            ))
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4438,6 +4469,8 @@ pub(crate) enum DispatchEditor {
         destination: CanonicalizedPath,
     },
     ShowKeymapLegendDelete,
+    CopyAbsolutePath,
+    CopyRelativePath,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

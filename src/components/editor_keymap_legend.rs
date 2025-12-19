@@ -1131,6 +1131,20 @@ impl Editor {
                     "Go to File".to_string(),
                     Dispatch::ToEditor(DispatchEditor::GoToFile),
                 ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_context_keymap(&Meaning::CpAbP),
+                    "Copy Absolute Path".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::CopyAbsolutePath),
+                ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_space_context_keymap(&Meaning::CpReP),
+                    "Copy Relative Path".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::CopyRelativePath),
+                ),
             ]),
         }
     }
