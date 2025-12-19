@@ -973,6 +973,26 @@ spam"
 }
 
 #[test]
+fn test_copy_current_file_path() -> anyhow::Result<()> {
+    execute_test(|s| {
+        // Multiline source code
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(Not(Box::new(CurrentComponentContentMatches(regex!(
+                "main.rs"
+            ))))),
+            Editor(CopyAbsolutePath),
+            Editor(Paste),
+            Expect(CurrentComponentContentMatches(regex!("main.rs"))),
+        ])
+    })
+}
+
+#[test]
 fn swap_line() -> anyhow::Result<()> {
     execute_test(|s| {
         // Multiline source code

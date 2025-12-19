@@ -150,7 +150,7 @@ pub(crate) const KEYMAP_SPACE_CONTEXT: KeyboardMeaningLayout = [
         _____, LHovr, LCdAc, LRnme, RvHkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, GoFil, _____, _____, GtBlm, /****/ _____, _____, _____, _____, _____,
+        _____, GoFil, CpReP, _____, GtBlm, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -162,7 +162,7 @@ pub(crate) const KEYMAP_SPACE_CONTEXT_SHIFTED: KeyboardMeaningLayout = [
         _____, _____, _____, _____, RvHkM, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, CpAbP, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -857,6 +857,10 @@ pub(crate) enum Meaning {
     SchWC,
     /// Go to file
     GoFil,
+    /// Copy absolute path of current file
+    CpAbP,
+    /// Copy relative path of current file
+    CpReP,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

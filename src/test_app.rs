@@ -232,10 +232,12 @@ impl ExpectKind {
         }
         let component = app.current_component();
         Ok(match self {
-            CurrentComponentContent(expected_content) => contextualize(
-                app.get_current_component_content(),
-                expected_content.to_string(),
-            ),
+            CurrentComponentContent(expected_content) => {
+                let actual = app.get_current_component_content();
+                println!("Actual =\n{actual}");
+                println!("\nExpected =\n{expected_content}");
+                contextualize(actual, expected_content.to_string())
+            }
             CurrentComponentContentMatches(regex) => {
                 let content = app.get_current_component_content();
                 contextualize_regex_match(&content, regex)
