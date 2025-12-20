@@ -5888,3 +5888,60 @@ fn entering_normal_mode_from_insert_mode_in_scratch_buffer() -> anyhow::Result<(
         ])
     })
 }
+
+#[test]
+fn expand_selection_forward() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(ExpandSelection(Direction::End)),
+            Expect(CurrentSelectedTexts(&["foo "])),
+        ])
+    })
+}
+
+#[test]
+fn expand_selection_backward() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(ExpandSelection(Direction::Start)),
+            Expect(CurrentSelectedTexts(&[" bar"])),
+        ])
+    })
+}
+
+#[test]
+fn delete_expanded_syntax_node_selection() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fn main(foo:F, bar: B) {}".to_string())),
+            Editor(MatchLiteral("foo:F".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Editor(ExpandSelection(Direction::End)),
+            Expect(CurrentSelectedTexts(&["foo:F, "])),
+            Editor(DeleteOne),
+            Expect(CurrentSelectedTexts(&["bar: B"])),
+        ])
+    })
+}
