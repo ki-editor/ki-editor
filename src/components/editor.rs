@@ -1747,7 +1747,13 @@ impl Editor {
                         .ok()
                         .flatten()?;
 
-                        if result_selection.selection.range().start != current_range.start {
+                        if result_selection
+                            .selection
+                            .range()
+                            .shift_left(current_range.len())
+                            .start
+                            != current_range.start
+                        {
                             None
                         } else {
                             Some(result_selection)
