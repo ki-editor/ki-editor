@@ -401,12 +401,12 @@ impl Editor {
                 Dispatch::OpenKeyboardLayoutPrompt,
             ),
             Keymap::new(
-                "[",
+                context.keyboard_layout_kind().get_key(&Meaning::ExpdB),
                 Direction::Start.format_action("Expand"),
                 Dispatch::ToEditor(DispatchEditor::ExpandSelection(Direction::Start)),
             ),
             Keymap::new(
-                "]",
+                context.keyboard_layout_kind().get_key(&Meaning::ExpdF),
                 Direction::End.format_action("Expand"),
                 Dispatch::ToEditor(DispatchEditor::ExpandSelection(Direction::End)),
             ),

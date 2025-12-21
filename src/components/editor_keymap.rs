@@ -18,7 +18,7 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchL, SWord, SchCS, MultC, Swap_, /****/ First, Prev_, Up___, Next_, Last_,
+        SrchL, SWord, SchCS, MultC, Swap_, /****/ First, ExpdB, Up___, ExpdF, Last_,
     ],
     [
         Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
@@ -30,7 +30,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SchWC, Char_, SchCC, _____, Raise, /****/ _____, RplcP, Join_, RplcN, _____,
+        SchWC, Char_, SchCC, _____, Raise, /****/ RplcP, Prev_, Join_, Next_, RplcN,
     ],
     [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
@@ -861,6 +861,10 @@ pub(crate) enum Meaning {
     CpAbP,
     /// Copy relative path of current file
     CpReP,
+    /// Expand Forward
+    ExpdF,
+    /// Expand Backward
+    ExpdB,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {
