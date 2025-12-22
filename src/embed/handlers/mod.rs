@@ -15,7 +15,6 @@ pub(crate) mod prelude {
     pub use log::{error, info};
 
     // Use these types internally within the handlers module
-    pub(crate) use crate::context::Context;
     pub(crate) use crate::embed::utils::*;
     pub(crate) use crate::position::Position;
 }

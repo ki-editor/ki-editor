@@ -18,8 +18,8 @@ fn main() {
         .format("%Y-%m-%d %I:%M %p %Z")
         .to_string();
 
-    println!("cargo:rustc-env=GIT_HASH={}", git_hash);
-    println!("cargo:rustc-env=BUILD_TIME={}", build_time);
+    println!("cargo:rustc-env=GIT_HASH={git_hash}");
+    println!("cargo:rustc-env=BUILD_TIME={build_time}");
 
     println!("Generating types...");
 
@@ -46,7 +46,9 @@ fn main() {
     // Clear the target directories if they exist, then recreate them
     for path in [&ts_output_path, &kotlin_output_path] {
         if path.exists() {
-            std::fs::remove_dir_all(path).expect("Failed to remove existing protocol directory");
+            std::fs::remove_dir_all(path).unwrap_or_else(|_| {
+                panic!("Failed to remove existing protocol directory: {path:?}")
+            });
         }
         std::fs::create_dir(path).expect("Failed to create protocol directory");
     }
@@ -81,8 +83,8 @@ fn main() {
         panic!("typeshare failed to generate Kotlin types");
     }
 
-    println!("TypeScript definitions generated at {:?}", ts_output_path);
-    println!("Kotlin definitions generated at {:?}", kotlin_output_path);
+    println!("TypeScript definitions generated at {ts_output_path:?}");
+    println!("Kotlin definitions generated at {kotlin_output_path:?}");
 
     println!("cargo:rerun-if-changed=build.rs");
 

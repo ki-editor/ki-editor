@@ -17,14 +17,41 @@ pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
         syntax_node(),
         multicursors(),
         RecipeGroup {
+            filename: "align-view",
+            recipes: [
+                Recipe {
+                    description: "Align view",
+                    content: "
+fn main() {
+// padding top 1
+// padding top 2
+// padding top 3
+	foo {
+        bar: spam
+    }
+// padding bottom 4
+// padding bottom 5
+// padding bottom 6
+}".trim(),
+                    file_extension: "rs",
+                    prepare_events: keys!("q f o o enter d"),
+                    events: keys!("alt+; alt+; alt+;"),
+                    expectations: Box::new([CurrentSelectedTexts(&["foo {\n        bar: spam\n    }"])]),
+                    terminal_height: Some(9),
+                    similar_vim_combos: &[],
+                    only: false,
+                }
+            ].to_vec(),
+        },
+        RecipeGroup {
             filename: "jump",
             recipes: [
                 Recipe {
-                    description: "Jump to a word",
+                    description: "Jump to a subword",
                     content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                     file_extension: "json",
                     prepare_events: &[],
-                    events: keys!("w ; t"),
+                    events: keys!("w m t"),
                     expectations: Box::new([CurrentSelectedTexts(&["true"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -35,7 +62,7 @@ pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
                     content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                     file_extension: "json",
                     prepare_events: &[],
-                    events: keys!("d ; { k"),
+                    events: keys!("d m { k"),
                     expectations: Box::new([CurrentSelectedTexts(&["{\"y\": {}}"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -73,7 +100,7 @@ And by opposing end them. To die—to sleep,
                 .trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("a . ,"),
+                events: keys!("a p y"),
                 expectations: Box::new([CurrentSelectedTexts(&[
                     "To be, or not to be, that is the question:",
                 ])]),
@@ -97,9 +124,9 @@ baz"
                 .trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("A l l l j j"),
+                events: keys!("a i i i k k"),
                 expectations: Box::new([CurrentSelectedTexts(&[
-                    "\n",
+                    "",
                 ])]),
                 terminal_height: None,
                 similar_vim_combos: &["{", "}"],
@@ -110,7 +137,7 @@ baz"
                 content: "  hat is that?",
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("a u W"),
+                events: keys!("a l h W"),
                 expectations: Box::new([CurrentComponentContent("  What is that?")]),
                 terminal_height: None,
                 similar_vim_combos: &["I"],
@@ -121,32 +148,10 @@ baz"
                 content: "  What is that",
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("a o ?"),
+                events: keys!("a l ; ?"),
                 expectations: Box::new([CurrentComponentContent("  What is that?")]),
                 terminal_height: None,
                 similar_vim_combos: &["A"],
-                only: false,
-            },
-            Recipe {
-                description: "Go to parent line",
-                content: "
-- docs/:
-    - .gitignore
-    - book/:
-    - book.toml
-    - src/:
-        - SUMMARY.md
-        - components/:
-            - file-explorer.md
-            - index.md
-"
-                .trim(),
-                file_extension: "yaml",
-                prepare_events: keys!("q i n d e x enter"),
-                events: keys!("a j j j"),
-                expectations: Box::new([CurrentSelectedTexts(&["- docs/:"])]),
-                terminal_height: Some(10),
-                similar_vim_combos: &[],
                 only: false,
             }
             ].to_vec(),
@@ -164,30 +169,30 @@ Why?
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("a h h"),
+                    events: keys!("a v l l"),
                     expectations: Box::new([CurrentSelectedTexts(&["Why?"])]),
                     terminal_height: None,
                     similar_vim_combos: &["d d", "d j"],
                     only: false,
                 },
                 Recipe {
-                    description: "Delete word (forward)",
-                    content: "camelCase snake_case".trim(),
+                    description: "Delete subword (forward)",
+                    content: "snake_case kebab-case".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w h h"),
-                    expectations: Box::new([CurrentSelectedTexts(&["snake"])]),
+                    events: keys!("w v l l"),
+                    expectations: Box::new([CurrentSelectedTexts(&["kebab"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
                 },
                 Recipe {
-                    description: "Delete token (backward)",
+                    description: "Delete word (backward)",
                     content: "camelCase snake_case PascalCase".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s l l H H"),
-                    expectations: Box::new([CurrentSelectedTexts(&["camelCase"])]),
+                    events: keys!("s l l v j j"),
+                    expectations: Box::new([CurrentSelectedTexts(&["camelCase"]), CurrentComponentContent("camelCase")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
@@ -197,7 +202,7 @@ Why?
                     content: "foo bar spam".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s l l h h"),
+                    events: keys!("s l l v l l"),
                     expectations: Box::new([CurrentSelectedTexts(&["foo"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -208,8 +213,8 @@ Why?
                     content: "foo bar spam".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s H H"),
-                    expectations: Box::new([CurrentSelectedTexts(&["spam"])]),
+                    events: keys!("s v j j"),
+                    expectations: Box::new([CurrentSelectedTexts(&["spam"]), CurrentComponentContent("spam")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
@@ -218,9 +223,65 @@ Why?
                     description: "Delete sibling nodes",
                     content: "[{foo: bar}, spam, 1 + 1]".trim(),
                     file_extension: "js",
-                    prepare_events: keys!("w p"),
-                    events: keys!("d h h"),
+                    prepare_events: keys!("w o"),
+                    events: keys!("d v l l"),
                     expectations: Box::new([CurrentSelectedTexts(&["1 + 1"]), CurrentComponentContent("[1 + 1]")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                }
+            ].to_vec(),
+        },
+        RecipeGroup {
+            filename: "delete-finer-movement",
+            recipes: [
+                Recipe {
+                    description: "Delete word",
+                    content: "hello  world"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("s v o"),
+                    expectations: Box::new([CurrentSelectedTexts(&["world"])]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Delete subword",
+                    content: "kebab-case".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w v o o"),
+                    expectations: Box::new([CurrentSelectedTexts(&["case"]), CurrentComponentContent("case")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Delete sibling nodes",
+                    content: "[{foo: bar}, spam, 1 + 1]".trim(),
+                    file_extension: "js",
+                    prepare_events: keys!("w o"),
+                    events: keys!("d v o o o"),
+                    expectations: Box::new([CurrentSelectedTexts(&[","]), CurrentComponentContent("[, 1 + 1]")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                }
+            ].to_vec(),
+        },
+        RecipeGroup {
+            filename: "delete-one",
+            recipes: [
+                Recipe {
+                    description: "Delete 1",
+                    content: "hello world"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("s v v"),
+                    expectations: Box::new([CurrentSelectedTexts(&[" "])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
@@ -231,11 +292,11 @@ Why?
             filename: "extend",
             recipes: [
                 Recipe {
-                    description: "Extend selection (Word)",
+                    description: "Extend selection (Subword)",
                     content: "foo bar spam pi".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w f l l j"),
+                    events: keys!("w g l l j"),
                     expectations: Box::new([CurrentSelectedTexts(&["foo bar"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -245,8 +306,8 @@ Why?
                     description: "Extend selection (Syntax Node)",
                     content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                     file_extension: "json",
-                    prepare_events: keys!("w p"),
-                    events: keys!("d f l l j"),
+                    prepare_events: keys!("w o"),
+                    events: keys!("d g l l j"),
                     expectations: Box::new([CurrentSelectedTexts(&["{\"x\": 123}, true"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -257,7 +318,7 @@ Why?
                     content: "foo bar spam baz tim".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w l l f l ? j ? l"),
+                    events: keys!("w l l g l ? j ? l"),
                     expectations: Box::new([CurrentSelectedTexts(&["bar spam baz tim"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -268,7 +329,7 @@ Why?
                     content: "fooBar helloWorldSpamSpam tada".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s f l w l"),
+                    events: keys!("s g l w l"),
                     expectations: Box::new([CurrentSelectedTexts(&["fooBar helloWorld"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -284,7 +345,7 @@ Why?
                     content: "hello world".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("a f g j"),
+                    events: keys!("a g , j"),
                     expectations: Box::new([CurrentComponentContent("(hello world)")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -295,7 +356,7 @@ Why?
                     content: "hello world".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s f g p x y enter"),
+                    events: keys!("s g , p x y enter"),
                     expectations: Box::new([
                         CurrentComponentContent("<xy>hello</xy> world"),
                         CurrentSelectedTexts(&["<xy>hello</xy>"]),
@@ -308,8 +369,8 @@ Why?
                     description: "Delete Surround",
                     content: "(hello world)".trim(),
                     file_extension: "md",
-                    prepare_events: keys!("w p"),
-                    events: keys!("f h j"),
+                    prepare_events: keys!("w o"),
+                    events: keys!("g v j"),
                     expectations: Box::new([CurrentComponentContent("hello world")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -319,8 +380,8 @@ Why?
                     description: "Change Surround",
                     content: "(hello world)".trim(),
                     file_extension: "md",
-                    prepare_events: keys!("w p"),
-                    events: keys!("f m j l"),
+                    prepare_events: keys!("w o"),
+                    events: keys!("g f j l"),
                     expectations: Box::new([CurrentComponentContent("{hello world}")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -330,8 +391,8 @@ Why?
                     description: "Select Inside Enclosures",
                     content: "(hello world)".trim(),
                     file_extension: "md",
-                    prepare_events: keys!("w p"),
-                    events: keys!("f u j"),
+                    prepare_events: keys!("w o"),
+                    events: keys!("g h j"),
                     expectations: Box::new([CurrentSelectedTexts(&["hello world"])]),
                     terminal_height: None,
                     similar_vim_combos: &["v i ("],
@@ -341,8 +402,8 @@ Why?
                     description: "Select Around Enclosures",
                     content: "(hello world)".trim(),
                     file_extension: "md",
-                    prepare_events: keys!("w p"),
-                    events: keys!("f o j"),
+                    prepare_events: keys!("w o"),
+                    events: keys!("g ; j"),
                     expectations: Box::new([CurrentSelectedTexts(&["(hello world)"])]),
                     terminal_height: None,
                     similar_vim_combos: &["v a ("],
@@ -374,6 +435,30 @@ foo(bar, 1 + 1, spam)
             filename: "paste",
             recipes: [
                 Recipe {
+                    description: "Paste forward",
+                    content: "foo bar spam"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("s l c j ."),
+                    expectations: Box::new([CurrentComponentContent("foo bar bar spam")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Paste backward",
+                    content: "foo bar spam"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("s l c j / ."),
+                    expectations: Box::new([CurrentComponentContent("bar foo bar spam")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
                     description: "Paste with automatic gap insertion (Line)",
                     content: "
 foo bar
@@ -382,7 +467,7 @@ spam baz
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("a c v"),
+                    events: keys!("a c ."),
                     expectations: Box::new([CurrentComponentContent("foo bar\nfoo bar\nspam baz")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -393,7 +478,7 @@ spam baz
                     content: "function foo(bar: Bar, spam: Spam) {}",
                     file_extension: "ts",
                     prepare_events: keys!("q b a r enter"),
-                    events: keys!("d c v"),
+                    events: keys!("d c ."),
                     expectations: Box::new([CurrentComponentContent("function foo(bar: Bar, bar: Bar, spam: Spam) {}")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -404,7 +489,7 @@ spam baz
                     content: "foo bar".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("a c $ v"),
+                    events: keys!("a c >"),
                     expectations: Box::new([CurrentComponentContent("foo barfoo bar")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -424,7 +509,7 @@ string.
                 .trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("a f k k I"),
+                events: keys!("a g l l I"),
                 expectations: Box::new([CurrentSelectedTexts(&["This is a multiple line string."])]),
                 terminal_height: None,
                 similar_vim_combos: &[],
@@ -460,7 +545,7 @@ def foo():
                     description: "Swap sibling node (JSON)",
                     content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                     file_extension: "json",
-                    prepare_events: keys!("w p"),
+                    prepare_events: keys!("w o"),
                     events: keys!("d t l l"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["{\"x\": 123}"]),
@@ -474,7 +559,7 @@ def foo():
                     description: "Swap sibling node (XML)",
                     content: "<x><y>foo</y><div/></x>".trim(),
                     file_extension: "xml",
-                    prepare_events: keys!("w p p p"),
+                    prepare_events: keys!("w o o o"),
                     events: keys!("d k t l"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["<y>foo</y>"]),
@@ -489,7 +574,7 @@ def foo():
                     content: "fn main(foo: F, bar: B, spam: S, zap: Z) {}".trim(),
                     file_extension: "rs",
                     prepare_events: keys!("q s p a m enter"),
-                    events: keys!("d t ,"),
+                    events: keys!("d t y"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["spam: S"]),
                         CurrentComponentContent("fn main(spam: S, foo: F, bar: B, zap: Z) {}"),
@@ -503,7 +588,7 @@ def foo():
                     content: "fn main(foo: F, bar: B, spam: S, zap: Z) {}".trim(),
                     file_extension: "rs",
                     prepare_events: keys!("q b a r enter"),
-                    events: keys!("d t ."),
+                    events: keys!("d t p"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["bar: B"]),
                         CurrentComponentContent("fn main(foo: F, spam: S, zap: Z, bar: B) {}"),
@@ -517,7 +602,7 @@ def foo():
                     content: "if(condition) { x(bar(baz)) } else { 'hello world' }".trim(),
                     file_extension: "js",
                     prepare_events: keys!("q x enter"),
-                    events: keys!("d t ; ' d"),
+                    events: keys!("d t m ' d"),
                     expectations: Box::new([CurrentComponentContent(
                         "if(condition) { 'hello world' } else { x(bar(baz)) }",
                     )]),
@@ -550,7 +635,7 @@ impl<C> Iterator for PostorderTraverse<C>
                     file_extension: "rs",
                     prepare_events: &[],
                     events: keys!(
-                        "q { enter d t ; { k"
+                        "q { enter d t m { k"
                     ),
                     expectations: Box::new([]),
                     terminal_height: None,
@@ -568,7 +653,7 @@ impl<C> Iterator for PostorderTraverse<C>
                     content: "def foo(bar: Bar, spam: Spam): pass",
                     file_extension: "py",
                     prepare_events: keys!("q s p a m enter"),
-                    events: keys!("d g x esc G y"),
+                    events: keys!("d , x esc / , y"),
                     expectations: Box::new([CurrentComponentContent("def foo(bar: Bar, spam: Spam, y, x): pass")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -585,7 +670,7 @@ function foo() {
 ".trim(),
                     file_extension: "js",
                     prepare_events: keys!("q l e t space y enter"),
-                    events: keys!("d g l e t space z"),
+                    events: keys!("d , l e t space z"),
                     expectations: Box::new([CurrentComponentContent("function foo() {
   let x = hello();
   let y = hey()
@@ -597,14 +682,14 @@ function foo() {
                     only: false,
                 },
                 Recipe {
-                    description: "Open: non-syntax node selection mode",
+                    description: "Open: Line selection mode",
                     content: "
 fn foo() {
     bar();
 }".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w g x esc G y"),
+                    events: keys!("a , x esc / , y"),
                     expectations: Box::new([CurrentComponentContent("fn foo() {
     y
     x
@@ -613,15 +698,26 @@ fn foo() {
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
+                },
+                Recipe {
+                    description: "Open: Word selection mode",
+                    content: "foo bar spam".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w , h i"),
+                    expectations: Box::new([CurrentComponentContent("foo hi bar spam")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
                 }
             ]
             .to_vec(),
         },
         RecipeGroup {
-            filename: "word",
+            filename: "subword",
             recipes: [
                 Recipe {
-                    description: "Word (skip symbols)",
+                    description: "Subword (skip symbols)",
                     content: "
 HTTPNetwork 88 kebab-case 
 snake_case 99 PascalCase
@@ -636,24 +732,24 @@ snake_case 99 PascalCase
                     only: false,
                 },
                 Recipe {
-                    description: "Word (next/previous)",
+                    description: "Subword (next/previous)",
                     content: "snake_case kebab-case"
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w p p p y y y"),
+                    events: keys!("w o o o u u u"),
                     expectations: Box::new([CurrentSelectedTexts(&["snake"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
                 },
                 Recipe {
-                    description: "Word: First/Last movement",
+                    description: "Subword: First/Last movement",
                     content: "hello HTTPNetworkRequestMiddleware world"
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w l . ,"),
+                    events: keys!("w l p y"),
                     expectations: Box::new([CurrentSelectedTexts(&["HTTP"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -663,10 +759,10 @@ snake_case 99 PascalCase
             .to_vec(),
         },
         RecipeGroup {
-            filename: "token",
+            filename: "word",
             recipes: [
                 Recipe {
-                    description: "Token: Left/Right skip symbols",
+                    description: "Word: Left/Right skip symbols & spaces",
                     content: "
 camelCase , kebab-case : snake_case 
 "
@@ -680,11 +776,11 @@ camelCase , kebab-case : snake_case
                     only: false,
                 },
                 Recipe {
-                    description: "Token: Prev/Next no skip symbols",
-                    content: "camelCase , kebab-case -> snake_case".trim(),
+                    description: "Word: Prev/Next no skip symbols & spaces",
+                    content: "camelCase ,   kebab-case\nsnake_case".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s p p p y y"),
+                    events: keys!("s o o o u u"),
                     expectations: Box::new([CurrentSelectedTexts(&[","])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -694,7 +790,7 @@ camelCase , kebab-case : snake_case
             .to_vec(),
         },
         RecipeGroup {
-            filename: "Char",
+            filename: "char",
             recipes: [
                 Recipe {
                     description: "Char: up/down/left/right movement",
@@ -712,11 +808,11 @@ snake
                     only: false,
                 },
                 Recipe {
-                    description: "Char: first/last movement (first/last char of current word)",
+                    description: "Char: first/last movement (first/last char of current subword)",
                     content: "campHelloDun".trim(),
                     file_extension: "md",
                     prepare_events: keys!("q h e l l o enter"),
-                    events: keys!("W . ,"),
+                    events: keys!("W p y"),
                     expectations: Box::new([CurrentSelectedTexts(&["H"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -811,7 +907,7 @@ foov foou bar
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("a f k r q f o o enter h"),
+                    events: keys!("a g l r q f o o enter v v"),
                     expectations: Box::new([
                         CurrentComponentContent(
                             "z bar y
@@ -836,7 +932,7 @@ fn main(foo: str) {
                     .trim(),
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("s l l e a d r n"),
+                    events: keys!("s l l e a d r n r"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["foo", "foo", "foo", "foo", "foo",]),
                     ]),
@@ -850,7 +946,7 @@ fn main(foo: str) {
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s b l l b a r ] b"),
+                    events: keys!("s b l l b a r n b"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["foo", "spam"]),
                     ]),
@@ -869,7 +965,7 @@ fn foo() {
                     .trim(),
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("a k f u l r a"),
+                    events: keys!("a l g h l r a"),
                     expectations: Box::new([CurrentSelectedTexts(&["bar();", "spam();", "baz();"])]),
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
@@ -884,7 +980,7 @@ foo ha"
                         .trim(),
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("a f k r q f o o enter s r w r o - enter"),
+                    events: keys!("a g l r q f o o enter s r w r ; - enter"),
                     expectations: Box::new([CurrentSelectedTexts(&[
                         "foo", "da", "foo", "baz", "foo", "yo",
                     ])]),
@@ -932,7 +1028,7 @@ foo ha"
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w r ; g"),
+                    events: keys!("w r m g"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["alpha", "gamma"]),
                     ]),
@@ -946,7 +1042,7 @@ foo ha"
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s l r ."),
+                    events: keys!("s l r p"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["beta", "gamma", "omega", "zeta"]),
                     ]),
@@ -960,7 +1056,7 @@ foo ha"
                     .trim(),
                     file_extension: "md",
                     prepare_events: keys!("q z enter"),
-                    events: keys!("s h r ,"),
+                    events: keys!("s p j r y"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["alpha","beta", "gamma", "omega"]),
                     ]),
@@ -1217,7 +1313,7 @@ pub(crate) fn get_selection_mode_trait_object(
                 .trim(),
                 file_extension: "rs",
                 prepare_events: keys!("q b enter"),
-                events: keys!("d r r r u / / enter"),
+                events: keys!("d r r r h / / enter"),
                 expectations: Box::new([
                     CurrentSelectedTexts(&[
                         "/// Spam is good\n",
@@ -1243,7 +1339,7 @@ pub(crate) fn get_selection_mode_trait_object(
                     .trim(),
                     file_extension: "rs",
                     prepare_events: keys!("q b enter"),
-                    events: keys!("d r r r o / / enter"),
+                    events: keys!("d r r r ; / / enter"),
                     expectations: Box::new([CurrentSelectedTexts(&[
                         "Bar(baz)",
                         "Spam { what: String }",
@@ -1292,7 +1388,7 @@ foo bar spam
             .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("w e r r r m"),
+            events: keys!("w e r r r f"),
             expectations: Box::new([CurrentSelectedTexts(&["foo"]), CurrentMode(Mode::Normal)]),
             terminal_height: None,
             similar_vim_combos: &[],
@@ -1308,7 +1404,7 @@ foo bar spam
             .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("w r r P P P r h r h r H r H"),
+            events: keys!("w r r : : : r v r v / r v r v"),
             expectations: Box::new([CurrentSelectedTexts(&["foo", "bar", "om"])]),
             terminal_height: None,
             similar_vim_combos: &[],
@@ -1324,7 +1420,7 @@ foo bar spam
             .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("space f m enter B space f f enter B space f g enter B alt+l alt+l alt+j alt+j B"),
+            events: keys!("space ; q s r c enter enter q m a enter enter alt+b space ; q f o enter enter alt+b space ; q g i t enter enter alt+b alt+l alt+l alt+j alt+j alt+b"),
             expectations: Box::new([CurrentComponentTitle("\u{200b} # 🦀 foo.rs \u{200b} # 🦀 main.rs ".to_string())]),
             terminal_height: Some(10),
             similar_vim_combos: &[],
@@ -1335,12 +1431,12 @@ foo bar spam
             filename: "enter-normal-mode",
             recipes: [
             Recipe {
-                description: "Enter Normal mode select selection before cursor",
+                description: "Enter Normal mode",
                 content: "foo bar spam",
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("s l o o k esc"),
-                expectations: Box::new([CurrentSelectedTexts(&["barok"])]),
+                events: keys!("s l o ; k esc"),
+                expectations: Box::new([CurrentSelectedTexts(&["k"])]),
                 terminal_height: None,
                 similar_vim_combos: &[],
                 only: false,
@@ -1419,8 +1515,34 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     .trim(),
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("q p r i n t enter r r d h"),
-                    expectations: Box::new([]),
+                    events: keys!("q p r i n t enter r r d v l"),
+                    expectations: Box::new([CurrentComponentContent(r#"pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
+    let mut app = App::from_channel(
+        Arc::new(Mutex::new(Crossterm::default())),
+        CanonicalizedPath::try_from(".")?;
+        sender,
+        receiver,
+    )?;
+
+    app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
+    let sender = app.sender();
+
+    let crossterm_join_handle = std::thread::spawn(move || loop {
+        if crossterm::event::read()
+            .map_err(|error| anyhow::anyhow!("{:?}", error))
+            .and_then(|event| Ok(sender.send(AppMessage::Event(event.into()))?))
+            .is_err()
+        {
+            break;
+        }
+    });
+
+    app.run(path)
+        .map_err(|error| anyhow::anyhow!("screen.run {:?}", error))?;
+}"#
+                    )]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
@@ -1452,7 +1574,7 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     file_extension: "md",
                     prepare_events: &[],
                     events: keys!(
-                        "q r / ^ - space backslash [ space backslash ] enter r r d c h a . v o backspace"
+                        "q r / ^ - space backslash [ space backslash ] enter r r d c v l space a p . ; backspace"
                     ),
                     expectations: Box::new([CurrentComponentContent(r#"# Fake To-Do List
 
@@ -1507,7 +1629,7 @@ pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> 
                     file_extension: "rs",
                     prepare_events: &[],
                     events: keys!(
-                        "q y x enter d r r k l f g j esc u S o m e esc d k l k T r m"
+                        "q y x enter d r r k l g , j h S o m e esc d k l k T r f"
                     ),
                     expectations: Box::new([]),
                     terminal_height: None,
@@ -1549,7 +1671,7 @@ fn syntax_node() -> RecipeGroup {
                 description: "Select a syntax node (JSON)",
                 content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                 file_extension: "json",
-                prepare_events: keys!("w p"),
+                prepare_events: keys!("w o"),
                 events: keys!("d"),
                 expectations: Box::new([CurrentSelectedTexts(&["{\"x\": 123}"])]),
                 terminal_height: None,
@@ -1560,7 +1682,7 @@ fn syntax_node() -> RecipeGroup {
                 description: "Navigate named sibling nodes via Left/Right movement",
                 content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                 file_extension: "json",
-                prepare_events: keys!("w p"),
+                prepare_events: keys!("w o"),
                 events: keys!("d l l l j j"),
                 expectations: Box::new([CurrentSelectedTexts(&["{\"x\": 123}"])]),
                 terminal_height: None,
@@ -1571,8 +1693,8 @@ fn syntax_node() -> RecipeGroup {
                 description: "Navigate to first/last named sibling nodes via First/Last movement",
                 content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                 file_extension: "json",
-                prepare_events: keys!("w p"),
-                events: keys!("d . ,"),
+                prepare_events: keys!("w o"),
+                events: keys!("d p y"),
                 expectations: Box::new([CurrentSelectedTexts(&["{\"x\": 123}"])]),
                 terminal_height: None,
                 similar_vim_combos: &[],
@@ -1582,8 +1704,8 @@ fn syntax_node() -> RecipeGroup {
                 description: "Navigate all sibling nodes via Previous/Next movement",
                 content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                 file_extension: "json",
-                prepare_events: keys!("w p"),
-                events: keys!("d p p p y y"),
+                prepare_events: keys!("w o"),
+                events: keys!("d p u u u o o"),
                 expectations: Box::new([CurrentSelectedTexts(&[","])]),
                 terminal_height: None,
                 similar_vim_combos: &[],
@@ -1593,7 +1715,7 @@ fn syntax_node() -> RecipeGroup {
                 description: "Select Parent",
                 content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                 file_extension: "json",
-                prepare_events: keys!("z l l"),
+                prepare_events: keys!("w l"),
                 events: keys!("d i i i i"),
                 expectations: Box::new([CurrentSelectedTexts(&[
                     "[{\"x\": 123}, true, {\"y\": {}}]",
@@ -1621,17 +1743,30 @@ fn syntax_node() -> RecipeGroup {
 fn multicursors() -> RecipeGroup {
     RecipeGroup {
         filename: "multi-cursor",
-        recipes: [Recipe {
-            description: "Non-movements keys escape multicursor mode",
-            content: "hello world hello world".trim(),
-            file_extension: "rs",
-            prepare_events: &[],
-            events: keys!("s e r l m z"),
-            expectations: Box::new([CurrentComponentContent("z world z world")]),
-            terminal_height: None,
-            similar_vim_combos: &[],
-            only: false,
-        }]
+        recipes: [
+            Recipe {
+                description: "Non-movements keys exit multicursor mode",
+                content: "hello world hello world".trim(),
+                file_extension: "rs",
+                prepare_events: &[],
+                events: keys!("s e r l f z"),
+                expectations: Box::new([CurrentComponentContent("z world z world")]),
+                terminal_height: None,
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                description: "Use space to exit multicursor mode",
+                content: "foo bar spam baz".trim(),
+                file_extension: "rs",
+                prepare_events: &[],
+                events: keys!("s r l space l"),
+                expectations: Box::new([CurrentSelectedTexts(&["bar", "spam"])]),
+                terminal_height: None,
+                similar_vim_combos: &[],
+                only: false,
+            },
+        ]
         .to_vec(),
     }
 }
@@ -1722,7 +1857,7 @@ fn reveal_cursors() -> RecipeGroup {
                 .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("q f o o enter r r o x esc s"),
+            events: keys!("q f o o enter r r ; x esc s"),
             expectations: Box::new([CurrentSelectedTexts(&["1foox", "2foox", "3foox"])]),
             terminal_height: Some(9),
             similar_vim_combos: &[],
@@ -1757,7 +1892,7 @@ fn main() {
                 only: false,
             },
             Recipe {
-                description: "Swap Cursors to select last token of current line",
+                description: "Swap Cursors to select last word of current line",
                 content: "foo bar spam baz()".trim(),
                 file_extension: "md",
                 prepare_events: &[],
@@ -1816,7 +1951,7 @@ That, is the question.
             .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("a c v"),
+            events: keys!("a c ."),
             expectations: Box::new([CurrentComponentContent(
                 "To be, or not to be?
 To be, or not to be?
@@ -1838,7 +1973,7 @@ And by opposing end them. To die—to sleep,
             .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("a f f"),
+            events: keys!("a g g"),
             expectations: Box::new([CurrentSelectedTexts(&[
                 "To be, or not to be, that is the question:
 Whether 'tis nobler in the mind to suffer
@@ -1851,7 +1986,7 @@ And by opposing end them. To die—to sleep,",
             only: false,
         },
         Recipe {
-            description: "Token movement",
+            description: "Word movement",
             content: "hello-world camelCase snake_case",
             file_extension: "md",
             prepare_events: &[],
@@ -1862,7 +1997,7 @@ And by opposing end them. To die—to sleep,",
             only: false,
         },
         Recipe {
-            description: "Word movement",
+            description: "Subword movement",
             content: "
 camelCase
 hello_world
@@ -1881,7 +2016,7 @@ hello_world
             content: "camelCase".trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("w h z Z"),
+            events: keys!("w v l space z Z"),
             expectations: Box::new([CurrentComponentContent("Case")]),
             terminal_height: None,
             similar_vim_combos: &["u", "ctrl+r"],
@@ -1898,7 +2033,7 @@ foo bar spam
             .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("w e r l l esc o x"),
+            events: keys!("w e r l l esc ; x"),
             expectations: Box::new([CurrentComponentContent(
                 "foox bar spam
 spam foox bar
@@ -1913,19 +2048,19 @@ foo bar spam",
             description: "Move the first two elements to the last",
             content: "[{\"a\": b}, \"c\", [], {}]".trim(),
             file_extension: "json",
-            prepare_events: keys!("w p"),
-            events: keys!("d f l c h . v"),
+            prepare_events: keys!("w o"),
+            events: keys!("d g l c v l space p ."),
             expectations: Box::new([CurrentComponentContent("[[], {}, {\"a\": b}, \"c\"]")]),
             terminal_height: None,
             similar_vim_combos: &[],
             only: false,
         },
         Recipe {
-            description: "Change the first two word",
+            description: "Change the first two subword",
             content: "This is am Ki".trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("w h m I esc"),
+            events: keys!("w v l f I esc"),
             expectations: Box::new([CurrentComponentContent("I am Ki")]),
             terminal_height: None,
             similar_vim_combos: &[],
@@ -1947,7 +2082,7 @@ foo bar spam",
             content: "[foo(), {xar: 'spam'}, baz + baz]".trim(),
             file_extension: "js",
             prepare_events: keys!("q { enter"),
-            events: keys!("d c , f . x"),
+            events: keys!("d c y g p x"),
             expectations: Box::new([CurrentComponentContent("[{xar: 'spam'}]")]),
             terminal_height: Some(7),
             similar_vim_combos: &[],
@@ -2031,14 +2166,14 @@ And drop on the deck and flop like a fish?
             content: "foo bar spam".trim(),
             file_extension: "js",
             prepare_events: keys!("s l"),
-            events: keys!("f a $"),
+            events: keys!("g a $"),
             expectations: Box::new([CurrentSelectedTexts(&["bar spam"])]),
             terminal_height: None,
             similar_vim_combos: &[],
             only: false,
         },
         Recipe {
-            description: "Select last word of current line",
+            description: "Select last subword of current line",
             content: "Hello world?\nBye".trim(),
             file_extension: "md",
             prepare_events: &[],

@@ -58,6 +58,7 @@ pub enum IntegrationEvent {
     SyncBufferRequest {
         path: CanonicalizedPath,
     },
+    RequestLspWorkspaceSymbols,
 }
 
 /// Trait for components that can emit integration events
@@ -72,7 +73,7 @@ impl IntegrationEventEmitter for Option<Sender<IntegrationEvent>> {
             // Use try_send to avoid blocking if the receiver is not ready
             // This is important to prevent deadlocks in the integration
             if let Err(e) = sender.send(event) {
-                log::warn!("Failed to send integration event: {}", e);
+                log::warn!("Failed to send integration event: {e}");
             }
         }
     }

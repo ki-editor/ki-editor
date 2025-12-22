@@ -3,10 +3,13 @@ pub(crate) mod theme_descriptor;
 pub(crate) mod vscode_dark;
 pub(crate) mod vscode_light;
 use std::collections::HashMap;
+use std::{borrow::Cow, fmt};
 
 use itertools::Itertools;
 use my_proc_macros::hex;
 use once_cell::sync::OnceCell;
+use serde::{de, Serialize, Serializer};
+use serde::{de::Visitor, Deserialize, Deserializer};
 use strum::IntoEnumIterator as _;
 pub(crate) use vscode_dark::vscode_dark;
 pub(crate) use vscode_light::vscode_light;
@@ -20,6 +23,81 @@ pub(crate) struct Theme {
     pub(crate) ui: UiStyles,
     pub(crate) diagnostic: DiagnosticStyles,
     pub(crate) hunk: HunkStyles,
+    pub(crate) git_gutter: GitGutterStyles,
+}
+
+use schemars::{JsonSchema, Schema, SchemaGenerator};
+
+impl Serialize for Theme {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let descriptors = crate::themes::theme_descriptor::all();
+        let name = descriptors
+            .iter()
+            .find(|descriptor| descriptor.to_theme() == *self)
+            .map(|descriptor| descriptor.name())
+            .unwrap_or_default();
+
+        serializer.serialize_str(name)
+    }
+}
+
+impl<'de> Deserialize<'de> for Theme {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ThemeVisitor;
+
+        impl<'de> Visitor<'de> for ThemeVisitor {
+            type Value = Theme;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a valid theme name")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Theme, E>
+            where
+                E: de::Error,
+            {
+                let descriptors = crate::themes::theme_descriptor::all();
+                descriptors
+                    .iter()
+                    .find(|descriptor| descriptor.name() == value)
+                    .map(|descriptor| descriptor.to_theme())
+                    .ok_or_else(|| {
+                        let valid_themes: Vec<_> = descriptors.iter().map(|d| d.name()).collect();
+                        E::custom(format!(
+                            "'{value}' is not a valid theme. Available: {valid_themes:?}"
+                        ))
+                    })
+            }
+        }
+
+        deserializer.deserialize_str(ThemeVisitor)
+    }
+}
+
+impl JsonSchema for Theme {
+    fn schema_name() -> Cow<'static, str> {
+        "Theme".into()
+    }
+
+    fn json_schema(_gen: &mut SchemaGenerator) -> Schema {
+        let valid_themes: Vec<_> = crate::themes::theme_descriptor::all()
+            .into_iter()
+            .map(|descriptor| descriptor.name().to_string())
+            .collect();
+
+        serde_json::json!({
+            "type": "string",
+            "enum": valid_themes
+        })
+        .try_into()
+        .unwrap()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -50,6 +128,23 @@ impl HunkStyles {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub(crate) struct GitGutterStyles {
+    pub(crate) insertion: Color,
+    pub(crate) deletion: Color,
+    pub(crate) replacement: Color,
+}
+
+impl GitGutterStyles {
+    pub(crate) fn new() -> Self {
+        Self {
+            insertion: hex!("#BAF0C0"),
+            deletion: hex!("#F9D8D6"),
+            replacement: hex!("#f0e68c"),
+        }
+    }
+}
+
 impl Theme {
     pub(crate) fn get_style(&self, source: &StyleKey) -> Style {
         match source {
@@ -72,12 +167,14 @@ impl Theme {
             StyleKey::UiPossibleSelection => {
                 Style::new().background_color(self.ui.possible_selection_background)
             }
+            StyleKey::UiIncrementalSearchMatch => {
+                Style::new().background_color(self.ui.incremental_search_match_background)
+            }
             StyleKey::DiagnosticsHint => self.diagnostic.hint,
             StyleKey::DiagnosticsError => self.diagnostic.error,
             StyleKey::DiagnosticsWarning => self.diagnostic.warning,
             StyleKey::DiagnosticsInformation => self.diagnostic.info,
             StyleKey::DiagnosticsDefault => self.diagnostic.default,
-
             StyleKey::HunkOld => Style::new().background_color(self.hunk.old_background),
             StyleKey::HunkNew => Style::new().background_color(self.hunk.new_background),
             StyleKey::HunkOldEmphasized => {
@@ -86,7 +183,6 @@ impl Theme {
             StyleKey::HunkNewEmphasized => {
                 Style::new().background_color(self.hunk.new_emphasized_background)
             }
-
             StyleKey::Syntax(highlight_group) => highlight_group
                 .to_highlight_name()
                 .and_then(|name| self.syntax.get_style(&name))
@@ -167,6 +263,7 @@ pub(crate) struct UiStyles {
     pub(crate) secondary_selection_background: Color,
     pub(crate) secondary_selection_anchor_background: Color,
     pub(crate) possible_selection_background: Color,
+    pub(crate) incremental_search_match_background: Color,
     pub(crate) secondary_selection_primary_cursor: Style,
     pub(crate) secondary_selection_secondary_cursor: Style,
     pub(crate) line_number: Style,

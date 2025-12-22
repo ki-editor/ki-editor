@@ -1,5 +1,8 @@
 use once_cell::sync::Lazy;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
 use Meaning::*;
 
 use crate::app::Scope;
@@ -15,25 +18,25 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchN, Word_, SrchC, MultC, Swap_, /****/ Prev_, InstP, Up___, InstN, Next_,
+        SrchL, SWord, SchCS, MultC, Swap_, /****/ First, Prev_, Up___, Next_, Last_,
     ],
     [
-        Line_, Token, Sytx_, Extnd, OpenN, /****/ DeltN, Left_, Down_, Right, Jump_,
+        Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
     ],
     [
-        Undo_, Rplc_, Copy_, PsteN, Mark_, /****/ LSrhF, Chng_, First, Last_, XAchr,
+        Undo_, Rplc_, Copy_, Delte, Mark_, /****/ LSrch, Jump_, Open_, Paste, XAchr,
     ],
 ];
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SrchP, Char_, _____, _____, Raise, /****/ CrsrP, RplcP, Join_, RplcN, CrsrN,
+        SchWC, Char_, SchCC, _____, Raise, /****/ _____, RplcP, Join_, RplcN, _____,
     ],
     [
-        LineF, _____, FStyx, Trsfm, OpenP, /****/ DeltP, DeDnt, Break, Indnt, ToIdx,
+        LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
     ],
     [
-        Redo_, PRplc, RplcX, PsteP, MarkF, /****/ LSrhB, ChngX, _____, _____, SSEnd,
+        Redo_, PRplc, RplcX, Del0G, _____, /****/ GSrch, ToIdx, _____, Pst0G, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -42,13 +45,13 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// Meta also means Alt (Windows) or Option (Mac).
 pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
     [
-        KilLP, CSrch, LineU, _____, KilLN, /****/ NBack, _____, ScrlU, _____, NForw,
+        KilLP, _____, LineU, _____, KilLN, /****/ NBack, _____, ScrlU, _____, NForw,
     ],
     [
-        _____, LineP, LineD, LineN, OpenM, /****/ DTknP, MrkFP, ScrlD, MrkFN, SView,
+        _____, LineP, LineD, LineN, OpenM, /****/ DWrdP, MrkFP, ScrlD, MrkFN, SView,
     ],
     [
-        Undo_, _____, WClse, UPstE, _____, /****/ _____, SHelp, _____, _____, WSwth,
+        Undo_, _____, _____, WClse, MarkF, /****/ _____, _____, _____, _____, WSwth,
     ],
 ];
 
@@ -57,13 +60,13 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
 /// are both located on the right-side.
 pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
     [
-        OneCh, CSrch, NtrlN, _____, Qkfix, /****/ FindP, _____, _____, _____, FindN,
+        OneCh, _____, NtrlN, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ _____, _____, _____, _____, _____,
+        LImpl, LDefn, LType, LRfrE, Mark_, /****/ LRept, _____, _____, _____, _____,
     ],
 ];
 pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
@@ -81,13 +84,13 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// This keymap should be almost identical with that of Find Local
 pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
     [
-        Srch_, CSrch, SrchC, _____, Qkfix, /****/ _____, _____, _____, _____, _____,
+        Srch_, _____, SchCS, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ LSrhB, _____, _____, _____, _____,
+        LImpl, LDefn, LType, LRfrE, Mark_, /****/ GRept, _____, _____, _____, _____,
     ],
 ];
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
@@ -117,37 +120,73 @@ pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
 
 pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
     [
-        QSave, SaveA, Explr, _____, KeybL, /****/ _____, RevlS, RevlC, RevlM, _____,
+        _____, _____, _____, _____, _____, /****/ _____, RevlS, RevlC, RevlM, _____,
     ],
     [
-        Theme, Symbl, Buffr, File_, GitFC, /****/ _____, LHovr, LCdAc, Pipe_, _____,
+        _____, _____, _____, _____, _____, /****/ _____, SpEdt, SpPck, SpCtx, Explr,
     ],
     [
-        UndoT, _____, _____, _____, TSNSx, /****/ _____, LRnme, _____, _____, SHelp,
-    ],
-];
-
-pub(crate) const KEYMAP_SPACE_SHIFTED: KeyboardMeaningLayout = [
-    [
-        QNSav, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
-    ],
-    [
-        _____, _____, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
-    ],
-    [
-        _____, RplcA, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, SHelp,
     ],
 ];
 
-pub(crate) const KEYMAP_SEARCH_CONFIG: KeyboardMeaningLayout = [
+pub(crate) const KEYMAP_SPACE_EDITOR: KeyboardMeaningLayout = [
     [
-        Srch_, Rplcm, _____, _____, _____, /****/ _____, InFGb, _____, ExFGb, _____,
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        ASTGp, NCAgn, Litrl, Regex, _____, /****/ _____, CaStv, Strct, Flexi, MaWWd,
+        _____, _____, RlBfr, Pipe_, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, RplcA, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        _____, RplcA, SaveA, QNSav, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
+pub(crate) const KEYMAP_SPACE_CONTEXT: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, TSNSx, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, LHovr, LCdAc, LRnme, RvHkC, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, GoFil, CpReP, _____, GtBlm, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
+pub(crate) const KEYMAP_SPACE_CONTEXT_SHIFTED: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, RvHkM, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, CpAbP, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
+pub(crate) const KEYMAP_SPACE_PICKER: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        Theme, SyblD, File_, Buffr, GitFC, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
+pub(crate) const KEYMAP_SPACE_PICKER_SHIFTED: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, SyblW, _____, _____, GitFM, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -225,6 +264,13 @@ pub(crate) const WORKMAN: KeyboardLayout = [
     ["z", "x", "m", "c", "v", "k", "l", ",", ".", "/"],
 ];
 
+/// Refer http://adnw.de/index.php?n=Main.OptimierungF%c3%bcrDieGeradeTastaturMitDaumen-Shift
+pub(crate) const PUQ: KeyboardLayout = [
+    ["p", "u", ":", ",", "q", "g", "c", "l", "m", "f"],
+    ["h", "i", "e", "a", "o", "d", "t", "r", "n", "s"],
+    ["k", "y", ".", "'", "x", "j", "v", "w", "b", "z"],
+];
+
 struct KeySet {
     normal: HashMap<Meaning, &'static str>,
     shifted: HashMap<Meaning, &'static str>,
@@ -234,7 +280,9 @@ struct KeySet {
     find_global: HashMap<Meaning, &'static str>,
     surround: HashMap<Meaning, &'static str>,
     space: HashMap<Meaning, &'static str>,
-    search_config: HashMap<Meaning, &'static str>,
+    space_context: HashMap<Meaning, &'static str>,
+    space_picker: HashMap<Meaning, &'static str>,
+    space_editor: HashMap<Meaning, &'static str>,
     transform: HashMap<Meaning, &'static str>,
     yes_no: HashMap<Meaning, &'static str>,
 }
@@ -306,18 +354,6 @@ impl KeySet {
                 KEYMAP_SPACE
                     .into_iter()
                     .flatten()
-                    .zip(layout.into_iter().flatten())
-                    .chain(
-                        KEYMAP_SPACE_SHIFTED
-                            .into_iter()
-                            .flatten()
-                            .zip(layout.into_iter().flatten().map(shifted)),
-                    ),
-            ),
-            search_config: HashMap::from_iter(
-                KEYMAP_SEARCH_CONFIG
-                    .into_iter()
-                    .flatten()
                     .zip(layout.into_iter().flatten()),
             ),
             transform: HashMap::from_iter(
@@ -328,6 +364,36 @@ impl KeySet {
             ),
             yes_no: HashMap::from_iter(
                 KEYMAP_YES_NO
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten()),
+            ),
+            space_context: HashMap::from_iter(
+                KEYMAP_SPACE_CONTEXT
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten())
+                    .chain(
+                        KEYMAP_SPACE_CONTEXT_SHIFTED
+                            .into_iter()
+                            .flatten()
+                            .zip(layout.into_iter().flatten().map(shifted)),
+                    ),
+            ),
+            space_picker: HashMap::from_iter(
+                KEYMAP_SPACE_PICKER
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten())
+                    .chain(
+                        KEYMAP_SPACE_PICKER_SHIFTED
+                            .into_iter()
+                            .flatten()
+                            .zip(layout.into_iter().flatten().map(shifted)),
+                    ),
+            ),
+            space_editor: HashMap::from_iter(
+                KEYMAP_SPACE_EDITOR
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten()),
@@ -344,16 +410,20 @@ static COLEMAK_DH_SEMI_QUOTE_KEYSET: Lazy<KeySet> =
 static DVORAK_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK));
 static DVORAK_IU_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK_IU));
 static WORKMAN_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(WORKMAN));
+static PUQ_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(PUQ));
 
-#[derive(Debug, Clone, strum_macros::EnumIter, PartialEq, Eq)]
+#[derive(
+    Debug, Clone, strum_macros::EnumIter, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Copy,
+)]
 pub(crate) enum KeyboardLayoutKind {
     Qwerty,
     Dvorak,
-    DvorakIU,
+    DvorakIu,
     Colemak,
-    ColemakDH,
-    ColemakDHSemiQuote,
+    ColemakDh,
+    ColemakDhSemiQuote,
     Workman,
+    Puq,
 }
 
 impl KeyboardLayoutKind {
@@ -362,10 +432,11 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::Qwerty => "QWERTY",
             KeyboardLayoutKind::Dvorak => "DVORAK",
             KeyboardLayoutKind::Colemak => "COLEMAK",
-            KeyboardLayoutKind::ColemakDH => "COLEMAK-DH",
-            KeyboardLayoutKind::ColemakDHSemiQuote => "COLEMAK-DH;",
-            KeyboardLayoutKind::DvorakIU => "DVORAK-IU",
+            KeyboardLayoutKind::ColemakDh => "COLEMAK-DH",
+            KeyboardLayoutKind::ColemakDhSemiQuote => "COLEMAK-DH;",
+            KeyboardLayoutKind::DvorakIu => "DVORAK-IU",
             KeyboardLayoutKind::Workman => "WORKMAN",
+            KeyboardLayoutKind::Puq => "PUQ",
         }
     }
 
@@ -374,10 +445,11 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::Qwerty => &QWERTY,
             KeyboardLayoutKind::Dvorak => &DVORAK,
             KeyboardLayoutKind::Colemak => &COLEMAK,
-            KeyboardLayoutKind::ColemakDH => &COLEMAK_DH,
-            KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
-            KeyboardLayoutKind::DvorakIU => &DVORAK_IU,
+            KeyboardLayoutKind::ColemakDh => &COLEMAK_DH,
+            KeyboardLayoutKind::ColemakDhSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
+            KeyboardLayoutKind::DvorakIu => &DVORAK_IU,
             KeyboardLayoutKind::Workman => &WORKMAN,
+            KeyboardLayoutKind::Puq => &PUQ,
         }
     }
 
@@ -426,10 +498,28 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub(crate) fn get_search_config_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub(crate) fn get_space_context_keymap(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
-            .search_config
+            .space_context
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
+    }
+
+    pub(crate) fn get_space_editor_keymap(&self, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        keyset
+            .space_editor
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
+    }
+
+    pub(crate) fn get_space_picker_keymap(&self, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        keyset
+            .space_picker
             .get(meaning)
             .cloned()
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
@@ -467,10 +557,11 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::Qwerty => &QWERTY_KEYSET,
             KeyboardLayoutKind::Dvorak => &DVORAK_KEYSET,
             KeyboardLayoutKind::Colemak => &COLEMAK_KEYSET,
-            KeyboardLayoutKind::ColemakDH => &COLEMAK_DH_KEYSET,
-            KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
-            KeyboardLayoutKind::DvorakIU => &DVORAK_IU_KEYSET,
+            KeyboardLayoutKind::ColemakDh => &COLEMAK_DH_KEYSET,
+            KeyboardLayoutKind::ColemakDhSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
+            KeyboardLayoutKind::DvorakIu => &DVORAK_IU_KEYSET,
             KeyboardLayoutKind::Workman => &WORKMAN_KEYSET,
+            KeyboardLayoutKind::Puq => &PUQ_KEYSET,
         }
     }
 }
@@ -488,8 +579,6 @@ pub(crate) enum Meaning {
     MrkFN,
     /// Move to previous marked file
     MrkFP,
-    /// Configure Search
-    CSrch,
     /// Select Character
     Char_,
     /// Change Cut
@@ -502,22 +591,18 @@ pub(crate) enum Meaning {
     CrsrN,
     /// Cycle primary selection prev
     CrsrP,
-    /// Delete token backward
-    DTknP,
+    /// Delete word backward
+    DWrdP,
     /// Dedent
     DeDnt,
-    /// Delete end
-    DeltN,
-    /// Delete start
-    DeltP,
+    /// Delete
+    Delte,
+    /// Delete No Gap
+    Del0G,
     /// Down
     Down_,
     /// Swap
     Swap_,
-    /// Local find forward
-    FindN,
-    /// Local find backward
-    FindP,
     /// First
     First,
     /// Navigate back (faster alternative of Go Back, skips contiguous navigation, works across files)
@@ -560,16 +645,14 @@ pub(crate) enum Meaning {
     MarkF,
     /// Multi Cursor
     MultC,
-    /// Open (Next)
-    OpenN,
-    /// Open (Prev)
-    OpenP,
+    /// Open
+    Open_,
     /// Replace with pattern
     PRplc,
-    /// Paste end
-    PsteN,
-    /// Paste previous
-    PsteP,
+    /// Paste
+    Paste,
+    /// Paste No Gap
+    Pst0G,
     /// Raise
     Raise,
     /// Redo
@@ -591,23 +674,21 @@ pub(crate) enum Meaning {
     /// Scroll up
     ScrlU,
     /// Search current selection
-    SrchC,
-    /// Search (local) next
-    SrchN,
-    /// Search (local) previous
-    SrchP,
+    SchCS,
+    /// Search current clipboard content
+    SchCC,
+    /// Search (local)
+    SrchL,
     /// Select Fine Syntax Node
     FStyx,
     /// Select Syntax Node
     Sytx_,
     /// GoToIndex
     ToIdx,
-    /// Select Token
-    Token,
+    /// Select Word
+    Word_,
     /// Transform
     Trsfm,
-    /// Paste (End)
-    UPstE,
     /// Undo
     Undo_,
     /// Up
@@ -618,18 +699,24 @@ pub(crate) enum Meaning {
     WClse,
     /// Switch window
     WSwth,
-    /// Select Word
-    Word_,
+    /// Select Subword
+    SWord,
     /// Swap cursor with anchor
     XAchr,
     /// Swap Selection End
     SSEnd,
     /// Search (directionless)
     Srch_,
-    /// Last Search (Backward)
-    LSrhB,
-    /// Last Search (Forward)
-    LSrhF,
+    /// Repeat Secondary Selection Mode (Local)
+    LRept,
+    /// Repeat Secondary Selection Mode (Global)
+    GRept,
+    /// Repeat Search
+    RSrch,
+    /// Find (Local)
+    LSrch,
+    /// Find (Global)
+    GSrch,
     /// Quickfix
     Qkfix,
     /// Git Hunk (against current branch)
@@ -680,8 +767,6 @@ pub(crate) enum Meaning {
     SHelp,
     /// Quit No Save
     QNSav,
-    /// Quit Save
-    QSave,
     /// Save All
     SaveA,
     /// File Explorer
@@ -690,50 +775,26 @@ pub(crate) enum Meaning {
     LRnme,
     /// Pick Theme
     Theme,
-    /// Pick Symbol
-    Symbl,
+    /// Pick Symbol (Document)
+    SyblD,
+    /// Pick Symbol (Workspace)
+    SyblW,
     /// Pick File
     File_,
     /// Pick Git Status File (against current branch)
     GitFC,
     /// Pick Git Status File (against main branch)
     GitFM,
-    /// Pick Keyboard Layout
-    KeybL,
     /// LSP Hover
     LHovr,
-    /// Undo Tree
-    UndoT,
     /// TS Node Sexp
     TSNSx,
     /// LSP Code Actions
     LCdAc,
     /// Pick Buffers
     Buffr,
-    /// Set Replacement
-    Rplcm,
-    /// Include File Glob
-    InFGb,
-    /// Exclude File Glob
-    ExFGb,
-    /// AST Grep
-    ASTGp,
-    /// Naming Convention Agnostic
-    NCAgn,
-    /// Literal
-    Litrl,
-    /// Regex
-    Regex,
     /// Replace All
     RplcA,
-    /// Case-sensitive
-    CaStv,
-    /// Strict
-    Strct,
-    /// Flexible
-    Flexi,
-    /// Match Whole Word
-    MaWWd,
     /// UPPER_SNAKE_CASE
     USnke,
     /// PascalCase
@@ -778,6 +839,28 @@ pub(crate) enum Meaning {
     CmtBk,
     /// Line Comment
     CmtLn,
+    /// Space Editor
+    SpEdt,
+    /// Space Pick
+    SpPck,
+    /// Space Context
+    SpCtx,
+    /// Revert hunk (to main branch)
+    RvHkM,
+    /// Revert hunk (to current branch)
+    RvHkC,
+    /// Git Blame
+    GtBlm,
+    /// Reload buffer
+    RlBfr,
+    /// Open search prompt with current selection
+    SchWC,
+    /// Go to file
+    GoFil,
+    /// Copy absolute path of current file
+    CpAbP,
+    /// Copy relative path of current file
+    CpReP,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

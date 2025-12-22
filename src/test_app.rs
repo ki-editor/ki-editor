@@ -1,31 +1,46 @@
+#![allow(clippy::uninlined_format_args)] // This rule is disabled, because inlined format args can cause rustfmt to not work for portions of the code
+
 /// NOTE: all test cases that involves the clipboard should not be run in parallel
 ///   otherwise the the test suite will fail because multiple tests are trying to
 ///   access the clipboard at the same time.
 #[cfg(test)]
 use itertools::Itertools;
 
+use lazy_regex::regex;
 use lsp_types::Url;
 use my_proc_macros::{hex, key, keys};
 
+use schemars::schema_for;
 use serde::Serialize;
 use serial_test::serial;
 use strum::IntoEnumIterator;
 
-use std::{ops::Range, path::PathBuf, rc::Rc, sync::Mutex};
+use std::{
+    cell::RefCell,
+    path::PathBuf,
+    rc::Rc,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 pub(crate) use Dispatch::*;
 pub(crate) use DispatchEditor::*;
 
 pub(crate) use Movement::*;
 pub(crate) use SelectionMode::*;
 
-use shared::canonicalized_path::CanonicalizedPath;
+use crate::{app::StatusLine, components::editor::PriorChange};
+
+use shared::{canonicalized_path::CanonicalizedPath, language::LanguageId};
+
+#[cfg(test)]
+use crate::layout::BufferContentsMap;
 
 use crate::{
     app::{
         App, Dimension, Dispatch, LocalSearchConfigUpdate, RequestParams, Scope,
         StatusLineComponent,
     },
-    buffer::BufferOwner,
+    buffer::{Buffer, BufferOwner},
     char_index_range::CharIndexRange,
     clipboard::CopiedTexts,
     components::{
@@ -39,10 +54,11 @@ use crate::{
         prompt::PromptHistoryKey,
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
-    context::{GlobalMode, LocalSearchConfigMode},
+    context::{Context, GlobalMode, LocalSearchConfigMode},
     frontend::{mock::MockFrontend, MyWriter, NullWriter, StringWriter},
-    grid::StyleKey,
-    integration_test::TestRunner,
+    git::DiffMode,
+    grid::{IndexedHighlightGroup, StyleKey},
+    integration_test::{TestOutput, TestRunner},
     list::grep::RegexConfig,
     lsp::{
         code_action::CodeAction,
@@ -54,9 +70,9 @@ use crate::{
         workspace_edit::{TextDocumentEdit, WorkspaceEdit},
     },
     position::Position,
-    quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
+    quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem, QuickfixListType},
     rectangle::Rectangle,
-    selection::SelectionMode,
+    selection::{CharIndex, SelectionMode},
     style::Style,
     themes::Theme,
     ui_tree::ComponentKind,
@@ -66,6 +82,7 @@ use crate::{lsp::process::LspNotification, themes::Color};
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum Step {
     App(Dispatch),
+    Shell(&'static str, Vec<String>),
     AppLater(Box<dyn Fn() -> Dispatch>),
     ExpectMulti(Vec<ExpectKind>),
     Expect(ExpectKind),
@@ -73,6 +90,10 @@ pub(crate) enum Step {
     SuggestiveEditor(DispatchSuggestiveEditor),
     ExpectLater(Box<dyn Fn() -> ExpectKind>),
     ExpectCustom(Box<dyn Fn()>),
+    /// This is to simulate the main event loop,
+    /// necessary for testing async features like Global Search
+    WaitForAppMessage(&'static lazy_regex::Lazy<regex::Regex>),
+    WaitForDuration(Duration),
 }
 
 impl Step {
@@ -86,25 +107,34 @@ impl Step {
             SuggestiveEditor(editor) => format!("SuggestiveEditor({editor:?})"),
             ExpectLater(_) => "ExpectLater(_)".to_string(),
             ExpectCustom(_) => "ExpectCustom(_)".to_string(),
+            WaitForAppMessage(regex) => format!("WaitForAppMessage({regex:?})"),
+            Shell(command, args) => format!("Shell: {command} {}", args.join(" ")),
+            WaitForDuration(duration) => format!("Wait for duration {duration:?}"),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub(crate) enum ExpectKind {
+    // This is just a placeholder for ending a test case without actual assertions.
+    // Such test cases are those that just expect the series of actions to not result in failure.
+    NoError,
     FileExplorerContent(String),
-    EditorInfoContent(&'static str),
-    EditorInfoOpen(bool),
+    EditorInfoContents(&'static [&'static str]),
+    EditorInfoContentMatches(&'static lazy_regex::Lazy<regex::Regex>),
+    GlobalInfoContents(&'static [&'static str]),
     QuickfixListCurrentLine(&'static str),
     DropdownInfosCount(usize),
     QuickfixListContent(String),
     CompletionDropdownContent(&'static str),
+    CompletionDropdownInfoContent(&'static str),
     CompletionDropdownIsOpen(bool),
     CompletionDropdownSelectedItem(&'static str),
     JumpChars(&'static [char]),
     CurrentLine(&'static str),
     Not(Box<ExpectKind>),
     CurrentComponentContent(&'static str),
+    CurrentComponentContentMatches(&'static lazy_regex::Lazy<regex::Regex>),
     CurrentSearch(Scope, &'static str),
     EditorCursorPosition(Position),
     EditorGridCursorPosition(Position),
@@ -112,7 +142,9 @@ pub(crate) enum ExpectKind {
     CurrentMode(Mode),
     FileContent(CanonicalizedPath, String),
     FileContentEqual(CanonicalizedPath, CanonicalizedPath),
+    /// This is for any component
     CurrentSelectedTexts(&'static [&'static str]),
+    /// This is only for the main editor (e.g. not prompt, not completion, etc)
     CurrentPrimarySelection(&'static str),
     CurrentCursorDirection(Direction),
     CurrentViewAlignment(Option<ViewAlignment>),
@@ -130,23 +162,39 @@ pub(crate) enum ExpectKind {
     GridCellLine(/*Row*/ usize, /*Column*/ usize, Color),
     GridCellStyleKey(Position, Option<StyleKey>),
     GridCellsStyleKey(Vec<Position>, Option<StyleKey>),
+    /// Referring to the current component, whatever it might be
+    RangeStyleKey(/*Search*/ &'static str, Option<StyleKey>),
+    /// Referring to the main editor
+    MainEditorRangeStyleKey(/*Search*/ &'static str, Option<StyleKey>),
     HighlightSpans(std::ops::Range<usize>, StyleKey),
     DiagnosticsRanges(Vec<CharIndexRange>),
-    BufferQuickfixListItems(Vec<Range<Position>>),
+    BufferQuickfixListItems(Vec<CharIndexRange>),
     ComponentCount(usize),
     CurrentComponentPath(Option<CanonicalizedPath>),
     OpenedFilesCount(usize),
-    QuickfixListInfo(&'static str),
+    GlobalInfo(&'static str),
     ComponentsOrder(Vec<ComponentKind>),
     CurrentComponentTitle(String),
     CurrentSelectionMode(SelectionMode),
     CurrentGlobalMode(Option<GlobalMode>),
     LspRequestSent(FromEditor),
+    LspServerInitializedArgs(Option<(LanguageId, Vec<CanonicalizedPath>)>),
     CurrentCopiedTextHistoryOffset(isize),
     CurrentReveal(Option<Reveal>),
     CountHighlightedCells(StyleKey, usize),
     SelectionExtensionEnabled(bool),
     PromptHistory(PromptHistoryKey, Vec<String>),
+    MarkedFiles(Vec<CanonicalizedPath>),
+    /// Similar to `Step::WaitForAppMessage`, but expect the opposites, with a timeout
+    AppMessageNotReceived {
+        matches: &'static lazy_regex::Lazy<regex::Regex>,
+        timeout: Duration,
+    },
+    AppMessageIsReceived {
+        matches: &'static lazy_regex::Lazy<regex::Regex>,
+        timeout: Duration,
+    },
+    CurrentEditorIncrementalSearchMatches(Vec<std::ops::Range<usize>>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -168,323 +216,450 @@ impl ExpectKind {
         fn contextualize<T: PartialEq + std::fmt::Debug>(a: T, b: T) -> (bool, String) {
             (a == b, format!("\n{a:?}\n == \n{b:?}\n",))
         }
+        fn contextualize_regex_match(
+            haystack: &str,
+            regex: &'static lazy_regex::Lazy<regex::Regex>,
+        ) -> (bool, String) {
+            let matched = regex.is_match(haystack);
+            let message = format!(
+                "Expected the following to matches regex {:?}:\n{haystack}",
+                regex.as_str()
+            );
+            (matched, message)
+        }
         fn to_vec(strs: &[&str]) -> Vec<String> {
             strs.iter().map(|t| t.to_string()).collect()
         }
         let component = app.current_component();
         Ok(match self {
-            CurrentComponentContent(expected_content) => contextualize(
-                        app.get_current_component_content(),
-                        expected_content.to_string(),
-                    ),
+            CurrentComponentContent(expected_content) => {
+                let actual = app.get_current_component_content();
+                println!("Actual =\n{actual}");
+                println!("\nExpected =\n{expected_content}");
+                contextualize(actual, expected_content.to_string())
+            }
+            CurrentComponentContentMatches(regex) => {
+                let content = app.get_current_component_content();
+                contextualize_regex_match(&content, regex)
+            }
             FileContent(path, expected_content) => {
-                        contextualize(app.get_file_content(path), expected_content.clone())
-                    }
+                contextualize(app.get_file_content(path), expected_content.clone())
+            }
             FileContentEqual(left, right) => {
-                        contextualize(app.get_file_content(left), app.get_file_content(right))
-                    }
+                contextualize(app.get_file_content(left), app.get_file_content(right))
+            }
             CurrentSelectedTexts(selected_texts) => {
-                        contextualize(app.get_current_selected_texts(), to_vec(selected_texts))
-                    }
+                contextualize(app.get_current_selected_texts(), to_vec(selected_texts))
+            }
             ComponentsLength(length) => contextualize(app.components().len(), *length),
             Quickfixes(expected_quickfixes) => contextualize(
-                        app.get_quickfix_list()
-                            .map(|q| {
-                                q.items()
-                                    .into_iter()
-                                    .map(|quickfix| {
-                                        let info = quickfix
-                                            .info()
-                                            .as_ref()
-                                            .map(|info| info.clone().set_decorations(Vec::new()));
-                                        quickfix.set_info(info)
-                                    })
-                                    .collect_vec()
-                                    .into_boxed_slice()
+                app.get_quickfix_list()
+                    .map(|q| {
+                        q.items()
+                            .into_iter()
+                            .map(|quickfix| {
+                                let info = quickfix
+                                    .info()
+                                    .as_ref()
+                                    .map(|info| info.clone().set_decorations(Vec::new()));
+                                quickfix.set_info(info)
                             })
-                            .unwrap_or_default(),
-                        expected_quickfixes.clone(),
-                    ),
+                            .collect_vec()
+                            .into_boxed_slice()
+                    })
+                    .unwrap_or_default(),
+                expected_quickfixes.clone(),
+            ),
             EditorGrid(grid) => contextualize(
-                        component
-                            .borrow()
-                            .editor()
-                            .get_grid(context, false)
-                            .to_string(),
-                        grid.to_string(),
-                    ),
+                component
+                    .borrow_mut()
+                    .editor_mut()
+                    .get_grid(context, false)
+                    .to_string(),
+                grid.to_string(),
+            ),
             AppGrid(grid) => {
-                        let expected = grid.to_string().trim_matches('\n').to_string();
-                        let actual = app.get_screen()?.stringify().trim_matches('\n').to_string();
-                        log(format!("expected =\n{}", expected));
-                        log(format!("actual =\n{}", actual));
-                        contextualize(actual, expected)
-                    }
+                let expected = grid.to_string().trim_matches('\n').to_string();
+                let actual = app.get_screen()?.stringify().trim_matches('\n').to_string();
+                println!("Expected=\n{expected}");
+                println!("Actual=\n{actual}");
+                contextualize(actual, expected)
+            }
             CurrentPath(path) => contextualize(app.get_current_file_path().unwrap(), path.clone()),
             Not(expect_kind) => {
-                        let (result, context) = expect_kind.get_result(app)?;
-                        (!result, format!("NOT ({context})"))
-                    }
+                let (result, context) = expect_kind.get_result(app)?;
+                (!result, format!("NOT ({context})"))
+            }
             EditorIsDirty() => contextualize(&component.borrow().editor().buffer().dirty(), &true),
             CurrentMode(mode) => contextualize(&component.borrow().editor().mode, mode),
             EditorCursorPosition(position) => contextualize(
-                        &component.borrow().editor().get_cursor_position().unwrap(),
-                        position,
-                    ),
+                &component.borrow().editor().get_cursor_position().unwrap(),
+                position,
+            ),
             EditorGridCursorPosition(position) => contextualize(
-                        component
-                            .borrow()
-                            .editor()
-                            .get_grid(context, false)
-                            .cursor
-                            .unwrap()
-                            .position(),
-                        position,
-                    ),
+                component
+                    .borrow_mut()
+                    .editor_mut()
+                    .get_grid(context, false)
+                    .cursor
+                    .unwrap()
+                    .position(),
+                position,
+            ),
             CurrentLine(line) => contextualize(
-                        component.borrow().editor().current_line().unwrap(),
-                        line.to_string(),
-                    ),
-            JumpChars(chars) => {
-                        contextualize(
-                            component.borrow().editor().jump_chars().into_iter().sorted().collect_vec(),
-                            chars.iter().sorted().cloned().collect_vec()
-                        )
-                    }
+                component.borrow().editor().current_line().unwrap(),
+                line.to_string(),
+            ),
+            JumpChars(chars) => contextualize(
+                component
+                    .borrow()
+                    .editor()
+                    .jump_chars()
+                    .into_iter()
+                    .sorted()
+                    .collect_vec(),
+                chars.iter().sorted().cloned().collect_vec(),
+            ),
             CurrentViewAlignment(view_alignment) => contextualize(
-                        component.borrow().editor().current_view_alignment(),
-                        *view_alignment,
-                    ),
-            GridCellBackground(row_index, column_index, background_color) => contextualize(
-                        component
-                            .borrow()
-                            .editor()
-                            .get_grid(context, false)
-                            .grid
-                            .rows[*row_index][*column_index]
-                            .background_color,
-                        *background_color,
-                    ),
+                component.borrow().editor().current_view_alignment(),
+                *view_alignment,
+            ),
+            GridCellBackground(row_index, column_index, background_color) => {
+                let grid = component
+                    .borrow_mut()
+                    .editor_mut()
+                    .get_grid(context, false)
+                    .grid;
+                contextualize(
+                    grid.rows[*row_index][*column_index].background_color,
+                    *background_color,
+                )
+            }
             GridCellLine(row_index, column_index, underline_color) => contextualize(
-                        component
-                            .borrow()
-                            .editor()
-                            .get_grid(context, false)
-                            .grid
-                            .rows[*row_index][*column_index]
-                            .line
-                            .unwrap()
-                            .color,
-                        *underline_color,
-                    ),
+                component
+                    .borrow_mut()
+                    .editor_mut()
+                    .get_grid(context, false)
+                    .grid
+                    .rows[*row_index][*column_index]
+                    .line
+                    .unwrap()
+                    .color,
+                *underline_color,
+            ),
             GridCellStyleKey(position, style_key) => {
-                        println!(
-                            "ExpectKind::get_result grid styles = {:?}",
-                            component
-                                .borrow()
-                                .editor()
-                                .get_grid(context, false)
-                                .grid
-                                .rows
-                                .iter()
-                                .map(|row|row.iter().map(|cell| cell.source.clone()).collect_vec())
-                                .collect_vec()
-                        );
-                        contextualize(
-                            component
-                                .borrow()
-                                .editor()
-                                .get_grid(context, true)
-                                .grid
-                                .rows[position.line][position.column]
-                                .source
-                                .clone(),
-                            style_key.clone(),
-                        )
-                    },
+                println!(
+                    "ExpectKind::get_result grid styles = {:?}",
+                    component
+                        .borrow_mut()
+                        .editor_mut()
+                        .get_grid(context, false)
+                        .grid
+                        .rows
+                        .iter()
+                        .map(|row| row.iter().map(|cell| cell.source.clone()).collect_vec())
+                        .collect_vec()
+                );
+                contextualize(
+                    component
+                        .borrow_mut()
+                        .editor_mut()
+                        .get_grid(context, true)
+                        .grid
+                        .rows[position.line][position.column]
+                        .source
+                        .clone(),
+                    style_key.clone(),
+                )
+            }
             GridCellsStyleKey(positions, style_key) => (
-                        positions.iter().all(|position| {
-                            let actual_style_key = &component
-                                .borrow()
-                                .editor()
-                                .get_grid(context, false)
-                                .grid
-                                .rows[position.line][position.column]
-                                .source;
-                            if actual_style_key!=style_key {
-                                log(format!("Expected {position:?} to be styled as {style_key:?}, but got {actual_style_key:?}"));
-                            }
-                            actual_style_key == style_key
-                        }),
-                        format!("Expected positions {positions:?} to be styled as {style_key:?}"),
-                    ),
+                positions.iter().all(|position| {
+                    let actual_style_key = &component
+                        .borrow_mut()
+                        .editor_mut()
+                        .get_grid(context, false)
+                        .grid
+                        .rows[position.line][position.column]
+                        .source;
+
+                    if actual_style_key != style_key {
+                        log(format!(
+                            "Expected {:?} to be styled as {:?}, but got {:?}",
+                            position, style_key, actual_style_key
+                        ));
+                    }
+                    actual_style_key == style_key
+                }),
+                format!("Expected positions {positions:?} to be styled as {style_key:?}"),
+            ),
+            RangeStyleKey(search, style_key) => {
+                run_range_style_key_check(component, context, search, style_key)
+            }
+            MainEditorRangeStyleKey(search, style_key) => {
+                run_range_style_key_check(app.get_current_editor(), context, search, style_key)
+            }
             CompletionDropdownIsOpen(is_open) => {
-                        contextualize(app.completion_dropdown_is_open(), *is_open)
-                    }
+                contextualize(app.completion_dropdown_is_open(), *is_open)
+            }
             CompletionDropdownContent(content) => contextualize(
-                        app.current_completion_dropdown()
-                            .unwrap()
-                            .borrow()
-                            .content(),
-                        content.to_string(),
-                    ),
+                app.current_completion_dropdown()
+                    .unwrap()
+                    .borrow()
+                    .content(),
+                content.to_string(),
+            ),
+            CompletionDropdownInfoContent(content) => contextualize(
+                app.current_completion_dropdown_info()
+                    .unwrap()
+                    .borrow()
+                    .content(),
+                content.to_string(),
+            ),
             CompletionDropdownSelectedItem(item) => contextualize(
-                        app.current_completion_dropdown()
-                            .unwrap()
-                            .borrow()
-                            .editor()
-                            .get_selected_texts()[0]
-                            .trim(),
-                        item,
-                    ),
+                app.current_completion_dropdown()
+                    .unwrap()
+                    .borrow()
+                    .editor()
+                    .get_selected_texts()[0]
+                    .trim(),
+                item,
+            ),
             QuickfixListContent(content) => {
-                        let actual = app.get_quickfix_list().unwrap().render().content;
-                        let expected = content.to_string();
-                        log(format!("expected =\n{expected}"));
-                        log(format!("actual   =\n{actual}"));
-                        contextualize(expected, actual)
-                    }
+                let actual = app.get_quickfix_list().unwrap().render().content;
+                let expected = content.to_string();
+                println!("Expected =\n{expected}");
+                println!("Actual =\n{actual}");
+                contextualize(expected, actual)
+            }
             DropdownInfosCount(expected) => {
-                        contextualize(app.get_dropdown_infos_count(), *expected)
-                    }
+                contextualize(app.get_dropdown_infos_count(), *expected)
+            }
             QuickfixListCurrentLine(expected) => {
-                        let component = app
-                            .get_component_by_kind(ComponentKind::QuickfixList)
-                            .unwrap();
-                        let actual = component.borrow().editor().current_line().unwrap();
-                        contextualize(actual, expected.to_string())
-                    }
-            EditorInfoOpen(expected) => contextualize(app.editor_info_open(), *expected),
-            EditorInfoContent(expected) => {
-                        contextualize(app.editor_info_content(), Some(expected.to_string()))
-                    }
+                let component = app
+                    .get_component_by_kind(ComponentKind::QuickfixList)
+                    .unwrap();
+                let actual = component.borrow().editor().current_line().unwrap();
+                contextualize(actual, expected.to_string())
+            }
+            EditorInfoContents(expected) => contextualize(
+                app.editor_info_contents(),
+                expected.iter().map(|s| s.to_string()).collect(),
+            ),
+            EditorInfoContentMatches(regex) => {
+                let content = app.editor_info_contents().join("\n\n");
+                contextualize_regex_match(&content, regex)
+            }
+            GlobalInfoContents(expected) => contextualize(
+                app.global_info_contents(),
+                expected.iter().map(|s| s.to_string()).collect(),
+            ),
             AppGridContains(substring) => {
-                        let content = app.get_screen().unwrap().stringify();
-                        contextualize(content.contains(substring), true)
-                    }
+                let content = app.get_screen().unwrap().stringify();
+                contextualize(content.contains(substring), true)
+            }
             FileExplorerContent(expected) => contextualize(expected, &app.file_explorer_content()),
             CurrentCursorDirection(expected) => contextualize(
-                        expected,
-                        &app.current_component().borrow().editor().cursor_direction,
-                    ),
+                expected,
+                &app.current_component().borrow().editor().cursor_direction,
+            ),
             HighlightSpans(expected_range, expected_key) => contextualize(
-                        expected_key,
-                        &app.current_component()
-                            .borrow()
-                            .editor()
-                            .buffer()
-                            .highlighted_spans()
-                            .iter()
-                            .inspect(|&span| {
-                                // For debugging purposes
-                                log(format!("xx {span:?} {}", span.style_key.display()));
-                            })
-                            .collect_vec()
-                            .into_iter()
-                            .find(|span| &span.byte_range == expected_range)
-                            .unwrap()
-                            .style_key,
-                    ),
+                expected_key,
+                &app.current_component()
+                    .borrow()
+                    .editor()
+                    .buffer()
+                    .highlighted_spans()
+                    .iter()
+                    .inspect(|&span| {
+                        // For debugging purposes
+                        log(format!("xx {span:?} {}", span.style_key.display()));
+                    })
+                    .collect_vec()
+                    .into_iter()
+                    .find(|span| &span.byte_range == expected_range)
+                    .unwrap()
+                    .style_key,
+            ),
             DiagnosticsRanges(expected) => contextualize(
-                        expected.to_vec(),
-                        app.current_component()
-                            .borrow()
-                            .editor()
-                            .buffer()
-                            .diagnostics()
-                            .into_iter()
-                            .map(|d| d.range)
-                            .collect_vec(),
-                    ),
+                expected.to_vec(),
+                app.current_component()
+                    .borrow()
+                    .editor()
+                    .buffer()
+                    .diagnostics()
+                    .into_iter()
+                    .map(|d| d.range)
+                    .collect_vec(),
+            ),
             BufferQuickfixListItems(expected) => contextualize(
-                        expected,
-                        &app.current_component()
-                            .borrow()
-                            .editor()
-                            .buffer()
-                            .quickfix_list_items()
-                            .into_iter()
-                            .map(|d| d.location().range.clone())
-                            .collect_vec(),
-                    ),
+                expected,
+                &app.context()
+                    .quickfix_list_items()
+                    .into_iter()
+                    .map(|d| d.location().range)
+                    .collect_vec(),
+            ),
             ComponentCount(expected) => contextualize(expected, &app.components().len()),
             CurrentComponentPath(expected) => {
-                        contextualize(expected, &app.current_component().borrow().path())
-                    }
+                contextualize(expected, &app.current_component().borrow().path())
+            }
             OpenedFilesCount(expected) => contextualize(expected, &app.opened_files_count()),
-            QuickfixListInfo(expected) => {
-                        contextualize(*expected, &app.quickfix_list_info().unwrap())
-                    }
+            GlobalInfo(expected) => contextualize(*expected, &app.global_info().unwrap()),
             ComponentsOrder(expected) => contextualize(expected, &app.components_order()),
             CurrentComponentTitle(expected) => {
-                        // Provide a minimal height and width
-                        // so that the tabline can be rendered properly,
-                        // so that we do not need keep adding Editor(SetRectangle(rectangle))
-                        // to test cases that are testing for CurrentComponentTitle.
-                        app.handle_dispatch(Dispatch::TerminalDimensionChanged(Dimension {
-                            height: 10,
-                            width: 30,
-                        }))?;
-                        contextualize(expected, &app.current_component().borrow().title(app.context()))
-                    }
+                // Provide a minimal height and width
+                // so that the tabline can be rendered properly,
+                // so that we do not need keep adding Editor(SetRectangle(rectangle))
+                // to test cases that are testing for CurrentComponentTitle.
+                app.handle_dispatch(Dispatch::TerminalDimensionChanged(Dimension {
+                    height: 10,
+                    width: 30,
+                }))?;
+                contextualize(
+                    expected,
+                    &app.current_component().borrow().title(app.context()),
+                )
+            }
             CurrentSelectionMode(expected) => contextualize(
-                        expected,
-                        &app.current_component().borrow().editor().selection_set.mode,
-                    ),
+                expected,
+                app.current_component()
+                    .borrow()
+                    .editor()
+                    .selection_set
+                    .mode(),
+            ),
             LspRequestSent(from_editor) => contextualize(true, app.lsp_request_sent(from_editor)),
+            LspServerInitializedArgs(expected) => {
+                contextualize(expected, &app.lsp_server_initialized_args())
+            }
             CurrentCopiedTextHistoryOffset(expected) => contextualize(
-                        expected,
-                        &app.current_component()
-                            .borrow()
-                            .editor()
-                            .copied_text_history_offset(),
-                    ),
+                expected,
+                &app.current_component()
+                    .borrow()
+                    .editor()
+                    .copied_text_history_offset(),
+            ),
             CurrentPrimarySelection(expected) => contextualize(
-                        *expected,
-                        &app.current_component()
-                            .borrow()
-                            .editor()
-                            .primary_selection()?,
-                    ),
+                *expected,
+                &app.current_component()
+                    .borrow()
+                    .editor()
+                    .primary_selection()?,
+            ),
             CurrentGlobalMode(expected) => contextualize(expected, &app.context().mode()),
             CurrentReveal(expected) => {
-                        contextualize(expected, &app.current_component().borrow().editor().reveal)
-                    }
+                contextualize(expected, &app.current_component().borrow().editor().reveal)
+            }
             CountHighlightedCells(style_key, expected_count) => contextualize(
-                        expected_count,
-                        &app.current_component()
-                            .borrow()
-                            .editor()
-                            .get_grid(context, false)
-                            .grid
-                            .rows
-                            .into_iter()
-                            .map(|row| {
-                                row.iter()
-                                    .filter(|cell| {
-                                        log(format!("style = {:?}", cell.source));
-                                        cell.source.as_ref() == Some(style_key)
-                                    })
-                                    .count()
+                expected_count,
+                &app.current_component()
+                    .borrow_mut()
+                    .editor_mut()
+                    .get_grid(context, false)
+                    .grid
+                    .rows
+                    .into_iter()
+                    .map(|row| {
+                        row.iter()
+                            .filter(|cell| {
+                                log(format!("style = {:?}", cell.source));
+                                cell.source.as_ref() == Some(style_key)
                             })
-                            .sum::<usize>(),
-                    ),
-            SelectionExtensionEnabled(expected) => contextualize(expected, &app.current_component().borrow().editor().selection_extension_enabled()),
-            CurrentSearch(scope,expected) => contextualize(*expected, &app.context().get_local_search_config(*scope).search()),
-            PromptHistory(key, expected) => contextualize(
+                            .count()
+                    })
+                    .sum::<usize>(),
+            ),
+            SelectionExtensionEnabled(expected) => contextualize(
                 expected,
-                &app.context().get_prompt_history(*key)
+                &app.current_component()
+                    .borrow()
+                    .editor()
+                    .selection_extension_enabled(),
+            ),
+            CurrentSearch(scope, expected) => contextualize(
+                *expected,
+                &app.context().local_search_config(*scope).search(),
+            ),
+            PromptHistory(key, expected) => {
+                contextualize(expected, &app.context().get_prompt_history(*key))
+            }
+            MarkedFiles(expected) => contextualize(
+                expected,
+                &app.context()
+                    .get_marked_files()
+                    .into_iter()
+                    .cloned()
+                    .collect_vec(),
+            ),
+            NoError => (true, String::new()),
+            AppMessageNotReceived { matches, timeout } => {
+                app.expect_app_message_not_received(matches, timeout)?;
+                (true, String::new())
+            }
+            AppMessageIsReceived { matches, timeout } => {
+                app.wait_for_app_message(matches, Some(*timeout))?;
+                (true, String::new())
+            }
+            CurrentEditorIncrementalSearchMatches(expected) => contextualize(
+                expected,
+                &app.get_current_editor()
+                    .borrow()
+                    .editor()
+                    .incremental_search_matches
+                    .clone()
+                    .unwrap_or_default(),
             ),
         })
     }
 }
 
+fn run_range_style_key_check(
+    component: Rc<RefCell<dyn Component>>,
+    context: &Context,
+    search: &'static str,
+    style_key: &Option<StyleKey>,
+) -> (bool, String) {
+    let grid = component.borrow_mut().editor_mut().get_grid(context, false);
+    let grid_string = grid.to_string();
+    let matches = grid_string.match_indices(search).collect_vec();
+    let byte_range = match matches.split_first() {
+        Some(((byte_start, str), [])) => *byte_start..byte_start + str.len(),
+        Some((_, _)) => panic!(
+            "{search:?} should only match 1 range, but it matches {} ranges.",
+            matches.len()
+        ),
+        None => panic!("{search:?} should only match 1 range, but it matches nothing."),
+    };
+    // We use Buffer to obtain the position range given the byte range
+    let buffer = Buffer::new(None, &grid_string);
+    let positions = byte_range
+        .map(|byte| buffer.byte_to_position(byte).unwrap())
+        .collect_vec();
+    if positions.is_empty() {
+        panic!("There are 0 positions");
+    }
+    (
+        positions.iter().all(|position| {
+            let actual_style_key = &grid.grid.rows[position.line][position.column].source;
+            if actual_style_key != style_key {
+                log(format!(
+                    "Expected {position:?} to be styled as {style_key:?}, but got {actual_style_key:?}"
+                ));
+            }
+            actual_style_key == style_key
+        }),
+        format!("Expected positions {positions:?} to be styled as {style_key:?}"),
+    )
+}
+
 pub(crate) use ExpectKind::*;
 pub(crate) use Step::*;
+#[derive(Clone)]
 pub(crate) struct State {
     temp_dir: CanonicalizedPath,
     main_rs: CanonicalizedPath,
     foo_rs: CanonicalizedPath,
+    hello_ts: CanonicalizedPath,
     git_ignore: CanonicalizedPath,
 }
 impl State {
@@ -494,6 +669,10 @@ impl State {
 
     pub(crate) fn foo_rs(&self) -> CanonicalizedPath {
         self.foo_rs.clone()
+    }
+
+    pub(crate) fn hello_ts(&self) -> CanonicalizedPath {
+        self.hello_ts.clone()
     }
 
     pub(crate) fn new_path(&self, path: &str) -> PathBuf {
@@ -513,9 +692,35 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
     execute_test_helper(
         || Box::new(NullWriter),
         false,
-        [StatusLineComponent::LastDispatch].to_vec(),
+        [StatusLine::new(
+            [StatusLineComponent::LastDispatch].to_vec(),
+        )]
+        .to_vec(),
         callback,
         true,
+        RunTestOptions {
+            enable_lsp: false,
+            enable_syntax_highlighting: false,
+            enable_file_watcher: false,
+        },
+    )?;
+    Ok(())
+}
+
+pub(crate) fn execute_test_custom(
+    options: RunTestOptions,
+    callback: impl Fn(State) -> Box<[Step]>,
+) -> anyhow::Result<()> {
+    execute_test_helper(
+        || Box::new(NullWriter),
+        false,
+        [StatusLine::new(
+            [StatusLineComponent::LastDispatch].to_vec(),
+        )]
+        .to_vec(),
+        callback,
+        true,
+        options,
     )?;
     Ok(())
 }
@@ -523,34 +728,44 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
 pub(crate) fn execute_recipe(
     callback: impl Fn(State) -> Box<[Step]>,
     assert_last_step_is_expect: bool,
-) -> anyhow::Result<Option<String>> {
+) -> anyhow::Result<TestOutput> {
     execute_test_helper(
         || Box::new(StringWriter::new()),
         true,
-        [
-            StatusLineComponent::Mode,
-            StatusLineComponent::SelectionMode,
-            StatusLineComponent::LastSearchString,
-            StatusLineComponent::LastDispatch,
-        ]
+        [StatusLine::new(
+            [
+                StatusLineComponent::Mode,
+                StatusLineComponent::SelectionMode,
+                StatusLineComponent::LastSearchString,
+                StatusLineComponent::LastDispatch,
+            ]
+            .to_vec(),
+        )]
         .to_vec(),
         callback,
         assert_last_step_is_expect,
+        RunTestOptions {
+            enable_lsp: false,
+            enable_syntax_highlighting: false,
+            enable_file_watcher: false,
+        },
     )
 }
 
 fn execute_test_helper(
     writer: fn() -> Box<dyn MyWriter>,
     render: bool,
-    status_line_components: Vec<StatusLineComponent>,
+    status_lines: Vec<StatusLine>,
     callback: impl Fn(State) -> Box<[Step]>,
     assert_last_step_is_expect: bool,
-) -> anyhow::Result<Option<String>> {
-    run_test(writer, status_line_components, |mut app, temp_dir| {
+    options: RunTestOptions,
+) -> anyhow::Result<TestOutput> {
+    let callback = |mut app: App<MockFrontend>, temp_dir: CanonicalizedPath| {
         let steps = {
             callback(State {
                 main_rs: temp_dir.join("src/main.rs").unwrap(),
                 foo_rs: temp_dir.join("src/foo.rs").unwrap(),
+                hello_ts: temp_dir.join("src/hello.ts").unwrap(),
                 git_ignore: temp_dir.join(".gitignore").unwrap(),
                 temp_dir,
             })
@@ -577,6 +792,10 @@ fn execute_test_helper(
 
         for step in steps.iter() {
             match step.to_owned() {
+                Step::WaitForAppMessage(regex) => {
+                    log(format!("Wait for app message: {}", ***regex));
+                    app.wait_for_app_message(regex, None)?
+                }
                 Step::App(dispatch) => {
                     log(dispatch);
                     app.handle_dispatch(dispatch.to_owned())?
@@ -604,39 +823,58 @@ fn execute_test_helper(
                     log(dispatch);
                     app.handle_dispatch_suggestive_editor(dispatch.to_owned())?
                 }
+                Shell(program, args) => {
+                    log(format!("Shell: {program} {args:?}",));
+                    let output = std::process::Command::new(program).args(args).output();
+                    log(output)
+                }
+                WaitForDuration(duration) => std::thread::sleep(*duration),
             };
         }
 
         if render {
             app.render()?
         }
+        let buffer_contents = app.get_buffer_contents_map();
+        Ok(buffer_contents)
+    };
+    run_test(options, writer, status_lines, callback)
+}
 
-        Ok(())
-    })
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RunTestOptions {
+    pub(crate) enable_lsp: bool,
+    pub(crate) enable_syntax_highlighting: bool,
+    pub(crate) enable_file_watcher: bool,
 }
 
 fn run_test(
+    options: RunTestOptions,
     writer: fn() -> Box<dyn MyWriter>,
-    status_line_components: Vec<StatusLineComponent>,
-    callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<()>,
-) -> anyhow::Result<Option<String>> {
+    status_lines: Vec<StatusLine>,
+    callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<BufferContentsMap>,
+) -> anyhow::Result<TestOutput> {
     TestRunner::run(move |temp_dir| {
         let frontend = Rc::new(Mutex::new(MockFrontend::new(writer())));
-
-        let mut app = App::new(
+        let app = App::new(
             frontend.clone(),
             temp_dir.clone(),
-            status_line_components.clone(),
+            status_lines.clone(),
+            options,
         )?;
-        app.disable_lsp();
-        callback(app, temp_dir)?;
+        let buffer_contents_map = callback(app, temp_dir)?;
         use std::borrow::Borrow;
-        let output = frontend.lock().unwrap().borrow().string_content();
+        let term_output = frontend.lock().unwrap().borrow().string_content();
+        let output = TestOutput {
+            term_output,
+            buffer_contents_map,
+        };
 
         Ok(output)
     })
 }
 
+#[serial]
 #[test]
 fn copy_replace_from_different_file() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -653,9 +891,7 @@ fn copy_replace_from_different_file() -> anyhow::Result<()> {
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SelectAll),
-            Editor(Copy {
-                use_system_clipboard: false,
-            }),
+            Editor(Copy),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
@@ -663,9 +899,7 @@ fn copy_replace_from_different_file() -> anyhow::Result<()> {
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SelectAll),
-            Editor(Copy {
-                use_system_clipboard: false,
-            }),
+            Editor(Copy),
             App(OpenFile {
                 path: s.main_rs(),
                 owner: BufferOwner::User,
@@ -673,15 +907,13 @@ fn copy_replace_from_different_file() -> anyhow::Result<()> {
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SelectAll),
-            Editor(ReplaceWithCopiedText {
-                use_system_clipboard: false,
-                cut: false,
-            }),
+            Editor(ReplaceWithCopiedText { cut: false }),
             Expect(FileContentEqual(s.main_rs, s.foo_rs)),
         ])
     })
 }
 
+#[serial]
 #[test]
 /// Should work across different files
 fn replace_cut() -> anyhow::Result<()> {
@@ -700,34 +932,27 @@ fn replace_cut() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn foo() { call_foo() }".to_string())),
             Editor(MatchLiteral("call_foo()".to_string())),
-            Editor(Copy {
-                use_system_clipboard: false,
-            }),
+            Editor(Copy),
             App(OpenFile {
                 path: s.main_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
             Editor(MatchLiteral("call_main()".to_string())),
-            Editor(ReplaceWithCopiedText {
-                cut: true,
-                use_system_clipboard: false,
-            }),
+            Editor(ReplaceWithCopiedText { cut: true }),
             Expect(CurrentComponentContent("fn main() { call_foo() }")),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(ReplaceWithCopiedText {
-                cut: false,
-                use_system_clipboard: false,
-            }),
+            Editor(ReplaceWithCopiedText { cut: false }),
             Expect(CurrentComponentContent("fn foo() { call_main() }")),
         ])
     })
 }
 
+#[serial]
 #[test]
 fn copy_replace() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -738,27 +963,20 @@ fn copy_replace() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
-            Editor(Copy {
-                use_system_clipboard: false,
-            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(Copy),
             Editor(MoveSelection(Right)),
-            Editor(ReplaceWithCopiedText {
-                use_system_clipboard: false,
-                cut: false,
-            }),
+            Editor(ReplaceWithCopiedText { cut: false }),
             Expect(CurrentComponentContent("fn fn() { let x = 1; }")),
             Expect(CurrentSelectedTexts(&["fn"])),
             Editor(MoveSelection(Next)),
-            Editor(ReplaceWithCopiedText {
-                use_system_clipboard: false,
-                cut: false,
-            }),
+            Editor(ReplaceWithCopiedText { cut: false }),
             Expect(CurrentComponentContent("fn fnfn) { let x = 1; }")),
         ])
     })
 }
 
+#[serial]
 #[test]
 fn cut_replace() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -769,23 +987,18 @@ fn cut_replace() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
-            Editor(ChangeCut {
-                use_system_clipboard: false,
-            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(ChangeCut),
             Editor(EnterNormalMode),
             Expect(CurrentComponentContent(" main() { let x = 1; }")),
-            Editor(MoveSelection(Current(IfCurrentNotFound::LookForward))),
-            Expect(CurrentSelectedTexts(&["main"])),
-            Editor(ReplaceWithCopiedText {
-                use_system_clipboard: false,
-                cut: false,
-            }),
+            Editor(MatchLiteral("main".to_string())),
+            Editor(ReplaceWithCopiedText { cut: false }),
             Expect(CurrentComponentContent(" fn() { let x = 1; }")),
         ])
     })
 }
 
+#[serial]
 #[test]
 fn highlight_mode_cut() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -798,20 +1011,15 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
-            Editor(ChangeCut {
-                use_system_clipboard: false,
-            }),
+            Editor(ChangeCut),
             Expect(CurrentComponentContent("{ let x = S(a); let y = S(b); }")),
-            Editor(ReplaceWithCopiedText {
-                use_system_clipboard: false,
-                cut: false,
-            }),
+            Editor(ReplaceWithCopiedText { cut: false }),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = S(a); let y = S(b); }",
             )),
@@ -819,6 +1027,7 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn highlight_mode_copy() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -831,22 +1040,17 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
-            Editor(Copy {
-                use_system_clipboard: false,
-            }),
+            Editor(Copy),
             Editor(Reset),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["{"])),
-            Editor(ReplaceWithCopiedText {
-                use_system_clipboard: false,
-                cut: false,
-            }),
+            Editor(ReplaceWithCopiedText { cut: false }),
             Expect(CurrentComponentContent(
                 "fn f()fn f() let x = S(a); let y = S(b); }",
             )),
@@ -854,6 +1058,7 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
     })
 }
 
+#[serial]
 #[test]
 fn highlight_mode_replace() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -866,15 +1071,13 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Movement::Right)),
             Editor(MoveSelection(Movement::Next)),
             Editor(MoveSelection(Movement::Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
-            Editor(Copy {
-                use_system_clipboard: false,
-            }),
+            Editor(Copy),
             Editor(Reset),
             Editor(MatchLiteral("{".to_string())),
             Editor(SetSelectionMode(
@@ -882,15 +1085,13 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
                 SelectionMode::SyntaxNode,
             )),
             Expect(CurrentSelectedTexts(&["{ let x = S(a); let y = S(b); }"])),
-            Editor(ReplaceWithCopiedText {
-                use_system_clipboard: false,
-                cut: false,
-            }),
+            Editor(ReplaceWithCopiedText { cut: false }),
             Expect(CurrentComponentContent("fn f()fn f()")),
         ])
     })
 }
 
+#[serial]
 #[test]
 fn multi_paste() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -914,28 +1115,19 @@ fn multi_paste() -> anyhow::Result<()> {
             Editor(MoveSelection(Movement::Down)),
             Editor(MoveSelection(Movement::Right)),
             Expect(CurrentSelectedTexts(&["S(spongebob_squarepants)", "S(b)"])),
-            Editor(ChangeCut {
-                use_system_clipboard: false,
-            }),
+            Editor(ChangeCut),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("Some(".to_owned())),
-            Editor(Paste {
-                direction: Direction::End,
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Editor(Insert(")".to_owned())),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }",
             )),
             Editor(CursorKeepPrimaryOnly),
             App(SetClipboardContent {
-                use_system_clipboard: false,
                 copied_texts: CopiedTexts::one(".hello".to_owned()),
             }),
-            Editor(Paste {
-                direction: Direction::End,
-                use_system_clipboard: false,
-            }),
+            Editor(Paste),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants)).hello; let y = Some(S(b)); }",
             )),
@@ -968,7 +1160,7 @@ fn signature_help() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Expect(CurrentMode(Mode::Normal)),
             //
             // Signature help should not be shown in normal mode
@@ -1032,7 +1224,11 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(Delete(Direction::End)),
+            Editor(MoveSelectionWithPriorChange(
+                Next,
+                Some(PriorChange::EnterDeleteMode),
+            )),
+            Editor(EnterNormalMode),
             // Insert a comment at the first line of foo.rs
             App(OpenFile {
                 path: s.foo_rs().clone(),
@@ -1054,29 +1250,114 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                     QuickfixListItem::new(
                         Location {
                             path: path_new_file.clone().try_into().unwrap(),
-                            range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
+                            range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&["[This file is untracked or renamed]"]),
+                        None,
                     ),
                     QuickfixListItem::new(
                         Location {
                             path: s.foo_rs(),
-                            range: Position { line: 0, column: 0 }..Position { line: 1, column: 0 },
+                            range: (CharIndex(0)..CharIndex(32)).into(),
                         },
                         strs_to_strings(&[
                             "pub(crate) struct Foo {",
                             "// Hellopub(crate) struct Foo {",
                         ]),
+                        None,
                     ),
                     QuickfixListItem::new(
                         Location {
                             path: s.main_rs(),
-                            range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
+                            range: (CharIndex(0)..CharIndex(0)).into(),
                         },
                         strs_to_strings(&["mod foo;"]),
+                        None,
                     ),
                 ]))
             })),
+        ])
+    })
+}
+
+#[test]
+pub(crate) fn revert_modified_hunk() -> Result<(), anyhow::Error> {
+    let original_content = "pub(crate) struct Foo {
+    a: (),
+    b: (),
+}
+
+pub(crate) fn foo() -> Foo {
+    Foo { a: (), b: () }
+}
+";
+    execute_test(|s| {
+        Box::new([
+            // Insert a comment at the first line of foo.rs
+            App(OpenFile {
+                path: s.foo_rs().clone(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentComponentContent(original_content)),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("/ / space H e l l o").to_vec())),
+            Expect(CurrentComponentContent(
+                "// Hellopub(crate) struct Foo {
+    a: (),
+    b: (),
+}
+
+pub(crate) fn foo() -> Foo {
+    Foo { a: (), b: () }
+}
+",
+            )),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                GitHunk(crate::git::DiffMode::UnstagedAgainstMainBranch),
+            )),
+            Expect(CurrentSelectedTexts(&["// Hellopub(crate) struct Foo {"])),
+            Editor(RevertHunk(
+                crate::git::DiffMode::UnstagedAgainstCurrentBranch,
+            )),
+            Expect(CurrentComponentContent(original_content)),
+            Expect(CurrentSelectedTexts(&["pub(crate) struct Foo {"])),
+        ])
+    })
+}
+
+#[test]
+fn revert_deleted_hunk() -> anyhow::Result<()> {
+    let diff_mode = DiffMode::UnstagedAgainstCurrentBranch;
+    execute_test(|s| {
+        let original_content = "mod foo;
+
+fn main() {
+    foo::foo();
+    println!(\"Hello, world!\");
+}
+";
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentComponentContent(original_content)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(MoveSelectionWithPriorChange(
+                Next,
+                Some(PriorChange::EnterDeleteMode),
+            )),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                GitHunk(diff_mode),
+            )),
+            Expect(GlobalInfoContents(&["mod foo;"])),
+            Editor(RevertHunk(diff_mode)),
+            Expect(CurrentSelectedTexts(&["mod foo;\n"])),
+            Expect(CurrentComponentContent(original_content)),
         ])
     })
 }
@@ -1104,8 +1385,15 @@ pub(crate) fn non_git_ignored_files() -> Result<(), anyhow::Error> {
             // Add a new Rust file
             App(AddPath(s.new_path("src/rust.rs").display().to_string())),
             ExpectCustom(Box::new(move || {
-                let paths = crate::list::WalkBuilderConfig::non_git_ignored_files(temp_dir.clone())
-                    .unwrap();
+                let (sender, receiver) = std::sync::mpsc::channel();
+                crate::list::WalkBuilderConfig::get_non_git_ignored_files(
+                    temp_dir.clone().to_path_buf().clone(),
+                    Arc::new(move |path| {
+                        let _ = sender.send(path);
+                    }),
+                );
+
+                let paths = receiver.into_iter().collect_vec();
 
                 // Expect all the paths are files, not directory for example
                 assert!(paths.iter().all(|file| file.is_file()));
@@ -1177,10 +1465,7 @@ fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
                 width: 200,
                 height: 6,
             })),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(SelectAll),
-            Editor(Delete(Direction::End)),
-            Editor(Insert(
+            Editor(SetContent(
                 "
 fn first () {
   second();
@@ -1246,15 +1531,15 @@ fn global_marks() -> Result<(), anyhow::Error> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(ToggleMark),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            App(MarkFileAndToggleMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(ToggleMark),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            App(MarkFileAndToggleMark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Mark,
             )),
@@ -1262,15 +1547,84 @@ fn global_marks() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
+                    None,
                     None,
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
+                    None,
+                    None,
+                ),
+            ]))),
+        ])
+    })
+}
+
+#[test]
+fn global_marks_updated_by_edits() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            App(MarkFileAndToggleMark),
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            App(MarkFileAndToggleMark),
+            App(SetQuickfixList(
+                crate::quickfix_list::QuickfixListType::Mark,
+            )),
+            Expect(Quickfixes(Box::new([
+                QuickfixListItem::new(
+                    Location {
+                        path: s.foo_rs(),
+                        range: (CharIndex(0)..CharIndex(3)).into(),
+                    },
+                    None,
+                    None,
+                ),
+                QuickfixListItem::new(
+                    Location {
+                        path: s.main_rs(),
+                        range: (CharIndex(0)..CharIndex(3)).into(),
+                    },
+                    None,
+                    None,
+                ),
+            ]))),
+            // Modify foo.rs to update the mark's position
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("x x x").to_vec())),
+            // Get global marks again
+            Expect(Quickfixes(Box::new([
+                QuickfixListItem::new(
+                    Location {
+                        path: s.foo_rs(),
+                        // Expect the range of mark in foo.rs is updated
+                        range: (CharIndex(3)..CharIndex(6)).into(),
+                    },
+                    None,
+                    None,
+                ),
+                QuickfixListItem::new(
+                    Location {
+                        path: s.main_rs(),
+                        // Expect the range of mark in main.rs remain unchanged
+                        range: (CharIndex(0)..CharIndex(3)).into(),
+                    },
+                    None,
                     None,
                 ),
             ]))),
@@ -1288,7 +1642,7 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             Editor(SetContent("foo bar foo bar".to_string())),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
@@ -1299,39 +1653,44 @@ fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
             App(UpdateLocalSearchConfig {
                 update: LocalSearchConfigUpdate::Search("bar".to_string()),
                 scope: Scope::Global,
-                show_config_after_enter: false,
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
+                component_id: None,
             }),
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
             Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
             Expect(Quickfixes(Box::new([
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position::new(0, 4)..Position::new(0, 7),
+                        range: (CharIndex(4)..CharIndex(7)).into(),
                     },
                     None,
+                    Some("foo bar foo bar".to_string()),
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position::new(0, 12)..Position::new(0, 15),
+                        range: (CharIndex(12)..CharIndex(15)).into(),
                     },
                     None,
+                    Some("foo bar foo bar".to_string()),
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position::new(0, 4)..Position::new(0, 7),
+                        range: (CharIndex(4)..CharIndex(7)).into(),
                     },
                     None,
+                    Some("foo bar foo bar".to_string()),
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position::new(0, 12)..Position::new(0, 15),
+                        range: (CharIndex(12)..CharIndex(15)).into(),
                     },
                     None,
+                    Some("foo bar foo bar".to_string()),
                 ),
             ]))),
             App(HandleKeyEvent(key!("esc"))),
@@ -1363,11 +1722,11 @@ fn local_lsp_references() -> anyhow::Result<()> {
                 [
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 2 },
+                        range: (CharIndex(0)..CharIndex(2)).into(),
                     },
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 3 }..Position { line: 0, column: 4 },
+                        range: (CharIndex(3)..CharIndex(4)).into(),
                     },
                 ]
                 .to_vec(),
@@ -1417,22 +1776,24 @@ fn global_diagnostics() -> Result<(), anyhow::Error> {
                 QuickfixListItem::new(
                     Location {
                         path: s.foo_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
                     Some(Info::new(
                         "Diagnostics".to_string(),
                         "To err is normal, but to err again is not.".to_string(),
                     )),
+                    None,
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        range: (CharIndex(0)..CharIndex(3)).into(),
                     },
                     Some(Info::new(
                         "Diagnostics".to_string(),
                         "To err is normal, but to err again is not.".to_string(),
                     )),
+                    None,
                 ),
             ]))),
         ])
@@ -1455,9 +1816,9 @@ fn test_global_search_replace(
             UpdateLocalSearchConfig {
                 update,
                 scope: Scope::Global,
-                show_config_after_enter: true,
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
+                component_id: None,
             }
         };
         let main_rs = s.main_rs();
@@ -1500,6 +1861,52 @@ fn test_global_search_replace(
             Editor(Undo),
             // Expect the content of the main.rs buffer to be reverted
             Expect(FileContent(s.main_rs(), main_content.to_string())),
+        ])
+    })
+}
+
+#[test]
+fn test_global_repeat_search() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("bye world".to_string())),
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("bye world".to_string())),
+            App(SaveAll),
+            // Local search "world"
+            Editor(MatchLiteral("world".to_string())),
+            // Global search "bye"
+            App(UpdateLocalSearchConfig {
+                update: LocalSearchConfigUpdate::Search("bye".to_string()),
+                scope: Scope::Global,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+                run_search_after_config_updated: true,
+                component_id: None,
+            }),
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
+            Expect(CurrentSelectedTexts(&["bye"])),
+            // Change the selection mode
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Expect(CurrentSelectedTexts(&["bye world"])),
+            Editor(RepeatSearch(
+                Scope::Global,
+                IfCurrentNotFound::LookForward,
+                None,
+            )),
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
+            Expect(CurrentSelectedTexts(&["bye"])),
         ])
     })
 }
@@ -1559,15 +1966,15 @@ fn global_search_replace_naming_convention_agnostic() -> Result<(), anyhow::Erro
 }
 
 #[test]
-fn quickfix_list() -> Result<(), anyhow::Error> {
+fn quickfix_list_basic() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
             UpdateLocalSearchConfig {
                 update,
                 scope: Scope::Global,
-                show_config_after_enter: false,
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
+                component_id: None,
             }
         };
         Box::new([
@@ -1594,31 +2001,29 @@ foo a // Line 10
             App(new_dispatch(LocalSearchConfigUpdate::Search(
                 "foo".to_string(),
             ))),
+            WaitForAppMessage(regex!("AddQuickfixListEntries")),
             Expect(QuickfixListContent(
                 // Line 10 should be placed below Line 2 (sorted numerically, not lexicograhically)
-                format!(
-                    "
-■┬ {}
- ├─ 2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
- └─ 10:1  foo a // Line 10
+                "
+src/foo.rs
+    2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
+    10:1  foo a // Line 10
 
-■┬ {}
- ├─ 1:1  foo d
- └─ 2:1  foo c",
-                    s.foo_rs().display_absolute(),
-                    s.main_rs().display_absolute()
-                )
+src/main.rs
+    1:1  foo d
+    2:1  foo c
+               ".to_string()
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine(" ├─ 2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
+            Expect(QuickfixListCurrentLine("    2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
             Expect(CurrentPath(s.foo_rs())),
             Expect(CurrentLine("foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Expect(ComponentCount(2)),
             Editor(MoveSelection(Right)),
             Expect(ComponentCount(2)),
-            Expect(QuickfixListCurrentLine(" └─ 10:1  foo a // Line 10")),
+            Expect(QuickfixListCurrentLine("    10:1  foo a // Line 10")),
             Expect(CurrentLine("foo a // Line 10")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Right)),
@@ -1663,18 +2068,19 @@ fn main() {
                     [QuickfixListItem::new(
                         Location {
                             path: s.main_rs(),
-                            range: Position { line: 1, column: 2 }..Position { line: 1, column: 5 },
+                            range: (CharIndex(2)..CharIndex(5)).into(),
                         },
                         Some(Info::new(
                             "Hello world".to_string(),
                             "This is fine".to_string(),
                         )),
+                        None,
                     )]
                     .to_vec(),
                 ),
             )),
             App(SetGlobalMode(Some(GlobalMode::QuickfixListItem))),
-            Expect(ExpectKind::QuickfixListInfo("This is fine")),
+            Expect(ExpectKind::GlobalInfo("This is fine")),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
@@ -1685,6 +2091,98 @@ fn main() {
                 IfCurrentNotFound::LookForward,
             )),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn quickfix_list_header_should_be_highlighted_as_keyword() -> anyhow::Result<()> {
+    let options = RunTestOptions {
+        enable_lsp: false,
+        enable_syntax_highlighting: true,
+        enable_file_watcher: false,
+    };
+    execute_test_custom(options, |s| {
+        Box::new([
+            App(SetQuickfixList(
+                crate::quickfix_list::QuickfixListType::Items(
+                    [QuickfixListItem::new(
+                        Location {
+                            path: s.main_rs(),
+                            range: (CharIndex(2)..CharIndex(5)).into(),
+                        },
+                        None,
+                        None,
+                    )]
+                    .to_vec(),
+                ),
+            )),
+            App(OtherWindow),
+            Expect(CurrentComponentContent(
+                "
+src/main.rs
+    1:3  mod foo;
+"
+                .trim(),
+            )),
+            // We wait for 2 SyntaxHighlightResponse here because one is for main.rs,
+            // and the other one is for the quickfix list
+            WaitForAppMessage(regex!("SyntaxHighlightResponse")),
+            WaitForAppMessage(regex!("SyntaxHighlightResponse")),
+            App(TerminalDimensionChanged(Dimension {
+                height: 20,
+                width: 50,
+            })),
+            // Expect "src/main.rs" is highlighted with "keyword"
+            Expect(RangeStyleKey(
+                "src/main.rs",
+                Some(StyleKey::Syntax(
+                    IndexedHighlightGroup::from_str("keyword").unwrap(),
+                )),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn quickfix_list_item_matching_range_should_be_highlighted_as_search() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(SetQuickfixList(
+                crate::quickfix_list::QuickfixListType::Items(
+                    [QuickfixListItem::new(
+                        Location {
+                            path: s.main_rs(),
+                            range: (CharIndex(4)..CharIndex(7)).into(),
+                        },
+                        None,
+                        None,
+                    )]
+                    .to_vec(),
+                ),
+            )),
+            App(OtherWindow),
+            Expect(CurrentComponentContent(
+                "
+src/main.rs
+    1:5  mod foo;
+"
+                .trim(),
+            )),
+            App(TerminalDimensionChanged(Dimension {
+                height: 20,
+                width: 50,
+            })),
+            // Expect "foo" is highlighted as search
+            Expect(RangeStyleKey(
+                "foo",
+                Some(StyleKey::UiIncrementalSearchMatch),
+            )),
+            // Expect that line excluding "foo" is highlighted as primary selection
+            Expect(RangeStyleKey(
+                "1:5  mod ",
+                Some(StyleKey::UiPrimarySelectionAnchors),
+            )),
         ])
     })
 }
@@ -1712,23 +2210,28 @@ fn diagnostic_info() -> Result<(), anyhow::Error> {
                     version: None,
                 }),
             )),
+            Expect(ComponentsOrder([ComponentKind::SuggestiveEditor].to_vec())),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
                 Diagnostic(DiagnosticSeverityRange::All),
             )),
-            Expect(EditorInfoOpen(true)),
-            Expect(EditorInfoContent("Hello world")),
+            Expect(ComponentsOrder(
+                [ComponentKind::SuggestiveEditor, ComponentKind::GlobalInfo].to_vec(),
+            )),
+            Expect(GlobalInfoContents(&["Hello world"])),
             App(HandleKeyEvent(key!("esc"))),
-            Expect(EditorInfoOpen(false)),
+            Expect(ComponentsOrder([ComponentKind::SuggestiveEditor].to_vec())),
             App(Dispatch::HandleLspNotification(
                 LspNotification::PublishDiagnostics(lsp_types::PublishDiagnosticsParams {
                     uri: Url::from_file_path(s.foo_rs()).unwrap(),
+                    // No diagnostic
                     diagnostics: Default::default(),
                     version: None,
                 }),
             )),
             Editor(MoveSelection(Right)),
-            Expect(EditorInfoOpen(false)),
+            // Expect no global info is shown, since there is no diagnostic
+            Expect(ComponentsOrder([ComponentKind::SuggestiveEditor].to_vec())),
         ])
     })
 }
@@ -1822,7 +2325,7 @@ fn same_range_diagnostics_should_be_merged() -> Result<(), anyhow::Error> {
                 info.to_string(),
             )
         };
-        let expected_info = "foo\n=======\nbar\n=======\nspam";
+        let expected_info = &["foo\n=======\nbar\n=======\nspam"];
         Box::new([
             App(OpenFile {
                 path: s.foo_rs(),
@@ -1841,13 +2344,13 @@ fn same_range_diagnostics_should_be_merged() -> Result<(), anyhow::Error> {
                 IfCurrentNotFound::LookForward,
                 Diagnostic(DiagnosticSeverityRange::All),
             )),
-            Expect(EditorInfoContent(expected_info)),
+            Expect(GlobalInfoContents(expected_info)),
             // Expect there's only one diagnostic, by the fact that moving to the first and
             // last diagnostic still renders the same info
             Editor(MoveSelection(First)),
-            Expect(EditorInfoContent(expected_info)),
+            Expect(GlobalInfoContents(expected_info)),
             Editor(MoveSelection(Last)),
-            Expect(EditorInfoContent(expected_info)),
+            Expect(GlobalInfoContents(expected_info)),
         ])
     })
 }
@@ -1856,7 +2359,7 @@ fn same_range_diagnostics_should_be_merged() -> Result<(), anyhow::Error> {
 fn code_action() -> anyhow::Result<()> {
     execute_test(|s| {
         let code_action = |new_text: &str| CodeAction {
-            title: format!("Use {}", new_text),
+            title: format!("Use {new_text}"),
             kind: None,
             edit: Some(WorkspaceEdit {
                 edits: [TextDocumentEdit {
@@ -1913,7 +2416,7 @@ fn should_be_able_to_handle_key_event_even_when_no_file_is_opened() -> anyhow::R
     execute_test(|_| {
         Box::new([
             Expect(CurrentComponentContent("")),
-            App(HandleKeyEvents(keys!("u h e l l o").to_vec())),
+            App(HandleKeyEvents(keys!("h h e l l o").to_vec())),
             Expect(CurrentComponentContent("hello")),
         ])
     })
@@ -1962,7 +2465,7 @@ fn cycle_window() -> anyhow::Result<()> {
                 SuggestiveEditor(DispatchSuggestiveEditor::Completion(completion.clone())),
                 Expect(ComponentCount(3)),
                 // Move to the next completion item (which is 'Spongebob squarepants')
-                App(HandleKeyEvent(key!("alt+k"))),
+                App(HandleKeyEvent(key!("alt+l"))),
                 Expect(CurrentComponentContent("")),
                 App(OtherWindow),
                 Expect(ComponentCount(3)),
@@ -2272,15 +2775,36 @@ fn open_search_prompt_in_file_explorer() -> anyhow::Result<()> {
 }
 
 #[test]
+fn open_search_prompt_with_current_selection() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectedTexts(&["mod foo;"])),
+            App(OpenSearchPromptWithCurrentSelection {
+                scope: Scope::Local,
+                prior_change: None,
+            }),
+            Expect(CurrentComponentTitle("Local search".to_string())),
+            Expect(CurrentComponentContent("mod foo;")),
+        ])
+    })
+}
+
+#[test]
 fn global_search_should_not_using_empty_pattern() -> anyhow::Result<()> {
     execute_test(|_| {
         Box::new([
             App(UpdateLocalSearchConfig {
                 update: LocalSearchConfigUpdate::Search("".to_string()),
                 scope: Scope::Global,
-                show_config_after_enter: true,
                 if_current_not_found: IfCurrentNotFound::LookForward,
                 run_search_after_config_updated: true,
+                component_id: None,
             }),
             Expect(ExpectKind::Quickfixes(Box::new([]))),
         ])
@@ -2375,7 +2899,7 @@ fn doc_assets_export_keymaps_json() {
         keyboard_layouts: Vec<KeyboardLayoutJson>,
     }
 
-    let get_path = |name: &str| format!("docs/static/keymaps/{}.json", name);
+    let get_path = |name: &str| format!("docs/static/keymaps/{name}.json");
     let keyboard_layouts = KeyboardLayoutKind::iter()
         .map(|keyboard_layout| KeyboardLayoutJson {
             name: keyboard_layout.display().to_string(),
@@ -2423,9 +2947,18 @@ fn doc_assets_export_keymaps_json() {
     });
 }
 
+#[test]
+fn doc_assets_export_app_config_json_schema() -> anyhow::Result<()> {
+    let path = "docs/static/app_config_json_schema.json".to_string();
+    let schema = schema_for!(crate::config::AppConfig);
+    let json = serde_json::to_string_pretty(&schema)?;
+    std::fs::write(path, json)?;
+    Ok(())
+}
+
 #[serial]
 #[test]
-fn copy_paste_using_system_clipboard() -> Result<(), anyhow::Error> {
+fn multi_paste_2() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         {
             Box::new([
@@ -2444,28 +2977,19 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
-                Editor(Copy {
-                    use_system_clipboard: true,
-                }),
+                Editor(Copy),
                 Editor(MoveSelection(Right)),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
-                Editor(Paste {
-                    direction: Direction::End,
-                    use_system_clipboard: true,
-                }),
-                Expect(CurrentSelectedTexts(&[
-                    "a1\nb1\nc1",
-                    "a1\nb1\nc1",
-                    "a1\nb1\nc1",
-                ])),
+                Editor(Paste),
+                Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Expect(CurrentComponentContent(
                     "
-a1 a2 a3 a1\nb1\nc1
-b1 b2 b3 a1\nb1\nc1
-c1 c2 c3 a1\nb1\nc1
+a1 a2 a3 a1
+b1 b2 b3 b1
+c1 c2 c3 c1
 "
                     .trim(),
                 )),
@@ -2474,9 +2998,33 @@ c1 c2 c3 a1\nb1\nc1
     })
 }
 
+#[test]
+#[serial]
+fn pasting_when_clipboard_html_is_set_by_other_app() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                App(Dispatch::SetSystemClipboardHtml {
+                    html: "<div source=\"from Microsoft Word\">hello</div>",
+                    alt_text: "hello",
+                }),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
+                Editor(SetContent("".to_string())),
+                Editor(Paste),
+                Expect(CurrentComponentContent("hello")),
+            ])
+        }
+    })
+}
+
 #[serial]
 #[test]
-fn replace_using_system_clipboard() -> Result<(), anyhow::Error> {
+fn multi_replace() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         {
             Box::new([
@@ -2495,28 +3043,19 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
-                Editor(Copy {
-                    use_system_clipboard: true,
-                }),
+                Editor(Copy),
                 Editor(MoveSelection(Right)),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
-                Editor(ReplaceWithCopiedText {
-                    cut: false,
-                    use_system_clipboard: true,
-                }),
-                Expect(CurrentSelectedTexts(&[
-                    "a1\nb1\nc1",
-                    "a1\nb1\nc1",
-                    "a1\nb1\nc1",
-                ])),
+                Editor(ReplaceWithCopiedText { cut: false }),
+                Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Expect(CurrentComponentContent(
                     "
-a1 a2 a1\nb1\nc1
-b1 b2 a1\nb1\nc1
-c1 c2 a1\nb1\nc1
+a1 a2 a1
+b1 b2 b1
+c1 c2 c1
 "
                     .trim(),
                 )),
@@ -2597,11 +3136,11 @@ fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
                     [
                         Location {
                             path: s.foo_rs(),
-                            range: Position::new(0, 0)..Position::new(0, 1),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
                         },
                         Location {
                             path: s.foo_rs(),
-                            range: Position::new(1, 0)..Position::new(1, 1),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
                         },
                     ]
                     .to_vec(),
@@ -2610,6 +3149,43 @@ fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
             App(NavigateBack),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn toggling_global_quickfix_should_show_quickfix_list() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(HandleLspNotification(LspNotification::Definition(
+                Default::default(),
+                GotoDefinitionResponse::Multiple(
+                    [
+                        Location {
+                            path: s.foo_rs(),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
+                        },
+                        Location {
+                            path: s.foo_rs(),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
+                        },
+                    ]
+                    .to_vec(),
+                ),
+            ))),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            App(Dispatch::RemainOnlyCurrentComponent),
+            Expect(ComponentCount(1)),
+            App(Dispatch::SetGlobalMode(Some(
+                crate::context::GlobalMode::QuickfixListItem,
+            ))),
+            Expect(ComponentCount(2)),
         ])
     })
 }
@@ -2787,7 +3363,7 @@ fn using_suggested_search_term() -> anyhow::Result<()> {
                 if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             Expect(CompletionDropdownContent("bar\nfoo\nspam")),
-            App(HandleKeyEvents(keys!("f o alt+l").to_vec())),
+            App(HandleKeyEvents(keys!("f o alt+x").to_vec())),
             Expect(CurrentComponentContent("foo")),
         ])
     })
@@ -2929,7 +3505,7 @@ fn surround_with_xml_tag() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent("hello".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             App(OpenSurroundXmlPrompt),
             App(HandleKeyEvents(keys!("f o o enter").to_vec())),
             Expect(CurrentComponentContent("<foo>hello</foo>")),
@@ -2947,11 +3523,326 @@ fn surround_with_empty_xml_tag() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent("hello".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             App(OpenSurroundXmlPrompt),
             App(HandleKeyEvents(keys!("enter").to_vec())),
             Expect(CurrentComponentContent("<>hello</>")),
             Expect(CurrentSelectedTexts(&["<>hello</>"])),
+        ])
+    })
+}
+
+#[test]
+fn lsp_initialization_should_only_send_relevant_opened_documents() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(OpenFile {
+                path: s.hello_ts(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(HandleLspNotification(LspNotification::Initialized(
+                Box::new(crate::config::from_extension("ts").unwrap()),
+            ))),
+            Expect(LspServerInitializedArgs(Some((
+                LanguageId::new("typescript"),
+                // Expect only hello.ts is sent to the Typescript LSP server
+                // although main.rs is opened before
+                [s.hello_ts()].to_vec(),
+            )))),
+        ])
+    })
+}
+
+#[test]
+fn navigate_back_should_skip_files_that_were_renamed_or_deleted() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(OpenFile {
+                path: s.hello_ts(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(DeletePath(s.main_rs())),
+            App(NavigateBack),
+            Expect(NoError),
+        ])
+    })
+}
+
+#[test]
+fn navigate_forward_should_skip_files_that_were_renamed_or_deleted() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(OpenFile {
+                path: s.hello_ts(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(NavigateBack),
+            Expect(CurrentPath(s.main_rs())),
+            App(DeletePath(s.hello_ts())),
+            App(NavigateForward),
+            Expect(NoError),
+        ])
+    })
+}
+
+#[test]
+fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.hello_ts(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            Expect(AppGrid(
+                r#" # 🙈  .gitignore  # 📘  hello.ts  # 🦀  main.rs
+1│█arget/
+2│"#
+                .to_string(),
+            )),
+            Expect(CurrentPath(s.gitignore())),
+            App(DeletePath(s.main_rs())),
+            App(CycleMarkedFile(Direction::Start)),
+            Expect(NoError),
+            Expect(CurrentPath(s.hello_ts())),
+            // Expect main.rs is removed from the tabline
+            // Also an error is shown to notify the user that main.rs is removed from the tabline
+            Expect(AppGrid(
+                r#" # 🙈  .gitignore  # 📘  hello.ts
+1│█onsole.log("hello");
+2│
+
+
+
+
+
+
+
+
+
+
+
+
+
+Cycle marked file error
+1│█he file mark "src/main.rs" is removed from the list as it cannot be opened
+↪│due to the following error:
+2│
+3│The path "src/main.rs" does not exist."#
+                    .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn renaming_marked_files_should_update_file_marks() -> anyhow::Result<()> {
+    execute_test(|s| {
+        let new_path = s.temp_dir.to_path_buf().join("new_name");
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.hello_ts(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            Expect(AppGrid(
+                r#" # 🙈  .gitignore  # 📘  hello.ts  # 🦀  main.rs
+1│█arget/
+2│"#
+                .to_string(),
+            )),
+            Expect(CurrentPath(s.gitignore())),
+            App(MoveFile {
+                from: s.gitignore(),
+                to: new_path.clone(),
+            }),
+            // Press enter to hide File Explorer and focus the renamed file
+            App(HandleKeyEvent(key!("enter"))),
+            Expect(AppGrid(
+                r#" # 📄  new_name  # 📘  hello.ts  # 🦀  main.rs
+1│█arget/
+2│"#
+                .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn escape_global_diagnostics_should_not_change_selection() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        let diagnostic = |path: CanonicalizedPath| {
+            Dispatch::HandleLspNotification(LspNotification::PublishDiagnostics(
+                lsp_types::PublishDiagnosticsParams {
+                    uri: Url::from_file_path(path).unwrap(),
+                    diagnostics: [lsp_types::Diagnostic::new_simple(
+                        lsp_types::Range::new(
+                            lsp_types::Position::new(0, 0),
+                            lsp_types::Position::new(0, 3),
+                        ),
+                        "".to_string(),
+                    )]
+                    .to_vec(),
+                    version: None,
+                },
+            ))
+        };
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            App(diagnostic(s.foo_rs())),
+            App(diagnostic(s.main_rs())),
+            App(Dispatch::SetQuickfixList(QuickfixListType::Diagnostic(
+                DiagnosticSeverityRange::All,
+            ))),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            Expect(CurrentSelectedTexts(&["pub"])),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            Expect(CurrentSelectedTexts(&["mod"])),
+            App(HandleKeyEvent(key!("esc"))),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            Expect(CurrentSelectedTexts(&["mod"])),
+        ])
+    })
+}
+
+#[test]
+fn unable_to_close_marked_files_that_became_a_directory() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        let foo_path = s.new_path("foo");
+        let temp_path = s.new_path("temp");
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(ToggleFileMark),
+            App(OpenAddPathPrompt),
+            App(AddPath(foo_path.display().to_string())),
+            // Enter again to open the new file which is revealed in explorer
+            App(HandleKeyEvents(keys!("enter").to_vec())),
+            App(ToggleFileMark),
+            ExpectLater(Box::new({
+                let foo_path = foo_path.clone();
+                move || CurrentPath(foo_path.clone().try_into().unwrap())
+            })),
+            App(CycleMarkedFile(Direction::End)),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            Shell("mv",[foo_path.display().to_string(),temp_path.display().to_string()].to_vec()),
+            Shell("mkdir",[foo_path.display().to_string()
+            ].to_vec()),
+            // Turn foo into a directory
+            Shell("mv",[
+                temp_path.display().to_string(),
+                foo_path.display().to_string()
+            ].to_vec()),
+            App(CycleMarkedFile(Direction::End)),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
+            Expect(MarkedFiles([s.main_rs()].to_vec())),
+            Expect(GlobalInfo("The file mark \"foo\" is removed from the list as it cannot be opened due to the following error:\n\nThe path \"foo\" is not a file.")),
+        ])
+    })
+}
+
+#[test]
+fn go_to_file_under_selection() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(s.foo_rs().display_absolute())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Line,
+            )),
+            Editor(GoToFile),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentComponentTitle(
+                "\u{200b} 🦀 foo.rs \u{200b}".to_string(),
+            )),
+            App(HandleKeyEvent(key!("alt+v"))),
+            Expect(AppGrid(
+                "[ROOT] (Cannot be saved)
+1│█
+
+
+
+
+
+
+
+ Close current window"
+                    .to_string(),
+            )),
         ])
     })
 }

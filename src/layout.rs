@@ -1,3 +1,4 @@
+use crate::config::from_extension;
 use crate::context::Context;
 use crate::quickfix_list::QuickfixList;
 use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
@@ -23,6 +24,9 @@ use itertools::Itertools;
 use nary_tree::NodeId;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{cell::RefCell, rc::Rc};
+
+#[cfg(test)]
+pub(crate) type BufferContentsMap = std::collections::HashMap<String, String>;
 
 /// The layout of the app is split into multiple sections: the main panel, info panel, quickfix
 /// lists, prompts, and etc.
@@ -249,6 +253,19 @@ impl Layout {
             .collect()
     }
 
+    #[cfg(test)]
+    pub(crate) fn get_buffer_contents_map(&self) -> BufferContentsMap {
+        self.background_suggestive_editors
+            .iter()
+            .map(|(path, editor)| {
+                (
+                    path.file_name().unwrap_or_default(),
+                    editor.borrow().editor().buffer().content(),
+                )
+            })
+            .collect()
+    }
+
     pub(crate) fn save_all(&self, context: &Context) -> Result<(), anyhow::Error> {
         self.background_suggestive_editors
             .iter()
@@ -275,14 +292,8 @@ impl Layout {
         self.background_suggestive_editors.shift_remove(path);
     }
 
-    pub(crate) fn refresh_file_explorer(
-        &self,
-        working_directory: &CanonicalizedPath,
-        context: &Context,
-    ) -> anyhow::Result<()> {
-        self.background_file_explorer
-            .borrow_mut()
-            .refresh(working_directory, context)
+    pub(crate) fn refresh_file_explorer(&self, context: &Context) -> anyhow::Result<()> {
+        self.background_file_explorer.borrow_mut().refresh(context)
     }
 
     pub(crate) fn open_file_explorer(&mut self) {
@@ -301,12 +312,17 @@ impl Layout {
         batch_id: SyntaxHighlightRequestBatchId,
         highlighted_spans: crate::syntax_highlight::HighlightedSpans,
     ) -> Result<(), anyhow::Error> {
-        let component = self
-            .background_suggestive_editors
-            .iter()
-            .find(|(_, component)| component.borrow().id() == component_id)
-            .map(|(_, component)| component)
-            .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))?;
+        let component = match &self.background_quickfix_list {
+            Some(component) if component.borrow().id() == component_id => {
+                Box::new(component.clone() as Rc<RefCell<dyn Component>>)
+            }
+            _ => self
+                .background_suggestive_editors
+                .iter()
+                .find(|(_, component)| component.borrow().id() == component_id)
+                .map(|(_, component)| Box::new(component.clone() as Rc<RefCell<dyn Component>>))
+                .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))?,
+        };
 
         let mut component = component.borrow_mut();
         component
@@ -327,19 +343,21 @@ impl Layout {
     pub(crate) fn reload_buffers(
         &self,
         affected_paths: Vec<CanonicalizedPath>,
-    ) -> anyhow::Result<()> {
-        for buffer in self.buffers() {
-            let mut buffer = buffer.borrow_mut();
-            if let Some(path) = buffer.path() {
-                if affected_paths
-                    .iter()
-                    .any(|affected_path| affected_path == &path)
-                {
-                    buffer.reload()?;
+    ) -> anyhow::Result<Dispatches> {
+        self.buffers()
+            .into_iter()
+            .try_fold(Dispatches::default(), |dispatches, buffer| {
+                let mut buffer = buffer.borrow_mut();
+                if let Some(path) = buffer.path() {
+                    if affected_paths
+                        .iter()
+                        .any(|affected_path| affected_path == &path)
+                    {
+                        return Ok(dispatches.chain(buffer.reload(true)?));
+                    }
                 }
-            }
-        }
-        Ok(())
+                Ok(dispatches)
+            })
     }
 
     #[cfg(test)]
@@ -347,7 +365,6 @@ impl Layout {
         self.current_completion_dropdown().is_some()
     }
 
-    #[cfg(test)]
     pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.get_current_node_child_id(ComponentKind::Dropdown)
             .and_then(|node_id| Some(self.tree.get(node_id)?.data().component().clone()))
@@ -413,7 +430,7 @@ impl Layout {
         &mut self,
         quickfix_list: QuickfixList,
         context: &Context,
-    ) -> anyhow::Result<Dispatches> {
+    ) -> anyhow::Result<(Rc<RefCell<Editor>>, Dispatches)> {
         let render = quickfix_list.render();
         let editor = self.background_quickfix_list.get_or_insert_with(|| {
             Rc::new(RefCell::new(Editor::from_text(
@@ -421,10 +438,13 @@ impl Layout {
                 "",
             )))
         });
+        editor
+            .borrow_mut()
+            .buffer_mut()
+            .set_language(from_extension("ki_quickfix").unwrap())?;
         let node_id =
             self.tree
                 .replace_root_node_child(ComponentKind::QuickfixList, editor.clone(), false);
-
         let dispatches = {
             let mut editor = editor.borrow_mut();
             editor.set_content(&render.content, context)?;
@@ -432,10 +452,27 @@ impl Layout {
             editor.set_title("Quickfix list".to_string());
             editor.select_line_at(render.highlight_line_index, context)?
         };
-        if let Some(info) = render.info {
-            self.show_info_on(node_id, info, ComponentKind::QuickfixListInfo, context)?;
+
+        // If the QuickfixList is the only component in the layout,
+        // then it needs to be focused.
+        // This can happen when, say, the user executed a global search
+        // when no files have been opened yet.
+        if self.tree.components().len() == 1 {
+            self.tree.set_focus_component_id(node_id)
         }
-        Ok(dispatches)
+
+        let editor = (*editor).clone();
+
+        if let Some(info) = render.info {
+            self.show_info_on(
+                self.tree.root_id(),
+                info,
+                ComponentKind::GlobalInfo,
+                context,
+            )?;
+        }
+
+        Ok((editor, dispatches))
     }
 
     #[cfg(test)]
@@ -463,22 +500,23 @@ impl Layout {
     }
 
     #[cfg(test)]
-    pub(crate) fn editor_info_open(&self) -> bool {
-        self.tree.count_by_kind(ComponentKind::EditorInfo) > 0
+    pub(crate) fn editor_info_contents(&self) -> Vec<String> {
+        self.tree
+            .root()
+            .traverse_pre_order()
+            .filter(|node| node.data().kind() == ComponentKind::EditorInfo)
+            .map(|node| node.data().component().borrow().content())
+            .collect()
     }
 
     #[cfg(test)]
-    pub(crate) fn editor_info_content(&self) -> Option<String> {
-        Some(
-            self.tree
-                .root()
-                .traverse_pre_order()
-                .find(|node| node.data().kind() == ComponentKind::EditorInfo)?
-                .data()
-                .component()
-                .borrow()
-                .content(),
-        )
+    pub(crate) fn global_info_contents(&self) -> Vec<String> {
+        self.tree
+            .root()
+            .traverse_pre_order()
+            .filter(|node| node.data().kind() == ComponentKind::GlobalInfo)
+            .map(|node| node.data().component().borrow().content())
+            .collect()
     }
 
     #[cfg(test)]
@@ -486,16 +524,22 @@ impl Layout {
         self.background_file_explorer.borrow().content()
     }
 
+    pub(crate) fn file_explorer_expanded_folders(&self) -> Vec<CanonicalizedPath> {
+        self.background_file_explorer.borrow().expanded_folders()
+    }
+
     pub(crate) fn get_quickfix_list_items(
         &self,
         source: &QuickfixListSource,
+        context: &Context,
     ) -> Vec<QuickfixListItem> {
-        self.buffers()
-            .into_iter()
-            .flat_map(|buffer| {
-                let buffer = buffer.borrow();
-                match source {
-                    QuickfixListSource::Diagnostic(severity_range) => buffer
+        match source {
+            QuickfixListSource::Diagnostic(severity_range) => self
+                .buffers()
+                .into_iter()
+                .flat_map(|buffer| {
+                    let buffer = buffer.borrow();
+                    buffer
                         .diagnostics()
                         .into_iter()
                         .filter_map(|diagnostic| {
@@ -503,45 +547,38 @@ impl Layout {
                                 return None;
                             }
 
-                            let position_range = buffer
-                                .char_index_range_to_position_range(diagnostic.range)
-                                .ok()?;
                             Some(QuickfixListItem::new(
                                 Location {
                                     path: buffer.path()?,
-                                    range: position_range,
+                                    range: diagnostic.range,
                                 },
                                 Some(Info::new(
                                     "Diagnostics".to_string(),
                                     diagnostic.message.clone(),
                                 )),
-                            ))
-                        })
-                        .collect_vec(),
-                    QuickfixListSource::Mark => buffer
-                        .marks()
-                        .into_iter()
-                        .filter_map(|mark| {
-                            let position_range =
-                                buffer.char_index_range_to_position_range(mark).ok()?;
-                            Some(QuickfixListItem::new(
-                                Location {
-                                    path: buffer.path()?,
-                                    range: position_range,
-                                },
                                 None,
                             ))
                         })
-                        .collect_vec(),
-                    QuickfixListSource::Custom => buffer.quickfix_list_items(),
-                }
-            })
-            .collect_vec()
-    }
-
-    pub(crate) fn clear_quickfix_list_items(&mut self) {
-        for buffer in self.buffers() {
-            buffer.borrow_mut().clear_quickfix_list_items()
+                        .collect_vec()
+                })
+                .collect_vec(),
+            QuickfixListSource::Mark => context
+                .marks()
+                .iter()
+                .flat_map(|(path, marks)| {
+                    marks.iter().map(|mark| {
+                        QuickfixListItem::new(
+                            Location {
+                                path: path.clone(),
+                                range: *mark,
+                            },
+                            None,
+                            None,
+                        )
+                    })
+                })
+                .collect_vec(),
+            QuickfixListSource::Custom(items) => items.iter().cloned().collect_vec(),
         }
     }
 
@@ -563,10 +600,10 @@ impl Layout {
     }
 
     #[cfg(test)]
-    pub(crate) fn quickfix_list_info(&self) -> Option<String> {
+    pub(crate) fn global_info(&self) -> Option<String> {
         Some(
             self.tree
-                .get_component_by_kind(ComponentKind::QuickfixListInfo)?
+                .get_component_by_kind(ComponentKind::GlobalInfo)?
                 .borrow()
                 .content(),
         )
@@ -581,6 +618,18 @@ impl Layout {
 
     pub(crate) fn hide_editor_info(&mut self) {
         self.tree.remove_current_child(ComponentKind::EditorInfo);
+    }
+
+    pub(crate) fn close_global_info(&mut self) {
+        self.tree
+            .remove_node_child(self.tree.root_id(), ComponentKind::GlobalInfo);
+    }
+
+    pub(crate) fn get_component_by_id(
+        &self,
+        component_id: ComponentId,
+    ) -> Option<Rc<RefCell<dyn Component>>> {
+        self.tree.get_component_by_id(component_id)
     }
 }
 fn layout_kind() -> (LayoutKind, f32) {

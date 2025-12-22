@@ -111,7 +111,7 @@ enum KeymapFormat {
 
 fn create_timestamp_file() -> anyhow::Result<(PathBuf, File)> {
     let timestamp = Local::now().format("%Y-%m-%d-%H-%M-%S").to_string();
-    let path = PathBuf::from(format!("{}.txt", timestamp));
+    let path = PathBuf::from(format!("{timestamp}.txt"));
     let file = File::create(&path)?;
     Ok((path, file))
 }
@@ -178,8 +178,8 @@ pub(crate) fn cli() -> anyhow::Result<()> {
             }
             Commands::Grammar { command } => {
                 match command {
-                    Grammar::Build => shared::grammar::build_grammars(),
-                    Grammar::Fetch => shared::grammar::fetch_grammars(),
+                    Grammar::Build => build_grammars(),
+                    Grammar::Fetch => fetch_grammars(),
                 };
                 Ok(())
             }
@@ -225,7 +225,24 @@ pub(crate) fn cli() -> anyhow::Result<()> {
 pub(crate) fn get_version() -> String {
     let git_hash = env!("GIT_HASH");
     let build_time = env!("BUILD_TIME");
-    format!("{} (Built on {})", git_hash, build_time)
+    format!("{git_hash} (Built on {build_time})")
+}
+
+use grammar::grammar::GrammarConfiguration;
+
+pub(crate) fn grammar_configs() -> Vec<GrammarConfiguration> {
+    crate::config::AppConfig::singleton()
+        .languages()
+        .iter()
+        .flat_map(|(_, language)| language.tree_sitter_grammar_config())
+        .collect()
+}
+pub fn build_grammars() {
+    grammar::grammar::build_grammars(None, grammar_configs()).unwrap();
+}
+
+pub fn fetch_grammars() {
+    grammar::grammar::fetch_grammars(grammar_configs()).unwrap();
 }
 #[cfg(test)]
 mod test_process_edit_args {

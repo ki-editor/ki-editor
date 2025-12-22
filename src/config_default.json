@@ -1,0 +1,30 @@
+{
+    "theme": "VS Code (Light)",
+    "keyboard_layout": "Qwerty",
+    "status_lines": [
+        {
+            "components": [
+                "KiCharacter",
+                "Mode",
+                "SelectionMode",
+                "Reveal",
+                "LastSearchString",
+                "Spacer",
+                "LastDispatch",
+                "KeyboardLayout",
+                "Help"
+            ]
+        },
+        {
+            "components": [
+                "GitBranch",
+                "LineColumn",
+                "Spacer",
+                "CurrentFileParentFolder",
+                "Spacer",
+                "CurrentWorkingDirectory"
+            ]
+        }
+    ],
+    "languages": {}
+}

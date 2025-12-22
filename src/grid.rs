@@ -1,5 +1,6 @@
 use crate::{
     app::Dimension,
+    git::hunk::SimpleHunkKind,
     position::Position,
     soft_wrap::{self},
     style::Style,
@@ -20,6 +21,7 @@ pub(crate) struct Grid {
 }
 
 const DEFAULT_TAB_SIZE: usize = 4;
+pub(crate) const LINE_NUMBER_VERTICAL_BORDER: &str = "│";
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub(crate) struct Cell {
@@ -161,7 +163,6 @@ impl Ord for PositionedCell {
         self.position.cmp(&other.position)
     }
 }
-#[cfg(test)]
 impl std::fmt::Display for Grid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -195,14 +196,14 @@ pub(crate) enum RenderContentLineNumber {
 impl Grid {
     pub(crate) fn new(dimension: Dimension) -> Grid {
         let mut cells: Vec<Vec<Cell>> = vec![];
-        cells.resize_with(dimension.height.into(), || {
+        cells.resize_with(dimension.height, || {
             let mut cells = vec![];
-            cells.resize_with(dimension.width.into(), Cell::default);
+            cells.resize_with(dimension.width, Cell::default);
             cells
         });
         Grid {
             rows: cells,
-            width: dimension.width.into(),
+            width: dimension.width,
         }
     }
 
@@ -248,8 +249,8 @@ impl Grid {
 
     pub(crate) fn dimension(&self) -> Dimension {
         Dimension {
-            height: self.rows.len() as u16,
-            width: self.width as u16,
+            height: self.rows.len(),
+            width: self.width,
         }
     }
 
@@ -273,13 +274,13 @@ impl Grid {
         top
     }
 
-    pub(crate) fn clamp_bottom(self, by: u16) -> Grid {
+    pub(crate) fn clamp_bottom(self, by: usize) -> Grid {
         let mut grid = self;
         let dimension = grid.dimension();
         let height = dimension.height.saturating_sub(by);
 
         if dimension.height > height {
-            grid.rows.truncate(height as usize);
+            grid.rows.truncate(height);
         }
         grid
     }
@@ -304,11 +305,10 @@ impl Grid {
     ) -> Vec<CellUpdate> {
         let dimension = self.dimension();
         let grid = self;
-        let column_range =
-            column_start.unwrap_or(0)..column_end.unwrap_or(dimension.width as usize);
+        let column_range = column_start.unwrap_or(0)..column_end.unwrap_or(dimension.width);
         // Trim or Pad end with spaces
         let content = format!("{:<width$}", content, width = column_range.len());
-        let take = grid.dimension().width as usize;
+        let take = grid.dimension().width;
         content
             .chars()
             .take(take)
@@ -336,6 +336,7 @@ impl Grid {
     /// Note:
     /// - `line_index_start` is 0-based.
     /// - If `max_line_number` is
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn render_content(
         self,
         content: &str,
@@ -344,6 +345,7 @@ impl Grid {
         line_updates: Vec<LineUpdate>,
         theme: &Theme,
         cursor_position: Option<Position>,
+        git_hunks: &[crate::git::hunk::SimpleHunk],
     ) -> Grid {
         let Dimension { height, width } = self.dimension();
         let (line_index_start, max_line_number_len, line_number_separator_width) = match line_number
@@ -358,7 +360,7 @@ impl Grid {
                 1,
             ),
         };
-        let content_container_width = (width as usize)
+        let content_container_width = width
             .saturating_sub(max_line_number_len)
             .saturating_sub(line_number_separator_width);
 
@@ -403,7 +405,7 @@ impl Grid {
                         style: line_update.style,
                         position: Position {
                             line,
-                            column: column_index as usize,
+                            column: column_index,
                         },
                         ..Default::default()
                     },
@@ -438,59 +440,13 @@ impl Grid {
             })
             .collect::<Vec<_>>();
 
-        // Handle discrepancy between ropey and String line counting methods.
-        //
-        // `ropey::Rope::len_lines()` counts lines as "number of newline characters + 1",
-        // which means a string ending with a newline is counted as having an extra line.
-        // For example: "hello\nworld\n" has 2 newlines, so ropey counts 3 lines.
-        //
-        // However, `String::lines()` ignores trailing newlines when iterating.
-        // The same string "hello\nworld\n" only yields 2 lines when iterated.
-        //
-        // Ropey behaves this way because text editors are expected to follow this convention:
-        // - A newline character creates a new line, even if it's at the end of the file
-        // - Users expect the cursor to be able to move to a new empty line after a trailing newline
-        // - Line numbers should reflect the actual navigable positions in the editor
-        // - This matches how most professional text editors (Vim, Emacs, VS Code) handle line counting
-        //
-        // This creates a mismatch: we need to render as many line numbers as `ropey`
-        // reports (to match the editor's expected line count), but our `wrapped_lines` is built
-        // from `String::lines()` iteration (which excludes the trailing empty line).
-        //
-        // When ropey reports exactly one more line than our wrapped line count,
-        // it indicates there's a trailing newline that created an "empty" final line.
-        // We need to add a corresponding line number for this empty line to maintain
-        // proper line numbering alignment and editor behavior consistency.
-        //
-        // Note: This also handles the case where we need to render at least one
-        // line number even when the content appears empty (e.g., empty string or just "\n").
-        let line_numbers = if 1
-            == ropey::Rope::from_str(content)
-                .len_lines()
-                .saturating_sub(wrapped_lines.wrapped_lines_count())
-        {
-            let last_line_number = LineNumber {
-                line_number: line_numbers
-                    .last()
-                    .map(|line_number| line_number.line_number + 1)
-                    .unwrap_or(0),
-
-                wrapped: false,
-            };
-            line_numbers
-                .into_iter()
-                .chain(Some(last_line_number))
-                .collect_vec()
-        } else {
-            line_numbers
-        };
         #[derive(Debug)]
         struct CalibratableCellUpdate {
             cell_update: CellUpdate,
             should_be_calibrated: bool,
         }
         let grid: Grid = Grid::new(Dimension {
-            height: (height as usize).max(wrapped_lines.wrapped_lines_count()) as u16,
+            height: height.max(wrapped_lines.wrapped_lines_count()),
             width,
         });
         let line_numbers = {
@@ -552,8 +508,34 @@ impl Grid {
                                 line_index,
                                 Some(max_line_number_len),
                                 Some(max_line_number_len + 1),
-                                "│",
-                                &theme.ui.border,
+                                LINE_NUMBER_VERTICAL_BORDER,
+                                &{
+                                    if let Some(hunk) = git_hunks.iter().find(|hunk| {
+                                        // This equivalence check is crucial, because Deleted hunk has 0 length, for example (1..1)
+                                        hunk.new_line_range.start == line_number
+                                            || hunk.new_line_range.contains(&line_number)
+                                    }) {
+                                        match hunk.kind {
+                                            SimpleHunkKind::Delete => {
+                                                Style::same_background_foreground(
+                                                    theme.git_gutter.deletion,
+                                                )
+                                            }
+                                            SimpleHunkKind::Insert => {
+                                                Style::same_background_foreground(
+                                                    theme.git_gutter.insertion,
+                                                )
+                                            }
+                                            SimpleHunkKind::Replace => {
+                                                Style::same_background_foreground(
+                                                    theme.git_gutter.replacement,
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        theme.ui.border
+                                    }
+                                },
                             ))
                             .map(|cell_update| {
                                 CalibratableCellUpdate {
@@ -577,9 +559,10 @@ impl Grid {
                     {
                         Box::new(calibrated_position.into_iter().enumerate().map(
                             move |(index, position)| CellUpdate {
-                                position: position.move_right(
-                                    (max_line_number_len + line_number_separator_width) as u16,
-                                ),
+                                position:
+                                    position.move_right(
+                                        max_line_number_len + line_number_separator_width,
+                                    ),
                                 symbol: if index == 0 {
                                     update.cell_update.symbol
                                 } else {
@@ -615,7 +598,7 @@ impl Grid {
                 .line
                 .saturating_sub(min_line)
                 .saturating_add(1)
-                .saturating_sub(height as usize);
+                .saturating_sub(height);
 
             let min_renderable_line = min_line + extra_height;
             calibrated
@@ -703,6 +686,7 @@ pub(crate) enum StyleKey {
     DiagnosticsInformation,
     UiMark,
     UiPossibleSelection,
+    UiIncrementalSearchMatch,
 
     DiagnosticsDefault,
     HunkOld,
@@ -794,6 +778,7 @@ mod test_grid {
                 Vec::new(),
                 &Theme::default(),
                 None,
+                &[],
             )
             .to_string();
             assert_eq!(actual, "2│hello")
@@ -816,6 +801,7 @@ mod test_grid {
                 Vec::new(),
                 &Theme::default(),
                 None,
+                &[],
             )
             .to_string();
             assert_eq!(
@@ -845,6 +831,7 @@ mod test_grid {
                 Vec::new(),
                 &Theme::default(),
                 None,
+                &[],
             )
             .to_string();
             assert_eq!(
@@ -883,6 +870,7 @@ mod test_grid {
                 Vec::new(),
                 &Theme::default(),
                 None,
+                &[],
             )
             .to_string();
             // Expect a space is inserted between the crab emoji and 'c',
@@ -923,6 +911,7 @@ mod test_grid {
                 Vec::new(),
                 &Theme::default(),
                 None,
+                &[],
             )
             .to_string();
             assert_eq!(
@@ -954,6 +943,7 @@ mod test_grid {
                 Vec::new(),
                 &Theme::default(),
                 None,
+                &[],
             )
             .to_string();
             // Expect there's two extra spaces before '2'
@@ -983,6 +973,7 @@ mod test_grid {
                 .to_vec(),
                 &Theme::default(),
                 None,
+                &[],
             );
             assert_eq!(
                 actual
@@ -1027,6 +1018,7 @@ mod test_grid {
                         ..Default::default()
                     },
                     None,
+                    &[],
                 )
                 .to_positioned_cells();
             assert_eq!(
@@ -1053,6 +1045,7 @@ mod test_grid {
                     Vec::new(),
                     &Default::default(),
                     None,
+                    &[],
                 )
                 .to_string();
             assert_eq!("hello", actual)
@@ -1073,6 +1066,7 @@ mod test_grid {
                     Vec::new(),
                     &Default::default(),
                     None,
+                    &[],
                 )
                 .to_positioned_cells()
                 .into_iter()
@@ -1107,6 +1101,7 @@ x
                     Vec::new(),
                     &Default::default(),
                     None,
+                    &[],
                 )
                 .to_string();
             assert_eq!(
@@ -1139,6 +1134,7 @@ x
                     .to_vec(),
                     &Default::default(),
                     None,
+                    &[],
                 )
                 .to_positioned_cells()
                 .into_iter()

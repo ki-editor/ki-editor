@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 event = { path = "../event" }
-crossterm.workspace = true
 regex.workspace = true
 
 [lib]

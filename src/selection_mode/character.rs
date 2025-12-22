@@ -1,8 +1,8 @@
 use crate::components::editor::IfCurrentNotFound;
 
 use super::{
-    word::SelectionPosition, ByteRange, PositionBased, PositionBasedSelectionMode,
-    SelectionModeTrait, Word,
+    subword::SelectionPosition, ByteRange, PositionBased, PositionBasedSelectionMode,
+    SelectionModeTrait, Subword,
 };
 
 pub(crate) struct Character;
@@ -44,7 +44,7 @@ fn get_char(
     params: &super::SelectionModeParams,
     position: SelectionPosition,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
-    if let Some(current_word) = PositionBased(Word::new()).current(
+    if let Some(current_word) = PositionBased(Subword::new()).current(
         params,
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {
@@ -154,9 +154,9 @@ mod test_character {
                     SelectionMode::Character,
                 )),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelection(Up)),
+                Editor(MoveSelection(Left)),
                 Expect(CurrentSelectedTexts(&[""])),
             ])
         })

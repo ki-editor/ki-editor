@@ -3,6 +3,9 @@ use std::sync::mpsc::{channel, Receiver};
 use crate::app::AppMessage;
 use shared::canonicalized_path::CanonicalizedPath;
 
+#[cfg(test)]
+use crate::layout::BufferContentsMap;
+
 pub(crate) struct TestRunner {
     temp_dir: CanonicalizedPath,
 }
@@ -13,10 +16,16 @@ impl Drop for TestRunner {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct TestOutput {
+    pub(crate) term_output: Option<String>,
+    pub(crate) buffer_contents_map: BufferContentsMap,
+}
+
 impl TestRunner {
     pub(crate) fn run(
-        callback: impl Fn(CanonicalizedPath) -> anyhow::Result<Option<String>>,
-    ) -> anyhow::Result<Option<String>> {
+        callback: impl Fn(CanonicalizedPath) -> anyhow::Result<TestOutput>,
+    ) -> anyhow::Result<TestOutput> {
         let (runner, _) = Self::new()?;
         let output = callback(runner.temp_dir.clone())?;
         Ok(output)
@@ -24,7 +33,7 @@ impl TestRunner {
     fn new() -> anyhow::Result<(Self, Receiver<AppMessage>)> {
         const MOCK_REPO_PATH: &str = "tests/mock_repos/rust1";
 
-        let path = tempfile::tempdir()?.into_path();
+        let path = tempfile::tempdir()?.keep();
         std::fs::create_dir_all(path.clone())?;
 
         let options = fs_extra::dir::CopyOptions::new();

@@ -1,10 +1,10 @@
 {
-  "scripts": {
-    "format": "biome format --write ki-vscode",
-    "lint": "biome lint ki-vscode",
-    "lint:fix": "biome lint --write ki-vscode"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "1.9.4"
-  }
+    "scripts": {
+        "format": "biome format --write . --verbose",
+        "lint": "biome lint .",
+        "lint:fix": "biome lint --write ."
+    },
+    "devDependencies": {
+        "@biomejs/biome": "1.9.4"
+    }
 }

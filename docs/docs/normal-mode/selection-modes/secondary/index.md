@@ -20,19 +20,21 @@ For example, when searching for text:
 
 ## Keymap
 
+<KeymapFallback filename="Secondary Selection Modes Init"/>
+
 ### Initialization
 
-Most secondary selection modes are nested below the 3 keybindings below,
+Secondary selection modes are nested below the following two keybinds,
 with the exception of Search and Search Current, which are placed on the
 first layer due to their ubiquity.
 
-- `[` : Local (Backward)
-- `]` : Local (Forward)
-- `\**\**`: Global
+- Local
+- Global
 
 Local Find is directional, meaning that if the cursor position does not overlap
 with any selections of the chosen secondary selection mode, the cursor will
-jump to the nearest selection in the chosen direction
+jump to the nearest selection in the chosen direction. `Local` initialisation
+is [directional (see footnotes of actions)](../../actions/index.md).
 
 Global Find however is non-directional.
 
@@ -40,28 +42,15 @@ Notice that the keybindings here are all located on the right side of the keyboa
 this is because all the secondary selection modes are placed on the left side of the
 keyboard, which allows for efficient execution via hand-alternation.
 
-There are 3 sets of keymap for secondary selection modes:
-
-1. Local (Forward)
-2. Local (Backward)
-3. Global
-
-They are almost identical except:
+The sets of keybinds under these, are almost identical except:
 
 1. `One` and `Int` are only applicable for the Local keymaps
 2. `Search` and `This` are only applicable for the Global keymap
-3. Position of `Repeat` is different all 3 keymaps to enable easy combo:  
-   a. To repeat the last secondary selection backward, press `[` twice  
-   b. To repeat the last secondary selection forward, press `]` twice  
-   c. To repeat the last secondary selection globally, press `\\` twice
+3. `Repeat` is in the Shift layer for Global keymap
 
-### Local (Forward)
+### Local
 
-<KeymapFallback filename="Secondary Selection Modes (Local Forward)"/>
-
-### Local (Backward)
-
-<KeymapFallback filename="Secondary Selection Modes (Local Backward)"/>
+<KeymapFallback filename="Secondary Selection Modes (Local)"/>
 
 ### Global
 
@@ -156,6 +145,10 @@ In this case, we need t
 - Remove only 'date' from second line
 
 The `Repeat` command lets you reuse the last selection mode without manual reactivation, making these varied modifications more efficient.
+
+### `Repeat Search`
+
+Repeats the last search.
 
 ### `Quickfix`
 

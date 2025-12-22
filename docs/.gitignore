@@ -10,6 +10,9 @@
 # Generated keymaps
 /static/keymaps/*.json
 
+# Generated default config
+/static/config_default.json
+
 # Generated files
 .docusaurus
 .cache-loader

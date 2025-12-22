@@ -12,6 +12,7 @@ mod grid;
 mod integration_event;
 #[cfg(test)]
 mod integration_test;
+mod render_flex_layout;
 mod search;
 
 mod layout;
@@ -47,9 +48,18 @@ mod utils;
 
 mod embed;
 
+mod alternator;
+pub(crate) mod config;
 mod divide_viewport;
 mod env;
+pub(crate) mod file_watcher;
 mod format_path_list;
+pub(crate) mod persistence;
+#[cfg(test)]
+mod test_lsp;
+#[cfg(test)]
+mod test_search;
+mod thread;
 use std::{rc::Rc, sync::Mutex};
 
 use anyhow::Context;
@@ -57,9 +67,9 @@ use frontend::crossterm::Crossterm;
 use log::LevelFilter;
 use shared::canonicalized_path::CanonicalizedPath;
 
-use app::{App, StatusLineComponent};
+use app::App;
 
-use crate::app::AppMessage;
+use crate::{app::AppMessage, config::AppConfig, persistence::Persistence};
 
 fn main() {
     cli::cli().unwrap();
@@ -75,28 +85,22 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
     simple_logging::log_to_file(grammar::default_log_file(), LevelFilter::Info)?;
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
-    let mut app = App::from_channel(
+
+    let app = App::from_channel(
         Rc::new(Mutex::new(Crossterm::new()?)),
         config.working_directory.unwrap_or(".".try_into()?),
         sender,
         receiver,
-        [
-            StatusLineComponent::Mode,
-            StatusLineComponent::SelectionMode,
-            StatusLineComponent::LastSearchString,
-            StatusLineComponent::Reveal,
-            StatusLineComponent::CurrentWorkingDirectory,
-            StatusLineComponent::GitBranch,
-            StatusLineComponent::KeyboardLayout,
-            StatusLineComponent::Help,
-            StatusLineComponent::LastDispatch,
-        ]
-        .to_vec(),
+        Some(syntax_highlighter_sender),
+        AppConfig::singleton().status_lines(),
         None, // No integration event sender
         true,
+        true,
         false,
+        Some(Persistence::load_or_default(
+            grammar::cache_dir().join("data.json"),
+        )),
     )?;
-    app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 
     let sender = app.sender();
 
@@ -128,8 +132,6 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
 
     app.run(config.entry_path)
         .map_err(|error| anyhow::anyhow!("screen.run {:?}", error))?;
-
-    crossterm_join_handle.join().unwrap();
 
     Ok(())
 }
