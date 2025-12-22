@@ -105,13 +105,29 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
     let sender = app.sender();
 
     std::thread::spawn(move || loop {
-        if crossterm::event::read()
-            .map_err(|error| anyhow::anyhow!("{:?}", error))
-            .and_then(|event| Ok(sender.send(AppMessage::Event(event.into()))?))
-            .is_err()
-        {
-            break;
-        }
+        let message = match crossterm::event::read() {
+            Ok(event) => {
+                match event {
+                    crossterm::event::Event::Key(key_event) => {
+                        // Only process key press events, not releases
+                        // This is especially important for Windows compatibility
+                        if key_event.kind == crossterm::event::KeyEventKind::Press {
+                            AppMessage::Event(event.into())
+                        } else {
+                            // Skip release events by continuing the loop
+                            continue;
+                        }
+                    }
+                    // For non-keyboard events, process as before
+                    other_event => AppMessage::Event(other_event.into()),
+                }
+            }
+            Err(err) => AppMessage::NotifyError(err),
+        };
+
+        let _ = sender
+            .send(message)
+            .map_err(|err| log::info!("main::run::crossterm {err:#?}"));
     });
 
     app.run(config.entry_path)

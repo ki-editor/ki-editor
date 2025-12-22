@@ -338,6 +338,10 @@ impl<T: Frontend> App<T> {
                 self.handle_file_watcher_event(event)?;
                 Ok(false)
             }
+            AppMessage::NotifyError(error) => {
+                self.show_global_info(Info::new("App Error".to_string(), format!("{error:#?}")));
+                Ok(false)
+            }
         }
     }
 
@@ -3618,6 +3622,7 @@ pub(crate) enum AppMessage {
         highlighted_spans: HighlightedSpans,
     },
     // New variant for external dispatches
+    NotifyError(std::io::Error),
     ExternalDispatch(Box<Dispatch>),
     NucleoTickDebounced,
     FileWatcherEvent(FileWatcherEvent),
