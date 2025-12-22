@@ -3622,7 +3622,6 @@ pub(crate) enum AppMessage {
         highlighted_spans: HighlightedSpans,
     },
     // New variant for external dispatches
-    ExternalDispatch(Dispatch),
     NotifyError(std::io::Error),
     ExternalDispatch(Box<Dispatch>),
     NucleoTickDebounced,
