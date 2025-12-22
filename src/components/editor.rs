@@ -4494,15 +4494,23 @@ impl Editor {
                         .flatten()?
                         .selection;
 
-                        Some(
-                            match direction {
-                                Direction::Start => other_selection.range.end..current_range.end,
-                                Direction::End => current_range.start..other_selection.range.start,
-                            }
-                            .into(),
-                        )
+                        if other_selection.range() == start_selection.range() {
+                            None
+                        } else {
+                            Some(
+                                match direction {
+                                    Direction::Start => {
+                                        other_selection.range.end..current_range.end
+                                    }
+                                    Direction::End => {
+                                        current_range.start..other_selection.range.start
+                                    }
+                                }
+                                .into(),
+                            )
+                        }
                     };
-                    let select_range = get_selection().unwrap_or(start_selection.extended_range());
+                    let select_range = get_selection().unwrap_or(current_range);
                     Ok(ActionGroup::new(
                         [Action::Select(
                             selection
