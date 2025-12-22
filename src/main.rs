@@ -104,7 +104,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
 
     let sender = app.sender();
 
-    let crossterm_join_handle = std::thread::spawn(move || loop {
+    std::thread::spawn(move || loop {
         let message = match crossterm::event::read() {
             Ok(event) => {
                 match event {
