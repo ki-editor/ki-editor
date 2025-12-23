@@ -1730,10 +1730,6 @@ impl Editor {
                         // It cannot be the extended selection, otherwise the next/previous selection
                         // will not be found
 
-                        let start_selection = &selection
-                            .clone()
-                            .collapsed_to_anchor_range(&movement.to_direction());
-
                         let result_selection = Selection::get_selection_(
                             &buffer,
                             &selection
@@ -1809,6 +1805,15 @@ impl Editor {
                         let range = selection.extended_range();
                         (range, (range.start..range.start).into())
                     })();
+
+                    // Ensure that the select range contains at least 1 character
+                    // This is so that if the user execute Deletes again immediately, at least 1
+                    // character will be deleted
+                    let select_range = if select_range.len() == 0 {
+                        (select_range.start..select_range.start + 1).into()
+                    } else {
+                        select_range
+                    };
                     Ok(ActionGroup::new(
                         [
                             Action::Edit(Edit::new(
@@ -4463,12 +4468,9 @@ impl Editor {
                 .map(|selection| -> anyhow::Result<_> {
                     let current_range = selection.extended_range();
 
-                    // Let the current_range be at least one character long
-                    // so even if the current_range is empty, the user can
-                    // still delete the character which is apparently under the cursor.
                     let movement = match direction {
-                        Direction::Start => Movement::Left,
-                        Direction::End => Movement::Right,
+                        Direction::Start => Movement::Previous,
+                        Direction::End => Movement::Next,
                     };
 
                     let start_selection = &selection
@@ -4511,6 +4513,7 @@ impl Editor {
                         }
                     };
                     let select_range = get_selection().unwrap_or(current_range);
+
                     Ok(ActionGroup::new(
                         [Action::Select(
                             selection

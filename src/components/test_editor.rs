@@ -166,6 +166,7 @@ fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Editor(ExpandSelection(Direction::End)),
+            Editor(ExpandSelection(Direction::End)),
             Editor(DeleteOne),
             Expect(CurrentComponentContent("fn main(b:B) {}")),
             Expect(CurrentSelectedTexts(&["b:B"])),
@@ -5882,6 +5883,31 @@ fn expect_selection_maintain_the_same_if_expanding_forward_an_extended_selection
             Expect(CurrentSelectedTexts(&["bar spam"])),
             Editor(ExpandSelection(Direction::End)),
             Expect(CurrentSelectedTexts(&["bar spam"])),
+        ])
+    })
+}
+
+#[test]
+fn after_delete_selection_should_select_at_least_one_character() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+hello world
+foo bar
+spam baz"
+                    .trim()
+                    .to_string(),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(DeleteOne),
+            Expect(CurrentComponentContent("\nfoo bar\nspam baz")),
+            Expect(CurrentSelectedTexts(&["\n"])),
         ])
     })
 }
