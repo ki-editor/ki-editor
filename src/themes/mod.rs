@@ -33,14 +33,7 @@ impl Serialize for Theme {
     where
         S: Serializer,
     {
-        let descriptors = crate::themes::theme_descriptor::all();
-        let name = descriptors
-            .iter()
-            .find(|descriptor| descriptor.to_theme() == *self)
-            .map(|descriptor| descriptor.name())
-            .unwrap_or_default();
-
-        serializer.serialize_str(name)
+        serializer.serialize_str(&self.name)
     }
 }
 
