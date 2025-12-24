@@ -165,7 +165,7 @@ fn get_current_word_by_cursor(
 #[cfg(test)]
 mod test_word {
     use crate::buffer::BufferOwner;
-    use crate::components::editor::PriorChange;
+
     use crate::selection::SelectionMode;
     use crate::test_app::*;
 
@@ -242,55 +242,6 @@ mod test_word {
                     prior_change: None,
                 }),
                 Expect(JumpChars(&['f', '?', 'b', ':', 's'])),
-            ])
-        })
-    }
-
-    #[test]
-    fn gapless_delete_no_skip_symbols() -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent("foo.bar.spam".to_string())),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    SelectionMode::Word,
-                )),
-                Expect(CurrentSelectedTexts(&["foo"])),
-                Editor(MoveSelectionWithPriorChange(
-                    Next,
-                    Some(PriorChange::EnterDeleteMode),
-                )),
-                Expect(CurrentSelectedTexts(&["."])),
-            ])
-        })
-    }
-
-    #[test]
-    fn delete_skip_symbols() -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent("foo.bar.spam".to_string())),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    SelectionMode::Word,
-                )),
-                Expect(CurrentSelectedTexts(&["foo"])),
-                Editor(MoveSelectionWithPriorChange(
-                    Right,
-                    Some(PriorChange::EnterDeleteMode),
-                )),
-                Expect(CurrentSelectedTexts(&["bar"])),
-                Expect(CurrentComponentContent("bar.spam")),
             ])
         })
     }

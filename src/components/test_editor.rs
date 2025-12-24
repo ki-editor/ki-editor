@@ -103,7 +103,7 @@ fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent("main() {}")),
             Expect(CurrentSelectedTexts(&["main"])),
         ])
@@ -123,7 +123,7 @@ fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent("n main() {}")),
             Expect(CurrentSelectedTexts(&["n"])),
         ])
@@ -143,10 +143,7 @@ fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
             Editor(SetContent("fn main() {}".to_string())),
             Editor(MatchLiteral("}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(MoveSelectionWithPriorChange(
-                Next,
-                Some(PriorChange::EnterDeleteMode),
-            )),
+            Editor(Delete),
             Expect(CurrentComponentContent("fn main() {")),
         ])
     })
@@ -166,8 +163,7 @@ fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Editor(ExpandSelection(Direction::End)),
-            Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent("fn main(b:B) {}")),
             Expect(CurrentSelectedTexts(&["b:B"])),
         ])
@@ -188,7 +184,7 @@ fn delete_should_not_kill_if_not_possible() -> anyhow::Result<()> {
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent("fn main() {}")),
             Expect(CurrentSelectedTexts(&[")"])),
         ])
@@ -289,34 +285,9 @@ fn test_delete_extended_selection_forward() -> anyhow::Result<()> {
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["lives in"])),
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent("who a pineapple")),
             Expect(CurrentSelectedTexts(&["a"])),
-        ])
-    })
-}
-
-#[test]
-fn test_delete_extended_selection_backward() -> anyhow::Result<()> {
-    execute_test(move |s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent("who lives in a pineapple".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            Editor(MoveSelection(Right)),
-            Editor(EnableSelectionExtension),
-            Editor(MoveSelection(Right)),
-            Expect(CurrentSelectedTexts(&["lives in"])),
-            Editor(MoveSelectionWithPriorChange(
-                Left,
-                Some(PriorChange::EnterDeleteMode),
-            )),
-            Expect(CurrentComponentContent("who a pineapple")),
-            Expect(CurrentSelectedTexts(&["who"])),
         ])
     })
 }
@@ -368,7 +339,7 @@ fn test_delete_extended_selection_is_last_selection() -> anyhow::Result<()> {
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["lives in"])),
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent("who")),
             Expect(CurrentSelectedTexts(&["who"])),
         ])
@@ -390,7 +361,7 @@ fn test_delete_extended_selection_is_first_selection() -> anyhow::Result<()> {
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["who lives"])),
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent("in")),
             Expect(CurrentSelectedTexts(&["in"])),
         ])
@@ -411,7 +382,7 @@ fn test_delete_extended_selection_whole_file() -> anyhow::Result<()> {
             Editor(MoveSelection(Right)),
             Editor(SelectAll),
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent("")),
             Expect(CurrentSelectedTexts(&[""])),
         ])
@@ -585,7 +556,7 @@ fn update_mark_position() -> anyhow::Result<()> {
             Editor(MoveSelection(Left)),
             // Kill "foo"
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent("bar spim")),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             // Expect mark position is updated, and still selects "spim"
@@ -1345,10 +1316,7 @@ fn delete_extended_selection() -> anyhow::Result<()> {
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["fn main"])),
-            Editor(MoveSelectionWithPriorChange(
-                Next,
-                Some(PriorChange::EnterDeleteMode),
-            )),
+            Editor(Delete),
             Expect(CurrentSelectedTexts(&["("])),
         ])
     })
@@ -1380,7 +1348,7 @@ fn main() {
             Editor(EnableSelectionExtension),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Expect(CurrentSelectedTexts(&[".bar(\n           spam\n       )"])),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent(
                 "
 fn main() {
@@ -1389,7 +1357,7 @@ fn main() {
 }
 ",
             )),
-            Expect(CurrentSelectedTexts(&[""])),
+            Expect(CurrentSelectedTexts(&[";"])),
         ])
     })
 }
@@ -2226,7 +2194,7 @@ fn update_mark_position_with_undo_and_redo() -> anyhow::Result<()> {
             Editor(MoveSelection(Left)),
             // Kill "foo"
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent("bar spim")),
             // Expect mark position is updated (still selects "spim")
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
@@ -2352,29 +2320,6 @@ fn consider_unicode_width() -> anyhow::Result<()> {
 }
 
 #[test]
-fn delete_backward() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent("hello world yo".to_string())),
-            Editor(MatchLiteral("world".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            Expect(CurrentSelectedTexts(&["world"])),
-            Editor(MoveSelectionWithPriorChange(
-                Left,
-                Some(PriorChange::EnterDeleteMode),
-            )),
-            Expect(CurrentSelectedTexts(&["hello"])),
-            Expect(CurrentComponentContent("hello yo")),
-        ])
-    })
-}
-
-#[test]
 fn tree_sitter_should_not_reparse_in_insert_mode() -> anyhow::Result<()> {
     let mut editor = crate::components::editor::Editor::from_text(
         Some(tree_sitter_md::LANGUAGE.into()),
@@ -2422,7 +2367,7 @@ fn next_prev_after_current_selection_is_deleted() -> anyhow::Result<()> {
                         },
                     },
                 )),
-                Editor(DeleteOne),
+                Editor(Delete),
                 Editor(MoveSelection(if next { Right } else { Left })),
                 Expect(CurrentSelectedTexts(&["2"])),
             ])
@@ -3015,11 +2960,8 @@ fn selection_set_history_updates_upon_edit() -> Result<(), anyhow::Error> {
                 Expect(CurrentSelectedTexts(&["spam"])),
                 Editor(MoveSelection(Left)),
                 Expect(CurrentSelectedTexts(&["bar"])),
-                Editor(MoveSelectionWithPriorChange(
-                    Right,
-                    Some(PriorChange::EnterDeleteMode),
-                )),
-                Expect(CurrentComponentContent("foo spam")),
+                Editor(Delete),
+                Expect(CurrentComponentContent("foo  spam")),
                 Editor(GoBack),
                 Expect(CurrentSelectedTexts(&["spam"])),
             ])
@@ -3792,7 +3734,7 @@ yo"
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&[""])),
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentSelectedTexts(&["world"])),
         ])
     })
@@ -4230,7 +4172,7 @@ fn undo_redo_1() -> anyhow::Result<()> {
             Editor(SetContent("foo bar".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Editor(MoveSelection(Right)),
             Expect(CurrentComponentContent("")),
             Editor(Undo),
@@ -4264,7 +4206,7 @@ fn undo_redo_should_clear_redo_stack_upon_new_edits() -> anyhow::Result<()> {
             Editor(SetContent("foo bar".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Editor(MoveSelection(Right)),
             Expect(CurrentComponentContent("")),
             Editor(Undo),
@@ -4325,7 +4267,7 @@ fn multicursor_intersected_edits() -> anyhow::Result<()> {
             )),
             Expect(CurrentSelectedTexts(&["{ foo() }", "foo()"])),
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             // Expect the primary cursor is still there
             // And the Deletion of `foo()` is ignored
             Expect(AppGrid(" 🦀  main.rs [*]\n1│fn main() █".to_string())),
@@ -4516,7 +4458,7 @@ fn delete_last_dedented_lines() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["b"])),
             Editor(ExpandSelection(Direction::Start)),
             Expect(CurrentSelectedTexts(&["\nb"])),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentSelectedTexts(&[""])),
         ])
     })
@@ -5361,7 +5303,7 @@ fn deleting_selection_extended_with_jump() -> anyhow::Result<()> {
             App(HandleKeyEvents(keys!("m s").to_vec())),
             Expect(CurrentSelectedTexts(&["foo bar spam"])),
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent("chuck")),
         ])
     })
@@ -5383,16 +5325,12 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
             // Modify one line
             Editor(MatchLiteral("main".to_string())),
             Editor(ExpandSelection(Direction::End)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Editor(EnterNormalMode),
             // Delete one line
             Editor(MatchLiteral("println".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(MoveSelectionWithPriorChange(
-                Left,
-                Some(PriorChange::EnterDeleteMode),
-            )),
-            Editor(EnterNormalMode),
+            Editor(Delete),
             App(TerminalDimensionChanged(Dimension {
                 height: 9,
                 width: 20,
@@ -5437,7 +5375,7 @@ fn move_to_hunks_consisting_of_only_a_single_empty_line_and_delete_it() -> anyho
             )),
             Expect(CurrentSelectedTexts(&[""])),
             // Delete the empty line hunk
-            Editor(DeleteOne),
+            Editor(Delete),
             // Expect the leading new line is deleted
             Expect(CurrentComponentContent("target/\n")),
         ])
@@ -5859,7 +5797,7 @@ fn delete_expanded_syntax_node_selection() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Editor(ExpandSelection(Direction::End)),
             Expect(CurrentSelectedTexts(&["foo:F, "])),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentSelectedTexts(&["bar: B"])),
         ])
     })
@@ -5905,7 +5843,7 @@ spam baz"
                     .to_string(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent("\nfoo bar\nspam baz")),
             Expect(CurrentSelectedTexts(&["\n"])),
         ])
@@ -5926,7 +5864,7 @@ fn delete_should_delete_one_character_even_if_selection_is_empty() -> anyhow::Re
             Expect(CurrentSelectedTexts(&["hello world"])),
             Editor(MoveSelection(Down)),
             Expect(CurrentSelectedTexts(&[""])),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent("hello world\nspam baz")),
         ])
     })
@@ -5947,7 +5885,7 @@ fn delete_should_collapse_extended_selection() -> anyhow::Result<()> {
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["a:a, b:b"])),
-            Editor(DeleteOne),
+            Editor(Delete),
             Expect(CurrentComponentContent("fn f(,){}")),
             Expect(CurrentSelectedTexts(&[","])),
         ])

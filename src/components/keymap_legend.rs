@@ -393,7 +393,7 @@ mod test_keymap_legend {
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
 │       ┆   ┆ Caterpillar ┆   ┆ Bomb ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ╰───────┴───┴─────────────┴───┴──────┴───┴───┴───┴───┴───┴───╯
-* Pick Keyboard
+* Pick Keyboard    ] Expand Forward    [ Expand Backward
 "
         .trim_matches('\n');
         assert_eq!(actual, expected);
@@ -420,7 +420,7 @@ mod test_keymap_legend {
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
 │       ┆   ┆ Caterpillar ┆     ┆  Bomb  ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ╰───────┴───┴─────────────┴─────┴────────┴───┴───┴───┴───┴───┴───╯
-* Pick Keyboard"
+* Pick Keyboard    ] Expand Forward    [ Expand Backward"
             .trim_matches('\n');
         assert_eq!(actual, expected);
     }
@@ -467,7 +467,7 @@ mod test_keymap_legend {
 ├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┤
 │ ∅ ┆   ┆   ┆   ┆      ┆   │
 ╰───┴───┴───┴───┴──────┴───╯
-* Pick Keyboard"
+* Pick Keyboard    ] Expand Forward    [ Expand Backward"
             .trim();
         assert_eq!(actual, expected);
     }

@@ -439,7 +439,7 @@ impl Editor {
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Delte),
                 Direction::End.format_action("Delete"),
-                Dispatch::ToEditor(DeleteOne),
+                Dispatch::ToEditor(Delete),
             )
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
             Keymap::new_extended(
@@ -789,7 +789,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::Delte),
                 "Delete".to_string(),
                 "Delete".to_string(),
-                Dispatch::ToEditor(DispatchEditor::DeleteOne),
+                Dispatch::ToEditor(DispatchEditor::Delete),
             )
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
             Keymap::new_extended(
@@ -830,7 +830,7 @@ impl Editor {
                     .chain(Some(Keymap::new(
                         context.keyboard_layout_kind().get_key(&Meaning::Delte),
                         "Delete".to_string(),
-                        Dispatch::ToEditor(DeleteOne),
+                        Dispatch::ToEditor(Delete),
                     )))
                     .chain(Some(Keymap::new(
                         context.keyboard_layout_kind().get_key(&Meaning::MultC),
@@ -869,22 +869,6 @@ impl Editor {
             .chain(self.keymap_others())
             .chain(self.keymap_universal(context))
             .collect_vec()
-    }
-
-    pub(crate) fn delete_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Delete".to_string(),
-            keymaps: Keymaps::new(
-                &self
-                    .normal_mode_keymaps(
-                        context,
-                        Some(delete_mode_normal_mode_override()),
-                        Some(PriorChange::EnterDeleteMode),
-                    )
-                    .into_iter()
-                    .collect_vec(),
-            ),
-        }
     }
 
     pub(crate) fn multicursor_mode_keymap_legend_config(
@@ -1779,7 +1763,7 @@ pub(crate) fn delete_mode_normal_mode_override() -> NormalModeOverride {
     NormalModeOverride {
         delete: Some(KeymapOverride {
             description: "Delete 1",
-            dispatch: Dispatch::ToEditor(DeleteOne),
+            dispatch: Dispatch::ToEditor(Delete),
         }),
         ..Default::default()
     }

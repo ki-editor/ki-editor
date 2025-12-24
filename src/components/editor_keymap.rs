@@ -861,10 +861,6 @@ pub(crate) enum Meaning {
     CpAbP,
     /// Copy relative path of current file
     CpReP,
-    /// Expand Forward
-    ExpdF,
-    /// Expand Backward
-    ExpdB,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {
