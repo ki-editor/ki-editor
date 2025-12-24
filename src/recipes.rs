@@ -1467,11 +1467,11 @@ foo bar spam
 
 fn showcase() -> RecipeGroup {
     RecipeGroup {
-            filename: "showcase",
-            recipes: [
-                Recipe {
-                    description: "Remove all println statements",
-                    content: r#"
+        filename: "showcase",
+        recipes: [
+            Recipe {
+                description: "Remove all println statements",
+                content: r#"
 pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     println!("_args = {:?}", {
         let result = _args.collect::<Vec<_>>();
@@ -1512,11 +1512,12 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     println!("Good bye!");
 }
 "#
-                    .trim(),
-                    file_extension: "rs",
-                    prepare_events: &[],
-                    events: keys!("q p r i n t enter r r d v l"),
-                    expectations: Box::new([CurrentComponentContent(r#"pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
+                .trim(),
+                file_extension: "rs",
+                prepare_events: &[],
+                events: keys!("q p r i n t enter r r d v l"),
+                expectations: Box::new([CurrentComponentContent(
+                    r#"pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
     let mut app = App::from_channel(
@@ -1541,15 +1542,15 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
 
     app.run(path)
         .map_err(|error| anyhow::anyhow!("screen.run {:?}", error))?;
-}"#
-                    )]),
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-                Recipe {
-                    description: "Sorting TODO list based on completion",
-                    content: r#"
+}"#,
+                )]),
+                terminal_height: None,
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                description: "Sorting TODO list based on completion",
+                content: r#"
 # Fake To-Do List
 
 - [x] Buy groceries
@@ -1570,13 +1571,14 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
   - [x] Documentary
 - [x] Write documentation
 "#
-                    .trim(),
-                    file_extension: "md",
-                    prepare_events: &[],
-                    events: keys!(
-                        "q r / ^ - space backslash [ space backslash ] enter r r d c v l space a p . ; backspace"
-                    ),
-                    expectations: Box::new([CurrentComponentContent(r#"# Fake To-Do List
+                .trim_start(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!(
+                    "q r / ^ - space backslash [ space backslash ] enter r r d c v A p ."
+                ),
+                expectations: Box::new([CurrentComponentContent(
+                    r#"# Fake To-Do List
 
 - [x] Buy groceries
 - [x] Finish the report for work
@@ -1594,15 +1596,16 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
 - [ ] Watch a movie
   - [ ] Action film
   - [ ] Comedy
-  - [x] Documentary"#
-                    )]),
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-                Recipe {
-                    description: "Wrap/unwrap the value of each key with Some in a struct",
-                    content: r#"
+  - [x] Documentary
+"#,
+                )]),
+                terminal_height: None,
+                similar_vim_combos: &[],
+                only: true,
+            },
+            Recipe {
+                description: "Wrap/unwrap the value of each key with Some in a struct",
+                content: r#"
 pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> Self {
     Self {
         yx: SelectionSet {
@@ -1625,20 +1628,18 @@ pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> 
     }
 }
 "#
-                    .trim(),
-                    file_extension: "rs",
-                    prepare_events: &[],
-                    events: keys!(
-                        "q y x enter d r r k l g , j h S o m e esc d k l k T r f"
-                    ),
-                    expectations: Box::new([]),
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-            ]
-            .to_vec(),
-        }
+                .trim(),
+                file_extension: "rs",
+                prepare_events: &[],
+                events: keys!("q y x enter d r r k l g , j h S o m e esc d k l k T r f"),
+                expectations: Box::new([]),
+                terminal_height: None,
+                similar_vim_combos: &[],
+                only: false,
+            },
+        ]
+        .to_vec(),
+    }
 }
 
 fn syntax_node() -> RecipeGroup {
