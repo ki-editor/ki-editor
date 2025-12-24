@@ -1725,7 +1725,7 @@ impl Editor {
                         (current_range, (start..start + 1).into())
                     };
 
-                    let get_selection = |movement: &Movement| {
+                    let get_selection = || {
                         // The start selection is used for getting the next/previous selection
                         // It cannot be the extended selection, otherwise the next/previous selection
                         // will not be found
@@ -1755,24 +1755,10 @@ impl Editor {
                             Some(result_selection)
                         }
                     };
-                    let movement = match self.cursor_direction.reverse() {
-                        Direction::Start => Movement::Previous,
-                        Direction::End => Movement::Next,
-                    };
+
                     let (delete_range, select_range) = (|| {
-                        // Perform a "delete until the other selection" instead
                         // Other selection is a selection which is before/after the current selection
-                        if let Some(other_selection) = get_selection(&movement)
-                            .or_else(|| get_selection(&movement.reverse()))
-                            // If no selection is found using `movement`, then try downgrading it.
-                            // Downgrading is only applicable for the Left/Right movement,
-                            // which transform into Previous/Next.
-                            // This is necessary, because in some cases, there are no longer meaningful selections,
-                            // and only meaningless selections are left,
-                            // so we will have to "downgrade" the movement so that we can obtain the meaningless selections.
-                            .or_else(|| get_selection(&movement.downgrade()))
-                            .or_else(|| get_selection(&movement.downgrade().reverse()))
-                        {
+                        if let Some(other_selection) = get_selection() {
                             // The other_selection is only consider valid
                             // if it does not intersect with the range to be deleted
                             if !other_selection
@@ -1788,13 +1774,15 @@ impl Editor {
                                     let select_range = {
                                         other_selection
                                             .selection
-                                            .extended_range()
+                                            .range()
                                             .shift_left(delete_range.len())
                                     };
+
                                     return (delete_range, select_range);
                                 } else {
                                     let delete_range: CharIndexRange = current_range;
                                     let select_range = other_selection.selection.range();
+
                                     return (delete_range, select_range);
                                 }
                             }
@@ -1803,7 +1791,7 @@ impl Editor {
                         // If the other selection not found, then only deletes the selection
                         // without moving forward or backward
                         let range = selection.extended_range();
-                        (range, (range.start..range.start).into())
+                        (range, (range.start..range.start + 1).into())
                     })();
 
                     // Ensure that the select range contains at least 1 character

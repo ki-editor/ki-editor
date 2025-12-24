@@ -5911,3 +5911,45 @@ spam baz"
         ])
     })
 }
+
+#[test]
+fn delete_should_delete_one_character_even_if_selection_is_empty() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("hello world\n\nspam baz".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectedTexts(&["hello world"])),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&[""])),
+            Editor(DeleteOne),
+            Expect(CurrentComponentContent("hello world\nspam baz")),
+        ])
+    })
+}
+
+#[test]
+fn delete_should_collapse_extended_selection() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fn f(a:a, b:b,){}".to_string())),
+            Editor(MatchLiteral("a:a".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Editor(EnableSelectionExtension),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["a:a, b:b"])),
+            Editor(DeleteOne),
+            Expect(CurrentComponentContent("fn f(,){}")),
+            Expect(CurrentSelectedTexts(&[","])),
+        ])
+    })
+}
