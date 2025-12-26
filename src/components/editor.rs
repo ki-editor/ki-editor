@@ -63,7 +63,6 @@ pub(crate) enum Mode {
 
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
 pub(crate) enum PriorChange {
-    EnterDeleteMode,
     EnterMultiCursorMode,
     EnableSelectionExtension,
 }
@@ -398,11 +397,6 @@ impl Component for Editor {
                 source,
                 destination,
             } => self.handle_path_renamed(source, destination),
-            ShowKeymapLegendDelete => {
-                return Ok(Dispatches::one(Dispatch::ShowKeymapLegend(
-                    self.delete_mode_keymap_legend_config(context),
-                )))
-            }
             CopyAbsolutePath => return self.copy_current_file_absolute_path(),
             CopyRelativePath => return self.copy_current_file_relative_path(context),
             DeleteWithMovement(movement) => return self.delete_with_movement(context, movement),
@@ -4074,7 +4068,6 @@ impl Editor {
     pub(crate) fn handle_prior_change(&mut self, prior_change: Option<PriorChange>) {
         if let Some(prior_change) = prior_change {
             match prior_change {
-                PriorChange::EnterDeleteMode => self.mode = Mode::Delete,
                 PriorChange::EnterMultiCursorMode => self.mode = Mode::MultiCursor,
                 PriorChange::EnableSelectionExtension => self.enable_selection_extension(),
             }
@@ -4472,7 +4465,6 @@ pub(crate) enum DispatchEditor {
         source: PathBuf,
         destination: CanonicalizedPath,
     },
-    ShowKeymapLegendDelete,
     CopyAbsolutePath,
     CopyRelativePath,
     DeleteWithMovement(Movement),

@@ -861,18 +861,6 @@ impl Editor {
             .collect_vec()
     }
 
-    pub(crate) fn delete_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Delete".to_string(),
-            keymaps: Keymaps::new(
-                &self
-                    .normal_mode_keymaps(context, None, Some(PriorChange::EnterDeleteMode))
-                    .into_iter()
-                    .collect_vec(),
-            ),
-        }
-    }
-
     pub(crate) fn multicursor_mode_keymap_legend_config(
         &self,
         context: &Context,
@@ -1588,7 +1576,7 @@ impl Editor {
 
 pub(crate) fn delete_keymaps(context: &Context) -> Keymaps {
     Keymaps::new(
-        &[
+        [
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Left_),
                 "Left".to_string(),
@@ -1620,7 +1608,7 @@ pub(crate) fn delete_keymaps(context: &Context) -> Keymaps {
                 Dispatch::ToEditor(EnterDeleteMode),
             ),
         ]
-        .to_vec(),
+        .as_ref(),
     )
 }
 
