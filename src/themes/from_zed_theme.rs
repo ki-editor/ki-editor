@@ -14,6 +14,8 @@ const ZED_THEME_AYU_URL: &str =
     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/ayu/ayu.json";
 const ZED_THEME_ALABASTER_URL: &str =
     "https://raw.githubusercontent.com/tsimoshka/zed-theme-alabaster/refs/heads/main/themes/alabaster-color-theme.json";
+const ZED_THEME_APATHY_URL: &str =
+    "https://raw.githubusercontent.com/mqual/themes/refs/heads/main/apathy_ki.json";
 const ZED_THEME_CATPPUCCIN_URL: &str =
     "https://raw.githubusercontent.com/catppuccin/zed/main/themes/catppuccin-mauve.json";
 const ZED_THEME_DRACULA_URL: &str =
@@ -55,6 +57,8 @@ pub(crate) fn theme_descriptors() -> Vec<ThemeDescriptor> {
         ("Alabaster Mono", ZED_THEME_ALABASTER_URL),
         ("Alabaster Dark Mono", ZED_THEME_ALABASTER_URL),
         ("Alabaster BG", ZED_THEME_ALABASTER_URL),
+        ("Apathy Dark", ZED_THEME_APATHY_URL),
+        ("Apathy Light", ZED_THEME_APATHY_URL),
         ("Catppuccin Frappé", ZED_THEME_CATPPUCCIN_URL),
         ("Catppuccin Latte", ZED_THEME_CATPPUCCIN_URL),
         ("Catppuccin Macchiato", ZED_THEME_CATPPUCCIN_URL),
