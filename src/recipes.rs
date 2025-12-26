@@ -229,6 +229,17 @@ Why?
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
+                },
+                Recipe {
+                    description: "Delete multiple selections with Extend",
+                    content: "[{foo: bar}, spam, 1 + 1]".trim(),
+                    file_extension: "js",
+                    prepare_events: keys!("w o"),
+                    events: keys!("d g l v l"),
+                    expectations: Box::new([CurrentSelectedTexts(&["1 + 1"]), CurrentComponentContent("[1 + 1]")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
                 }
             ].to_vec(),
         },
@@ -272,10 +283,39 @@ Why?
             ].to_vec(),
         },
         RecipeGroup {
+            filename: "delete-submode",
+            recipes: [
+                Recipe {
+                    description: "Delete multiple words",
+                    content: "foo bar spam baz"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("s v g l l space"),
+                    expectations: Box::new([CurrentSelectedTexts(&["spam"]), CurrentComponentContent("spam baz")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Delete multiple lines",
+                    content: "foo\nbar\nspam\nbaz"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("a v g l l space"),
+                    expectations: Box::new([CurrentSelectedTexts(&["spam"]), CurrentComponentContent("spam\nbaz")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                }
+            ].to_vec(),
+        },
+        RecipeGroup {
             filename: "delete-one",
             recipes: [
                 Recipe {
-                    description: "Delete 1",
+                    description: "Delete One",
                     content: "hello world"
                     .trim(),
                     file_extension: "md",

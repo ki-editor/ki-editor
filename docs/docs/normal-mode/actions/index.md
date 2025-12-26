@@ -75,6 +75,24 @@ For example:
 
 This deletes the current selected text, and enter [Insert mode](../../insert-mode/index.md).
 
+### `Delete`
+
+This opens a menu with several actions:
+
+| Name                 | Meaning                                                                                                                                             |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Delete One           | Deletes the current selection and collapses the selection.                                                                                          |
+| Delete `<movement>`  | Delete the current selection and the gap between the current selection and the `<movement>` selection, and then selects the `<movement>` selection. |
+| Enter Delete Submode | See more at [Delete Submode](../../sub-modes/delete-mode.md)                                                                                        |
+
+<TutorialFallback filename="delete"/>
+
+<TutorialFallback filename="delete-finer-movement"/>
+
+<TutorialFallback filename="delete-one" />
+
+If you are interested about why Delete works like this, read more at [Evolution of Delete](/ki-editor/blog/evoluation-of-delete).
+
 ### `Replace #`
 
 Replace with pattern.
