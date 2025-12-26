@@ -405,6 +405,8 @@ impl Component for Editor {
             }
             CopyAbsolutePath => return self.copy_current_file_absolute_path(),
             CopyRelativePath => return self.copy_current_file_relative_path(context),
+            DeleteWithMovement(movement) => return self.delete_with_movement(context, movement),
+            EnterDeleteMode => self.mode = Mode::Delete,
         }
         Ok(Default::default())
     }
@@ -4471,6 +4473,8 @@ pub(crate) enum DispatchEditor {
     ShowKeymapLegendDelete,
     CopyAbsolutePath,
     CopyRelativePath,
+    DeleteWithMovement(Movement),
+    EnterDeleteMode,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

@@ -101,6 +101,13 @@ impl Editor {
         .to_vec()
     }
 
+    fn delete_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Delete".to_string(),
+            keymaps: delete_keymaps(context),
+        }
+    }
+
     pub(crate) fn keymap_other_movements(&self, context: &Context) -> Vec<Keymap> {
         [
             Keymap::new_extended(
@@ -429,7 +436,7 @@ impl Editor {
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Delte),
                 Direction::End.format_action("Delete"),
-                Dispatch::ToEditor(DispatchEditor::ShowKeymapLegendDelete),
+                Dispatch::ShowKeymapLegend(self.delete_keymap_legend_config(context)),
             )
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
             Keymap::new_extended(
@@ -776,13 +783,6 @@ impl Editor {
     ) -> Vec<Keymap> {
         [
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Delte),
-                "Delete".to_string(),
-                "Enter Delete Mode".to_string(),
-                Dispatch::ShowKeymapLegend(self.delete_mode_keymap_legend_config(context)),
-            )
-            .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::MultC),
                 "Multi Curs".to_string(),
                 "Enter Multi-cursor mode".to_string(),
@@ -820,7 +820,7 @@ impl Editor {
                     .chain(Some(Keymap::new(
                         context.keyboard_layout_kind().get_key(&Meaning::Delte),
                         "Delete".to_string(),
-                        Dispatch::ShowKeymapLegend(self.delete_mode_keymap_legend_config(context)),
+                        Dispatch::ShowKeymapLegend(self.delete_keymap_legend_config(context)),
                     )))
                     .chain(Some(Keymap::new(
                         context.keyboard_layout_kind().get_key(&Meaning::MultC),
@@ -866,11 +866,7 @@ impl Editor {
             title: "Delete".to_string(),
             keymaps: Keymaps::new(
                 &self
-                    .normal_mode_keymaps(
-                        context,
-                        Some(delete_mode_normal_mode_override()),
-                        Some(PriorChange::EnterDeleteMode),
-                    )
+                    .normal_mode_keymaps(context, None, Some(PriorChange::EnterDeleteMode))
                     .into_iter()
                     .collect_vec(),
             ),
@@ -1590,6 +1586,44 @@ impl Editor {
     }
 }
 
+pub(crate) fn delete_keymaps(context: &Context) -> Keymaps {
+    Keymaps::new(
+        &[
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Left_),
+                "Left".to_string(),
+                Dispatch::ToEditor(DeleteWithMovement(Movement::Left)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Right),
+                "Right".to_string(),
+                Dispatch::ToEditor(DeleteWithMovement(Right)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Next_),
+                "Next".to_string(),
+                Dispatch::ToEditor(DeleteWithMovement(Movement::Next)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                "Previous".to_string(),
+                Dispatch::ToEditor(DeleteWithMovement(Movement::Previous)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Delte),
+                "Delete One".to_string(),
+                Dispatch::ToEditor(DeleteOne),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Extnd),
+                "Enter Delete Submode".to_string(),
+                Dispatch::ToEditor(EnterDeleteMode),
+            ),
+        ]
+        .to_vec(),
+    )
+}
+
 #[derive(Default, Clone)]
 pub(crate) struct NormalModeOverride {
     pub(crate) change: Option<KeymapOverride>,
@@ -1760,16 +1794,6 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
         v: Some(KeymapOverride {
             description: "Select All",
             dispatch: Dispatch::ToEditor(SelectAll),
-        }),
-        ..Default::default()
-    }
-}
-
-pub(crate) fn delete_mode_normal_mode_override() -> NormalModeOverride {
-    NormalModeOverride {
-        delete: Some(KeymapOverride {
-            description: "Delete 1",
-            dispatch: Dispatch::ToEditor(DeleteOne),
         }),
         ..Default::default()
     }
