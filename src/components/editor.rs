@@ -1668,7 +1668,9 @@ impl Editor {
 
                     // Ensure the delete range is at least one character long
 
-                    let delete_range = if delete_range.len() == 0 {
+                    let delete_range = if delete_range.len() == 0
+                        && delete_range.start < CharIndex(self.buffer().len_chars())
+                    {
                         (delete_range.start..delete_range.start + 1).into()
                     } else {
                         delete_range
