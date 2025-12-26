@@ -75,6 +75,12 @@ For example:
 
 This deletes the current selected text, and enter [Insert mode](../../insert-mode/index.md).
 
+### `Delete`
+
+Deletes the current selection. If the cursor lands on a possible selection after the deletion, the selection will be selected.
+
+<TutorialFallback filename="delete"/>
+
 ### `Replace #`
 
 Replace with pattern.
