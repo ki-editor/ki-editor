@@ -1523,10 +1523,6 @@ impl Editor {
                     };
 
                     let get_selection = || {
-                        // The start selection is used for getting the next/previous selection
-                        // It cannot be the extended selection, otherwise the next/previous selection
-                        // will not be found
-
                         let result_selection = Selection::get_selection_(
                             &buffer,
                             &selection
@@ -1540,12 +1536,11 @@ impl Editor {
                         .ok()
                         .flatten()?;
 
-                        if result_selection
+                        if !result_selection
                             .selection
                             .range()
                             .shift_left(current_range.len())
-                            .start
-                            != current_range.start
+                            .contains(&current_range.start)
                         {
                             None
                         } else {

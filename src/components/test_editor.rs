@@ -339,9 +339,10 @@ fn test_delete_extended_selection_is_last_selection() -> anyhow::Result<()> {
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["lives in"])),
             Editor(ExpandSelection(Direction::End)),
+            Editor(ExpandSelection(Direction::Start)),
             Editor(Delete),
             Expect(CurrentComponentContent("who")),
-            Expect(CurrentSelectedTexts(&["who"])),
+            Expect(CurrentSelectedTexts(&[""])),
         ])
     })
 }
@@ -4207,18 +4208,17 @@ fn undo_redo_should_clear_redo_stack_upon_new_edits() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ExpandSelection(Direction::End)),
             Editor(Delete),
-            Editor(MoveSelection(Right)),
-            Expect(CurrentComponentContent("")),
-            Editor(Undo),
             Expect(CurrentComponentContent("bar")),
-            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(Undo),
+            Expect(CurrentComponentContent("foo bar")),
+            Expect(CurrentSelectedTexts(&["foo "])),
             Editor(Copy),
             Editor(Paste),
-            Expect(CurrentComponentContent("barbar")),
+            Expect(CurrentComponentContent("foo foo bar")),
             Editor(Undo),
             Editor(Redo),
             Editor(Redo),
-            Expect(CurrentComponentContent("barbar")),
+            Expect(CurrentComponentContent("foo foo bar")),
         ])
     })
 }
@@ -5329,7 +5329,7 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
             Editor(EnterNormalMode),
             // Delete one line
             Editor(MatchLiteral("println".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
             Editor(Delete),
             App(TerminalDimensionChanged(Dimension {
                 height: 9,
@@ -5341,8 +5341,8 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
 2│alpha
 3│
 4│fn () {
-5│    █oo::foo();
-6│}
+5│    foo::foo();
+6│█
 7│"#,
             )),
             Expect(GridCellBackground(2, 1, GitGutterStyles::new().insertion)),
