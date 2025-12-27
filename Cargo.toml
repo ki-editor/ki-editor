@@ -114,9 +114,7 @@ url = { version = "2.5.2" }
 figment = { version = "0.10.19", features = ["json", "toml", "yaml"] }
 
 # Add tungstenite for WebSocket support
-tungstenite = { version = "0.21", features = [
-  "rustls-tls-webpki-roots",
-] }
+tungstenite = "0.21"
 libc = "0.2.174"
 crc32fast = "1.4.2"
 scraper = "0.24.0"
