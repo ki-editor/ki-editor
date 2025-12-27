@@ -169,6 +169,7 @@ pub(crate) struct Keymap {
     pub description: String,
     event: KeyEvent,
     dispatch: Dispatch,
+    docs: Option<String>,
 }
 
 impl Keymap {
@@ -179,6 +180,7 @@ impl Keymap {
             description,
             dispatch,
             event: parse_key_event(key).unwrap(),
+            docs: None,
         }
     }
 
@@ -194,6 +196,14 @@ impl Keymap {
             description,
             dispatch,
             event: parse_key_event(key).unwrap(),
+            docs: None,
+        }
+    }
+
+    pub(crate) fn set_docs(self, docs: String) -> Self {
+        Self {
+            docs: Some(docs),
+            ..self
         }
     }
 
@@ -234,6 +244,10 @@ impl Keymap {
         self.short_description
             .clone()
             .unwrap_or_else(|| self.description.clone())
+    }
+
+    pub(crate) fn docs(&self) -> Option<String> {
+        self.docs.clone()
     }
 }
 
