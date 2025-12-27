@@ -7,7 +7,7 @@ pub fn cache_download(url: &str, folder_name: &str, file_name: &str) -> anyhow::
     if let Ok(text) = std::fs::read_to_string(cache_path.clone()) {
         Ok(text)
     } else {
-        let text = reqwest::blocking::get(url)?.text()?;
+        let text = ureq::get(url).call()?.body_mut().read_to_string()?;
         std::fs::write(cache_path, &text)?;
 
         Ok(text)
