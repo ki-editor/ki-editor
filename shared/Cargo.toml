@@ -15,7 +15,6 @@ lsp-types.workspace = true
 regex.workspace = true
 log.workspace = true
 grammar = {path = "../grammar"}
-reqwest = { version = "0.12", features = ["json", "rustls-tls-webpki-roots", "blocking"] }
 url = "2.5.0"
 which = "~7.0.0"
 etcetera = "0.8"
@@ -55,6 +54,7 @@ tree-sitter-svelte-ng = "1.0.2"
 tree-sitter-scheme = "0.24.7"
 tree-sitter-haskell = "0.23.1"
 tree-sitter-julia = "0.23.1"
+ureq = { version = "3.1.4", features = ["rustls"] }
 
 
 [dev-dependencies]

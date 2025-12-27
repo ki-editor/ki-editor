@@ -33,7 +33,10 @@ pub(crate) fn get_highlight_query(language_id: &str) -> anyhow::Result<GetHighli
 
     let nvim_tree_sitter_highlight_query_url = format!("https://raw.githubusercontent.com/nvim-treesitter/nvim-treesitter/master/queries/{language_id}/highlights.scm");
 
-    let current = reqwest::blocking::get(nvim_tree_sitter_highlight_query_url)?.text()?;
+    let current = ureq::get(nvim_tree_sitter_highlight_query_url)
+        .call()?
+        .body_mut()
+        .read_to_string()?;
     let parent = get_highlight_query_parents(&current)
         .into_iter()
         .map(|parent| -> anyhow::Result<_> { Ok(get_highlight_query(&parent)?.query) })
