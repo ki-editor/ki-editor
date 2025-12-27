@@ -1,3 +1,4 @@
+use crate::config::from_extension;
 use crate::context::Context;
 use crate::quickfix_list::QuickfixList;
 use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
@@ -22,7 +23,6 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use nary_tree::NodeId;
 use shared::canonicalized_path::CanonicalizedPath;
-use shared::language::from_extension;
 use std::{cell::RefCell, rc::Rc};
 
 #[cfg(test)]
@@ -562,25 +562,20 @@ impl Layout {
                         .collect_vec()
                 })
                 .collect_vec(),
-            QuickfixListSource::Mark => self
-                .buffers()
-                .into_iter()
-                .flat_map(|buffer| {
-                    let buffer = buffer.borrow();
-                    context
-                        .get_marks(buffer.path())
-                        .into_iter()
-                        .filter_map(|mark| {
-                            Some(QuickfixListItem::new(
-                                Location {
-                                    path: buffer.path()?,
-                                    range: mark,
-                                },
-                                None,
-                                None,
-                            ))
-                        })
-                        .collect_vec()
+            QuickfixListSource::Mark => context
+                .marks()
+                .iter()
+                .flat_map(|(path, marks)| {
+                    marks.iter().map(|mark| {
+                        QuickfixListItem::new(
+                            Location {
+                                path: path.clone(),
+                                range: *mark,
+                            },
+                            None,
+                            None,
+                        )
+                    })
                 })
                 .collect_vec(),
             QuickfixListSource::Custom(items) => items.iter().cloned().collect_vec(),

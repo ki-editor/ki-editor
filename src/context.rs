@@ -5,7 +5,6 @@ use globset::Glob;
 use indexmap::IndexSet;
 use itertools::{Either, Itertools};
 use shared::canonicalized_path::CanonicalizedPath;
-use strum::IntoEnumIterator;
 
 use crate::{
     app::{GlobalSearchConfigUpdate, LocalSearchConfigUpdate, Scope},
@@ -165,18 +164,22 @@ impl Context {
 
         self.marks = std::mem::take(&mut self.marks)
             .into_iter()
-            .map(|(path, marks)| {
-                (
-                    path,
-                    marks
-                        .into_iter()
-                        .filter_map(|mark| {
-                            edits
-                                .iter()
-                                .try_fold(mark, |mark, edit| mark.apply_edit(edit))
-                        })
-                        .collect(),
-                )
+            .map(|(p, marks)| {
+                if p == path {
+                    (
+                        p,
+                        marks
+                            .into_iter()
+                            .filter_map(|mark| {
+                                edits
+                                    .iter()
+                                    .try_fold(mark, |mark, edit| mark.apply_edit(edit))
+                            })
+                            .collect(),
+                    )
+                } else {
+                    (p, marks)
+                }
             })
             .collect();
     }
@@ -206,6 +209,25 @@ impl Context {
     pub(crate) fn get_marks(&self, path: Option<CanonicalizedPath>) -> Vec<CharIndexRange> {
         path.map(|path| self.marks.get(&path).cloned().unwrap_or_default().to_vec())
             .unwrap_or_default()
+    }
+
+    pub(crate) fn marks(&self) -> &HashMap<CanonicalizedPath, Vec<CharIndexRange>> {
+        &self.marks
+    }
+
+    pub(crate) fn handle_file_renamed(
+        &mut self,
+        source: std::path::PathBuf,
+        destination: CanonicalizedPath,
+    ) {
+        if let Some(path) = self
+            .marked_files
+            .iter()
+            .find(|path| path.to_path_buf() == &source)
+        {
+            self.marked_files.shift_remove(&path.clone());
+            self.marked_files.insert(destination);
+        }
     }
 }
 
@@ -250,7 +272,7 @@ impl Context {
 
         Self {
             clipboard: Clipboard::new(),
-            theme: Theme::default(),
+            theme: crate::config::AppConfig::singleton().theme().clone(),
             mode: None,
             #[cfg(test)]
             highlight_configs: crate::syntax_highlight::HighlightConfigs::new(),
@@ -260,15 +282,7 @@ impl Context {
             quickfix_list_state: Default::default(),
             prompt_histories,
             last_non_contiguous_selection_mode: None,
-            keyboard_layout_kind: {
-                use KeyboardLayoutKind::*;
-                crate::env::parse_env(
-                    "KI_EDITOR_KEYBOARD",
-                    &KeyboardLayoutKind::iter().collect_vec(),
-                    |layout| layout.display(),
-                    Qwerty,
-                )
-            },
+            keyboard_layout_kind: crate::config::AppConfig::singleton().keyboard_layout_kind(),
             location_history_backward: Vec::new(),
             location_history_forward: Vec::new(),
             marked_files,
@@ -300,11 +314,11 @@ impl Context {
     ///
     /// This method should never fail, if `use_system_clipboard` is true but
     /// the system clipboard is inaccessible, the app clipboard will be used.
-    pub(crate) fn get_clipboard_content(
-        &self,
-        use_system_clipboard: bool,
-        history_offset: isize,
-    ) -> Option<CopiedTexts> {
+    pub(crate) fn get_clipboard_content(&self, history_offset: isize) -> Option<CopiedTexts> {
+        // Always use the system clipboard if the content of the system clipboard is no longer the same
+        // with the content of the app clipboard
+        let use_system_clipboard = !self.clipboards_synced();
+
         if use_system_clipboard {
             match self.clipboard.get_from_system_clipboard() {
                 Ok(copied_texts) => return Some(copied_texts),
@@ -483,9 +497,13 @@ impl Context {
         if let Some(index) = self.marked_files.get_index_of(&path) {
             self.unmark_path_impl(index, path)
         } else {
-            let _ = self.marked_files.insert_sorted(path);
+            let _ = self.mark_file(path);
             None
         }
+    }
+
+    pub(crate) fn mark_file(&mut self, path: CanonicalizedPath) -> (usize, bool) {
+        self.marked_files.insert_sorted(path)
     }
 
     /// Returns true if the path to be removed is in the list

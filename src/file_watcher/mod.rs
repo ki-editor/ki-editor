@@ -49,7 +49,8 @@ impl FileWatcherState {
                 true
             }
             FileWatcherEvent::PathCreated => true,
-            FileWatcherEvent::PathRemoved(path) | FileWatcherEvent::PathRenamed(path)
+            FileWatcherEvent::PathRemoved(path)
+            | FileWatcherEvent::PathRenamed { source: path, .. }
                 if self.contains_path_buf(path) =>
             {
                 true
@@ -97,9 +98,10 @@ pub(crate) fn watch_file_changes(
             );
 
             std::thread::spawn(move || {
+                let mut event_handler = EventHandler::new();
                 for result in notify_receiver {
                     match result {
-                        Ok(event) => handle_event(event, &debounced_handler),
+                        Ok(event) => event_handler.handle_event(event, &debounced_handler),
                         Err(error) => {
                             log::error!("watch_file_changes error: {error:?}")
                         }
@@ -129,8 +131,19 @@ pub(crate) fn watch_file_changes(
     Ok(file_watcher_input_sender)
 }
 
-fn handle_event(event: notify::Event, callback: &Callback<FileWatcherEvent>) {
-    for path in event.paths.clone() {
+/// This struct is created so that we can store the partial state of the path renamed event.
+struct EventHandler {
+    /// This is needed because a file rename will result in two events,
+    /// the first being the Source name, and the second being the Destination name
+    rename_source: Option<PathBuf>,
+}
+
+impl EventHandler {
+    fn handle_event(&mut self, event: notify::Event, callback: &Callback<FileWatcherEvent>) {
+        let Some(path) = event.paths.first() else {
+            return;
+        };
+        let path = path.to_path_buf();
         match event.kind {
             EventKind::Modify(ModifyKind::Data(_)) => {
                 if let Ok(path) = CanonicalizedPath::try_from(path) {
@@ -140,11 +153,26 @@ fn handle_event(event: notify::Event, callback: &Callback<FileWatcherEvent>) {
                 }
             }
             EventKind::Modify(ModifyKind::Name(_)) => {
-                callback.call(FileWatcherEvent::PathRenamed(path))
+                if let Some(source) = self.rename_source.take() {
+                    if let Ok(destination) = path.try_into() {
+                        callback.call(FileWatcherEvent::PathRenamed {
+                            source,
+                            destination,
+                        })
+                    }
+                } else {
+                    self.rename_source = Some(path)
+                }
             }
             EventKind::Create(_) => callback.call(FileWatcherEvent::PathCreated),
             EventKind::Remove(_) => callback.call(FileWatcherEvent::PathRemoved(path)),
             _ => (),
+        }
+    }
+
+    fn new() -> Self {
+        Self {
+            rename_source: None,
         }
     }
 }
@@ -156,5 +184,8 @@ pub(crate) enum FileWatcherEvent {
     /// by the debouncer, since we don't really care what files are added.
     PathCreated,
     PathRemoved(PathBuf),
-    PathRenamed(PathBuf),
+    PathRenamed {
+        source: PathBuf,
+        destination: CanonicalizedPath,
+    },
 }

@@ -1,12 +1,14 @@
 default:
     npm install
-    @just tree-sitter-quickfix 
-    @just fmt-check 
-    @just build 
-    @just vscode-build 
+    @just check 
+    @just build-all 
     @just lint 
     @just test 
     @just doc 
+    
+check: build fmt-check lint 
+    
+build-all: tree-sitter-quickfix build vscode-build
     
 install:
     rm -r ~/.cache/ki/zed-themes || echo "ok" 
@@ -34,11 +36,14 @@ lint:
     cargo clippy --workspace -- -D warnings
     cargo clippy --tests -- -D warnings
     cargo machete
+    npm install
+    npm run lint
     @just vscode-lint
     
+[working-directory: 'ki-vscode']
 vscode-lint:
-    cd ki-vscode && ./node_modules/.bin/ts-unused-exports tsconfig.json --ignoreFiles="src/protocol/types"
-    npm run lint
+    npm install
+    ./node_modules/.bin/ts-unused-exports tsconfig.json --ignoreFiles="src/protocol/types"
     
 lint-fix:
 	cargo clippy --workspace --tests --fix --allow-staged --allow-dirty
@@ -46,18 +51,20 @@ lint-fix:
 
 vscode-lint-fix:
 	npm run lint:fix
-
-test testname="":
-    @echo "Running cargo test..."
+	
+test-setup:
     git config --get --global user.name  || git config --global user.name  Tester 
     git config --get --global user.email || git config --global user.email tester@gmail.com
-    cargo test --workspace -- --skip 'doc_assets_' --nocapture -- {{testname}}
+
+test testname="": test-setup
+    @echo "Running cargo nextest..."
+    cargo nextest run --workspace -- --skip 'doc_assets_' {{testname}}
     
 tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
 
-doc-assets testname="":
-    cargo test --workspace -- --nocapture 'doc_assets_' {{testname}}
+doc-assets testname="": test-setup
+    cargo nextest run --workspace -- 'doc_assets_' {{testname}}
     
 # This command helps you locate the actual recipe that is failing
 doc-assets-get-recipes-error:
@@ -74,7 +81,7 @@ codecov:
     
 
 watch-test testname:
-	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains --ignore 'tests/mock_repos/*' --ignore 'docs/static/*.json' -- cargo test --workspace  -- --nocapture -- {{testname}}
+	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains --ignore 'tests/mock_repos/*' --ignore 'docs/static/*.json' -- cargo nextest run --workspace  -- {{testname}}
 	
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo clippy --workspace --tests

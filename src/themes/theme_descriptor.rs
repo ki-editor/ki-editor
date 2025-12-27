@@ -1,26 +1,26 @@
 use super::{from_zed_theme, vscode_dark, vscode_light, Theme};
 use itertools::Itertools;
 
-pub type ThemeFn = fn() -> Theme;
+pub(crate) type ThemeFn = fn() -> Theme;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum ThemeDescriptor {
+pub(crate) enum ThemeDescriptor {
     ThemeFn(String, ThemeFn),
-    ZedThemeURLMap(&'static str, &'static str),
+    ZedTheme(&'static str, &'static str),
 }
 
 impl ThemeDescriptor {
     pub(crate) fn name(&self) -> &str {
         match self {
             ThemeDescriptor::ThemeFn(name, _) => name,
-            ThemeDescriptor::ZedThemeURLMap(name, _) => name,
+            ThemeDescriptor::ZedTheme(name, _) => name,
         }
     }
 
     pub(crate) fn to_theme(&self) -> Theme {
         match self {
             ThemeDescriptor::ThemeFn(_, theme_fn) => theme_fn(),
-            ThemeDescriptor::ZedThemeURLMap(name, url) => {
+            ThemeDescriptor::ZedTheme(name, url) => {
                 from_zed_theme::from_url(name, url).unwrap_or_else(|_| vscode_light())
             }
         }

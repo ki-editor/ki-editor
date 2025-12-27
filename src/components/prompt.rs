@@ -19,7 +19,7 @@ use super::{
     component::Component,
     dropdown::DropdownItem,
     editor::{Editor, Mode},
-    editor_keymap::Meaning,
+    editor_keymap::{alted, Meaning},
     suggestive_editor::{DispatchSuggestiveEditor, SuggestiveEditor, SuggestiveEditorFilter},
 };
 
@@ -80,7 +80,7 @@ impl PromptMatcher {
             .reparse(0, filter, Default::default(), Default::default(), false);
     }
 
-    fn handle_nucleo_updated(&mut self, viewport_height: u32) -> Vec<DropdownItem> {
+    fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Vec<DropdownItem> {
         let nucleo = &mut self.nucleo;
 
         nucleo.tick(10);
@@ -91,7 +91,10 @@ impl PromptMatcher {
         let scroll_offset = 0;
 
         snapshot
-            .matched_items(scroll_offset..viewport_height.min(snapshot.matched_item_count()))
+            .matched_items(
+                scroll_offset as u32
+                    ..viewport_height.min(snapshot.matched_item_count() as usize) as u32,
+            )
             .map(|item| item.data.clone())
             .collect_vec()
     }
@@ -327,7 +330,7 @@ impl Prompt {
         self.editor.render_completion_dropdown(true)
     }
 
-    pub(crate) fn handle_nucleo_updated(&mut self, viewport_height: u32) -> Dispatches {
+    pub(crate) fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Dispatches {
         let Some(matcher) = self.matcher.as_mut() else {
             return Default::default();
         };
@@ -402,7 +405,9 @@ impl Component for Prompt {
                     .chain(self.on_cancelled.clone().unwrap_or_default()))
             }
             key!("tab") => self.replace_current_query_with_focused_item(context, event),
-            _ if event.display() == context.keyboard_layout_kind().get_key(&Meaning::MrkFN) => {
+            _ if event.display()
+                == alted(context.keyboard_layout_kind().get_key(&Meaning::Rplc_)) =>
+            {
                 self.replace_current_query_with_focused_item(context, event)
             }
             key!("enter") => {
@@ -452,7 +457,11 @@ impl Component for Prompt {
     }
 
     fn post_handle_event(&self, dispatches: Dispatches) -> anyhow::Result<Dispatches> {
-        Ok(dispatches.append(Dispatch::GetAndHandlePromptOnChangeDispatches))
+        Ok(dispatches
+            .append(Dispatch::GetAndHandlePromptOnChangeDispatches)
+            .append(Dispatch::ToSuggestiveEditor(
+                DispatchSuggestiveEditor::UpdateFilter,
+            )))
     }
 }
 impl Prompt {
@@ -515,12 +524,11 @@ mod test_prompt {
     }
 
     #[test]
-    fn prompt_history() {
+    fn prompt_history() -> anyhow::Result<()> {
         execute_test(|s| {
             let open_prompt = OpenPrompt {
                 current_line: None,
                 config: PromptConfig {
-                    enter_selects_first_matching_item: true,
                     leaves_current_line_empty: true,
                     ..Default::default()
                 },
@@ -552,7 +560,6 @@ mod test_prompt {
                 Expect(CurrentComponentContent("yo\nhello\n")),
             ])
         })
-        .unwrap();
     }
 
     #[test]
@@ -605,12 +612,12 @@ mod test_prompt {
     }
 
     #[test]
-    fn enter_selects_first_matching_item() {
+    fn enter_selects_first_matching_item() -> anyhow::Result<()> {
         fn run_test(
             enter_selects_first_matching_item: bool,
             input_text: &str,
             expected_invoked_text: &'static str,
-        ) {
+        ) -> anyhow::Result<()> {
             execute_test(|s| {
                 Box::new([
                     App(OpenFile {
@@ -647,11 +654,11 @@ mod test_prompt {
                     Expect(CurrentComponentContent(expected_invoked_text)),
                 ])
             })
-            .unwrap()
         }
 
-        run_test(true, "f", "foo");
-        run_test(false, "f", "f");
+        run_test(true, "f", "foo")?;
+        run_test(false, "f", "f")?;
+        Ok(())
     }
 
     #[test]
@@ -829,7 +836,7 @@ mod test_prompt {
                     if_current_not_found: IfCurrentNotFound::LookForward,
                 }),
                 Expect(CurrentComponentContent("fo\n")),
-                App(HandleKeyEvents(keys!("f o alt+l").to_vec())),
+                App(HandleKeyEvents(keys!("f o alt+x").to_vec())),
                 Expect(CurrentComponentContent("fo\nfoo")),
             ])
         })

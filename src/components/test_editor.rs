@@ -103,7 +103,7 @@ fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("main() {}")),
             Expect(CurrentSelectedTexts(&["main"])),
         ])
@@ -122,7 +122,7 @@ fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("n main() {}")),
             Expect(CurrentSelectedTexts(&["n"])),
         ])
@@ -142,7 +142,7 @@ fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
             Editor(SetContent("fn main() {}".to_string())),
             Editor(MatchLiteral("}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(DeleteNoGap),
+            Editor(DeleteWithMovement(Next)),
             Expect(CurrentComponentContent("fn main() {")),
         ])
     })
@@ -161,7 +161,7 @@ fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
             Editor(SetContent("fn main(a:A,b:B) {}".to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("fn main(b:B) {}")),
             Expect(CurrentSelectedTexts(&["b:B"])),
         ])
@@ -181,7 +181,7 @@ fn delete_should_kill_if_possible_5() -> anyhow::Result<()> {
             Editor(SetContent("fn main(a:A,b:B) {}".to_string())),
             Editor(MatchLiteral("b:B".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("fn main(a:A) {}")),
             Expect(CurrentSelectedTexts(&["a:A"])),
         ])
@@ -189,27 +189,8 @@ fn delete_should_kill_if_possible_5() -> anyhow::Result<()> {
 }
 
 #[test]
-fn delete_should_not_kill_if_not_possible_1() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent("fn maima() {}".to_string())),
-            Editor(MatchLiteral("ma".to_string())),
-            Editor(Delete),
-            Expect(CurrentComponentContent("fn ima() {}")),
-            // Expect the current selection is the character after "ma"
-            Expect(CurrentSelectedTexts(&["i"])),
-        ])
-    })
-}
-
-#[test]
 /// If the current selection is the only selection in the selection mode
-fn delete_should_not_kill_if_not_possible_2() -> anyhow::Result<()> {
+fn delete_should_not_kill_if_not_possible() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -220,9 +201,9 @@ fn delete_should_not_kill_if_not_possible_2() -> anyhow::Result<()> {
             Editor(SetContent("fn main(a:A) {}".to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("fn main() {}")),
-            Expect(CurrentSelectedTexts(&[""])),
+            Expect(CurrentSelectedTexts(&[")"])),
         ])
     })
 }
@@ -238,16 +219,16 @@ fn toggle_untoggle_mark() -> anyhow::Result<()> {
             }),
             Editor(SetContent("foo bar spam".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["foo", "spam"])),
             Editor(CursorKeepPrimaryOnly),
             Expect(CurrentSelectedTexts(&["spam"])),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(MoveSelection(Current(IfCurrentNotFound::LookForward))),
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["foo"])),
@@ -300,8 +281,6 @@ fn test_delete_word_long() -> anyhow::Result<()> {
             Editor(DeleteWordBackward { short: false }),
             Expect(CurrentComponentContent("hello_world ")),
             Editor(DeleteWordBackward { short: false }),
-            Expect(CurrentComponentContent("hello_world")),
-            Editor(DeleteWordBackward { short: false }),
             Expect(CurrentComponentContent("")),
         ])
     })
@@ -322,7 +301,7 @@ fn test_delete_extended_selection_forward() -> anyhow::Result<()> {
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["lives in"])),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("who a pineapple")),
             Expect(CurrentSelectedTexts(&["a"])),
         ])
@@ -344,8 +323,7 @@ fn test_delete_extended_selection_backward() -> anyhow::Result<()> {
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["lives in"])),
-            Editor(SwapCursor),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Left)),
             Expect(CurrentComponentContent("who a pineapple")),
             Expect(CurrentSelectedTexts(&["who"])),
         ])
@@ -393,12 +371,12 @@ fn test_delete_extended_selection_is_last_selection() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetContent("who lives in".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(MoveSelection(Right)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["lives in"])),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("who")),
             Expect(CurrentSelectedTexts(&["who"])),
         ])
@@ -419,7 +397,7 @@ fn test_delete_extended_selection_is_first_selection() -> anyhow::Result<()> {
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["who lives"])),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("in")),
             Expect(CurrentSelectedTexts(&["in"])),
         ])
@@ -439,7 +417,7 @@ fn test_delete_extended_selection_whole_file() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(MoveSelection(Right)),
             Editor(SelectAll),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("")),
             Expect(CurrentSelectedTexts(&[""])),
         ])
@@ -458,10 +436,9 @@ fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn snake_case(camelCase: String) {}".to_string(),
             )),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            // Go to the middle of the file
-            Editor(MoveSelection(Index(2))),
+            Editor(MatchLiteral("camelCase".to_string())),
             Expect(CurrentSelectedTexts(&["camelCase"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnterInsertMode(Direction::End)),
             Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent("fn snake_case(camel: String) {}")),
@@ -606,14 +583,14 @@ fn update_mark_position() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(MoveSelection(Left)),
             Editor(MoveSelection(Left)),
             // Kill "foo"
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("bar spim")),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             // Expect mark position is updated, and still selects "spim"
@@ -842,7 +819,7 @@ def main():
                 .to_string(),
             )),
             Editor(MatchLiteral("hello".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SwapCursor),
             Editor(Open),
             Expect(CurrentComponentContent(
@@ -904,8 +881,8 @@ fn main() {
                 .to_string(),
             )),
             Editor(MatchLiteral("hello".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Expect(CurrentSelectedTexts(&["hello"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectedTexts(&["// hello"])),
             Editor(Open),
             Editor(Insert("// world".to_string())),
             Expect(CurrentComponentContent(
@@ -917,6 +894,64 @@ fn main() {
 "
                 .trim(),
             )),
+        ])
+    })
+}
+
+#[test]
+fn open_max_gap_contains_at_most_one_newline_character() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+foo
+    
+    bar
+
+spam
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(Open),
+            Editor(Insert("world".to_string())),
+            Expect(CurrentComponentContent(
+                "
+foo
+    
+    bar
+    world
+
+spam"
+                    .trim(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn test_copy_current_file_path() -> anyhow::Result<()> {
+    execute_test(|s| {
+        // Multiline source code
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(Not(Box::new(CurrentComponentContentMatches(regex!(
+                "main.rs"
+            ))))),
+            Editor(CopyAbsolutePath),
+            Editor(Paste),
+            Expect(CurrentComponentContentMatches(regex!("main.rs"))),
         ])
     })
 }
@@ -1315,7 +1350,7 @@ fn delete_extended_selection() -> anyhow::Result<()> {
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["fn main"])),
-            Editor(DeleteNoGap),
+            Editor(DeleteWithMovement(Next)),
             Expect(CurrentSelectedTexts(&["("])),
         ])
     })
@@ -1347,7 +1382,7 @@ fn main() {
             Editor(EnableSelectionExtension),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Expect(CurrentSelectedTexts(&[".bar(\n           spam\n       )"])),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentSelectedTexts(&[""])),
             Expect(CurrentComponentContent(
                 "
@@ -1579,7 +1614,7 @@ fn main() {
                 use_current_selection_mode: true,
                 prior_change: None,
             }),
-            Expect(JumpChars(&['\n', '\n', 'b', 'f', '}'])),
+            Expect(JumpChars(&['b', 'f', '}'])),
             App(HandleKeyEvent(key!("f"))),
             Expect(CurrentSelectedTexts(&["fn main() {"])),
         ])
@@ -1746,7 +1781,7 @@ fn main() {
             )),
             // Bookmart "z"
             Editor(MatchLiteral("z".to_string())),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             // Expect the parent lines of the current selections are highlighted with parent_lines_background,
             // regardless of whether the parent lines are inbound or outbound
             ExpectMulti(
@@ -1772,7 +1807,7 @@ fn main() {
                     .map(|column_index| {
                         Not(Box::new(GridCellBackground(
                             5,
-                            column_index as usize,
+                            column_index,
                             parent_lines_background,
                         )))
                     })
@@ -1780,13 +1815,13 @@ fn main() {
             ),
             // Mark the "fn" word
             Editor(MatchLiteral("fn".to_string())),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             // Go to "print()" and skip the first 3 lines for rendering
             Editor(MatchLiteral("print()".to_string())),
             Editor(SetScrollOffset(3)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 2│fn main() {
 4│  let y = 2; //
 ↪│too long, wrapped
@@ -1974,7 +2009,9 @@ fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
                 .trim()
                 .to_string(),
             )),
-            Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+            Editor(SetLanguage(Box::new(
+                crate::config::from_extension("rs").unwrap(),
+            ))),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
                 width: 100,
@@ -2047,7 +2084,9 @@ fn main() { // too long
                 width: 14,
                 height: 4,
             })),
-            Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+            Editor(SetLanguage(Box::new(
+                crate::config::from_extension("rs").unwrap(),
+            ))),
             Editor(MatchLiteral("bar".to_string())),
             Editor(ApplySyntaxHighlight),
             Editor(SetRectangle(Rectangle {
@@ -2118,14 +2157,14 @@ fn main() { // too long
             ),
             // Expect decorations overrides syntax highlighting
             Editor(MatchLiteral("fn".to_string())),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             // Move cursor to next line, so that "fn" is not selected,
             //  so that we can test the style applied to "fn" ,
             // otherwise the style of primary selection anchors will override the mark style
             Editor(MatchLiteral("let".to_string())),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 1│fn main() { // too
 ↪│ long
 2│  █et foo = 1;
@@ -2181,14 +2220,14 @@ fn update_mark_position_with_undo_and_redo() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(MoveSelection(Left)),
             Editor(MoveSelection(Left)),
             // Kill "foo"
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("bar spim")),
             // Expect mark position is updated (still selects "spim")
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
@@ -2218,9 +2257,11 @@ fn saving_should_not_destroy_mark_if_selections_not_modified() -> anyhow::Result
                 focus: true,
             }),
             Editor(SetContent(input.to_string())),
-            Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+            Editor(SetLanguage(Box::new(
+                crate::config::from_extension("rs").unwrap(),
+            ))),
             Editor(MatchLiteral("bar".to_string())),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Editor(ForceSave),
             // Expect the content is formatted (second line dedented)
@@ -2245,7 +2286,7 @@ fn surround() -> anyhow::Result<()> {
             }),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
-            App(HandleKeyEvents(keys!("g y j").to_vec())),
+            App(HandleKeyEvents(keys!("g , j").to_vec())),
             Expect(CurrentComponentContent("fn main() { (x.y()) }")),
             Expect(SelectionExtensionEnabled(false)),
         ])
@@ -2324,8 +2365,7 @@ fn delete_backward() -> anyhow::Result<()> {
             Editor(MatchLiteral("world".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Expect(CurrentSelectedTexts(&["world"])),
-            Editor(SwapCursor),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Left)),
             Expect(CurrentSelectedTexts(&["hello"])),
             Expect(CurrentComponentContent("hello yo")),
         ])
@@ -2380,7 +2420,7 @@ fn next_prev_after_current_selection_is_deleted() -> anyhow::Result<()> {
                         },
                     },
                 )),
-                Editor(Delete),
+                Editor(DeleteOne),
                 Editor(MoveSelection(if next { Right } else { Left })),
                 Expect(CurrentSelectedTexts(&["2"])),
             ])
@@ -2479,7 +2519,9 @@ fn main() {
                     .trim()
                     .to_string(),
                 )),
-                Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+                Editor(SetLanguage(Box::new(
+                    crate::config::from_extension("rs").unwrap(),
+                ))),
                 Editor(MatchLiteral("let foo = 1;".to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
@@ -2914,9 +2956,9 @@ fn movement_current_look_forward_backward() -> Result<(), anyhow::Error> {
                 }),
                 Editor(SetContent("hello world is good".to_string())),
                 Editor(MatchLiteral("hello".to_string())),
-                Editor(ToggleMark),
+                App(MarkFileAndToggleMark),
                 Editor(MatchLiteral("good".to_string())),
-                Editor(ToggleMark),
+                App(MarkFileAndToggleMark),
                 Editor(MatchLiteral("world".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
                 Expect(CurrentSelectedTexts(&["good"])),
@@ -2971,7 +3013,7 @@ fn selection_set_history_updates_upon_edit() -> Result<(), anyhow::Error> {
                 Expect(CurrentSelectedTexts(&["spam"])),
                 Editor(MoveSelection(Left)),
                 Expect(CurrentSelectedTexts(&["bar"])),
-                Editor(Delete),
+                Editor(DeleteWithMovement(Right)),
                 Expect(CurrentComponentContent("foo spam")),
                 Editor(GoBack),
                 Expect(CurrentSelectedTexts(&["spam"])),
@@ -3043,7 +3085,7 @@ fn last_contiguous_selection_mode() -> Result<(), anyhow::Error> {
                 }),
                 Editor(SetContent("who lives in a".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-                Editor(ToggleMark),
+                App(MarkFileAndToggleMark),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["who"])),
@@ -3475,7 +3517,7 @@ foov foou bar
 }
 
 #[test]
-fn select_trailing_newline_when_cursor_is_at_last_space_of_current_line() -> anyhow::Result<()> {
+fn select_next_line_when_cursor_is_at_last_space_of_current_line() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile {
@@ -3493,7 +3535,7 @@ fn select_trailing_newline_when_cursor_is_at_last_space_of_current_line() -> any
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&[" "])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Expect(CurrentSelectedTexts(&["\n"])),
+            Expect(CurrentSelectedTexts(&["yo"])),
         ])
     })
 }
@@ -3742,9 +3784,9 @@ yo"
                 .to_string(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&[""])),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentSelectedTexts(&["world"])),
         ])
     })
@@ -3777,17 +3819,17 @@ bam
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
             Expect(CurrentSelectedTexts(&["foo\n"])),
-            Editor(MoveSelection(Right)),
-            Expect(CurrentSelectedTexts(&["\n"])),
-            Editor(MoveSelection(Up)),
-            Expect(CurrentSelectedTexts(&["bar\n"])),
             Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["\n"])),
+            Editor(MoveSelection(Left)),
+            Expect(CurrentSelectedTexts(&["bar\n"])),
             Editor(MoveSelection(Right)),
-            Editor(MoveSelection(Up)),
-            Expect(CurrentSelectedTexts(&["baz\n"])),
             Editor(MoveSelection(Down)),
             Editor(MoveSelection(Left)),
-            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["baz\n"])),
+            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Up)),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["spam\n"])),
         ])
     })
@@ -3822,15 +3864,15 @@ bam
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Down)),
             Expect(CurrentSelectedTexts(&[""])),
-            Editor(MoveSelection(Left)),
+            Editor(MoveSelection(Previous)),
             Expect(CurrentSelectedTexts(&["bar"])),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Editor(MoveSelection(Down)),
-            Editor(MoveSelection(Left)),
+            Editor(MoveSelection(Previous)),
             Expect(CurrentSelectedTexts(&["baz"])),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Editor(MoveSelection(Up)),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["spam"])),
         ])
     })
@@ -3964,7 +4006,42 @@ fn search_current_selection() -> anyhow::Result<()> {
             Expect(SelectionExtensionEnabled(false)),
             Expect(PromptHistory(
                 PromptHistoryKey::Search,
-                ["foo bar".to_string()].to_vec(),
+                ["l/foo bar".to_string()].to_vec(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn search_current_selection_history_should_be_prepended_with_l() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("w / o fx".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnableSelectionExtension),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["w / o"])),
+            Editor(SearchCurrentSelection(
+                IfCurrentNotFound::LookForward,
+                Scope::Local,
+            )),
+            Expect(CurrentSelectedTexts(&["w / o"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["fx"])),
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            Expect(PromptHistory(
+                PromptHistoryKey::Search,
+                ["l/w \\/ o".to_string()].to_vec(),
             )),
         ])
     })
@@ -4129,7 +4206,7 @@ fn surround_extended_selection() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Right)),
-            App(HandleKeyEvents(keys!("g y j").to_vec())),
+            App(HandleKeyEvents(keys!("g , j").to_vec())),
             Expect(CurrentComponentContent("(foo bar)")),
         ])
     })
@@ -4146,8 +4223,8 @@ fn undo_redo_1() -> anyhow::Result<()> {
             }),
             Editor(SetContent("foo bar".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(Delete),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("")),
             Editor(Undo),
             Expect(CurrentComponentContent("bar")),
@@ -4179,8 +4256,8 @@ fn undo_redo_should_clear_redo_stack_upon_new_edits() -> anyhow::Result<()> {
             }),
             Editor(SetContent("foo bar".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(Delete),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
+            Editor(DeleteWithMovement(Left)),
             Expect(CurrentComponentContent("")),
             Editor(Undo),
             Expect(CurrentComponentContent("bar")),
@@ -4239,7 +4316,7 @@ fn multicursor_intersected_edits() -> anyhow::Result<()> {
                 Some(PriorChange::EnterMultiCursorMode),
             )),
             Expect(CurrentSelectedTexts(&["{ foo() }", "foo()"])),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             // Expect the primary cursor is still there
             // And the Deletion of `foo()` is ignored
             Expect(AppGrid(" 🦀  main.rs [*]\n1│fn main█)".to_string())),
@@ -4428,7 +4505,7 @@ fn delete_forward_last_dedented_lines() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["fo"])),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["b"])),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentSelectedTexts(&["fo"])),
         ])
     })
@@ -4738,6 +4815,7 @@ fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> 
                     SelectionMode::Line,
                 )),
                 Editor(MoveSelection(Last)),
+                Editor(MoveSelection(Next)),
                 Expect(EditorCursorPosition(Position::new(1, 0))),
                 Expect(CurrentSelectedTexts(&[""])),
                 Editor(SetSelectionMode(
@@ -4748,7 +4826,7 @@ fn still_able_to_select_when_cursor_is_beyond_last_char() -> anyhow::Result<()> 
             ])
         })
     }
-    run_test(Word, &["\n"])?;
+    run_test(Word, &["hello"])?;
     run_test(SyntaxNode, &["hello"])?;
     run_test(Subword, &["hello"])?;
     run_test(Character, &["\n"])?;
@@ -4984,7 +5062,7 @@ fn main() {
 #[test]
 fn last_line_of_multiline_selection_should_be_at_bottom_when_aligning_bottom() -> anyhow::Result<()>
 {
-    fn run_test(width: u16, height: u16, expected_output: &'static str) -> anyhow::Result<()> {
+    fn run_test(width: usize, height: usize, expected_output: &'static str) -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -5054,7 +5132,7 @@ fn main() {
 #[test]
 fn middle_line_of_multiline_selection_should_be_centered_when_aligning_center() -> anyhow::Result<()>
 {
-    fn run_test(width: u16, height: u16, expected_output: &'static str) -> anyhow::Result<()> {
+    fn run_test(width: usize, height: usize, expected_output: &'static str) -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -5271,7 +5349,7 @@ fn deleting_selection_extended_with_jump() -> anyhow::Result<()> {
             Editor(EnableSelectionExtension),
             App(HandleKeyEvents(keys!("m s").to_vec())),
             Expect(CurrentSelectedTexts(&["foo bar spam"])),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
             Expect(CurrentComponentContent("chuck")),
         ])
     })
@@ -5287,17 +5365,18 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(Open),
+            Editor(EnterInsertMode(Direction::End)),
             // Insert one new line
-            App(HandleKeyEvents(keys!("a l p h a esc").to_vec())),
+            App(HandleKeyEvents(keys!("enter a l p h a esc").to_vec())),
             // Modify one line
             Editor(MatchLiteral("main".to_string())),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Right)),
+            Editor(EnterNormalMode),
             // Delete one line
             Editor(MatchLiteral("println".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(SwapCursor),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Left)),
+            Editor(EnterNormalMode),
             App(TerminalDimensionChanged(Dimension {
                 height: 9,
                 width: 20,
@@ -5308,7 +5387,7 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
 2│alpha
 3│
 4│fn () {
-5│    foo::foo()█
+5│    █oo::foo();
 6│}
 7│"#,
             )),
@@ -5342,7 +5421,7 @@ fn move_to_hunks_consisting_of_only_a_single_empty_line_and_delete_it() -> anyho
             )),
             Expect(CurrentSelectedTexts(&[""])),
             // Delete the empty line hunk
-            Editor(Delete),
+            Editor(DeleteOne),
             // Expect the leading new line is deleted
             Expect(CurrentComponentContent("target/\n")),
         ])
@@ -5585,6 +5664,149 @@ snake_case
 "
                 .trim(),
             )),
+        ])
+    })
+}
+
+#[test]
+fn last_wrapped_line_with_trailing_newline_char() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam baz\n".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            App(TerminalDimensionChanged(Dimension {
+                height: 10,
+                width: 300,
+            })),
+            // Expect Line 2 is present due to the trailing newline char
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+1│█oo bar spam baz
+2│"
+                .to_string(),
+            )),
+            // Decrease the rendering area to induce text wrapping
+            App(TerminalDimensionChanged(Dimension {
+                height: 10,
+                width: 17,
+            })),
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+1│█oo bar spam
+↪│baz
+2│"
+                .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn align_view_with_cursor_direction_end_and_selection_exceeds_viewport_height() -> anyhow::Result<()>
+{
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+fn main() {
+    x();
+    y();
+    z();
+    a();
+    b();
+    c();
+    d();
+} // last line
+"
+                .to_string(),
+            )),
+            Editor(MatchLiteral("fn".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            App(TerminalDimensionChanged(Dimension {
+                height: 7,
+                width: 300,
+            })),
+            Editor(SwapCursor),
+            Editor(AlignViewTop),
+            // Expect the cursor is not gone
+            Expect(AppGrid(
+                " 🦀  main.rs [*]
+ 2│fn main() {
+10│█ // last line
+11│"
+                .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn files_longer_than_65535_lines() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                (0..65536).map(|i| format!("Line {}", i + 1)).join("\n"),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            App(TerminalDimensionChanged(Dimension {
+                height: 7,
+                width: 300,
+            })),
+            Editor(MoveSelection(Last)),
+            Expect(AppGrid(
+                " 🙈  .gitignore [*]
+65535│Line 65535
+65536│█ine 65536"
+                    .to_string(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn delete_until_no_more_meaningful_selection_should_not_stuck() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("a = hello()".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(DeleteWithMovement(Right)),
+            Editor(DeleteWithMovement(Right)),
+            Expect(CurrentComponentContent("()")),
+            Expect(CurrentSelectedTexts(&["("])),
+        ])
+    })
+}
+
+#[test]
+fn entering_normal_mode_from_insert_mode_in_scratch_buffer() -> anyhow::Result<()> {
+    execute_test(move |_| {
+        Box::new([
+            Expect(CurrentComponentTitle(
+                "[ROOT] (Cannot be saved)".to_string(),
+            )),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvent(key!("esc"))),
+            Expect(CurrentMode(Mode::Normal)),
         ])
     })
 }

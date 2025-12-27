@@ -363,14 +363,6 @@ impl<T: PositionBasedSelectionMode> SelectionModeTrait for PositionBased<T> {
             .selections_in_line_number_ranges(params, line_number_ranges)
     }
 
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.delete_forward(params)
-    }
-
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.delete_backward(params)
-    }
-
     fn current(
         &self,
         params: &SelectionModeParams,
@@ -445,8 +437,6 @@ pub trait SelectionModeTrait {
                 sticky_column_index,
             } => self.down(params, sticky_column_index),
             MovementApplicandum::Expand => self.expand(params),
-            MovementApplicandum::DeleteBackward => convert(self.delete_backward(params)),
-            MovementApplicandum::DeleteForward => convert(self.delete_forward(params)),
             MovementApplicandum::Next => convert(self.next(params)),
             MovementApplicandum::Previous => convert(self.previous(params)),
         }
@@ -538,14 +528,6 @@ pub trait SelectionModeTrait {
         index: usize,
     ) -> anyhow::Result<Option<Selection>>;
 
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.right(params)
-    }
-
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.left(params)
-    }
-
     /// First meaningful selection
     fn first(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
 
@@ -626,8 +608,8 @@ pub trait SelectionModeTrait {
         let selection = params.current_selection;
         let get_in_between_gap = |direction: Direction| {
             let other = match direction {
-                Direction::Start => self.delete_backward(params),
-                Direction::End => self.delete_forward(params),
+                Direction::Start => self.left(params),
+                Direction::End => self.right(params),
             }
             .ok()??;
             if other.range() == selection.range() {
@@ -702,7 +684,6 @@ pub trait PositionBasedSelectionMode {
                 buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
-                params.current_selection.range(),
             )? {
                 Some(range) => {
                     if !range_intersects(
@@ -736,7 +717,6 @@ pub trait PositionBasedSelectionMode {
         buffer: &Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
-        current_selection_range: CharIndexRange,
     ) -> anyhow::Result<Option<ByteRange>>;
 
     /// This includes all selections, including meaningless ones
@@ -745,13 +725,11 @@ pub trait PositionBasedSelectionMode {
         buffer: &Buffer,
         cursor_char_index: CharIndex,
         if_current_not_found: IfCurrentNotFound,
-        current_selection_range: CharIndexRange,
     ) -> anyhow::Result<Option<ByteRange>> {
         self.get_current_meaningful_selection_by_cursor(
             buffer,
             cursor_char_index,
             if_current_not_found,
-            current_selection_range,
         )
     }
 
@@ -760,7 +738,6 @@ pub trait PositionBasedSelectionMode {
             params.buffer,
             CharIndex(0),
             IfCurrentNotFound::LookForward,
-            params.current_selection.range(),
         )?
         .map(|byte_range| byte_range.to_selection(params.buffer, params.current_selection))
         .transpose()
@@ -771,7 +748,6 @@ pub trait PositionBasedSelectionMode {
             params.buffer,
             CharIndex(params.buffer.len_chars()),
             IfCurrentNotFound::LookBackward,
-            params.current_selection.range(),
         )?
         .map(|byte_range| byte_range.to_selection(params.buffer, params.current_selection))
         .transpose()
@@ -789,7 +765,6 @@ pub trait PositionBasedSelectionMode {
                 .end
                 .min(CharIndex(params.buffer.len_chars().saturating_sub(1))),
             IfCurrentNotFound::LookForward,
-            params.current_selection.range(),
         )?
         .map(|range| {
             params
@@ -808,7 +783,6 @@ pub trait PositionBasedSelectionMode {
             params.buffer,
             params.current_selection.range().start - 1,
             IfCurrentNotFound::LookBackward,
-            params.current_selection.range(),
         )?
         .map(|range| {
             params
@@ -831,7 +805,6 @@ pub trait PositionBasedSelectionMode {
                 .end
                 .min(CharIndex(params.buffer.len_chars())),
             IfCurrentNotFound::LookForward,
-            params.current_selection.range(),
         )?
         .map(|range| {
             params
@@ -850,7 +823,6 @@ pub trait PositionBasedSelectionMode {
             params.buffer,
             params.current_selection.range().start - 1,
             IfCurrentNotFound::LookBackward,
-            params.current_selection.range(),
         )?
         .map(|range| {
             params
@@ -859,14 +831,6 @@ pub trait PositionBasedSelectionMode {
                 .update_with_byte_range(params.buffer, range)
         })
         .transpose()
-    }
-
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.right(params)
-    }
-
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.left(params)
     }
 
     fn revealed_selections<'a>(
@@ -887,7 +851,6 @@ pub trait PositionBasedSelectionMode {
                 params.buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
-                params.current_selection.range(),
             )? {
                 cursor_char_index = self.next_char_index(
                     params,
@@ -918,7 +881,6 @@ pub trait PositionBasedSelectionMode {
             params.buffer,
             cursor_char_index,
             IfCurrentNotFound::LookBackward,
-            params.current_selection.range(),
         )? {
             if range.range.start == 0 || Some(&range) == result.first() {
                 result.insert(0, range);
@@ -1030,12 +992,9 @@ pub trait PositionBasedSelectionMode {
             )
         };
         loop {
-            if let Some(result) = self.get_current_selection_by_cursor(
-                buffer,
-                new_cursor_char_index,
-                first_look,
-                params.current_selection.range(),
-            )? {
+            if let Some(result) =
+                self.get_current_selection_by_cursor(buffer, new_cursor_char_index, first_look)?
+            {
                 if buffer.byte_to_line(result.range.start)? == new_position.line {
                     let selection = (*current_selection)
                         .clone()
@@ -1047,12 +1006,9 @@ pub trait PositionBasedSelectionMode {
                     }));
                 }
             }
-            if let Some(result) = self.get_current_selection_by_cursor(
-                buffer,
-                new_cursor_char_index,
-                second_look,
-                params.current_selection.range(),
-            )? {
+            if let Some(result) =
+                self.get_current_selection_by_cursor(buffer, new_cursor_char_index, second_look)?
+            {
                 if buffer.byte_to_line(result.range.start)? == new_position.line {
                     let selection = (*current_selection)
                         .clone()
@@ -1095,14 +1051,12 @@ pub trait PositionBasedSelectionMode {
             params.buffer,
             params.cursor_char_index(),
             if_current_not_found,
-            params.current_selection.range(),
         )?;
         let range = if range.is_none() {
             self.get_current_selection_by_cursor(
                 params.buffer,
                 params.cursor_char_index(),
                 if_current_not_found.inverse(),
-                params.current_selection.range(),
             )?
         } else {
             range
@@ -1128,11 +1082,10 @@ pub trait PositionBasedSelectionMode {
         let limit = CharIndex(params.buffer.len_chars());
         let mut current_index: usize = 0;
         while cursor_char_index < limit {
-            if let Some(range) = self.get_current_meaningful_selection_by_cursor(
+            if let Some(range) = self.get_current_selection_by_cursor(
                 params.buffer,
                 cursor_char_index,
                 IfCurrentNotFound::LookForward,
-                params.current_selection.range(),
             )? {
                 if current_index == index {
                     return Ok(Some(range.to_selection(buffer, current_selection)?));
@@ -1259,14 +1212,6 @@ impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
         params: &SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.0.left(params)
-    }
-
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.delete_forward(params)
-    }
-
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.0.delete_backward(params)
     }
 
     fn process_paste_gap(
@@ -1627,14 +1572,6 @@ pub(crate) trait IterBasedSelectionMode {
                             && range.range.end < byte_range.end))
             })
             .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
-    }
-
-    fn delete_forward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.next(params)
-    }
-
-    fn delete_backward(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.previous(params)
     }
 
     /// This uses `all_selections` instead of `iter_filtered`.

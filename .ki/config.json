@@ -1,0 +1,28 @@
+{
+    "languages": {
+        "typescriptreact": {
+            "formatter": {
+                "command": "./node_modules/.bin/biome",
+                "arguments": ["format", "--stdin-file-path=_.tsx"]
+            }
+        },
+        "typescript": {
+            "formatter": {
+                "command": "./node_modules/.bin/biome",
+                "arguments": ["format", "--stdin-file-path=_.ts"]
+            }
+        },
+        "javascript": {
+            "formatter": {
+                "command": "./node_modules/.bin/biome",
+                "arguments": ["format", "--stdin-file-path=_.js"]
+            }
+        },
+        "json": {
+            "formatter": {
+                "command": "./node_modules/.bin/biome",
+                "arguments": ["format", "--stdin-file-path=_.json"]
+            }
+        }
+    }
+}
