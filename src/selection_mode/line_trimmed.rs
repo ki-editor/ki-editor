@@ -668,7 +668,7 @@ pub(crate) fn process_paste_gap(
 #[cfg(test)]
 mod test_line {
     use crate::buffer::BufferOwner;
-    use crate::components::editor::{Movement, PriorChange};
+    use crate::components::editor::Movement;
     use crate::position::Position;
     use crate::selection::SelectionMode;
     use crate::test_app::*;
@@ -987,10 +987,7 @@ foo
                 Editor(MoveSelection(Movement::Last)),
                 Editor(MoveSelection(Movement::Next)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelectionWithPriorChange(
-                    Movement::Right,
-                    Some(PriorChange::EnterDeleteMode),
-                )),
+                Editor(DeleteWithMovement(Movement::Right)),
                 Expect(CurrentComponentContent("hello")),
             ])
         })
@@ -1013,10 +1010,7 @@ foo
                 Editor(MoveSelection(Movement::Last)),
                 Editor(MoveSelection(Movement::Next)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelectionWithPriorChange(
-                    Left,
-                    Some(PriorChange::EnterDeleteMode),
-                )),
+                Editor(DeleteWithMovement(Left)),
                 Expect(CurrentComponentContent("hello")),
             ])
         })

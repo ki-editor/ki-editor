@@ -117,7 +117,7 @@ mod test_process_command {
 
     #[test]
     fn failed_command_includes_exit_code_and_stderr() {
-        let err = ProcessCommand::new("bash", &["-c".to_string(), "yo".to_string()].to_vec())
+        let err = ProcessCommand::new("bash", ["-c".to_string(), "yo".to_string()].as_ref())
             .run_with_input("hello")
             .unwrap_err();
         assert_eq!(
