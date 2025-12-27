@@ -1,1 +1,0 @@
-"use strict";(globalThis.webpackChunkdocu=globalThis.webpackChunkdocu||[]).push([[7472],{55513(t){t.exports=JSON.parse('{"title":"Recent posts","items":[{"title":"Documentation Migration","permalink":"/ki-editor/blog/documentation-migration","unlisted":false,"date":"2024-09-20T00:00:00.000Z"}]}')}}]);
