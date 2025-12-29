@@ -2812,6 +2812,32 @@ fn replace_with_pattern() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+fn replace_extended_selection_should_not_derail_selection_range() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo bar spam".to_string())),
+                App(SetClipboardContent {
+                    copied_texts: CopiedTexts::one("x".to_string()),
+                }),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+                Editor(EnableSelectionExtension),
+                Editor(MoveSelection(Right)),
+                Expect(CurrentSelectedTexts(&["foo bar"])),
+                Editor(ReplaceWithCopiedText { cut: false }),
+                Expect(CurrentSelectedTexts(&["x"])),
+                Expect(CurrentComponentContent("x spam")),
+            ])
+        }
+    })
+}
+
+#[test]
 fn move_left_right() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         {
