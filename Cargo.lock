@@ -1390,7 +1390,7 @@ dependencies = [
  "scraper",
  "serde",
  "serde_json",
- "serde_json5",
+ "serde_json5 0.1.0",
  "serial_test",
  "shared",
  "similar",
@@ -2518,6 +2518,17 @@ name = "serde_json5"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a6b754515e1a7bd79fc2edeaecee526fc80cb3a918607e5ca149225a3a9586"
+dependencies = [
+ "pest",
+ "pest_derive",
+ "serde",
+]
+
+[[package]]
+name = "serde_json5"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d34d03f54462862f2a42918391c9526337f53171eaa4d8894562be7f252edd3"
 dependencies = [
  "pest",
  "pest_derive",
@@ -4298,6 +4309,7 @@ name = "zed-theme"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json5 0.2.1",
 ]
 
 [[package]]

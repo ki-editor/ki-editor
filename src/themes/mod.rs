@@ -270,13 +270,20 @@ pub(crate) struct UiStyles {
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub(crate) struct SyntaxStyles {
     map: once_cell::sync::OnceCell<HashMap<HighlightName, Style>>,
-    groups: Vec<(HighlightName, Style)>,
+    groups: Cow<'static, [(HighlightName, Style)]>,
 }
 
 impl SyntaxStyles {
     pub fn new(groups: &[(HighlightName, Style)]) -> Self {
         Self {
-            groups: groups.to_vec(),
+            groups: groups.to_vec().into(),
+            map: once_cell::sync::OnceCell::new(),
+        }
+    }
+
+    pub fn const_new(groups: &'static [(HighlightName, Style)]) -> Self {
+        Self {
+            groups: groups.into(),
             map: once_cell::sync::OnceCell::new(),
         }
     }
