@@ -401,6 +401,7 @@ impl Component for Editor {
             CopyRelativePath => return self.copy_current_file_relative_path(context),
             DeleteWithMovement(movement) => return self.delete_with_movement(context, movement),
             EnterDeleteMode => self.mode = Mode::Delete,
+            AlignSelections(direction) => return self.align_selections(direction, context),
         }
         Ok(Default::default())
     }
@@ -4312,6 +4313,55 @@ impl Editor {
             ))
         }
     }
+
+    fn align_selections(
+        &mut self,
+        direction: Direction,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let max_column = self
+            .selection_set
+            .map(|selection| -> anyhow::Result<_> {
+                let char_index = selection.to_char_index(&direction);
+                let position = self.buffer().char_to_position(char_index)?;
+                Ok(position.column)
+            })
+            .into_iter()
+            .collect::<anyhow::Result<Vec<_>>>()?
+            .into_iter()
+            .max()
+            .ok_or_else(|| anyhow::anyhow!("Unable to obtain max column"))?;
+
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let original_range = selection.extended_range();
+                    let char_index = selection.to_char_index(&direction);
+                    let position = self.buffer().char_to_position(char_index)?;
+                    let extra_leading_whitespaces_count =
+                        max_column.saturating_sub(position.column);
+                    let content = self.buffer().slice(&original_range)?;
+                    let new_content =
+                        format!("{}{}", " ".repeat(extra_leading_whitespaces_count), content);
+                    let select_range = original_range.shift_right(extra_leading_whitespaces_count);
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                original_range,
+                                new_content.into(),
+                            )),
+                            Action::Select(selection.clone().set_range(select_range)),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
+        self.apply_edit_transaction(edit_transaction, context)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4470,6 +4520,7 @@ pub(crate) enum DispatchEditor {
     CopyRelativePath,
     DeleteWithMovement(Movement),
     EnterDeleteMode,
+    AlignSelections(Direction),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
