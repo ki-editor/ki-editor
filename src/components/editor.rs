@@ -4350,7 +4350,7 @@ impl Editor {
                                 original_range,
                                 new_content.into(),
                             )),
-                            Action::Select(selection.clone().set_range(select_range.into())),
+                            Action::Select(selection.clone().set_range(select_range)),
                         ]
                         .to_vec(),
                     ))
