@@ -247,7 +247,6 @@ pub fn fetch_grammars() {
 #[cfg(test)]
 mod test_process_edit_args {
     use shared::canonicalized_path::CanonicalizedPath;
-    use similar::DiffableStr;
 
     use super::{process_edit_args, EditArgs};
 
