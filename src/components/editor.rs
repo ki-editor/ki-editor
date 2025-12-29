@@ -2807,7 +2807,8 @@ impl Editor {
                             Action::Select(
                                 selection
                                     .clone()
-                                    .set_range((range.start..range.start + new_char_count).into()),
+                                    .set_range((range.start..range.start + new_char_count).into())
+                                    .set_initial_range(None),
                             ),
                         ]
                         .to_vec(),
