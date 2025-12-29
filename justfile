@@ -6,7 +6,7 @@ default:
     @just test 
     @just doc 
     
-check: build fmt-check lint 
+check: build check-typeshare fmt-check lint 
     
 build-all: tree-sitter-quickfix build vscode-build
     
@@ -30,6 +30,19 @@ build:
 
 watch-build:
     cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo build
+
+# Note: not removing the generated file on error here is intentional,
+# partially because it is more annoying.
+check-typeshare:
+    typeshare ki-protocol-types/src --lang typescript -o ki-vscode/src/protocol/types.ts2
+    cd ki-vscode/src/protocol && cmp types.ts types.ts2 && rm types.ts2
+    
+    typeshare ki-protocol-types/src --lang kotlin -o ki-jetbrains/src/kotlin/protocol/Types.kt2
+    cd ki-jetbrains/src/kotlin/protocol && cmp Types.kt2 Types.kt && rm Types.kt2
+
+update-typeshare:
+    typeshare ki-protocol-types/src --lang typescript -o ki-vscode/src/protocol/types.ts
+    typeshare ki-protocol-types/src --lang kotlin -o ki-jetbrains/src/kotlin/protocol/Types.kt
 
 lint:
     @echo "Running cargo clippy..."
