@@ -111,7 +111,7 @@ enum KeymapFormat {
 
 fn create_timestamp_file() -> anyhow::Result<(PathBuf, File)> {
     let timestamp = Local::now().format("%Y-%m-%d-%H-%M-%S").to_string();
-    let path = PathBuf::from(format!("{timestamp}.txt"));
+    let path = PathBuf::from(format!("from-stdin-{timestamp}.txt"));
     let file = File::create(&path)?;
     Ok((path, file))
 }
@@ -255,6 +255,20 @@ mod test_process_edit_args {
     fn no_edit_args() -> anyhow::Result<()> {
         let actual = process_edit_args(EditArgs { path: None })?;
         assert_eq!(actual.working_directory, None);
+
+        // Delete the temporary file that will be created
+
+        for entry in std::fs::read_dir(".")? {
+            let entry = entry?;
+            let path = entry.path();
+            dbg!(&path.to_string_lossy());
+            if path.to_string_lossy().contains("from-stdin-")
+                && path.to_string_lossy().ends_with("txt")
+            {
+                std::fs::remove_file(path)?;
+            }
+        }
+
         Ok(())
     }
 
