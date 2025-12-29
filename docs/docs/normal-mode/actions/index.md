@@ -127,6 +127,12 @@ This is a shortcut of `i enter esc`.
 
 Dedent/Indent the current selection by 4 spaces.
 
+### `← Align`/`Align →`
+
+Align selections to the left or right. Similar to Kakoune's `&`.
+
+<TutorialFallback filename="align-selections"/>
+
 ### `Transform`
 
 <KeymapFallback filename="Transform"/>

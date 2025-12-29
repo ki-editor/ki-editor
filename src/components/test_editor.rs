@@ -5810,3 +5810,44 @@ fn entering_normal_mode_from_insert_mode_in_scratch_buffer() -> anyhow::Result<(
         ])
     })
 }
+
+#[test]
+fn align_selections() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent(
+                "
+1)
+2)
+10)
+"
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(CursorAddToAllSelections),
+            Editor(AlignSelections(Direction::End)),
+            Expect(CurrentComponentContent(
+                "
+ 1)
+ 2)
+10)
+",
+            )),
+            Expect(CurrentSelectedTexts(&["1)", "2)", "10)"])),
+            Editor(AlignSelections(Direction::Start)),
+            Expect(CurrentComponentContent(
+                "
+ 1)
+ 2)
+ 10)
+",
+            )),
+            Expect(CurrentSelectedTexts(&["1)", "2)", "10)"])),
+        ])
+    })
+}

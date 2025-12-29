@@ -244,6 +244,65 @@ Why?
             ].to_vec(),
         },
         RecipeGroup {
+            filename: "align-selections",
+            recipes: [
+                Recipe {
+                    description: "Align Left",
+                    content: "
+====
+  1)
+ 20)
+300)
+"
+                        .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("a l r l l esc shift+Y"),
+                    expectations: Box::new([
+                        CurrentSelectedTexts(&["1)", "20)", "300)"]),
+                        CurrentComponentContent("
+====
+  1)
+  20)
+  300)
+"
+                            .trim()
+                        )
+                    ]),
+                    terminal_height: Some(10),
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Align Right",
+                    content: "
+====
+1)
+20)
+300)
+"
+                        .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("a l r l l esc shift+P"),
+                    expectations: Box::new([
+                        CurrentSelectedTexts(&["1)", "20)", "300)"]),
+                        CurrentComponentContent("
+====
+  1)
+ 20)
+300)
+"
+                            .trim()
+                        )
+                    ]),
+                    terminal_height: Some(10),
+                    similar_vim_combos: &[],
+                    only: false,
+                }
+            ].to_vec(),
+        },
+        RecipeGroup {
             filename: "delete-finer-movement",
             recipes: [
                 Recipe {

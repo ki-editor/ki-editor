@@ -307,6 +307,16 @@ impl Editor {
                 "Break".to_string(),
                 Dispatch::ToEditor(BreakSelection),
             ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::AgSlL),
+                Direction::Start.format_action("Align"),
+                Dispatch::ToEditor(AlignSelections(Direction::Start)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::AgSlR),
+                Direction::End.format_action("Align"),
+                Dispatch::ToEditor(AlignSelections(Direction::End)),
+            ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Raise),
                 "Raise".to_string(),
@@ -574,7 +584,7 @@ impl Editor {
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::SView),
-                "⇋ Align".to_string(),
+                "⇋ Align View".to_string(),
                 "Switch view alignment".to_string(),
                 Dispatch::ToEditor(SwitchViewAlignment),
             ),
