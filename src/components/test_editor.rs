@@ -5877,3 +5877,25 @@ fn align_selections() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn swap_with_intersecting_selections_should_not_elongate_selections() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("1.0".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnterSwapMode),
+            Editor(MoveSelection(Next)),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentComponentContent(".01")),
+            Editor(MoveSelection(Previous)),
+            Editor(MoveSelection(Previous)),
+            Expect(CurrentComponentContent("1.0")),
+        ])
+    })
+}
