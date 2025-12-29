@@ -2162,24 +2162,31 @@ impl Editor {
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let buffer = self.buffer.borrow().clone();
-        let get_edit_transaction = |current_selection: &Selection,
-                                    next_selection: &Selection|
-         -> anyhow::Result<_> {
-            let current_selection_range = current_selection.extended_range();
-            let text_at_current_selection: Rope = buffer.slice(&current_selection_range)?;
-            let text_at_next_selection: Rope = buffer.slice(&next_selection.extended_range())?;
+        let get_edit_transaction =
+            |current_selection: &Selection, next_selection: &Selection| -> anyhow::Result<_> {
+                let current_selection_range = current_selection.extended_range();
+                let next_selection_range = next_selection
+                    .extended_range()
+                    // Subtract the current selection range to prevent duplication during swap.
+                    // Without this, overlapping selections would duplicate the overlapping text.
+                    //
+                    // Example: In "foo bar spam", if current = "foo" and next = "foo bar",
+                    // swapping without subtraction would produce "foo bar foo spam" instead of "bar foo spam".
+                    .subtracts(&current_selection_range);
 
-            Ok(EditTransaction::from_action_groups(
-                Self::make_swap_action_groups(
-                    buffer.rope(),
-                    current_selection,
-                    current_selection_range,
-                    text_at_current_selection,
-                    next_selection.extended_range(),
-                    text_at_next_selection,
-                ),
-            ))
-        };
+                let text_at_current_selection: Rope = buffer.slice(&current_selection_range)?;
+                let text_at_next_selection: Rope = buffer.slice(&next_selection_range)?;
+                Ok(EditTransaction::from_action_groups(
+                    Self::make_swap_action_groups(
+                        buffer.rope(),
+                        current_selection,
+                        current_selection_range,
+                        text_at_current_selection,
+                        next_selection_range,
+                        text_at_next_selection,
+                    ),
+                ))
+            };
 
         let edit_transactions = self
             .selection_set

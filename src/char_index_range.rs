@@ -126,6 +126,42 @@ impl CharIndexRange {
             && other.len() > 0
             && range_intersects(&self.as_usize_range(), &other.as_usize_range())
     }
+
+    pub(crate) fn subtracts(&self, other: &CharIndexRange) -> CharIndexRange {
+        // If no intersection, return the original range
+        if !self.intersects_with(other) {
+            return *self;
+        }
+
+        // If other completely covers self
+        if other.is_supserset_of(self) {
+            // Return empty range at the start position
+            return (self.start..self.start).into();
+        }
+
+        // If other overlaps the start of self
+        if other.start <= self.start && other.end < self.end {
+            // Return the portion after other ends
+            return (other.end..self.end).into();
+        }
+
+        // If other overlaps the end of self
+        if other.start > self.start && other.end >= self.end {
+            // Return the portion before other starts
+            return (self.start..other.start).into();
+        }
+
+        // If other is completely inside self (would split into two ranges)
+        // Since we can only return one range, return the larger portion
+        let left_size = other.start.0 - self.start.0;
+        let right_size = self.end.0 - other.end.0;
+
+        if left_size >= right_size {
+            (self.start..other.start).into()
+        } else {
+            (other.end..self.end).into()
+        }
+    }
 }
 
 pub(crate) fn range_intersects<T: PartialOrd>(a: &Range<T>, b: &Range<T>) -> bool {
@@ -238,5 +274,141 @@ mod test_apply_edit {
     fn resize_if_edited_range_is_subset() {
         assert_eq!(apply_edit(10..20, &(11..12), 3), Some(10..23));
         assert_eq!(apply_edit(10..20, &(11..13), -1), Some(10..19));
+    }
+}
+
+#[cfg(test)]
+mod test_subtract_range {
+    use super::*;
+
+    #[test]
+    fn subtracts_no_overlap() {
+        // [a, b) and [c, d) where b <= c
+        let range1: CharIndexRange = (CharIndex(0)..CharIndex(5)).into();
+        let range2 = (CharIndex(10)..CharIndex(15)).into();
+        assert_eq!(range1.subtracts(&range2), range1);
+        assert_eq!(range2.subtracts(&range1), range2);
+    }
+
+    #[test]
+    fn subtracts_adjacent() {
+        // [a, b) and [b, c) - touching but not overlapping
+        let range1: CharIndexRange = (CharIndex(0)..CharIndex(5)).into();
+        let range2 = (CharIndex(5)..CharIndex(10)).into();
+        assert_eq!(range1.subtracts(&range2), range1);
+        assert_eq!(range2.subtracts(&range1), range2);
+    }
+
+    #[test]
+    fn subtracts_partial_overlap_left() {
+        // [a, b) overlaps [c, d) where a < c < b < d
+        let range1: CharIndexRange = (CharIndex(0)..CharIndex(10)).into();
+        let range2 = (CharIndex(5)..CharIndex(15)).into();
+        assert_eq!(
+            range1.subtracts(&range2),
+            (CharIndex(0)..CharIndex(5)).into()
+        );
+    }
+
+    #[test]
+    fn subtracts_partial_overlap_right() {
+        // [a, b) overlaps [c, d) where c < a < d < b
+        let range1: CharIndexRange = (CharIndex(5)..CharIndex(15)).into();
+        let range2 = (CharIndex(0)..CharIndex(10)).into();
+        assert_eq!(
+            range1.subtracts(&range2),
+            (CharIndex(10)..CharIndex(15)).into()
+        );
+    }
+
+    #[test]
+    fn subtracts_contained_within() {
+        // [a, b) contains [c, d) where a < c < d < b
+        // Returns the larger portion (left in this case)
+        let range1: CharIndexRange = (CharIndex(0)..CharIndex(20)).into();
+        let range2 = (CharIndex(5)..CharIndex(15)).into();
+        assert_eq!(
+            range1.subtracts(&range2),
+            (CharIndex(0)..CharIndex(5)).into()
+        );
+    }
+
+    #[test]
+    fn subtracts_contained_within_right_larger() {
+        // When right portion is larger, return right portion
+        let range1: CharIndexRange = (CharIndex(0)..CharIndex(20)).into();
+        let range2 = (CharIndex(5)..CharIndex(8)).into();
+        assert_eq!(
+            range1.subtracts(&range2),
+            (CharIndex(8)..CharIndex(20)).into()
+        );
+    }
+
+    #[test]
+    fn subtracts_completely_contained_by() {
+        // [a, b) is contained by [c, d) where c <= a < b <= d
+        let range1: CharIndexRange = (CharIndex(5)..CharIndex(15)).into();
+        let range2 = (CharIndex(0)..CharIndex(20)).into();
+        assert_eq!(
+            range1.subtracts(&range2),
+            (CharIndex(5)..CharIndex(5)).into()
+        );
+    }
+
+    #[test]
+    fn subtracts_exact_match() {
+        // [a, b) == [c, d)
+        let range1: CharIndexRange = (CharIndex(5)..CharIndex(15)).into();
+        let range2 = (CharIndex(5)..CharIndex(15)).into();
+        assert_eq!(
+            range1.subtracts(&range2),
+            (CharIndex(5)..CharIndex(5)).into()
+        );
+    }
+
+    #[test]
+    fn subtracts_zero_length_ranges() {
+        // Empty ranges
+        let range1: CharIndexRange = (CharIndex(5)..CharIndex(5)).into();
+        let range2 = (CharIndex(10)..CharIndex(10)).into();
+        assert_eq!(range1.subtracts(&range2), range1);
+
+        // Non-empty minus empty at same position
+        let range1: CharIndexRange = (CharIndex(5)..CharIndex(10)).into();
+        let range2 = (CharIndex(5)..CharIndex(5)).into();
+        assert_eq!(range1.subtracts(&range2), range1);
+
+        // Non-empty minus empty at end
+        let range1: CharIndexRange = (CharIndex(5)..CharIndex(10)).into();
+        let range2 = (CharIndex(10)..CharIndex(10)).into();
+        assert_eq!(range1.subtracts(&range2), range1);
+    }
+
+    #[test]
+    fn subtracts_subtrahend_extends_left() {
+        // [c, d) extends beyond left of [a, b) where c < a < d <= b
+        let range1: CharIndexRange = (CharIndex(5)..CharIndex(15)).into();
+        let range2 = (CharIndex(0)..CharIndex(5)).into();
+        assert_eq!(range1.subtracts(&range2), range1);
+
+        let range2 = (CharIndex(0)..CharIndex(10)).into();
+        assert_eq!(
+            range1.subtracts(&range2),
+            (CharIndex(10)..CharIndex(15)).into()
+        );
+    }
+
+    #[test]
+    fn subtracts_subtrahend_extends_right() {
+        // [c, d) extends beyond right of [a, b) where a <= c < b < d
+        let range1: CharIndexRange = (CharIndex(5)..CharIndex(15)).into();
+        let range2 = (CharIndex(15)..CharIndex(20)).into();
+        assert_eq!(range1.subtracts(&range2), range1);
+
+        let range2 = (CharIndex(10)..CharIndex(20)).into();
+        assert_eq!(
+            range1.subtracts(&range2),
+            (CharIndex(5)..CharIndex(10)).into()
+        );
     }
 }
