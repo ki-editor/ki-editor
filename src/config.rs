@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::{collections::HashMap, io::Read, path::PathBuf, str::FromStr};
 
 use regex::Regex;
@@ -8,17 +9,57 @@ use crate::themes::Theme;
 use figment::providers;
 use figment::providers::Format;
 use once_cell::sync::OnceCell;
-use schemars::JsonSchema;
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use shared::canonicalized_path::CanonicalizedPath;
 use shared::language::{self, Language};
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(transparent)]
+struct ConfigThemeName(String);
+
+#[derive(Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(try_from = "ConfigThemeName", into = "ConfigThemeName")]
+struct ConfigTheme(Theme);
+
+impl TryFrom<ConfigThemeName> for ConfigTheme {
+    type Error = String;
+
+    fn try_from(value: ConfigThemeName) -> Result<Self, Self::Error> {
+        crate::themes::from_name(&value.0).map(Self)
+    }
+}
+
+impl From<ConfigTheme> for ConfigThemeName {
+    fn from(value: ConfigTheme) -> Self {
+        Self(value.0.name)
+    }
+}
+
+impl JsonSchema for ConfigThemeName {
+    fn schema_name() -> Cow<'static, str> {
+        "Theme".into()
+    }
+
+    fn json_schema(_gen: &mut SchemaGenerator) -> Schema {
+        let valid_themes: Vec<_> = crate::themes::theme_descriptor::all()
+            .into_iter()
+            .map(|descriptor| descriptor.name().to_string())
+            .collect();
+
+        schemars::json_schema!({
+            "type": "string",
+            "enum": valid_themes
+        })
+    }
+}
+
+#[derive(Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct AppConfig {
     languages: HashMap<String, Language>,
     keyboard_layout: KeyboardLayoutKind,
-    theme: Theme,
+    theme: ConfigTheme,
     status_lines: Vec<StatusLine>,
 }
 
@@ -76,7 +117,7 @@ impl AppConfig {
     }
 
     pub(crate) fn theme(&self) -> &Theme {
-        &self.theme
+        &self.theme.0
     }
 
     pub(crate) fn status_lines(&self) -> Vec<crate::app::StatusLine> {
