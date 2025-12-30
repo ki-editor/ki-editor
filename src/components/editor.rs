@@ -2245,13 +2245,15 @@ impl Editor {
 
                         let params = selection_mode::SelectionModeParams {
                             buffer: &buffer,
-                            current_selection,
+                            current_selection: &current_selection
+                                .clone()
+                                .collapsed_to_anchor_range(&Direction::Start),
                             cursor_direction: &self.cursor_direction,
                         };
                         let first = selection_mode.first(&params).ok()??.range();
                         // Find the before current selection
                         let before_current = selection_mode.left(&params).ok()??.range();
-                        let first_range = current_selection.range();
+                        let first_range = current_selection.extended_range();
                         let second_range: CharIndexRange =
                             (first.start()..before_current.end()).into();
                         // Swap the range with the last selection
@@ -2294,7 +2296,9 @@ impl Editor {
                             .ok()?;
                         let params = selection_mode::SelectionModeParams {
                             buffer: &buffer,
-                            current_selection,
+                            current_selection: &current_selection
+                                .clone()
+                                .collapsed_to_anchor_range(&Direction::End),
                             cursor_direction: &self.cursor_direction,
                         };
 
@@ -2302,7 +2306,7 @@ impl Editor {
                         let last = selection_mode.last(&params).ok()??.range();
                         // Find the before current selection
                         let after_current = selection_mode.right(&params).ok()??.range();
-                        let first_range = current_selection.range();
+                        let first_range = current_selection.extended_range();
                         let second_range: CharIndexRange =
                             (after_current.start()..last.end()).into();
                         // Swap the range with the last selection

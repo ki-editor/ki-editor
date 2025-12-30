@@ -5953,3 +5953,32 @@ fn swap_extended_syntax_node_selection() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn swap_extended_syntax_node_selection_till_last_and_first() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fn f(x:X, y:Y, z:Z, a:A) {}".to_string())),
+            Editor(MatchLiteral("x:X".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Editor(EnableSelectionExtension),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["x:X, y:Y"])),
+            Editor(EnterSwapMode),
+            Editor(MoveSelection(Last)),
+            Expect(CurrentComponentContent("fn f(z:Z, a:A, x:X, y:Y) {}")),
+            Expect(CurrentSelectedTexts(&["x:X, y:Y"])),
+            Expect(CurrentRangeAndInitialRange(
+                (CharIndex(20)..CharIndex(23)).into(),
+                Some((CharIndex(15)..CharIndex(18)).into()),
+            )),
+            Editor(MoveSelection(First)),
+            Expect(CurrentComponentContent("fn f(x:X, y:Y, z:Z, a:A) {}")),
+        ])
+    })
+}
