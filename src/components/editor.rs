@@ -2014,7 +2014,7 @@ impl Editor {
         &self,
         current_selection: &Selection,
         selection_mode: &SelectionMode,
-        direction: &Movement,
+        movement: &Movement,
         get_actual_edit_transaction: impl Fn(
             /* current */ &Selection,
             /* next */ &Selection,
@@ -2028,9 +2028,12 @@ impl Editor {
         // Loop until the edit transaction does not result in errorneous node
         let mut next_selection = Selection::get_selection_(
             &buffer,
-            &current_selection,
+            // Collapse selection so that "Swapping extended selection" works
+            &current_selection
+                .clone()
+                .collapsed_to_anchor_range(&movement.to_direction()),
             selection_mode,
-            &direction.into_movement_applicandum(self.selection_set.sticky_column_index()),
+            &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
             &self.cursor_direction,
             context,
         )?
@@ -2099,7 +2102,7 @@ impl Editor {
                 &buffer,
                 &next_selection,
                 selection_mode,
-                &direction.into_movement_applicandum(self.selection_set.sticky_column_index()),
+                &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
                 &self.cursor_direction,
                 context,
             )?
@@ -2122,6 +2125,13 @@ impl Editor {
         second_selection_range: CharIndexRange,
         second_selection_text: Rope,
     ) -> Vec<ActionGroup> {
+        let new_select_range: CharIndexRange = (second_selection_range.start
+            ..(second_selection_range.start + first_selection_text.len_chars()))
+            .into();
+
+        let selection = first_selection.clone().apply_offset(
+            (new_select_range.start.0 as isize) - (first_selection_range.start.0 as isize),
+        );
         [
             ActionGroup::new(
                 [Action::Edit(Edit::new(
@@ -2138,14 +2148,7 @@ impl Editor {
                         second_selection_range,
                         first_selection_text.clone(),
                     )),
-                    Action::Select(
-                        first_selection.clone().set_range(
-                            (second_selection_range.start
-                                ..(second_selection_range.start
-                                    + first_selection_text.len_chars()))
-                                .into(),
-                        ),
-                    ),
+                    Action::Select(selection),
                 ]
                 .to_vec(),
             ),

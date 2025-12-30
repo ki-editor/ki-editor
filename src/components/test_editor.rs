@@ -5899,3 +5899,57 @@ fn swap_with_intersecting_selections_should_not_elongate_selections() -> anyhow:
         ])
     })
 }
+
+#[test]
+fn swap_extended_word_selection() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.gitignore(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnableSelectionExtension),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["foo bar"])),
+            Editor(EnterSwapMode),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["foo bar"])),
+            Expect(CurrentComponentContent("spam foo bar")),
+            Editor(MoveSelection(Left)),
+            Expect(CurrentComponentContent("foo bar spam")),
+            Expect(CurrentSelectedTexts(&["foo bar"])),
+        ])
+    })
+}
+
+#[test]
+fn swap_extended_syntax_node_selection() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fn f(x:X, y:Y, z:Z) {}".to_string())),
+            Editor(MatchLiteral("x:X".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Editor(EnableSelectionExtension),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["x:X, y:Y"])),
+            Editor(EnterSwapMode),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentComponentContent("fn f(z:Z, x:X, y:Y) {}")),
+            Expect(CurrentSelectedTexts(&["x:X, y:Y"])),
+            Expect(CurrentRangeAndInitialRange(
+                (CharIndex(15)..CharIndex(18)).into(),
+                Some((CharIndex(10)..CharIndex(13)).into()),
+            )),
+            Editor(MoveSelection(Left)),
+            Expect(CurrentComponentContent("fn f(x:X, y:Y, z:Z) {}")),
+        ])
+    })
+}
