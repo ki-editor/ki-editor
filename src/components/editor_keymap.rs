@@ -24,7 +24,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
     ],
     [
-        Undo_, Rplc_, Copy_, Delte, Mark_, /****/ LSrch, Jump_, Open_, Paste, XAchr,
+        Mark_, Rplc_, Copy_, Delte, Paste, /****/ LSrch, Jump_, Open_, Undo_, XAchr,
     ],
 ];
 
@@ -36,7 +36,7 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
     ],
     [
-        Redo_, PRplc, RplcX, Del0G, _____, /****/ GSrch, ToIdx, _____, Pst0G, SSEnd,
+        _____, PRplc, RplcX, Del0G, Pst0G, /****/ GSrch, ToIdx, _____, Redo_, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -66,7 +66,7 @@ pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ LRept, _____, _____, _____, _____,
+        Mark_, LDefn, LType, LRfrE, LImpl, /****/ LRept, _____, _____, _____, _____,
     ],
 ];
 pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
