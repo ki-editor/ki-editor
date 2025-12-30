@@ -24,7 +24,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
     ],
     [
-        Undo_, Rplc_, Copy_, Delte, Mark_, /****/ LSrch, Jump_, Open_, Paste, XAchr,
+        Mark_, Rplc_, Copy_, Delte, Paste, /****/ LSrch, Jump_, Open_, Undo_, XAchr,
     ],
 ];
 
@@ -66,7 +66,7 @@ pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ LRept, _____, _____, _____, _____,
+        Mark_, LDefn, LType, LRfrE, LImpl, /****/ LRept, _____, _____, _____, _____,
     ],
 ];
 pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
