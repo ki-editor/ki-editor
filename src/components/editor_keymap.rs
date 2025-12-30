@@ -1,4 +1,4 @@
-use once_cell::sync::Lazy;
+use std::cell::LazyCell;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

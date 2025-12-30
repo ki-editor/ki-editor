@@ -1,7 +1,7 @@
-use once_cell::sync::OnceCell;
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
-static ICON_CONFIG: OnceCell<IconsConfig> = OnceCell::new();
+static ICON_CONFIG: OnceLock<IconsConfig> = OnceLock::new();
 
 use serde::Deserialize;
 #[derive(Deserialize)]

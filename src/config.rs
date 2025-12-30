@@ -1,5 +1,4 @@
-use std::borrow::Cow;
-use std::{collections::HashMap, io::Read, path::PathBuf, str::FromStr};
+use std::{cell::OnceCell, collections::HashMap, io::Read, path::PathBuf, str::FromStr};
 
 use regex::Regex;
 
@@ -8,7 +7,6 @@ use crate::components::editor_keymap::KeyboardLayoutKind;
 use crate::themes::Theme;
 use figment::providers;
 use figment::providers::Format;
-use once_cell::sync::OnceCell;
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use shared::canonicalized_path::CanonicalizedPath;

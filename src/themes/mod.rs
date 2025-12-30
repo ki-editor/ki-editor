@@ -2,11 +2,12 @@ pub mod from_zed_theme;
 pub(crate) mod theme_descriptor;
 pub(crate) mod vscode_dark;
 pub(crate) mod vscode_light;
-use std::collections::HashMap;
+
+use std::{borrow::Cow, cell::OnceCell, collections::HashMap, fmt};
 
 use itertools::Itertools;
 use my_proc_macros::hex;
-use once_cell::sync::OnceCell;
+use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator as _;
 pub(crate) use vscode_dark::vscode_dark;
 pub(crate) use vscode_light::vscode_light;
@@ -211,7 +212,7 @@ pub(crate) struct UiStyles {
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub(crate) struct SyntaxStyles {
-    map: once_cell::sync::OnceCell<HashMap<HighlightName, Style>>,
+    map: std::cell::OnceCell<HashMap<HighlightName, Style>>,
     groups: Vec<(HighlightName, Style)>,
 }
 
@@ -219,7 +220,7 @@ impl SyntaxStyles {
     pub fn new(groups: &[(HighlightName, Style)]) -> Self {
         Self {
             groups: groups.to_vec(),
-            map: once_cell::sync::OnceCell::new(),
+            map: std::cell::OnceCell::new(),
         }
     }
 
@@ -648,7 +649,7 @@ impl HighlightName {
 }
 
 pub fn highlight_names() -> &'static Vec<&'static str> {
-    static INIT: once_cell::sync::OnceCell<Vec<&'static str>> = OnceCell::new();
+    static INIT: std::cell::OnceCell<Vec<&'static str>> = OnceCell::new();
     INIT.get_or_init(|| {
         HighlightName::iter()
             .map(|variant| variant.into())

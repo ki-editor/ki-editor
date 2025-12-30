@@ -6,11 +6,11 @@ use std::sync::RwLock;
 
 static CWD: RwLock<Option<PathBuf>> = RwLock::new(None);
 
-static RUNTIME_DIR: once_cell::sync::Lazy<PathBuf> = once_cell::sync::Lazy::new(get_runtime_dir);
+static RUNTIME_DIR: std::sync::LazyLock<PathBuf> = std::sync::LazyLock::new(get_runtime_dir);
 
-static CONFIG_FILE: once_cell::sync::OnceCell<PathBuf> = once_cell::sync::OnceCell::new();
+static CONFIG_FILE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
-static LOG_FILE: once_cell::sync::OnceCell<PathBuf> = once_cell::sync::OnceCell::new();
+static LOG_FILE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
 // Get the current working directory.
 // This information is managed internally as the call to std::env::current_dir
