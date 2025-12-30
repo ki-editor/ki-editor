@@ -11,6 +11,7 @@ use crate::{
         suggestive_editor::Info,
     },
     context::{Context, LocalSearchConfigMode, Search},
+    edit::ApplyOffset,
     non_empty_extensions::{NonEmptyTryCollectOption, NonEmptyTryCollectResult},
     position::Position,
     quickfix_list::{DiagnosticSeverityRange, QuickfixListItem},
@@ -757,6 +758,13 @@ impl Selection {
         Ok(self
             .set_info(byte_range.info())
             .set_range(buffer.byte_range_to_char_index_range(byte_range.range())?))
+    }
+
+    pub(crate) fn apply_offset(self, offset: isize) -> Selection {
+        let new_range = self.range.apply_offset(offset);
+        let new_initial_range = self.initial_range.map(|range| range.apply_offset(offset));
+        self.set_range(new_range)
+            .set_initial_range(new_initial_range)
     }
 }
 

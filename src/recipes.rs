@@ -740,6 +740,48 @@ impl<C> Iterator for PostorderTraverse<C>
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
+                },
+                Recipe {
+                    description: "Swap extended syntax node selections",
+                    content: "[{\"x\": 123}, true, {\"y\": {}}, false]".trim(),
+                    file_extension: "json",
+                    prepare_events: keys!("w o"),
+                    events: keys!("d g l t l l j"),
+                    expectations: Box::new([
+                        CurrentSelectedTexts(&["{\"x\": 123}, true"]),
+                        CurrentComponentContent("[{\"y\": {}}, {\"x\": 123}, true, false]"),
+                    ]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Swap extended line selections",
+                    content: "foo\nbar\nspam\nbaz".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("a g l t l l j"),
+                    expectations: Box::new([
+                        CurrentSelectedTexts(&["foo\nbar"]),
+                        CurrentComponentContent("spam\nfoo\nbar\nbaz"),
+                    ]),
+                    terminal_height: Some(10),
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Swap extended word selections",
+                    content: "foo bar spam baz".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w g l t l l j"),
+                    expectations: Box::new([
+                        CurrentSelectedTexts(&["foo bar"]),
+                        CurrentComponentContent("spam foo bar baz"),
+                    ]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
                 }
            ]
             .to_vec(),

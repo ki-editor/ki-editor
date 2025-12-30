@@ -195,6 +195,7 @@ pub(crate) enum ExpectKind {
         timeout: Duration,
     },
     CurrentEditorIncrementalSearchMatches(Vec<std::ops::Range<usize>>),
+    CurrentRangeAndInitialRange(CharIndexRange, Option<CharIndexRange>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -609,6 +610,15 @@ impl ExpectKind {
                     .clone()
                     .unwrap_or_default(),
             ),
+            CurrentRangeAndInitialRange(range, initial_range) => {
+                let editor = app.get_current_editor();
+                let editor = editor.borrow();
+                let selection = editor.editor().selection_set.primary_selection();
+                contextualize(
+                    (range, initial_range),
+                    (&selection.range, &selection.initial_range),
+                )
+            }
         })
     }
 }

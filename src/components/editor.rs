@@ -2014,7 +2014,7 @@ impl Editor {
         &self,
         current_selection: &Selection,
         selection_mode: &SelectionMode,
-        direction: &Movement,
+        movement: &Movement,
         get_actual_edit_transaction: impl Fn(
             /* current */ &Selection,
             /* next */ &Selection,
@@ -2028,9 +2028,12 @@ impl Editor {
         // Loop until the edit transaction does not result in errorneous node
         let mut next_selection = Selection::get_selection_(
             &buffer,
-            &current_selection,
+            // Collapse selection so that "Swapping extended selection" works
+            &current_selection
+                .clone()
+                .collapsed_to_anchor_range(&movement.to_direction()),
             selection_mode,
-            &direction.into_movement_applicandum(self.selection_set.sticky_column_index()),
+            &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
             &self.cursor_direction,
             context,
         )?
@@ -2099,7 +2102,7 @@ impl Editor {
                 &buffer,
                 &next_selection,
                 selection_mode,
-                &direction.into_movement_applicandum(self.selection_set.sticky_column_index()),
+                &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
                 &self.cursor_direction,
                 context,
             )?
@@ -2122,6 +2125,13 @@ impl Editor {
         second_selection_range: CharIndexRange,
         second_selection_text: Rope,
     ) -> Vec<ActionGroup> {
+        let new_select_range: CharIndexRange = (second_selection_range.start
+            ..(second_selection_range.start + first_selection_text.len_chars()))
+            .into();
+
+        let selection = first_selection.clone().apply_offset(
+            (new_select_range.start.0 as isize) - (first_selection_range.start.0 as isize),
+        );
         [
             ActionGroup::new(
                 [Action::Edit(Edit::new(
@@ -2138,14 +2148,7 @@ impl Editor {
                         second_selection_range,
                         first_selection_text.clone(),
                     )),
-                    Action::Select(
-                        first_selection.clone().set_range(
-                            (second_selection_range.start
-                                ..(second_selection_range.start
-                                    + first_selection_text.len_chars()))
-                                .into(),
-                        ),
-                    ),
+                    Action::Select(selection),
                 ]
                 .to_vec(),
             ),
@@ -2242,13 +2245,15 @@ impl Editor {
 
                         let params = selection_mode::SelectionModeParams {
                             buffer: &buffer,
-                            current_selection,
+                            current_selection: &current_selection
+                                .clone()
+                                .collapsed_to_anchor_range(&Direction::Start),
                             cursor_direction: &self.cursor_direction,
                         };
                         let first = selection_mode.first(&params).ok()??.range();
                         // Find the before current selection
                         let before_current = selection_mode.left(&params).ok()??.range();
-                        let first_range = current_selection.range();
+                        let first_range = current_selection.extended_range();
                         let second_range: CharIndexRange =
                             (first.start()..before_current.end()).into();
                         // Swap the range with the last selection
@@ -2291,7 +2296,9 @@ impl Editor {
                             .ok()?;
                         let params = selection_mode::SelectionModeParams {
                             buffer: &buffer,
-                            current_selection,
+                            current_selection: &current_selection
+                                .clone()
+                                .collapsed_to_anchor_range(&Direction::End),
                             cursor_direction: &self.cursor_direction,
                         };
 
@@ -2299,7 +2306,7 @@ impl Editor {
                         let last = selection_mode.last(&params).ok()??.range();
                         // Find the before current selection
                         let after_current = selection_mode.right(&params).ok()??.range();
-                        let first_range = current_selection.range();
+                        let first_range = current_selection.extended_range();
                         let second_range: CharIndexRange =
                             (after_current.start()..last.end()).into();
                         // Swap the range with the last selection
