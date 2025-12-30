@@ -1715,7 +1715,7 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     file_extension: "md",
                     prepare_events: &[],
                     events: keys!(
-                        "q r / ^ - space backslash [ space backslash ] enter r r d c v l a p . ; backspace"
+                        "q r / ^ - space backslash [ space backslash ] enter r r d c v l a p b ; backspace"
                     ),
                     expectations: Box::new([CurrentComponentContent(r#"# Fake To-Do List
 
