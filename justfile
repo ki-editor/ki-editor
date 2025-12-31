@@ -77,8 +77,10 @@ tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
 
 doc-assets testname="": test-setup
-    #!/bin/sh
     cargo nextest run --workspace -- 'doc_assets_' {{testname}}
+
+check-config-schema:
+    #!/bin/sh
     if ! git diff --exit-code docs/static/app_config_json_schema.json; then
         echo "❌ Config schema is out of date!"
         echo "Please run 'just doc-assets' and commit 'docs/static/app_config_json_schema.json'."
@@ -90,6 +92,7 @@ doc-assets-get-recipes-error:
     just doc-assets generate_recipes > /dev/null
 
 doc: doc-assets
+    just check-config-schema
     just -f docs/justfile
 
 doc-serve:
