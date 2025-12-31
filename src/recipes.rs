@@ -10,6 +10,7 @@ use crate::{
 pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
     [
         swap_cursors(),
+        swap_current_selection_using_a_different_selection_mode(),
         reveal_selections(),
         reveal_cursors(),
         reveal_marks(),
@@ -2044,6 +2045,28 @@ fn main() {
                 only: false,
             },
         ]
+        .to_vec(),
+    }
+}
+
+fn swap_current_selection_using_a_different_selection_mode() -> RecipeGroup {
+    RecipeGroup {
+        filename: "swap-current-selection-using-a-different-selection-mode",
+        recipes: [Recipe {
+            description: "Example 1",
+            content: "
+betty bought some butter, so betty bought some better butter
+**but the butter was bitter**
+"
+            .trim(),
+            file_extension: "rs",
+            prepare_events: &[],
+            events: keys!("a l g s t j j j j j j"),
+            expectations: Box::new([CurrentComponentContent("betty bought some butter, **but the butter was bitter** so betty bought some better\nbutter")]),
+            terminal_height: Some(10),
+            similar_vim_combos: &[],
+            only: false,
+        }]
         .to_vec(),
     }
 }
