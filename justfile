@@ -70,20 +70,20 @@ test-setup:
     git config --get --global user.email || git config --global user.email tester@gmail.com
 
 test testname="": test-setup
-    #!/bin/sh
     echo "Running cargo nextest..."
     cargo nextest run --workspace -- --skip 'doc_assets_' {{testname}}
-    if ! git diff --exit-code docs/static/app_config_json_schema.json; then
-        echo "❌ Config schema is out of date!"
-        echo "Please run 'just test' and commit 'docs/static/app_config_json_schema.json'."
-        exit 1
-    fi
     
 tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
 
 doc-assets testname="": test-setup
+    #!/bin/sh
     cargo nextest run --workspace -- 'doc_assets_' {{testname}}
+    if ! git diff --exit-code docs/static/app_config_json_schema.json; then
+        echo "❌ Config schema is out of date!"
+        echo "Please run 'just doc-assets' and commit 'docs/static/app_config_json_schema.json'."
+        exit 1
+    fi
     
 # This command helps you locate the actual recipe that is failing
 doc-assets-get-recipes-error:
