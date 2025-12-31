@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::{collections::HashMap, io::Read, path::PathBuf, str::FromStr};
 
+use itertools::Itertools;
 use regex::Regex;
 
 use crate::app::StatusLine;
@@ -45,6 +46,7 @@ impl JsonSchema for ConfigThemeName {
         let valid_themes: Vec<_> = crate::themes::theme_descriptor::all()
             .into_iter()
             .map(|descriptor| descriptor.name().to_string())
+            .sorted()
             .collect();
 
         schemars::json_schema!({
