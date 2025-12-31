@@ -1,0 +1,106 @@
+{
+    "name": "Apathy",
+    "author": "ported by Vishal (@haxfn)",
+    "themes": [
+        {
+            "name": "Apathy Dark",
+            "appearance": "dark",
+            "style": {
+                "background": "#031a16",
+                "editor.background": "#031a16",
+                "text": "#d2e7e4",
+                "text.accent": "#96883e",
+                "text.muted": "#2b685e",
+                "status_bar.background": "#96883e",
+                "tab_bar.background": "#96883e",
+                "tab.inactive_background": "#96883e",
+                "editor.line_number": "#2b685e",
+                "border": "#2b685e",
+                "conflict.background": "#963e4c",
+                "search.match_background": "#184e45",
+                "error": "#3e4c96",
+                "warning": "#3e4c96",
+                "info": "#96883e",
+                "hint": "#96883e",
+                "players": [
+                    {
+                        "cursor": "#81b5ac",
+                        "selection": "#08352b"
+                    }
+                ],
+                "syntax": {
+                    "boolean": { "color": "#4c963e" },
+                    "comment": { "color": "#2b685e" },
+                    "comment.documentation": { "color": "#2b685e" },
+                    "constant": { "color": "#4c963e" },
+                    "function": { "color": "#2b685e" },
+                    "keyword": { "color": "#4c963e" },
+                    "link_uri": { "color": "#883e96" },
+                    "tag": { "color": "#3e4c96" },
+                    "number": { "color": "#3e4c96" },
+                    "attribute": { "color": "#3e4c96" },
+                    "variable": { "color": "#81b5ac" },
+                    "type": { "color": "#81b5ac" },
+                    "operator": { "color": "#4c963e" },
+                    "string": { "color": "#4c963e" },
+                    "string.escape": { "color": "#4c963e" },
+                    "string.regex": { "color": "#4c963e" },
+                    "string.special": { "color": "#4c963e" },
+                    "punctuation.bracket": { "color": "#81b5ac" },
+                    "punctuation.delimiter": { "color": "#81b5ac" },
+                    "punctuation.special": { "color": "#81b5ac" }
+                }
+            }
+        },
+        {
+            "name": "Apathy Light",
+            "appearance": "light",
+            "style": {
+                "background": "#d2e7e4",
+                "editor.background": "#d2e7e4",
+                "text": "#184e45",
+                "text.accent": "#96883e",
+                "text.muted": "#81b5ac",
+                "status_bar.background": "#81b5ac",
+                "tab_bar.background": "#d2e7e4",
+                "tab.inactive_background": "#d2e7e4",
+                "editor.line_number": "#81b5ac",
+                "border": "#81b5ac",
+                "conflict.background": "#ed80a1",
+                "search.match_background": "#81b5ac",
+                "error": "#3e9688",
+                "warning": "#3e4c96",
+                "info": "#96883e",
+                "hint": "#96883e",
+                "players": [
+                    {
+                        "cursor": "#184e45",
+                        "selection": "#81b5ac"
+                    }
+                ],
+                "syntax": {
+                    "boolean": { "color": "#4c963e" },
+                    "comment": { "color": "#81b5ac" },
+                    "comment.documentation": { "color": "#81b5ac" },
+                    "constant": { "color": "#4c963e" },
+                    "function": { "color": "#96883e" },
+                    "keyword": { "color": "#4c963e" },
+                    "link_uri": { "color": "#96883e" },
+                    "tag": { "color": "#96883e" },
+                    "number": { "color": "#3e4c96" },
+                    "attribute": { "color": "#96883e" },
+                    "variable": { "color": "#184e45" },
+                    "type": { "color": "#883e96" },
+                    "operator": { "color": "#4c963e" },
+                    "string": { "color": "#883e96" },
+                    "string.escape": { "color": "#96883e" },
+                    "string.regex": { "color": "#963e4c" },
+                    "string.special": { "color": "#96883e" },
+                    "punctuation.bracket": { "color": "#184e45" },
+                    "punctuation.delimiter": { "color": "#184e45" },
+                    "punctuation.special": { "color": "#184e45" }
+                }
+            }
+        }
+    ]
+}

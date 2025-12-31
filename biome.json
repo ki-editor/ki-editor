@@ -14,7 +14,8 @@
             "src/protocol/types.ts",
             "target",
             "docs/static",
-            "docs/.docusaurus"
+            "docs/.docusaurus",
+            "themes"
         ]
     },
     "formatter": {
