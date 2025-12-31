@@ -398,4 +398,26 @@ mod test_word {
             ])
         })
     }
+
+    #[test]
+    fn should_handle_umlaut_and_diacritics() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("café München naïve résumé".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Word,
+                )),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentSelectedTexts(&[
+                    "café", "München", "naïve", "résumé",
+                ])),
+            ])
+        })
+    }
 }
