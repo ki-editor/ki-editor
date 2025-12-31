@@ -30,7 +30,8 @@ No matter which keyboard layout you use, be it QWERTY, Dvorak, Colemak, etc., th
 
 ### B. Bigram Optimization
 
-Because we are no longer bound by mnemonics, we can optimize common bigrams using either Dvorak's Hand Alternation or Colemak's Finger Rolling.
+Because we are no longer bound by mnemonics, we can optimize common bigrams using either Colemak's Rolling
+or Dvorak's Hand Alternation.
 
 For example, copying and pasting the current selection is done by pressing `c` then `b` on QWERTY.
 
