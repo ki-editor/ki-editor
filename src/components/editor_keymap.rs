@@ -18,7 +18,7 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchL, SWord, SchCS, MultC, Swap_, /****/ First, Prev_, Up___, Next_, Last_,
+        _____, SWord, _____, MultC, Swap_, /****/ First, Prev_, Up___, Next_, Last_,
     ],
     [
         Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
@@ -30,7 +30,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SchWC, Char_, SchCC, _____, Raise, /****/ AgSlL, RplcP, Join_, RplcN, AgSlR,
+        _____, Char_, _____, _____, Raise, /****/ AgSlL, RplcP, Join_, RplcN, AgSlR,
     ],
     [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
@@ -60,7 +60,7 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
 /// are both located on the right-side.
 pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
     [
-        OneCh, _____, NtrlN, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
+        SrchL, _____, SchCS, RSrch, Qkfix, /****/ OneCh, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
@@ -71,7 +71,7 @@ pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
 ];
 pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        SchWC, _____, SchCC, _____, _____, /****/ NtrlN, _____, _____, _____, _____,
     ],
     [
         _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
