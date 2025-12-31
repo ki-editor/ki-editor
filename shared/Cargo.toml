@@ -54,7 +54,7 @@ tree-sitter-svelte-ng = "1.0.2"
 tree-sitter-scheme = "0.24.7"
 tree-sitter-haskell = "0.23.1"
 tree-sitter-julia = "0.23.1"
-ureq = { version = "3.1.4", features = ["rustls"] }
+nvim-treesitter-highlight-queries = { version = "0.1.0", path = "../nvim-treesitter-highlight-queries" }
 
 
 [dev-dependencies]

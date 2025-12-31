@@ -1,0 +1,3 @@
+[submodule "nvim-treesitter-highlight-queries/nvim-treesitter"]
+	path = nvim-treesitter-highlight-queries/nvim-treesitter
+	url = https://github.com/nvim-treesitter/nvim-treesitter

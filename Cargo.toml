@@ -14,6 +14,7 @@ members = [
   'tree_sitter_quickfix',
   'zed_theme',
   'ki-protocol-types',
+  'nvim-treesitter-highlight-queries',
 ]
 exclude = ['tests/mock_repos/rust1']
 
@@ -38,9 +39,8 @@ quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
 itertools = "~0.13.0"
 tree-sitter-quickfix = { path = "tree_sitter_quickfix" }
+miniz_oxide = "0.8.9"
 schemars = "1.1.0"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
 wayland = ["arboard/wayland-data-control"]
@@ -131,6 +131,7 @@ quickcheck_macros.workspace = true
 tree-sitter-rust = "0.24.0"
 indoc = "2.0.4"
 is_ci = "1.2.0"
+nvim-treesitter-highlight-queries = { path = "nvim-treesitter-highlight-queries" }
 
 
 [profile.release]

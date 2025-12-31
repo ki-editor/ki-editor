@@ -1091,3 +1091,45 @@ fn zig() -> Language {
         ..Language::new()
     }
 }
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_languages_match_nvim_treesitter_languages() {
+        const MISSING_NVIM_HIGHLIGHTS: &[&str] = &["dune", "ki_quickfix", "tsq"];
+
+        // This test is a major consistency check.
+        // First, we check that all builtin languages were searched for in nvim-treesitter.
+        // Second, we check that all languages except those listed above produced queries in nvim-treesitter.
+        // Third, we check that the languages listed above did not produce queries in nvim-treesitter.
+        // Fourth, we check that all languages except those above can process properly, meaning their parents exist too.
+        let ts_languages = nvim_treesitter_highlight_queries::all();
+        let ts_ids: Vec<_> = super::languages()
+            .into_values()
+            .filter_map(|lang| lang.tree_sitter_grammar_config)
+            .map(|ts_config| ts_config.id)
+            .collect();
+
+        for lang in &ts_ids {
+            assert!(ts_languages.get(lang).is_some(), "{lang} was not searched for in nvim-treesitter! Fix nvim-treesitter-highlight-queries build.rs");
+        }
+        for lang in ts_ids
+            .iter()
+            .filter(|lang| !MISSING_NVIM_HIGHLIGHTS.contains(&lang.as_str()))
+        {
+            assert!(ts_languages.get(lang).unwrap().is_some(), "{lang} was searched for in nvim-treesitter but not found, and it is not in the list of exclusions!");
+        }
+        for lang in MISSING_NVIM_HIGHLIGHTS.iter() {
+            assert!(
+                ts_languages.get(&**lang).and_then(Option::as_ref).is_none(),
+                "{lang} is in the exclusion list but was found in nvim-treesitter!"
+            );
+        }
+        for lang in ts_ids
+            .iter()
+            .filter(|lang| !MISSING_NVIM_HIGHLIGHTS.contains(&lang.as_str()))
+        {
+            assert!(crate::ts_highlight_query::get_highlight_query(lang).is_some(), "{lang} is not in the exclusion list but its highlight query didn't process! Is its parent missing from nvim-treesitter-highlight-queries build.rs?");
+        }
+    }
+}

@@ -51,11 +51,6 @@ enum Commands {
         #[command(subcommand)]
         command: Grammar,
     },
-    /// Manage cached tree-sitter highlight files
-    HighlightQuery {
-        #[command(subcommand)]
-        command: HighlightQuery,
-    },
     /// Prints the log file path
     Log,
     /// Display the keymap in various formats
@@ -91,14 +86,6 @@ enum Grammar {
     Build,
     /// Fetch new tree-sitter grammar files
     Fetch,
-}
-
-#[derive(Subcommand)]
-enum HighlightQuery {
-    /// Remove all donwloaded Tree-sitter highlight queries
-    Clean,
-    /// Prints the cache path
-    CachePath,
 }
 
 #[derive(Subcommand)]
@@ -180,15 +167,6 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                 match command {
                     Grammar::Build => build_grammars(),
                     Grammar::Fetch => fetch_grammars(),
-                };
-                Ok(())
-            }
-            Commands::HighlightQuery { command } => {
-                match command {
-                    HighlightQuery::Clean => shared::ts_highlight_query::clear_cache()?,
-                    HighlightQuery::CachePath => {
-                        println!("{}", shared::ts_highlight_query::cache_dir().display())
-                    }
                 };
                 Ok(())
             }
