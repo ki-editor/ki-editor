@@ -51,7 +51,7 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
         _____, LineP, LineD, LineN, OpenM, /****/ DWrdP, MrkFP, ScrlD, MrkFN, SView,
     ],
     [
-        Undo_, _____, _____, WClse, MarkF, /****/ _____, _____, _____, _____, WSwth,
+        MarkF, _____, _____, WClse, _____, /****/ _____, _____, _____, Undo_, WSwth,
     ],
 ];
 
@@ -90,7 +90,7 @@ pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ GRept, _____, _____, _____, _____,
+        Mark_, LDefn, LType, LRfrE, LImpl, /****/ GRept, _____, _____, _____, _____,
     ],
 ];
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
