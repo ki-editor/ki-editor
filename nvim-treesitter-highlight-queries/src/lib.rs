@@ -48,6 +48,6 @@ mod test {
 
     #[test]
     fn test_nvim_treesitter_highlight_queries_can_be_loaded() {
-        assert!(HIGHLIGHT_QUERIES.len() > 0);
+        assert!(!HIGHLIGHT_QUERIES.is_empty());
     }
 }

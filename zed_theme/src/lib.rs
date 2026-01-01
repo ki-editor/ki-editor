@@ -31,6 +31,6 @@ mod test {
 
     #[test]
     fn test_zed_themes_can_be_loaded() {
-        assert!(get_zed_themes().len() > 0);
+        assert!(!get_zed_themes().is_empty());
     }
 }
