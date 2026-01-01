@@ -9,7 +9,7 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Transformation {
     Case(convert_case::Case),
-    Join,
+    Unwrap,
     Wrap,
     PipeToShell { command: String },
     ReplaceWithCopiedText { copied_texts: CopiedTexts },
@@ -27,7 +27,7 @@ impl std::fmt::Display for Transformation {
                 "{}",
                 format!("{case:?}").to_case(convert_case::Case::Title)
             ),
-            Transformation::Join => write!(f, "Join",),
+            Transformation::Unwrap => write!(f, "Unwrap",),
             Transformation::Wrap => write!(f, "Wrap",),
             Transformation::PipeToShell { command } => write!(f, "Pipe To Shell `{command}`",),
             Transformation::ReplaceWithCopiedText { .. } => {
@@ -72,7 +72,7 @@ impl Transformation {
     pub(crate) fn apply(&self, selection_index: usize, string: String) -> anyhow::Result<String> {
         match self {
             Transformation::Case(case) => Ok(string.to_case(*case)),
-            Transformation::Join => Ok(regex::Regex::new(r"\s*\n+\s*")
+            Transformation::Unwrap => Ok(regex::Regex::new(r"\s*\n+\s*")
                 .unwrap()
                 .replace_all(&string, " ")
                 .to_string()),
@@ -130,8 +130,8 @@ mod test_transformation {
     use super::Transformation;
 
     #[test]
-    fn join() {
-        let result = Transformation::Join
+    fn unwrap() {
+        let result = Transformation::Unwrap
             .apply(
                 0,
                 "

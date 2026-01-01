@@ -3791,6 +3791,28 @@ fn break_selection() -> anyhow::Result<()> {
 }
 
 #[test]
+fn join_selection() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo\n    spam bar".to_string())),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(JoinSelection),
+            Expect(CurrentComponentContent("foospam bar")),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            // Join again shouldn't do anything since "bar" is already on the first line of the file
+            Editor(JoinSelection),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Expect(CurrentComponentContent("foospam bar")),
+        ])
+    })
+}
+
+#[test]
 fn delete_empty_lines() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
