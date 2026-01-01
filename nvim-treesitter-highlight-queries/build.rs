@@ -80,7 +80,7 @@ fn main() {
                     }
                     _ => panic!("Got error {e:?} when opening highlight query for {lang}"),
                 });
-            format!("{lang}={}", content)
+            format!("{lang}={content}")
         })
         .collect::<Vec<_>>()
         .join("\0");
