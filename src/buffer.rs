@@ -472,7 +472,7 @@ impl Buffer {
         }
     }
 
-    pub(crate) fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node> {
+    pub(crate) fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node<'_>> {
         let byte = self.char_to_byte(char_index).ok()?;
         // Preorder is the main key here,
         // because preorder traversal walks the parent first
@@ -525,7 +525,7 @@ impl Buffer {
     }
 
     #[cfg(test)]
-    pub(crate) fn get_next_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node> {
+    pub(crate) fn get_next_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node<'_>> {
         let byte = self.char_to_byte(char_index).ok()?;
         self.traverse(Order::Post).and_then(|mut iter| {
             iter.find(|&node| {
@@ -535,7 +535,7 @@ impl Buffer {
     }
 
     #[cfg(test)]
-    pub(crate) fn traverse(&self, order: Order) -> Option<impl Iterator<Item = Node>> {
+    pub(crate) fn traverse(&self, order: Order) -> Option<impl Iterator<Item = Node<'_>>> {
         self.tree.as_ref().map(|tree| traverse(tree.walk(), order))
     }
 
