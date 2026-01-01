@@ -292,7 +292,7 @@ impl Editor {
         normal_mode_override: &NormalModeOverride,
         none_if_no_override: bool,
         context: &Context,
-        prior_change: Option<PriorChange>,
+        _prior_change: Option<PriorChange>,
     ) -> Vec<Keymap> {
         [
             Keymap::new_extended(
@@ -1531,7 +1531,6 @@ impl Editor {
                     )),
                 ),
             ])
-            .into_iter()
             .chain(self.search_current_keymap(
                 context,
                 Scope::Local,
