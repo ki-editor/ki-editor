@@ -3011,11 +3011,11 @@ fn search_backward() -> Result<(), anyhow::Error> {
                 Editor(MatchLiteral("xxx".to_string())),
                 App(HandleKeyEvents(keys!("/").to_vec())),
                 // Expect((IfCurrentNotFound::LookBackward)),
-                App(HandleKeyEvents(keys!("q").to_vec())),
+                App(HandleKeyEvents(keys!("n q").to_vec())),
                 // Naming-convention agnostic search "n fo_b"
                 App(HandleKeyEvents(keys!("n space f o _ b").to_vec())),
                 App(HandleKeyEvents(keys!("enter").to_vec())),
-                // App(HandleKeyEvents(keys!("/ q ( enter").to_vec())),
+                // App(HandleKeyEvents(keys!("/ n q ( enter").to_vec())),
                 Expect(CurrentSelectedTexts(&["fo_b"])),
             ])
         }
@@ -3978,7 +3978,7 @@ fn background_editor_user_from_explorer() -> anyhow::Result<()> {
     execute_test(|_| {
         Box::new([
             App(HandleKeyEvents(
-                keys!("space ; q s r c enter enter q m a i n . r s enter enter").to_vec(),
+                keys!("space ; n q s r c enter enter n q m a i n . r s enter enter").to_vec(),
             )),
             Expect(CurrentComponentTitle(markup_focused_tab(" 🦀 main.rs "))),
             Expect(OpenedFilesCount(1)),

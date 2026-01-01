@@ -336,24 +336,6 @@ impl Editor {
                 Dispatch::ToggleFileMark,
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::SrchL),
-                Direction::Start.format_action("Search"),
-                Direction::Start.format_action("Search"),
-                Dispatch::OpenSearchPromptWithPriorChange {
-                    scope: Scope::Local,
-                    if_current_not_found: self.cursor_direction.reverse().to_if_current_not_found(),
-                    prior_change,
-                },
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::SchWC),
-                "With".to_string(),
-                Dispatch::OpenSearchPromptWithCurrentSelection {
-                    scope: Scope::Local,
-                    prior_change,
-                },
-            ),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Undo_),
                 "Undo".to_string(),
                 "Undo".to_string(),
@@ -419,11 +401,6 @@ impl Editor {
             ),
         ]
         .into_iter()
-        .chain(self.search_current_keymap(
-            context,
-            Scope::Local,
-            self.cursor_direction.reverse().to_if_current_not_found(),
-        ))
         .chain(self.keymap_actions_overridable(normal_mode_override, none_if_no_override, context))
         .chain(self.keymap_clipboard_related_actions(false, normal_mode_override.clone(), context))
         .collect_vec()
@@ -1298,7 +1275,9 @@ impl Editor {
     ) -> Vec<Keymap> {
         [
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::SchCS),
+                context
+                    .keyboard_layout_kind()
+                    .get_find_keymap(scope, &Meaning::SchCS),
                 "Search This".to_string(),
                 "Search current selection".to_string(),
                 Dispatch::ToEditor(DispatchEditor::SearchCurrentSelection(
@@ -1307,7 +1286,9 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::SchCC),
+                context
+                    .keyboard_layout_kind()
+                    .get_find_keymap(scope, &Meaning::SchCC),
                 "Search Clipboard".to_string(),
                 "Search clipboard content".to_string(),
                 Dispatch::ToEditor(DispatchEditor::SearchClipboardContent(scope)),
@@ -1506,6 +1487,31 @@ impl Editor {
                 Keymap::new(key, description.to_string(), dispatch)
             })
             .chain([
+                Keymap::new_extended(
+                    context
+                        .keyboard_layout_kind()
+                        .get_find_keymap(scope, &Meaning::Srch_),
+                    Direction::Start.format_action("Search"),
+                    Direction::Start.format_action("Search"),
+                    Dispatch::OpenSearchPromptWithPriorChange {
+                        scope: Scope::Local,
+                        if_current_not_found: self
+                            .cursor_direction
+                            .reverse()
+                            .to_if_current_not_found(),
+                        prior_change,
+                    },
+                ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
+                        .get_find_keymap(scope, &Meaning::SchWC),
+                    "With".to_string(),
+                    Dispatch::OpenSearchPromptWithCurrentSelection {
+                        scope: Scope::Local,
+                        prior_change,
+                    },
+                ),
                 Keymap::new(
                     context
                         .keyboard_layout_kind()
@@ -1525,6 +1531,12 @@ impl Editor {
                     )),
                 ),
             ])
+            .into_iter()
+            .chain(self.search_current_keymap(
+                context,
+                Scope::Local,
+                self.cursor_direction.reverse().to_if_current_not_found(),
+            ))
             .collect_vec(),
             Scope::Global => [
                 Keymap::new_extended(
@@ -1539,7 +1551,9 @@ impl Editor {
                     },
                 ),
                 Keymap::new(
-                    context.keyboard_layout_kind().get_key(&Meaning::SchWC),
+                    context
+                        .keyboard_layout_kind()
+                        .get_find_keymap(scope, &Meaning::SchWC),
                     "With".to_string(),
                     Dispatch::OpenSearchPromptWithCurrentSelection {
                         scope,

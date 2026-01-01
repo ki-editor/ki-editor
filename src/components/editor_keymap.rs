@@ -60,7 +60,7 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
 /// are both located on the right-side.
 pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
     [
-        SrchL, _____, SchCS, RSrch, Qkfix, /****/ OneCh, _____, _____, _____, _____,
+        Srch_, _____, SchCS, RSrch, Qkfix, /****/ OneCh, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
@@ -96,7 +96,7 @@ pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
 pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        SchWC, _____, SchCC, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
@@ -677,8 +677,6 @@ pub(crate) enum Meaning {
     SchCS,
     /// Search current clipboard content
     SchCC,
-    /// Search (local)
-    SrchL,
     /// Select Fine Syntax Node
     FStyx,
     /// Select Syntax Node
@@ -705,7 +703,7 @@ pub(crate) enum Meaning {
     XAchr,
     /// Swap Selection End
     SSEnd,
-    /// Search (directionless)
+    /// Search (prompt)
     Srch_,
     /// Repeat Secondary Selection Mode (Local)
     LRept,
