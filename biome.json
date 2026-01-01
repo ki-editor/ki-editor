@@ -15,7 +15,8 @@
             "target",
             "docs/static",
             "docs/.docusaurus",
-            "themes"
+            "themes",
+            "nvim-treesitter-highlight-queries/nvim-treesitter"
         ]
     },
     "formatter": {

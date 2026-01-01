@@ -20,12 +20,12 @@ install: update-submodule
 fmt-check:
     @echo "Checking formating"
     cargo fmt --all -- --check
-    alejandra -c .
+    alejandra --exclude ./nvim-treesitter-highlight-queries/nvim-treesitter/ --check ./
     
 fmt:
 	cargo fmt --all
 	npm run format
-	alejandra .
+	alejandra --exclude ./nvim-treesitter-highlight-queries/nvim-treesitter/ ./
 
 build: update-submodule
     @echo "Running cargo build..."
