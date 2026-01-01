@@ -2024,7 +2024,7 @@ fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
             )),
             Expect(ExpectKind::HighlightSpans(
                 12..14,
-                StyleKey::Syntax(IndexedHighlightGroup::from_str("keyword").unwrap()),
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("keyword.function").unwrap()),
             )),
             Expect(ExpectKind::HighlightSpans(
                 36..37,
@@ -2047,7 +2047,7 @@ fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
             // are updated because they are in visible line ranges
             Expect(ExpectKind::HighlightSpans(
                 17..19,
-                StyleKey::Syntax(IndexedHighlightGroup::from_str("keyword").unwrap()),
+                StyleKey::Syntax(IndexedHighlightGroup::from_str("keyword.function").unwrap()),
             )),
             // Expect the last comment highlight span is not updated as it is not within visible view
             Expect(ExpectKind::HighlightSpans(

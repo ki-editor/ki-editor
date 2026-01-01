@@ -6,11 +6,14 @@ default:
     @just test 
     @just doc 
     
+update-submodule:
+    git submodule update --init --recursive 
+    
 check: build check-typeshare fmt-check lint 
     
 build-all: tree-sitter-quickfix build vscode-build
     
-install:
+install: update-submodule
     rm -r ~/.cache/ki/zed-themes || echo "ok" 
     cargo install --locked --path .
 
@@ -24,7 +27,7 @@ fmt:
 	npm run format
 	alejandra .
 
-build:
+build: update-submodule
     @echo "Running cargo build..."
     cargo build --workspace --tests
 
@@ -69,7 +72,7 @@ test-setup:
     git config --get --global user.name  || git config --global user.name  Tester 
     git config --get --global user.email || git config --global user.email tester@gmail.com
 
-test testname="": test-setup
+test testname="": test-setup update-submodule
     echo "Running cargo nextest..."
     cargo nextest run --workspace -- --skip 'doc_assets_' {{testname}}
     

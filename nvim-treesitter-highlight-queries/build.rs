@@ -71,16 +71,16 @@ fn main() {
     let data = LANGS
         .iter()
         .map(|lang| {
-            format!(
-                "{lang}={}",
-                std::fs::read_to_string(format!(
-                    "nvim-treesitter/runtime/queries/{lang}/highlights.scm"
-                ))
-                .unwrap_or_else(|e| match e.kind() {
-                    std::io::ErrorKind::NotFound => "".to_string(),
+            let path = format!("nvim-treesitter/runtime/queries/{lang}/highlights.scm");
+            let content =
+                std::fs::read_to_string(path.clone()).unwrap_or_else(|e| match e.kind() {
+                    std::io::ErrorKind::NotFound => {
+                        eprintln!("Warning: Unable to read {path}",);
+                        String::new()
+                    }
                     _ => panic!("Got error {e:?} when opening highlight query for {lang}"),
-                })
-            )
+                });
+            format!("{lang}={}", content)
         })
         .collect::<Vec<_>>()
         .join("\0");
