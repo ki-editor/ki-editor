@@ -2542,7 +2542,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    pub(crate) fn buffer(&self) -> Ref<Buffer> {
+    pub(crate) fn buffer(&self) -> Ref<'_, Buffer> {
         self.buffer.borrow()
     }
 
@@ -2550,7 +2550,7 @@ impl Editor {
         self.buffer.clone()
     }
 
-    pub(crate) fn buffer_mut(&mut self) -> RefMut<Buffer> {
+    pub(crate) fn buffer_mut(&mut self) -> RefMut<'_, Buffer> {
         self.buffer.borrow_mut()
     }
 
