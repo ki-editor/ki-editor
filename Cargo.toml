@@ -88,7 +88,6 @@ pretty_assertions = "1.3.0"
 tree-sitter-highlight = "0.25.6"
 convert_case.workspace = true
 ignore = "0.4.20"
-crossbeam = "0.8.2"
 clap = { version = "~4.5.23", features = ["derive"] }
 rayon = "1.8.0"
 similar = {version = "2.4.0", features = ["unicode", "inline"]}
