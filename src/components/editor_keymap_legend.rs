@@ -299,7 +299,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::Join_),
                 "Join".to_string(),
                 "Join".to_string(),
-                Dispatch::ToEditor(Transform(Transformation::Join)),
+                Dispatch::ToEditor(JoinSelection),
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Break),
@@ -942,6 +942,13 @@ impl Editor {
                 .get_transform_key(&Meaning::Wrap_),
             "Wrap".to_string(),
             Dispatch::ToEditor(Transform(Transformation::Wrap)),
+        )))
+        .chain(Some(Keymap::new(
+            context
+                .keyboard_layout_kind()
+                .get_transform_key(&Meaning::Unwrp),
+            "Unwrap".to_string(),
+            Dispatch::ToEditor(Transform(Transformation::Unwrap)),
         )))
         .chain(Some(Keymap::new(
             context

@@ -111,7 +111,7 @@ For example:
 
 ### `Join`
 
-Joins multiple lines within the current selection(s) into a single line.
+Join the current line with the line above.
 
 <TutorialFallback filename="join"/>
 
@@ -140,7 +140,8 @@ Align selections to the left or right. Similar to Kakoune's `&`.
 Transformative actions are nested under here, such as (non-exhaustive):
 
 - Casing conversion
-- Wrap
+- Wrap (converts a single line selection into multiple lines)
+- Unwrap (converts a multiline selection into a single line)
 - Toggle line comment
 - Toggle block comment
 

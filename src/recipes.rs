@@ -601,16 +601,12 @@ spam baz
             filename: "join",
             recipes: [Recipe {
                 description: "Example",
-                content: "
-This is 
-a multiple line
-string.
-"
+                content: "foo\n    bar spam"
                 .trim(),
                 file_extension: "md",
                 prepare_events: &[],
-                events: keys!("a g l l I"),
-                expectations: Box::new([CurrentSelectedTexts(&["This is a multiple line string."])]),
+                events: keys!("s l l shift+I"),
+                expectations: Box::new([CurrentSelectedTexts(&["spam"]), CurrentComponentContent("foobar spam")]),
                 terminal_height: None,
                 similar_vim_combos: &[],
                 only: false,

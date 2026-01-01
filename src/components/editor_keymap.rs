@@ -195,7 +195,7 @@ pub(crate) const KEYMAP_TRANSFORM: KeyboardMeaningLayout = [
         Upper, USnke, Pscal, UKbab, Title, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        Lower, Snke_, Camel, Kbab_, _____, /****/ _____, Wrap_, CmtLn, CmtBk, _____,
+        Lower, Snke_, Camel, Kbab_, _____, /****/ Unwrp, Wrap_, CmtLn, CmtBk, _____,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
@@ -834,6 +834,8 @@ pub(crate) enum Meaning {
     Camel,
     /// Wrap
     Wrap_,
+    /// Unwrap
+    Unwrp,
     /// kebab-case
     Kbab_,
     /// lower case
