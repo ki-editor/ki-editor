@@ -178,29 +178,12 @@ fn leading_whitespace_count(s: &str) -> usize {
     s.chars().take_while(|c| c.is_whitespace()).count()
 }
 
-#[derive(Debug, Clone)]
-pub(crate) enum LineDiff {
-    Context,
-    Delete,
-    Insert,
-}
-
 fn trim_start(content: String, count: usize) -> String {
     content
         .lines()
         .map(|line| line.chars().skip(count).collect::<String>())
         .collect_vec()
         .join("\n")
-}
-
-impl From<&diffy::Line<'_, str>> for LineDiff {
-    fn from(value: &diffy::Line<'_, str>) -> Self {
-        match value {
-            diffy::Line::Context(_) => LineDiff::Context,
-            diffy::Line::Delete(_) => LineDiff::Delete,
-            diffy::Line::Insert(_) => LineDiff::Insert,
-        }
-    }
 }
 
 fn slice_line_range(content: &str, line_range: &Range<u32>) -> String {
