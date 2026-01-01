@@ -61,6 +61,8 @@ const LANGS: &[&str] = &[
     "zig",
 ];
 
+const MISSING_NVIM_HIGHLIGHTS: &[&str] = &["dune", "ki_quickfix", "tsq"];
+
 fn main() {
     let compiled_highlight_query_path = std::path::PathBuf::from(
         std::env::var_os("OUT_DIR").expect("Cargo didn't give us an OUT_DIR?"),
@@ -75,7 +77,10 @@ fn main() {
             let content =
                 std::fs::read_to_string(path.clone()).unwrap_or_else(|e| match e.kind() {
                     std::io::ErrorKind::NotFound => {
-                        eprintln!("Warning: Unable to read {path}",);
+                        assert!(
+                            MISSING_NVIM_HIGHLIGHTS.contains(lang),
+                            "Non-whitelisted language {lang} has no nvim-treesitter highlight query! Is the submodule initialized?",
+                        );
                         String::new()
                     }
                     _ => panic!("Got error {e:?} when opening highlight query for {lang}"),
