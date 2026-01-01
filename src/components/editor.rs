@@ -402,6 +402,7 @@ impl Component for Editor {
             DeleteWithMovement(movement) => return self.delete_with_movement(context, movement),
             EnterDeleteMode => self.mode = Mode::Delete,
             AlignSelections(direction) => return self.align_selections(direction, context),
+            JoinSelection => return self.join_selection(context),
         }
         Ok(Default::default())
     }
@@ -2542,7 +2543,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    pub(crate) fn buffer(&self) -> Ref<Buffer> {
+    pub(crate) fn buffer(&self) -> Ref<'_, Buffer> {
         self.buffer.borrow()
     }
 
@@ -2550,7 +2551,7 @@ impl Editor {
         self.buffer.clone()
     }
 
-    pub(crate) fn buffer_mut(&mut self) -> RefMut<Buffer> {
+    pub(crate) fn buffer_mut(&mut self) -> RefMut<'_, Buffer> {
         self.buffer.borrow_mut()
     }
 
@@ -4376,6 +4377,46 @@ impl Editor {
         );
         self.apply_edit_transaction(edit_transaction, context)
     }
+
+    fn join_selection(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        let edit_transaction = EditTransaction::from_action_groups({
+            let buffer = self.buffer();
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let select_range = selection.extended_range();
+
+                    let line_index = buffer.char_to_line(select_range.start)?;
+                    let line = buffer.get_line_by_char_index(select_range.start)?;
+                    let leading_whitespaces_count =
+                        line.chars().take_while(|c| c.is_whitespace()).count();
+                    let line_char_index = buffer.line_to_char(line_index)?;
+                    let new_text_range: CharIndexRange = ((line_char_index
+                        + leading_whitespaces_count)
+                        ..line_char_index + line.chars().count())
+                        .into();
+                    let new_text = buffer.slice(&new_text_range)?.to_string();
+                    let edit_range: CharIndexRange =
+                        ((line_char_index - 1)..line_char_index + line.chars().count()).into();
+
+                    Ok([
+                        ActionGroup::new(
+                            [Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                edit_range,
+                                new_text.into(),
+                            ))]
+                            .to_vec(),
+                        ),
+                        ActionGroup::new([Action::Select(selection.clone())].to_vec()),
+                    ])
+                })
+                .into_iter()
+                .flatten()
+                .flatten()
+                .collect()
+        });
+        self.apply_edit_transaction(edit_transaction, context)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4535,6 +4576,7 @@ pub(crate) enum DispatchEditor {
     DeleteWithMovement(Movement),
     EnterDeleteMode,
     AlignSelections(Direction),
+    JoinSelection,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

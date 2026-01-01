@@ -195,7 +195,7 @@ pub(crate) const KEYMAP_TRANSFORM: KeyboardMeaningLayout = [
         Upper, USnke, Pscal, UKbab, Title, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        Lower, Snke_, Camel, Kbab_, _____, /****/ _____, Wrap_, CmtLn, CmtBk, _____,
+        Lower, Snke_, Camel, Kbab_, _____, /****/ Unwrp, Wrap_, CmtLn, CmtBk, _____,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
@@ -255,6 +255,19 @@ pub(crate) const COLEMAK_DH_SEMI_QUOTE: KeyboardLayout = [
     ["q", "w", "f", "p", "b", "j", "l", "u", "y", "'"],
     ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
     ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
+];
+
+pub(crate) const COLEMAK_ANSI: KeyboardLayout = [
+    ["q", "w", "f", "p", "g", "j", "l", "u", "y", ";"],
+    ["a", "r", "s", "t", "d", "h", "n", "e", "i", "o"],
+    ["z", "x", "c", "v", "b", "k", "m", ",", ".", "/"],
+];
+
+// https://colemakmods.github.io/mod-dh/keyboards.html#ansi-keyboards
+pub(crate) const COLEMAK_ANSI_DH: KeyboardLayout = [
+    ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
+    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
+    ["x", "c", "d", "v", "z", "k", "h", ",", ".", "/"],
 ];
 
 /// Refer https://workmanlayout.org/
@@ -407,6 +420,8 @@ static COLEMAK_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(COLEMAK));
 static COLEMAK_DH_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(COLEMAK_DH));
 static COLEMAK_DH_SEMI_QUOTE_KEYSET: Lazy<KeySet> =
     Lazy::new(|| KeySet::from(COLEMAK_DH_SEMI_QUOTE));
+static COLEMAK_ANSI_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(COLEMAK_ANSI));
+static COLEMAK_ANSI_DH_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(COLEMAK_ANSI_DH));
 static DVORAK_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK));
 static DVORAK_IU_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK_IU));
 static WORKMAN_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(WORKMAN));
@@ -422,6 +437,8 @@ pub(crate) enum KeyboardLayoutKind {
     Colemak,
     ColemakDh,
     ColemakDhSemiQuote,
+    ColemakAnsi,
+    ColemakAnsiDh,
     Workman,
     Puq,
 }
@@ -429,27 +446,31 @@ pub(crate) enum KeyboardLayoutKind {
 impl KeyboardLayoutKind {
     pub(crate) const fn display(&self) -> &'static str {
         match self {
-            KeyboardLayoutKind::Qwerty => "QWERTY",
-            KeyboardLayoutKind::Dvorak => "DVORAK",
-            KeyboardLayoutKind::Colemak => "COLEMAK",
-            KeyboardLayoutKind::ColemakDh => "COLEMAK-DH",
-            KeyboardLayoutKind::ColemakDhSemiQuote => "COLEMAK-DH;",
-            KeyboardLayoutKind::DvorakIu => "DVORAK-IU",
-            KeyboardLayoutKind::Workman => "WORKMAN",
-            KeyboardLayoutKind::Puq => "PUQ",
+            Self::Qwerty => "QWERTY",
+            Self::Dvorak => "DVORAK",
+            Self::Colemak => "COLEMAK",
+            Self::ColemakDh => "COLEMAK-DH",
+            Self::ColemakDhSemiQuote => "COLEMAK-DH;",
+            Self::ColemakAnsi => "COLEMAK (ANSI)",
+            Self::ColemakAnsiDh => "COLEMAK-DH (ANSI)",
+            Self::DvorakIu => "DVORAK-IU",
+            Self::Workman => "WORKMAN",
+            Self::Puq => "PUQ",
         }
     }
 
     pub(crate) fn get_keyboard_layout(&self) -> &KeyboardLayout {
         match self {
-            KeyboardLayoutKind::Qwerty => &QWERTY,
-            KeyboardLayoutKind::Dvorak => &DVORAK,
-            KeyboardLayoutKind::Colemak => &COLEMAK,
-            KeyboardLayoutKind::ColemakDh => &COLEMAK_DH,
-            KeyboardLayoutKind::ColemakDhSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
-            KeyboardLayoutKind::DvorakIu => &DVORAK_IU,
-            KeyboardLayoutKind::Workman => &WORKMAN,
-            KeyboardLayoutKind::Puq => &PUQ,
+            Self::Qwerty => &QWERTY,
+            Self::Dvorak => &DVORAK,
+            Self::Colemak => &COLEMAK,
+            Self::ColemakDh => &COLEMAK_DH,
+            Self::ColemakDhSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
+            Self::ColemakAnsi => &COLEMAK_ANSI,
+            Self::ColemakAnsiDh => &COLEMAK_ANSI_DH,
+            Self::DvorakIu => &DVORAK_IU,
+            Self::Workman => &WORKMAN,
+            Self::Puq => &PUQ,
         }
     }
 
@@ -554,14 +575,16 @@ impl KeyboardLayoutKind {
 
     fn get_keyset(&self) -> &Lazy<KeySet> {
         match self {
-            KeyboardLayoutKind::Qwerty => &QWERTY_KEYSET,
-            KeyboardLayoutKind::Dvorak => &DVORAK_KEYSET,
-            KeyboardLayoutKind::Colemak => &COLEMAK_KEYSET,
-            KeyboardLayoutKind::ColemakDh => &COLEMAK_DH_KEYSET,
-            KeyboardLayoutKind::ColemakDhSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
-            KeyboardLayoutKind::DvorakIu => &DVORAK_IU_KEYSET,
-            KeyboardLayoutKind::Workman => &WORKMAN_KEYSET,
-            KeyboardLayoutKind::Puq => &PUQ_KEYSET,
+            Self::Qwerty => &QWERTY_KEYSET,
+            Self::Dvorak => &DVORAK_KEYSET,
+            Self::Colemak => &COLEMAK_KEYSET,
+            Self::ColemakDh => &COLEMAK_DH_KEYSET,
+            Self::ColemakDhSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
+            Self::ColemakAnsi => &COLEMAK_ANSI_KEYSET,
+            Self::ColemakAnsiDh => &COLEMAK_ANSI_DH_KEYSET,
+            Self::DvorakIu => &DVORAK_IU_KEYSET,
+            Self::Workman => &WORKMAN_KEYSET,
+            Self::Puq => &PUQ_KEYSET,
         }
     }
 }
@@ -809,6 +832,8 @@ pub(crate) enum Meaning {
     Camel,
     /// Wrap
     Wrap_,
+    /// Unwrap
+    Unwrp,
     /// kebab-case
     Kbab_,
     /// lower case
