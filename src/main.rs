@@ -38,7 +38,6 @@ pub(crate) mod soft_wrap;
 pub(crate) mod style;
 pub(crate) mod surround;
 pub(crate) mod syntax_highlight;
-mod terminal;
 #[cfg(test)]
 mod test_app;
 pub(crate) mod themes;
