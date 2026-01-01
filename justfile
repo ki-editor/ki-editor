@@ -79,7 +79,7 @@ test testname="": test-setup update-submodule
 tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
 
-doc-assets testname="": test-setup
+doc-assets testname="": test-setup update-submodule
     cargo nextest run --workspace -- 'doc_assets_' {{testname}}
 
 check-config-schema:
