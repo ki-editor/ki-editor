@@ -9,7 +9,7 @@ use crate::{
     app::{Dispatch, Dispatches, FilePickerKind, Scope},
     components::editor::{Movement, PriorChange},
     context::{Context, LocalSearchConfigMode, Search},
-    custom_config::custom_keymap::custom_keymap,
+    scripting::custom_keymap,
     git::DiffMode,
     list::grep::RegexConfig,
     quickfix_list::{DiagnosticSeverityRange, QuickfixListType},

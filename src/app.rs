@@ -23,13 +23,11 @@ use crate::{
     context::{
         Context, GlobalMode, GlobalSearchConfig, LocalSearchConfigMode, QuickfixListSource, Search,
     },
-    custom_config::custom_keymap::custom_keymap,
     edit::Edit,
     file_watcher::{FileWatcherEvent, FileWatcherInput},
     frontend::Frontend,
     git::{self},
     grid::{Grid, LineUpdate},
-    handle_custom_action::{ScriptDispatch, ScriptInput},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
     layout::Layout,
     list::{self, Match, WalkBuilderConfig},
@@ -46,6 +44,8 @@ use crate::{
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     render_flex_layout::{self, FlexLayoutComponent},
     screen::{Screen, Window},
+    scripting::custom_keymap,
+    scripting::{ScriptDispatch, ScriptInput},
     search::parse_search_config,
     selection::{CharIndex, SelectionMode},
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
@@ -1094,37 +1094,7 @@ impl<T: Frontend> App<T> {
                 self.add_quickfix_list_entries(locations)?
             }
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
-            Dispatch::ExecuteLeaderMeaning(meaning) => {
-                if let Some((_, _, script)) =
-                    custom_keymap().into_iter().find(|(m, _, _)| *m == meaning)
-                {
-                    let component = self.current_component();
-                    let borrow = component.borrow();
-                    let editor = borrow.editor();
-                    let context = ScriptInput {
-                        current_file_path: self
-                            .get_current_file_path()
-                            .map(|path| path.display_absolute()),
-                        selections: editor
-                            .selection_set
-                            .map(|selection| -> anyhow::Result<_> {
-                                let range = editor.buffer().char_index_range_to_position_range(
-                                    selection.extended_range(),
-                                )?;
-                                let content = editor
-                                    .buffer()
-                                    .slice(&selection.extended_range())?
-                                    .to_string();
-                                Ok(crate::handle_custom_action::Selection { range, content })
-                            })
-                            .into_iter()
-                            .try_collect()?,
-                    };
-
-                    let output = script.execute(context)?;
-                    self.handle_script_dispatches(output.dispatches)?
-                }
-            }
+            Dispatch::ExecuteLeaderMeaning(meaning) => self.execute_leader_meaning(meaning)?,
             Dispatch::ShowBufferSaveConflictPrompt {
                 path,
                 content_editor,
@@ -3275,6 +3245,37 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                 .map(Dispatch::from_script_dispatch)
                 .collect_vec(),
         ))
+    }
+
+    fn execute_leader_meaning(&mut self, meaning: Meaning) -> anyhow::Result<()> {
+        if let Some((_, _, script)) = custom_keymap().into_iter().find(|(m, _, _)| *m == meaning) {
+            let component = self.current_component();
+            let borrow = component.borrow();
+            let editor = borrow.editor();
+            let context = ScriptInput {
+                current_file_path: self
+                    .get_current_file_path()
+                    .map(|path| path.display_absolute()),
+                selections: editor
+                    .selection_set
+                    .map(|selection| -> anyhow::Result<_> {
+                        let range = editor
+                            .buffer()
+                            .char_index_range_to_position_range(selection.extended_range())?;
+                        let content = editor
+                            .buffer()
+                            .slice(&selection.extended_range())?
+                            .to_string();
+                        Ok(crate::scripting::Selection { range, content })
+                    })
+                    .into_iter()
+                    .try_collect()?,
+            };
+
+            let output = script.execute(context)?;
+            self.handle_script_dispatches(output.dispatches)?
+        }
+        Ok(())
     }
 }
 

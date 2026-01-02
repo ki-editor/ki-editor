@@ -30,7 +30,7 @@ pub(crate) use SelectionMode::*;
 
 use crate::{
     app::StatusLine,
-    handle_custom_action::{ScriptInput, ScriptOutput},
+    scripting::{ScriptInput, ScriptOutput},
 };
 
 use shared::{canonicalized_path::CanonicalizedPath, language::LanguageId};

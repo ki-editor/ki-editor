@@ -1,8 +1,46 @@
-use crate::{components::editor_keymap::Meaning, position::Position};
+use crate::components::editor_keymap::KeyboardMeaningLayout;
+use crate::components::editor_keymap::Meaning::{self, *};
+use crate::config::AppConfig;
+use crate::position::Position;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{io::Write, ops::Range, process::Stdio};
+
+pub(crate) const CUSTOM_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
+    [
+        __Q__, __W__, __E__, __R__, __T__, /****/ __Y__, __U__, __I__, __O__, __P__,
+    ],
+    [
+        __A__, __S__, __D__, __F__, __G__, /****/ __H__, __J__, __K__, __L__, _SEMI,
+    ],
+    [
+        __Z__, __X__, __C__, __V__, __B__, /****/ __N__, __M__, _COMA, _DOT_, _SLSH,
+    ],
+];
+
+pub(crate) fn custom_keymap() -> Vec<CustomActionKeymap> {
+    let meanings: [Meaning; 30] = [
+        // First row
+        __Q__, __W__, __E__, __R__, __T__, __Y__, __U__, __I__, __O__, __P__,
+        // Second row
+        __A__, __S__, __D__, __F__, __G__, __H__, __J__, __K__, __L__, _SEMI,
+        // Third row
+        __Z__, __X__, __C__, __V__, __B__, __N__, __M__, _COMA, _DOT_, _SLSH,
+    ];
+    AppConfig::singleton()
+        .leader_keymap()
+        .keybindings()
+        .iter()
+        .flat_map(|keybindings| {
+            keybindings
+                .iter()
+                .filter_map(|keybinding| keybinding.clone())
+        })
+        .zip(meanings)
+        .map(|(keybinding, meaning)| (meaning, keybinding.name.clone(), keybinding.script.clone()))
+        .collect()
+}
 
 #[derive(Clone, Deserialize, Serialize, JsonSchema)]
 pub(crate) struct Keybinding {
@@ -48,7 +86,7 @@ pub(crate) struct Script {
 impl Script {
     pub(crate) fn execute(
         &self,
-        context: crate::handle_custom_action::ScriptInput,
+        context: crate::scripting::ScriptInput,
     ) -> anyhow::Result<ScriptOutput> {
         let json = serde_json::to_string(&context)?;
 

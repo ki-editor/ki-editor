@@ -49,13 +49,12 @@ mod embed;
 
 mod alternator;
 pub(crate) mod config;
-pub(crate) mod custom_config;
 mod divide_viewport;
 mod env;
 pub(crate) mod file_watcher;
 mod format_path_list;
-pub(crate) mod handle_custom_action;
 pub(crate) mod persistence;
+pub(crate) mod scripting;
 #[cfg(test)]
 mod test_lsp;
 #[cfg(test)]

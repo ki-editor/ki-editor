@@ -6,7 +6,7 @@ use regex::Regex;
 
 use crate::app::StatusLine;
 use crate::components::editor_keymap::KeyboardLayoutKind;
-use crate::handle_custom_action::{Keybinding, Script};
+use crate::scripting::{Keybinding, Script};
 use crate::themes::Theme;
 use figment::providers;
 use figment::providers::Format;
