@@ -12,6 +12,7 @@ use crate::{
     git::DiffMode,
     list::grep::RegexConfig,
     quickfix_list::{DiagnosticSeverityRange, QuickfixListType},
+    scripting::{custom_keymap, leader_meanings},
     selection::SelectionMode,
     surround::EnclosureKind,
     transformation::Transformation,
@@ -756,6 +757,11 @@ impl Editor {
                 "Enter Swap mode".to_string(),
                 Dispatch::ToEditor(EnterSwapMode),
             )),
+            Some(Keymap::new(
+                "backslash",
+                "Leader".to_string(),
+                Dispatch::ShowKeymapLegend(self.leader_keymap_legend_config(context)),
+            )),
         ]
         .into_iter()
         .flatten()
@@ -1270,6 +1276,28 @@ impl Editor {
                     .into_vec(),
                 )
                 .collect_vec(),
+            ),
+        }
+    }
+
+    pub(crate) fn leader_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Leader".to_string(),
+
+            keymaps: Keymaps::new(
+                &leader_meanings()
+                    .into_iter()
+                    .filter_map(|meaning| {
+                        let (_, description, _) = custom_keymap()
+                            .into_iter()
+                            .find(|(m, _, _)| &meaning == m)?;
+                        Some(Keymap::new(
+                            context.keyboard_layout_kind().get_leader_keymap(&meaning),
+                            description.to_string(),
+                            Dispatch::ExecuteLeaderMeaning(meaning),
+                        ))
+                    })
+                    .collect_vec(),
             ),
         }
     }

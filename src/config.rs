@@ -6,6 +6,7 @@ use regex::Regex;
 
 use crate::app::StatusLine;
 use crate::components::editor_keymap::KeyboardLayoutKind;
+use crate::scripting::{Keybinding, Script};
 use crate::themes::Theme;
 use figment::providers;
 use figment::providers::Format;
@@ -14,6 +15,31 @@ use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use shared::canonicalized_path::CanonicalizedPath;
 use shared::language::{self, Language};
+
+#[derive(Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct AppConfig {
+    languages: HashMap<String, Language>,
+    keyboard_layout: KeyboardLayoutKind,
+    theme: ConfigTheme,
+    status_lines: Vec<StatusLine>,
+    leader_keymap: LeaderKeymap,
+}
+
+/// The leader keymap is a 3x10 matrix representing three rows of 10 columns.
+///
+/// Assuming the keyboard layout is Qwerty, then:  
+///
+/// 1st row is "qwertyuiop",  
+/// 2nd row is "asdfghjkl;",  
+/// and 3rd row is "zxcvbnm,./".  
+#[derive(Clone, Deserialize, Serialize, JsonSchema)]
+pub(crate) struct LeaderKeymap([[Option<Keybinding>; 10]; 3]);
+impl LeaderKeymap {
+    pub(crate) fn keybindings(&self) -> &[[Option<Keybinding>; 10]; 3] {
+        &self.0
+    }
+}
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(transparent)]
@@ -56,34 +82,57 @@ impl JsonSchema for ConfigThemeName {
     }
 }
 
-#[derive(Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct AppConfig {
-    languages: HashMap<String, Language>,
-    keyboard_layout: KeyboardLayoutKind,
-    theme: ConfigTheme,
-    status_lines: Vec<StatusLine>,
+const DEFAULT_CONFIG: &str = include_str!("config_default.json");
+
+fn ki_workspace_directory() -> anyhow::Result<PathBuf> {
+    Ok(PathBuf::from_str(".")?.join(".ki"))
 }
 
-const DEFAULT_CONFIG: &str = include_str!("config_default.json");
+fn ki_global_directory() -> PathBuf {
+    ::grammar::config_dir()
+}
+
+pub(crate) fn load_script(script_name: &str) -> anyhow::Result<Script> {
+    // Trying reading from workspace directory first
+    let workspace_path = ki_workspace_directory()?.join("scripts").join(script_name);
+    let global_path = ki_global_directory().join("scripts").join(script_name);
+    if let Ok(path) = CanonicalizedPath::try_from(workspace_path.clone()) {
+        Ok(Script {
+            path,
+            name: script_name.to_string(),
+        })
+    }
+    // Then try reading from global directory
+    else if let Ok(path) = CanonicalizedPath::try_from(global_path.clone()) {
+        Ok(Script {
+            path,
+            name: script_name.to_string(),
+        })
+    } else {
+        Err(anyhow::anyhow!(
+            "Unable to find script {script_name:?} in both {} and {}",
+            workspace_path.display(),
+            global_path.display()
+        ))
+    }
+}
 
 impl AppConfig {
     fn default() -> Self {
+        let deserializer = &mut serde_json::Deserializer::from_str(DEFAULT_CONFIG);
         Self {
             languages: shared::languages::languages(),
-            ..serde_json::from_str(DEFAULT_CONFIG).unwrap()
+            ..serde_path_to_error::deserialize(deserializer)
+                .map_err(|err| anyhow::anyhow!("{err}\n\nINPUT=\n\n{DEFAULT_CONFIG}"))
+                .unwrap()
         }
     }
 
     pub(crate) fn load_from_current_directory() -> anyhow::Result<Self> {
-        let current_directory = PathBuf::from_str(".")?;
-        let workspace_config = |extension: &str| {
-            current_directory
-                .join(".ki")
-                .join(format!("config.{extension}"))
-        };
+        let workspace_dir = ki_workspace_directory()?;
+        let workspace_config = |extension: &str| workspace_dir.join(format!("config.{extension}"));
         let global_config =
-            |extension: &str| ::grammar::config_dir().join(format!("config.{extension}"));
+            |extension: &str| ki_global_directory().join(format!("config.{extension}"));
         let config: AppConfig =
             figment::Figment::from(providers::Serialized::defaults(&AppConfig::default()))
                 .merge(providers::Json::file(global_config("json")))
@@ -124,6 +173,10 @@ impl AppConfig {
 
     pub(crate) fn status_lines(&self) -> Vec<crate::app::StatusLine> {
         self.status_lines.clone()
+    }
+
+    pub(crate) fn leader_keymap(&self) -> &LeaderKeymap {
+        &self.leader_keymap
     }
 }
 

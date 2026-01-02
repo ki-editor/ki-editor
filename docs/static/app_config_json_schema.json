@@ -12,6 +12,9 @@
         "$ref": "#/$defs/Language"
       }
     },
+    "leader_keymap": {
+      "$ref": "#/$defs/LeaderKeymap"
+    },
     "status_lines": {
       "type": "array",
       "items": {
@@ -27,7 +30,8 @@
     "languages",
     "keyboard_layout",
     "theme",
-    "status_lines"
+    "status_lines",
+    "leader_keymap"
   ],
   "$defs": {
     "CargoLinkedTreesitterLanguage": {
@@ -214,6 +218,21 @@
         }
       ]
     },
+    "Keybinding": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "script": {
+          "$ref": "#/$defs/Script"
+        }
+      },
+      "required": [
+        "name",
+        "script"
+      ]
+    },
     "KeyboardLayoutKind": {
       "type": "string",
       "enum": [
@@ -339,6 +358,27 @@
       "description": "As defined by the LSP protocol.\nSee sections below https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#range",
       "type": "string"
     },
+    "LeaderKeymap": {
+      "description": "The leader keymap is a 3x10 matrix representing three rows of 10 columns.\n\nAssuming the keyboard layout is Qwerty, then:  \n\n1st row is \"qwertyuiop\",  \n2nd row is \"asdfghjkl;\",  \nand 3rd row is \"zxcvbnm,./\".",
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Keybinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maxItems": 10,
+        "minItems": 10
+      },
+      "maxItems": 3,
+      "minItems": 3
+    },
     "LspCommand": {
       "type": "object",
       "properties": {
@@ -351,6 +391,9 @@
       "required": [
         "command"
       ]
+    },
+    "Script": {
+      "type": "string"
     },
     "StatusLine": {
       "type": "object",

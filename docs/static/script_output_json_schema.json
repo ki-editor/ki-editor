@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ScriptOutput",
+  "type": "object",
+  "properties": {
+    "dispatches": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ScriptDispatch"
+      }
+    }
+  },
+  "required": [
+    "dispatches"
+  ],
+  "$defs": {
+    "ScriptDispatch": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "ShowInfo": {
+              "type": "object",
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title",
+                "content"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "ShowInfo"
+          ]
+        }
+      ]
+    }
+  }
+}
