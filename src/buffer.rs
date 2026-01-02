@@ -18,6 +18,7 @@ use crate::{
     syntax_highlight::{HighlightedSpan, HighlightedSpans},
     utils::find_previous,
 };
+use anyhow::Context as _;
 use itertools::Itertools;
 use regex::Regex;
 use ropey::Rope;
@@ -905,75 +906,81 @@ impl Buffer {
     /// Get an `EditTransaction` by getting the line diffs between the content of this buffer and the given `new` string
     fn get_edit_transaction(&self, new: &str) -> anyhow::Result<EditTransaction> {
         let old = self.rope.to_string();
-        let new = new.to_string();
-        let edits = {
-            let diff_from_lines = similar::TextDiff::from_lines(&old, &new);
-            let changes = diff_from_lines.iter_all_changes();
-            let mut old_line_index = 0;
-            let mut edits = vec![];
-            let mut replacement = vec![];
-            let mut current_range_start = None;
-            let mut current_range_end = 0;
-
-            for change in changes {
-                match change.tag() {
-                    similar::ChangeTag::Delete => {
-                        if current_range_start.is_none() {
-                            current_range_start = Some(old_line_index);
-                        }
-                        current_range_end = old_line_index + 1;
-                        old_line_index += 1;
-                    }
-                    similar::ChangeTag::Equal => {
-                        if let Some(start) = current_range_start {
-                            let replacement = std::mem::take(&mut replacement);
-
-                            let range = self.position_range_to_char_index_range(
-                                &(Position::new(start, 0)..Position::new(current_range_end, 0)),
-                            )?;
-                            edits.push(Edit {
-                                range,
-                                old: self.rope.slice(range.as_usize_range()).into(),
-                                new: Rope::from_str(&replacement.join("")),
-                            });
-                            current_range_start = None;
-                        }
-                        old_line_index += 1;
-                    }
-                    similar::ChangeTag::Insert => {
-                        match current_range_start {
-                            Some(_) => {}
-                            None => {
-                                current_range_start = Some(old_line_index);
-                                current_range_end = old_line_index;
-                            }
-                        };
-
-                        let content = change.to_string();
-                        let content = if change.missing_newline() && content.ends_with('\n') {
-                            content.trim_end_matches('\n').to_owned()
-                        } else {
-                            content
-                        };
-                        replacement.push(content);
-                    }
-                }
-            }
-
-            if let Some(start) = current_range_start {
-                let replacement = std::mem::take(&mut replacement);
-
-                let range = self.position_range_to_char_index_range(
-                    &(Position::new(start, 0)..Position::new(current_range_end, 0)),
-                )?;
-                edits.push(Edit {
-                    range,
-                    old: self.rope.slice(range.as_usize_range()).into(),
-                    new: Rope::from_str(&replacement.join("")),
-                });
-            };
-            edits
-        };
+        let diff = similar::TextDiff::from_lines(old.as_str(), new);
+        let edits: Vec<Edit> = diff
+            .ops()
+            .iter()
+            .map(|op| {
+                Ok(match op {
+                    similar::DiffOp::Delete {
+                        old_index,
+                        old_len,
+                        new_index: _,
+                    } => Some(Edit {
+                        range: self
+                            .line_range_to_char_index_range(&(*old_index..old_index + old_len))
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for delete?",
+                            )?,
+                        new: "".into(),
+                        old: diff
+                            .old_slices()
+                            .get(*old_index..old_index + old_len)
+                            .context("similar::TextDiff gave us an invalid line range for delete?")?
+                            .join("")
+                            .into(),
+                    }),
+                    similar::DiffOp::Insert {
+                        old_index,
+                        new_index,
+                        new_len,
+                    } => Some(Edit {
+                        range: self
+                            .line_range_to_char_index_range(&(*old_index..*old_index))
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for insert?",
+                            )?,
+                        new: diff
+                            .new_slices()
+                            .get(*new_index..new_index + new_len)
+                            .context("similar::TextDiff gave us an invalid line range for insert?")?
+                            .join("")
+                            .into(),
+                        old: "".into(),
+                    }),
+                    similar::DiffOp::Replace {
+                        old_index,
+                        old_len,
+                        new_index,
+                        new_len,
+                    } => Some(Edit {
+                        range: self
+                            .line_range_to_char_index_range(&(*old_index..old_index + old_len))
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for replace?",
+                            )?,
+                        new: diff
+                            .new_slices()
+                            .get(*new_index..new_index + new_len)
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for replace?",
+                            )?
+                            .join("")
+                            .into(),
+                        old: diff
+                            .old_slices()
+                            .get(*old_index..old_index + old_len)
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for replace?",
+                            )?
+                            .join("")
+                            .into(),
+                    }),
+                    similar::DiffOp::Equal { .. } => None,
+                })
+            })
+            .filter_map(Result::transpose)
+            .collect::<anyhow::Result<_>>()?;
 
         Ok(EditTransaction::from_action_groups(
             edits
