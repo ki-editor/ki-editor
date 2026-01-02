@@ -12,6 +12,9 @@
         "$ref": "#/$defs/Language"
       }
     },
+    "leader_keymap": {
+      "$ref": "#/$defs/LeaderKeymap"
+    },
     "status_lines": {
       "type": "array",
       "items": {
@@ -27,7 +30,8 @@
     "languages",
     "keyboard_layout",
     "theme",
-    "status_lines"
+    "status_lines",
+    "leader_keymap"
   ],
   "$defs": {
     "CargoLinkedTreesitterLanguage": {
@@ -151,6 +155,124 @@
         "VS Code (Light)"
       ]
     },
+    "CustomAction": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "DoNothing"
+          ]
+        },
+        {
+          "description": "The script is expected to be stored in either `~/.config/ki/scripts/*` (Global)\nor `.ki/scripts/* (Local).\n\nThe script can be written in any languages or format as long as it is executable.\n\nThe editor context will be fed to the script via STDIN.\n\nThe script is expected to return an array of actions via STDOUT.",
+          "type": "object",
+          "properties": {
+            "RunScript": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Placeholder"
+                  }
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "RunScript"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ToClipboard": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Placeholder"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "ToClipboard"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ToggleProcess": {
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Placeholder"
+                  }
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "ToggleProcess"
+          ]
+        }
+      ]
+    },
+    "DirWorkingKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "PathRoot"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "FileExists": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "FileExists"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "FileExistsDynamic": {
+              "$ref": "#/$defs/Placeholder"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "FileExistsDynamic"
+          ]
+        }
+      ]
+    },
+    "FileCurrentKind": {
+      "type": "string",
+      "enum": [
+        "Extension",
+        "PathRoot",
+        "PathLocal"
+      ]
+    },
     "GrammarConfig": {
       "type": "object",
       "properties": {
@@ -212,6 +334,21 @@
             "FromSource"
           ]
         }
+      ]
+    },
+    "Keybinding": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/CustomAction"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "description",
+        "action"
       ]
     },
     "KeyboardLayoutKind": {
@@ -339,6 +476,27 @@
       "description": "As defined by the LSP protocol.\nSee sections below https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#range",
       "type": "string"
     },
+    "LeaderKeymap": {
+      "description": "The leader keymap is a 3x10 matrix representing three rows of 10 columns.\n\nAssuming the keyboard layout is Qwerty, then:  \n\n1st row is \"qwertyuiop\",  \n2nd row is \"asdfghjkl;\",  \nand 3rd row is \"zxcvbnm,./\".",
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Keybinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maxItems": 10,
+        "minItems": 10
+      },
+      "maxItems": 3,
+      "minItems": 3
+    },
     "LspCommand": {
       "type": "object",
       "properties": {
@@ -350,6 +508,79 @@
       "additionalProperties": false,
       "required": [
         "command"
+      ]
+    },
+    "Placeholder": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "NoSpace"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "Str": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "Str"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "FileCurrent": {
+              "$ref": "#/$defs/FileCurrentKind"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "FileCurrent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "SelectionPrimary": {
+              "$ref": "#/$defs/SelectionPrimaryKind"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "SelectionPrimary"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "DirCurrent": {
+              "$ref": "#/$defs/DirWorkingKind"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "DirCurrent"
+          ]
+        }
+      ]
+    },
+    "SelectionPrimaryKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "Content"
+          ]
+        },
+        {
+          "description": "1-based",
+          "type": "string",
+          "const": "RowIndex"
+        }
       ]
     },
     "StatusLine": {

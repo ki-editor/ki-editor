@@ -12,16 +12,16 @@ impl ProcessManager {
         }
     }
 
-    pub fn toggle(&mut self, command: &'static str, args: &[String]) {
+    pub fn toggle(&mut self, command: &str, args: &[String]) {
         let key = format!("{} {}", command, args.join(" "));
         if self.running_processes.contains_key(&key) {
             self.stop(&key);
         } else {
-            self.start(&key, command, args);
+            self.start(&key, &command, args);
         }
     }
 
-    fn start(&mut self, key: &str, command: &'static str, args: &[String]) {
+    fn start(&mut self, key: &str, command: &str, args: &[String]) {
         match Command::new(command)
             .args(args)
             .stdout(Stdio::null())

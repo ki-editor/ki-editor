@@ -26,5 +26,24 @@
             ]
         }
     ],
+    "leader_keymap": [
+        [
+            {
+                "description": "Testing",
+                "action": { "RunScript": ["example.py", []] }
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        ],
+        [null, null, null, null, null, null, null, null, null, null],
+        [null, null, null, null, null, null, null, null, null, null]
+    ],
     "languages": {}
 }

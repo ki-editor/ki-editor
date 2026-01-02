@@ -29,7 +29,7 @@ use crate::{
     frontend::Frontend,
     git::{self},
     grid::{Grid, IndexedHighlightGroup, LineUpdate, StyleKey},
-    handle_custom_action::{CustomAction, CustomContext, Placeholder},
+    handle_custom_action::{CustomAction, CustomContext, Placeholder, ScriptDispatch},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
     layout::Layout,
     list::{self, Match, WalkBuilderConfig},
@@ -1102,7 +1102,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
             Dispatch::ExecuteLeaderMeaning(meaning) => {
-                if let Some((_, _, Some(action_fn))) =
+                if let Some((_, _, leader_action)) =
                     custom_keymap().into_iter().find(|(m, _, _)| *m == meaning)
                 {
                     let context = CustomContext {
@@ -1121,14 +1121,12 @@ impl<T: Frontend> App<T> {
                             .unwrap_or_default(),
                         current_working_directory: self.context.current_working_directory().clone(),
                     };
-
-                    let leader_action = action_fn(&context);
 
                     self.handle_leader_action(leader_action, context)?;
                 }
             }
             Dispatch::ExecuteLeaderHelpMeaning(meaning) => {
-                if let Some((_, description, Some(action_fn))) =
+                if let Some((_, description, leader_action)) =
                     custom_keymap().into_iter().find(|(m, _, _)| *m == meaning)
                 {
                     let context = CustomContext {
@@ -1148,9 +1146,7 @@ impl<T: Frontend> App<T> {
                         current_working_directory: self.context.current_working_directory().clone(),
                     };
 
-                    let leader_action = action_fn(&context);
-
-                    self.handle_leader_help_action(leader_action, context, description)?;
+                    self.handle_leader_help_action(leader_action, context, &description)?;
                 }
             }
             Dispatch::ShowBufferSaveConflictPrompt {
@@ -3077,30 +3073,15 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         match leader_action {
             CustomAction::DoNothing => {}
-            CustomAction::RunCommand(command, ref args) => {
-                let mut final_args = Vec::new();
-                let mut current_arg = String::new();
-                let mut iter = args.iter().peekable();
-
-                while let Some(p) = iter.next() {
-                    if matches!(p, Placeholder::NoSpace) {
-                        continue;
-                    }
-                    current_arg.push_str(&p.resolve(&leader_context).to_string());
-                    if iter
-                        .peek()
-                        .is_none_or(|next_p| !matches!(next_p, &&Placeholder::NoSpace))
-                    {
-                        final_args.push(current_arg.clone());
-                        current_arg.clear();
-                    }
-                }
-
-                let _ = std::process::Command::new(command)
-                    .args(&final_args)
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .spawn();
+            CustomAction::RunScript(script, ref args) => {
+                let output = script.execute(leader_context)?;
+                self.handle_dispatches(Dispatches::new(
+                    output
+                        .dispatches
+                        .into_iter()
+                        .map(Dispatch::from_script_dispatch)
+                        .collect_vec(),
+                ))?;
             }
             CustomAction::ToggleProcess(command, ref args) => {
                 let mut final_args = Vec::new();
@@ -3120,7 +3101,7 @@ impl<T: Frontend> App<T> {
                         current_arg.clear();
                     }
                 }
-                self.process_manager.toggle(command, &final_args);
+                self.process_manager.toggle(&command, &final_args);
             }
             CustomAction::ToClipboard(text) => {
                 let mut final_string = String::new();
@@ -3152,7 +3133,7 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         match leader_action {
             CustomAction::DoNothing => {}
-            CustomAction::RunCommand(command, args) => {
+            CustomAction::RunScript(command, args) => {
                 self.show_global_info(Info::new(
                     "Running Command...".to_string(),
                     "Ki is waiting for the command to finish.\nThis is necessary to capture debug info.\nYou can:\nQuit the opened process.\nClose the opened application.\nWait, if the process will resolve itself.".to_string(),
@@ -3181,13 +3162,13 @@ impl<T: Frontend> App<T> {
                     .collect_vec();
                 let unresolved_vec: Vec<String> =
                     args.iter().map(|arg| arg.to_string()).collect_vec();
-                let output = std::process::Command::new(command)
+                let output = std::process::Command::new("")
                     .args(&final_args)
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
                     .output()?;
 
-                let quoted_command = format!("\"{command}\"");
+                let quoted_command = format!("\"\"");
                 let mut content = String::new();
                 let mut decorations = Vec::new();
 
@@ -3231,7 +3212,7 @@ impl<T: Frontend> App<T> {
                 }
 
                 content.push_str("])\nRunCommand Command:\n");
-                append_and_decorate(&mut content, &mut decorations, command);
+                append_and_decorate(&mut content, &mut decorations, &"");
 
                 let command_line_args = final_args.join(" ");
                 if !command_line_args.is_empty() {
@@ -3338,7 +3319,7 @@ impl<T: Frontend> App<T> {
                     }
                 }
 
-                self.process_manager.toggle(command, &final_args);
+                self.process_manager.toggle(&command, &final_args);
 
                 let unresolved_vec: Vec<String> =
                     args.iter().map(|arg| arg.to_string()).collect_vec();
@@ -3390,7 +3371,7 @@ impl<T: Frontend> App<T> {
                 }
 
                 content.push_str("])\nToggleProcess Command:\n");
-                append_and_decorate(&mut content, &mut decorations, command);
+                append_and_decorate(&mut content, &mut decorations, &command);
 
                 let command_line_args = final_args.join(" ");
                 if !command_line_args.is_empty() {
@@ -3890,6 +3871,15 @@ pub(crate) enum Dispatch {
     },
     ToSuggestiveEditor(DispatchSuggestiveEditor),
     RequestCompletionDebounced,
+}
+impl Dispatch {
+    fn from_script_dispatch(script_dispatch: ScriptDispatch) -> Self {
+        match script_dispatch {
+            ScriptDispatch::ShowInfo { title, content } => {
+                Dispatch::ShowGlobalInfo(Info::new(title, content))
+            }
+        }
+    }
 }
 
 /// Used to send notify host app about changes

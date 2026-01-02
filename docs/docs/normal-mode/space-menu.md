@@ -105,7 +105,7 @@ these files will not be included in the buffer list unless you edit them.
 
 ### `Theme`
 
-[Themes](../themes.md)
+[Themes](../configuration/themes.md)
 
 ### `Symbol`
 
