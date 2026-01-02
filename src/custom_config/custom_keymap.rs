@@ -1,15 +1,7 @@
-//! This file is for you to define your custom keymap.
-//! The keymap starts with the leader key `\`.
-//! The keymap help starts with the leader key `|`.
-
-#![allow(dead_code)]
-#![allow(unused_variables)]
-#![allow(unused_imports)]
-
 use crate::components::editor_keymap::KeyboardMeaningLayout;
 use crate::components::editor_keymap::Meaning::{self, *};
 use crate::config::AppConfig;
-use crate::handle_custom_action::{CustomAction, CustomAction::*, CustomActionKeymap, ScriptInput};
+use crate::handle_custom_action::CustomActionKeymap;
 pub(crate) const CUSTOM_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
     [
         __Q__, __W__, __E__, __R__, __T__, /****/ __Y__, __U__, __I__, __O__, __P__,

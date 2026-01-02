@@ -219,16 +219,16 @@ fn toggle_untoggle_mark() -> anyhow::Result<()> {
             }),
             Editor(SetContent("foo bar spam".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["foo", "spam"])),
             Editor(CursorKeepPrimaryOnly),
             Expect(CurrentSelectedTexts(&["spam"])),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(MoveSelection(Current(IfCurrentNotFound::LookForward))),
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["foo"])),
@@ -583,7 +583,7 @@ fn update_mark_position() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
@@ -1781,7 +1781,7 @@ fn main() {
             )),
             // Bookmart "z"
             Editor(MatchLiteral("z".to_string())),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             // Expect the parent lines of the current selections are highlighted with parent_lines_background,
             // regardless of whether the parent lines are inbound or outbound
             ExpectMulti(
@@ -1815,13 +1815,13 @@ fn main() {
             ),
             // Mark the "fn" word
             Editor(MatchLiteral("fn".to_string())),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             // Go to "print()" and skip the first 3 lines for rendering
             Editor(MatchLiteral("print()".to_string())),
             Editor(SetScrollOffset(3)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 2│fn main() {
 4│  let y = 2; //
 ↪│too long, wrapped
@@ -2157,14 +2157,14 @@ fn main() { // too long
             ),
             // Expect decorations overrides syntax highlighting
             Editor(MatchLiteral("fn".to_string())),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             // Move cursor to next line, so that "fn" is not selected,
             //  so that we can test the style applied to "fn" ,
             // otherwise the style of primary selection anchors will override the mark style
             Editor(MatchLiteral("let".to_string())),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 1│fn main() { // too
 ↪│ long
 2│  █et foo = 1;
@@ -2220,7 +2220,7 @@ fn update_mark_position_with_undo_and_redo() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(MoveSelection(Right)),
             Editor(MoveSelection(Right)),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
@@ -2261,7 +2261,7 @@ fn saving_should_not_destroy_mark_if_selections_not_modified() -> anyhow::Result
                 crate::config::from_extension("rs").unwrap(),
             ))),
             Editor(MatchLiteral("bar".to_string())),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Editor(ForceSave),
             // Expect the content is formatted (second line dedented)
@@ -2982,9 +2982,9 @@ fn movement_current_look_forward_backward() -> Result<(), anyhow::Error> {
                 }),
                 Editor(SetContent("hello world is good".to_string())),
                 Editor(MatchLiteral("hello".to_string())),
-                Editor(ToggleMark),
+                App(MarkFileAndToggleMark),
                 Editor(MatchLiteral("good".to_string())),
-                Editor(ToggleMark),
+                App(MarkFileAndToggleMark),
                 Editor(MatchLiteral("world".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
                 Expect(CurrentSelectedTexts(&["good"])),
@@ -3111,7 +3111,7 @@ fn last_contiguous_selection_mode() -> Result<(), anyhow::Error> {
                 }),
                 Editor(SetContent("who lives in a".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-                Editor(ToggleMark),
+                App(MarkFileAndToggleMark),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["who"])),

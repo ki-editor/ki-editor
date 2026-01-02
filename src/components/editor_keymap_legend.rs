@@ -328,7 +328,7 @@ impl Editor {
                 context.keyboard_layout_kind().get_key(&Meaning::Mark_),
                 "Mark Sel".to_string(),
                 "Toggle Selection Mark".to_string(),
-                Dispatch::ToEditor(ToggleMark),
+                Dispatch::MarkFileAndToggleMark,
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::MarkF),

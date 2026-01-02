@@ -1,7 +1,3 @@
----
-sidebar_position: 9
----
-
 # Installation
 
 ## VS Code Extension

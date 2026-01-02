@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-
 use crate::{components::editor_keymap::Meaning, position::Position};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -14,20 +11,6 @@ pub(crate) struct Keybinding {
 }
 
 pub(crate) type CustomActionKeymap = (Meaning, String, Script);
-
-#[derive(Clone, Deserialize, Serialize, JsonSchema)]
-pub(crate) enum CustomAction {
-    /// The script is expected to be stored in either `~/.config/ki/scripts/*` (Global)
-    /// or `.ki/scripts/* (Local).
-    ///
-    /// The script can be written in any languages or format as long as it is executable.
-    ///
-    /// The editor context will be fed to the script via STDIN.
-    ///
-    /// The script is expected to return an array of actions via STDOUT.
-    RunScript(Script),
-    ExecuteDispatches(Vec<ScriptDispatch>),
-}
 
 #[derive(Serialize, Clone, JsonSchema)]
 pub(crate) struct ScriptInput {
@@ -59,9 +42,8 @@ struct ScriptName(String);
 #[derive(Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(try_from = "ScriptName", into = "ScriptName")]
 pub(crate) struct Script {
-    path: CanonicalizedPath,
-    name: String,
-    content: String,
+    pub(crate) path: CanonicalizedPath,
+    pub(crate) name: String,
 }
 impl Script {
     pub(crate) fn execute(
@@ -100,12 +82,7 @@ impl TryFrom<ScriptName> for Script {
     type Error = anyhow::Error;
 
     fn try_from(value: ScriptName) -> anyhow::Result<Self> {
-        let (content, path) = crate::config::load_script(&value.0)?;
-        Ok(Self {
-            name: value.0,
-            path,
-            content,
-        })
+        crate::config::load_script(&value.0)
     }
 }
 

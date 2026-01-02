@@ -6,7 +6,7 @@ use regex::Regex;
 
 use crate::app::StatusLine;
 use crate::components::editor_keymap::KeyboardLayoutKind;
-use crate::handle_custom_action::Keybinding;
+use crate::handle_custom_action::{Keybinding, Script};
 use crate::themes::Theme;
 use figment::providers;
 use figment::providers::Format;
@@ -92,16 +92,22 @@ fn ki_global_directory() -> PathBuf {
     ::grammar::config_dir()
 }
 
-pub(crate) fn load_script(script_name: &str) -> anyhow::Result<(String, CanonicalizedPath)> {
+pub(crate) fn load_script(script_name: &str) -> anyhow::Result<Script> {
     // Trying reading from workspace directory first
     let workspace_path = ki_workspace_directory()?.join("scripts").join(script_name);
     let global_path = ki_global_directory().join("scripts").join(script_name);
-    if let Ok(workspace_path) = CanonicalizedPath::try_from(workspace_path.clone()) {
-        Ok((std::fs::read_to_string(&workspace_path)?, workspace_path))
+    if let Ok(path) = CanonicalizedPath::try_from(workspace_path.clone()) {
+        Ok(Script {
+            path,
+            name: script_name.to_string(),
+        })
     }
     // Then try reading from global directory
-    else if let Ok(global_path) = CanonicalizedPath::try_from(global_path.clone()) {
-        Ok((std::fs::read_to_string(&global_path)?, global_path))
+    else if let Ok(path) = CanonicalizedPath::try_from(global_path.clone()) {
+        Ok(Script {
+            path,
+            name: script_name.to_string(),
+        })
     } else {
         Err(anyhow::anyhow!(
             "Unable to find script {script_name:?} in both {} and {}",

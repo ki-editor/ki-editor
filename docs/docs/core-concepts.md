@@ -74,11 +74,10 @@ Thus, I'm in favor of minimal configurations, users should not spend eons config
 That being said, the following components should be configurable:
 
 1. Theme
-1. Language-specific configurations:
+2. Language-specific configurations:
    - Formatter
    - Tree-sitter grammar
    - LSP
-1. A specialty keymap
 
 ## 5. Keybindings synergy
 
