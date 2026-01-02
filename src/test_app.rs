@@ -3863,3 +3863,21 @@ fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Err
         ])
     })
 }
+
+#[test]
+fn test_example_script() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            // This will execute the script from .ki/scripts/example.py
+            App(HandleKeyEvents(keys!("backslash q").to_vec())),
+            Expect(GlobalInfo(
+                "The current selected texts are [\"pub(crate) struct Foo {\"]",
+            )),
+        ])
+    })
+}

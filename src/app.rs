@@ -3242,7 +3242,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         self.handle_dispatches(Dispatches::new(
             script_dispatches
                 .into_iter()
-                .map(Dispatch::from_script_dispatch)
+                .map(ScriptDispatch::into_app_dispatch)
                 .collect_vec(),
         ))
     }
@@ -3553,15 +3553,6 @@ pub(crate) enum Dispatch {
     },
     ToSuggestiveEditor(DispatchSuggestiveEditor),
     RequestCompletionDebounced,
-}
-impl Dispatch {
-    fn from_script_dispatch(script_dispatch: ScriptDispatch) -> Self {
-        match script_dispatch {
-            ScriptDispatch::ShowInfo { title, content } => {
-                Dispatch::ShowGlobalInfo(Info::new(title, content))
-            }
-        }
-    }
 }
 
 /// Used to send notify host app about changes

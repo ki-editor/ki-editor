@@ -1,13 +1,16 @@
+use crate::app::Dispatch;
 use crate::components::editor_keymap::KeyboardMeaningLayout;
 use crate::components::editor_keymap::Meaning::{self, *};
+use crate::components::suggestive_editor::Info;
 use crate::config::AppConfig;
 use crate::position::Position;
+use itertools::Itertools;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{io::Write, ops::Range, process::Stdio};
 
-pub(crate) const CUSTOM_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
+pub(crate) const LEADER_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
     [
         __Q__, __W__, __E__, __R__, __T__, /****/ __Y__, __U__, __I__, __O__, __P__,
     ],
@@ -19,15 +22,14 @@ pub(crate) const CUSTOM_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
     ],
 ];
 
+pub(crate) fn leader_meanings() -> Vec<Meaning> {
+    LEADER_KEYMAP_LAYOUT
+        .iter()
+        .flat_map(|row| row.iter().cloned())
+        .collect_vec()
+}
+
 pub(crate) fn custom_keymap() -> Vec<CustomActionKeymap> {
-    let meanings: [Meaning; 30] = [
-        // First row
-        __Q__, __W__, __E__, __R__, __T__, __Y__, __U__, __I__, __O__, __P__,
-        // Second row
-        __A__, __S__, __D__, __F__, __G__, __H__, __J__, __K__, __L__, _SEMI,
-        // Third row
-        __Z__, __X__, __C__, __V__, __B__, __N__, __M__, _COMA, _DOT_, _SLSH,
-    ];
     AppConfig::singleton()
         .leader_keymap()
         .keybindings()
@@ -37,7 +39,7 @@ pub(crate) fn custom_keymap() -> Vec<CustomActionKeymap> {
                 .iter()
                 .filter_map(|keybinding| keybinding.clone())
         })
-        .zip(meanings)
+        .zip(leader_meanings())
         .map(|(keybinding, meaning)| (meaning, keybinding.name.clone(), keybinding.script.clone()))
         .collect()
 }
@@ -77,12 +79,13 @@ pub(crate) enum ScriptDispatch {
 #[serde(transparent)]
 struct ScriptName(String);
 
-#[derive(Clone, Deserialize, Serialize, JsonSchema)]
+#[derive(Clone, Deserialize, Serialize, JsonSchema, Debug)]
 #[serde(try_from = "ScriptName", into = "ScriptName")]
 pub(crate) struct Script {
     pub(crate) path: CanonicalizedPath,
     pub(crate) name: String,
 }
+
 impl Script {
     pub(crate) fn execute(
         &self,
@@ -127,5 +130,15 @@ impl TryFrom<ScriptName> for Script {
 impl From<Script> for ScriptName {
     fn from(value: Script) -> Self {
         Self(value.name)
+    }
+}
+
+impl ScriptDispatch {
+    pub(crate) fn into_app_dispatch(self) -> Dispatch {
+        match self {
+            ScriptDispatch::ShowInfo { title, content } => {
+                Dispatch::ShowGlobalInfo(Info::new(title, content))
+            }
+        }
     }
 }

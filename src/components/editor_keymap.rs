@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use Meaning::*;
 
-use crate::{app::Scope, scripting::CUSTOM_KEYMAP_LAYOUT};
+use crate::{app::Scope, scripting::LEADER_KEYMAP_LAYOUT};
 
 pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
     // a = Easiest to access
@@ -413,7 +413,7 @@ impl KeySet {
                     .zip(layout.into_iter().flatten()),
             ),
             leader: HashMap::from_iter(
-                CUSTOM_KEYMAP_LAYOUT
+                LEADER_KEYMAP_LAYOUT
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten()),

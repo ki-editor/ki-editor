@@ -82,7 +82,7 @@ zeta
             App(MarkFileAndToggleMark),
             Editor(MatchLiteral("zeta".to_string())),
             Expect(EditorGrid(
-                "🦀  main.rs [*]
+                "# 🦀  main.rs [*]
 4│mark-y
 5│█eta
 ",
@@ -90,7 +90,7 @@ zeta
             Editor(ToggleReveal(Reveal::Mark)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 2│mark-x
 4│mark-y
 5│█eta
@@ -100,7 +100,7 @@ zeta
             Editor(MatchLiteral("phi".to_string())),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 2│mark-x
 3│█hi
 4│mark-y
@@ -110,7 +110,7 @@ zeta
             Editor(MatchLiteral("beta".to_string())),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 1│█eta
 2│mark-x
 4│mark-y
@@ -513,7 +513,7 @@ fn total_count_of_rendered_marks_should_equal_total_count_of_actual_marks() -> a
             Editor(ToggleReveal(Reveal::Mark)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 1│█oo foo foo
 1│foo foo foo
 1│foo foo foo
