@@ -5,7 +5,6 @@ use globset::Glob;
 use indexmap::IndexSet;
 use itertools::{Either, Itertools};
 use shared::canonicalized_path::CanonicalizedPath;
-use strum::IntoEnumIterator;
 
 use crate::{
     app::{GlobalSearchConfigUpdate, LocalSearchConfigUpdate, Scope},
@@ -215,6 +214,21 @@ impl Context {
     pub(crate) fn marks(&self) -> &HashMap<CanonicalizedPath, Vec<CharIndexRange>> {
         &self.marks
     }
+
+    pub(crate) fn handle_file_renamed(
+        &mut self,
+        source: std::path::PathBuf,
+        destination: CanonicalizedPath,
+    ) {
+        if let Some(path) = self
+            .marked_files
+            .iter()
+            .find(|path| path.to_path_buf() == &source)
+        {
+            self.marked_files.shift_remove(&path.clone());
+            self.marked_files.insert(destination);
+        }
+    }
 }
 
 impl Context {
@@ -258,7 +272,7 @@ impl Context {
 
         Self {
             clipboard: Clipboard::new(),
-            theme: Theme::default(),
+            theme: crate::config::AppConfig::singleton().theme().clone(),
             mode: None,
             #[cfg(test)]
             highlight_configs: crate::syntax_highlight::HighlightConfigs::new(),
@@ -268,15 +282,7 @@ impl Context {
             quickfix_list_state: Default::default(),
             prompt_histories,
             last_non_contiguous_selection_mode: None,
-            keyboard_layout_kind: {
-                use KeyboardLayoutKind::*;
-                crate::env::parse_env(
-                    "KI_EDITOR_KEYBOARD",
-                    &KeyboardLayoutKind::iter().collect_vec(),
-                    |layout| layout.display(),
-                    Qwerty,
-                )
-            },
+            keyboard_layout_kind: crate::config::AppConfig::singleton().keyboard_layout_kind(),
             location_history_backward: Vec::new(),
             location_history_forward: Vec::new(),
             marked_files,

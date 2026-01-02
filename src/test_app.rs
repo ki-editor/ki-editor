@@ -10,6 +10,7 @@ use lazy_regex::regex;
 use lsp_types::Url;
 use my_proc_macros::{hex, key, keys};
 
+use schemars::schema_for;
 use serde::Serialize;
 use serial_test::serial;
 use strum::IntoEnumIterator;
@@ -27,10 +28,9 @@ pub(crate) use DispatchEditor::*;
 pub(crate) use Movement::*;
 pub(crate) use SelectionMode::*;
 
-use shared::{
-    canonicalized_path::CanonicalizedPath,
-    language::{self, LanguageId},
-};
+use crate::app::StatusLine;
+
+use shared::{canonicalized_path::CanonicalizedPath, language::LanguageId};
 
 #[cfg(test)]
 use crate::layout::BufferContentsMap;
@@ -195,6 +195,7 @@ pub(crate) enum ExpectKind {
         timeout: Duration,
     },
     CurrentEditorIncrementalSearchMatches(Vec<std::ops::Range<usize>>),
+    CurrentRangeAndInitialRange(CharIndexRange, Option<CharIndexRange>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -232,10 +233,12 @@ impl ExpectKind {
         }
         let component = app.current_component();
         Ok(match self {
-            CurrentComponentContent(expected_content) => contextualize(
-                app.get_current_component_content(),
-                expected_content.to_string(),
-            ),
+            CurrentComponentContent(expected_content) => {
+                let actual = app.get_current_component_content();
+                println!("Actual =\n{actual}");
+                println!("\nExpected =\n{expected_content}");
+                contextualize(actual, expected_content.to_string())
+            }
             CurrentComponentContentMatches(regex) => {
                 let content = app.get_current_component_content();
                 contextualize_regex_match(&content, regex)
@@ -607,6 +610,15 @@ impl ExpectKind {
                     .clone()
                     .unwrap_or_default(),
             ),
+            CurrentRangeAndInitialRange(range, initial_range) => {
+                let editor = app.get_current_editor();
+                let editor = editor.borrow();
+                let selection = editor.editor().selection_set.primary_selection();
+                contextualize(
+                    (range, initial_range),
+                    (&selection.range, &selection.initial_range),
+                )
+            }
         })
     }
 }
@@ -690,7 +702,10 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
     execute_test_helper(
         || Box::new(NullWriter),
         false,
-        [StatusLineComponent::LastDispatch].to_vec(),
+        [StatusLine::new(
+            [StatusLineComponent::LastDispatch].to_vec(),
+        )]
+        .to_vec(),
         callback,
         true,
         RunTestOptions {
@@ -709,7 +724,10 @@ pub(crate) fn execute_test_custom(
     execute_test_helper(
         || Box::new(NullWriter),
         false,
-        [StatusLineComponent::LastDispatch].to_vec(),
+        [StatusLine::new(
+            [StatusLineComponent::LastDispatch].to_vec(),
+        )]
+        .to_vec(),
         callback,
         true,
         options,
@@ -724,12 +742,15 @@ pub(crate) fn execute_recipe(
     execute_test_helper(
         || Box::new(StringWriter::new()),
         true,
-        [
-            StatusLineComponent::Mode,
-            StatusLineComponent::SelectionMode,
-            StatusLineComponent::LastSearchString,
-            StatusLineComponent::LastDispatch,
-        ]
+        [StatusLine::new(
+            [
+                StatusLineComponent::Mode,
+                StatusLineComponent::SelectionMode,
+                StatusLineComponent::LastSearchString,
+                StatusLineComponent::LastDispatch,
+            ]
+            .to_vec(),
+        )]
         .to_vec(),
         callback,
         assert_last_step_is_expect,
@@ -744,7 +765,7 @@ pub(crate) fn execute_recipe(
 fn execute_test_helper(
     writer: fn() -> Box<dyn MyWriter>,
     render: bool,
-    status_line_components: Vec<StatusLineComponent>,
+    status_lines: Vec<StatusLine>,
     callback: impl Fn(State) -> Box<[Step]>,
     assert_last_step_is_expect: bool,
     options: RunTestOptions,
@@ -827,7 +848,7 @@ fn execute_test_helper(
         let buffer_contents = app.get_buffer_contents_map();
         Ok(buffer_contents)
     };
-    run_test(options, writer, status_line_components, callback)
+    run_test(options, writer, status_lines, callback)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -840,7 +861,7 @@ pub(crate) struct RunTestOptions {
 fn run_test(
     options: RunTestOptions,
     writer: fn() -> Box<dyn MyWriter>,
-    status_line_components: Vec<StatusLineComponent>,
+    status_lines: Vec<StatusLine>,
     callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<BufferContentsMap>,
 ) -> anyhow::Result<TestOutput> {
     TestRunner::run(move |temp_dir| {
@@ -848,7 +869,7 @@ fn run_test(
         let app = App::new(
             frontend.clone(),
             temp_dir.clone(),
-            status_line_components.clone(),
+            status_lines.clone(),
             options,
         )?;
         let buffer_contents_map = callback(app, temp_dir)?;
@@ -1213,7 +1234,8 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                 focus: true,
             }),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(Delete),
+            Editor(DeleteWithMovement(Next)),
+            Editor(EnterNormalMode),
             // Insert a comment at the first line of foo.rs
             App(OpenFile {
                 path: s.foo_rs().clone(),
@@ -1331,7 +1353,7 @@ fn main() {
             }),
             Expect(CurrentComponentContent(original_content)),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(DeleteNoGap),
+            Editor(DeleteWithMovement(Next)),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
                 GitHunk(diff_mode),
@@ -2398,7 +2420,7 @@ fn should_be_able_to_handle_key_event_even_when_no_file_is_opened() -> anyhow::R
     execute_test(|_| {
         Box::new([
             Expect(CurrentComponentContent("")),
-            App(HandleKeyEvents(keys!("u h e l l o").to_vec())),
+            App(HandleKeyEvents(keys!("h h e l l o").to_vec())),
             Expect(CurrentComponentContent("hello")),
         ])
     })
@@ -2929,6 +2951,15 @@ fn doc_assets_export_keymaps_json() {
     });
 }
 
+#[test]
+fn doc_assets_export_app_config_json_schema() -> anyhow::Result<()> {
+    let path = "docs/static/app_config_json_schema.json".to_string();
+    let schema = schema_for!(crate::config::AppConfig);
+    let json = serde_json::to_string_pretty(&schema)?;
+    std::fs::write(path, json)?;
+    Ok(())
+}
+
 #[serial]
 #[test]
 fn multi_paste_2() -> Result<(), anyhow::Error> {
@@ -3122,6 +3153,43 @@ fn test_navigate_back_from_quickfix_list() -> anyhow::Result<()> {
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
             App(NavigateBack),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn toggling_global_quickfix_should_show_quickfix_list() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            App(HandleLspNotification(LspNotification::Definition(
+                Default::default(),
+                GotoDefinitionResponse::Multiple(
+                    [
+                        Location {
+                            path: s.foo_rs(),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
+                        },
+                        Location {
+                            path: s.foo_rs(),
+                            range: (CharIndex(0)..CharIndex(1)).into(),
+                        },
+                    ]
+                    .to_vec(),
+                ),
+            ))),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            App(Dispatch::RemainOnlyCurrentComponent),
+            Expect(ComponentCount(1)),
+            App(Dispatch::SetGlobalMode(Some(
+                crate::context::GlobalMode::QuickfixListItem,
+            ))),
+            Expect(ComponentCount(2)),
         ])
     })
 }
@@ -3483,7 +3551,7 @@ fn lsp_initialization_should_only_send_relevant_opened_documents() -> anyhow::Re
                 focus: true,
             }),
             App(HandleLspNotification(LspNotification::Initialized(
-                language::from_extension("ts").unwrap(),
+                Box::new(crate::config::from_extension("ts").unwrap()),
             ))),
             Expect(LspServerInitializedArgs(Some((
                 LanguageId::new("typescript"),
@@ -3749,6 +3817,36 @@ fn go_to_file_under_selection() -> Result<(), anyhow::Error> {
             )),
             Editor(GoToFile),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
+        ])
+    })
+}
+
+#[test]
+fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentComponentTitle(
+                "\u{200b} 🦀 foo.rs \u{200b}".to_string(),
+            )),
+            App(HandleKeyEvent(key!("alt+v"))),
+            Expect(AppGrid(
+                "[ROOT] (Cannot be saved)
+1│█
+
+
+
+
+
+
+
+ Close current window"
+                    .to_string(),
+            )),
         ])
     })
 }

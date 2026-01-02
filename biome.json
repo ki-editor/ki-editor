@@ -14,7 +14,9 @@
             "src/protocol/types.ts",
             "target",
             "docs/static",
-            "docs/.docusaurus"
+            "docs/.docusaurus",
+            "themes",
+            "nvim-treesitter-highlight-queries/nvim-treesitter"
         ]
     },
     "formatter": {

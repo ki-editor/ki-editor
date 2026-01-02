@@ -57,7 +57,9 @@ fn reveal_mark() -> anyhow::Result<()> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetLanguage(shared::language::from_extension("md").unwrap())),
+            Editor(SetLanguage(Box::new(
+                crate::config::from_extension("md").unwrap(),
+            ))),
             Editor(SetRectangle(Rectangle {
                 origin: Position::new(0, 0),
                 width: 50,

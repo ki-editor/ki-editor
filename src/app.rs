@@ -45,18 +45,21 @@ use crate::{
     position::Position,
     process_manager::ProcessManager,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
+    render_flex_layout::{self, FlexLayoutComponent},
     screen::{Screen, Window},
     search::parse_search_config,
     selection::{CharIndex, SelectionMode},
     selection_range::SelectionRange,
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
-    thread::{Callback, SendResult},
+    thread::{debounce, Callback, SendResult},
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
 use itertools::{Either, Itertools};
 use name_variant::NamedVariant;
 use nonempty::NonEmpty;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use shared::language::LanguageId;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
@@ -107,7 +110,7 @@ pub(crate) struct App<T: Frontend> {
     frontend: Rc<Mutex<T>>,
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
-    status_line_components: Vec<StatusLineComponent>,
+    status_lines: Vec<StatusLine>,
     last_action_description: Option<String>,
     last_action_short_description: Option<String>,
 
@@ -118,14 +121,24 @@ pub(crate) struct App<T: Frontend> {
     /// is synced between Ki and the host application.
     queued_events: Vec<Event>,
     file_watcher_input_sender: Option<Sender<FileWatcherInput>>,
-
     /// This is used for ToggleProcess in keymaps
     process_manager: ProcessManager,
+    /// Used for debouncing LSP Completion request, so that we don't overwhelm
+    /// the server with too many requests, and also Ki with too many incoming Completion responses
+    debounce_lsp_request_completion: Callback<()>,
 }
 
-const GLOBAL_TITLE_BAR_HEIGHT: usize = 1;
-
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
+pub(crate) struct StatusLine {
+    components: Vec<StatusLineComponent>,
+}
+impl StatusLine {
+    #[cfg(test)]
+    pub(crate) fn new(components: Vec<StatusLineComponent>) -> Self {
+        Self { components }
+    }
+}
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 pub(crate) enum StatusLineComponent {
     KiCharacter,
     CurrentWorkingDirectory,
@@ -133,10 +146,18 @@ pub(crate) enum StatusLineComponent {
     Mode,
     SelectionMode,
     LastDispatch,
+    LineColumn,
     LastSearchString,
     Help,
     KeyboardLayout,
     Reveal,
+    /// A spacer pushes its preceding group of components to the left,
+    /// and the following to the right.
+    ///
+    /// If a status line contains more than one spacers,
+    /// each spacer will be given the similar width.
+    Spacer,
+    CurrentFileParentFolder,
 }
 
 impl<T: Frontend> App<T> {
@@ -144,7 +165,7 @@ impl<T: Frontend> App<T> {
     pub(crate) fn new(
         frontend: Rc<Mutex<T>>,
         working_directory: CanonicalizedPath,
-        status_line_components: Vec<StatusLineComponent>,
+        status_lines: Vec<StatusLine>,
         options: RunTestOptions,
     ) -> anyhow::Result<App<T>> {
         use crate::syntax_highlight;
@@ -161,7 +182,7 @@ impl<T: Frontend> App<T> {
             sender,
             receiver,
             syntax_highlight_request_sender,
-            status_line_components,
+            status_lines,
             None, // No integration event sender
             options.enable_lsp,
             options.enable_file_watcher,
@@ -177,7 +198,7 @@ impl<T: Frontend> App<T> {
         sender: Sender<AppMessage>,
         receiver: Receiver<AppMessage>,
         syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
-        status_line_components: Vec<StatusLineComponent>,
+        status_lines: Vec<StatusLine>,
         integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
         enable_lsp: bool,
         enable_file_watcher: bool,
@@ -204,16 +225,31 @@ impl<T: Frontend> App<T> {
             process_manager: ProcessManager::new(),
 
             enable_lsp,
+            debounce_lsp_request_completion: {
+                let sender = sender.clone();
+                debounce(
+                    Callback::new(Arc::new(move |_| {
+                        if let Err(err) = sender.send(AppMessage::ExternalDispatch(Box::new(
+                            Dispatch::RequestCompletionDebounced,
+                        ))) {
+                            log::error!(
+                                "Failed to send RequestCompletionDebounced to App due to {err:?}"
+                            )
+                        }
+                    })),
+                    Duration::from_millis(300),
+                )
+            },
             sender,
             layout: Layout::new(
-                dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT),
+                dimension.decrement_height(status_lines.len()),
                 &working_directory,
             )?,
             working_directory,
             frontend,
             syntax_highlight_request_sender,
             global_title: None,
-            status_line_components,
+            status_lines,
             last_action_description: None,
             last_action_short_description: None,
             integration_event_sender,
@@ -225,6 +261,10 @@ impl<T: Frontend> App<T> {
         app.restore_session();
 
         Ok(app)
+    }
+
+    fn global_title_bar_height(&self) -> usize {
+        self.status_lines.len()
     }
 
     fn update_highlighted_spans(
@@ -306,6 +346,10 @@ impl<T: Frontend> App<T> {
             }
             AppMessage::FileWatcherEvent(event) => {
                 self.handle_file_watcher_event(event)?;
+                Ok(false)
+            }
+            AppMessage::NotifyError(error) => {
+                self.show_global_info(Info::new("App Error".to_string(), format!("{error:#?}")));
                 Ok(false)
             }
         }
@@ -404,7 +448,6 @@ impl<T: Frontend> App<T> {
         self.layout.recalculate_layout(&self.context);
 
         // Generate layout
-        let dimension = self.layout.terminal_dimension();
         // Render every window
         let (windows, cursors): (Vec<_>, Vec<_>) = self
             .components()
@@ -450,24 +493,63 @@ impl<T: Frontend> App<T> {
         let screen = Screen::new(windows, borders, cursor, self.context.theme().ui.border);
 
         // Set the global title
-        let global_title_window = {
-            let title = self.global_title.clone().unwrap_or_else(|| {
-                let last_search_string = self
-                    .context
-                    .get_prompt_history(PromptHistoryKey::Search)
-                    .last()
-                    .map(|search| format!("{search:?}"));
-                self.status_line_components
+        let global_title_windows = self
+            .status_lines
+            .iter()
+            .enumerate()
+            .map(|(index, status_line)| self.render_status_line(index, status_line))
+            .collect_vec();
+        let screen = global_title_windows
+            .into_iter()
+            .fold(screen, |screen, window| screen.add_window(window));
+
+        Ok(screen)
+    }
+
+    fn render_status_line(&self, index: usize, status_line: &StatusLine) -> Window {
+        let dimension = self.layout.terminal_dimension();
+        let leading_padding = 1;
+        let title = self.global_title.clone().unwrap_or_else(|| {
+            let separator = "   ";
+            let width = dimension
+                .width
+                .saturating_sub(leading_padding)
+                .saturating_sub(1); // This is the extra space for rendering cursor at the last column
+            render_flex_layout::render_flex_layout(
+                width,
+                separator,
+                &status_line
+                    .components
                     .iter()
                     .filter_map(|component| match component {
-                        StatusLineComponent::KiCharacter => Some("ⵣ".to_string()),
-                        StatusLineComponent::CurrentWorkingDirectory => Some(
-                            self.working_directory
-                                .display_relative_to_home()
-                                .ok()
-                                .unwrap_or_else(|| self.working_directory.display_absolute()),
-                        ),
-                        StatusLineComponent::GitBranch => self.current_branch(),
+                        StatusLineComponent::Spacer => Some(FlexLayoutComponent::Spacer),
+                        StatusLineComponent::LineColumn => self
+                            .current_component()
+                            .borrow()
+                            .editor()
+                            .get_cursor_position()
+                            .ok()
+                            .map(|position| {
+                                FlexLayoutComponent::Text(format!(
+                                    "{: >4}:{: <3}",
+                                    position.line + 1,
+                                    position.column + 1
+                                ))
+                            }),
+                        StatusLineComponent::KiCharacter => {
+                            Some(FlexLayoutComponent::Text("ⵣ".to_string()))
+                        }
+                        StatusLineComponent::CurrentWorkingDirectory => {
+                            Some(FlexLayoutComponent::Text(
+                                self.working_directory
+                                    .display_relative_to_home()
+                                    .ok()
+                                    .unwrap_or_else(|| self.working_directory.display_absolute()),
+                            ))
+                        }
+                        StatusLineComponent::GitBranch => self
+                            .current_branch()
+                            .map(|branch| FlexLayoutComponent::Text(format!("⎇ {branch}"))),
                         StatusLineComponent::Mode => {
                             let mode = self
                                 .context
@@ -476,25 +558,32 @@ impl<T: Frontend> App<T> {
                                 .unwrap_or_else(|| {
                                     self.current_component().borrow().editor().display_mode()
                                 });
-                            Some(format!("{mode: <5}"))
+                            Some(FlexLayoutComponent::Text(format!("{mode: <5}")))
                         }
-                        StatusLineComponent::SelectionMode => Some(
+                        StatusLineComponent::SelectionMode => Some(FlexLayoutComponent::Text(
                             self.current_component()
                                 .borrow()
                                 .editor()
                                 .display_selection_mode(),
-                        ),
-                        StatusLineComponent::LastDispatch => self.last_action_description.clone(),
-                        StatusLineComponent::LastSearchString => last_search_string.clone(),
+                        )),
+                        StatusLineComponent::LastDispatch => self
+                            .last_action_description
+                            .clone()
+                            .map(FlexLayoutComponent::Text),
+                        StatusLineComponent::LastSearchString => self
+                            .context
+                            .get_prompt_history(PromptHistoryKey::Search)
+                            .last()
+                            .map(|search| FlexLayoutComponent::Text(format!("{search:?}"))),
                         StatusLineComponent::Help => {
                             let key = self
                                 .keyboard_layout_kind()
                                 .get_space_keymap(&Meaning::SHelp);
-                            Some(format!("Help(Space+{key})"))
+                            Some(FlexLayoutComponent::Text(format!("Help(Space+{key})")))
                         }
-                        StatusLineComponent::KeyboardLayout => {
-                            Some(self.keyboard_layout_kind().display().to_string())
-                        }
+                        StatusLineComponent::KeyboardLayout => Some(FlexLayoutComponent::Text(
+                            self.keyboard_layout_kind().display().to_string(),
+                        )),
                         StatusLineComponent::Reveal => self
                             .current_component()
                             .borrow()
@@ -507,43 +596,53 @@ impl<T: Frontend> App<T> {
                                     Reveal::Mark => "÷MARK",
                                 }
                                 .to_string()
-                            }),
+                            })
+                            .map(FlexLayoutComponent::Text),
+                        StatusLineComponent::CurrentFileParentFolder => {
+                            self.get_current_file_path().and_then(|path| {
+                                Some(FlexLayoutComponent::Text({
+                                    let path = path.parent().ok()??;
+                                    path.display_relative_to(
+                                        self.context.current_working_directory(),
+                                    )
+                                    .or_else(|_| path.display_relative_to_home())
+                                    .unwrap_or_else(|_| path.display_absolute())
+                                }))
+                            })
+                        }
                     })
-                    .join(" ")
-            });
-            let title = format!(" {title}");
-            let grid = Grid::new(Dimension {
-                height: 1,
-                width: dimension.width,
-            })
-            .render_content(
-                &title,
-                crate::grid::RenderContentLineNumber::NoLineNumber,
-                Vec::new(),
-                [LineUpdate {
-                    line_index: 0,
-                    style: self.context.theme().ui.global_title,
-                }]
-                .to_vec(),
-                self.context.theme(),
-                None,
-                &[],
-            );
-            Window::new(
-                grid,
-                crate::rectangle::Rectangle {
-                    width: dimension.width,
-                    height: 1,
-                    origin: Position {
-                        line: dimension.height,
-                        column: 0,
-                    },
-                },
+                    .collect_vec(),
             )
-        };
-        let screen = screen.add_window(global_title_window);
-
-        Ok(screen)
+        });
+        let title = format!("{}{}", " ".repeat(leading_padding), title);
+        let grid = Grid::new(Dimension {
+            height: 1,
+            width: dimension.width,
+        })
+        .render_content(
+            &title,
+            crate::grid::RenderContentLineNumber::NoLineNumber,
+            Vec::new(),
+            [LineUpdate {
+                line_index: 0,
+                style: self.context.theme().ui.global_title,
+            }]
+            .to_vec(),
+            self.context.theme(),
+            None,
+            &[],
+        );
+        Window::new(
+            grid,
+            crate::rectangle::Rectangle {
+                width: dimension.width,
+                height: 1,
+                origin: Position {
+                    line: dimension.height + index,
+                    column: 0,
+                },
+            },
+        )
     }
 
     fn current_branch(&self) -> Option<String> {
@@ -636,7 +735,8 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenFilePicker(kind) => {
                 self.open_file_picker(kind)?;
             }
-            Dispatch::RequestCompletion => {
+            Dispatch::RequestCompletion => self.debounce_lsp_request_completion.call(()),
+            Dispatch::RequestCompletionDebounced => {
                 if let Some(params) = self.get_request_params() {
                     self.lsp_manager.send_message(
                         params.path.clone(),
@@ -874,7 +974,7 @@ impl<T: Frontend> App<T> {
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
             } => self.context.set_clipboard_content(contents)?,
-            Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
+            Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode)?,
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
                 self.handle_event(Event::Key(key_event))?;
@@ -1131,7 +1231,7 @@ impl<T: Frontend> App<T> {
 
     fn resize(&mut self, dimension: Dimension) {
         self.layout.set_terminal_dimension(
-            dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT),
+            dimension.decrement_height(self.global_title_bar_height()),
             &self.context,
         );
     }
@@ -1487,14 +1587,14 @@ impl<T: Frontend> App<T> {
                     .buffers()
                     .into_iter()
                     .filter_map(|buffer| {
-                        if buffer.borrow().language()? == language {
+                        if buffer.borrow().language()? == *language {
                             buffer.borrow().path()
                         } else {
                             None
                         }
                     })
                     .collect_vec();
-                self.lsp_manager.initialized(language, opened_documents);
+                self.lsp_manager.initialized(*language, opened_documents);
                 Ok(())
             }
             LspNotification::PublishDiagnostics(params) => {
@@ -2053,8 +2153,12 @@ impl<T: Frontend> App<T> {
         self.current_component().borrow().path()
     }
 
-    fn set_global_mode(&mut self, mode: Option<GlobalMode>) {
-        self.context.set_mode(mode);
+    fn set_global_mode(&mut self, mode: Option<GlobalMode>) -> anyhow::Result<()> {
+        self.context.set_mode(mode.clone());
+        if let Some(GlobalMode::QuickfixListItem) = mode {
+            self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
+        }
+        Ok(())
     }
 
     #[cfg(test)]
@@ -2205,9 +2309,10 @@ impl<T: Frontend> App<T> {
                 )?;
             self.handle_dispatches(dispatches)
         } else {
-            Err(anyhow::anyhow!(
-                "The current component is neither Prompt or SuggestiveEditor, thus `App::handle_dispatch_suggestive_editor` does nothing."
-            ))
+            // Ignore this dispatch if the current component is neither Prompt nor SuggestiveEditor
+            // We don't raise an error here because in some cases, it is possible that the Prompt/SuggestiveEditor
+            // has been removed before this dispatch can be handled.
+            Ok(())
         }
     }
 
@@ -3394,10 +3499,20 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
                     )?;
                 }
             }
-            FileWatcherEvent::PathCreated
-            | FileWatcherEvent::PathRemoved(_)
-            | FileWatcherEvent::PathRenamed(_) => {
+            FileWatcherEvent::PathCreated | FileWatcherEvent::PathRemoved(_) => {
                 self.layout.refresh_file_explorer(&self.context)?;
+            }
+            FileWatcherEvent::PathRenamed {
+                source,
+                destination,
+            } => {
+                self.context
+                    .handle_file_renamed(source.clone(), destination.clone());
+                self.layout.refresh_file_explorer(&self.context)?;
+                self.handle_dispatch_editor(DispatchEditor::PathRenamed {
+                    source,
+                    destination,
+                })?
             }
         }
         Ok(())
@@ -3774,6 +3889,7 @@ pub(crate) enum Dispatch {
         marks: Vec<CharIndexRange>,
     },
     ToSuggestiveEditor(DispatchSuggestiveEditor),
+    RequestCompletionDebounced,
 }
 
 /// Used to send notify host app about changes
@@ -3889,6 +4005,7 @@ pub(crate) enum AppMessage {
         highlighted_spans: HighlightedSpans,
     },
     // New variant for external dispatches
+    NotifyError(std::io::Error),
     ExternalDispatch(Box<Dispatch>),
     NucleoTickDebounced,
     FileWatcherEvent(FileWatcherEvent),

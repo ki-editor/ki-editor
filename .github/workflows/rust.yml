@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: ["master"]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: write
 
@@ -13,17 +17,22 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check:
-    name: all-rust-check
+  ci:
     runs-on: macos-latest
-
+    strategy:
+      matrix:
+        task: [check, build-all, test, install]
     steps:
       - uses: actions/checkout@v3
       - uses: cachix/install-nix-action@v30
-      - name: Run everything
-        run: nix develop --command just
-      - name: Verify installation
-        run: nix develop --command just install
+      - run: nix develop --command just ${{ matrix.task }}
+
+  doc:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: cachix/install-nix-action@v30
+      - run: nix develop --command just doc
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3

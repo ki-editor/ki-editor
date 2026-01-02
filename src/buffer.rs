@@ -21,10 +21,7 @@ use crate::{
 use itertools::Itertools;
 use regex::Regex;
 use ropey::Rope;
-use shared::{
-    canonicalized_path::CanonicalizedPath,
-    language::{self, Language},
-};
+use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::ops::Range;
 use std::time::SystemTime;
 use tree_sitter::{Node, Parser, Tree};
@@ -342,6 +339,10 @@ impl Buffer {
         self.flag_as_modified()
     }
 
+    pub(crate) fn update_path(&mut self, path: CanonicalizedPath) {
+        self.path = Some(path)
+    }
+
     pub(crate) fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
         Ok(self
             .rope
@@ -471,7 +472,7 @@ impl Buffer {
         }
     }
 
-    pub(crate) fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node> {
+    pub(crate) fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node<'_>> {
         let byte = self.char_to_byte(char_index).ok()?;
         // Preorder is the main key here,
         // because preorder traversal walks the parent first
@@ -524,7 +525,7 @@ impl Buffer {
     }
 
     #[cfg(test)]
-    pub(crate) fn get_next_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node> {
+    pub(crate) fn get_next_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node<'_>> {
         let byte = self.char_to_byte(char_index).ok()?;
         self.traverse(Order::Post).and_then(|mut iter| {
             iter.find(|&node| {
@@ -534,7 +535,7 @@ impl Buffer {
     }
 
     #[cfg(test)]
-    pub(crate) fn traverse(&self, order: Order) -> Option<impl Iterator<Item = Node>> {
+    pub(crate) fn traverse(&self, order: Order) -> Option<impl Iterator<Item = Node<'_>>> {
         self.tree.as_ref().map(|tree| traverse(tree.walk(), order))
     }
 
@@ -681,7 +682,8 @@ impl Buffer {
     ) -> anyhow::Result<Buffer> {
         let content = path.read()?;
         let language = if enable_tree_sitter {
-            language::from_path(path).or_else(|| language::from_content_directive(&content))
+            crate::config::from_path(path)
+                .or_else(|| crate::config::from_content_directive(&content))
         } else {
             None
         };
@@ -1223,7 +1225,7 @@ mod test_buffer {
     #[test]
     fn get_parent_lines_1() {
         let buffer = Buffer::new(
-            shared::language::from_extension("yaml")
+            crate::config::from_extension("yaml")
                 .unwrap()
                 .tree_sitter_language(),
             "
@@ -1255,7 +1257,7 @@ mod test_buffer {
     #[test]
     fn get_parent_lines_2() {
         let buffer = Buffer::new(
-            shared::language::from_extension("rs")
+            crate::config::from_extension("rs")
                 .unwrap()
                 .tree_sitter_language(),
             "
@@ -1296,7 +1298,7 @@ fn f(
         use super::*;
         fn test(input: &str, config: LocalSearchConfig, expected: &str) -> anyhow::Result<()> {
             let mut buffer = Buffer::new(
-                shared::language::from_extension("rs")
+                crate::config::from_extension("rs")
                     .unwrap()
                     .tree_sitter_language(),
                 input,

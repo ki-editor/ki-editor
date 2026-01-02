@@ -33,13 +33,13 @@ No matter which keyboard layout you use, be it QWERTY, Dvorak, Colemak, etc., th
 Because we are no longer bound by mnemonics, we can optimize common bigrams using either Colemak's Rolling
 or Dvorak's Hand Alternation.
 
-For example, copying and pasting the current selection is done by pressing `c` then `v` on QWERTY.
+For example, copying and pasting the current selection is done by pressing `c` then `b` on QWERTY.
 
 ### C. Positional Coherence
 
 Actions with similar meanings are placed in the same position across the shift, alt, or menu layers.
 
-For example, the actions on the position of `m` on QWERTY roughly relate to the concept of "Change".
+For example, the actions on the position of `f` on QWERTY roughly relate to the concept of "Change".
 
 | Mode          | Meaning         |
 | ------------- | --------------- |
@@ -87,5 +87,7 @@ Most keybindings in Ki synergize with one another, though a minority of them are
 But lone rangers are not encouraged, they are only added if they are truly crucial.
 
 [^1]: Vim, Neovim, Kakoune and Helix.
+
 [^2]: For example, in Vim, `p` means paste, but to paste in prompt use `ctrl+r` instead.
+
 [^3]: For example, in the [Helix's File Explorer PR](https://github.com/helix-editor/helix/pull/5768), every movement, including scrolling was reimplemented, although they were implemented in the Editor component.

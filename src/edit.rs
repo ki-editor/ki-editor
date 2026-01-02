@@ -111,12 +111,7 @@ impl Action {
 
     fn apply_offset(self, offset: isize) -> Self {
         match self {
-            Action::Select(selection) => {
-                let range = selection.extended_range();
-                Action::Select(selection.set_range(
-                    (range.start.apply_offset(offset)..range.end.apply_offset(offset)).into(),
-                ))
-            }
+            Action::Select(selection) => Action::Select(selection.apply_offset(offset)),
             Action::Edit(edit) => Action::Edit(edit.apply_offset(offset)),
         }
     }

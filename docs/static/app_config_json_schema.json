@@ -1,0 +1,396 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AppConfig",
+  "type": "object",
+  "properties": {
+    "keyboard_layout": {
+      "$ref": "#/$defs/KeyboardLayoutKind"
+    },
+    "languages": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Language"
+      }
+    },
+    "status_lines": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/StatusLine"
+      }
+    },
+    "theme": {
+      "$ref": "#/$defs/ConfigTheme"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "languages",
+    "keyboard_layout",
+    "theme",
+    "status_lines"
+  ],
+  "$defs": {
+    "CargoLinkedTreesitterLanguage": {
+      "type": "string",
+      "enum": [
+        "Typescript",
+        "TSX",
+        "Python",
+        "Julia",
+        "Scheme",
+        "OCaml",
+        "OCamlInterface",
+        "Rust",
+        "Graphql",
+        "Javascript",
+        "JSX",
+        "Svelte",
+        "JSON",
+        "YAML",
+        "HTML",
+        "XML",
+        "Zig",
+        "Markdown",
+        "Go",
+        "Lua",
+        "Gleam",
+        "Bash",
+        "C",
+        "CPP",
+        "CSS",
+        "Ruby",
+        "Nix",
+        "Fish",
+        "Diff",
+        "Elixir",
+        "Swift",
+        "Heex",
+        "Toml",
+        "KiQuickfix",
+        "Haskell"
+      ]
+    },
+    "Command": {
+      "type": "object",
+      "properties": {
+        "arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "command": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "arguments"
+      ]
+    },
+    "ConfigTheme": {
+      "type": "string",
+      "enum": [
+        "Alabaster",
+        "Alabaster BG",
+        "Alabaster Dark",
+        "Alabaster Dark Mono",
+        "Alabaster Mono",
+        "Apathy Dark",
+        "Apathy Light",
+        "Ayu Dark",
+        "Ayu Light",
+        "Ayu Mirage",
+        "Catppuccin Frappé",
+        "Catppuccin Latte",
+        "Catppuccin Macchiato",
+        "Catppuccin Mocha",
+        "Dracula",
+        "Dracula Light (Alucard)",
+        "Dracula Solid",
+        "Github Dark",
+        "Github Dark Colorblind",
+        "Github Dark Dimmed",
+        "Github Dark High Contrast",
+        "Github Dark Tritanopia",
+        "Github Light",
+        "Github Light Colorblind",
+        "Github Light High Contrast",
+        "Github Light Tritanopia",
+        "Gruber Darker",
+        "Gruvbox Dark",
+        "Gruvbox Dark Hard",
+        "Gruvbox Dark Soft",
+        "Gruvbox Light",
+        "Gruvbox Light Hard",
+        "Gruvbox Light Soft",
+        "Modus Operandi",
+        "Modus Operandi Deuteranopia",
+        "Modus Operandi Tinted",
+        "Modus Operandi Tritanopia",
+        "Modus Vivendi",
+        "Modus Vivendi Deuteranopia",
+        "Modus Vivendi Tinted",
+        "Modus Vivendi Tritanopia",
+        "Monokai",
+        "Monokai-ST3",
+        "Mqual Blue",
+        "Nord Dark",
+        "Nord Light",
+        "One Dark",
+        "One Light",
+        "Rosé Pine",
+        "Solarized Dark",
+        "Solarized Light",
+        "Tokyo Night",
+        "Tokyo Night Light",
+        "Tokyo Night Moon",
+        "Tokyo Night Storm",
+        "VS Code (Dark)",
+        "VS Code (Light)"
+      ]
+    },
+    "GrammarConfig": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/GrammarConfigKind"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind"
+      ]
+    },
+    "GrammarConfigKind": {
+      "oneOf": [
+        {
+          "description": "This is the recommended over `FromSource`, as `FromSource`\nis not reliable across different operating system.",
+          "type": "object",
+          "properties": {
+            "CargoLinked": {
+              "$ref": "#/$defs/CargoLinkedTreesitterLanguage"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "CargoLinked"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "FromSource": {
+              "type": "object",
+              "properties": {
+                "commit": {
+                  "type": "string"
+                },
+                "subpath": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url",
+                "commit"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "FromSource"
+          ]
+        }
+      ]
+    },
+    "KeyboardLayoutKind": {
+      "type": "string",
+      "enum": [
+        "Qwerty",
+        "Dvorak",
+        "DvorakIu",
+        "Colemak",
+        "ColemakDh",
+        "ColemakDhSemiQuote",
+        "ColemakAnsi",
+        "ColemakAnsiDh",
+        "Workman",
+        "Puq"
+      ]
+    },
+    "Language": {
+      "type": "object",
+      "properties": {
+        "block_comment_affixes": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "examples": [
+            [
+              "/*",
+              "*/"
+            ]
+          ],
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "extensions": {
+          "type": "array",
+          "examples": [
+            [
+              "ts",
+              "tsx"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "file_names": {
+          "description": "For files without extensions.",
+          "type": "array",
+          "examples": [
+            [
+              "Dockerfile"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "formatter": {
+          "description": "The formatter command will receive the content from STDIN\nand is expected to return the formatted output to STDOUT.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Command"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "line_comment_prefix": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "examples": [
+            "//"
+          ]
+        },
+        "lsp_command": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LspCommand"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lsp_language_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LanguageId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tree_sitter_grammar_config": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GrammarConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "extensions",
+        "file_names"
+      ]
+    },
+    "LanguageId": {
+      "description": "As defined by the LSP protocol.\nSee sections below https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#range",
+      "type": "string"
+    },
+    "LspCommand": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/Command"
+        },
+        "initialization_options": true
+      },
+      "additionalProperties": false,
+      "required": [
+        "command"
+      ]
+    },
+    "StatusLine": {
+      "type": "object",
+      "properties": {
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StatusLineComponent"
+          }
+        }
+      },
+      "required": [
+        "components"
+      ]
+    },
+    "StatusLineComponent": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "KiCharacter",
+            "CurrentWorkingDirectory",
+            "GitBranch",
+            "Mode",
+            "SelectionMode",
+            "LastDispatch",
+            "LineColumn",
+            "LastSearchString",
+            "Help",
+            "KeyboardLayout",
+            "Reveal",
+            "CurrentFileParentFolder"
+          ]
+        },
+        {
+          "description": "A spacer pushes its preceding group of components to the left,\nand the following to the right.\n\nIf a status line contains more than one spacers,\neach spacer will be given the similar width.",
+          "type": "string",
+          "const": "Spacer"
+        }
+      ]
+    }
+  }
+}

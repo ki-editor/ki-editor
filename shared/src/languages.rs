@@ -1,203 +1,217 @@
+use std::collections::HashMap;
+
+use serde_json::json;
+
 use crate::language::{CargoLinkedTreesitterLanguage, GrammarConfigKind};
 
 use super::language::{Command, GrammarConfig, Language, LanguageId, LspCommand};
 
-pub const LANGUAGES: &[&Language] = &[
-    &bash(),
-    &fish(),
-    &unison(),
-    &c(),
-    &racket(),
-    &scheme(),
-    &common_lisp(),
-    &cpp(),
-    &c_sharp(),
-    &css(),
-    &csv(),
-    &diff(),
-    &dockerfile(),
-    &elixir(),
-    &f_sharp(),
-    &gitattributes(),
-    &gitcommit(),
-    &gitconfig(),
-    &gitignore(),
-    &gitrebase(),
-    &gleam(),
-    &golang(),
-    &graphql(),
-    &hare(),
-    &heex(),
-    &html(),
-    &idris(),
-    &haskell(),
-    &javascript(),
-    &javascript_react(),
-    &svelte(),
-    &json(),
-    &just(),
-    &ki_quickfix(),
-    &lua(),
-    &markdown(),
-    &nix(),
-    &ocaml(),
-    &ocaml_interface(),
-    &odin(),
-    &dune(),
-    &python(),
-    &rescript(),
-    &roc(),
-    &ruby(),
-    &rust(),
-    &sql(),
-    &swift(),
-    &typst(),
-    &toml(),
-    &tree_sitter_query(),
-    &typescript(),
-    &typescript_react(),
-    &xml(),
-    &yaml(),
-    &zig(),
-];
+fn to_vec(slice: &[&'static str]) -> Vec<String> {
+    slice.iter().map(|s| s.to_string()).collect()
+}
 
-const fn bash() -> Language {
+pub fn languages() -> HashMap<String, Language> {
+    [
+        ("bash", bash()),
+        ("fish", fish()),
+        ("unison", unison()),
+        ("c", c()),
+        ("racket", racket()),
+        ("scheme", scheme()),
+        ("commonlisp", commonlisp()),
+        ("cpp", cpp()),
+        ("c_sharp", c_sharp()),
+        ("css", css()),
+        ("csv", csv()),
+        ("diff", diff()),
+        ("dockerfile", dockerfile()),
+        ("elixir", elixir()),
+        ("fsharp", fsharp()),
+        ("gitattributes", gitattributes()),
+        ("gitcommit", gitcommit()),
+        ("gitconfig", gitconfig()),
+        ("gitignore", gitignore()),
+        ("gitrebase", gitrebase()),
+        ("gleam", gleam()),
+        ("go", go()),
+        ("graphql", graphql()),
+        ("hare", hare()),
+        ("heex", heex()),
+        ("html", html()),
+        ("idris", idris()),
+        ("haskell", haskell()),
+        ("javascript", javascript()),
+        ("javascriptreact", javascriptreact()),
+        ("svelte", svelte()),
+        ("json", json()),
+        ("julia", julia()),
+        ("just", just()),
+        ("kiquickfix", kiquickfix()),
+        ("lua", lua()),
+        ("markdown", markdown()),
+        ("nix", nix()),
+        ("ocaml", ocaml()),
+        ("ocaml_interface", ocaml_interface()),
+        ("odin", odin()),
+        ("dune", dune()),
+        ("python", python()),
+        ("rescript", rescript()),
+        ("roc", roc()),
+        ("ruby", ruby()),
+        ("rust", rust()),
+        ("sql", sql()),
+        ("swift", swift()),
+        ("typst", typst()),
+        ("toml", toml()),
+        ("tree_sitter_query", tree_sitter_query()),
+        ("typescript", typescript()),
+        ("typescriptreact", typescriptreact()),
+        ("xml", xml()),
+        ("yaml", yaml()),
+        ("zig", zig()),
+    ]
+    .into_iter()
+    .map(|(str, language)| (str.to_string(), language))
+    .collect()
+}
+
+fn bash() -> Language {
     Language {
-        extensions: &["sh", "bash"],
-        file_names: &[".bashrc", ".bash_profile", "bashrc", "bash_profile"],
-        formatter_command: Some(Command("shfmt", &[".sh", ".bash"])),
+        extensions: to_vec(&["sh", "bash"]),
+        file_names: to_vec(&[".bashrc", ".bash_profile", "bashrc", "bash_profile"]),
+        formatter: Some(Command::new("shfmt", &[".sh", ".bash"])),
         lsp_command: Some(LspCommand {
-            command: Command("bash-language-server", &["start"]),
+            command: Command::new("bash-language-server", &["start"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("bash")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "bash",
+            id: "bash".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Bash),
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn fish() -> Language {
+fn fish() -> Language {
     Language {
-        extensions: &["fish"],
-        formatter_command: Some(Command("fish --no-execute ", &[".fish"])),
+        extensions: to_vec(&["fish"]),
+        formatter: Some(Command::new("fish --no-execute ", &[".fish"])),
         lsp_command: Some(LspCommand {
-            command: Command("fish-lsp", &["start"]),
+            command: Command::new("fish-lsp", &["start"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("fish")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "fish",
+            id: "fish".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Fish),
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn c() -> Language {
+fn c() -> Language {
     Language {
-        extensions: &["c", "h"],
-        formatter_command: Some(Command("clang-format", &[])),
+        extensions: to_vec(&["c", "h"]),
+        formatter: Some(Command::new("clang-format", &[])),
         lsp_command: Some(LspCommand {
-            command: Command("clangd", &[]),
+            command: Command::new("clangd", &[]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("c")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "c",
+            id: "c".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::C),
         }),
-        line_comment_prefix: Some("//"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn racket() -> Language {
+fn racket() -> Language {
     Language {
-        extensions: &["rkt", "rktd", "rktl", "scrbl", "zuo"],
+        extensions: to_vec(&["rkt", "rktd", "rktl", "scrbl", "zuo"]),
         lsp_command: Some(LspCommand {
-            command: Command("racket", &[]),
+            command: Command::new("racket", &[]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("racket")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "racket",
+            id: "racket".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Scheme),
         }),
-        line_comment_prefix: Some(";"),
-        block_comment_affixes: Some(("#|", "|#")),
+        line_comment_prefix: Some(";".to_string()),
+        block_comment_affixes: Some(("#|".to_string(), "|#".to_string())),
         ..Language::new()
     }
 }
 
-const fn scheme() -> Language {
+fn scheme() -> Language {
     Language {
-        extensions: &["ss", "scm", "sld"],
+        extensions: to_vec(&["ss", "scm", "sld"]),
         // lsp_language_id: Some(LanguageId::new("scheme")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "scheme",
+            id: "scheme".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Scheme),
         }),
-        line_comment_prefix: Some(";"),
-        block_comment_affixes: Some(("#|", "|#")),
+        line_comment_prefix: Some(";".to_string()),
+        block_comment_affixes: Some(("#|".to_string(), "|#".to_string())),
         ..Language::new()
     }
 }
 
-const fn common_lisp() -> Language {
+fn commonlisp() -> Language {
     Language {
-        extensions: &[
+        extensions: to_vec(&[
             "lisp", "lsp", "l", "cl", "fasl", "sbcl", "el", "asd", "ny", "podsl", "sexp",
-        ],
+        ]),
         lsp_command: Some(LspCommand {
-            command: Command("cl-lsp", &[]),
+            command: Command::new("cl-lsp", &[]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("commonlisp")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "commonlisp",
+            id: "commonlisp".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Scheme),
         }),
-        line_comment_prefix: Some(";"),
+        line_comment_prefix: Some(";".to_string()),
         ..Language::new()
     }
 }
 
-const fn cpp() -> Language {
+fn cpp() -> Language {
     Language {
-        extensions: &[
+        extensions: to_vec(&[
             "cc", "hh", "c++", "cpp", "hpp", "h", "ipp", "tpp", "cxx", "hxx", "ixx", "txx", "ino",
             "cu", "cuh", "cppm", "h++", "ii", "inl",
-        ],
-        formatter_command: Some(Command("clang-format", &[])),
+        ]),
+        formatter: Some(Command::new("clang-format", &[])),
         lsp_command: Some(LspCommand {
-            command: Command("clangd", &[]),
+            command: Command::new("clangd", &[]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("cpp")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "cpp",
+            id: "cpp".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::CPP),
         }),
-        line_comment_prefix: Some("//"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn csv() -> Language {
+fn csv() -> Language {
     Language {
-        extensions: &["csv"],
+        extensions: to_vec(&["csv"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "csv",
+            id: "csv".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/arnau/tree-sitter-csv",
-                commit: "main",
+                url: "https://github.com/arnau/tree-sitter-csv".to_string(),
+                commit: "main".to_string(),
                 subpath: None,
             },
         }),
@@ -205,255 +219,258 @@ const fn csv() -> Language {
     }
 }
 
-const fn c_sharp() -> Language {
+fn c_sharp() -> Language {
     Language {
-        extensions: &["cs", "csx", "cake"],
-        formatter_command: Some(Command("csharpier", &["format", "--write-stdout"])),
+        extensions: to_vec(&["cs", "csx", "cake"]),
+        formatter: Some(Command::new("csharpier", &["format", "--write-stdout"])),
         lsp_command: Some(LspCommand {
-            command: Command("omnisharp", &["--languageserver"]),
+            command: Command::new("omnisharp", &["--languageserver"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("c_sharp")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "c_sharp",
+            id: "c_sharp".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/tree-sitter/tree-sitter-c-sharp",
+                url: "https://github.com/tree-sitter/tree-sitter-c-sharp".to_string(),
                 subpath: None,
-                commit: "master",
+                commit: "master".to_string(),
             },
         }),
-        line_comment_prefix: Some("//"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn css() -> Language {
+fn css() -> Language {
     Language {
-        extensions: &["css"],
-        formatter_command: Some(Command("prettierd", &[".css"])),
+        extensions: to_vec(&["css"]),
+        formatter: Some(Command::new("prettierd", &[".css"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "css",
+            id: "css".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::CSS),
         }),
-        block_comment_affixes: Some(("/*", "*/")),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn diff() -> Language {
+fn diff() -> Language {
     Language {
-        extensions: &["diff"],
+        extensions: to_vec(&["diff"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "diff",
+            id: "diff".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Diff),
         }),
         ..Language::new()
     }
 }
 
-const fn dockerfile() -> Language {
+fn dockerfile() -> Language {
     Language {
-        file_names: &["Dockerfile"],
+        file_names: to_vec(&["Dockerfile"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "dockerfile",
+            id: "dockerfile".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/camdencheek/tree-sitter-dockerfile",
-                commit: "main",
+                url: "https://github.com/camdencheek/tree-sitter-dockerfile".to_string(),
+                commit: "main".to_string(),
                 subpath: None,
             },
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn elixir() -> Language {
+fn elixir() -> Language {
     Language {
-        extensions: &["ex", "exs"],
-        formatter_command: Some(Command("mix", &["format", "-"])),
+        extensions: to_vec(&["ex", "exs"]),
+        formatter: Some(Command::new("mix", &["format", "-"])),
         lsp_command: Some(LspCommand {
-            command: Command("elixir-ls", &[]),
+            command: Command::new("elixir-ls", &[]),
             initialization_options: None,
         }),
         lsp_language_id: Some(LanguageId::new("elixir")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "elixir",
+            id: "elixir".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Elixir),
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn f_sharp() -> Language {
+fn fsharp() -> Language {
     Language {
-        extensions: &["fs", "fsi", "fsx", "fsscript"],
-        formatter_command: None,
+        extensions: to_vec(&["fs", "fsi", "fsx", "fsscript"]),
+        formatter: None,
         lsp_command: Some(LspCommand {
             // Use --log-file and --log-level arguments to debug fsautocomplete issues.
             // Example: --log-file /path/to/fsac.log --log-level debug
-            command: Command("fsautocomplete", &[]),
+            command: Command::new("fsautocomplete", &[]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("fsharp")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "fsharp",
+            id: "fsharp".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/ionide/tree-sitter-fsharp.git",
-                commit: "main",
-                subpath: Some("fsharp"),
+                url: "https://github.com/ionide/tree-sitter-fsharp.git".to_string(),
+                commit: "main".to_string(),
+                subpath: Some("fsharp".to_string()),
             },
         }),
-        line_comment_prefix: Some("//"),
-        block_comment_affixes: Some(("(*", "*)")),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("(*".to_string(), "*)".to_string())),
         ..Language::new()
     }
 }
 
-const fn gitattributes() -> Language {
+fn gitattributes() -> Language {
     Language {
-        file_names: &[".gitattributes"],
+        file_names: to_vec(&[".gitattributes"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "gitattributes",
+            id: "gitattributes".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/tree-sitter-grammars/tree-sitter-gitattributes",
-                commit: "master",
+                url: "https://github.com/tree-sitter-grammars/tree-sitter-gitattributes"
+                    .to_string(),
+                commit: "master".to_string(),
                 subpath: None,
             },
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn gitcommit() -> Language {
+fn gitcommit() -> Language {
     Language {
-        file_names: &["COMMIT_EDITMSG"],
+        file_names: to_vec(&["COMMIT_EDITMSG"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "gitcommit",
+            id: "gitcommit".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/gbprod/tree-sitter-gitcommit",
-                commit: "main",
+                url: "https://github.com/gbprod/tree-sitter-gitcommit".to_string(),
+                commit: "main".to_string(),
                 subpath: None,
             },
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn gitconfig() -> Language {
+fn gitconfig() -> Language {
     Language {
-        file_names: &[".gitconfig"],
+        file_names: to_vec(&[".gitconfig"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "git_config",
+            id: "git_config".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/the-mikedavis/tree-sitter-git-config",
-                commit: "main",
+                url: "https://github.com/the-mikedavis/tree-sitter-git-config".to_string(),
+                commit: "main".to_string(),
                 subpath: None,
             },
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn gitignore() -> Language {
+fn gitignore() -> Language {
     Language {
-        file_names: &[".gitignore"],
+        file_names: to_vec(&[".gitignore"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "gitignore",
+            id: "gitignore".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/shunsambongi/tree-sitter-gitignore",
-                commit: "main",
+                url: "https://github.com/shunsambongi/tree-sitter-gitignore".to_string(),
+                commit: "main".to_string(),
                 subpath: None,
             },
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn gitrebase() -> Language {
+fn gitrebase() -> Language {
     Language {
-        file_names: &["git-rebase-todo"],
+        file_names: to_vec(&["git-rebase-todo"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "git_rebase",
+            id: "git_rebase".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/the-mikedavis/tree-sitter-git-rebase",
-                commit: "main",
+                url: "https://github.com/the-mikedavis/tree-sitter-git-rebase".to_string(),
+                commit: "main".to_string(),
                 subpath: None,
             },
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn gleam() -> Language {
+fn gleam() -> Language {
     Language {
-        extensions: &["gleam"],
-        formatter_command: Some(Command("gleam", &["format", "--stdin"])),
+        extensions: to_vec(&["gleam"]),
+        formatter: Some(Command::new("gleam", &["format", "--stdin"])),
         lsp_command: Some(LspCommand {
-            command: Command("gleam", &["lsp"]),
+            command: Command::new("gleam", &["lsp"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("gleam")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "gleam",
+            id: "gleam".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Gleam),
         }),
-        line_comment_prefix: Some("//"),
+        line_comment_prefix: Some("//".to_string()),
         ..Language::new()
     }
 }
 
-const fn golang() -> Language {
+fn go() -> Language {
     Language {
-        extensions: &["go"],
-        formatter_command: Some(Command("gofmt", &[])),
+        extensions: to_vec(&["go"]),
+        formatter: Some(Command::new("gofmt", &[])),
         lsp_command: Some(LspCommand {
-            command: Command("gopls", &[]),
+            command: Command::new("gopls", &[]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("go")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "go",
+            id: "go".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Go),
         }),
-        line_comment_prefix: Some("//"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn graphql() -> Language {
+fn graphql() -> Language {
     Language {
-        extensions: &["graphql", "gql"],
-        formatter_command: Some(Command("prettierd", &[".graphql"])),
+        extensions: to_vec(&["graphql", "gql"]),
+        formatter: Some(Command::new("prettierd", &[".graphql"])),
         lsp_command: Some(LspCommand {
-            command: Command("graphql-lsp", &["server", "-m", "stream"]),
-            initialization_options: Some(r#"{ "graphql-config.load.legacy": true }"#),
+            command: Command::new("graphql-lsp", &["server", "-m", "stream"]),
+            initialization_options: Some(
+                json! {r#"{ "graphql-config.load.legacy": true }"#.to_string()},
+            ),
         }),
         lsp_language_id: Some(LanguageId::new("graphql")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "graphql",
+            id: "graphql".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Graphql),
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn hare() -> Language {
+fn hare() -> Language {
     Language {
-        extensions: &["ha"],
+        extensions: to_vec(&["ha"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "hare",
+            id: "hare".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/tree-sitter-grammars/tree-sitter-hare",
-                commit: "master",
+                url: "https://github.com/tree-sitter-grammars/tree-sitter-hare".to_string(),
+                commit: "master".to_string(),
                 subpath: None,
             },
         }),
@@ -461,58 +478,58 @@ const fn hare() -> Language {
     }
 }
 
-const fn heex() -> Language {
+fn heex() -> Language {
     Language {
-        extensions: &["heex"],
-        formatter_command: Some(Command(
+        extensions: to_vec(&["heex"]),
+        formatter: Some(Command::new(
             "mix",
             &["format", "--stdin-filename", "file.heex", "-"],
         )),
         lsp_command: Some(LspCommand {
-            command: Command("elixir-ls", &[]),
+            command: Command::new("elixir-ls", &[]),
             initialization_options: None,
         }),
         lsp_language_id: Some(LanguageId::new("heex")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "heex",
+            id: "heex".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Heex),
         }),
-        block_comment_affixes: Some(("<!--", "-->")),
+        block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
         ..Language::new()
     }
 }
 
-const fn html() -> Language {
+fn html() -> Language {
     Language {
-        extensions: &["htm", "html", "svg"],
-        formatter_command: Some(Command("prettierd", &[".html"])),
+        extensions: to_vec(&["htm", "html", "svg"]),
+        formatter: Some(Command::new("prettierd", &[".html"])),
         lsp_command: Some(LspCommand {
-            command: Command("emmet-language-server", &["--stdio"]),
+            command: Command::new("emmet-language-server", &["--stdio"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("html")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "html",
+            id: "html".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::HTML),
         }),
-        block_comment_affixes: Some(("<!--", "-->")),
+        block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
         ..Language::new()
     }
 }
 
-const fn idris() -> Language {
+fn idris() -> Language {
     Language {
-        extensions: &["idr", "lidr", "ipkg"],
+        extensions: to_vec(&["idr", "lidr", "ipkg"]),
         lsp_command: Some(LspCommand {
-            command: Command("idris2-lsp", &[]),
+            command: Command::new("idris2-lsp", &[]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("idris")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "idris",
+            id: "idris".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/kayhide/tree-sitter-idris",
-                commit: "main",
+                url: "https://github.com/kayhide/tree-sitter-idris".to_string(),
+                commit: "main".to_string(),
                 subpath: None,
             },
         }),
@@ -520,485 +537,512 @@ const fn idris() -> Language {
     }
 }
 
-const fn haskell() -> Language {
+fn haskell() -> Language {
     Language {
-        extensions: &["hs"],
+        extensions: to_vec(&["hs"]),
         lsp_command: Some(LspCommand {
-            command: Command("haskell-language-server-wrapper", &["--lsp"]),
+            command: Command::new("haskell-language-server-wrapper", &["--lsp"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("haskell")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "haskell",
+            id: "haskell".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Haskell),
         }),
-        line_comment_prefix: Some("--"),
-        block_comment_affixes: Some(("{-", "-}")),
+        line_comment_prefix: Some("--".to_string()),
+        block_comment_affixes: Some(("{-".to_string(), "-}".to_string())),
         ..Language::new()
     }
 }
 
-const fn javascript() -> Language {
+fn javascript() -> Language {
     Language {
-        extensions: &["js", "mjs", "cjs"],
-        formatter_command: Some(Command("prettierd", &[".js"])),
+        extensions: to_vec(&["js", "mjs", "cjs"]),
+        formatter: Some(Command::new("prettierd", &[".js"])),
         lsp_command: Some(LspCommand {
-            command: Command("typescript-language-server", &["--stdio"]),
+            command: Command::new("typescript-language-server", &["--stdio"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("javascript")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "javascript",
+            id: "javascript".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Javascript),
         }),
-        line_comment_prefix: Some("//"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn javascript_react() -> Language {
+fn javascriptreact() -> Language {
     Language {
-        extensions: &["jsx"],
-        formatter_command: Some(Command("prettierd", &[".jsx"])),
+        extensions: to_vec(&["jsx"]),
+        formatter: Some(Command::new("prettierd", &[".jsx"])),
         lsp_command: Some(LspCommand {
-            command: Command("typescript-language-server", &["--stdio"]),
+            command: Command::new("typescript-language-server", &["--stdio"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("javascriptreact")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "jsx",
+            id: "jsx".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::JSX),
         }),
-        line_comment_prefix: Some("//"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn svelte() -> Language {
+fn svelte() -> Language {
     Language {
-        extensions: &["svelte"],
+        extensions: to_vec(&["svelte"]),
         lsp_command: Some(LspCommand {
-            command: Command("svelteserver", &["--stdio"]),
+            command: Command::new("svelteserver", &["--stdio"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("svelte")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "svelte",
+            id: "svelte".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Svelte),
         }),
-        line_comment_prefix: Some("//"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn json() -> Language {
+fn json() -> Language {
     Language {
-        extensions: &["json"],
-        formatter_command: Some(Command("prettierd", &[".json"])),
+        extensions: to_vec(&["json"]),
+        formatter: Some(Command::new("prettierd", &[".json"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "json",
+            id: "json".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::JSON),
         }),
         ..Language::new()
     }
 }
 
-const fn just() -> Language {
+fn julia() -> Language {
     Language {
-        file_names: &["justfile"],
+        extensions: to_vec(&["jl"]),
+        /* lsp_command: Some(LspCommand {
+            command: Command::new(
+                "julia",
+                &[
+                    "--startup-file=no",
+                    "--history-file=no",
+                    "--quiet",
+                    "-e",
+                    "'using LanguageServer; runserver()'",
+                ],
+            ),
+            ..LspCommand::default()
+        }), */
+        lsp_language_id: Some(LanguageId::new("julia")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "just",
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/IndianBoy42/tree-sitter-just",
-                commit: "main",
-                subpath: None,
-            },
+            id: "julia".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Julia),
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
+        block_comment_affixes: Some(("#=".to_string(), "=#".to_string())),
         ..Language::new()
     }
 }
 
-const fn ki_quickfix() -> Language {
+fn just() -> Language {
     Language {
-        extensions: &["ki_quickfix"],
+        file_names: to_vec(&["justfile"]),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "just".to_string(),
+            kind: GrammarConfigKind::FromSource {
+                url: "https://github.com/IndianBoy42/tree-sitter-just".to_string(),
+                commit: "main".to_string(),
+                subpath: None,
+            },
+        }),
+        line_comment_prefix: Some("#".to_string()),
+        ..Language::new()
+    }
+}
+
+fn kiquickfix() -> Language {
+    Language {
+        extensions: to_vec(&["ki_quickfix"]),
         lsp_language_id: Some(LanguageId::new("ki_quickfix")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "ki_quickfix",
+            id: "ki_quickfix".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::KiQuickfix),
         }),
         ..Language::new()
     }
 }
 
-const fn lua() -> Language {
+fn lua() -> Language {
     Language {
-        extensions: &["lua"],
-        formatter_command: Some(Command("stylua", &["-"])),
+        extensions: to_vec(&["lua"]),
+        formatter: Some(Command::new("stylua", &["-"])),
         lsp_command: Some(LspCommand {
-            command: Command("lua-language-server", &[]),
+            command: Command::new("lua-language-server", &[]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("lua")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "lua",
+            id: "lua".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Lua),
         }),
-        line_comment_prefix: Some("--"),
-        block_comment_affixes: Some(("--[[", "]]")),
+        line_comment_prefix: Some("--".to_string()),
+        block_comment_affixes: Some(("--[[".to_string(), "]]".to_string())),
         ..Language::new()
     }
 }
 
-const fn markdown() -> Language {
+fn markdown() -> Language {
     Language {
-        extensions: &["md", "mdx"],
-        formatter_command: Some(Command("prettierd", &[".md"])),
+        extensions: to_vec(&["md", "mdx"]),
+        formatter: Some(Command::new("prettierd", &[".md"])),
         lsp_command: Some(LspCommand {
-            command: Command("marksman", &["server"]),
+            command: Command::new("marksman", &["server"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("markdown")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "markdown",
+            id: "markdown".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Markdown),
         }),
-        block_comment_affixes: Some(("<!--", "-->")),
+        block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
         ..Language::new()
     }
 }
 
-const fn nix() -> Language {
+fn nix() -> Language {
     Language {
-        formatter_command: Some(Command("nixfmt", &[])),
-        extensions: &["nix"],
+        formatter: Some(Command::new("nixfmt", &[])),
+        extensions: to_vec(&["nix"]),
         lsp_command: Some(LspCommand {
-            command: Command("nil", &[]),
+            command: Command::new("nil", &[]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("nix")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "nix",
+            id: "nix".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Nix),
         }),
-        line_comment_prefix: Some("#"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("#".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn ocaml() -> Language {
+fn ocaml() -> Language {
     Language {
-        extensions: &["ml"],
-        formatter_command: Some(Command("ocamlformat", &["-", "--impl"])),
+        extensions: to_vec(&["ml"]),
+        formatter: Some(Command::new("ocamlformat", &["-", "--impl"])),
         lsp_command: Some(LspCommand {
-            command: Command("ocamllsp", &["--stdio"]),
+            command: Command::new("ocamllsp", &["--stdio"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("ocaml")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "ocaml",
+            id: "ocaml".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::OCaml),
         }),
-        block_comment_affixes: Some(("(*", "*)")),
+        block_comment_affixes: Some(("(*".to_string(), "*)".to_string())),
         ..Language::new()
     }
 }
 
-const fn ocaml_interface() -> Language {
+fn ocaml_interface() -> Language {
     Language {
-        extensions: &["mli"],
-        formatter_command: Some(Command("ocamlformat", &["-", "--intf"])),
+        extensions: to_vec(&["mli"]),
+        formatter: Some(Command::new("ocamlformat", &["-", "--intf"])),
         lsp_command: Some(LspCommand {
-            command: Command("ocamllsp", &["--stdio"]),
+            command: Command::new("ocamllsp", &["--stdio"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("ocaml")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "ocaml_interface",
+            id: "ocaml_interface".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::OCamlInterface),
         }),
-        block_comment_affixes: Some(("(*", "*)")),
+        block_comment_affixes: Some(("(*".to_string(), "*)".to_string())),
         ..Language::new()
     }
 }
 
-const fn odin() -> Language {
+fn odin() -> Language {
     Language {
-        extensions: &["odin"],
-        formatter_command: Some(Command("odinfmt", &["-stdin"])),
+        extensions: to_vec(&["odin"]),
+        formatter: Some(Command::new("odinfmt", &["-stdin"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "odin",
+            id: "odin".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/tree-sitter-grammars/tree-sitter-odin",
-                commit: "master",
+                url: "https://github.com/tree-sitter-grammars/tree-sitter-odin".to_string(),
+                commit: "master".to_string(),
                 subpath: None,
             },
         }),
-        line_comment_prefix: Some("//"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn dune() -> Language {
+fn dune() -> Language {
     Language {
-        extensions: &["dune-project", "dune"],
-        formatter_command: Some(Command("dune", &["format-dune-file"])),
+        extensions: to_vec(&["dune-project", "dune"]),
+        formatter: Some(Command::new("dune", &["format-dune-file"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "dune",
+            id: "dune".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Scheme),
         }),
-        line_comment_prefix: Some(";"),
+        line_comment_prefix: Some(";".to_string()),
         ..Language::new()
     }
 }
 
-const fn python() -> Language {
+fn python() -> Language {
     Language {
-        extensions: &["py"],
-        formatter_command: Some(Command("ruff", &["format", "--stdin-filename", ".py"])),
+        extensions: to_vec(&["py"]),
+        formatter: Some(Command::new("ruff", &["format", "--stdin-filename", ".py"])),
         lsp_command: Some(LspCommand {
-            command: Command("pyright-langserver", &["--stdio"]),
+            command: Command::new("pyright-langserver", &["--stdio"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("python")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "python",
+            id: "python".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Python),
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn rescript() -> Language {
+fn rescript() -> Language {
     Language {
-        extensions: &["res"],
-        formatter_command: Some(Command(
+        extensions: to_vec(&["res"]),
+        formatter: Some(Command::new(
             "./node_modules/.bin/rescript",
             &["format", "-stdin", ".res"],
         )),
         lsp_command: Some(LspCommand {
-            command: Command("./node_modules/.bin/rescript-language-server", &["--stdio"]),
+            command: Command::new("./node_modules/.bin/rescript-language-server", &["--stdio"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("rescript")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "rescript",
+            id: "rescript".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/rescript-lang/tree-sitter-rescript",
-                commit: "main",
+                url: "https://github.com/rescript-lang/tree-sitter-rescript".to_string(),
+                commit: "main".to_string(),
                 subpath: None,
             },
         }),
-        line_comment_prefix: Some("//"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn ruby() -> Language {
+fn ruby() -> Language {
     Language {
-        extensions: &["rb", "rbs", "gemspec", "rake", "podspec"],
-        file_names: &["Gemfile", "Rakefile", "Podfile", "Fastfile", "config.ru"],
-        formatter_command: Some(Command(
+        extensions: to_vec(&["rb", "rbs", "gemspec", "rake", "podspec"]),
+        file_names: to_vec(&["Gemfile", "Rakefile", "Podfile", "Fastfile", "config.ru"]),
+        formatter: Some(Command::new(
             "rubocop",
             &["--fix-layout", "--stdin", "/dev/null", "--stderr"],
         )),
         lsp_command: Some(LspCommand {
-            command: Command("ruby-lsp", &[]),
+            command: Command::new("ruby-lsp", &[]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("ruby")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "ruby",
+            id: "ruby".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Ruby),
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn roc() -> Language {
+fn roc() -> Language {
     Language {
-        extensions: &["roc"],
-        formatter_command: Some(Command("roc", &["format", "--stdin", "--stdout"])),
+        extensions: to_vec(&["roc"]),
+        formatter: Some(Command::new("roc", &["format", "--stdin", "--stdout"])),
         lsp_command: None,
         lsp_language_id: Some(LanguageId::new("roc")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "roc",
+            id: "roc".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/faldor20/tree-sitter-roc",
-                commit: "master",
+                url: "https://github.com/faldor20/tree-sitter-roc".to_string(),
+                commit: "master".to_string(),
                 subpath: None,
             },
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn rust() -> Language {
+fn rust() -> Language {
     Language {
-        extensions: &["rs"],
-        formatter_command: Some(Command("rustfmt", &["--edition=2021"])),
+        extensions: to_vec(&["rs"]),
+        formatter: Some(Command::new("rustfmt", &["--edition=2021"])),
         lsp_command: Some(LspCommand {
-            command: Command("rust-analyzer", &[]),
+            command: Command::new("rust-analyzer", &[]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("rust")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "rust",
+            id: "rust".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Rust),
         }),
-        line_comment_prefix: Some("//"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn sql() -> Language {
+fn sql() -> Language {
     Language {
-        extensions: &["sql", "pgsql", "mssql", "mysql"],
-        formatter_command: Some(Command("sql-formatter", &["--language", "postgresql"])),
+        extensions: to_vec(&["sql", "pgsql", "mssql", "mysql"]),
+        formatter: Some(Command::new("sql-formatter", &["--language", "postgresql"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "sql",
+            id: "sql".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/DerekStride/tree-sitter-sql",
-                commit: "25f94f998de79bae9df28add9782f9ea6ea0e2b8",
+                url: "https://github.com/DerekStride/tree-sitter-sql".to_string(),
+                commit: "25f94f998de79bae9df28add9782f9ea6ea0e2b8".to_string(),
                 subpath: None,
             },
         }),
-        line_comment_prefix: Some("--"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("--".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn swift() -> Language {
+fn swift() -> Language {
     Language {
-        extensions: &["swift"],
-        formatter_command: Some(Command("swiftformat", &[])),
+        extensions: to_vec(&["swift"]),
+        formatter: Some(Command::new("swiftformat", &[])),
         lsp_command: Some(LspCommand {
-            command: Command("sourcekit-lsp", &[]),
+            command: Command::new("sourcekit-lsp", &[]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("swift")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "swift",
+            id: "swift".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Swift),
         }),
-        line_comment_prefix: Some("//"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn typst() -> Language {
+fn typst() -> Language {
     Language {
-        extensions: &["typ"],
-        formatter_command: Some(Command("typstyle", &["-i"])),
+        extensions: to_vec(&["typ"]),
+        formatter: Some(Command::new("typstyle", &["-i"])),
         lsp_command: Some(LspCommand {
-            command: Command("tinymist", &["lsp"]),
+            command: Command::new("tinymist", &["lsp"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("typst")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "typst",
+            id: "typst".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/uben0/tree-sitter-typst",
-                commit: "master",
+                url: "https://github.com/uben0/tree-sitter-typst".to_string(),
+                commit: "master".to_string(),
                 subpath: None,
             },
         }),
-        block_comment_affixes: Some(("/*", "*/")),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn toml() -> Language {
+fn toml() -> Language {
     Language {
-        extensions: &["toml"],
+        extensions: to_vec(&["toml"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "toml",
+            id: "toml".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Toml),
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn tree_sitter_query() -> Language {
+fn tree_sitter_query() -> Language {
     Language {
-        extensions: &["scm"],
+        extensions: to_vec(&["scm"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "tsq",
+            id: "tsq".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/tree-sitter/tree-sitter-tsq",
-                commit: "main",
+                url: "https://github.com/tree-sitter/tree-sitter-tsq".to_string(),
+                commit: "main".to_string(),
                 subpath: None,
             },
         }),
-        line_comment_prefix: Some(";"),
+        line_comment_prefix: Some(";".to_string()),
         ..Language::new()
     }
 }
 
-const fn typescript() -> Language {
+fn typescript() -> Language {
     Language {
-        extensions: &["ts", "mts", "cts"],
-        formatter_command: Some(Command("prettierd", &[".ts"])),
+        extensions: to_vec(&["ts", "mts", "cts"]),
+        formatter: Some(Command::new("prettierd", &[".ts"])),
         lsp_command: Some(LspCommand {
-            command: Command("typescript-language-server", &["--stdio"]),
+            command: Command::new("typescript-language-server", &["--stdio"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("typescript")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "typescript",
+            id: "typescript".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Typescript),
         }),
-        line_comment_prefix: Some("//"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn typescript_react() -> Language {
+fn typescriptreact() -> Language {
     Language {
-        extensions: &["tsx"],
-        formatter_command: Some(Command("prettierd", &[".tsx"])),
+        extensions: to_vec(&["tsx"]),
+        formatter: Some(Command::new("prettierd", &[".tsx"])),
         lsp_command: Some(LspCommand {
-            command: Command("typescript-language-server", &["--stdio"]),
+            command: Command::new("typescript-language-server", &["--stdio"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("typescriptreact")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "tsx",
+            id: "tsx".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::TSX),
         }),
-        line_comment_prefix: Some("//"),
-        block_comment_affixes: Some(("/*", "*/")),
+        line_comment_prefix: Some("//".to_string()),
+        block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
         ..Language::new()
     }
 }
 
-const fn unison() -> Language {
+fn unison() -> Language {
     Language {
-        extensions: &["u"],
+        extensions: to_vec(&["u"]),
         lsp_command: Some(LspCommand {
-            command: Command("nc", &["localhost", "5757"]),
+            command: Command::new("nc", &["localhost", "5757"]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("unison")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "unison",
+            id: "unison".to_string(),
             kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/kylegoetz/tree-sitter-unison",
-                commit: "master",
+                url: "https://github.com/kylegoetz/tree-sitter-unison".to_string(),
+                commit: "master".to_string(),
                 subpath: None,
             },
         }),
@@ -1006,44 +1050,86 @@ const fn unison() -> Language {
     }
 }
 
-const fn xml() -> Language {
+fn xml() -> Language {
     Language {
-        extensions: &["xml", "xaml", "axaml"],
+        extensions: to_vec(&["xml", "xaml", "axaml"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "xml",
+            id: "xml".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::XML),
         }),
-        block_comment_affixes: Some(("<!--", "-->")),
+        block_comment_affixes: Some(("<!--".to_string(), "-->".to_string())),
         ..Language::new()
     }
 }
 
-const fn yaml() -> Language {
+fn yaml() -> Language {
     Language {
-        extensions: &["yaml", "yml"],
+        extensions: to_vec(&["yaml", "yml"]),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "yaml",
+            id: "yaml".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::YAML),
         }),
-        line_comment_prefix: Some("#"),
+        line_comment_prefix: Some("#".to_string()),
         ..Language::new()
     }
 }
 
-const fn zig() -> Language {
+fn zig() -> Language {
     Language {
-        extensions: &["zig"],
-        formatter_command: Some(Command("zig", &["fmt", "--stdin"])),
+        extensions: to_vec(&["zig"]),
+        formatter: Some(Command::new("zig", &["fmt", "--stdin"])),
         lsp_command: Some(LspCommand {
-            command: Command("zls", &[]),
+            command: Command::new("zls", &[]),
             ..LspCommand::default()
         }),
         lsp_language_id: Some(LanguageId::new("zig")),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "zig",
+            id: "zig".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Zig),
         }),
-        line_comment_prefix: Some("//"),
+        line_comment_prefix: Some("//".to_string()),
         ..Language::new()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_languages_match_nvim_treesitter_languages() {
+        const MISSING_NVIM_HIGHLIGHTS: &[&str] = &["dune", "ki_quickfix", "tsq"];
+
+        // This test is a major consistency check.
+        // First, we check that all builtin languages were searched for in nvim-treesitter.
+        // Second, we check that all languages except those listed above produced queries in nvim-treesitter.
+        // Third, we check that the languages listed above did not produce queries in nvim-treesitter.
+        // Fourth, we check that all languages except those above can process properly, meaning their parents exist too.
+        let ts_languages = nvim_treesitter_highlight_queries::all();
+        let ts_ids: Vec<_> = super::languages()
+            .into_values()
+            .filter_map(|lang| lang.tree_sitter_grammar_config)
+            .map(|ts_config| ts_config.id)
+            .collect();
+
+        for lang in &ts_ids {
+            assert!(ts_languages.contains_key(lang), "{lang} was not searched for in nvim-treesitter! Fix nvim-treesitter-highlight-queries build.rs");
+        }
+        for lang in ts_ids
+            .iter()
+            .filter(|lang| !MISSING_NVIM_HIGHLIGHTS.contains(&lang.as_str()))
+        {
+            assert!(ts_languages.get(lang).unwrap().is_some(), "{lang} was searched for in nvim-treesitter but not found, and it is not in the list of exclusions!");
+        }
+        for lang in MISSING_NVIM_HIGHLIGHTS.iter() {
+            assert!(
+                ts_languages.get(&**lang).and_then(Option::as_ref).is_none(),
+                "{lang} is in the exclusion list but was found in nvim-treesitter!"
+            );
+        }
+        for lang in ts_ids
+            .iter()
+            .filter(|lang| !MISSING_NVIM_HIGHLIGHTS.contains(&lang.as_str()))
+        {
+            assert!(crate::ts_highlight_query::get_highlight_query(lang).is_some(), "{lang} is not in the exclusion list but its highlight query didn't process! Is its parent missing from nvim-treesitter-highlight-queries build.rs?");
+        }
     }
 }

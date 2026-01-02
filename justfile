@@ -1,44 +1,65 @@
 default:
     npm install
-    @just tree-sitter-quickfix 
-    @just fmt-check 
-    @just build 
-    @just vscode-build 
+    @just check 
+    @just build-all 
     @just lint 
     @just test 
     @just doc 
     
-install:
+update-submodule:
+    git submodule update --init --recursive 
+    
+check: build check-typeshare fmt-check lint 
+    
+build-all: tree-sitter-quickfix build vscode-build
+    
+install: update-submodule
     rm -r ~/.cache/ki/zed-themes || echo "ok" 
     cargo install --locked --path .
 
 fmt-check:
     @echo "Checking formating"
     cargo fmt --all -- --check
-    alejandra -c .
+    alejandra --exclude ./nvim-treesitter-highlight-queries/nvim-treesitter/ --check ./
     
 fmt:
 	cargo fmt --all
 	npm run format
-	alejandra .
+	alejandra --exclude ./nvim-treesitter-highlight-queries/nvim-treesitter/ ./
 
-build:
+build: update-submodule
     @echo "Running cargo build..."
     cargo build --workspace --tests
 
 watch-build:
     cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo build
 
+# Note: not removing the generated file on error here is intentional,
+# partially because it is more annoying.
+check-typeshare:
+    typeshare ki-protocol-types/src --lang typescript -o ki-vscode/src/protocol/types.ts2
+    cd ki-vscode/src/protocol && cmp types.ts types.ts2 && rm types.ts2
+    
+    typeshare ki-protocol-types/src --lang kotlin -o ki-jetbrains/src/kotlin/protocol/Types.kt2
+    cd ki-jetbrains/src/kotlin/protocol && cmp Types.kt2 Types.kt && rm Types.kt2
+
+update-typeshare:
+    typeshare ki-protocol-types/src --lang typescript -o ki-vscode/src/protocol/types.ts
+    typeshare ki-protocol-types/src --lang kotlin -o ki-jetbrains/src/kotlin/protocol/Types.kt
+
 lint:
     @echo "Running cargo clippy..."
     cargo clippy --workspace -- -D warnings
     cargo clippy --tests -- -D warnings
     cargo machete
+    npm install
+    npm run lint
     @just vscode-lint
     
+[working-directory: 'ki-vscode']
 vscode-lint:
-    cd ki-vscode && ./node_modules/.bin/ts-unused-exports tsconfig.json --ignoreFiles="src/protocol/types"
-    npm run lint
+    npm install
+    ./node_modules/.bin/ts-unused-exports tsconfig.json --ignoreFiles="src/protocol/types"
     
 lint-fix:
 	cargo clippy --workspace --tests --fix --allow-staged --allow-dirty
@@ -46,24 +67,39 @@ lint-fix:
 
 vscode-lint-fix:
 	npm run lint:fix
-
-test testname="":
-    @echo "Running cargo nextest..."
+	
+test-setup:
     git config --get --global user.name  || git config --global user.name  Tester 
     git config --get --global user.email || git config --global user.email tester@gmail.com
+
+test testname="": test-setup update-submodule
+    echo "Running cargo nextest..."
     cargo nextest run --workspace -- --skip 'doc_assets_' {{testname}}
     
 tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
 
-doc-assets testname="":
+doc-assets testname="": test-setup update-submodule
     cargo nextest run --workspace -- 'doc_assets_' {{testname}}
+
+check-config-schema:
+    #!/bin/sh
+    set -e
+    set -x
+    cargo build 
+    cargo test -- doc_assets_export_app_config_json_schema
+    if ! git diff --exit-code docs/static/app_config_json_schema.json; then
+        echo "❌ Config schema is out of date!"
+        echo "Please run 'just check-config-schema' and commit 'docs/static/app_config_json_schema.json'."
+        exit 1
+    fi
     
 # This command helps you locate the actual recipe that is failing
 doc-assets-get-recipes-error:
     just doc-assets generate_recipes > /dev/null
 
 doc: doc-assets
+    just check-config-schema
     just -f docs/justfile
 
 doc-serve:

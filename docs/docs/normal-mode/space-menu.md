@@ -62,6 +62,14 @@ Show the Git Blame of the current line(s).
 
 Go to file under selection.
 
+### `Copy Relative Path`
+
+Copy the relative path wrt the current working directory of the current file to the clipboard.
+
+### `Copy Absolute Path`
+
+Copy the absolute path of the current file to the clipboard.
+
 ## `Pick`
 
 <KeymapFallback filename="Space Pick"/>

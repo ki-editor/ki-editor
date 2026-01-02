@@ -11,6 +11,7 @@ use crate::{
         suggestive_editor::Info,
     },
     context::{Context, LocalSearchConfigMode, Search},
+    edit::ApplyOffset,
     non_empty_extensions::{NonEmptyTryCollectOption, NonEmptyTryCollectResult},
     position::Position,
     quickfix_list::{DiagnosticSeverityRange, QuickfixListItem},
@@ -476,7 +477,7 @@ impl SelectionMode {
             SelectionMode::Line => "LINE".to_string(),
             SelectionMode::LineFull => "LINE*".to_string(),
             SelectionMode::Character => "CHAR".to_string(),
-            SelectionMode::Custom => "CUSTOM".to_string(),
+            SelectionMode::Custom => "CUSTM".to_string(),
             SelectionMode::SyntaxNode => "NODE".to_string(),
             SelectionMode::SyntaxNodeFine => "NODE*".to_string(),
             SelectionMode::Find { .. } => "FIND".to_string(),
@@ -563,13 +564,6 @@ impl SelectionMode {
                 | SelectionMode::Character
                 | SelectionMode::SyntaxNode
                 | SelectionMode::SyntaxNodeFine
-        )
-    }
-
-    pub(crate) fn is_syntax_node(&self) -> bool {
-        matches!(
-            self,
-            SelectionMode::SyntaxNode | SelectionMode::SyntaxNodeFine
         )
     }
 }
@@ -764,6 +758,13 @@ impl Selection {
         Ok(self
             .set_info(byte_range.info())
             .set_range(buffer.byte_range_to_char_index_range(byte_range.range())?))
+    }
+
+    pub(crate) fn apply_offset(self, offset: isize) -> Selection {
+        let new_range = self.range.apply_offset(offset);
+        let new_initial_range = self.initial_range.map(|range| range.apply_offset(offset));
+        self.set_range(new_range)
+            .set_initial_range(new_initial_range)
     }
 }
 

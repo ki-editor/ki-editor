@@ -165,6 +165,7 @@ fn get_current_word_by_cursor(
 #[cfg(test)]
 mod test_word {
     use crate::buffer::BufferOwner;
+
     use crate::selection::SelectionMode;
     use crate::test_app::*;
 
@@ -260,7 +261,7 @@ mod test_word {
                     SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&["foo"])),
-                Editor(DeleteNoGap),
+                Editor(DeleteWithMovement(Next)),
                 Expect(CurrentSelectedTexts(&["."])),
             ])
         })
@@ -281,7 +282,7 @@ mod test_word {
                     SelectionMode::Word,
                 )),
                 Expect(CurrentSelectedTexts(&["foo"])),
-                Editor(Delete),
+                Editor(DeleteWithMovement(Right)),
                 Expect(CurrentSelectedTexts(&["bar"])),
                 Expect(CurrentComponentContent("bar.spam")),
             ])
@@ -394,6 +395,28 @@ mod test_word {
                 Expect(CurrentSelectedTexts(&["$"])),
                 Editor(MoveSelection(Previous)),
                 Expect(CurrentSelectedTexts(&["foo"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn should_handle_umlaut_and_diacritics() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("café München naïve résumé".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Word,
+                )),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentSelectedTexts(&[
+                    "café", "München", "naïve", "résumé",
+                ])),
             ])
         })
     }

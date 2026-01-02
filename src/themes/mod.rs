@@ -23,6 +23,18 @@ pub(crate) struct Theme {
     pub(crate) git_gutter: GitGutterStyles,
 }
 
+pub(crate) fn from_name(name: &str) -> Result<Theme, String> {
+    let descriptors = crate::themes::theme_descriptor::all();
+    descriptors
+        .iter()
+        .find(|descriptor| descriptor.name() == name)
+        .map(|descriptor| descriptor.to_theme())
+        .ok_or_else(|| {
+            let valid_themes: Vec<_> = descriptors.iter().map(|d| d.name()).collect();
+            format!("'{name}' is not a valid theme. Available: {valid_themes:?}")
+        })
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct HunkStyles {
     pub(crate) old_background: Color,

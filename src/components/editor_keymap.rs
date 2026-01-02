@@ -1,4 +1,6 @@
 use once_cell::sync::Lazy;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use Meaning::*;
@@ -16,25 +18,25 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        SrchL, SWord, SchCS, MultC, Swap_, /****/ First, InstP, Up___, InstN, Last_,
+        _____, SWord, _____, MultC, Swap_, /****/ First, Prev_, Up___, Next_, Last_,
     ],
     [
-        Line_, Word_, Sytx_, Chng_, Extnd, /****/ Prev_, Left_, Down_, Right, Next_,
+        Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
     ],
     [
-        Undo_, Rplc_, Copy_, Delte, Mark_, /****/ LSrch, Jump_, Open_, Paste, XAchr,
+        Mark_, Rplc_, Copy_, Delte, Paste, /****/ LSrch, Jump_, Open_, Undo_, XAchr,
     ],
 ];
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SchWC, Char_, SchCC, _____, Raise, /****/ _____, RplcP, Join_, RplcN, _____,
+        _____, Char_, _____, _____, Raise, /****/ AgSlL, RplcP, Join_, RplcN, AgSlR,
     ],
     [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
     ],
     [
-        Redo_, PRplc, RplcX, Del0G, _____, /****/ GSrch, ToIdx, _____, Pst0G, SSEnd,
+        _____, PRplc, RplcX, Del0G, Pst0G, /****/ GSrch, ToIdx, _____, Redo_, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -49,7 +51,7 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
         _____, LineP, LineD, LineN, OpenM, /****/ DWrdP, MrkFP, ScrlD, MrkFN, SView,
     ],
     [
-        Undo_, _____, _____, WClse, MarkF, /****/ _____, _____, _____, _____, WSwth,
+        MarkF, _____, _____, WClse, _____, /****/ _____, _____, _____, Undo_, WSwth,
     ],
 ];
 
@@ -58,18 +60,18 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
 /// are both located on the right-side.
 pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
     [
-        OneCh, _____, NtrlN, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
+        Srch_, _____, SchCS, RSrch, Qkfix, /****/ OneCh, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ LRept, _____, _____, _____, _____,
+        Mark_, LDefn, LType, LRfrE, LImpl, /****/ LRept, _____, _____, _____, _____,
     ],
 ];
 pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        SchWC, _____, SchCC, _____, _____, /****/ NtrlN, _____, _____, _____, _____,
     ],
     [
         _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
@@ -88,13 +90,13 @@ pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        LImpl, LDefn, LType, LRfrE, Mark_, /****/ GRept, _____, _____, _____, _____,
+        Mark_, LDefn, LType, LRfrE, LImpl, /****/ GRept, _____, _____, _____, _____,
     ],
 ];
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
 pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        SchWC, _____, SchCC, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
@@ -148,7 +150,7 @@ pub(crate) const KEYMAP_SPACE_CONTEXT: KeyboardMeaningLayout = [
         _____, LHovr, LCdAc, LRnme, RvHkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, GoFil, _____, _____, GtBlm, /****/ _____, _____, _____, _____, _____,
+        _____, GoFil, CpReP, _____, GtBlm, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -160,7 +162,7 @@ pub(crate) const KEYMAP_SPACE_CONTEXT_SHIFTED: KeyboardMeaningLayout = [
         _____, _____, _____, _____, RvHkM, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, CpAbP, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -193,7 +195,7 @@ pub(crate) const KEYMAP_TRANSFORM: KeyboardMeaningLayout = [
         Upper, USnke, Pscal, UKbab, Title, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        Lower, Snke_, Camel, Kbab_, _____, /****/ _____, Wrap_, CmtLn, CmtBk, _____,
+        Lower, Snke_, Camel, Kbab_, _____, /****/ Unwrp, Wrap_, CmtLn, CmtBk, _____,
     ],
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
@@ -253,6 +255,19 @@ pub(crate) const COLEMAK_DH_SEMI_QUOTE: KeyboardLayout = [
     ["q", "w", "f", "p", "b", "j", "l", "u", "y", "'"],
     ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
     ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
+];
+
+pub(crate) const COLEMAK_ANSI: KeyboardLayout = [
+    ["q", "w", "f", "p", "g", "j", "l", "u", "y", ";"],
+    ["a", "r", "s", "t", "d", "h", "n", "e", "i", "o"],
+    ["z", "x", "c", "v", "b", "k", "m", ",", ".", "/"],
+];
+
+// https://colemakmods.github.io/mod-dh/keyboards.html#ansi-keyboards
+pub(crate) const COLEMAK_ANSI_DH: KeyboardLayout = [
+    ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
+    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
+    ["x", "c", "d", "v", "z", "k", "h", ",", ".", "/"],
 ];
 
 /// Refer https://workmanlayout.org/
@@ -412,19 +427,25 @@ static COLEMAK_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(COLEMAK));
 static COLEMAK_DH_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(COLEMAK_DH));
 static COLEMAK_DH_SEMI_QUOTE_KEYSET: Lazy<KeySet> =
     Lazy::new(|| KeySet::from(COLEMAK_DH_SEMI_QUOTE));
+static COLEMAK_ANSI_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(COLEMAK_ANSI));
+static COLEMAK_ANSI_DH_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(COLEMAK_ANSI_DH));
 static DVORAK_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK));
 static DVORAK_IU_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK_IU));
 static WORKMAN_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(WORKMAN));
 static PUQ_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(PUQ));
 
-#[derive(Debug, Clone, strum_macros::EnumIter, PartialEq, Eq)]
+#[derive(
+    Debug, Clone, strum_macros::EnumIter, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Copy,
+)]
 pub(crate) enum KeyboardLayoutKind {
     Qwerty,
     Dvorak,
-    DvorakIU,
+    DvorakIu,
     Colemak,
-    ColemakDH,
-    ColemakDHSemiQuote,
+    ColemakDh,
+    ColemakDhSemiQuote,
+    ColemakAnsi,
+    ColemakAnsiDh,
     Workman,
     Puq,
 }
@@ -432,27 +453,31 @@ pub(crate) enum KeyboardLayoutKind {
 impl KeyboardLayoutKind {
     pub(crate) const fn display(&self) -> &'static str {
         match self {
-            KeyboardLayoutKind::Qwerty => "QWERTY",
-            KeyboardLayoutKind::Dvorak => "DVORAK",
-            KeyboardLayoutKind::Colemak => "COLEMAK",
-            KeyboardLayoutKind::ColemakDH => "COLEMAK-DH",
-            KeyboardLayoutKind::ColemakDHSemiQuote => "COLEMAK-DH;",
-            KeyboardLayoutKind::DvorakIU => "DVORAK-IU",
-            KeyboardLayoutKind::Workman => "WORKMAN",
-            KeyboardLayoutKind::Puq => "PUQ",
+            Self::Qwerty => "QWERTY",
+            Self::Dvorak => "DVORAK",
+            Self::Colemak => "COLEMAK",
+            Self::ColemakDh => "COLEMAK-DH",
+            Self::ColemakDhSemiQuote => "COLEMAK-DH;",
+            Self::ColemakAnsi => "COLEMAK (ANSI)",
+            Self::ColemakAnsiDh => "COLEMAK-DH (ANSI)",
+            Self::DvorakIu => "DVORAK-IU",
+            Self::Workman => "WORKMAN",
+            Self::Puq => "PUQ",
         }
     }
 
     pub(crate) fn get_keyboard_layout(&self) -> &KeyboardLayout {
         match self {
-            KeyboardLayoutKind::Qwerty => &QWERTY,
-            KeyboardLayoutKind::Dvorak => &DVORAK,
-            KeyboardLayoutKind::Colemak => &COLEMAK,
-            KeyboardLayoutKind::ColemakDH => &COLEMAK_DH,
-            KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
-            KeyboardLayoutKind::DvorakIU => &DVORAK_IU,
-            KeyboardLayoutKind::Workman => &WORKMAN,
-            KeyboardLayoutKind::Puq => &PUQ,
+            Self::Qwerty => &QWERTY,
+            Self::Dvorak => &DVORAK,
+            Self::Colemak => &COLEMAK,
+            Self::ColemakDh => &COLEMAK_DH,
+            Self::ColemakDhSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
+            Self::ColemakAnsi => &COLEMAK_ANSI,
+            Self::ColemakAnsiDh => &COLEMAK_ANSI_DH,
+            Self::DvorakIu => &DVORAK_IU,
+            Self::Workman => &WORKMAN,
+            Self::Puq => &PUQ,
         }
     }
 
@@ -566,14 +591,16 @@ impl KeyboardLayoutKind {
 
     fn get_keyset(&self) -> &Lazy<KeySet> {
         match self {
-            KeyboardLayoutKind::Qwerty => &QWERTY_KEYSET,
-            KeyboardLayoutKind::Dvorak => &DVORAK_KEYSET,
-            KeyboardLayoutKind::Colemak => &COLEMAK_KEYSET,
-            KeyboardLayoutKind::ColemakDH => &COLEMAK_DH_KEYSET,
-            KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
-            KeyboardLayoutKind::DvorakIU => &DVORAK_IU_KEYSET,
-            KeyboardLayoutKind::Workman => &WORKMAN_KEYSET,
-            KeyboardLayoutKind::Puq => &PUQ_KEYSET,
+            Self::Qwerty => &QWERTY_KEYSET,
+            Self::Dvorak => &DVORAK_KEYSET,
+            Self::Colemak => &COLEMAK_KEYSET,
+            Self::ColemakDh => &COLEMAK_DH_KEYSET,
+            Self::ColemakDhSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
+            Self::ColemakAnsi => &COLEMAK_ANSI_KEYSET,
+            Self::ColemakAnsiDh => &COLEMAK_ANSI_DH_KEYSET,
+            Self::DvorakIu => &DVORAK_IU_KEYSET,
+            Self::Workman => &WORKMAN_KEYSET,
+            Self::Puq => &PUQ_KEYSET,
         }
     }
 }
@@ -689,8 +716,6 @@ pub(crate) enum Meaning {
     SchCS,
     /// Search current clipboard content
     SchCC,
-    /// Search (local)
-    SrchL,
     /// Select Fine Syntax Node
     FStyx,
     /// Select Syntax Node
@@ -717,7 +742,7 @@ pub(crate) enum Meaning {
     XAchr,
     /// Swap Selection End
     SSEnd,
-    /// Search (directionless)
+    /// Search (prompt)
     Srch_,
     /// Repeat Secondary Selection Mode (Local)
     LRept,
@@ -823,6 +848,8 @@ pub(crate) enum Meaning {
     Camel,
     /// Wrap
     Wrap_,
+    /// Unwrap
+    Unwrp,
     /// kebab-case
     Kbab_,
     /// lower case
@@ -931,6 +958,14 @@ pub(crate) enum Meaning {
     SchWC,
     /// Go to file
     GoFil,
+    /// Copy absolute path of current file
+    CpAbP,
+    /// Copy relative path of current file
+    CpReP,
+    /// Align selections (based on left anchor)
+    AgSlL,
+    /// Align selections (based on right anchor)
+    AgSlR,
 }
 pub(crate) fn shifted(c: &'static str) -> &'static str {
     match c {

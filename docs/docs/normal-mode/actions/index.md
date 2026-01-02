@@ -62,51 +62,36 @@ Open next to current selection.
 
 `Open` is directional[^directionality].
 
-`Open` inserts a newline with the respective indent of the current line,
-In Syntax Mode, exceptionally, it inserts a gap next to the current selection.
+Open inserts a gap between the current and the previous/next selection.
+
+For example:
+
+1. In the Line selection mode, Open opens a newline.
+2. In Syntax Node selection mode, Open will insert the separator under certain conditions.
 
 <TutorialFallback filename="open"/>
-
-### `Delete`
-
-Delete until the left/right selection.
-
-`Delete` is directional[^directionality].
-
-This deletes the current selection(s), however, if the current selection mode is
-[contiguous](../selection-modes/index.md#contiguity), it will delete until the
-next/previous selection, and selects the next/previous selection.
-
-But, if the current selection is the last/first selection, it will delete until the
-previous/next selection instead, and selects the previous/next selection.
-
-For example, consider the following Javascript code:
-
-```js
-hello(x, y);
-```
-
-Assuming the current selection mode is [Syntax Node](../selection-modes/primary.md#syntax), and the current selection is `x`, pressing `d` results in the following:
-
-```js
-hello(y);
-```
-
-<TutorialFallback filename="delete"/>
-
-### `Delete 0 Gap`
-
-Delete until the previous/next selection.
-
-This is similar to `Delete`, but it doesn't delete the meaningless gaps between selections.
-
-Meaningless gaps are usually whitespaces, or insignificant nodes like comma or semicolon in the Syntax Node selection mode.
-
-<TutorialFallback filename="delete-0-gap"/>
 
 ### `Change`
 
 This deletes the current selected text, and enter [Insert mode](../../insert-mode/index.md).
+
+### `Delete`
+
+This opens a menu with several actions:
+
+| Name                 | Meaning                                                                                                                                             |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Delete One           | Deletes the current selection and collapses the selection.                                                                                          |
+| Delete `<movement>`  | Delete the current selection and the gap between the current selection and the `<movement>` selection, and then selects the `<movement>` selection. |
+| Enter Delete Submode | See more at [Delete Submode](../../sub-modes/delete-mode.md)                                                                                        |
+
+<TutorialFallback filename="delete"/>
+
+<TutorialFallback filename="delete-finer-movement"/>
+
+<TutorialFallback filename="delete-one" />
+
+If you are interested about why Delete works like this, read more at [Evolution of Delete](/ki-editor/blog/evoluation-of-delete).
 
 ### `Replace #`
 
@@ -126,7 +111,7 @@ For example:
 
 ### `Join`
 
-Joins multiple lines within the current selection(s) into a single line.
+Join the current line with the line above.
 
 <TutorialFallback filename="join"/>
 
@@ -142,6 +127,12 @@ This is a shortcut of `i enter esc`.
 
 Dedent/Indent the current selection by 4 spaces.
 
+### `← Align`/`Align →`
+
+Align selections to the left or right. Similar to Kakoune's `&`.
+
+<TutorialFallback filename="align-selections"/>
+
 ### `Transform`
 
 <KeymapFallback filename="Transform"/>
@@ -149,7 +140,8 @@ Dedent/Indent the current selection by 4 spaces.
 Transformative actions are nested under here, such as (non-exhaustive):
 
 - Casing conversion
-- Wrap
+- Wrap (converts a single line selection into multiple lines)
+- Unwrap (converts a multiline selection into a single line)
 - Toggle line comment
 - Toggle block comment
 
@@ -182,7 +174,7 @@ To move between marked files, see [here](../other-movements#-markedmarked-).
 This workflow is designed to streamline your editing process by allowing quick
 access to your primary files. During an editing session, you often work on
 primary files while occasionally referring to other less important files. Using
-the number keys, you can quickly jump back to your main files, enhancing your
+`alt+j` and `alt+l` (on Qwerty), you can quickly jump back to your main files, enhancing your
 productivity and focus.
 
 By utilizing file marking, you can efficiently navigate your editing
