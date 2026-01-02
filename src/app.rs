@@ -29,7 +29,7 @@ use crate::{
     frontend::Frontend,
     git::{self},
     grid::{Grid, LineUpdate},
-    handle_custom_action::{CustomAction, ScriptDispatch, ScriptInput},
+    handle_custom_action::{ScriptDispatch, ScriptInput},
     integration_event::{IntegrationEvent, IntegrationEventEmitter},
     layout::Layout,
     list::{self, Match, WalkBuilderConfig},
@@ -3036,23 +3036,6 @@ impl<T: Frontend> App<T> {
                     regex.as_str(),
                 ));
                 }
-            }
-        }
-        Ok(())
-    }
-
-    fn handle_custom_action(
-        &mut self,
-        action: CustomAction,
-        context: ScriptInput,
-    ) -> anyhow::Result<()> {
-        match action {
-            CustomAction::RunScript(script) => {
-                let output = script.execute(context)?;
-                self.handle_script_dispatches(output.dispatches)?
-            }
-            CustomAction::ExecuteDispatches(script_dispatches) => {
-                self.handle_script_dispatches(script_dispatches)?
             }
         }
         Ok(())
