@@ -1,6 +1,8 @@
 extern crate proc_macro;
 use event::parse_key_event;
 use proc_macro::TokenStream;
+use quote::quote;
+use syn::{parse_macro_input, ItemEnum};
 
 #[proc_macro]
 pub fn key(input: TokenStream) -> TokenStream {
@@ -47,4 +49,36 @@ pub fn hex(input: TokenStream) -> TokenStream {
     format!("crate::themes::Color::new({r}, {g}, {b})")
         .parse()
         .unwrap()
+}
+
+#[proc_macro_derive(NamedVariant)]
+pub fn derive_named_variant(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as ItemEnum);
+    let enum_name = &input.ident;
+
+    let match_arms = input.variants.iter().map(|variant| {
+        let variant_name = &variant.ident;
+        let variant_name_str = variant_name.to_string();
+        match &variant.fields {
+            syn::Fields::Named(_) => {
+                quote!( #enum_name::#variant_name { .. } => #variant_name_str, )
+            }
+            syn::Fields::Unnamed(_) => {
+                quote!( #enum_name::#variant_name(..) => #variant_name_str, )
+            }
+            syn::Fields::Unit => quote!( #enum_name::#variant_name => #variant_name_str, ),
+        }
+    });
+
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
+    TokenStream::from(quote! {
+        impl #impl_generics #enum_name #ty_generics #where_clause {
+            fn variant_name(&self) -> &'static str {
+                match self {
+                    #(#match_arms)*
+                }
+            }
+        }
+    })
 }

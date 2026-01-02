@@ -54,7 +54,7 @@ use crate::{
 };
 use event::event::Event;
 use itertools::{Either, Itertools};
-use name_variant::NamedVariant;
+use my_proc_macros::NamedVariant;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]

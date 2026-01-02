@@ -7,7 +7,7 @@ use lsp_types::request::{
     GotoDeclarationParams, GotoImplementationParams, GotoTypeDefinitionParams, Request,
 };
 use lsp_types::*;
-use name_variant::NamedVariant;
+use my_proc_macros::NamedVariant;
 use shared::canonicalized_path::CanonicalizedPath;
 use shared::language::Language;
 use shared::process_command::SpawnCommandResult;
