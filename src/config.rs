@@ -1,6 +1,4 @@
 use std::borrow::Cow;
-use std::io::Write;
-use std::process::Stdio;
 use std::{collections::HashMap, io::Read, path::PathBuf, str::FromStr};
 
 use itertools::Itertools;
@@ -115,9 +113,12 @@ pub(crate) fn load_script(script_name: &str) -> anyhow::Result<(String, Canonica
 
 impl AppConfig {
     fn default() -> Self {
+        let deserializer = &mut serde_json::Deserializer::from_str(DEFAULT_CONFIG);
         Self {
             languages: shared::languages::languages(),
-            ..serde_json::from_str(DEFAULT_CONFIG).unwrap()
+            ..serde_path_to_error::deserialize(deserializer)
+                .map_err(|err| anyhow::anyhow!("{err}\n\nINPUT=\n\n{DEFAULT_CONFIG}"))
+                .unwrap()
         }
     }
 

@@ -9,11 +9,7 @@
 use crate::components::editor_keymap::KeyboardMeaningLayout;
 use crate::components::editor_keymap::Meaning::{self, *};
 use crate::config::AppConfig;
-use crate::handle_custom_action::{
-    CustomAction, CustomAction::*, CustomActionKeymap, CustomContext,
-};
-use crate::handle_custom_action::{DirWorking, FileCurrent, Placeholder::*, SelectionPrimary};
-
+use crate::handle_custom_action::{CustomAction, CustomAction::*, CustomActionKeymap, ScriptInput};
 pub(crate) const CUSTOM_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
     [
         __Q__, __W__, __E__, __R__, __T__, /****/ __Y__, __U__, __I__, __O__, __P__,
@@ -40,19 +36,13 @@ pub(crate) fn custom_keymap() -> Vec<CustomActionKeymap> {
     AppConfig::singleton()
         .leader_keymap()
         .keybindings()
-        .into_iter()
+        .iter()
         .flat_map(|keybindings| {
             keybindings
                 .iter()
                 .filter_map(|keybinding| keybinding.clone())
         })
         .zip(meanings)
-        .map(|(keybinding, meaning)| {
-            (
-                meaning,
-                keybinding.description.clone(),
-                keybinding.action.clone(),
-            )
-        })
+        .map(|(keybinding, meaning)| (meaning, keybinding.name.clone(), keybinding.script.clone()))
         .collect()
 }

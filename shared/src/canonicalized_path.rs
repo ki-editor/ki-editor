@@ -3,6 +3,7 @@ use std::{
     time::SystemTime,
 };
 
+use schemars::JsonSchema;
 use url::Url;
 
 /// This is used as a standardization of Paths across the codebase,

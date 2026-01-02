@@ -26,7 +26,6 @@ mod generate_recipes;
 pub(crate) mod history;
 mod non_empty_extensions;
 mod osc52;
-pub(crate) mod process_manager;
 mod quickfix_list;
 #[cfg(test)]
 mod recipes;

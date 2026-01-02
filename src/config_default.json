@@ -29,8 +29,8 @@
     "leader_keymap": [
         [
             {
-                "description": "Testing",
-                "action": { "RunScript": ["example.py", []] }
+                "name": "Example",
+                "script": "example.py"
             },
             null,
             null,

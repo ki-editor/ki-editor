@@ -12,12 +12,12 @@ output = {
     "dispatches": [
         {
             "ShowInfo": {
-                "title": "ReceivedContext",
-                "content": json.dumps(parsed_stdin_json)
+                "title": "Output from example.py",
+                "content": f"The received context is:\n\n{json.dumps(parsed_stdin_json,indent=4)}"
             }
         }
     ]
 }
 
 # Dump to stdout
-print(json.dumps(output,indent=4))
+print(json.dumps(output))
