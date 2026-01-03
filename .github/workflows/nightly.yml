@@ -7,51 +7,8 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        runner:
-          - ubuntu-latest
-          - ubuntu-24.04-arm # No -latest tag available
-          - windows-latest
-          - macos-latest
-
-        include:
-          - runner: ubuntu-latest
-            code: linux-x64
-            extension:
-            mv: mv
-          - runner: ubuntu-24.04-arm
-            code: linux-arm64
-            extension:
-            mv: mv
-          - runner: windows-latest
-            code: windows-x64
-            extension: .exe
-            mv: move
-          - runner: macos-latest
-            code: macos-arm64
-            extension:
-            mv: mv
-
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: true
-
-      - name: Build
-        run: cargo build --release --locked
-        
-      - name: Rename
-        run: ${{ matrix.mv }} target/release/ki${{ matrix.extension }} ki-${{ matrix.code }}${{ matrix.extension }}
-
-      - name: Upload
-        uses: actions/upload-artifact@v6
-        with:
-          name: ki-${{ matrix.code }}
-          path: ki-${{ matrix.code }}${{ matrix.extension }}
-          retention-days: 1
-
+    uses: ./.github/workflows/release-common.yml
+  
   publish:
     needs: [build]
     runs-on: ubuntu-latest
