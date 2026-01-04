@@ -1,3 +1,7 @@
+---
+sidebar_position: 12
+---
+
 import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # Cheatsheet

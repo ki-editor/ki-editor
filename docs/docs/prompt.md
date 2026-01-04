@@ -1,3 +1,7 @@
+---
+sidebar_position: 10
+---
+
 # Prompt
 
 The prompt is one of the most commonly used components in Ki, this is because
@@ -12,7 +16,7 @@ For example, the search prompt stores the history of searches.
 Unlike the usual prompts, however, the historical entries of a prompt are shown below the current line,
 starting with the most recent entry.
 
-To navigate to historical entries, use [Normal Mode](../normal-mode/index.md).
+To navigate to historical entries, use [Normal Mode](normal-mode).
 
 `enter` is overridden to mean select the current item, it works in both Insert Mode and Normal mode.
 
