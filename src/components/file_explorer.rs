@@ -30,8 +30,8 @@ pub(crate) fn file_explorer_normal_mode_override() -> NormalModeOverride {
             dispatch: Dispatch::OpenMoveFilePrompt,
         }),
         delete: Some(KeymapOverride {
-            description: "Delete Path",
-            dispatch: Dispatch::OpenDeleteFilePrompt,
+            description: "Delete Paths",
+            dispatch: Dispatch::OpenDeletePathsPrompt,
         }),
         replace: Some(KeymapOverride {
             description: "Refresh",
@@ -100,6 +100,19 @@ impl FileExplorer {
     fn get_current_node(&self) -> anyhow::Result<Option<Node>> {
         let position = self.editor().get_cursor_position()?;
         Ok(self.tree.get(position.line))
+    }
+
+    fn get_current_nodes(&self) -> anyhow::Result<Vec<Node>> {
+        let line_indices = self.editor().get_selected_lines_indices()?;
+        Ok(line_indices
+            .into_iter()
+            .filter_map(|line_index| self.tree.get(line_index))
+            .collect_vec())
+    }
+
+    pub(crate) fn get_selected_paths(&self) -> anyhow::Result<Vec<CanonicalizedPath>> {
+        self.get_current_nodes()
+            .map(|nodes| nodes.into_iter().map(|node| node.path).collect_vec())
     }
 
     pub(crate) fn get_current_path(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
@@ -415,6 +428,7 @@ mod test_file_explorer {
     use my_proc_macros::{key, keys};
 
     use crate::buffer::BufferOwner;
+    use crate::components::editor::IfCurrentNotFound;
     use crate::test_app::*;
 
     #[test]
@@ -462,6 +476,94 @@ mod test_file_explorer {
                 Expect(ComponentCount(2)),
                 Expect(OpenedFilesCount(1)),
                 Expect(CurrentComponentTitle("File Explorer".to_string())),
+            ])
+        })
+    }
+
+    #[test]
+    fn delete_multiple_paths_at_once_using_multiple_selections() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(RevealInExplorer(s.main_rs())),
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("Cargo".to_owned())),
+                Editor(CursorAddToAllSelections),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+                Expect(CurrentSelectedTexts(&["🔒  Cargo.lock", "📄  Cargo.toml"])),
+                App(OpenDeletePathsPrompt),
+                // Pick Yes
+                App(HandleKeyEvent(key!("d"))),
+                // Expect the two files (Cargo.lock and Cargo.toml) are deleted
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+            ])
+        })
+    }
+    #[test]
+    fn delete_multiple_paths_at_once_using_extened_selections() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(RevealInExplorer(s.main_rs())),
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("Cargo.lock".to_owned())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+                Editor(EnableSelectionExtension),
+                Editor(MoveSelection(Right)),
+                Expect(CurrentSelectedTexts(&[
+                    "- 🔒  Cargo.lock\n - 📄  Cargo.toml",
+                ])),
+                App(OpenDeletePathsPrompt),
+                // Pick Yes
+                App(HandleKeyEvent(key!("d"))),
+                // Expect the two files (Cargo.lock and Cargo.toml) are deleted
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
             ])
         })
     }
