@@ -28,10 +28,13 @@
     "leader_keymap": [
         [
             {
-                "name": "Example",
-                "script": "example.py"
+                "name": "Show Selected Texts",
+                "script": "example_show_info.py"
             },
-            null,
+            {
+                "name": "Replace selections",
+                "script": "example_replace_selections.py"
+            },
             null,
             null,
             null,
