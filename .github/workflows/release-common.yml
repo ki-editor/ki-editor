@@ -33,12 +33,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          submodules: true
-
       - name: Build
         run: cargo build --release --locked
-        
+
       - name: Rename
         run: ${{ matrix.mv }} target/release/ki${{ matrix.extension }} ki-${{ matrix.code }}${{ matrix.extension }}
 

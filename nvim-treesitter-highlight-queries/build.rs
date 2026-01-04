@@ -73,13 +73,13 @@ fn main() {
     let data = LANGS
         .iter()
         .map(|lang| {
-            let path = format!("nvim-treesitter/runtime/queries/{lang}/highlights.scm");
+            let path = format!("queries/{lang}-highlights.scm");
             let content =
                 std::fs::read_to_string(path.clone()).unwrap_or_else(|e| match e.kind() {
                     std::io::ErrorKind::NotFound => {
                         assert!(
                             MISSING_NVIM_HIGHLIGHTS.contains(lang),
-                            "Non-whitelisted language {lang} has no nvim-treesitter highlight query! Is the submodule initialized?",
+                            "Non-whitelisted language {lang} has no nvim-treesitter highlight query!",
                         );
                         String::new()
                     }
