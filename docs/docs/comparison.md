@@ -1,3 +1,7 @@
+---
+sidebar_position: 3
+---
+
 # Comparisons with other modal editors
 
 | Aspect                                    | Ki                                 | Vim/Neovim        | Helix             |
@@ -14,7 +18,7 @@
 
 [^1]:
     The default keybindings for structural navigation in Helix are hard to access: `alt+n`, `alt+p`, `alt+i` and `alt+o`.
-    Also, there's no easy way to [revert to previous selection](../normal-mode/other-movements.md#-selectselect-), which is crucial for structural manipulation.
+    Also, there's no easy way to [revert to previous selection](normal-mode/other-movements.md#-selectselect-), which is crucial for structural manipulation.
 
 ## Keybindings coherence
 
@@ -69,4 +73,4 @@ that requires major architectural changes in the core.
 [^4]: With [vim-unimpaired](https://github.com/tpope/vim-unimpaired).
 [^5]: Keybindings inherited from Vim are omitted.
 
-[1]: ../normal-mode/selection-modes/index.md
+[1]: normal-mode/selection-modes/index.md
