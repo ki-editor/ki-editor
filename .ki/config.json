@@ -24,5 +24,24 @@
                 "arguments": ["format", "--stdin-file-path=_.json"]
             }
         }
-    }
+    },
+    "leader_keymap": [
+        [
+            {
+                "name": "Example",
+                "script": "example.py"
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        ],
+        [null, null, null, null, null, null, null, null, null, null],
+        [null, null, null, null, null, null, null, null, null, null]
+    ]
 }
