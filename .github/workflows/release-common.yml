@@ -28,15 +28,15 @@ jobs:
             extension: .exe
             mv: move
           - runner: windows-11-arm
-            code: windows-arm
+            code: windows-arm64
             extension: .exe
             mv: move
-          - runner: macos-latest
-            code: macos-arm64
-            extension:
-            mv: mv
           - runner: macos-15-intel
             code: macos-x64
+            extension:
+            mv: mv
+          - runner: macos-latest
+            code: macos-arm64
             extension:
             mv: mv
 
