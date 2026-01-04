@@ -4,11 +4,16 @@ sidebar_position: 2
 
 # Installation
 
+## Nightly build
+
+Ki is under heavy development, so we recommend downloading the most recent
+[nightly build from github](https://github.com/ki-editor/ki-editor/releases/tag/nightly).
+
 ## VS Code Extension
 
 Ki is also available as a Visual Studio Code extension, at https://marketplace.visualstudio.com/items?itemName=ki-editor.ki-editor-vscode.
 
-## Build from source with Nix (Recommended)
+## Build from source with Nix
 This is the most reliable installation method as all required dependencies,
 including system dependencies, will be included automatically.
 
@@ -31,31 +36,20 @@ nix develop --command just install
 rustup default 1.89.0
 ```
 
-3. Install openssl's development package
-
-```
-# Ubuntu
-sudo apt install libssl-dev
-
-# Fedora
-sudo dnf install openssl-devel
-```
-
-4. Clone the project:
+3. Clone the project:
 
 ```sh
 git clone https://github.com/ki-editor/ki-editor.git
 ```
 
-5. Run installation:
+4. Run installation:
 
 ```sh
 cd ki-editor
-cargo install typeshare-cli  --git https://github.com/tomjw64/typeshare  --branch allow-override-for-disallowed-types
 cargo install --locked --path .
 ```
 
-6. The `ki` binary should be installed.
+5. The `ki` binary should be installed.
 
 ## Use nix flake [^1]
 
