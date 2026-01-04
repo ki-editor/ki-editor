@@ -1307,7 +1307,7 @@ impl<T: Frontend> App<T> {
                 })
                 .join(", ");
             self.open_yes_no_prompt(YesNoPrompt {
-                title: format!("Delete \"{}\"?", formatted_paths),
+                title: format!("Delete \"{formatted_paths}\"?"),
                 yes: Box::new(Dispatch::DeletePaths(selected_paths.clone())),
             })
         } else {
