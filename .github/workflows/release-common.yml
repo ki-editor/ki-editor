@@ -10,7 +10,9 @@ jobs:
           - ubuntu-latest
           - ubuntu-24.04-arm # No -latest tag available
           - windows-latest
+          - windows-11-arm # No -latest tag available
           - macos-latest
+          - macos-15-intel # No -latest tag available
 
         include:
           - runner: ubuntu-latest
@@ -25,8 +27,16 @@ jobs:
             code: windows-x64
             extension: .exe
             mv: move
+          - runner: windows-11-arm
+            code: windows-arm
+            extension: .exe
+            mv: move
           - runner: macos-latest
             code: macos-arm64
+            extension:
+            mv: mv
+          - runner: macos-15-intel
+            code: macos-x64
             extension:
             mv: mv
 
@@ -44,4 +54,41 @@ jobs:
         with:
           name: ki-${{ matrix.code }}
           path: ki-${{ matrix.code }}${{ matrix.extension }}
+          retention-days: 1
+
+  # GitHub doesn't provide musl runners, so we have to work around that
+  build-musl:
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+          - ubuntu-24.04-arm # No -latest tag available
+
+        include:
+          - runner: ubuntu-latest
+            code: linux-x64-musl
+            rustup_target: x86_64-unknown-linux-musl
+          - runner: ubuntu-24.04-arm
+            code: linux-arm64-musl
+            rustup_target: aarch64-unknown-linux-musl
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Get musl
+        run: |
+          sudo apt install musl-tools
+          rustup target add ${{ matrix.rustup_target }}
+        
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.rustup_target }}
+
+      - name: Rename
+        run: mv target/${{ matrix.rustup_target }}/release/ki ki-${{ matrix.code }}
+
+      - name: Upload
+        uses: actions/upload-artifact@v6
+        with:
+          name: ki-${{ matrix.code }}
+          path: ki-${{ matrix.code }}
           retention-days: 1
