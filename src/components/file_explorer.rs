@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use my_proc_macros::key;
+use nonempty::NonEmpty;
 
 use crate::{
     app::{Dispatch, Dispatches},
@@ -40,6 +41,10 @@ pub(crate) fn file_explorer_normal_mode_override() -> NormalModeOverride {
         paste: Some(KeymapOverride {
             description: "Dup Path",
             dispatch: Dispatch::OpenDuplicateFilePrompt,
+        }),
+        open: Some(KeymapOverride {
+            description: "Toggle/Open Paths",
+            dispatch: Dispatch::ToggleOrOpenPaths,
         }),
         ..Default::default()
     }
@@ -102,7 +107,7 @@ impl FileExplorer {
         Ok(self.tree.get(position.line))
     }
 
-    fn get_current_nodes(&self) -> anyhow::Result<Vec<Node>> {
+    fn get_selected_nodes(&self) -> anyhow::Result<Vec<Node>> {
         let line_indices = self.editor().get_selected_lines_indices()?;
         Ok(line_indices
             .into_iter()
@@ -111,13 +116,62 @@ impl FileExplorer {
     }
 
     pub(crate) fn get_selected_paths(&self) -> anyhow::Result<Vec<CanonicalizedPath>> {
-        self.get_current_nodes()
+        self.get_selected_nodes()
             .map(|nodes| nodes.into_iter().map(|node| node.path).collect_vec())
     }
 
     pub(crate) fn get_current_path(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
         self.get_current_node()
             .map(|node| node.map(|node| node.path))
+    }
+
+    pub(crate) fn toggle_or_open_paths(
+        &mut self,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let nodes = self.get_selected_nodes()?;
+        let Some(nodes) = NonEmpty::from_vec(nodes) else {
+            return Err(anyhow::anyhow!("No paths are selected."));
+        };
+        if nodes.len() == 1 {
+            let node = nodes.first();
+            match node.kind {
+                NodeKind::File => Ok([
+                    Dispatch::CloseCurrentWindow,
+                    Dispatch::OpenFile {
+                        path: node.path.clone(),
+                        owner: BufferOwner::User,
+                        focus: true,
+                    },
+                ]
+                .to_vec()
+                .into()),
+                NodeKind::Directory { .. } => {
+                    let tree = std::mem::take(&mut self.tree);
+                    self.tree = tree.toggle(&node.path, |open| !open);
+                    self.refresh_editor(context)?;
+                    Ok(Vec::new().into())
+                }
+            }
+        } else {
+            let nodes = NonEmpty::from_vec(
+                nodes
+                    .into_iter()
+                    .filter(|node| matches!(node.kind, NodeKind::File))
+                    .map(|node| node.path)
+                    .collect(),
+            );
+            match nodes {
+                Some(nodes) => Ok(Dispatches::new(
+                    [
+                        Dispatch::CloseCurrentWindow,
+                        Dispatch::OpenAndMarkFiles(nodes),
+                    ]
+                    .to_vec(),
+                )),
+                None => Ok(Default::default()),
+            }
+        }
     }
 }
 
@@ -394,30 +448,7 @@ impl Component for FileExplorer {
         event: event::KeyEvent,
     ) -> Result<Dispatches, anyhow::Error> {
         match event {
-            key!("enter") => {
-                if let Some(node) = self.get_current_node()? {
-                    match node.kind {
-                        NodeKind::File => Ok([
-                            Dispatch::CloseCurrentWindow,
-                            Dispatch::OpenFile {
-                                path: node.path.clone(),
-                                owner: BufferOwner::User,
-                                focus: true,
-                            },
-                        ]
-                        .to_vec()
-                        .into()),
-                        NodeKind::Directory { .. } => {
-                            let tree = std::mem::take(&mut self.tree);
-                            self.tree = tree.toggle(&node.path, |open| !open);
-                            self.refresh_editor(context)?;
-                            Ok(Vec::new().into())
-                        }
-                    }
-                } else {
-                    Ok(Vec::new().into())
-                }
-            }
+            key!("enter") => self.toggle_or_open_paths(context),
             _ => self.editor.handle_key_event(context, event),
         }
     }
@@ -563,6 +594,45 @@ mod test_file_explorer {
 "
                     .trim_matches('\n')
                     .to_string(),
+                )),
+            ])
+        })
+    }
+
+    #[test]
+    fn open_multiple_paths_at_once_using_extened_selections() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(RevealInExplorer(s.main_rs())),
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("Cargo.lock".to_owned())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+                Editor(EnableSelectionExtension),
+                Editor(MoveSelection(Right)),
+                Expect(CurrentSelectedTexts(&[
+                    "- 🔒  Cargo.lock\n - 📄  Cargo.toml",
+                ])),
+                App(HandleKeyEvent(key!("enter"))),
+                // Expect the two files are opened and marked
+                Expect(MarkedFiles(
+                    [
+                        s.new_path("Cargo.lock").try_into().unwrap(),
+                        s.new_path("Cargo.toml").try_into().unwrap(),
+                    ]
+                    .to_vec(),
                 )),
             ])
         })
