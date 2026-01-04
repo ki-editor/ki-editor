@@ -403,6 +403,9 @@ impl Component for Editor {
             EnterDeleteMode => self.mode = Mode::Delete,
             AlignSelections(direction) => return self.align_selections(direction, context),
             JoinSelection => return self.join_selection(context),
+            ReplaceSelections(replacements) => {
+                return self.replace_selections(context, replacements)
+            }
         }
         Ok(Default::default())
     }
@@ -4417,6 +4420,32 @@ impl Editor {
         });
         self.apply_edit_transaction(edit_transaction, context)
     }
+
+    fn replace_selections(
+        &mut self,
+        context: &Context,
+        replacements: Vec<String>,
+    ) -> anyhow::Result<Dispatches> {
+        let Some(replacements) = NonEmpty::from_vec(replacements) else {
+            return Err(anyhow::anyhow!(
+                "Replacement texts must have at least one element."
+            ));
+        };
+        if replacements.len() != self.selection_set.len() {
+            return Err(anyhow::anyhow!(
+                r#"There are {} selection(s), but the input has a different length: {}. The input is {:?}"#,
+                self.selection_set.len(),
+                replacements.len(),
+                replacements
+            ));
+        }
+        self.transform_selection(
+            Transformation::ReplaceWithCopiedText {
+                copied_texts: CopiedTexts::new(replacements),
+            },
+            context,
+        )
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -4577,6 +4606,7 @@ pub(crate) enum DispatchEditor {
     EnterDeleteMode,
     AlignSelections(Direction),
     JoinSelection,
+    ReplaceSelections(Vec<String>),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
