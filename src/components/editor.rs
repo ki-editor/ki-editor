@@ -4446,6 +4446,24 @@ impl Editor {
             context,
         )
     }
+
+    pub(crate) fn get_selected_lines_indices(&self) -> anyhow::Result<Vec<usize>> {
+        Ok(self
+            .selection_set
+            .selections()
+            .into_iter()
+            .map(|selection| -> anyhow::Result<_> {
+                let position_range = self
+                    .buffer()
+                    .char_index_range_to_position_range(selection.extended_range())?;
+
+                Ok((position_range.start.line..position_range.end.line + 1).collect_vec())
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?
+            .into_iter()
+            .flatten()
+            .collect_vec())
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]

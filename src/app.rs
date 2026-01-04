@@ -55,6 +55,7 @@ use crate::{
 use event::event::Event;
 use itertools::{Either, Itertools};
 use my_proc_macros::NamedVariant;
+use nonempty::NonEmpty;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
@@ -954,8 +955,8 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenMoveFilePrompt => self.open_move_file_prompt()?,
             Dispatch::OpenDuplicateFilePrompt => self.open_copy_file_prompt()?,
             Dispatch::OpenAddPathPrompt => self.open_add_path_prompt()?,
-            Dispatch::OpenDeleteFilePrompt => self.open_delete_file_prompt()?,
-            Dispatch::DeletePath(path) => self.delete_path(&path)?,
+            Dispatch::OpenDeletePathsPrompt => self.open_delete_file_prompt()?,
+            Dispatch::DeletePaths(paths) => self.delete_paths(paths)?,
             Dispatch::Null => {
                 // do nothing
             }
@@ -1282,13 +1283,38 @@ impl<T: Frontend> App<T> {
             .transpose()
     }
 
+    fn get_file_explorer_selected_paths(&mut self) -> anyhow::Result<Vec<CanonicalizedPath>> {
+        self.current_component()
+            .borrow_mut()
+            .as_any_mut()
+            .downcast_mut::<FileExplorer>()
+            .ok_or_else(|| {
+                anyhow::anyhow!("Unable to downcast current component to `FileExplorer`")
+            })?
+            .get_selected_paths()
+    }
+
     fn open_delete_file_prompt(&mut self) -> anyhow::Result<()> {
-        if let Some(path) = self.get_file_explorer_current_path()? {
+        let selected_paths = self.get_file_explorer_selected_paths()?;
+        if let Some(selected_paths) = NonEmpty::from_vec(selected_paths) {
+            let formatted_paths = selected_paths
+                .iter()
+                .map(|path| {
+                    format!(
+                        "'{}'",
+                        path.try_display_relative_to(self.context.current_working_directory())
+                    )
+                })
+                .join(", ");
             self.open_yes_no_prompt(YesNoPrompt {
-                title: format!("Delete \"{}\"?", path.display_absolute()),
-                yes: Box::new(Dispatch::DeletePath(path.clone())),
+                title: format!("Delete \"{formatted_paths}\"?"),
+                yes: Box::new(Dispatch::DeletePaths(selected_paths.clone())),
             })
         } else {
+            self.show_global_info(Info::new(
+                "Delete file error".to_owned(),
+                "No paths are selected.".to_owned(),
+            ));
             Ok(())
         }
     }
@@ -1767,7 +1793,7 @@ impl<T: Frontend> App<T> {
             match operation {
                 ResourceOperation::Create(path) => self.add_path(path)?,
                 ResourceOperation::Rename { old, new } => self.move_file(old, new)?,
-                ResourceOperation::Delete(path) => self.delete_path(&path)?,
+                ResourceOperation::Delete(path) => self.delete_paths(NonEmpty::new(path))?,
             }
         }
         Ok(())
@@ -1887,13 +1913,15 @@ impl<T: Frontend> App<T> {
         }))
     }
 
-    fn delete_path(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
-        if path.is_dir() {
-            std::fs::remove_dir_all(path)?;
-        } else {
-            std::fs::remove_file(path)?;
+    fn delete_paths(&mut self, paths: NonEmpty<CanonicalizedPath>) -> anyhow::Result<()> {
+        for path in paths {
+            if path.is_dir() {
+                std::fs::remove_dir_all(&path)?;
+            } else {
+                std::fs::remove_file(&path)?;
+            }
+            self.layout.remove_suggestive_editor(&path);
         }
-        self.layout.remove_suggestive_editor(path);
         self.layout.refresh_file_explorer(&self.context)?;
         Ok(())
     }
@@ -3426,7 +3454,7 @@ pub(crate) enum Dispatch {
     OpenMoveFilePrompt,
     OpenDuplicateFilePrompt,
     OpenAddPathPrompt,
-    DeletePath(CanonicalizedPath),
+    DeletePaths(NonEmpty<CanonicalizedPath>),
     Null,
     MoveFile {
         from: CanonicalizedPath,
@@ -3506,7 +3534,7 @@ pub(crate) enum Dispatch {
         maintain: bool,
     },
     MoveToCompletionItem(Direction),
-    OpenDeleteFilePrompt,
+    OpenDeletePathsPrompt,
     SelectCompletionItem,
     SetKeyboardLayoutKind(KeyboardLayoutKind),
     OpenKeyboardLayoutPrompt,

@@ -36,17 +36,18 @@ Ki's file explorer is rendered using YAML, for example:
 
 ## Meanings
 
-| Label         | Action                                            |
-| ------------- | ------------------------------------------------- |
-| `Add Path`    | Add a new file/folder under the current path [^1] |
-| `Dup path`    | Duplicate current file to a new path              |
-| `Delete Path` | Delete current file/folder                        |
-| `Move Path`   | Move (or rename) the current file/folder [^2]     |
-| `Refresh`     | Refresh the file explorer [^3]                    |
+| Label          | Action                                            |
+| -------------- | ------------------------------------------------- |
+| `Add Path`     | Add a new file/folder under the current path [^1] |
+| `Dup path`     | Duplicate current file to a new path              |
+| `Delete Paths` | Delete the selected paths [^2]                    |
+| `Move Path`    | Move (or rename) the current file/folder [^3]     |
+| `Refresh`      | Refresh the file explorer [^4]                    |
 
 [^1]: To add a folder, append `/` to the file name. Can be nested, and new directories will be created as required.
-[^2]: Works like `mkdir -p`, it will create new directories when required.
-[^3]: This is necessary sometimes because the file system is modified by external factors, and Ki does not watch for file changes.
+[^2]: You can delete multiple paths at once by using [selection extension](../sub-modes/extend-mode.md) or [multi-cursors](../sub-modes/multi-cursor-mode.md)
+[^3]: Works like `mkdir -p`, it will create new directories when required.
+[^4]: This is necessary sometimes because the file system is modified by external factors, and Ki does not watch for file changes.
 
 ## Other keybinding
 

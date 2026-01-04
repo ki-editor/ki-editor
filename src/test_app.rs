@@ -10,6 +10,7 @@ use lazy_regex::regex;
 use lsp_types::Url;
 use my_proc_macros::{hex, key, keys};
 
+use nonempty::NonEmpty;
 use schemars::schema_for;
 use serde::Serialize;
 use serial_test::serial;
@@ -3590,7 +3591,7 @@ fn navigate_back_should_skip_files_that_were_renamed_or_deleted() -> anyhow::Res
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            App(DeletePath(s.main_rs())),
+            App(DeletePaths(NonEmpty::new(s.main_rs()))),
             App(NavigateBack),
             Expect(NoError),
         ])
@@ -3613,7 +3614,7 @@ fn navigate_forward_should_skip_files_that_were_renamed_or_deleted() -> anyhow::
             }),
             App(NavigateBack),
             Expect(CurrentPath(s.main_rs())),
-            App(DeletePath(s.hello_ts())),
+            App(DeletePaths(NonEmpty::new(s.hello_ts()))),
             App(NavigateForward),
             Expect(NoError),
         ])
@@ -3649,7 +3650,7 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
                 .to_string(),
             )),
             Expect(CurrentPath(s.gitignore())),
-            App(DeletePath(s.main_rs())),
+            App(DeletePaths(NonEmpty::new(s.main_rs()))),
             App(CycleMarkedFile(Direction::Start)),
             Expect(NoError),
             Expect(CurrentPath(s.hello_ts())),
