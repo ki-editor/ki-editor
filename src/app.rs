@@ -3249,30 +3249,35 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
 
     fn execute_leader_meaning(&mut self, meaning: Meaning) -> anyhow::Result<()> {
         if let Some((_, _, script)) = custom_keymap().into_iter().find(|(m, _, _)| *m == meaning) {
-            let component = self.current_component();
-            let borrow = component.borrow();
-            let editor = borrow.editor();
-            let context = ScriptInput {
-                current_file_path: self
-                    .get_current_file_path()
-                    .map(|path| path.display_absolute()),
-                selections: editor
-                    .selection_set
-                    .map(|selection| -> anyhow::Result<_> {
-                        let range = editor
-                            .buffer()
-                            .char_index_range_to_position_range(selection.extended_range())?;
-                        let content = editor
-                            .buffer()
-                            .slice(&selection.extended_range())?
-                            .to_string();
-                        Ok(crate::scripting::Selection { range, content })
-                    })
-                    .into_iter()
-                    .try_collect()?,
-            };
+            let output = {
+                let component = self.current_component();
+                let borrow = component.borrow();
+                let editor = borrow.editor();
+                let context = ScriptInput {
+                    current_file_path: self
+                        .get_current_file_path()
+                        .map(|path| path.display_absolute()),
+                    selections: editor
+                        .selection_set
+                        .map(|selection| -> anyhow::Result<_> {
+                            let range = editor
+                                .buffer()
+                                .char_index_range_to_position_range(selection.extended_range())?;
+                            let content = editor
+                                .buffer()
+                                .slice(&selection.extended_range())?
+                                .to_string();
+                            Ok(crate::scripting::Selection { range, content })
+                        })
+                        .into_iter()
+                        .try_collect()?,
+                };
 
-            let output = script.execute(context)?;
+                script.execute(context)?
+
+                // We need to drop `borrow` here, so that we can prevent double borrow
+                // when `DispatchEditor`s are being handled
+            };
             self.handle_script_dispatches(output.dispatches)?
         }
         Ok(())

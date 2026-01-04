@@ -1,4 +1,5 @@
 use crate::app::Dispatch;
+use crate::components::editor::DispatchEditor;
 use crate::components::editor_keymap::KeyboardMeaningLayout;
 use crate::components::editor_keymap::Meaning::{self, *};
 use crate::components::suggestive_editor::Info;
@@ -73,6 +74,7 @@ pub(crate) struct ScriptOutput {
 #[derive(Serialize, Deserialize, JsonSchema, Debug, PartialEq, Clone)]
 pub(crate) enum ScriptDispatch {
     ShowInfo { title: String, content: String },
+    ReplaceSelections(Vec<String>),
 }
 
 #[derive(Clone, Deserialize, Serialize, JsonSchema)]
@@ -139,6 +141,65 @@ impl ScriptDispatch {
             ScriptDispatch::ShowInfo { title, content } => {
                 Dispatch::ShowGlobalInfo(Info::new(title, content))
             }
+            ScriptDispatch::ReplaceSelections(replacements) => {
+                Dispatch::ToEditor(DispatchEditor::ReplaceSelections(replacements))
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod test_scripting {
+    use my_proc_macros::keys;
+
+    use crate::{
+        app::Dispatch::*,
+        buffer::BufferOwner,
+        components::editor::{DispatchEditor::*, IfCurrentNotFound},
+        selection::SelectionMode,
+        test_app::{execute_test, ExpectKind::*, Step::*},
+    };
+
+    #[test]
+    fn test_script_dispatch_show_info() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.foo_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                // This will execute the script from .ki/scripts/example_show_info.py
+                App(HandleKeyEvents(keys!("backslash q").to_vec())),
+                Expect(GlobalInfo(
+                    "The current selected texts are [\"pub(crate) struct Foo {\"]",
+                )),
+            ])
+        })
+    }
+
+    #[test]
+    fn test_script_dispatch_replace_selections() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.foo_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo bar spam".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Word,
+                )),
+                Expect(CurrentSelectedTexts(&["foo"])),
+                // This will execute the script from .ki/scripts/example_replace_selections.py
+                App(HandleKeyEvents(keys!("backslash w").to_vec())),
+                Expect(CurrentSelectedTexts(&["Coming from Python script"])),
+                Expect(CurrentComponentContent(
+                    "Coming from Python script bar spam",
+                )),
+            ])
+        })
     }
 }
