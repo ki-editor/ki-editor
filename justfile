@@ -5,15 +5,12 @@ default:
     @just lint 
     @just test 
     @just doc 
-    
-update-submodule:
-    git submodule update --init --recursive 
-    
+
 check: build check-typeshare fmt-check lint 
     
 build-all: tree-sitter-quickfix build vscode-build
     
-install: update-submodule
+install:
     rm -r ~/.cache/ki/zed-themes || echo "ok" 
     cargo install --locked --path .
 
@@ -27,7 +24,7 @@ fmt:
 	npm run format
 	alejandra --exclude ./nvim-treesitter-highlight-queries/nvim-treesitter/ ./
 
-build: update-submodule
+build:
     @echo "Running cargo build..."
     cargo build --workspace --tests
 
@@ -72,14 +69,14 @@ test-setup:
     git config --get --global user.name  || git config --global user.name  Tester 
     git config --get --global user.email || git config --global user.email tester@gmail.com
 
-test testname="": test-setup update-submodule
+test testname="": test-setup
     echo "Running cargo nextest..."
     cargo nextest run --workspace -- --skip 'doc_assets_' {{testname}}
     
 tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
 
-doc-assets testname="": test-setup update-submodule
+doc-assets testname="": test-setup
     cargo nextest run --workspace -- 'doc_assets_' {{testname}}
 
 check-config-schema:
