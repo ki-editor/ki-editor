@@ -148,6 +148,7 @@
                   (crossCraneLib.filterCargoSources path type)
                   || (builtins.match ".*contrib/emoji-icon-theme.json$" path != null)
                   || (builtins.match ".*tree_sitter_quickfix/src/.*$" path != null)
+                  || (builtins.match ".*nvim-treesitter-highlight-queries/queries/.*.scm$" path != null)
                   || (builtins.match ".*src/config_default.json$" path != null);
               };
 
