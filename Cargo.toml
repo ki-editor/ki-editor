@@ -43,6 +43,7 @@ miniz_oxide = "0.8.9"
 schemars = "1.1.0"
 
 [features]
+default = ["wayland"]
 wayland = ["arboard/wayland-data-control"]
 
 [build-dependencies]
@@ -58,7 +59,6 @@ crossterm.workspace = true
 regex.workspace = true
 fancy-regex.workspace = true
 lsp-types.workspace = true
-tempfile.workspace = true
 log.workspace = true
 ropey = "1.6.1"
 simple-logging = "2.0.2"
@@ -75,7 +75,7 @@ git2 = {version = "~0.19.0", default-features = false,  features = ["vendored-li
 grep-searcher = "0.1.11"
 grep-regex = "0.1.11"
 json-rpc-types = "1.3.0"
-arboard = { version = "3.2", features = ["wayland-data-control"], default-features = false }
+arboard = { version = "3.2", default-features = false }
 event = { path = "event" }
 grammar = { path = "grammar" }
 shared = { path = "shared" }
@@ -128,6 +128,7 @@ tree-sitter-rust = "0.24.0"
 indoc = "2.0.4"
 is_ci = "1.2.0"
 nvim-treesitter-highlight-queries = { path = "nvim-treesitter-highlight-queries" }
+tempfile.workspace = true
 
 
 [profile.release]
