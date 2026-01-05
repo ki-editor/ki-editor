@@ -1,0 +1,18 @@
+default:
+    @just build
+
+start:
+    npm run start
+
+install:
+    npm install
+
+typecheck: install
+    npm run typecheck
+
+check:
+    tsx validate.ts
+    npx vitest run
+
+build: typecheck check
+    npm run build

@@ -1,0 +1,49 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "npm",
+            "script": "watch",
+            "problemMatcher": "$tsc-watch",
+            "isBackground": true,
+            "presentation": {
+                "reveal": "never"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/ki-vscode"
+            }
+        },
+        {
+            "type": "npm",
+            "script": "compile",
+            "group": "build",
+            "problemMatcher": "$tsc",
+            "options": {
+                "cwd": "${workspaceFolder}/ki-vscode"
+            }
+        },
+        {
+            "label": "tsc: build with source maps",
+            "type": "npm",
+            "script": "compile:sourcemaps",
+            "group": "build",
+            "problemMatcher": "$tsc",
+            "options": {
+                "cwd": "${workspaceFolder}/ki-vscode"
+            }
+        },
+        {
+            "type": "npm",
+            "script": "test",
+            "group": "test",
+            "problemMatcher": "$jest",
+            "options": {
+                "cwd": "${workspaceFolder}/ki-vscode"
+            }
+        }
+    ]
+}

@@ -16,7 +16,7 @@ pub(crate) struct UiTree {
 impl UiTree {
     pub(crate) fn new() -> UiTree {
         let mut tree = nary_tree::Tree::new();
-        let mut editor = Editor::from_text(Some(tree_sitter_md::language()), "");
+        let mut editor = Editor::from_text(Some(tree_sitter_md::LANGUAGE.into()), "");
         editor.set_title("[ROOT] (Cannot be saved)".to_string());
         let focused_component_id = tree.set_root(KindedComponent::new(
             ComponentKind::Root,
@@ -283,6 +283,19 @@ impl UiTree {
                 .node_id(),
         )
     }
+
+    pub(crate) fn get_component_by_id(
+        &self,
+        component_id: crate::components::component::ComponentId,
+    ) -> Option<Rc<RefCell<dyn Component>>> {
+        Some(
+            self.root()
+                .traverse_pre_order()
+                .find(|node| node.data().component().borrow().id() == component_id)?
+                .data()
+                .component(),
+        )
+    }
 }
 
 impl Default for UiTree {
@@ -326,9 +339,8 @@ impl std::fmt::Debug for KindedComponent {
 pub(crate) enum ComponentKind {
     SuggestiveEditor,
     FileExplorer,
-    GlobalInfo,
     QuickfixList,
-    QuickfixListInfo,
+    GlobalInfo,
     Prompt,
     Dropdown,
     DropdownInfo,

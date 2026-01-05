@@ -13,8 +13,50 @@ once_cell.workspace = true
 serde.workspace = true
 lsp-types.workspace = true
 regex.workspace = true
-tempfile.workspace = true
 log.workspace = true
 grammar = {path = "../grammar"}
-isahc = "1.7.2"
 url = "2.5.0"
+which = "~7.0.0"
+etcetera = "0.8"
+itertools.workspace = true
+schemars.workspace = true
+
+# Tree sitter grammars
+tree-sitter-bash = "0.25.0"
+tree-sitter-c = "0.24.1"
+tree-sitter-cpp = "0.23.4"
+tree-sitter-css = "0.23.2"
+tree-sitter-javascript = "0.23.1"
+tree-sitter-json = "0.24.8"
+tree-sitter-gleam = "1.0.0"
+tree-sitter-go = "0.23.4"
+tree-sitter-graphql = "0.1.0"
+tree-sitter-html = "0.23.2"
+tree-sitter-lua = "0.2.0"
+tree-sitter-md = "0.3.2"
+tree-sitter-python = "0.23.6"
+tree-sitter-quickfix.workspace = true
+tree-sitter-ruby = "0.23.1"
+tree-sitter-rust = "0.24.0"
+tree-sitter-typescript = "0.23.2"
+tree-sitter-xml = "0.7.0"
+tree-sitter-yaml = "0.7.1"
+tree-sitter-zig = "1.1.2"
+tree-sitter-nix = "0.3.0"
+tree-sitter-fish = "3.6.0"
+tree-sitter-diff = "0.1.0"
+tree-sitter-elixir = "0.3.4"
+tree-sitter-swift = "0.7.1"
+tree-sitter-heex = "0.8.1"
+tree-sitter-toml-ng = "0.7.0"
+tree-sitter-ocaml = "0.24.2"
+tree-sitter-svelte-ng = "1.0.2"
+tree-sitter-scheme = "0.24.7"
+tree-sitter-haskell = "0.23.1"
+tree-sitter-julia = "0.23.1"
+nvim-treesitter-highlight-queries = { version = "0.1.0", path = "../nvim-treesitter-highlight-queries" }
+
+
+[dev-dependencies]
+quickcheck.workspace = true
+quickcheck_macros.workspace = true

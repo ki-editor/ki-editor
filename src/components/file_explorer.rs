@@ -1,13 +1,18 @@
 use itertools::Itertools;
 use my_proc_macros::key;
+use nonempty::NonEmpty;
 
-use crate::app::{Dispatch, Dispatches, YesNoPrompt};
+use crate::{
+    app::{Dispatch, Dispatches},
+    buffer::BufferOwner,
+    context::Context,
+};
 use shared::canonicalized_path::CanonicalizedPath;
 
 use super::{
     component::Component,
     editor::Editor,
-    keymap_legend::{Keymap, Keymaps},
+    editor_keymap_legend::{KeymapOverride, NormalModeOverride},
 };
 
 pub(crate) struct FileExplorer {
@@ -15,45 +20,158 @@ pub(crate) struct FileExplorer {
     tree: Tree,
 }
 
+pub(crate) fn file_explorer_normal_mode_override() -> NormalModeOverride {
+    NormalModeOverride {
+        append: Some(KeymapOverride {
+            description: "Add Path",
+            dispatch: Dispatch::OpenAddPathPrompt,
+        }),
+        change: Some(KeymapOverride {
+            description: "Move Path",
+            dispatch: Dispatch::OpenMoveFilePrompt,
+        }),
+        delete: Some(KeymapOverride {
+            description: "Delete Paths",
+            dispatch: Dispatch::OpenDeletePathsPrompt,
+        }),
+        replace: Some(KeymapOverride {
+            description: "Refresh",
+            dispatch: Dispatch::RefreshFileExplorer,
+        }),
+        paste: Some(KeymapOverride {
+            description: "Dup Path",
+            dispatch: Dispatch::OpenDuplicateFilePrompt,
+        }),
+        open: Some(KeymapOverride {
+            description: "Toggle/Open Paths",
+            dispatch: Dispatch::ToggleOrOpenPaths,
+        }),
+        ..Default::default()
+    }
+}
 impl FileExplorer {
     pub(crate) fn new(path: &CanonicalizedPath) -> anyhow::Result<Self> {
         let tree = Tree::new(path)?;
         let text = tree.render();
         let mut editor = Editor::from_text(
-            shared::language::from_extension("yaml")
+            crate::config::from_extension("yaml")
                 .and_then(|language| language.tree_sitter_language()),
-            &format!("{}\n", text),
+            &format!("{text}\n"),
         );
         editor.set_title("File Explorer".to_string());
+        editor.set_normal_mode_override(file_explorer_normal_mode_override());
         Ok(Self { editor, tree })
     }
 
-    pub(crate) fn reveal(&mut self, path: &CanonicalizedPath) -> anyhow::Result<Dispatches> {
+    pub(crate) fn expanded_folders(&self) -> Vec<CanonicalizedPath> {
+        self.tree
+            .walk_visible(Vec::new(), |result, node| Continuation {
+                state: if matches!(node.kind, NodeKind::Directory { open: true, .. }) {
+                    result.into_iter().chain(Some(node.path.clone())).collect()
+                } else {
+                    result
+                },
+                kind: ContinuationKind::Continue,
+            })
+    }
+
+    pub(crate) fn reveal(
+        &mut self,
+        path: &CanonicalizedPath,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
         let tree = std::mem::take(&mut self.tree);
         self.tree = tree.reveal(path)?;
-        self.refresh_editor()?;
+        self.refresh_editor(context)?;
         if let Some(index) = self.tree.find_index(path) {
-            self.editor_mut().select_line_at(index)
+            self.editor_mut().select_line_at(index, context)
         } else {
             Ok(Dispatches::default())
         }
     }
 
-    pub(crate) fn refresh(&mut self, working_directory: &CanonicalizedPath) -> anyhow::Result<()> {
+    pub(crate) fn refresh(&mut self, context: &Context) -> anyhow::Result<()> {
         let tree = std::mem::take(&mut self.tree);
-        self.tree = tree.refresh(working_directory)?;
-        self.refresh_editor()?;
+        self.tree = tree.refresh(context.current_working_directory())?;
+        self.refresh_editor(context)?;
         Ok(())
     }
 
-    fn refresh_editor(&mut self) -> anyhow::Result<()> {
+    fn refresh_editor(&mut self, context: &Context) -> anyhow::Result<()> {
         let text = self.tree.render();
-        self.editor_mut().set_content(&text)
+        self.editor_mut().set_content(&text, context)
     }
 
     fn get_current_node(&self) -> anyhow::Result<Option<Node>> {
         let position = self.editor().get_cursor_position()?;
         Ok(self.tree.get(position.line))
+    }
+
+    fn get_selected_nodes(&self) -> anyhow::Result<Vec<Node>> {
+        let line_indices = self.editor().get_selected_lines_indices()?;
+        Ok(line_indices
+            .into_iter()
+            .filter_map(|line_index| self.tree.get(line_index))
+            .collect_vec())
+    }
+
+    pub(crate) fn get_selected_paths(&self) -> anyhow::Result<Vec<CanonicalizedPath>> {
+        self.get_selected_nodes()
+            .map(|nodes| nodes.into_iter().map(|node| node.path).collect_vec())
+    }
+
+    pub(crate) fn get_current_path(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
+        self.get_current_node()
+            .map(|node| node.map(|node| node.path))
+    }
+
+    pub(crate) fn toggle_or_open_paths(
+        &mut self,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let nodes = self.get_selected_nodes()?;
+        let Some(nodes) = NonEmpty::from_vec(nodes) else {
+            return Err(anyhow::anyhow!("No paths are selected."));
+        };
+        if nodes.len() == 1 {
+            let node = nodes.first();
+            match node.kind {
+                NodeKind::File => Ok([
+                    Dispatch::CloseCurrentWindow,
+                    Dispatch::OpenFile {
+                        path: node.path.clone(),
+                        owner: BufferOwner::User,
+                        focus: true,
+                    },
+                ]
+                .to_vec()
+                .into()),
+                NodeKind::Directory { .. } => {
+                    let tree = std::mem::take(&mut self.tree);
+                    self.tree = tree.toggle(&node.path, |open| !open);
+                    self.refresh_editor(context)?;
+                    Ok(Vec::new().into())
+                }
+            }
+        } else {
+            let nodes = NonEmpty::from_vec(
+                nodes
+                    .into_iter()
+                    .filter(|node| matches!(node.kind, NodeKind::File))
+                    .map(|node| node.path)
+                    .collect(),
+            );
+            match nodes {
+                Some(nodes) => Ok(Dispatches::new(
+                    [
+                        Dispatch::CloseCurrentWindow,
+                        Dispatch::OpenAndMarkFiles(nodes),
+                    ]
+                    .to_vec(),
+                )),
+                None => Ok(Default::default()),
+            }
+        }
     }
 }
 
@@ -233,9 +351,9 @@ impl Tree {
                             String::new()
                         };
                         if tail.is_empty() {
-                            format!("{} :", head)
+                            format!("{head} :")
                         } else {
-                            format!("{} :\n{}", head, tail)
+                            format!("{head} :\n{tail}")
                         }
                     }
                 };
@@ -292,7 +410,6 @@ impl Tree {
             },
         });
         let tree = Tree::new(working_directory)?;
-        log::info!("opened_paths = {:?}", opened_paths);
         let tree = opened_paths
             .into_iter()
             .fold(tree, |tree, path| tree.toggle(&path, |_| true));
@@ -325,64 +442,13 @@ impl Component for FileExplorer {
         &mut self.editor
     }
 
-    fn contextual_keymaps(&self) -> Vec<super::keymap_legend::KeymapLegendSection> {
-        self.get_current_node()
-            .ok()
-            .flatten()
-            .map(|node| super::keymap_legend::KeymapLegendSection {
-                title: "File Explorer".to_string(),
-                keymaps: Keymaps::new(&[
-                    Keymap::new(
-                        "a",
-                        "Add file (or postfix with / for folder)".to_string(),
-                        Dispatch::OpenAddPathPrompt(node.path.clone()),
-                    ),
-                    Keymap::new(
-                        "d",
-                        "Delete path".to_string(),
-                        Dispatch::OpenYesNoPrompt(YesNoPrompt {
-                            title: format!("Delete \"{}\"?", node.path.display_absolute()),
-                            yes: Box::new(Dispatch::DeletePath(node.path.clone())),
-                        }),
-                    ),
-                    Keymap::new(
-                        "m",
-                        "Move path".to_string(),
-                        Dispatch::OpenMoveFilePrompt(node.path.clone()),
-                    ),
-                    Keymap::new("r", "Refresh".to_string(), Dispatch::RefreshFileExplorer),
-                ]),
-            })
-            .into_iter()
-            .collect()
-    }
-
     fn handle_key_event(
         &mut self,
         context: &crate::context::Context,
         event: event::KeyEvent,
     ) -> Result<Dispatches, anyhow::Error> {
         match event {
-            key!("enter") => {
-                if let Some(node) = self.get_current_node()? {
-                    match node.kind {
-                        NodeKind::File => Ok([
-                            Dispatch::CloseCurrentWindow,
-                            Dispatch::OpenFile(node.path.clone()),
-                        ]
-                        .to_vec()
-                        .into()),
-                        NodeKind::Directory { .. } => {
-                            let tree = std::mem::take(&mut self.tree);
-                            self.tree = tree.toggle(&node.path, |open| !open);
-                            self.refresh_editor()?;
-                            Ok(Vec::new().into())
-                        }
-                    }
-                } else {
-                    Ok(Vec::new().into())
-                }
-            }
+            key!("enter") => self.toggle_or_open_paths(context),
             _ => self.editor.handle_key_event(context, event),
         }
     }
@@ -392,6 +458,8 @@ impl Component for FileExplorer {
 mod test_file_explorer {
     use my_proc_macros::{key, keys};
 
+    use crate::buffer::BufferOwner;
+    use crate::components::editor::IfCurrentNotFound;
     use crate::test_app::*;
 
     #[test]
@@ -407,6 +475,7 @@ mod test_file_explorer {
  - 📄  Cargo.toml
  - 📂  src/ :
    - 🦀  foo.rs
+   - 📘  hello.ts
    - 🦀  main.rs
 "
                     .trim_matches('\n')
@@ -423,17 +492,148 @@ mod test_file_explorer {
     fn move_path() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 App(RevealInExplorer(s.main_rs())),
                 Expect(ComponentCount(1)),
-                App(HandleKeyEvents(keys!("space m").to_vec())),
+                App(HandleKeyEvents(keys!("f").to_vec())),
                 Expect(ComponentCount(2)),
-                Expect(CurrentComponentTitle("Move path")),
+                Expect(CurrentComponentTitle("Move path".to_string())),
                 Editor(Insert("/hello/world.rs".to_string())),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(ComponentCount(2)),
                 Expect(OpenedFilesCount(1)),
-                Expect(CurrentComponentTitle("File Explorer")),
+                Expect(CurrentComponentTitle("File Explorer".to_string())),
+            ])
+        })
+    }
+
+    #[test]
+    fn delete_multiple_paths_at_once_using_multiple_selections() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(RevealInExplorer(s.main_rs())),
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("Cargo".to_owned())),
+                Editor(CursorAddToAllSelections),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+                Expect(CurrentSelectedTexts(&["🔒  Cargo.lock", "📄  Cargo.toml"])),
+                App(OpenDeletePathsPrompt),
+                // Pick Yes
+                App(HandleKeyEvent(key!("d"))),
+                // Expect the two files (Cargo.lock and Cargo.toml) are deleted
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+            ])
+        })
+    }
+    #[test]
+    fn delete_multiple_paths_at_once_using_extened_selections() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(RevealInExplorer(s.main_rs())),
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("Cargo.lock".to_owned())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+                Editor(EnableSelectionExtension),
+                Editor(MoveSelection(Right)),
+                Expect(CurrentSelectedTexts(&[
+                    "- 🔒  Cargo.lock\n - 📄  Cargo.toml",
+                ])),
+                App(OpenDeletePathsPrompt),
+                // Pick Yes
+                App(HandleKeyEvent(key!("d"))),
+                // Expect the two files (Cargo.lock and Cargo.toml) are deleted
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+            ])
+        })
+    }
+
+    #[test]
+    fn open_multiple_paths_at_once_using_extened_selections() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(RevealInExplorer(s.main_rs())),
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("Cargo.lock".to_owned())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+                Editor(EnableSelectionExtension),
+                Editor(MoveSelection(Right)),
+                Expect(CurrentSelectedTexts(&[
+                    "- 🔒  Cargo.lock\n - 📄  Cargo.toml",
+                ])),
+                App(HandleKeyEvent(key!("enter"))),
+                // Expect the two files are opened and marked
+                Expect(MarkedFiles(
+                    [
+                        s.new_path("Cargo.lock").try_into().unwrap(),
+                        s.new_path("Cargo.toml").try_into().unwrap(),
+                    ]
+                    .to_vec(),
+                )),
             ])
         })
     }

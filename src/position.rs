@@ -1,6 +1,9 @@
+use schemars::JsonSchema;
+use serde::Serialize;
+
 use crate::{buffer::Buffer, selection::CharIndex};
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Default)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Default, Serialize, JsonSchema)]
 pub(crate) struct Position {
     /// 0-based
     pub(crate) line: usize,
@@ -23,17 +26,21 @@ impl Position {
         }
     }
 
-    pub(crate) fn move_right(&self, by: u16) -> Position {
+    pub(crate) fn move_right(&self, by: usize) -> Position {
         Position {
             line: self.line,
-            column: self.column + by as usize,
+            column: self.column + by,
         }
     }
 
-    pub(crate) fn move_up(&self, by: usize) -> Position {
-        Position {
-            line: self.line.saturating_sub(by),
-            column: self.column,
+    pub(crate) fn move_up(&self, by: usize) -> Option<Position> {
+        if self.line < by {
+            None
+        } else {
+            Some(Position {
+                line: self.line - by,
+                column: self.column,
+            })
         }
     }
 
@@ -59,6 +66,20 @@ impl Position {
         Position {
             line: self.line + line,
             column: self.column + column,
+        }
+    }
+
+    pub(crate) fn set_column(self, new_column: usize) -> Position {
+        Position {
+            column: new_column,
+            ..self
+        }
+    }
+
+    pub(crate) fn to_host_position(self) -> ki_protocol_types::Position {
+        ki_protocol_types::Position {
+            character: self.column as u32,
+            line: self.line as u32,
         }
     }
 }

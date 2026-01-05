@@ -1,14 +1,12 @@
-use crate::components::editor::IfCurrentNotFound;
-
-use super::{ByteRange, SelectionMode, Token};
+use super::{ByteRange, IterBasedSelectionMode};
 use itertools::Itertools;
 
 pub(crate) struct TopNode;
 
-impl SelectionMode for TopNode {
+impl IterBasedSelectionMode for TopNode {
     fn iter<'a>(
         &self,
-        params: super::SelectionModeParams<'a>,
+        params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
         let tree = buffer.tree().ok_or(anyhow::anyhow!(
@@ -16,9 +14,9 @@ impl SelectionMode for TopNode {
         ))?;
         let root_node_id = tree.root_node().id();
         Ok(Box::new(
-            tree_sitter_traversal::traverse(tree.walk(), tree_sitter_traversal::Order::Pre)
+            tree_sitter_traversal2::traverse(tree.walk(), tree_sitter_traversal2::Order::Pre)
                 .filter(|node| node.id() != root_node_id)
-                .group_by(|node| node.byte_range().start)
+                .chunk_by(|node| node.byte_range().start)
                 .into_iter()
                 .map(|(_, group)| {
                     ByteRange::new(
@@ -33,15 +31,6 @@ impl SelectionMode for TopNode {
                 .into_iter(),
         ))
     }
-
-    fn first_child(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection_mode::ApplyMovementResult>> {
-        Ok(Token
-            .current(params, IfCurrentNotFound::LookForward)?
-            .map(crate::selection_mode::ApplyMovementResult::from_selection))
-    }
 }
 
 #[cfg(test)]
@@ -53,7 +42,7 @@ mod test_top_node {
     #[test]
     fn case_1() {
         let buffer = Buffer::new(
-            Some(tree_sitter_rust::language()),
+            Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main(x: usize) { let x = 1; }",
         );
         TopNode.assert_all_selections(

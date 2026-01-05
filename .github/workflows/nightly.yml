@@ -1,0 +1,33 @@
+name: nightly
+on:
+  schedule:
+    - cron: '31 1 * * *' # 01:31 UTC, an intentionally odd time to distribute load
+  workflow_dispatch:
+    # So we can run it manually
+
+jobs:
+  build:
+    uses: ./.github/workflows/release-common.yml
+
+  publish:
+    needs: [build]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+      - name: Publish release
+        run: |
+          gh release delete nightly --yes | true # Don't fail if the release doesn't exist
+          gh release create nightly --prerelease --title 'Nightly Release' \
+            ki-linux-x64/ki-linux-x64 \
+            ki-linux-arm64/ki-linux-arm64 \
+            ki-linux-x64-musl/ki-linux-x64-musl \
+            ki-linux-arm64-musl/ki-linux-arm64-musl \
+            ki-windows-x64/ki-windows-x64.exe \
+            ki-windows-arm64/ki-windows-arm64.exe \
+            ki-macos-x64/ki-macos-x64 \
+            ki-macos-arm64/ki-macos-arm64

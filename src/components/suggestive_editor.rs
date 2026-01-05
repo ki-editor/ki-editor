@@ -1,6 +1,7 @@
 use crate::app::{Dispatch, Dispatches};
-use crate::context::Context;
+use crate::context::{Context, GlobalMode};
 use crate::grid::StyleKey;
+use crate::selection::SelectionMode;
 use DispatchEditor::*;
 
 use crate::selection_range::SelectionRange;
@@ -14,8 +15,9 @@ use my_proc_macros::key;
 use std::{cell::RefCell, rc::Rc};
 
 use super::dropdown::{Dropdown, DropdownConfig};
-use super::editor::DispatchEditor;
-use super::keymap_legend::{Keymap, KeymapLegendSection, Keymaps};
+use super::editor::{Direction, DispatchEditor, IfCurrentNotFound};
+use super::editor_keymap::{alted, Meaning};
+use super::keymap_legend::{Keymap, Keymaps};
 use super::{
     component::Component,
     dropdown::DropdownItem,
@@ -26,7 +28,6 @@ use super::{
 pub(crate) struct SuggestiveEditor {
     editor: Editor,
     completion_dropdown: Dropdown,
-
     trigger_characters: Vec<String>,
     filter: SuggestiveEditorFilter,
 }
@@ -69,30 +70,26 @@ impl Component for SuggestiveEditor {
         Ok(dispatches.chain(update_filter_result?))
     }
 
+    fn post_handle_event(&self, dispatches: Dispatches) -> anyhow::Result<Dispatches> {
+        Ok(dispatches.append(Dispatch::ToSuggestiveEditor(
+            DispatchSuggestiveEditor::UpdateFilter,
+        )))
+    }
+
     fn handle_key_event(
         &mut self,
         context: &Context,
         event: event::KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
+            if let Some(keymap) = completion_item_keymaps(context).get(&event) {
+                log::info!("dispatches = {:?}", keymap.get_dispatches());
+                return Ok(keymap.get_dispatches());
+            };
             match event {
-                key!("ctrl+n") | key!("down") => {
-                    self.completion_dropdown.next_item();
-                    return Ok(self.render_completion_dropdown(false));
-                }
-                key!("ctrl+p") | key!("up") => {
-                    self.completion_dropdown.previous_item();
-                    return Ok(self.render_completion_dropdown(false));
-                }
-                key!("ctrl+space") => {
-                    let current_item = self.completion_dropdown.current_item();
-                    if let Some(completion) = current_item {
-                        self.completion_dropdown.set_items(Vec::new());
-                        return Ok(
-                            Dispatches::one(Dispatch::CloseDropdown).chain(completion.dispatches)
-                        );
-                    }
-                }
+                key!("down") => return self.next_completion_item(),
+                key!("up") => return self.previous_completion_item(),
+                key!("tab") => return self.select_completion_item(),
 
                 _ => {}
             }
@@ -100,53 +97,35 @@ impl Component for SuggestiveEditor {
 
         // Every other character typed in Insert mode should update the dropdown to show
         // relevant completions.
-        let dispatches = self.editor.handle_key_event(context, event.clone())?;
-
-        let render_dropdown_dispatch = self.update_filter()?;
-        Ok(render_dropdown_dispatch
-            .chain(dispatches)
+        Ok(self
+            .editor
+            .handle_key_event(context, event.clone())?
             .chain(match event {
                 key!("esc") => [
                     Dispatch::CloseDropdown,
+                    Dispatch::CloseGlobalInfo,
                     Dispatch::CloseEditorInfo,
                     Dispatch::ToEditor(EnterNormalMode),
                 ]
-                .to_vec()
+                .into_iter()
+                .chain(match (context.mode(), context.quickfix_list_state()) {
+                    (Some(GlobalMode::QuickfixListItem), Some(state)) => {
+                        Some(Dispatch::ToEditor(SetSelectionMode(
+                            IfCurrentNotFound::LookForward,
+                            SelectionMode::LocalQuickfix {
+                                title: state.title.clone(),
+                            },
+                        )))
+                    }
+                    _ => None,
+                })
+                .collect_vec()
                 .into(),
                 _ if self.editor.mode == Mode::Insert => {
                     vec![Dispatch::RequestCompletion, Dispatch::RequestSignatureHelp].into()
                 }
                 _ => Default::default(),
             }))
-    }
-
-    fn contextual_keymaps(&self) -> Vec<super::keymap_legend::KeymapLegendSection> {
-        [KeymapLegendSection {
-            title: "LSP".to_string(),
-            keymaps: Keymaps::new(&[
-                Keymap::new("c", "Code Actions".to_string(), {
-                    let cursor_char_index = self.editor().get_cursor_char_index();
-                    Dispatch::RequestCodeAction {
-                        diagnostics: self
-                            .editor()
-                            .buffer()
-                            .diagnostics()
-                            .into_iter()
-                            .filter_map(|diagnostic| {
-                                if diagnostic.range.contains(&cursor_char_index) {
-                                    diagnostic.original_value.clone()
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect_vec(),
-                    }
-                }),
-                Keymap::new("h", "Hover".to_string(), Dispatch::RequestHover),
-                Keymap::new("r", "Rename".to_string(), Dispatch::PrepareRename),
-            ]),
-        }]
-        .to_vec()
     }
 }
 
@@ -181,13 +160,25 @@ impl SuggestiveEditor {
                 }
             }
             DispatchSuggestiveEditor::UpdateCurrentCompletionItem(completion_item) => {
-                Ok(self.update_current_completion_item(completion_item))
+                Ok(self.update_current_completion_item(*completion_item))
             }
+            DispatchSuggestiveEditor::MoveToCompletionItem(Direction::End) => {
+                self.next_completion_item()
+            }
+            DispatchSuggestiveEditor::MoveToCompletionItem(Direction::Start) => {
+                self.previous_completion_item()
+            }
+            DispatchSuggestiveEditor::SelectCompletionItem => self.select_completion_item(),
+            DispatchSuggestiveEditor::UpdateFilter => self.update_filter(),
         }
     }
 
     pub(crate) fn completion_dropdown_current_item(&mut self) -> Option<DropdownItem> {
         self.completion_dropdown.current_item()
+    }
+
+    pub(crate) fn all_filtered_items(&mut self) -> Vec<DropdownItem> {
+        self.completion_dropdown.all_filtered_items()
     }
 
     pub(crate) fn completion_dropdown_opened(&self) -> bool {
@@ -200,6 +191,10 @@ impl SuggestiveEditor {
     }
 
     pub(crate) fn render_completion_dropdown(&self, ignore_insert_mode: bool) -> Dispatches {
+        log::info!(
+            "ignore_insert_mode = {ignore_insert_mode} mode = {:?}",
+            self.editor.mode
+        );
         if (!ignore_insert_mode && self.editor.mode != Mode::Insert)
             || self.completion_dropdown.no_matching_candidates()
         {
@@ -227,7 +222,7 @@ impl SuggestiveEditor {
         if self.editor.mode != Mode::Insert {
             return Ok(Dispatches::empty());
         }
-        let filter = match self.filter {
+        let filter = match &self.filter {
             SuggestiveEditorFilter::CurrentWord => {
                 // We need to subtract 1 because we need to get the character
                 // before the cursor, not the character at the cursor
@@ -252,13 +247,47 @@ impl SuggestiveEditor {
         self.completion_dropdown.set_filter(&filter);
 
         let render_completion_dropdown = self.render_completion_dropdown(false);
-        Ok(render_completion_dropdown)
+        Ok(render_completion_dropdown.append(Dispatch::DropdownFilterUpdated(filter)))
     }
 
     fn update_current_completion_item(&mut self, completion_item: CompletionItem) -> Dispatches {
         self.completion_dropdown
             .update_current_item(completion_item.into());
         self.render_completion_dropdown(false)
+    }
+
+    fn previous_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
+        self.completion_dropdown.previous_item();
+        Ok(self.render_completion_dropdown(false))
+    }
+
+    fn next_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
+        self.completion_dropdown.next_item();
+        let dispatches = self.render_completion_dropdown(false);
+        log::info!("next_compl = {dispatches:?}");
+        Ok(self.render_completion_dropdown(false))
+    }
+
+    fn select_completion_item(&mut self) -> Result<Dispatches, anyhow::Error> {
+        let current_item = self.completion_dropdown.current_item();
+        if let Some(completion) = current_item {
+            self.completion_dropdown.set_items(Vec::new());
+            Ok(Dispatches::one(Dispatch::CloseDropdown).chain(completion.dispatches))
+        } else {
+            Ok(Default::default())
+        }
+    }
+
+    pub(crate) fn update_current_line(
+        &mut self,
+        context: &Context,
+        display: &str,
+    ) -> anyhow::Result<Dispatches> {
+        self.editor_mut().update_current_line(context, display)
+    }
+
+    pub(crate) fn update_items(&mut self, items: Vec<DropdownItem>) {
+        self.completion_dropdown.set_items(items)
     }
 }
 
@@ -267,27 +296,35 @@ pub(crate) enum DispatchSuggestiveEditor {
     #[cfg(test)]
     CompletionFilter(SuggestiveEditorFilter),
     Completion(Completion),
-    UpdateCurrentCompletionItem(CompletionItem),
+    UpdateCurrentCompletionItem(Box<CompletionItem>),
+    MoveToCompletionItem(Direction),
+    SelectCompletionItem,
+    UpdateFilter,
 }
 
 #[cfg(test)]
 mod test_suggestive_editor {
-    use crate::components::editor::DispatchEditor::*;
+    use crate::components::editor::{DispatchEditor::*, IfCurrentNotFound};
     use crate::components::suggestive_editor::DispatchSuggestiveEditor::*;
+    use crate::context::Context;
     use crate::lsp::completion::{CompletionItemEdit, PositionalEdit};
     use crate::lsp::documentation::Documentation;
     use crate::position::Position;
+    use crate::selection::SelectionMode;
+    use crate::ui_tree::ComponentKind;
     use crate::{
         app::Dispatch,
-        buffer::Buffer,
+        buffer::{Buffer, BufferOwner},
         components::{component::Component, editor::Direction},
         lsp::completion::{Completion, CompletionItem},
         test_app::execute_test,
         test_app::ExpectKind::*,
         test_app::Step::*,
     };
+    use event::event::Event;
     use lsp_types::{CompletionItemKind, CompletionTextEdit, TextEdit};
     use my_proc_macros::{key, keys};
+    use serial_test::serial;
     use shared::canonicalized_path::CanonicalizedPath;
     use std::{cell::RefCell, rc::Rc};
     use Dispatch::*;
@@ -321,11 +358,10 @@ mod test_suggestive_editor {
         let path: CanonicalizedPath = file.path().to_path_buf().try_into().unwrap();
 
         editor.editor_mut().buffer_mut().set_path(path);
-
         // Enter insert mode
         let _ = editor
             .editor_mut()
-            .enter_insert_mode(Direction::Start)
+            .enter_insert_mode(Direction::Start, &Context::default())
             .unwrap();
 
         // Type something
@@ -351,7 +387,7 @@ mod test_suggestive_editor {
         // Enter insert mode
         let dispatches = editor
             .editor_mut()
-            .enter_insert_mode(Direction::Start)
+            .enter_insert_mode(Direction::Start, &Context::default())
             .unwrap();
 
         // Expect the signature help request to be sent
@@ -365,7 +401,11 @@ mod test_suggestive_editor {
     fn completion_without_edit_1() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
@@ -380,7 +420,7 @@ mod test_suggestive_editor {
                 // Expect the dropdown items to be filtered
                 Expect(CompletionDropdownIsOpen(true)),
                 Expect(CompletionDropdownContent(" Patrick")),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 // Expect the buffer to contain the selected item
                 Expect(CurrentComponentContent("Patrick")),
                 Expect(CompletionDropdownIsOpen(false)),
@@ -393,7 +433,11 @@ mod test_suggestive_editor {
     fn completion_without_edit_2() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
@@ -402,18 +446,22 @@ mod test_suggestive_editor {
                 // Type in '.',,
                 App(HandleKeyEvents(keys!("a .").to_vec())),
                 Expect(CurrentComponentContent("a.")),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("a.Patrick")),
             ])
         })
     }
 
     #[test]
-    /// Should replace long word, not short word
+    /// Should replace word, not subword
     fn completion_without_edit_3() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
@@ -428,7 +476,7 @@ mod test_suggestive_editor {
                 // Type in 'aBigCat'
                 Editor(Insert("aBigCat".to_string())),
                 Expect(EditorCursorPosition(Position::new(0, 7))),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("aBigCatDog")),
             ])
         })
@@ -439,7 +487,11 @@ mod test_suggestive_editor {
     fn completion_without_edit_4() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("()".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 Editor(MatchLiteral("(".to_string())),
@@ -455,18 +507,22 @@ mod test_suggestive_editor {
                 Editor(EnterInsertMode(Direction::End)),
                 // Type in 'aBigCat',,
                 Editor(Insert("aBigCat".to_string())),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("(aBigCatDog)")),
             ])
         })
     }
 
     #[test]
-    /// Should use `insert_text` if is it defined present
+    /// Should use `insert_text` if it is defined
     fn completion_without_edit_5() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("hello".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 Editor(MatchLiteral("hello".to_string())),
@@ -482,7 +538,7 @@ mod test_suggestive_editor {
                 })),
                 Editor(EnterInsertMode(Direction::End)),
                 Editor(Insert(" aBig".to_string())),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("hello harimau")),
             ])
         })
@@ -493,7 +549,11 @@ mod test_suggestive_editor {
         let test = |text_edit: Option<CompletionTextEdit>| {
             execute_test(move |s| {
                 Box::new([
-                    App(OpenFile(s.main_rs())),
+                    App(OpenFile {
+                        path: s.main_rs(),
+                        owner: BufferOwner::User,
+                        focus: true,
+                    }),
                     Editor(SetContent("hello".to_string())),
                     Editor(EnterInsertMode(Direction::Start)),
                     Editor(MatchLiteral("hello".to_string())),
@@ -532,7 +592,7 @@ mod test_suggestive_editor {
                     })),
                     Editor(EnterInsertMode(Direction::End)),
                     Editor(Insert(" aBig".to_string())),
-                    App(HandleKeyEvent(key!("ctrl+space"))),
+                    App(HandleKeyEvent(key!("tab"))),
                     Expect(CurrentComponentContent("import 'cats';hello! aBigCat")),
                 ])
             })
@@ -555,7 +615,11 @@ mod test_suggestive_editor {
     fn update_current_completion_item() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("hello".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 Editor(MatchLiteral("hello".to_string())),
@@ -574,11 +638,11 @@ mod test_suggestive_editor {
                 Editor(Insert(" a".to_string())),
                 App(HandleKeyEvent(key!("ctrl+n"))),
                 // Update the current completion
-                SuggestiveEditor(UpdateCurrentCompletionItem(
+                SuggestiveEditor(UpdateCurrentCompletionItem(Box::new(
                     CompletionItem::from_label("abanana".to_string())
                         .set_insert_text(Some("apisang".to_string())),
-                )),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                ))),
+                App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("hello apisang")),
             ])
         })
@@ -601,7 +665,11 @@ mod test_suggestive_editor {
         };
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
@@ -628,10 +696,60 @@ mod test_suggestive_editor {
     }
 
     #[test]
+    /// If there are multiple cursors, then Edit should be ignored
+    /// and replace the words under cursors with the completion label instead.
+    /// This is because the Edit range is only applicable to the primary cursor.
+    fn completion_with_edit_multicursor() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("foo bar spam".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    crate::selection::SelectionMode::Subword,
+                )),
+                Editor(CursorAddToAllSelections),
+                Editor(EnterInsertMode(Direction::End)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(Completion(Completion {
+                    trigger_characters: vec![".".to_string()],
+                    items: vec![CompletionItem {
+                        label: "foochuk".to_string(),
+                        edit: Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
+                            range: Position::new(0, 0)..Position::new(0, 3),
+                            new_text: "foochuk".to_string(),
+                        })),
+                        documentation: None,
+                        sort_text: None,
+                        kind: None,
+                        detail: None,
+                        insert_text: None,
+                        completion_item: Default::default(),
+                    }]
+                    .into_iter()
+                    .map(|item| item.into())
+                    .collect(),
+                })),
+                App(HandleKeyEvent(key!("tab"))),
+                Expect(CurrentComponentContent("foochuk foochuk foochuk")),
+            ])
+        })
+    }
+
+    #[test]
     fn completion_with_edit() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
@@ -656,7 +774,7 @@ mod test_suggestive_editor {
                     .map(|item| item.into())
                     .collect(),
                 })),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("Spongebob")),
                 App(HandleKeyEvents(keys!("e n d").to_vec())),
                 Expect(CurrentComponentContent("Spongebobend")),
@@ -668,7 +786,11 @@ mod test_suggestive_editor {
     fn navigate_dropdown() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
@@ -679,9 +801,9 @@ mod test_suggestive_editor {
                 Expect(CompletionDropdownSelectedItem("Spongebob")),
                 App(HandleKeyEvent(key!("up"))),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
-                App(HandleKeyEvent(key!("ctrl+n"))),
+                App(HandleKeyEvent(key!("alt+l"))),
                 Expect(CompletionDropdownSelectedItem("Spongebob")),
-                App(HandleKeyEvent(key!("ctrl+p"))),
+                App(HandleKeyEvent(key!("alt+j"))),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
             ])
         })
@@ -691,7 +813,11 @@ mod test_suggestive_editor {
     fn trigger_characters() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
@@ -714,7 +840,11 @@ mod test_suggestive_editor {
     fn enter_normal_mode_should_close_completion_dropdown() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(Completion(dummy_completion())),
@@ -732,15 +862,27 @@ mod test_suggestive_editor {
     fn enter_normal_mode_should_close_info() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
                 App(ShowEditorInfo(Info::default())),
-                Expect(EditorInfoOpen(true)),
+                App(ShowGlobalInfo(Info::default())),
+                Expect(ComponentsOrder(
+                    [
+                        ComponentKind::SuggestiveEditor,
+                        ComponentKind::GlobalInfo,
+                        ComponentKind::EditorInfo,
+                    ]
+                    .to_vec(),
+                )),
                 Expect(CurrentPath(s.main_rs())),
                 App(HandleKeyEvent(key!("esc"))),
-                Expect(EditorInfoOpen(false)),
+                Expect(ComponentsOrder([ComponentKind::SuggestiveEditor].to_vec())),
             ])
         })
     }
@@ -758,7 +900,11 @@ mod test_suggestive_editor {
         };
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
@@ -775,7 +921,11 @@ mod test_suggestive_editor {
     fn filter_with_current_word() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
@@ -795,7 +945,11 @@ mod test_suggestive_editor {
     fn setting_completion_when_not_in_insert_mode() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterNormalMode),
@@ -804,7 +958,8 @@ mod test_suggestive_editor {
                 // Expect the completion dropdown to not be opened,
                 // since the editor is not in insert mode
                 Expect(CompletionDropdownIsOpen(false)),
-                Editor(MoveSelection(crate::components::editor::Movement::Next)),
+                Expect(CurrentSelectionMode(SelectionMode::Line)),
+                Editor(MoveSelection(crate::components::editor::Movement::Right)),
                 Expect(CompletionDropdownIsOpen(false)),
             ])
         })
@@ -814,7 +969,11 @@ mod test_suggestive_editor {
     fn completion_with_emoji() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
@@ -838,7 +997,7 @@ mod test_suggestive_editor {
                 })),
                 App(HandleKeyEvent(key!("s"))),
                 Expect(CompletionDropdownContent("💥 Spongebob")),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 // Expect the content of the buffer to be applied with the new edit,
                 // resulting in 'Spongebob', and does not contain emoji
                 Expect(CurrentComponentContent("Spongebob")),
@@ -847,10 +1006,47 @@ mod test_suggestive_editor {
     }
 
     #[test]
+    #[serial]
+    fn completion_should_update_for_paste_event() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("".to_string())),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                Editor(EnterInsertMode(Direction::Start)),
+                // Pretend that the LSP server returned a completion
+                // That is without edit, but contains `kind`, which means it has emoji
+                SuggestiveEditor(Completion(Completion {
+                    items: [
+                        CompletionItem::from_label("spongebob".to_string()),
+                        CompletionItem::from_label("patrick".to_string()),
+                    ]
+                    .into_iter()
+                    .map(|item| item.into())
+                    .collect(),
+                    trigger_characters: Vec::new(),
+                })),
+                Expect(CompletionDropdownContent(" patrick\n spongebob")),
+                App(HandleEvent(Event::Paste("patr".to_string()))),
+                // Expect the completion dropdown to contain only "patrick" after the paste even
+                Expect(CompletionDropdownContent(" patrick")),
+            ])
+        })
+    }
+
+    #[test]
     fn hide_dropdown_when_no_matching_candidates() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
@@ -924,6 +1120,10 @@ impl Info {
     pub(crate) fn title(&self) -> String {
         self.title.clone()
     }
+
+    pub(crate) fn display(&self) -> String {
+        format!("{}\n\n{}", self.title(), self.content())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -966,4 +1166,27 @@ impl Decoration {
             ..self
         }
     }
+}
+
+pub(crate) fn completion_item_keymaps(context: &Context) -> Keymaps {
+    Keymaps::new(&[
+        Keymap::new_extended(
+            alted(context.keyboard_layout_kind().get_key(&Meaning::Right)),
+            Direction::End.format_action("Comp"),
+            "Next Completion Item".to_string(),
+            Dispatch::MoveToCompletionItem(Direction::End),
+        ),
+        Keymap::new_extended(
+            alted(context.keyboard_layout_kind().get_key(&Meaning::Left_)),
+            Direction::Start.format_action("Comp"),
+            "Previous Completion Item".to_string(),
+            Dispatch::MoveToCompletionItem(Direction::Start),
+        ),
+        Keymap::new_extended(
+            alted(context.keyboard_layout_kind().get_key(&Meaning::Rplc_)),
+            "Replace Comp".to_string(),
+            "Replace Completion Item".to_string(),
+            Dispatch::SelectCompletionItem,
+        ),
+    ])
 }

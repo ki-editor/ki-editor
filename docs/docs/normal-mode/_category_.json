@@ -1,0 +1,8 @@
+{
+    "label": "Normal Mode",
+    "position": 5,
+    "link": {
+        "type": "doc",
+        "id": "normal-mode/index"
+    }
+}

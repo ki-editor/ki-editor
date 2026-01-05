@@ -77,6 +77,7 @@ impl Token {
             "insert" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Insert)),
             "space" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Char(' '))),
             "backslash" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Char('\\'))),
+            "pipe" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Char('|'))),
             _ if s.len() == 1 => {
                 let c = s.chars().next().unwrap();
                 Ok(ParseKeyCodeResult {
@@ -111,7 +112,7 @@ pub enum ParseError {
 
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -125,6 +126,17 @@ mod test_key_event {
 
     use super::parse_key_events;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn reciprocity() {
+        fn run_test(input: &'static str) {
+            assert_eq!(parse_key_events(input).unwrap()[0].display(), input)
+        }
+        run_test("space");
+        run_test("ctrl+a");
+        run_test("ctrl+shift+t");
+        run_test("alt+shift+backspace");
+    }
 
     #[test]
     fn alphabetic_char() {

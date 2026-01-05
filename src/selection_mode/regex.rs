@@ -1,30 +1,31 @@
 use crate::{buffer::Buffer, list::grep::RegexConfig};
 
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, IterBasedSelectionMode};
 
 pub(crate) struct Regex {
-    regex: regex::Regex,
+    regex: fancy_regex::Regex,
     content: String,
 }
 
-pub(crate) fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<regex::Regex> {
+/// BOTTLENECK 3
+pub(crate) fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<fancy_regex::Regex> {
     let pattern = if config.escaped {
         regex::escape(pattern)
     } else {
         pattern.to_string()
     };
     let pattern = if config.match_whole_word {
-        format!("\\b{}\\b", pattern)
+        format!("\\b{pattern}\\b")
     } else {
         pattern
     };
     let pattern = if config.case_sensitive {
         pattern
     } else {
-        format!("(?i){}", pattern)
+        format!("(?i){pattern}")
     };
-    let pattern = format!("(?m){}", pattern);
-    Ok(regex::Regex::new(&pattern)?)
+    let pattern = format!("(?m){pattern}");
+    Ok(fancy_regex::Regex::new(&pattern)?)
 }
 
 impl Regex {
@@ -39,31 +40,17 @@ impl Regex {
             content: buffer.rope().to_string(),
         })
     }
-
-    pub(crate) fn new(buffer: &Buffer, pattern: &str) -> anyhow::Result<Self> {
-        let regex = get_regex(
-            pattern,
-            RegexConfig {
-                escaped: false,
-                case_sensitive: false,
-                match_whole_word: false,
-            },
-        )?;
-        Ok(Self {
-            regex,
-            content: buffer.rope().to_string(),
-        })
-    }
 }
 
-impl SelectionMode for Regex {
+impl IterBasedSelectionMode for Regex {
     fn iter<'a>(
         &'a self,
-        _params: super::SelectionModeParams<'a>,
+        _params: &super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let matches = self.regex.find_iter(&self.content);
-        Ok(Box::new(matches.map(move |matches| {
-            ByteRange::new(matches.start()..matches.end())
+        Ok(Box::new(matches.filter_map(move |matches| {
+            let matches = matches.ok()?;
+            Some(ByteRange::new(matches.start()..matches.end()))
         })))
     }
 }

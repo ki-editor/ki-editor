@@ -29,6 +29,6 @@ pub fn get_icon_config() -> &'static IconsConfig {
 
 fn check_for_zwj(value: &String) {
     if value.chars().any(|c| c == ZERO_WIDTH_JOINER) {
-        panic!("The value {} contains ZWJ (Zero-width joiner). Joined characters are not supported for now.", value);
+        panic!("The value {value} contains ZWJ (Zero-width joiner). Joined characters are not supported for now.");
     }
 }

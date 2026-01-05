@@ -1,54 +1,20 @@
-use std::path::PathBuf;
-
-use isahc::prelude::*;
-
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct GetHighlightQueryResult {
     pub(crate) query: String,
-    is_cache: bool,
 }
 
-pub fn cache_dir() -> PathBuf {
-    grammar::cache_dir().join("tree_sitter_highlight_queries")
-}
-
-pub fn clear_cache() -> anyhow::Result<()> {
-    let path = cache_dir();
-    if path.exists() {
-        Ok(std::fs::remove_dir_all(path)?)
-    } else {
-        Ok(())
-    }
-}
-
-/// Get highlight query from cache or `nvim-treesitter` repo.
-pub(crate) fn get_highlight_query(language_id: &str) -> anyhow::Result<GetHighlightQueryResult> {
-    let cache_dir = cache_dir();
-    std::fs::create_dir_all(cache_dir.clone())?;
-    let cache_path = cache_dir.join(format!("{}.scm", language_id));
-    if let Ok(text) = std::fs::read_to_string(cache_path.clone()) {
-        return Ok(GetHighlightQueryResult {
-            query: text,
-            is_cache: true,
-        });
-    }
-
-    let nvim_tree_sitter_highlight_query_url = format!("https://raw.githubusercontent.com/nvim-treesitter/nvim-treesitter/master/queries/{}/highlights.scm", language_id);
-
-    let current = isahc::get(nvim_tree_sitter_highlight_query_url)?.text()?;
+/// Get highlight query from nvim-treesitter, possibly by using parent languages
+pub(crate) fn get_highlight_query(language_id: &str) -> Option<GetHighlightQueryResult> {
+    let current =
+        nvim_treesitter_highlight_queries::get_nvim_treesitter_highlight_query_by_id(language_id)?;
     let parent = get_highlight_query_parents(&current)
         .into_iter()
-        .map(|parent| -> anyhow::Result<_> { Ok(get_highlight_query(&parent)?.query) })
-        .collect::<Result<Vec<_>, _>>()?
+        .map(|parent| get_highlight_query(&parent).map(|result| result.query))
+        .collect::<Option<Vec<_>>>()?
         .join("\n\n");
 
-    let result = format!("{}\n\n{}", parent, current);
-    std::fs::write(cache_path, &result)?;
-
-    Ok(GetHighlightQueryResult {
-        query: result,
-        is_cache: false,
-    })
+    let result = format!("{parent}\n\n{current}");
+    Some(GetHighlightQueryResult { query: result })
 }
 
 /// This function extracts the parent of a Tree-sitter highlight query parents,
@@ -75,16 +41,12 @@ fn get_highlight_query_parents(content: &str) -> Vec<String> {
 mod test_language {
     use super::*;
     #[test]
-    fn test_get_highlight_query() -> anyhow::Result<()> {
-        clear_cache()?;
-        let result1 = get_highlight_query("tsx")?;
-        assert!(!result1.is_cache);
-        assert!(result1.query.contains("\"require\" @keyword.import"));
-        let result2 = get_highlight_query("tsx")?;
-        assert!(result2.is_cache);
-        assert_eq!(result1.query, result2.query);
-
-        Ok(())
+    fn test_get_highlight_query() {
+        assert!(get_highlight_query("tsx")
+            .unwrap()
+            .query
+            .contains("\"require\" @keyword.import"));
+        assert!(get_highlight_query("Not a Language").is_none());
     }
 
     #[test]

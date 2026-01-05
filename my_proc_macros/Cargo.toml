@@ -7,8 +7,9 @@ edition = "2021"
 
 [dependencies]
 event = { path = "../event" }
-crossterm.workspace = true
+quote = "1.0.42"
 regex.workspace = true
+syn = { version = "2.0.112", features = ["full"] }
 
 [lib]
 proc-macro = true

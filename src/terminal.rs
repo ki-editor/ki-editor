@@ -48,7 +48,7 @@ pub(crate) fn run_integrated_terminal(rows: u16, cols: u16) -> Result<(), anyhow
                 Ok(0) => break, // EOF
                 Ok(n) => n,
                 Err(e) => {
-                    eprintln!("Error reading from pty: {}", e);
+                    eprintln!("Error reading from pty: {e}");
                     break;
                 }
             };
@@ -57,7 +57,7 @@ pub(crate) fn run_integrated_terminal(rows: u16, cols: u16) -> Result<(), anyhow
             let output = match std::str::from_utf8(&buf[..n]) {
                 Ok(s) => s,
                 Err(e) => {
-                    eprintln!("Invalid UTF-8 sequence: {}", e);
+                    eprintln!("Invalid UTF-8 sequence: {e}");
                     continue;
                 }
             };
@@ -84,7 +84,7 @@ pub(crate) fn run_integrated_terminal(rows: u16, cols: u16) -> Result<(), anyhow
 
             // Print the output
             // print!("{}", output);
-            print!("{}", output);
+            print!("{output}");
 
             // Flush the standard output
             std::io::stdout().flush().unwrap();
@@ -100,14 +100,14 @@ pub(crate) fn run_integrated_terminal(rows: u16, cols: u16) -> Result<(), anyhow
                 Ok(0) => break, // EOF
                 Ok(n) => n,
                 Err(e) => {
-                    eprintln!("Error reading from stdin: {}", e);
+                    eprintln!("Error reading from stdin: {e}");
                     break;
                 }
             };
 
             // Write the bytes to the writer
             if let Err(e) = writer.write_all(&buf[..n]) {
-                eprintln!("Error writing to pty: {}", e);
+                eprintln!("Error writing to pty: {e}");
                 break;
             }
         }

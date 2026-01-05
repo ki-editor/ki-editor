@@ -1,4 +1,4 @@
-use std::{cell::RefCell, ops::Range, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
@@ -6,6 +6,7 @@ use lsp_types::DiagnosticSeverity;
 use crate::{
     app::Dispatches,
     buffer::Buffer,
+    char_index_range::CharIndexRange,
     components::{
         dropdown::{Dropdown, DropdownConfig, DropdownItem},
         editor::Movement,
@@ -16,40 +17,73 @@ use crate::{
 use shared::canonicalized_path::CanonicalizedPath;
 
 impl QuickfixListItem {
-    fn into_dropdown_item(self: QuickfixListItem, buffers: &[Rc<RefCell<Buffer>>]) -> DropdownItem {
-        let location = self.location();
-        let Position { line, column } = location.range.start;
+    fn into_dropdown_item(
+        self: QuickfixListItem,
+        buffers: &[Rc<RefCell<Buffer>>],
+        current_working_directory: &CanonicalizedPath,
+    ) -> DropdownItem {
+        let buffer = buffers
+            .iter()
+            .find(|buffer| {
+                if let Some(path) = buffer.borrow().path() {
+                    path == self.location.path
+                } else {
+                   false
+                }
+            })
+            .unwrap_or_else(|| panic!("The unique buffers of all quickfix list items should be preloaded beforehand, but the buffer for {:?} is not loaded.",
+                    self.location.path));
+        let position_range = buffer
+            .borrow()
+            .char_index_range_to_position_range(self.location.range)
+            .ok()
+            .unwrap_or_default();
+        let Position { line, column } = position_range.start;
+
+        let prefix = format!("{}:{}  ", line + 1, column + 1);
+
+        let highlight_column_range = if position_range.end.line == position_range.start.line {
+            let left_padding = prefix.chars().count();
+            Some(
+                position_range.start.column + left_padding
+                    ..position_range.end.column + left_padding,
+            )
+        } else {
+            None
+        };
         DropdownItem::new({
-            let content = location
-                .read_from_buffers(buffers)
-                .unwrap_or_else(|| "[Failed to read file]".to_string())
-                .trim_matches(|c: char| c.is_whitespace())
-                .to_string();
-            format!("{}:{}  {}", line + 1, column + 1, content)
+            let content = self
+                .line
+                .map(|line| line.trim_end_matches(['\n', '\r']).to_string())
+                .unwrap_or_else(|| {
+                    self.location
+                        .read_from_buffers(buffers)
+                        .unwrap_or_else(|| "[Failed to read file]".to_string())
+                        .trim_matches(['\n', '\r'])
+                        .to_string()
+                });
+            format!("{prefix}{content}")
         })
         .set_info(self.info.clone())
         .set_group({
-            let path = self.location().path.clone();
+            let path = self.location.path.clone();
             Some(
-                path.display_relative()
+                path.display_relative_to(current_working_directory)
                     .unwrap_or_else(|_| path.display_absolute()),
             )
         })
         .set_dispatches(Dispatches::one(crate::app::Dispatch::GotoLocation(
-            self.location().to_owned(),
+            self.location.to_owned(),
         )))
         .set_rank(Some(Box::new([line, column])))
+        .set_highlight_column_range(highlight_column_range)
     }
 
-    pub(crate) fn set_location_range(self, range: Range<Position>) -> QuickfixListItem {
-        let QuickfixListItem {
-            location: Location { path, .. },
-            info,
-        } = self;
-        QuickfixListItem {
-            info,
-            location: Location { path, range },
-        }
+    pub(crate) fn apply_edit(self, edit: &crate::edit::Edit) -> Option<Self> {
+        Some(Self {
+            location: self.location.apply_edit(edit)?,
+            ..self
+        })
     }
 }
 
@@ -61,21 +95,24 @@ pub(crate) struct QuickfixList {
 
 impl QuickfixList {
     pub(crate) fn new(
+        title: String,
         items: Vec<QuickfixListItem>,
         buffers: Vec<Rc<RefCell<Buffer>>>,
+        current_working_directory: &CanonicalizedPath,
     ) -> QuickfixList {
         let mut dropdown = Dropdown::new(DropdownConfig {
-            title: "Quickfix".to_string(),
+            title: title.clone(),
         });
         // Merge items of same locations
         let items = items
             .into_iter()
             // Sort the items by location
             .sorted_by_key(|item| item.location.clone())
-            .group_by(|item| item.location.clone())
+            .chunk_by(|item| (item.location.clone(), item.line.clone()))
             .into_iter()
-            .map(|(location, items)| QuickfixListItem {
+            .map(|((location, line), items)| QuickfixListItem {
                 location,
+                line,
                 info: items
                     .into_iter()
                     .flat_map(|item| item.info)
@@ -85,7 +122,10 @@ impl QuickfixList {
         dropdown.set_items(
             items
                 .iter()
-                .map(|item| item.to_owned().into_dropdown_item(&buffers))
+                .map(|item| {
+                    item.to_owned()
+                        .into_dropdown_item(&buffers, current_working_directory)
+                })
                 .collect(),
         );
 
@@ -122,6 +162,14 @@ impl QuickfixList {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct QuickfixListItem {
+    /// This field is for performance optimization,
+    /// if it exists, then we do not need to query the filesystem
+    /// for the contain of this line (specified by `self.location.range.start.line`).
+    ///
+    /// This is actually not merely for performance optimization,
+    /// it also avoid an issues where sometimes the location of a file   
+    /// cannot be query, which happens frequently when we made global search async.   
+    line: Option<String>,
     location: Location,
     info: Option<Info>,
 }
@@ -143,13 +191,22 @@ impl From<Location> for QuickfixListItem {
         QuickfixListItem {
             location: value,
             info: None,
+            line: None,
         }
     }
 }
 
 impl QuickfixListItem {
-    pub(crate) fn new(location: Location, info: Option<Info>) -> QuickfixListItem {
-        QuickfixListItem { location, info }
+    pub(crate) fn new(
+        location: Location,
+        info: Option<Info>,
+        line: Option<String>,
+    ) -> QuickfixListItem {
+        QuickfixListItem {
+            location,
+            info,
+            line,
+        }
     }
 
     pub(crate) fn location(&self) -> &Location {
@@ -169,7 +226,7 @@ impl QuickfixListItem {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct Location {
     pub(crate) path: CanonicalizedPath,
-    pub(crate) range: Range<Position>,
+    pub(crate) range: CharIndexRange,
 }
 
 impl Location {
@@ -187,10 +244,18 @@ impl Location {
                 Some(
                     buffer
                         .borrow()
-                        .get_line_by_line_index(self.range.start.line)?
+                        .get_line_by_char_index(self.range.start)
+                        .ok()?
                         .to_string(),
                 )
             })
+    }
+
+    fn apply_edit(self, edit: &crate::edit::Edit) -> Option<Location> {
+        Some(Self {
+            range: self.range.apply_edit(edit)?,
+            ..self
+        })
     }
 }
 
@@ -198,14 +263,16 @@ impl TryFrom<lsp_types::Location> for Location {
     type Error = anyhow::Error;
 
     fn try_from(value: lsp_types::Location) -> Result<Self, Self::Error> {
-        Ok(Location {
-            path: value
-                .uri
-                .to_file_path()
-                .map_err(|_| anyhow::anyhow!("Failed to convert uri to file path"))?
-                .try_into()?,
-            range: value.range.start.into()..value.range.end.into(),
-        })
+        let path = value
+            .uri
+            .to_file_path()
+            .map_err(|_| anyhow::anyhow!("Failed to convert uri to file path"))?
+            .try_into()?;
+        let buffer = Buffer::from_path(&path, false)?;
+        let range = buffer.position_range_to_char_index_range(
+            &(value.range.start.into()..value.range.end.into()),
+        )?;
+        Ok(Location { path, range })
     }
 }
 
@@ -217,10 +284,10 @@ impl PartialOrd for Location {
 
 impl Ord for Location {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        (&self.path, self.range.start.line, self.range.start.column).cmp(&(
+        (&self.path, self.range.start, self.range.start).cmp(&(
             &other.path,
-            other.range.start.line,
-            other.range.start.column,
+            other.range.start,
+            other.range.start,
         ))
     }
 }
@@ -229,7 +296,7 @@ impl Ord for Location {
 pub(crate) enum QuickfixListType {
     Diagnostic(DiagnosticSeverityRange),
     Items(Vec<QuickfixListItem>),
-    Bookmark,
+    Mark,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
@@ -267,72 +334,100 @@ impl DiagnosticSeverityRange {
 
 #[cfg(test)]
 mod test_quickfix_list {
-    use crate::{components::suggestive_editor::Info, position::Position};
+    use std::{cell::RefCell, rc::Rc};
+
+    use crate::{buffer::Buffer, components::suggestive_editor::Info, selection::CharIndex};
 
     use super::{Location, QuickfixList, QuickfixListItem};
+    use itertools::Itertools;
     use pretty_assertions::assert_eq;
+    use shared::canonicalized_path::CanonicalizedPath;
 
     #[test]
     fn should_sort_items() {
+        let git_ignore_path: CanonicalizedPath = ".gitignore".try_into().unwrap();
+        let readme_path: CanonicalizedPath = "readme.md".try_into().unwrap();
         let foo = QuickfixListItem {
             location: Location {
-                path: ".gitignore".try_into().unwrap(),
-                range: Position { line: 1, column: 2 }..Position { line: 1, column: 3 },
+                path: git_ignore_path.clone(),
+                range: (CharIndex(2)..CharIndex(3)).into(),
             },
             info: None,
+            line: None,
         };
         let bar = QuickfixListItem {
             location: Location {
-                path: "readme.md".try_into().unwrap(),
-                range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
+                path: readme_path.clone(),
+                range: (CharIndex(1)..CharIndex(2)).into(),
             },
             info: None,
+            line: None,
         };
         let spam = QuickfixListItem {
             location: Location {
-                path: ".gitignore".try_into().unwrap(),
-                range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
+                path: git_ignore_path.clone(),
+                range: (CharIndex(1)..CharIndex(2)).into(),
             },
             info: None,
+            line: None,
         };
-        let quickfix_list =
-            QuickfixList::new(vec![foo.clone(), bar.clone(), spam.clone()], Vec::new());
+        let quickfix_list = QuickfixList::new(
+            "".to_string(),
+            vec![foo.clone(), bar.clone(), spam.clone()],
+            [readme_path, git_ignore_path]
+                .into_iter()
+                .map(|path| Rc::new(RefCell::new(Buffer::from_path(&path, false).unwrap())))
+                .collect_vec(),
+            &std::env::current_dir().unwrap().try_into().unwrap(),
+        );
         assert_eq!(quickfix_list.items(), vec![spam, foo, bar])
     }
 
     #[test]
     fn should_merge_items_of_same_location() {
+        let readme_path: CanonicalizedPath = "readme.md".try_into().unwrap();
         let items = [
             QuickfixListItem {
                 location: Location {
-                    path: "readme.md".try_into().unwrap(),
-                    range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
+                    path: readme_path.clone(),
+                    range: (CharIndex(1)..CharIndex(2)).into(),
                 },
                 info: Some(Info::new("Title 1".to_string(), "spongebob".to_string())),
+                line: None,
             },
             QuickfixListItem {
                 location: Location {
-                    path: "readme.md".try_into().unwrap(),
-                    range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
+                    path: readme_path.clone(),
+                    range: (CharIndex(1)..CharIndex(2)).into(),
                 },
                 info: Some(Info::new("Title 2".to_string(), "squarepants".to_string())),
+                line: None,
             },
         ]
         .to_vec();
 
-        let quickfix_list = QuickfixList::new(items, Vec::new());
+        let quickfix_list = QuickfixList::new(
+            "".to_string(),
+            items,
+            [readme_path]
+                .into_iter()
+                .map(|path| Rc::new(RefCell::new(Buffer::from_path(&path, false).unwrap())))
+                .collect_vec(),
+            &std::env::current_dir().unwrap().try_into().unwrap(),
+        );
 
         assert_eq!(
             quickfix_list.items(),
             vec![QuickfixListItem {
                 location: Location {
                     path: "readme.md".try_into().unwrap(),
-                    range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
+                    range: (CharIndex(1)..CharIndex(2)).into(),
                 },
                 info: Some(Info::new(
                     "Title 1".to_string(),
                     ["spongebob", "squarepants"].join("\n==========\n")
-                ))
+                )),
+                line: None
             }]
         )
     }

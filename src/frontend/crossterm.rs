@@ -1,25 +1,27 @@
 use crate::{components::component::Cursor, screen::Screen};
+use std::io::{self};
 
-use super::Frontend;
+use super::{Frontend, MyWriter};
 
 pub(crate) struct Crossterm {
-    stdout: std::io::Stdout,
+    stdout: Box<dyn MyWriter>,
     /// Used for diffing to reduce unnecessary re-painting.
     previous_screen: Screen,
 }
 
-impl Crossterm {
-    pub(crate) fn new() -> Crossterm {
-        Crossterm {
-            stdout: std::io::stdout(),
-            previous_screen: Screen::default(),
-        }
+impl MyWriter for std::io::Stdout {
+    #[cfg(test)]
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
-impl Default for Crossterm {
-    fn default() -> Self {
-        Self::new()
+impl Crossterm {
+    pub(crate) fn new() -> anyhow::Result<Crossterm> {
+        Ok(Crossterm {
+            stdout: Box::new(io::stdout()),
+            previous_screen: Screen::default(),
+        })
     }
 }
 
@@ -27,19 +29,46 @@ use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
     event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
     execute, queue,
-    style::{
-        Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
-        SetUnderlineColor,
-    },
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
 
 impl Frontend for Crossterm {
     fn get_terminal_dimension(&self) -> anyhow::Result<crate::app::Dimension> {
-        let (width, height) = terminal::size()?;
-        Ok(crate::app::Dimension { width, height })
+        // First try to get dimensions from environment variables
+        // This is particularly useful for VSCode integration where terminal access is limited
+        if let (Ok(width_str), Ok(height_str)) = (
+            std::env::var("KI_TERMINAL_WIDTH"),
+            std::env::var("KI_TERMINAL_HEIGHT"),
+        ) {
+            if let (Ok(width), Ok(height)) =
+                (width_str.parse::<usize>(), height_str.parse::<usize>())
+            {
+                log::debug!("Using terminal dimensions from environment: {width}x{height}");
+                return Ok(crate::app::Dimension { width, height });
+            }
+        }
+
+        // Fallback to crossterm terminal size detection
+        match terminal::size() {
+            Ok((width, height)) => {
+                log::debug!("Detected terminal dimensions: {width}x{height}");
+                Ok(crate::app::Dimension {
+                    width: width as usize,
+                    height: height as usize,
+                })
+            }
+            Err(e) => {
+                log::warn!("Failed to get terminal dimensions: {e}");
+                // If terminal size detection fails, use reasonable defaults
+                let width = 100;
+                let height = 30;
+                log::debug!("Using default dimensions: {width}x{height}");
+                Ok(crate::app::Dimension { width, height })
+            }
+        }
     }
+
     fn enter_alternate_screen(&mut self) -> anyhow::Result<()> {
         self.stdout.execute(EnterAlternateScreen)?;
         self.stdout.execute(EnableBracketedPaste)?;
@@ -63,13 +92,63 @@ impl Frontend for Crossterm {
     }
 
     fn enable_raw_mode(&mut self) -> anyhow::Result<()> {
-        crossterm::terminal::enable_raw_mode()?;
-        Ok(())
+        // Check if we're in VSCode mode
+        if let Ok(value) = std::env::var("KI_TERMINAL_WIDTH") {
+            if !value.is_empty() {
+                log::debug!("Skipping raw mode in VSCode integration mode");
+                return Ok(());
+            }
+        }
+
+        // Try to enable raw mode, but handle errors gracefully
+        match crossterm::terminal::enable_raw_mode() {
+            Ok(_) => {
+                log::debug!("Raw mode enabled successfully");
+                Ok(())
+            }
+            Err(e) => {
+                if let Some(raw_code) = e.raw_os_error() {
+                    if raw_code == 35 {
+                        // Resource temporarily unavailable
+                        log::warn!("Ignoring resource temporarily unavailable error when enabling raw mode");
+                        return Ok(());
+                    }
+                }
+                // For other errors, propagate them
+                log::error!("Failed to enable raw mode: {e}");
+                Err(anyhow::anyhow!("Failed to enable raw mode: {}", e))
+            }
+        }
     }
 
     fn disable_raw_mode(&mut self) -> anyhow::Result<()> {
-        crossterm::terminal::disable_raw_mode()?;
-        Ok(())
+        // Check if we're in VSCode mode
+        if let Ok(value) = std::env::var("KI_TERMINAL_WIDTH") {
+            if !value.is_empty() {
+                log::debug!("Skipping disable raw mode in VSCode integration mode");
+                return Ok(());
+            }
+        }
+
+        // Try to disable raw mode, but handle errors gracefully
+        match crossterm::terminal::disable_raw_mode() {
+            Ok(_) => {
+                log::debug!("Raw mode disabled successfully");
+                Ok(())
+            }
+            Err(e) => {
+                if let Some(raw_code) = e.raw_os_error() {
+                    if raw_code == 35 {
+                        // Resource temporarily unavailable
+                        log::warn!("Ignoring resource temporarily unavailable error when disabling raw mode");
+                        return Ok(());
+                    }
+                }
+                // For other errors, log but don't fail
+                log::warn!("Failed to disable raw mode: {e}");
+                Ok(()) // Return OK to avoid crashing on exit
+            }
+        }
     }
 
     fn show_cursor(&mut self, cursor: &Cursor) -> anyhow::Result<()> {
@@ -95,58 +174,15 @@ impl Frontend for Crossterm {
         Ok(())
     }
 
-    fn render_screen(&mut self, mut screen: Screen) -> anyhow::Result<()> {
-        let cells = {
-            // Only perform diff if the dimension is the same
-            let diff = if self.previous_screen.dimension() == screen.dimension() {
-                screen.diff(&mut self.previous_screen)
-            } else {
-                self.clear_screen()?;
-                screen.get_positioned_cells()
-            };
-            self.previous_screen = screen;
-
-            diff
-        };
-        for cell in cells {
-            queue!(
-                self.stdout,
-                MoveTo(cell.position.column as u16, cell.position.line as u16),
-                SetAttribute(if cell.cell.is_bold {
-                    Attribute::Bold
-                } else {
-                    Attribute::NoBold
-                }),
-                SetUnderlineColor(
-                    cell.cell
-                        .line
-                        .map(|line| line.color.into())
-                        .unwrap_or(Color::Reset),
-                ),
-                SetAttribute(
-                    cell.cell
-                        .line
-                        .map(|line| match line.style {
-                            crate::grid::CellLineStyle::Undercurl => Attribute::Undercurled,
-                            crate::grid::CellLineStyle::Underline => Attribute::Underlined,
-                        })
-                        .unwrap_or(Attribute::NoUnderline),
-                ),
-                SetBackgroundColor(cell.cell.background_color.into()),
-                SetForegroundColor(cell.cell.foreground_color.into()),
-                Print(reveal(&cell.cell.symbol)),
-                SetAttribute(Attribute::Reset),
-            )?;
-        }
-        Ok(())
+    fn writer(&mut self) -> &mut Box<dyn MyWriter> {
+        &mut self.stdout
     }
-}
 
-/// Convert invisible character to visible character
-fn reveal(s: &str) -> String {
-    match s {
-        "\n" => " ".to_string(),
-        "\t" => " ".to_string(),
-        _ => s.into(),
+    fn previous_screen(&mut self) -> Screen {
+        std::mem::take(&mut self.previous_screen)
+    }
+
+    fn set_previous_screen(&mut self, previous_screen: Screen) {
+        self.previous_screen = previous_screen
     }
 }

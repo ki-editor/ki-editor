@@ -1,6 +1,9 @@
-use std::cmp::Reverse;
+use std::{cmp::Reverse, ops::Range};
 
-use crate::{app::Dispatches, components::editor::Movement, position::Position};
+use crate::{
+    app::Dispatches, buffer::BufferOwner, components::editor::Movement, grid::StyleKey,
+    position::Position, selection_range::SelectionRange,
+};
 
 use itertools::Itertools;
 
@@ -22,6 +25,8 @@ pub(crate) struct DropdownItem {
     on_focused: Dispatches,
     /// Used to prevent spamming the LSP server with the same "completionItem/resolve" request
     resolved: bool,
+    /// Used for highlighting portion of the dropdown item display
+    highlight_column_range: Option<Range<usize>>,
 }
 
 impl DropdownItem {
@@ -38,11 +43,26 @@ impl DropdownItem {
             rank: None,
             on_focused: Default::default(),
             resolved: false,
+            highlight_column_range: None,
+        }
+    }
+
+    pub(crate) fn set_highlight_column_range(
+        self,
+        highlight_column_range: Option<Range<usize>>,
+    ) -> Self {
+        Self {
+            highlight_column_range,
+            ..self
         }
     }
 
     pub(crate) fn set_info(self, info: Option<Info>) -> Self {
         Self { info, ..self }
+    }
+
+    pub(crate) fn info(&self) -> Option<&Info> {
+        self.info.as_ref()
     }
 
     pub(crate) fn set_dispatches(self, dispatches: Dispatches) -> DropdownItem {
@@ -68,6 +88,37 @@ impl DropdownItem {
     pub(crate) fn resolved(&self) -> bool {
         self.resolved
     }
+
+    pub(crate) fn from_path_buf(
+        working_directory: &CanonicalizedPath,
+        path: std::path::PathBuf,
+    ) -> DropdownItem {
+        DropdownItem::new({
+            let name = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let icon = shared::canonicalized_path::get_path_icon(&path);
+            format!("{icon} {name}")
+        })
+        .set_group(path.parent().map(|parent| {
+            let relative = parent
+                .strip_prefix(working_directory)
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|_| parent.display().to_string());
+            format!("{} {}", shared::icons::get_icon_config().folder, relative,)
+        }))
+        .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFileFromPathBuf {
+            path,
+            owner: BufferOwner::User,
+            focus: true,
+        }))
+    }
+
+    pub(crate) fn group(&self) -> &Option<String> {
+        &self.group
+    }
 }
 
 impl From<CanonicalizedPath> for DropdownItem {
@@ -89,7 +140,11 @@ impl From<CanonicalizedPath> for DropdownItem {
                 parent.try_display_relative()
             )
         }))
-        .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFile(value)))
+        .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFile {
+            path: value,
+            owner: BufferOwner::User,
+            focus: true,
+        }))
     }
 }
 
@@ -235,6 +290,14 @@ impl Dropdown {
         self.get_item_by_index(self.current_item_index)
     }
 
+    pub(crate) fn all_filtered_items(&self) -> Vec<DropdownItem> {
+        self.filtered_item_groups
+            .iter()
+            .flat_map(|group| &group.items)
+            .map(|item| item.item.clone())
+            .collect()
+    }
+
     fn get_item_by_index(&self, item_index: usize) -> Option<DropdownItem> {
         self.filtered_item_groups
             .iter()
@@ -300,7 +363,7 @@ impl Dropdown {
             .into_iter()
             .sorted_by_key(|(item, _)| item.group.clone())
             // Sort by group first
-            .group_by(|(item, _)| item.group.clone())
+            .chunk_by(|(item, _)| item.group.clone())
             .into_iter()
             .map(|(group_key, items)| {
                 let items = items.collect_vec();
@@ -412,57 +475,114 @@ impl Dropdown {
     }
 
     pub(crate) fn render(&self) -> DropdownRender {
+        let (content, decorations) = self.content();
         DropdownRender {
             title: self.title.clone(),
-            content: self.content(),
-            decorations: self.decorations(),
+            content,
+            decorations: decorations
+                .into_iter()
+                .chain(self.fuzzy_match_decorations())
+                .collect(),
             highlight_line_index: self.current_item_line_index(),
             info: self.current_item().and_then(|item| item.info),
         }
     }
 
-    fn content(&self) -> String {
-        self.filtered_item_groups
+    /// The formatted content should follow the syntax of tree_sitter_quickfix.
+    /// See more at tree_sitter_quickfix/grammar.js
+    fn content(&self) -> (String, Vec<Decoration>) {
+        struct Line {
+            content: String,
+            highlight_column_range: Option<Range<usize>>,
+        }
+        let filtered_item_groups_length = self.filtered_item_groups.len();
+        let lines = self
+            .filtered_item_groups
             .iter()
-            .map(|group| {
+            .enumerate()
+            .flat_map(|(group_index, group)| {
                 if let Some(group_key) = group.group_key.as_ref() {
-                    let items_len = group.items.len();
-                    let items = group
-                        .items
-                        .iter()
-                        .enumerate()
-                        .map(|(index, item)| {
-                            let content = item.item.display();
-                            let indicator = if index == items_len.saturating_sub(1) {
-                                "└─"
-                            } else {
-                                "├─"
-                            };
-                            format!(" {} {}", indicator, content)
-                        })
-                        .join("\n");
-                    format!("■┬ {}\n{}", group_key, items)
+                    let items = group.items.iter().map(|item| {
+                        let content = item.item.display();
+                        let left_padding_width = 4;
+                        Line {
+                            content: format!("{}{content}", " ".repeat(left_padding_width)),
+                            highlight_column_range: item.item.highlight_column_range.as_ref().map(
+                                |range| {
+                                    range.start + left_padding_width..range.end + left_padding_width
+                                },
+                            ),
+                        }
+                    });
+
+                    Some(Line {
+                        content: group_key.to_string(),
+                        highlight_column_range: None,
+                    })
+                    .into_iter()
+                    .chain(items)
+                    // Add a newline to separate groups
+                    .chain(
+                        if group_index < filtered_item_groups_length.saturating_sub(1) {
+                            Some(Line {
+                                content: "".to_string(),
+                                highlight_column_range: None,
+                            })
+                        } else {
+                            None
+                        },
+                    )
+                    .collect_vec()
                 } else {
                     group
                         .items
                         .iter()
-                        .map(|item| item.item.display())
-                        .join("\n")
+                        .map(|item| Line {
+                            content: item.item.display(),
+                            highlight_column_range: item.item.highlight_column_range.clone(),
+                        })
+                        .collect_vec()
                 }
             })
-            .collect::<Vec<String>>()
-            .join("\n\n")
+            .collect::<Vec<Line>>();
+        let (lines, decorations): (Vec<_>, Vec<_>) = lines
+            .into_iter()
+            .enumerate()
+            .map(|(line_index, line)| {
+                let decoration = line.highlight_column_range.map(|range| {
+                    Decoration::new(
+                        SelectionRange::Position(
+                            Position {
+                                column: range.start,
+                                line: line_index,
+                            }..Position {
+                                column: range.end,
+                                line: line_index,
+                            },
+                        ),
+                        StyleKey::UiIncrementalSearchMatch,
+                    )
+                });
+                (line.content, decoration)
+            })
+            .unzip();
+
+        let joined = lines.join("\n");
+
+        let decorations = decorations.into_iter().flatten().collect();
+
+        (joined, decorations)
     }
 
     pub(crate) fn apply_movement(&mut self, movement: Movement) {
         match movement {
-            Movement::Next => self.next_item(),
+            Movement::Right | Movement::Down => self.next_item(),
             Movement::Current(_) => {}
-            Movement::Previous => self.previous_item(),
+            Movement::Left | Movement::Up => self.previous_item(),
             Movement::Last => self.last_item(),
             Movement::First => self.first_item(),
-            Movement::Up => self.previous_group(),
-            Movement::Down => self.next_group(),
+            Movement::Previous => self.previous_group(),
+            Movement::Next => self.next_group(),
             _ => {}
         }
     }
@@ -487,7 +607,7 @@ impl Dropdown {
         self.current_item_index
     }
 
-    fn decorations(&self) -> Vec<Decoration> {
+    fn fuzzy_match_decorations(&self) -> Vec<Decoration> {
         self.filtered_item_groups
             .iter()
             .flat_map(|group| {
@@ -662,7 +782,7 @@ mod test_dropdown {
         );
         dropdown.set_filter("byts");
         assert_eq!(
-            dropdown.decorations(),
+            dropdown.fuzzy_match_decorations(),
             [
                 (0, 0),
                 (0, 1),
@@ -699,7 +819,7 @@ mod test_dropdown {
         );
         dropdown.set_filter("byt off");
         assert_eq!(
-            dropdown.decorations(),
+            dropdown.fuzzy_match_decorations(),
             [(0, 0), (0, 1), (0, 2), (0, 6), (0, 7), (0, 8),]
                 .into_iter()
                 .map(|(line, column)| {
@@ -727,7 +847,7 @@ mod test_dropdown {
         );
         dropdown.set_filter("my gro");
         assert_eq!(
-            dropdown.decorations(),
+            dropdown.fuzzy_match_decorations(),
             [
                 // g r o
                 (0, 3),
@@ -773,29 +893,29 @@ mod test_dropdown {
         assert_eq!(
             dropdown.render().content.trim(),
             "
-■┬ 1
- └─ a
+1
+    a
 
-■┬ 2
- ├─ c
- └─ d
+2
+    c
+    d
 
-■┬ 3
- └─ b
+3
+    b
 "
             .trim()
         );
-        dropdown.assert_highlighted_content(" └─ a");
+        dropdown.assert_highlighted_content("    a");
 
         dropdown.next_group();
-        dropdown.assert_highlighted_content(" ├─ c");
+        dropdown.assert_highlighted_content("    c");
         dropdown.next_group();
-        dropdown.assert_highlighted_content(" └─ b");
+        dropdown.assert_highlighted_content("    b");
 
         dropdown.previous_group();
-        dropdown.assert_highlighted_content(" ├─ c");
+        dropdown.assert_highlighted_content("    c");
         dropdown.previous_group();
-        dropdown.assert_highlighted_content(" └─ a");
+        dropdown.assert_highlighted_content("    a");
     }
 
     #[test]

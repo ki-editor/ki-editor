@@ -1,49 +1,76 @@
+use crate::app::{Dispatch, Dispatches};
+use crate::context::Context;
+use crate::git::hunk::SimpleHunk;
+use crate::git::{DiffMode, GitOperation};
 use crate::history::History;
 use crate::lsp::diagnostic::Diagnostic;
-use crate::quickfix_list::QuickfixListItem;
-use crate::selection_mode::case_agnostic::CaseAgnostic;
+use crate::selection::Selection;
+use crate::selection_mode::naming_convention_agnostic::NamingConventionAgnostic;
+use crate::syntax_highlight::SyntaxHighlightRequestBatchId;
 use crate::{
     char_index_range::CharIndexRange,
-    components::{editor::Movement, suggestive_editor::Decoration},
+    components::suggestive_editor::Decoration,
     context::{LocalSearchConfig, LocalSearchConfigMode},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     position::Position,
-    selection::{CharIndex, Selection, SelectionSet},
+    selection::{CharIndex, SelectionSet},
     selection_mode::{AstGrep, ByteRange},
-    syntax_highlight::{HighlighedSpan, HighlighedSpans},
-    undo_tree::{Applicable, OldNew, UndoTree},
+    syntax_highlight::{HighlightedSpan, HighlightedSpans},
     utils::find_previous,
 };
+use anyhow::Context as _;
 use itertools::Itertools;
 use regex::Regex;
 use ropey::Rope;
-use shared::{
-    canonicalized_path::CanonicalizedPath,
-    language::{self, Language},
-};
-use std::{collections::HashSet, ops::Range};
+use shared::{canonicalized_path::CanonicalizedPath, language::Language};
+use std::ops::Range;
+use std::time::SystemTime;
 use tree_sitter::{Node, Parser, Tree};
-use tree_sitter_traversal::{traverse, Order};
+use tree_sitter_traversal2::{traverse, Order};
+
+/// Determines the buffer's owner. Ki distinguishes buffer ownership during switches.
+/// System-owned buffers (e.g., from LSP diagnostics or quicklist functions) are
+/// excluded from user-initiated buffer switching contexts to ensure only user-relevant
+/// buffers are displayed.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum BufferOwner {
+    User,
+    System,
+}
 
 #[derive(Clone)]
 pub(crate) struct Buffer {
     rope: Rope,
     tree: Option<Tree>,
     treesitter_language: Option<tree_sitter::Language>,
-    undo_tree: UndoTree<Patch>,
     language: Option<Language>,
     path: Option<CanonicalizedPath>,
-    highlighted_spans: HighlighedSpans,
-    bookmarks: Vec<CharIndexRange>,
+    highlighted_spans: HighlightedSpans,
     diagnostics: Vec<Diagnostic>,
-    quickfix_list_items: Vec<QuickfixListItem>,
     decorations: Vec<Decoration>,
     selection_set_history: History<SelectionSet>,
+    dirty: bool,
+    owner: BufferOwner,
+    pub(crate) undo_stack: Vec<EditHistory>,
+    redo_stack: Vec<EditHistory>,
+    batch_id: SyntaxHighlightRequestBatchId,
+
+    /// We need to cache this because its computation is expensive.
+    cached_hunks: Option<CachedHunks>,
+
+    /// Timestamp of the file when we last read/wrote it
+    last_synced_time: Option<SystemTime>,
+}
+
+#[derive(Debug, Clone)]
+struct CachedHunks {
+    hunks: Vec<SimpleHunk>,
+    file_content: Rope,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub(crate) struct Line {
-    origin_position: Position,
+    pub(crate) origin_position: Position,
     /// 0-based
     pub(crate) line: usize,
     pub(crate) content: String,
@@ -60,37 +87,66 @@ impl Buffer {
                 language.and_then(|language| {
                     parser
                         .set_language(&language)
+                        .map_err(|error| {
+                            log::error!(
+                                "Failed to parse using language {language:?} due to error {error:?}"
+                            );
+                        })
                         .ok()
                         .and_then(|_| parser.parse(text, None))
                 })
             },
             path: None,
-            highlighted_spans: HighlighedSpans::default(),
-            bookmarks: Vec::new(),
+            highlighted_spans: HighlightedSpans::default(),
             decorations: Vec::new(),
-            undo_tree: UndoTree::new(),
             diagnostics: Vec::new(),
-            quickfix_list_items: Vec::new(),
             selection_set_history: History::new(),
+            dirty: false,
+            owner: BufferOwner::System,
+            undo_stack: Default::default(),
+            redo_stack: Default::default(),
+            batch_id: Default::default(),
+            cached_hunks: Default::default(),
+            last_synced_time: None,
         }
     }
-    pub(crate) fn clear_quickfix_list_items(&mut self) {
-        self.quickfix_list_items.clear()
-    }
-    pub(crate) fn update_quickfix_list_items(
-        &mut self,
-        quickfix_list_items: Vec<QuickfixListItem>,
-    ) {
-        self.quickfix_list_items = quickfix_list_items
-    }
-    pub(crate) fn reload(&mut self) -> anyhow::Result<()> {
-        if let Some(path) = self.path() {
-            let updated_content = path.read()?;
 
-            self.update_content(&updated_content, SelectionSet::default())?;
-        }
-        Ok(())
+    /// Refer `BufferOwner`
+    pub(crate) fn set_owner(&mut self, owner: BufferOwner) {
+        self.owner = owner;
     }
+
+    /// Refer `BufferOwner`
+    pub(crate) fn owner(&self) -> BufferOwner {
+        self.owner
+    }
+
+    pub(crate) fn reload(&mut self, force: bool) -> anyhow::Result<Dispatches> {
+        if let Some(path) = self.path() {
+            if let Ok(Some(dispatches)) = self.check_conflict(force, &path) {
+                return Ok(dispatches);
+            }
+
+            // Only reload if the last_modified_time is actually changed
+            // this is to prevent unnecessary rereading, for example,
+            // after saving this file, a file modified notification will be received
+            // and upon handling this notification, we would not want to
+            // read the file again, if the notification is generated
+            // because of the save.
+            if path.last_modified_time().ok() == self.last_synced_time {
+                return Ok(Default::default());
+            }
+
+            let updated_content = path.read()?;
+            let dispatches = self.update_content(&updated_content, SelectionSet::default(), 0)?;
+            self.last_synced_time = path.last_modified_time().ok();
+            self.dirty = false;
+            Ok(dispatches)
+        } else {
+            Ok(Default::default())
+        }
+    }
+
     pub(crate) fn content(&self) -> String {
         self.rope.to_string()
     }
@@ -98,21 +154,9 @@ impl Buffer {
     pub(crate) fn decorations(&self) -> &Vec<Decoration> {
         &self.decorations
     }
+
     pub(crate) fn set_decorations(&mut self, decorations: &[Decoration]) {
         decorations.clone_into(&mut self.decorations)
-    }
-
-    pub(crate) fn save_bookmarks(&mut self, new_ranges: Vec<CharIndexRange>) {
-        let old_ranges = std::mem::take(&mut self.bookmarks)
-            .into_iter()
-            .collect::<HashSet<_>>();
-        let new_ranges = new_ranges.into_iter().collect::<HashSet<_>>();
-        // We take the symmetric difference between the old ranges and the new ranges
-        // so that user can unmark existing bookmark
-        self.bookmarks = new_ranges
-            .symmetric_difference(&old_ranges)
-            .cloned()
-            .collect_vec();
     }
 
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {
@@ -122,6 +166,31 @@ impl Buffer {
     #[cfg(test)]
     pub(crate) fn set_path(&mut self, path: CanonicalizedPath) {
         self.path = Some(path);
+    }
+
+    pub(crate) fn simple_hunks(&mut self, context: &Context) -> anyhow::Result<Vec<SimpleHunk>> {
+        Ok(match &self.cached_hunks {
+            Some(cached_hunks) if cached_hunks.file_content == self.rope => {
+                cached_hunks.hunks.clone()
+            }
+            _ => {
+                if let Some(path) = self.path() {
+                    let hunks = path.simple_hunks(
+                        &self.content(),
+                        &DiffMode::UnstagedAgainstCurrentBranch,
+                        context.current_working_directory(),
+                    )?;
+                    let cached_hunks = CachedHunks {
+                        file_content: self.rope.clone(),
+                        hunks: hunks.clone(),
+                    };
+                    self.cached_hunks = Some(cached_hunks);
+                    hunks
+                } else {
+                    Default::default()
+                }
+            }
+        })
     }
 
     pub(crate) fn set_diagnostics(&mut self, diagnostics: Vec<lsp_types::Diagnostic>) {
@@ -136,7 +205,7 @@ impl Buffer {
     }
 
     pub(crate) fn words(&self) -> Vec<String> {
-        let regex = regex::Regex::new(r"\b\w+").unwrap();
+        let regex = lazy_regex::regex!(r"\b(\w|-)+");
         let str = self.rope.to_string();
         regex
             .find_iter(&str)
@@ -199,6 +268,7 @@ impl Buffer {
         let tree = language
             .map(|language| parser.set_language(&language))
             .and_then(|_| parser.parse(text, None));
+        let rope = Rope::from_str(text);
         // let start_char_index = edit.start;
         // let old_end_char_index = edit.end();
         // let new_end_char_index = edit.start + edit.new.len_chars();
@@ -230,7 +300,7 @@ impl Buffer {
         //     .parse(&self.rope.to_string(), Some(&self.tree))
         //     .unwrap();
 
-        (Rope::from_str(text), tree)
+        (rope, tree)
     }
 
     pub(crate) fn given_range_is_node(&self, range: &CharIndexRange) -> bool {
@@ -252,12 +322,26 @@ impl Buffer {
             .unwrap_or(false)
     }
 
-    pub(crate) fn update_highlighted_spans(&mut self, spans: HighlighedSpans) {
-        self.highlighted_spans = spans;
+    pub(crate) fn update_highlighted_spans(
+        &mut self,
+        batch_id: SyntaxHighlightRequestBatchId,
+        spans: HighlightedSpans,
+    ) {
+        // Only apply highlighting updates from the most recent batch to prevent
+        // visual flickering during concurrent edits. Updates from outdated batches
+        // (where batch_id doesn't match the current self.batch_id) are discarded.
+        if batch_id == self.batch_id {
+            self.highlighted_spans = spans;
+        }
     }
 
     pub(crate) fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
+        self.flag_as_modified()
+    }
+
+    pub(crate) fn update_path(&mut self, path: CanonicalizedPath) {
+        self.path = Some(path)
     }
 
     pub(crate) fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
@@ -302,6 +386,8 @@ impl Buffer {
         .unwrap_or_default())
     }
 
+    /// Number of lines is always equals to
+    /// the number of newline characters plus one.
     pub(crate) fn len_lines(&self) -> usize {
         self.rope.len_lines()
     }
@@ -331,6 +417,26 @@ impl Buffer {
         })
     }
 
+    /// VS Code positions the cursor at the start of the next line (line+1, character 0).
+    /// when at a newline, while Ki treats newlines as regular characters within the current line.
+    /// This function converts Ki's character-based position to VS Code's line/character position.
+    pub(crate) fn char_to_vscode_position(
+        &self,
+        char_index: CharIndex,
+    ) -> anyhow::Result<ki_protocol_types::Position> {
+        let line_index = self.char_to_line(char_index)?;
+        let column_index = self
+            .rope
+            .try_line_to_char(line_index)
+            .map(|line_start_char_index| char_index.0.saturating_sub(line_start_char_index))
+            .unwrap_or(0);
+
+        Ok(ki_protocol_types::Position {
+            line: line_index as u32,
+            character: column_index as u32,
+        })
+    }
+
     pub(crate) fn position_to_char(&self, position: Position) -> anyhow::Result<CharIndex> {
         let line = position.line.clamp(0, self.len_lines());
         let column = position.column.clamp(
@@ -339,7 +445,9 @@ impl Buffer {
                 .map(|slice| slice.len_chars())
                 .unwrap_or_default(),
         );
-        Ok(CharIndex(self.rope.try_line_to_char(line)? + column))
+        Ok(CharIndex(
+            (self.rope.try_line_to_char(line)? + column).clamp(0, self.len_chars()),
+        ))
     }
 
     pub(crate) fn byte_to_char(&self, byte_index: usize) -> anyhow::Result<CharIndex> {
@@ -365,7 +473,7 @@ impl Buffer {
         }
     }
 
-    pub(crate) fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node> {
+    pub(crate) fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node<'_>> {
         let byte = self.char_to_byte(char_index).ok()?;
         // Preorder is the main key here,
         // because preorder traversal walks the parent first
@@ -418,7 +526,7 @@ impl Buffer {
     }
 
     #[cfg(test)]
-    pub(crate) fn get_next_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node> {
+    pub(crate) fn get_next_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node<'_>> {
         let byte = self.char_to_byte(char_index).ok()?;
         self.traverse(Order::Post).and_then(|mut iter| {
             iter.find(|&node| {
@@ -428,150 +536,131 @@ impl Buffer {
     }
 
     #[cfg(test)]
-    pub(crate) fn traverse(&self, order: Order) -> Option<impl Iterator<Item = Node>> {
+    pub(crate) fn traverse(&self, order: Order) -> Option<impl Iterator<Item = Node<'_>>> {
         self.tree.as_ref().map(|tree| traverse(tree.walk(), order))
     }
 
-    /// Returns the new selection set
+    /// Returns the new selection set and the edit transaction
     pub(crate) fn apply_edit_transaction(
         &mut self,
         edit_transaction: &EditTransaction,
         current_selection_set: SelectionSet,
         reparse_tree: bool,
-    ) -> Result<SelectionSet, anyhow::Error> {
-        let before = self.rope.to_string();
+        update_undo_stack: bool,
+        last_visible_line: usize,
+    ) -> Result<(SelectionSet, Dispatches, Vec<ki_protocol_types::DiffEdit>), anyhow::Error> {
         let new_selection_set = edit_transaction
             .non_empty_selections()
             .map(|selections| current_selection_set.clone().set_selections(selections))
             .unwrap_or_else(|| current_selection_set.clone());
         let current_buffer_state = BufferState {
             selection_set: current_selection_set,
-            bookmarks: self.bookmarks.clone(),
         };
+
+        let inverted_edit_transaction = edit_transaction.inverse();
+
+        // NOTE: the VS Code edits should be computed BEFORE applying the edits
+        let applied_vscode_edits = edit_transaction
+            .unnormalized_edits()
+            .into_iter()
+            .map(|edit| edit.to_vscode_diff_edit(self))
+            .collect::<anyhow::Result<Vec<_>>>()?;
 
         edit_transaction
             .edits()
             .into_iter()
-            .try_fold((), |_, edit| self.apply_edit(edit))?;
+            .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
+
+        // NOTE: the inverted VS Code edits should be computed AFTER applying the edits
+        let inverted_unnormalized_edits = inverted_edit_transaction.unnormalized_edits();
+        let inverted_vscode_edits = inverted_unnormalized_edits
+            .into_iter()
+            .map(|edit| edit.to_vscode_diff_edit(self))
+            .collect::<anyhow::Result<Vec<_>>>()?;
 
         let new_buffer_state = BufferState {
             selection_set: new_selection_set.clone(),
-            bookmarks: self.bookmarks.clone(),
         };
 
-        self.add_undo_patch(current_buffer_state, new_buffer_state.clone(), &before);
+        if update_undo_stack {
+            self.undo_stack.push(EditHistory {
+                edit_transaction: inverted_edit_transaction,
+                unnormalized_edits: inverted_vscode_edits,
+                inverted_unnormalized_edits: applied_vscode_edits.clone(),
+                old_state: current_buffer_state,
+                new_state: new_buffer_state,
+            });
+
+            // Clear the redo stack when a new edit is made
+            self.redo_stack.clear();
+        }
+
         if reparse_tree {
             self.reparse_tree()?;
         }
 
-        Ok(new_selection_set)
+        self.batch_id.increment();
+
+        let edits = edit_transaction.edits().into_iter().cloned().collect_vec();
+
+        let dispatches = self
+            .path
+            .clone()
+            .map(|path| Dispatches::one(Dispatch::AppliedEdits { edits, path }))
+            .unwrap_or_default();
+
+        // Return both the new selection set and a clone of the edit transaction
+        Ok((new_selection_set, dispatches, applied_vscode_edits))
     }
 
-    fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
+    fn flag_as_modified(&mut self) {
+        self.dirty = true;
+        self.owner = BufferOwner::User;
+    }
+
+    // Add these methods for undo/redo
+    fn apply_edit(&mut self, edit: &Edit, last_visible_line: usize) -> Result<(), anyhow::Error> {
         // We have to get the char index range of positional spans before updating the content
-        let quickfix_list_items_with_char_index_range =
-            std::mem::take(&mut self.quickfix_list_items)
-                .into_iter()
-                .filter_map(|item| {
-                    Some((
-                        self.position_range_to_char_index_range(&item.location().range)
-                            .ok()?,
-                        item,
-                    ))
-                })
-                .collect_vec();
+        if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
+            let last_line_len_bytes = self
+                .get_line_by_line_index(last_visible_line)
+                .map(|slice| slice.len_bytes())
+                .unwrap_or_default();
+
+            let range_end =
+                self.line_to_byte(last_visible_line).unwrap_or_default() + last_line_len_bytes;
+            let affected_range = byte_range.start..range_end;
+
+            self.highlighted_spans.apply_edit_mut(
+                &affected_range,
+                edit.new.len_bytes() as isize - byte_range.len() as isize,
+            );
+        }
 
         // Update the content
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
             .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
-
-        // Update all the positional spans (by using the char index ranges computed before the content is updated
-        self.quickfix_list_items = quickfix_list_items_with_char_index_range
-            .into_iter()
-            .filter_map(|(char_index_range, item)| {
-                let position_range = self
-                    .char_index_range_to_position_range(char_index_range.apply_edit(edit)?)
-                    .ok()?;
-                Some(item.set_location_range(position_range))
-            })
-            .collect_vec();
+        self.flag_as_modified();
 
         // Update all the non-positional spans
-        self.bookmarks = std::mem::take(&mut self.bookmarks)
-            .into_iter()
-            .filter_map(|bookmark| bookmark.apply_edit(edit))
-            .collect();
-        self.diagnostics = std::mem::take(&mut self.diagnostics)
-            .into_iter()
-            .filter_map(|diagnostic| {
-                Some(Diagnostic {
-                    range: diagnostic.range.apply_edit(edit)?,
-                    ..diagnostic
-                })
-            })
-            .collect_vec();
+        self.diagnostics.retain_mut(|diagnostic| {
+            if let Some(range) = diagnostic.range.apply_edit(edit) {
+                diagnostic.range = range;
+                true
+            } else {
+                false
+            }
+        });
         let max_char_index = CharIndex(self.len_chars());
         self.selection_set_history = std::mem::take(&mut self.selection_set_history)
             .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
-        if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
-            self.highlighted_spans = std::mem::take(&mut self.highlighted_spans).apply_edit(
-                &byte_range,
-                edit.new.len_bytes() as isize - byte_range.len() as isize,
-            )
-        }
+
         Ok(())
     }
 
-    /// This method assumes `self.rope` is already updated
-    fn add_undo_patch(
-        &mut self,
-        old_buffer_state: BufferState,
-        new_buffer_state: BufferState,
-        before: &str,
-    ) {
-        let after = &self.rope.to_string();
-        if before == after {
-            return;
-        }
-        let old_new = OldNew {
-            old_to_new: Patch {
-                patch: diffy::create_patch(before, after).to_string(),
-                state: new_buffer_state,
-            },
-            new_to_old: Patch {
-                patch: diffy::create_patch(after, before).to_string(),
-                state: old_buffer_state,
-            },
-        };
-        self.undo_tree
-            .edit(&mut before.to_owned(), old_new)
-            .unwrap();
-    }
-
-    pub(crate) fn display_history(&self) -> String {
-        self.undo_tree.display()
-    }
-
-    pub(crate) fn undo_tree_apply_movement(
-        &mut self,
-        movement: Movement,
-    ) -> anyhow::Result<Option<SelectionSet>> {
-        let mut content = self.rope.to_string();
-        let state = self.undo_tree.apply_movement(&mut content, movement)?;
-        self.update(&content);
-
-        if let Some(BufferState {
-            selection_set,
-            bookmarks,
-        }) = state
-        {
-            self.bookmarks = bookmarks;
-
-            Ok(Some(selection_set))
-        } else {
-            Ok(None)
-        }
+    pub(crate) fn batch_id(&self) -> &SyntaxHighlightRequestBatchId {
+        &self.batch_id
     }
 
     pub(crate) fn has_syntax_error_at(&self, range: CharIndexRange) -> bool {
@@ -594,7 +683,8 @@ impl Buffer {
     ) -> anyhow::Result<Buffer> {
         let content = path.read()?;
         let language = if enable_tree_sitter {
-            language::from_path(path)
+            crate::config::from_path(path)
+                .or_else(|| crate::config::from_content_directive(&content))
         } else {
             None
         };
@@ -608,6 +698,8 @@ impl Buffer {
 
         buffer.path = Some(path.clone());
         buffer.language = language;
+
+        buffer.last_synced_time = path.last_modified_time().ok();
 
         Ok(buffer)
     }
@@ -633,56 +725,105 @@ impl Buffer {
                     return Some(content);
                 }
                 Err(error) => {
-                    log::info!("Error formatting: {}", error);
+                    log::info!("Error formatting: {error}");
                 }
             }
         }
         None
     }
 
-    pub(crate) fn save_without_formatting(&mut self) -> anyhow::Result<Option<CanonicalizedPath>> {
-        if let Some(path) = &self.path.clone() {
+    pub(crate) fn save_without_formatting(
+        &mut self,
+        force: bool,
+    ) -> anyhow::Result<(Dispatches, Option<CanonicalizedPath>)> {
+        if !force && !self.dirty {
+            return Ok((Dispatches::default(), None));
+        }
+
+        if let Some(path) = &self.path {
+            if let Ok(Some(dispatches)) = self.check_conflict(force, path) {
+                return Ok((dispatches, Some(path.clone())));
+            }
+
             path.write(&self.content())?;
 
-            Ok(Some(path.clone()))
+            self.last_synced_time = path.last_modified_time().ok();
+
+            self.dirty = false;
+            Ok((Dispatches::default(), Some(path.clone())))
         } else {
             log::info!("Buffer has no path");
-            Ok(None)
+            Ok((Dispatches::default(), None))
         }
+    }
+
+    /// Check if the content of this file conflicts with that of the system.
+    /// Return None if no conflict.
+    fn check_conflict(
+        &self,
+        force: bool,
+        path: &CanonicalizedPath,
+    ) -> anyhow::Result<Option<Dispatches>> {
+        if force || !self.dirty {
+            return Ok(None);
+        }
+        let last_modified_time_system = path.last_modified_time()?;
+        let Some(last_modified_time_editor) = &self.last_synced_time else {
+            return Ok(None);
+        };
+
+        Ok(if &last_modified_time_system != last_modified_time_editor {
+            Some(Dispatches::one(Dispatch::ShowBufferSaveConflictPrompt {
+                path: path.clone(),
+                content_editor: self.content(),
+                content_filesystem: path.read()?,
+            }))
+        } else {
+            None
+        })
     }
 
     pub(crate) fn save(
         &mut self,
         current_selection_set: SelectionSet,
-    ) -> anyhow::Result<Option<CanonicalizedPath>> {
-        if let Some(formatted_content) = self.get_formatted_content() {
-            self.update_content(&formatted_content, current_selection_set)?;
+        force: bool,
+        last_visible_line: usize,
+    ) -> anyhow::Result<(Dispatches, Option<CanonicalizedPath>)> {
+        if force || self.dirty {
+            if let Some(formatted_content) = self.get_formatted_content() {
+                let dispatches = self.update_content(
+                    &formatted_content,
+                    current_selection_set,
+                    last_visible_line,
+                )?;
+                let (other_dispatches, path) = self.save_without_formatting(force)?;
+                return Ok((dispatches.chain(other_dispatches), path));
+            }
         }
 
-        self.save_without_formatting()
+        self.save_without_formatting(force)
     }
 
-    fn update_content(
+    pub(crate) fn update_content(
         &mut self,
         new_content: &str,
         current_selection_set: SelectionSet,
-    ) -> anyhow::Result<SelectionSet> {
+        last_visible_line: usize,
+    ) -> anyhow::Result<Dispatches> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
-        self.apply_edit_transaction(&edit_transaction, current_selection_set, true)
+        let (_, dispatches, _) = self.apply_edit_transaction(
+            &edit_transaction,
+            current_selection_set,
+            true,
+            true,
+            last_visible_line,
+        )?;
+        Ok(dispatches)
     }
 
     /// The resulting spans must be sorted by range
-    pub(crate) fn highlighted_spans(&self) -> Vec<HighlighedSpan> {
-        let spans = self.highlighted_spans.0.clone();
-        debug_assert!(
-            spans
-                .iter()
-                .enumerate()
-                .sorted_by_key(|(_, span)| (span.byte_range.start, span.byte_range.end))
-                .map(|(index, _)| index)
-                .collect_vec()
-                == (0..spans.len()).collect_vec(),
-        );
+    pub(crate) fn highlighted_spans(&self) -> &Vec<HighlightedSpan> {
+        let spans = self.highlighted_spans.0.as_ref(); // Don't clone this thing man
         spans
     }
 
@@ -690,7 +831,6 @@ impl Buffer {
         self.language.clone()
     }
 
-    #[cfg(test)]
     pub(crate) fn set_language(&mut self, language: Language) -> anyhow::Result<()> {
         self.language = Some(language);
         self.reparse_tree()
@@ -713,19 +853,16 @@ impl Buffer {
         Ok(self.rope.try_line_to_byte(line_index)?)
     }
 
-    pub(crate) fn position_to_byte(&self, start: Position) -> anyhow::Result<usize> {
-        let start = self.position_to_char(start)?;
-        self.char_to_byte(start)
-    }
-
     pub(crate) fn line_to_byte_range(&self, line: usize) -> anyhow::Result<ByteRange> {
         let start = self.line_to_byte(line)?;
-        let end = self.line_to_byte(line + 1)?.saturating_sub(1);
+        let end = self.line_to_byte(line + 1)?.saturating_sub(1).max(start);
+        assert!(start <= end);
         Ok(ByteRange::new(start..end))
     }
 
-    pub(crate) fn bookmarks(&self) -> Vec<CharIndexRange> {
-        self.bookmarks.clone()
+    /// Has the buffer changed since its last save?
+    pub(crate) fn dirty(&self) -> bool {
+        self.dirty
     }
 
     pub(crate) fn byte_to_position(&self, byte_index: usize) -> anyhow::Result<Position> {
@@ -741,25 +878,24 @@ impl Buffer {
         self.rope.get_line(line_index)
     }
 
-    pub(crate) fn position_range_to_byte_range(
-        &self,
-        range: &Range<Position>,
-    ) -> anyhow::Result<Range<usize>> {
-        Ok(self.position_to_byte(range.start)?..self.position_to_byte(range.end)?)
-    }
-
     pub(crate) fn byte_range_to_char_index_range(
         &self,
         range: &Range<usize>,
     ) -> anyhow::Result<CharIndexRange> {
-        Ok((self.byte_to_char(range.start)?..self.byte_to_char(range.end)?).into())
+        Ok((self.byte_to_char(range.start)?
+            ..(self.byte_to_char(range.end.saturating_sub(1))?
+                + (if range.end > 0 { 1 } else { 0 }))
+            .min(CharIndex(self.len_chars())))
+            .into())
     }
+
     pub(crate) fn position_range_to_char_index_range(
         &self,
         range: &Range<Position>,
     ) -> anyhow::Result<CharIndexRange> {
         Ok((self.position_to_char(range.start)?..self.position_to_char(range.end)?).into())
     }
+
     pub(crate) fn char_index_range_to_position_range(
         &self,
         range: CharIndexRange,
@@ -770,71 +906,81 @@ impl Buffer {
     /// Get an `EditTransaction` by getting the line diffs between the content of this buffer and the given `new` string
     fn get_edit_transaction(&self, new: &str) -> anyhow::Result<EditTransaction> {
         let old = self.rope.to_string();
-        let new = new.to_string();
-        let edits = {
-            let diff_from_lines = similar::TextDiff::from_lines(&old, &new);
-            let changes = diff_from_lines.iter_all_changes();
-            let mut old_line_index = 0;
-            let mut edits = vec![];
-            let mut replacement = vec![];
-            let mut current_range_start = None;
-            let mut current_range_end = 0;
-
-            for change in changes {
-                match change.tag() {
-                    similar::ChangeTag::Delete => {
-                        if current_range_start.is_none() {
-                            current_range_start = Some(old_line_index);
-                        }
-                        current_range_end = old_line_index + 1;
-                        old_line_index += 1;
-                    }
-                    similar::ChangeTag::Equal => {
-                        if let Some(start) = current_range_start {
-                            let replacement = std::mem::take(&mut replacement);
-
-                            edits.push(Edit {
-                                range: self.position_range_to_char_index_range(
-                                    &(Position::new(start, 0)..Position::new(current_range_end, 0)),
-                                )?,
-                                new: Rope::from_str(&replacement.join("")),
-                            });
-                            current_range_start = None;
-                        }
-                        old_line_index += 1;
-                    }
-                    similar::ChangeTag::Insert => {
-                        match current_range_start {
-                            Some(_) => {}
-                            None => {
-                                current_range_start = Some(old_line_index);
-                                current_range_end = old_line_index;
-                            }
-                        };
-
-                        let content = change.to_string();
-                        let content = if change.missing_newline() && content.ends_with('\n') {
-                            content.trim_end_matches('\n').to_owned()
-                        } else {
-                            content
-                        };
-                        replacement.push(content);
-                    }
-                }
-            }
-
-            if let Some(start) = current_range_start {
-                let replacement = std::mem::take(&mut replacement);
-
-                edits.push(Edit {
-                    range: self.position_range_to_char_index_range(
-                        &(Position::new(start, 0)..Position::new(current_range_end, 0)),
-                    )?,
-                    new: Rope::from_str(&replacement.join("")),
-                });
-            };
-            edits
-        };
+        let diff = similar::TextDiff::from_lines(old.as_str(), new);
+        let edits: Vec<Edit> = diff
+            .ops()
+            .iter()
+            .map(|op| {
+                Ok(match op {
+                    similar::DiffOp::Delete {
+                        old_index,
+                        old_len,
+                        new_index: _,
+                    } => Some(Edit {
+                        range: self
+                            .line_range_to_char_index_range(&(*old_index..old_index + old_len))
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for delete?",
+                            )?,
+                        new: "".into(),
+                        old: diff
+                            .old_slices()
+                            .get(*old_index..old_index + old_len)
+                            .context("similar::TextDiff gave us an invalid line range for delete?")?
+                            .join("")
+                            .into(),
+                    }),
+                    similar::DiffOp::Insert {
+                        old_index,
+                        new_index,
+                        new_len,
+                    } => Some(Edit {
+                        range: self
+                            .line_range_to_char_index_range(&(*old_index..*old_index))
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for insert?",
+                            )?,
+                        new: diff
+                            .new_slices()
+                            .get(*new_index..new_index + new_len)
+                            .context("similar::TextDiff gave us an invalid line range for insert?")?
+                            .join("")
+                            .into(),
+                        old: "".into(),
+                    }),
+                    similar::DiffOp::Replace {
+                        old_index,
+                        old_len,
+                        new_index,
+                        new_len,
+                    } => Some(Edit {
+                        range: self
+                            .line_range_to_char_index_range(&(*old_index..old_index + old_len))
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for replace?",
+                            )?,
+                        new: diff
+                            .new_slices()
+                            .get(*new_index..new_index + new_len)
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for replace?",
+                            )?
+                            .join("")
+                            .into(),
+                        old: diff
+                            .old_slices()
+                            .get(*old_index..old_index + old_len)
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for replace?",
+                            )?
+                            .join("")
+                            .into(),
+                    }),
+                    similar::DiffOp::Equal { .. } => None,
+                })
+            })
+            .filter_map(Result::transpose)
+            .collect::<anyhow::Result<_>>()?;
 
         Ok(EditTransaction::from_action_groups(
             edits
@@ -851,17 +997,28 @@ impl Buffer {
         &mut self,
         config: LocalSearchConfig,
         current_selection_set: SelectionSet,
-    ) -> anyhow::Result<(bool, SelectionSet)> {
+        last_visible_line: usize,
+    ) -> anyhow::Result<(
+        bool,
+        SelectionSet,
+        Dispatches,
+        Vec<ki_protocol_types::DiffEdit>,
+    )> {
         let before = self.rope.to_string();
         let edit_transaction = match config.mode {
-            LocalSearchConfigMode::CaseAgnostic => {
-                let replaced =
-                    CaseAgnostic::new(config.search()).replace_all(&before, config.replacement());
+            LocalSearchConfigMode::NamingConventionAgnostic => {
+                let replaced = NamingConventionAgnostic::new(config.search())
+                    .replace_all(&before, config.replacement());
                 self.get_edit_transaction(&replaced)?
             }
             LocalSearchConfigMode::Regex(regex_config) => {
                 let regex = regex_config.to_regex(&config.search())?;
-                let replaced = regex.replace_all(&before, config.replacement()).to_string();
+                let replaced = regex
+                    // We use `try_replacen` instead of `replace_all`
+                    // because the latter panics on very large file,
+                    // subsequently crashing Ki.
+                    .try_replacen(&before, 0, config.replacement())?
+                    .to_string();
                 self.get_edit_transaction(&replaced)?
             }
             LocalSearchConfigMode::AstGrep => {
@@ -878,10 +1035,11 @@ impl Buffer {
                             let end = start + edit.deleted_length;
 
                             Ok(ActionGroup::new(
-                                [Action::Edit(Edit {
-                                    range: (start..end).into(),
-                                    new: String::from_utf8(edit.inserted_text)?.into(),
-                                })]
+                                [Action::Edit(Edit::new(
+                                    &self.rope,
+                                    (start..end).into(),
+                                    String::from_utf8(edit.inserted_text)?.into(),
+                                ))]
                                 .to_vec(),
                             ))
                         })
@@ -889,11 +1047,16 @@ impl Buffer {
                 )
             }
         };
-        let selection_set =
-            self.apply_edit_transaction(&edit_transaction, current_selection_set, true)?;
+        let (selection_set, dispatches, diff_edits) = self.apply_edit_transaction(
+            &edit_transaction,
+            current_selection_set,
+            true,
+            true,
+            last_visible_line,
+        )?;
         let after = self.content();
         let modified = before != after;
-        Ok((modified, selection_set))
+        Ok((modified, selection_set, dispatches, diff_edits))
     }
 
     pub(crate) fn char_index_range_to_byte_range(
@@ -903,36 +1066,39 @@ impl Buffer {
         Ok(self.char_to_byte(range.start)?..self.char_to_byte(range.end)?)
     }
 
-    pub(crate) fn quickfix_list_items(&self) -> Vec<QuickfixListItem> {
-        self.quickfix_list_items.clone()
-    }
-
     pub(crate) fn line_range_to_char_index_range(
         &self,
-        range: Range<usize>,
+        range: &Range<usize>,
     ) -> anyhow::Result<CharIndexRange> {
         Ok((self.line_to_char(range.start)?..self.line_to_char(range.end)?).into())
     }
 
     pub(crate) fn line_range_to_full_char_index_range(
         &self,
-        range: Range<usize>,
+        line_range: Range<usize>,
     ) -> anyhow::Result<CharIndexRange> {
-        let end_line_char_start = self.line_to_char(range.end)?;
-        let line = self.get_line_by_line_index(range.end).ok_or_else(|| {
-            anyhow::anyhow!(
-                "Buffer::line_range_to_char_index_range: Unable to get line at index {}",
-                range.end
-            )
-        })?;
-        Ok((self.line_to_char(range.start)?..end_line_char_start + line.len_chars()).into())
+        let last_line_index = line_range.end.saturating_sub(1);
+        let end_line_char_start = self.line_to_char(last_line_index)?;
+        let line = self
+            .get_line_by_line_index(last_line_index)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Buffer::line_range_to_char_index_range: Unable to get line at index {}",
+                    line_range.end
+                )
+            })?;
+        Ok((self.line_to_char(line_range.start)?..end_line_char_start + line.len_chars()).into())
     }
 
     pub(crate) fn char_index_range_to_line_range(
         &self,
         range: CharIndexRange,
     ) -> anyhow::Result<Range<usize>> {
-        Ok(self.char_to_line(range.start)?..self.char_to_line(range.end)?)
+        let start = self.char_to_line(range.start)?;
+
+        // We need to minus range.end by 1 because range.end is exclusive
+        let end = self.char_to_line(range.end - 1)? + 1;
+        Ok(start..end)
     }
 
     pub(crate) fn push_selection_set_history(&mut self, selection_set: SelectionSet) {
@@ -951,6 +1117,7 @@ impl Buffer {
         &self,
         visible_line_range: &Range<usize>,
     ) -> anyhow::Result<Range<usize>> {
+        debug_assert!(visible_line_range.start <= visible_line_range.end);
         let start = self
             .line_to_byte_range(visible_line_range.start)?
             .range()
@@ -962,20 +1129,110 @@ impl Buffer {
         debug_assert!(start <= end);
         Ok(start..end)
     }
+
+    pub(crate) fn redo(
+        &mut self,
+        last_visible_line: usize,
+    ) -> Result<UndoRedoReturn, anyhow::Error> {
+        if let Some(history) = self.redo_stack.pop() {
+            let diff_edits = history.unnormalized_edits.clone();
+
+            // Apply the edits
+            let edits = history
+                .edit_transaction
+                .edits()
+                .into_iter()
+                .cloned()
+                .collect_vec();
+            edits
+                .clone()
+                .into_iter()
+                .try_fold((), |_, edit| self.apply_edit(&edit, last_visible_line))?;
+            self.reparse_tree()?;
+
+            let selection_set = history.old_state.selection_set.clone();
+            self.undo_stack.push(history.inverse());
+
+            // Return both the selection set and the applied transaction
+            Ok(Some((selection_set, diff_edits, edits)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub(crate) fn undo(
+        &mut self,
+        last_visible_line: usize,
+    ) -> Result<UndoRedoReturn, anyhow::Error> {
+        if let Some(history) = self.undo_stack.pop() {
+            let diff_edits = history.unnormalized_edits.clone();
+
+            // Apply the edits
+            let edits = history
+                .edit_transaction
+                .edits()
+                .into_iter()
+                .cloned()
+                .collect_vec();
+            edits
+                .clone()
+                .into_iter()
+                .try_fold((), |_, edit| self.apply_edit(&edit, last_visible_line))?;
+            self.reparse_tree()?;
+
+            let selection_set = history.old_state.selection_set.clone();
+            self.redo_stack.push(history.inverse());
+
+            // Return both the selection set and the applied transaction
+            Ok(Some((selection_set, diff_edits, edits)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub(crate) fn line_to_char_range(&self, line: usize) -> anyhow::Result<CharIndexRange> {
+        let start = self.line_to_char(line)?;
+        let end = self.line_to_char(line + 1)?;
+        Ok((start..end).into())
+    }
+
+    pub(crate) fn char(&self, cursor_char_index: CharIndex) -> anyhow::Result<char> {
+        self.rope
+            .get_char(cursor_char_index.0)
+            .ok_or_else(|| anyhow::anyhow!("Unable to get char at {cursor_char_index:?}"))
+    }
+
+    /// Returns `None` if the buffer content is empty
+    pub(crate) fn last_char_index(&self) -> Option<CharIndex> {
+        let len_chars = self.rope.len_chars();
+        if len_chars == 0 {
+            None
+        } else {
+            Some(CharIndex(len_chars - 1))
+        }
+    }
 }
 
 #[cfg(test)]
 mod test_buffer {
-    use itertools::Itertools;
+    use std::fs::File;
 
-    use crate::selection::SelectionSet;
+    use itertools::Itertools;
+    use shared::canonicalized_path::CanonicalizedPath;
+    use tempfile::tempdir;
+
+    use crate::{
+        grid::{IndexedHighlightGroup, StyleKey},
+        selection::SelectionSet,
+        syntax_highlight::{HighlightedSpan, HighlightedSpans},
+    };
 
     use super::Buffer;
 
     #[test]
     fn get_parent_lines_1() {
         let buffer = Buffer::new(
-            shared::language::from_extension("yaml")
+            crate::config::from_extension("yaml")
                 .unwrap()
                 .tree_sitter_language(),
             "
@@ -1007,7 +1264,7 @@ mod test_buffer {
     #[test]
     fn get_parent_lines_2() {
         let buffer = Buffer::new(
-            shared::language::from_extension("rs")
+            crate::config::from_extension("rs")
                 .unwrap()
                 .tree_sitter_language(),
             "
@@ -1016,7 +1273,7 @@ fn f(
 ) -> Result<
   A,
   B
-> { 
+> {
   hello
 }",
         );
@@ -1048,15 +1305,16 @@ fn f(
         use super::*;
         fn test(input: &str, config: LocalSearchConfig, expected: &str) -> anyhow::Result<()> {
             let mut buffer = Buffer::new(
-                shared::language::from_extension("rs")
+                crate::config::from_extension("rs")
                     .unwrap()
                     .tree_sitter_language(),
                 input,
             );
-            buffer.replace(config, SelectionSet::default())?;
+            let _ = buffer.replace(config, SelectionSet::default(), 0)?;
             assert_eq!(buffer.content(), expected);
             Ok(())
         }
+
         #[test]
         fn literal_1() -> anyhow::Result<()> {
             test(
@@ -1102,30 +1360,26 @@ fn f(
         }
     }
 
+    /// The TempDir is returned so that the directory is not deleted
+    /// when the TempDir object is dropped
+    fn run_test(f: impl Fn(CanonicalizedPath, Buffer)) {
+        let dir = tempdir().unwrap();
+
+        let file_path = dir.path().join("main.rs");
+        File::create(&file_path).unwrap();
+        let path = CanonicalizedPath::try_from(file_path).unwrap();
+        path.write("").unwrap();
+
+        let buffer = Buffer::from_path(&path, true).unwrap();
+
+        f(path, buffer)
+    }
+
     mod auto_format {
-        use std::fs::File;
 
-        use tempfile::tempdir;
+        use crate::selection::{CharIndex, SelectionSet};
 
-        use crate::{
-            buffer::Buffer,
-            selection::{CharIndex, SelectionSet},
-        };
-        use shared::canonicalized_path::CanonicalizedPath;
-        /// The TempDir is returned so that the directory is not deleted
-        /// when the TempDir object is dropped
-        fn run_test(f: impl Fn(CanonicalizedPath, Buffer)) {
-            let dir = tempdir().unwrap();
-
-            let file_path = dir.path().join("main.rs");
-            File::create(&file_path).unwrap();
-            let path = CanonicalizedPath::try_from(file_path).unwrap();
-            path.write("").unwrap();
-
-            let buffer = Buffer::from_path(&path, true).unwrap();
-
-            f(path, buffer)
-        }
+        use super::run_test;
 
         #[test]
         fn should_format_code() {
@@ -1134,7 +1388,7 @@ fn f(
                 buffer.update(" fn main\n() {}");
 
                 // Save the buffer
-                buffer.save(SelectionSet::default()).unwrap();
+                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the output is formatted
                 let saved_content = path.read().unwrap();
@@ -1162,15 +1416,13 @@ fn f(
                 let original = " fn main\n() {}";
                 buffer.update(original);
 
-                buffer.save(SelectionSet::default()).unwrap();
+                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the buffer is formatted
                 assert_ne!(buffer.rope.to_string(), original);
 
                 // Undo the buffer
-                buffer
-                    .undo_tree_apply_movement(crate::components::editor::Movement::Previous)
-                    .unwrap();
+                buffer.undo(0).unwrap();
 
                 let content = buffer.rope.to_string();
 
@@ -1186,7 +1438,7 @@ fn f(
                 buffer.update("fn main() {");
 
                 // Save the buffer
-                buffer.save(SelectionSet::default()).unwrap();
+                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the buffer remain unchanged,
                 // because the syntax node is invalid
@@ -1209,7 +1461,7 @@ fn f(
                 // but not to the formatter
                 assert!(!buffer.tree.as_ref().unwrap().root_node().has_error());
 
-                buffer.save(SelectionSet::default()).unwrap();
+                let _ = buffer.save(SelectionSet::default(), false, 0).unwrap();
 
                 // Expect the buffer remain unchanged
                 assert_eq!(buffer.rope.to_string(), code);
@@ -1217,23 +1469,58 @@ fn f(
         }
     }
 
+    #[test]
+    fn only_update_syntax_highlight_spans_of_same_batch_id() {
+        run_test(|_, mut buffer| {
+            let initial_batch_id = buffer.batch_id().clone();
+
+            let initial_spans = buffer.highlighted_spans().clone();
+
+            // Update the buffer, this should cause the batch ID to be changed
+            let _ = buffer
+                .update_content("testing", Default::default(), 1)
+                .unwrap();
+
+            // Update the buffer with new highlight spans using the initial batch ID
+            let new_highlighted_spans = HighlightedSpans(
+                [HighlightedSpan {
+                    byte_range: Default::default(),
+                    style_key: StyleKey::Syntax(IndexedHighlightGroup::new(0)),
+                }]
+                .to_vec(),
+            );
+            buffer.update_highlighted_spans(initial_batch_id, new_highlighted_spans.clone());
+
+            // Expect the highlight spans remain the same, because the batch ID is changed
+            assert_eq!(&initial_spans, buffer.highlighted_spans());
+            assert_ne!(&new_highlighted_spans.0, buffer.highlighted_spans())
+        })
+    }
+
     mod patch_edit {
         use crate::edit::EditTransaction;
 
         use super::*;
         fn run_test(old: &str, new: &str) -> anyhow::Result<EditTransaction> {
-            let mut buffer = Buffer::new(Some(tree_sitter_md::language()), old);
+            let mut buffer = Buffer::new(Some(tree_sitter_md::LANGUAGE.into()), old);
 
             let edit_transaction = buffer.get_edit_transaction(new)?;
 
             // Apply the edit transaction
-            buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default(), true)?;
+            let _ = buffer.apply_edit_transaction(
+                &edit_transaction,
+                SelectionSet::default(),
+                true,
+                true,
+                0,
+            )?;
 
             // Expect the content to be the same as the 2nd files
             pretty_assertions::assert_eq!(buffer.content(), new);
 
             Ok(edit_transaction)
         }
+
         #[test]
         fn empty_line_removal() -> anyhow::Result<()> {
             let old = r#"
@@ -1296,7 +1583,7 @@ fn f(
             let old = r#"
 fn main() {
     let x = x;
-    
+
 let z = z;
 
     let y = y;
@@ -1333,47 +1620,44 @@ fn main() {
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct Patch {
-    /// Why don't we store this is diffy::Patch? Because it requires a lifetime parameter
-    pub(crate) patch: String,
-    pub(crate) state: BufferState,
-}
-
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct BufferState {
     pub(crate) selection_set: SelectionSet,
-    pub(crate) bookmarks: Vec<CharIndexRange>,
-}
-
-impl std::fmt::Display for Patch {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("")
-    }
 }
 
 impl std::fmt::Display for BufferState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // TODO: this should describe the action
-        // For example, "kill", "exchange", "insert"
+        // For example, "kill", "swap", "insert"
         f.write_str("")
     }
 }
 
-impl Applicable for Patch {
-    type Target = String;
+// New structure to store edits and their inverses for undo/redo
+#[derive(Clone)]
+pub(crate) struct EditHistory {
+    pub(crate) edit_transaction: EditTransaction,
+    pub(crate) old_state: BufferState,
+    pub(crate) new_state: BufferState,
 
-    type Output = BufferState;
+    /// This is required by VS Code because VS Code will offset the edits on their end.
+    unnormalized_edits: Vec<ki_protocol_types::DiffEdit>,
 
-    fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
-        *target = diffy::apply(target, &diffy::Patch::from_str(&self.patch)?)?;
-
-        Ok(self.state.clone())
+    /// Required for Undo/Redo properly on VS Code.
+    /// This has to be precomputed beforehand, because we cannot obtain the inverted edit Positions
+    /// without relying on the pre-edited buffer.
+    inverted_unnormalized_edits: Vec<ki_protocol_types::DiffEdit>,
+}
+impl EditHistory {
+    fn inverse(self) -> EditHistory {
+        EditHistory {
+            edit_transaction: self.edit_transaction.inverse(),
+            old_state: self.new_state,
+            new_state: self.old_state,
+            inverted_unnormalized_edits: self.unnormalized_edits,
+            unnormalized_edits: self.inverted_unnormalized_edits,
+        }
     }
 }
-impl PartialEq for Patch {
-    fn eq(&self, _other: &Self) -> bool {
-        // Always return false, assuming that no two patches can be identical
-        false
-    }
-}
+
+type UndoRedoReturn = Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>, Vec<Edit>)>;

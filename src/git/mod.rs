@@ -1,11 +1,15 @@
+pub(crate) mod blame;
 pub(crate) mod hunk;
 
+use anyhow::bail;
 use rayon::prelude::*;
 
 use git2::Repository;
 
 use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
+
+use crate::git::hunk::SimpleHunk;
 
 use self::hunk::Hunk;
 
@@ -18,10 +22,13 @@ impl TryFrom<&CanonicalizedPath> for GitRepo {
     type Error = anyhow::Error;
 
     fn try_from(value: &CanonicalizedPath) -> Result<Self, Self::Error> {
-        Ok(GitRepo {
-            repo: Repository::open(value)?,
-            path: value.clone(),
-        })
+        let repo = Repository::discover(value)?;
+        let path = match repo.path().parent() {
+            Some(parent_path) => parent_path.try_into()?,
+            None => bail!("cannot find parent path for {}", repo.path().display()),
+        };
+
+        Ok(GitRepo { repo, path })
     }
 }
 
@@ -140,8 +147,18 @@ impl FileDiff {
 }
 
 pub trait GitOperation {
-    fn file_diff(&self, diff_mode: &DiffMode, repo: &CanonicalizedPath)
-        -> anyhow::Result<FileDiff>;
+    fn file_diff(
+        &self,
+        current_content: &str,
+        diff_mode: &DiffMode,
+        repo: &CanonicalizedPath,
+    ) -> anyhow::Result<FileDiff>;
+    fn simple_hunks(
+        &self,
+        current_content: &str,
+        diff_mode: &DiffMode,
+        repo: &CanonicalizedPath,
+    ) -> anyhow::Result<Vec<SimpleHunk>>;
     fn content_at_last_commit(
         &self,
         diff_mode: &DiffMode,
@@ -152,14 +169,14 @@ pub trait GitOperation {
 impl GitOperation for CanonicalizedPath {
     fn file_diff(
         &self,
+        current_content: &str,
         diff_mode: &DiffMode,
         repo_path: &CanonicalizedPath,
     ) -> anyhow::Result<FileDiff> {
         if let Ok(latest_committed_content) =
             self.content_at_last_commit(diff_mode, &repo_path.try_into()?)
         {
-            let current_content = self.read()?;
-            let hunks = Hunk::get(&latest_committed_content, &current_content);
+            let hunks = Hunk::get_hunks(&latest_committed_content, current_content);
 
             Ok(FileDiff {
                 path: self.clone(),
@@ -170,6 +187,23 @@ impl GitOperation for CanonicalizedPath {
                 path: self.clone(),
                 hunks: [Hunk::one_insert("[This file is untracked or renamed]")].to_vec(),
             })
+        }
+    }
+
+    fn simple_hunks(
+        &self,
+        current_content: &str,
+        diff_mode: &DiffMode,
+        repo_path: &CanonicalizedPath,
+    ) -> anyhow::Result<Vec<SimpleHunk>> {
+        if let Ok(latest_committed_content) =
+            self.content_at_last_commit(diff_mode, &repo_path.try_into()?)
+        {
+            let hunks = Hunk::get_simple_hunks(&latest_committed_content, current_content);
+
+            Ok(hunks)
+        } else {
+            Ok(Default::default())
         }
     }
 
@@ -201,7 +235,7 @@ pub(crate) struct DiffEntry {
 impl DiffEntry {
     fn file_diff(&self) -> anyhow::Result<FileDiff> {
         if let Some(old_content) = &self.old_content {
-            let hunks = Hunk::get(old_content, &self.new_content);
+            let hunks = Hunk::get_hunks(old_content, &self.new_content);
             Ok(FileDiff {
                 path: self.new_path.clone(),
                 hunks,
@@ -219,7 +253,7 @@ impl DiffEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DiffMode {
     UnstagedAgainstMainBranch,
     UnstagedAgainstCurrentBranch,
@@ -228,8 +262,8 @@ pub(crate) enum DiffMode {
 impl DiffMode {
     pub(crate) fn display(&self) -> String {
         match self {
-            DiffMode::UnstagedAgainstMainBranch => "against main branch".to_string(),
-            DiffMode::UnstagedAgainstCurrentBranch => "against current branch".to_string(),
+            DiffMode::UnstagedAgainstMainBranch => "^".to_string(),
+            DiffMode::UnstagedAgainstCurrentBranch => "@".to_string(),
         }
     }
 }

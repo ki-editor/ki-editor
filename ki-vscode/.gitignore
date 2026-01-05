@@ -1,0 +1,11 @@
+node_modules
+dist
+*.vsix
+*.log
+.DS_Store
+coverage
+out
+reports
+Session.vim
+*.zip
+build

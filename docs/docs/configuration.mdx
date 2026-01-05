@@ -1,0 +1,113 @@
+---
+sidebar_position: 11
+---
+
+import { AppConfigSchemaViewerFallback } from "./SchemaViewerFallback.tsx"
+import { ScriptInputSchemaViewerFallback } from "./SchemaViewerFallback.tsx"
+import { ScriptOutputSchemaViewerFallback } from "./SchemaViewerFallback.tsx"
+
+# Configuration
+
+Ki supports two levels of configuration:
+
+1. **Global**:  
+   a. Windows: `%LOCALAPPDATA%\ki\config.(json|yaml|toml)`  
+   b. MacOS/Linux: `~/.config/ki/config.(json|yaml|toml)`
+2. **Workspace**:  
+   a. `./.ki/config.json`
+
+Note: Workspace config overrides Global config.
+
+## Config Schema
+
+<AppConfigSchemaViewerFallback/>
+
+## Scripting
+
+You can define up to 30 custom actions that can execute arbitrary scripts and interact with Ki's state.
+
+The custom actions menu can be brought up by pressing `\`.
+
+### Configuration
+
+First, add a `leader_keymap` section to your Ki config file:
+
+```json
+{
+  "leader_keymap": [
+    [null, null, null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null, null, null]
+  ]
+}
+```
+
+Each row maps to keyboard positions (using QWERTY layout as example):
+
+- Row 1: `q w e r t y u i o p`
+- Row 2: `a s d f g h j k l ;`
+- Row 3: `z x c v b n m , . /`
+
+To bind a script to a key, replace `null` with:
+
+```json
+{
+  "name": "[Name of action]",
+  "script": "[Name of script]"
+}
+```
+
+### Script Resolution
+
+Scripts are resolved in this order:
+
+1. Workspace: `.ki/scripts/<script-name>`
+2. Global: `~/.ki/scripts/<script-name>`
+
+### How do Scripts Work?
+
+Scripts communicate with Ki through stringified JSON on STDIN/STDOUT:
+
+**Input (STDIN):** Current editor state including buffers, selections, and workspace info
+
+**Output (STDOUT):** Array of Ki commands to execute
+
+### Example: Show Editor State
+
+```python
+#!/usr/bin/env python3
+
+import json
+import sys
+
+# Parse editor state from stdin
+state = json.loads(sys.stdin.read())
+
+# Return commands to execute
+output = {
+    "dispatches": [
+        {
+            "ShowInfo": {
+                "title": "Editor State",
+                "content": json.dumps(state, indent=2)
+            }
+        }
+    ]
+}
+
+print(json.dumps(output))
+```
+
+### Schema References
+
+**Input Schema:** <ScriptInputSchemaViewerFallback />
+
+**Output Schema:** <ScriptOutputSchemaViewerFallback />
+
+### Tips
+
+- Make scripts executable: `chmod +x script.py`
+- Use workspace scripts for project-specific actions
+- Use global scripts for general utilities
+- Scripts can be written in any language that can read stdin and write stdout
+- Chain multiple dispatches to perform complex operations

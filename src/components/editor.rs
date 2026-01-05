@@ -1,49 +1,54 @@
+use super::{
+    component::ComponentId,
+    dropdown::DropdownRender,
+    editor_keymap::{shifted_char, KEYMAP_SCORE},
+    editor_keymap_legend::NormalModeOverride,
+    render_editor::Source,
+    suggestive_editor::{Decoration, Info},
+};
 use crate::{
-    app::{Dispatches, RequestParams},
+    app::{Dimension, Dispatch, ToHostApp},
+    buffer::Buffer,
+    char_index_range::range_intersects,
+    components::component::Component,
+    context::LocalSearchConfig,
+    edit::{Action, ActionGroup, Edit, EditTransaction},
+    git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _, GitRepo},
+    list::grep::RegexConfig,
+    lsp::completion::PositionalEdit,
+    position::Position,
+    quickfix_list::QuickfixListItem,
+    rectangle::Rectangle,
+    search::parse_search_config,
+    selection::{CharIndex, Selection, SelectionMode, SelectionSet},
+    selection_mode::{ast_grep, NamingConventionAgnostic},
+};
+use crate::{
+    app::{Dispatches, RequestParams, Scope},
     buffer::Line,
     char_index_range::CharIndexRange,
     clipboard::CopiedTexts,
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     lsp::{completion::CompletionItemEdit, process::ResponseContext},
-    selection::Filter,
-    selection_mode,
+    selection_mode::{self, regex::get_regex},
     surround::EnclosureKind,
     transformation::{MyRegex, Transformation},
 };
-
-use nonempty::NonEmpty;
-use shared::canonicalized_path::CanonicalizedPath;
-use std::{
-    cell::{Ref, RefCell, RefMut},
-    ops::Range,
-    rc::Rc,
-};
-
+use crate::{grid::LINE_NUMBER_VERTICAL_BORDER, selection_mode::PositionBasedSelectionMode};
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use event::KeyEvent;
 use itertools::{Either, Itertools};
 use my_proc_macros::key;
+use nonempty::NonEmpty;
 use ropey::Rope;
-
-use crate::{
-    app::{Dimension, Dispatch},
-    buffer::Buffer,
-    components::component::Component,
-    edit::{Action, ActionGroup, Edit, EditTransaction},
-    lsp::completion::PositionalEdit,
-    position::Position,
-    rectangle::Rectangle,
-    selection::{CharIndex, Selection, SelectionMode, SelectionSet},
+use shared::canonicalized_path::CanonicalizedPath;
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    ops::{Not, Range},
+    path::PathBuf,
+    rc::Rc,
 };
-
 use DispatchEditor::*;
-
-use super::{
-    component::ComponentId,
-    dropdown::DropdownRender,
-    render_editor::Source,
-    suggestive_editor::{Decoration, Info},
-};
 
 #[derive(PartialEq, Clone, Debug, Eq)]
 pub(crate) enum Mode {
@@ -51,9 +56,15 @@ pub(crate) enum Mode {
     Insert,
     MultiCursor,
     FindOneChar(IfCurrentNotFound),
-    Exchange,
-    UndoTree,
+    Swap,
     Replace,
+    Delete,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug, Eq)]
+pub(crate) enum PriorChange {
+    EnterMultiCursorMode,
+    EnableSelectionExtension,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -61,7 +72,6 @@ pub(crate) struct Jump {
     pub(crate) character: char,
     pub(crate) selection: Selection,
 }
-const WINDOW_TITLE_HEIGHT: usize = 1;
 
 impl Component for Editor {
     fn id(&self) -> ComponentId {
@@ -76,23 +86,15 @@ impl Component for Editor {
         self
     }
 
-    fn set_content(&mut self, str: &str) -> Result<(), anyhow::Error> {
+    fn set_content(&mut self, str: &str, context: &Context) -> Result<(), anyhow::Error> {
         self.update_buffer(str);
-        self.clamp()
+        self.clamp(context)
     }
 
     fn title(&self, context: &Context) -> String {
         let title = self.title.clone();
         title
-            .or_else(|| {
-                let path = self.buffer().path()?;
-                let current_working_directory = context.current_working_directory();
-                let string = path
-                    .display_relative_to(current_working_directory)
-                    .unwrap_or_else(|_| path.display_absolute());
-                let icon = path.icon();
-                Some(format!(" {} {}", icon, string))
-            })
+            .or_else(|| self.title_impl(context))
             .unwrap_or_else(|| "[No title]".to_string())
     }
 
@@ -100,8 +102,12 @@ impl Component for Editor {
         self.title = Some(title);
     }
 
-    fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Dispatches> {
-        self.insert(&content)
+    fn handle_paste_event(
+        &mut self,
+        content: String,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
+        self.insert(&content, context)
     }
 
     fn get_cursor_position(&self) -> anyhow::Result<Position> {
@@ -110,9 +116,14 @@ impl Component for Editor {
             .char_to_position(self.get_cursor_char_index())
     }
 
-    fn set_rectangle(&mut self, rectangle: Rectangle) {
-        self.rectangle = rectangle;
-        self.recalculate_scroll_offset();
+    fn set_rectangle(&mut self, rectangle: Rectangle, context: &Context) {
+        // Only update and recalculate scroll offset
+        // if the new rectangle is different from the current rectangle
+
+        if self.rectangle != rectangle {
+            self.rectangle = rectangle;
+            self.recalculate_scroll_offset(context);
+        }
     }
 
     fn rectangle(&self) -> &Rectangle {
@@ -131,7 +142,7 @@ impl Component for Editor {
         &mut self,
         mouse_event: crossterm::event::MouseEvent,
     ) -> anyhow::Result<Dispatches> {
-        const SCROLL_HEIGHT: usize = 1;
+        const SCROLL_HEIGHT: usize = 2;
         match mouse_event.kind {
             MouseEventKind::ScrollUp => {
                 self.apply_scroll(Direction::Start, SCROLL_HEIGHT);
@@ -171,6 +182,8 @@ impl Component for Editor {
             event::event::Event::Paste(content) => self.paste_text(
                 Direction::End,
                 CopiedTexts::new(NonEmpty::singleton(content)),
+                context,
+                false,
             ),
             event::event::Event::Mouse(event) => self.handle_mouse_event(event),
             _ => Ok(Default::default()),
@@ -182,118 +195,112 @@ impl Component for Editor {
         context: &mut Context,
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
+        let last_visible_line = self.last_visible_line(context);
         match dispatch {
             #[cfg(test)]
-            AlignViewTop => self.align_cursor_to_top(),
+            AlignViewTop => self.align_selection_to_top(),
             #[cfg(test)]
-            AlignViewBottom => self.align_cursor_to_bottom(),
-            Transform(transformation) => return self.transform_selection(transformation),
+            AlignViewBottom => self.align_selection_to_bottom(context),
+            #[cfg(test)]
+            AlignViewCenter => self.align_selection_to_center(context),
+            Transform(transformation) => return self.transform_selection(transformation, context),
             SetSelectionMode(if_current_not_found, selection_mode) => {
-                return self.set_selection_mode(if_current_not_found, selection_mode);
+                return self.set_selection_mode(
+                    if_current_not_found,
+                    selection_mode,
+                    context,
+                    None,
+                );
             }
-
+            SetSelectionModeWithPriorChange(if_current_not_found, selection_mode, prior_change) => {
+                return self.set_selection_mode(
+                    if_current_not_found,
+                    selection_mode,
+                    context,
+                    prior_change,
+                );
+            }
             FindOneChar(if_current_not_found) => {
                 self.enter_single_character_mode(if_current_not_found)
             }
-
-            MoveSelection(direction) => return self.handle_movement(context, direction),
-            Copy {
-                use_system_clipboard,
-            } => return self.copy(use_system_clipboard),
-            ReplaceWithCopiedText {
-                cut,
-                use_system_clipboard,
-            } => return self.replace_with_copied_text(context, cut, use_system_clipboard, 0),
-            SelectAll => return Ok(self.select_all()),
-            SetContent(content) => self.set_content(&content)?,
-            ToggleVisualMode => self.toggle_visual_mode(),
-            EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
-            EnterInsertMode(direction) => return self.enter_insert_mode(direction),
-            Delete(direction) => return self.delete(direction),
-            Insert(string) => return self.insert(&string),
+            MoveSelection(movement) => return self.handle_movement(context, movement),
+            MoveSelectionWithPriorChange(movement, prior_change) => {
+                return self.handle_movement_with_prior_change(context, movement, prior_change)
+            }
+            Copy => return Ok(self.copy()),
+            ReplaceWithCopiedText { cut } => return self.replace_with_copied_text(context, cut, 0),
+            SelectAll => return self.select_all(context),
+            SetContent(content) => self.set_content(&content, context)?,
+            EnableSelectionExtension => self.enable_selection_extension(),
+            DisableSelectionExtension => self.disable_selection_extension(),
+            EnterInsertMode(direction) => return self.enter_insert_mode(direction, context),
+            Insert(string) => return self.insert(&string, context),
             #[cfg(test)]
-            MatchLiteral(literal) => return self.match_literal(&literal),
-            ToggleBookmark => self.toggle_bookmarks(),
-            EnterNormalMode => self.enter_normal_mode()?,
-            FilterPush(filter) => return Ok(self.filters_push(context, filter)),
-            CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
-            FilterClear => return Ok(self.filters_clear()),
+            MatchLiteral(literal) => return self.match_literal(&literal, context),
+            EnterNormalMode => self.enter_normal_mode(context)?,
+            CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
-            EnterExchangeMode => self.enter_exchange_mode(),
+            EnterSwapMode => self.enter_swap_mode(),
             ReplacePattern { config } => {
                 let selection_set = self.selection_set.clone();
-                let (_, selection_set) = self.buffer_mut().replace(config, selection_set)?;
+                let (_, selection_set, dispatches, _) =
+                    self.buffer_mut()
+                        .replace(config, selection_set, last_visible_line)?;
                 return Ok(self
-                    .update_selection_set(selection_set, false)
-                    .chain(self.get_document_did_change_dispatch()));
+                    .update_selection_set(selection_set, false, context)
+                    .chain(self.get_document_did_change_dispatch())
+                    .chain(dispatches));
             }
             Undo => {
-                let dispatches = self.undo();
+                let dispatches = self.undo(context);
                 return dispatches;
             }
-            KillLine(direction) => return self.kill_line(direction),
+            KillLine(direction) => return self.kill_line(direction, context),
             #[cfg(test)]
             Reset => self.reset(),
-            DeleteWordBackward { short } => return self.delete_word_backward(short),
-            Backspace => return self.backspace(),
-            MoveToLineStart => return self.move_to_line_start(),
+            DeleteWordBackward { short } => return self.delete_word_backward(short, context),
+            Backspace => return self.backspace(context),
+            MoveToLineStart => return self.move_to_line_start(context),
             MoveToLineEnd => return self.move_to_line_end(),
-            SelectLine(movement) => return self.select_line(movement),
-            Redo => return self.redo(),
-            Change => return self.change(),
-            ChangeCut {
-                use_system_clipboard,
-            } => return self.change_cut(use_system_clipboard),
+            SelectLine(movement) => return self.select_line(movement, context),
+            Redo => return self.redo(context),
+            DeleteOne => return self.delete_one(context, false),
+            DeleteCutOne => return self.delete_one(context, true),
+            Change => return self.change(context),
+            ChangeCut => return self.change_cut(context),
             #[cfg(test)]
-            SetRectangle(rectangle) => self.set_rectangle(rectangle),
-            ScrollPageDown => return self.scroll_page_down(),
-            ScrollPageUp => return self.scroll_page_up(),
+            SetRectangle(rectangle) => self.set_rectangle(rectangle, context),
+            ScrollPageDown => return self.scroll_page_down(context),
+            ScrollPageUp => return self.scroll_page_up(context),
             ShowJumps {
                 use_current_selection_mode,
-            } => self.show_jumps(use_current_selection_mode)?,
-            SwitchViewAlignment => self.switch_view_alignment(),
+                prior_change,
+            } => return self.show_jumps(use_current_selection_mode, context, prior_change),
+            SwitchViewAlignment => self.switch_view_alignment(context),
             #[cfg(test)]
             SetScrollOffset(n) => self.set_scroll_offset(n),
             #[cfg(test)]
-            SetLanguage(language) => self.set_language(language)?,
+            SetLanguage(language) => self.set_language(*language)?,
             #[cfg(test)]
             ApplySyntaxHighlight => {
                 self.apply_syntax_highlighting(context)?;
             }
-            Save => return self.save(),
+            Save => return self.do_save(false, context),
+            ForceSave => {
+                return self.do_save(true, context);
+            }
             ReplaceCurrentSelectionWith(string) => {
-                return self.replace_current_selection_with(|_| Some(Rope::from_str(&string)))
+                return self
+                    .replace_current_selection_with(|_| Some(Rope::from_str(&string)), context)
             }
-            SelectLineAt(index) => return Ok(self.select_line_at(index)?.into_vec().into()),
-            EnterMultiCursorMode => self.enter_multicursor_mode(),
-            Surround(open, close) => return self.enclose(open, close),
-            ShowKeymapLegendInsertMode => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.insert_mode_keymap_legend_config(),
-                )]
-                .to_vec()
-                .into())
+            SelectLineAt(index) => {
+                return Ok(self.select_line_at(index, context)?.into_vec().into())
             }
-            ShowKeymapLegendHelp => {
-                return Ok(
-                    [Dispatch::ShowKeymapLegend(self.help_keymap_legend_config())]
-                        .to_vec()
-                        .into(),
-                )
-            }
-            ShowKeymapLegendNormalMode => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.normal_mode_keymap_legend_config(context),
-                )]
-                .to_vec()
-                .into())
-            }
+            Surround(open, close) => return self.surround(open, close, context),
             EnterReplaceMode => self.enter_replace_mode(),
-            Paste {
-                direction,
-                use_system_clipboard,
-            } => return self.paste(direction, context, use_system_clipboard),
-            SwapCursorWithAnchor => self.swap_cursor_with_anchor(),
+            Paste => return self.paste(context, true),
+            PasteNoGap => return self.paste(context, false),
+            SwapCursor => self.swap_cursor(context),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
             MoveCharacterForward => {
@@ -301,17 +308,16 @@ impl Component for Editor {
                 self.selection_set
                     .move_right(&self.cursor_direction, len_chars)
             }
-            Open(direction) => return self.open(direction),
-            TryReplaceCurrentLongWord(replacement) => {
-                return self.try_replace_current_long_word(replacement)
+            Open => return self.open(context),
+            GoBack => self.go_back(context),
+            GoForward => self.go_forward(context),
+            SelectSurround { enclosure, kind } => {
+                return self.select_surround(enclosure, kind, context)
             }
-            GoBack => self.go_back(),
-            GoForward => self.go_forward(),
-            SelectSurround { enclosure, kind } => return self.select_surround(enclosure, kind),
-            DeleteSurround(enclosure) => return self.delete_surround(enclosure),
-            ChangeSurround { from, to } => return self.change_surround(from, Some(to)),
+            DeleteSurround(enclosure) => return self.delete_surround(enclosure, context),
+            ChangeSurround { from, to } => return self.change_surround(from, Some(to), context),
             ReplaceWithPattern => return self.replace_with_pattern(context),
-            Replace(movement) => return self.replace_with_movement(&movement),
+            Replace(movement) => return self.replace_with_movement(&movement, context),
             ApplyPositionalEdits(edits) => {
                 return self.apply_positional_edits(
                     edits
@@ -320,25 +326,102 @@ impl Component for Editor {
                             CompletionItemEdit::PositionalEdit(positional_edit) => positional_edit,
                         })
                         .collect_vec(),
+                    context,
                 )
             }
             ReplaceWithPreviousCopiedText => {
                 let history_offset = self.copied_text_history_offset.decrement();
-                return self.replace_with_copied_text(context, false, false, history_offset);
+                return self.replace_with_copied_text(context, false, history_offset);
             }
             ReplaceWithNextCopiedText => {
                 let history_offset = self.copied_text_history_offset.increment();
-                return self.replace_with_copied_text(context, false, false, history_offset);
+                return self.replace_with_copied_text(context, false, history_offset);
             }
-            MoveToLastChar => return Ok(self.move_to_last_char()),
-            PipeToShell { command } => return self.pipe_to_shell(command),
+            MoveToLastChar => return Ok(self.move_to_last_char(context)),
+            PipeToShell { command } => return self.pipe_to_shell(command, context),
             ShowCurrentTreeSitterNodeSexp => return self.show_current_tree_sitter_node_sexp(),
-            Indent => return self.indent(),
-            Dedent => return self.dedent(),
+            Indent => return self.indent(context),
+            Dedent => return self.dedent(context),
             CyclePrimarySelection(direction) => self.cycle_primary_selection(direction),
+            SwapExtensionAnchor => self.selection_set.swap_anchor(),
+            CollapseSelection(direction) => return self.collapse_selection(context, direction),
+            FilterSelectionMatchingSearch { maintain, search } => {
+                self.mode = Mode::Normal;
+                let search_config = parse_search_config(&search)?;
+                return Ok(self.filter_selection_matching_search(
+                    search_config.local_config(),
+                    maintain,
+                    context,
+                ));
+            }
+            EnterNewline => return self.enter_newline(context),
+            DeleteCurrentCursor(direction) => self.delete_current_cursor(direction),
+            BreakSelection => return self.break_selection(context),
+            ShowHelp => return self.show_help(context),
+            HandleEsc => {
+                self.disable_selection_extension();
+                self.mode = Mode::Normal;
+                return Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent));
+            }
+            ToggleReveal(reveal) => self.toggle_reveal(reveal),
+            SearchCurrentSelection(if_current_not_found, scope) => {
+                return Ok(self.search_current_selection(if_current_not_found, scope))
+            }
+            ExecuteCompletion { replacement, edit } => {
+                return self.execute_completion(replacement, edit, context)
+            }
+            ToggleLineComment => return self.toggle_line_comment(context),
+            ToggleBlockComment => return self.toggle_block_comment(context),
+            ShowKeymapLegendExtend => {
+                return Ok(Dispatches::one(Dispatch::ShowKeymapLegend(
+                    self.extend_mode_keymap_legend_config(context),
+                )))
+            }
+            RepeatSearch(scope, if_current_not_found, prior_change) => {
+                return self.repeat_search(context, scope, if_current_not_found, prior_change)
+            }
+            RevertHunk(diff_mode) => return self.revert_hunk(context, diff_mode),
+            GitBlame => return self.git_blame(context),
+            ReloadFile { force } => return self.reload(force),
+            MergeContent {
+                content_filesystem,
+                content_editor,
+                path,
+            } => return self.merge_content(context, path, content_editor, content_filesystem),
+            ClearIncrementalSearchMatches => self.clear_incremental_search_matches(),
+            GoToFile => return self.go_to_file(),
+            SearchClipboardContent(scope) => {
+                return Ok(self.search_clipboard_content(scope, context))
+            }
+            PressSpace => return Ok(self.press_space(context)),
+            PathRenamed {
+                source,
+                destination,
+            } => self.handle_path_renamed(source, destination),
+            CopyAbsolutePath => return self.copy_current_file_absolute_path(),
+            CopyRelativePath => return self.copy_current_file_relative_path(context),
+            DeleteWithMovement(movement) => {
+                return self.delete_with_movement(context, movement, false)
+            }
+            DeleteCutWithMovement(movement) => {
+                return self.delete_with_movement(context, movement, true)
+            }
+            EnterDeleteMode => self.mode = Mode::Delete,
+            AlignSelections(direction) => return self.align_selections(direction, context),
+            JoinSelection => return self.join_selection(context),
+            ReplaceSelections(replacements) => {
+                return self.replace_selections(context, replacements)
+            }
         }
         Ok(Default::default())
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum Reveal {
+    CurrentSelectionMode,
+    Cursor,
+    Mark,
 }
 
 impl Clone for Editor {
@@ -356,6 +439,10 @@ impl Clone for Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
+            normal_mode_override: self.normal_mode_override.clone(),
+            reveal: self.reveal.clone(),
+            visible_line_ranges: Default::default(),
+            incremental_search_matches: self.incremental_search_matches.clone(),
         }
     }
 }
@@ -371,14 +458,21 @@ pub(crate) struct Editor {
 
     /// This means the number of lines to be skipped from the top during rendering.
     /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
-    scroll_offset: u16,
+    scroll_offset: usize,
     rectangle: Rectangle,
-
     buffer: Rc<RefCell<Buffer>>,
     title: Option<String>,
     id: ComponentId,
     pub(crate) current_view_alignment: Option<ViewAlignment>,
     copied_text_history_offset: Counter,
+    pub(crate) normal_mode_override: Option<NormalModeOverride>,
+    pub(crate) reveal: Option<Reveal>,
+
+    /// This is only used when Ki is running as an embedded component,
+    /// for example, inside VS Code.
+    visible_line_ranges: Option<Vec<Range<usize>>>,
+
+    pub(crate) incremental_search_matches: Option<Vec<Range<usize>>>,
 }
 
 #[derive(Default)]
@@ -418,6 +512,7 @@ pub(crate) struct RegexHighlightRuleCaptureStyle {
     pub(crate) capture_name: &'static str,
     pub(crate) source: Source,
 }
+
 impl RegexHighlightRuleCaptureStyle {
     pub(crate) fn new(capture_name: &'static str, source: Source) -> Self {
         Self {
@@ -448,10 +543,17 @@ impl Direction {
         Direction::Start
     }
 
-    fn to_movement(&self) -> Movement {
+    pub(crate) fn format_action(&self, action: &str) -> String {
         match self {
-            Direction::Start => Movement::Previous,
-            Direction::End => Movement::Next,
+            Direction::Start => format!("← {action}"),
+            Direction::End => format!("{action} →"),
+        }
+    }
+
+    pub(crate) fn to_if_current_not_found(&self) -> IfCurrentNotFound {
+        match self {
+            Direction::Start => IfCurrentNotFound::LookBackward,
+            Direction::End => IfCurrentNotFound::LookForward,
         }
     }
 }
@@ -461,11 +563,21 @@ pub(crate) enum IfCurrentNotFound {
     LookForward,
     LookBackward,
 }
+impl IfCurrentNotFound {
+    pub(crate) fn inverse(&self) -> IfCurrentNotFound {
+        use IfCurrentNotFound::*;
+        match self {
+            LookForward => LookBackward,
+            LookBackward => LookForward,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// This enum is to be used for binding keys
 pub(crate) enum Movement {
-    Next,
-    Previous,
+    Right,
+    Left,
     Last,
     Current(IfCurrentNotFound),
     Up,
@@ -474,10 +586,90 @@ pub(crate) enum Movement {
     /// 0-based
     Index(usize),
     Jump(CharIndexRange),
-    ToParentLine,
-    Parent,
-    #[cfg(test)]
-    FirstChild,
+    Expand,
+    Previous,
+    Next,
+}
+impl Movement {
+    pub(crate) fn into_movement_applicandum(
+        self,
+        sticky_column_index: &Option<usize>,
+    ) -> MovementApplicandum {
+        match self {
+            Movement::Right => MovementApplicandum::Right,
+            Movement::Left => MovementApplicandum::Left,
+            Movement::Last => MovementApplicandum::Last,
+            Movement::Current(if_current_not_found) => {
+                MovementApplicandum::Current(if_current_not_found)
+            }
+            Movement::Up => MovementApplicandum::Up {
+                sticky_column_index: *sticky_column_index,
+            },
+            Movement::Down => MovementApplicandum::Down {
+                sticky_column_index: *sticky_column_index,
+            },
+            Movement::First => MovementApplicandum::First,
+            Movement::Index(index) => MovementApplicandum::Index(index),
+            Movement::Jump(chars) => MovementApplicandum::Jump(chars),
+            Movement::Expand => MovementApplicandum::Expand,
+            Movement::Previous => MovementApplicandum::Previous,
+            Movement::Next => MovementApplicandum::Next,
+        }
+    }
+
+    fn reverse(&self) -> Movement {
+        match self {
+            Movement::Left => Movement::Right,
+            Movement::Right => Movement::Left,
+            Movement::Up => Movement::Down,
+            Movement::Down => Movement::Up,
+            Movement::First => Movement::Last,
+            Movement::Last => Movement::First,
+            Movement::Previous => Movement::Next,
+            Movement::Next => Movement::Previous,
+            _ => *self,
+        }
+    }
+
+    fn to_direction(self) -> Direction {
+        use Movement::*;
+        match self {
+            Right | Next | Last => Direction::End,
+            Left | Previous | First => Direction::Start,
+            _ => Direction::End,
+        }
+    }
+
+    fn downgrade(&self) -> Movement {
+        match self {
+            Movement::Right => Movement::Next,
+            Movement::Left => Movement::Previous,
+            _ => *self,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// This enum is to be used internally, not exposed to keybindings
+/// Applicandum = To Be Applied
+pub(crate) enum MovementApplicandum {
+    Right,
+    Left,
+    Last,
+    Current(IfCurrentNotFound),
+    Up {
+        sticky_column_index: Option<usize>,
+    },
+    Down {
+        sticky_column_index: Option<usize>,
+    },
+    First,
+    /// 0-based
+    Index(usize),
+    Jump(CharIndexRange),
+    Expand,
+    Next,
+    Previous,
 }
 
 impl Editor {
@@ -485,16 +677,25 @@ impl Editor {
     pub(crate) fn get_parent_lines(&self) -> anyhow::Result<(Vec<Line>, Vec<Line>)> {
         let position = self.get_cursor_position()?;
 
-        let parent_lines = self.buffer().get_parent_lines(position.line)?;
-        Ok(parent_lines
-            .into_iter()
-            .partition(|line| line.line < self.scroll_offset as usize))
+        self.get_parent_lines_given_line_index_and_scroll_offset(position.line, self.scroll_offset)
     }
 
-    pub(crate) fn show_info(&mut self, info: Info) -> Result<(), anyhow::Error> {
+    // BOTTLENECK 5: This causes hiccup when navigating 10,000 lines CSV
+    pub(crate) fn get_parent_lines_given_line_index_and_scroll_offset(
+        &self,
+        line_index: usize,
+        scroll_offset: usize,
+    ) -> anyhow::Result<(Vec<Line>, Vec<Line>)> {
+        let parent_lines = self.buffer().get_parent_lines(line_index)?;
+        Ok(parent_lines
+            .into_iter()
+            .partition(|line| line.line < scroll_offset))
+    }
+
+    pub(crate) fn show_info(&mut self, info: Info, context: &Context) -> Result<(), anyhow::Error> {
         self.set_title(info.title());
         self.set_decorations(info.decorations());
-        self.set_content(info.content())
+        self.set_content(info.content(), context)
     }
 
     pub(crate) fn render_dropdown(
@@ -527,12 +728,42 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
+
+            normal_mode_override: None,
+            reveal: None,
+            visible_line_ranges: Default::default(),
+            incremental_search_matches: Default::default(),
         }
     }
 
     pub(crate) fn from_buffer(buffer: Rc<RefCell<Buffer>>) -> Self {
+        // Select the first line of the file
+
+        let first_line_range = selection_mode::LineTrimmed
+            .get_current_selection_by_cursor(
+                &buffer.borrow(),
+                CharIndex(0),
+                IfCurrentNotFound::LookForward,
+            )
+            .unwrap_or_default()
+            .and_then(|byte_range| {
+                buffer
+                    .borrow()
+                    .byte_range_to_char_index_range(byte_range.range())
+                    .ok()
+            })
+            .unwrap_or_default();
+
+        let selection = Selection {
+            range: first_line_range,
+            initial_range: None,
+            info: None,
+        };
+
+        let selection_set = SelectionSet::default().set_selections(NonEmpty::new(selection));
+
         Self {
-            selection_set: SelectionSet::default(),
+            selection_set,
             jumps: None,
             mode: Mode::Normal,
             cursor_direction: Direction::Start,
@@ -544,9 +775,14 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             copied_text_history_offset: Default::default(),
+            normal_mode_override: None,
+            reveal: None,
+            visible_line_ranges: Default::default(),
+            incremental_search_matches: Default::default(),
         }
     }
 
+    /// The returned value includes leading whitespaces but elides trailing newline character
     pub(crate) fn current_line(&self) -> anyhow::Result<String> {
         let cursor = self.get_cursor_char_index();
         Ok(self
@@ -554,8 +790,8 @@ impl Editor {
             .borrow()
             .get_line_by_char_index(cursor)?
             .to_string()
-            .trim()
-            .into())
+            .trim_end_matches("\n")
+            .to_string())
     }
 
     pub(crate) fn get_current_word(&self) -> anyhow::Result<String> {
@@ -563,11 +799,19 @@ impl Editor {
         self.buffer.borrow().get_word_before_char_index(cursor)
     }
 
-    pub(crate) fn select_line(&mut self, movement: Movement) -> anyhow::Result<Dispatches> {
-        self.select(SelectionMode::LineTrimmed, movement)
+    pub(crate) fn select_line(
+        &mut self,
+        movement: Movement,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
+        self.select(SelectionMode::Line, movement, context)
     }
 
-    pub(crate) fn select_line_at(&mut self, line: usize) -> anyhow::Result<Dispatches> {
+    pub(crate) fn select_line_at(
+        &mut self,
+        line: usize,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
         let start = self.buffer.borrow().line_to_char(line)?;
         let selection_set = SelectionSet::new(NonEmpty::singleton(Selection::new(
             (start
@@ -580,7 +824,7 @@ impl Editor {
                 .into(),
         )));
 
-        Ok(self.update_selection_set(selection_set, false))
+        Ok(self.update_selection_set(selection_set, false, context))
     }
 
     #[cfg(test)]
@@ -592,32 +836,29 @@ impl Editor {
         &mut self,
         selection_set: SelectionSet,
         store_history: bool,
+        context: &Context,
     ) -> Dispatches {
         let show_info = selection_set
             .map(|selection| selection.info())
             .into_iter()
             .flatten()
             .reduce(Info::join)
-            .map(Dispatch::ShowEditorInfo);
+            .map(Dispatch::ShowGlobalInfo);
         self.cursor_direction = Direction::Start;
         if store_history {
             self.buffer_mut()
                 .push_selection_set_history(selection_set.clone());
         }
-        self.set_selection_set(selection_set);
+        self.set_selection_set(selection_set, context);
         Dispatches::default().append_some(show_info)
     }
 
-    pub(crate) fn position_range_to_selection_set(
+    pub(crate) fn char_index_range_to_selection_set(
         &self,
-        range: Range<Position>,
+        range: CharIndexRange,
     ) -> anyhow::Result<SelectionSet> {
-        let range = (self.buffer().position_to_char(range.start)?
-            ..self.buffer().position_to_char(range.end)?)
-            .into();
-
         let mode = if self.buffer().given_range_is_node(&range) {
-            SelectionMode::SyntaxNodeCoarse
+            SelectionMode::SyntaxNode
         } else {
             SelectionMode::Custom
         };
@@ -629,75 +870,167 @@ impl Editor {
         Ok(SelectionSet::new(NonEmpty::new(primary)).set_mode(mode))
     }
 
-    fn cursor_row(&self) -> u16 {
-        self.get_cursor_char_index()
-            .to_position(&self.buffer.borrow())
-            .line as u16
-    }
-
-    fn recalculate_scroll_offset(&mut self) {
+    /// Scroll offset recalculation is always based on the position of the cursor
+    fn recalculate_scroll_offset(&mut self, context: &Context) {
         // Update scroll_offset if primary selection is out of view.
-        let cursor_row = self.cursor_row();
-        let render_area = self.render_area();
-        if cursor_row.saturating_sub(self.scroll_offset) > render_area.height.saturating_sub(1)
-            || cursor_row < self.scroll_offset
-        {
-            self.align_cursor_to_center();
+        let primary_selection_range = self.selection_set.primary_selection().extended_range();
+        let line_range = self
+            .buffer()
+            .char_index_range_to_line_range(primary_selection_range)
+            .unwrap_or_default();
+        let render_area = self.render_area(context);
+        let out_of_viewport = |row: usize| {
+            row.saturating_sub(self.scroll_offset) > render_area.height.saturating_sub(1)
+                || row < self.scroll_offset
+        };
+        if out_of_viewport(line_range.start) || out_of_viewport(line_range.end.saturating_sub(1)) {
+            self.align_selection_to_center(context);
             self.current_view_alignment = None;
         }
     }
 
-    pub(crate) fn align_cursor_to_bottom(&mut self) {
-        self.scroll_offset = self.cursor_row().saturating_sub(
-            self.rectangle
-                .height
-                .saturating_sub(1)
-                .saturating_sub(WINDOW_TITLE_HEIGHT as u16),
+    /// Aligns the selection to show the target line within the available viewport.
+    ///
+    /// This function attempts to position the target line optimally within the visible area
+    /// by iteratively testing different scroll offsets. Due to the complex interaction between
+    /// hidden parent lines (contextual lines) and text wrapping, there's no deterministic way
+    /// to calculate the optimal scroll offset directly.
+    ///
+    /// The algorithm works backwards from the maximum possible offset, testing each position
+    /// until it finds one where the target line is visible in the rendered grid. This finds
+    /// the best alignment position for both center and bottom alignment scenarios.
+    fn align_selection<F: Fn(usize) -> usize>(
+        &mut self,
+        context: &Context,
+        line_range_to_target: impl Fn(Range<usize>) -> usize,
+        available_height_multiplier: F,
+    ) {
+        let primary_selection_range = self.selection_set.primary_selection().extended_range();
+        let line_range = self
+            .buffer()
+            .char_index_range_to_line_range(primary_selection_range)
+            .unwrap_or_default();
+
+        let available_height = self
+            .rectangle
+            .height
+            .saturating_sub(self.window_title_height(context));
+
+        let target_line_index = if available_height <= line_range.len() {
+            // Use cursor row if there are not enough spaces to fit all lines of the selection
+            self.cursor_row()
+        } else {
+            line_range_to_target(line_range.clone())
+        };
+        for i in (0..available_height_multiplier(available_height)).rev() {
+            let new_scroll_offset = target_line_index.saturating_sub(i);
+            let grid = self.get_grid_with_scroll_offset(
+                context,
+                false,
+                new_scroll_offset,
+                Default::default(),
+            );
+            let grid_string = grid.grid.to_string();
+            let grid_string_lines = grid_string.lines().collect_vec();
+            let target_line_number =
+                format!("{}{}", target_line_index + 1, LINE_NUMBER_VERTICAL_BORDER);
+            let target_line_index_in_range = grid_string_lines
+                .iter()
+                .any(|line| line.contains(&target_line_number));
+            if target_line_index_in_range {
+                self.scroll_offset = new_scroll_offset;
+                return;
+            }
+        }
+    }
+
+    pub(crate) fn align_selection_to_bottom(&mut self, context: &Context) {
+        self.align_selection(
+            context,
+            // We need to subtract line_range.end by one because it is exclusive
+            |line_range| line_range.end.saturating_sub(1),
+            |height| height,
+        )
+    }
+
+    /// If the primary selection has multiple lines
+    /// then the middle line will be used for center alignment
+    fn align_selection_to_center(&mut self, context: &Context) {
+        self.align_selection(
+            context,
+            |line_range| line_range.start + (line_range.len() as f32 / 2.0).floor() as usize,
+            |height| height / 2,
         );
     }
 
-    pub(crate) fn align_cursor_to_top(&mut self) {
-        self.scroll_offset = self.cursor_row();
+    /// If the primary selection has multiple lines
+    /// then the first line will be used for top alignment
+    pub(crate) fn align_selection_to_top(&mut self) {
+        let selection_first_line = self
+            .buffer()
+            .char_to_line({
+                let range = self.selection_set.primary_selection().extended_range();
+                match self.cursor_direction {
+                    Direction::Start => range.start,
+                    Direction::End => range.end,
+                }
+            })
+            .unwrap_or_default();
+        self.scroll_offset = selection_first_line;
     }
 
-    fn align_cursor_to_center(&mut self) {
-        self.scroll_offset = self
-            .cursor_row()
-            .saturating_sub((self.rectangle.height as f64 / 2.0).ceil() as u16);
+    fn cursor_row(&self) -> usize {
+        self.buffer()
+            .char_to_line(self.get_cursor_char_index())
+            .unwrap_or_default()
     }
 
     pub(crate) fn select(
         &mut self,
         selection_mode: SelectionMode,
         movement: Movement,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
         //  There are a few selection modes where Current make sense.
-        if let Some(selection_set) = self.get_selection_set(&selection_mode, movement)? {
-            Ok(self.update_selection_set(selection_set, true))
+        if let Some(selection_set) = self.get_selection_set(&selection_mode, movement, context)? {
+            Ok(self.update_selection_set(selection_set, true, context))
         } else {
             Ok(Default::default())
         }
     }
 
-    fn jump_characters() -> Vec<char> {
-        ('a'..='z').chain('A'..='Z').chain('0'..='9').collect_vec()
+    fn jump_characters(context: &Context) -> Vec<char> {
+        let chars = context
+            .keyboard_layout_kind()
+            .get_keyboard_layout()
+            .iter()
+            .flatten()
+            .zip(KEYMAP_SCORE.iter().flatten())
+            .sorted_by_key(|(_, score)| **score)
+            .map(|(char, _)| char.chars().next().unwrap());
+        chars.clone().chain(chars.map(shifted_char)).collect()
     }
 
     pub(crate) fn get_selection_mode_trait_object(
         &self,
         selection: &Selection,
         use_current_selection_mode: bool,
-    ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
+        working_directory: &shared::canonicalized_path::CanonicalizedPath,
+        quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
+    ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         if use_current_selection_mode {
-            self.selection_set.mode.clone()
+            self.selection_set.mode().clone()
         } else {
-            SelectionMode::WordShort
+            SelectionMode::Subword
         }
         .to_selection_mode_trait_object(
             &self.buffer(),
             selection,
             &self.cursor_direction,
-            &self.selection_set.filters,
+            working_directory,
+            quickfix_list_items,
+            marks,
         )
     }
 
@@ -705,21 +1038,31 @@ impl Editor {
         &mut self,
         selection: &Selection,
         use_current_selection_mode: bool,
+        context: &Context,
     ) -> anyhow::Result<()> {
-        let chars = Self::jump_characters();
+        let chars = Self::jump_characters(context);
 
-        let object = self.get_selection_mode_trait_object(selection, use_current_selection_mode)?;
+        let object = self.get_selection_mode_trait_object(
+            selection,
+            use_current_selection_mode,
+            context.current_working_directory(),
+            context.quickfix_list_items(),
+            &context.get_marks(self.path()),
+        )?;
 
-        let line_ranges = Some(self.visible_line_range())
-            .into_iter()
-            .chain(self.hidden_parent_line_ranges()?)
-            .collect_vec();
+        let line_ranges = if let Some(ranges) = &self.visible_line_ranges {
+            ranges.clone()
+        } else {
+            Some(self.visible_line_range())
+                .into_iter()
+                .chain(self.hidden_parent_line_ranges()?)
+                .collect_vec()
+        };
         let jumps = object.jumps(
-            selection_mode::SelectionModeParams {
+            &selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,
-                filters: &self.selection_set.filters,
             },
             chars,
             line_ranges,
@@ -729,83 +1072,133 @@ impl Editor {
         Ok(())
     }
 
-    pub(crate) fn show_jumps(&mut self, use_current_selection_mode: bool) -> anyhow::Result<()> {
+    pub(crate) fn show_jumps(
+        &mut self,
+        use_current_selection_mode: bool,
+        context: &Context,
+        prior_change: Option<PriorChange>,
+    ) -> anyhow::Result<Dispatches> {
+        self.handle_prior_change(prior_change);
         self.jump_from_selection(
             &self.selection_set.primary_selection().clone(),
             use_current_selection_mode,
-        )
+            context,
+        )?;
+        Ok(Dispatches::one(self.dispatch_jumps_changed()))
     }
 
-    pub(crate) fn delete(&mut self, direction: Direction) -> anyhow::Result<Dispatches> {
+    fn delete_with_movement(
+        &mut self,
+        context: &Context,
+        movement: Movement,
+        cut: bool,
+    ) -> anyhow::Result<Dispatches> {
+        let copy_dispatches: Dispatches = if cut { self.copy() } else { Default::default() };
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     let current_range = selection.extended_range();
+
+                    // Let the current_range be at least one character long
+                    // so even if the current_range is empty, the user can
+                    // still delete the character which is apparently under the cursor.
+                    let current_range = if current_range.len() == 0 {
+                        (current_range.start
+                            ..(current_range.start + 1).min(CharIndex(self.buffer().len_chars())))
+                            .into()
+                    } else {
+                        current_range
+                    };
+
                     let default = {
                         let start = current_range.start;
                         (current_range, (start..start + 1).into())
                     };
 
-                    let get_selection = |direction: &Direction| {
+                    let get_selection = |movement: &Movement| {
                         // The start selection is used for getting the next/previous selection
                         // It cannot be the extended selection, otherwise the next/previous selection
                         // will not be found
-                        let start_selection =
-                            &selection.clone().collapsed_to_anchor_range(direction);
-                        Selection::get_selection_(
+
+                        let start_selection = &selection
+                            .clone()
+                            .collapsed_to_anchor_range(&movement.to_direction());
+
+                        let result_selection = Selection::get_selection_(
                             &buffer,
                             start_selection,
-                            &self.selection_set.mode,
-                            &direction.to_movement(),
+                            self.selection_set.mode(),
+                            &movement.into_movement_applicandum(
+                                self.selection_set.sticky_column_index(),
+                            ),
                             &self.cursor_direction,
-                            &self.selection_set.filters,
+                            context,
                         )
                         .ok()
-                        .flatten()
-                    };
-                    let (delete_range, select_range) = {
-                        if !self.selection_set.mode.is_contiguous() {
-                            default
+                        .flatten()?;
+
+                        if result_selection.selection.range() == start_selection.range() {
+                            None
+                        } else {
+                            Some(result_selection)
                         }
-                        // If the selection mode is contiguous,
-                        // perform a "kill next/previous" instead
-                        else if let Some(other_selection) = get_selection(&direction)
-                            .or_else(|| get_selection(&direction.reverse()))
+                    };
+                    let (delete_range, select_range) = (|| {
+                        // Perform a "delete until the other selection" instead
+                        // Other selection is a selection which is before/after the current selection
+                        if let Some(other_selection) = get_selection(&movement)
+                            .or_else(|| get_selection(&movement.reverse()))
+                            // If no selection is found using `movement`, then try downgrading it.
+                            // Downgrading is only applicable for the Left/Right movement,
+                            // which transform into Previous/Next.
+                            // This is necessary, because in some cases, there are no longer meaningful selections,
+                            // and only meaningless selections are left,
+                            // so we will have to "downgrade" the movement so that we can obtain the meaningless selections.
+                            .or_else(|| get_selection(&movement.downgrade()))
+                            .or_else(|| get_selection(&movement.downgrade().reverse()))
                         {
-                            let other_range = other_selection.selection.range();
-                            if other_range == current_range {
-                                default
-                            } else if other_range.start >= current_range.end {
-                                let delete_range: CharIndexRange =
-                                    (current_range.start..other_range.start).into();
-                                let select_range = {
-                                    other_selection
-                                        .selection
-                                        .extended_range()
-                                        .shift_left(delete_range.len())
-                                };
-                                (delete_range, select_range)
-                            } else {
-                                let delete_range: CharIndexRange =
-                                    (other_range.end..current_range.end).into();
-                                let select_range = other_selection.selection.range();
-                                (delete_range, select_range)
+                            // The other_selection is only consider valid
+                            // if it does not intersect with the range to be deleted
+                            if !other_selection
+                                .selection
+                                .range()
+                                .intersects_with(&current_range)
+                            {
+                                let other_range = other_selection.selection.range();
+                                if other_range == current_range {
+                                    return default;
+                                } else if other_range.start >= current_range.end {
+                                    let delete_range: CharIndexRange =
+                                        (current_range.start..other_range.start).into();
+                                    let select_range = {
+                                        other_selection
+                                            .selection
+                                            .extended_range()
+                                            .shift_left(delete_range.len())
+                                    };
+                                    return (delete_range, select_range);
+                                } else {
+                                    let delete_range: CharIndexRange =
+                                        (other_range.end..current_range.end).into();
+                                    let select_range = other_selection.selection.range();
+                                    return (delete_range, select_range);
+                                }
                             }
                         }
+
                         // If the other selection not found, then only deletes the selection
                         // without moving forward or backward
-                        else {
-                            let range = selection.extended_range();
-                            (range, (range.start..range.start).into())
-                        }
-                    };
+                        let range = selection.extended_range();
+                        (range, (range.start..range.start).into())
+                    })();
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: delete_range,
-                                new: Rope::new(),
-                            }),
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                delete_range,
+                                Rope::new(),
+                            )),
                             Action::Select(
                                 selection
                                     .clone()
@@ -820,13 +1213,58 @@ impl Editor {
                 .flatten()
                 .collect()
         });
-        let dispatches = self.apply_edit_transaction(edit_transaction)?;
-        Ok(dispatches)
+        let dispatches = self.apply_edit_transaction(edit_transaction, context)?;
+        Ok(copy_dispatches.chain(dispatches))
     }
 
-    pub(crate) fn copy(&mut self, use_system_clipboard: bool) -> anyhow::Result<Dispatches> {
-        Ok(Dispatches::one(Dispatch::SetClipboardContent {
-            use_system_clipboard,
+    fn enter_newline(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        let edit_transaction = EditTransaction::from_action_groups({
+            let buffer = self.buffer();
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let cursor = selection.extended_range().start;
+                    let current_line_index = buffer.char_to_line(cursor)?;
+
+                    let current_line = buffer.get_line_by_line_index(current_line_index);
+
+                    let indent = "\n".to_string()
+                        + current_line
+                            .map(|line| {
+                                line.to_string()
+                                    .chars()
+                                    .take_while(|c| c.is_whitespace() && c != &'\n')
+                                    .join("")
+                            })
+                            .unwrap_or_default()
+                            .as_str();
+
+                    let range_start = cursor + indent.chars().count();
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                (cursor..cursor).into(),
+                                indent.into(),
+                            )),
+                            Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range((range_start..range_start).into())
+                                    .set_initial_range(None),
+                            ),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect()
+        });
+        self.apply_edit_transaction(edit_transaction, context)
+    }
+
+    pub(crate) fn copy(&mut self) -> Dispatches {
+        Dispatches::one(Dispatch::SetClipboardContent {
             copied_texts: CopiedTexts::new(self.selection_set.map(|selection| {
                 self.buffer()
                     .slice(&selection.extended_range())
@@ -834,10 +1272,14 @@ impl Editor {
                     .map(|s| s.to_string())
                     .unwrap_or_default()
             })),
-        }))
+        })
     }
 
-    fn replace_current_selection_with<F>(&mut self, f: F) -> anyhow::Result<Dispatches>
+    fn replace_current_selection_with<F>(
+        &mut self,
+        f: F,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches>
     where
         F: Fn(Rope) -> Option<Rope>,
     {
@@ -853,10 +1295,7 @@ impl Editor {
                 EditTransaction::from_action_groups(
                     [ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range,
-                                new: result.clone(),
-                            }),
+                            Action::Edit(Edit::new(self.buffer().rope(), range, result.clone())),
                             Action::Select(Selection::new({
                                 let start = start + result.len_chars();
                                 (start..start).into()
@@ -871,16 +1310,20 @@ impl Editor {
             }
         });
         let edit_transaction = EditTransaction::merge(edit_transactions.into());
-        self.apply_edit_transaction(edit_transaction)
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
-    fn try_replace_current_long_word(&mut self, replacement: String) -> anyhow::Result<Dispatches> {
+    fn try_replace_current_long_word(
+        &mut self,
+        replacement: String,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
         let replacement: Rope = replacement.into();
         let buffer = self.buffer();
         let edit_transactions = self.selection_set.map(move |selection| {
+            let rope = buffer.rope();
             let current_char_index = selection.range().start;
-            let word_start = buffer
-                .rope()
+            let word_start = rope
                 .chars()
                 .enumerate()
                 .take(current_char_index.0)
@@ -896,10 +1339,7 @@ impl Editor {
             EditTransaction::from_action_groups(
                 [ActionGroup::new(
                     [
-                        Action::Edit(Edit {
-                            range,
-                            new: replacement.clone(),
-                        }),
+                        Action::Edit(Edit::new(rope, range, replacement.clone())),
                         Action::Select(Selection::new({
                             let start = start + replacement.len_chars();
                             (start..start).into()
@@ -911,19 +1351,22 @@ impl Editor {
             )
         });
         let edit_transaction = EditTransaction::merge(edit_transactions.into());
-        self.apply_edit_transaction(edit_transaction)
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
     fn paste_text(
         &mut self,
         direction: Direction,
         copied_texts: CopiedTexts,
+        context: &Context,
+        with_gap: bool,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
-            self.get_selection_set_with_gap(&direction)
+            self.get_selection_set_with_gap(&direction, context)?
                 .into_iter()
                 .enumerate()
                 .map(|(index, (selection, gap))| {
+                    let gap = if with_gap { gap } else { Rope::new() };
                     let current_range = selection.extended_range();
                     let insertion_range_start = match direction {
                         Direction::Start => current_range.start,
@@ -963,10 +1406,11 @@ impl Editor {
                     };
                     ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: insertion_range.into(),
-                                new: paste_text,
-                            }),
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                insertion_range.into(),
+                                paste_text,
+                            )),
                             Action::Select(
                                 selection.set_range(selection_range).set_initial_range(None),
                             ),
@@ -976,123 +1420,146 @@ impl Editor {
                 })
                 .collect()
         });
-        self.apply_edit_transaction(edit_transaction)
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
     pub(crate) fn paste(
         &mut self,
-        direction: Direction,
-        context: &Context,
-        use_system_clipboard: bool,
+        context: &mut Context,
+        with_gap: bool,
     ) -> anyhow::Result<Dispatches> {
-        let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0)? else {
+        let clipboards_differ: bool = !context.clipboards_synced();
+        let Some(copied_texts) = context.get_clipboard_content(0) else {
             return Ok(Default::default());
         };
-        self.paste_text(direction, copied_texts)
+        let direction = self.cursor_direction.reverse();
+        // out-of-sync paste should also add the content to clipboard history
+        if clipboards_differ {
+            context.add_clipboard_history(copied_texts.clone());
+        }
+
+        self.paste_text(direction, copied_texts, context, with_gap)
     }
 
-    /// If `cut` if true, the replaced text will override the clipboard.  
+    /// If `cut` if true, the replaced text will override the clipboard.
     ///
-    /// If `history_offset` is 0, it means select the latest copied text;  
-    ///   +n means select the nth next copied text (cycle to the first copied text if current copied text is the latest)  
+    /// If `history_offset` is 0, it means select the latest copied text;
+    ///   +n means select the nth next copied text (cycle to the first copied text if current copied text is the latest)
     ///   -n means select the nth previous copied text (cycle to the last copied text if current copied text is the first)
     pub(crate) fn replace_with_copied_text(
         &mut self,
         context: &Context,
         cut: bool,
-        use_system_clipboard: bool,
         history_offset: isize,
     ) -> anyhow::Result<Dispatches> {
-        let dispatches = if cut {
-            self.copy(use_system_clipboard)?
-        } else {
-            Default::default()
-        };
+        let dispatches = if cut { self.copy() } else { Default::default() };
 
-        let Some(copied_texts) =
-            context.get_clipboard_content(use_system_clipboard, history_offset)?
-        else {
+        let Some(copied_texts) = context.get_clipboard_content(history_offset) else {
             return Ok(Default::default());
         };
 
         Ok(self
-            .transform_selection(Transformation::ReplaceWithCopiedText { copied_texts })?
+            .transform_selection(
+                Transformation::ReplaceWithCopiedText { copied_texts },
+                context,
+            )?
             .chain(dispatches))
     }
 
-    fn apply_edit_transaction(
+    pub(crate) fn apply_edit_transaction(
         &mut self,
         edit_transaction: EditTransaction,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        let new_selection_set = self.buffer.borrow_mut().apply_edit_transaction(
-            &edit_transaction,
-            self.selection_set.clone(),
-            self.mode != Mode::Insert,
-        )?;
+        // Apply the transaction to the buffer
+        let last_visible_line = self.last_visible_line(context);
+        let (new_selection_set, dispatches, diff_edits) =
+            self.buffer.borrow_mut().apply_edit_transaction(
+                &edit_transaction,
+                self.selection_set.clone(),
+                self.mode != Mode::Insert,
+                true,
+                last_visible_line,
+            )?;
 
-        self.set_selection_set(new_selection_set);
+        // Create a BufferEditTransaction dispatch for external integrations
+        let buffer_edit_dispatch = if context.is_running_as_embedded() {
+            edit_transaction
+                .edits()
+                .is_empty()
+                .not()
+                .then(|| {
+                    // Get the path for the buffer
+                    self.buffer().path().map(|path| {
+                        // Create a dispatch to send buffer edit transaction to external integrations
+                        Dispatches::one(Dispatch::ToHostApp(ToHostApp::BufferEditTransaction {
+                            path,
+                            edits: diff_edits,
+                        }))
+                    })
+                })
+                .flatten()
+                .unwrap_or_default()
+        } else {
+            Dispatches::default()
+        };
 
-        self.recalculate_scroll_offset();
+        self.set_selection_set(new_selection_set, context);
 
-        Ok(self.get_document_did_change_dispatch())
+        self.recalculate_scroll_offset(context);
+
+        self.clamp(context)?;
+
+        // Add the buffer edit transaction dispatch
+        let dispatches = self
+            .get_document_did_change_dispatch()
+            .chain(buffer_edit_dispatch)
+            .chain(dispatches);
+
+        Ok(dispatches)
     }
 
     pub(crate) fn get_document_did_change_dispatch(&mut self) -> Dispatches {
         [Dispatch::DocumentDidChange {
             component_id: self.id(),
+            batch_id: self.buffer().batch_id().clone(),
             path: self.buffer().path(),
             content: self.buffer().rope().to_string(),
             language: self.buffer().language(),
         }]
         .into_iter()
-        .chain(if self.mode == Mode::UndoTree {
-            Some(self.show_undo_tree_dispatch())
-        } else {
-            None
-        })
         .collect_vec()
         .into()
     }
 
-    pub(crate) fn enter_undo_tree_mode(&mut self) -> Dispatches {
-        self.mode = Mode::UndoTree;
-        [self.show_undo_tree_dispatch()].to_vec().into()
+    pub(crate) fn undo(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        self.undo_or_redo(true, context)
     }
 
-    pub(crate) fn show_undo_tree_dispatch(&self) -> Dispatch {
-        Dispatch::ShowGlobalInfo(Info::new(
-            "Undo Tree History".to_string(),
-            self.buffer().display_history(),
-        ))
+    pub(crate) fn redo(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        self.undo_or_redo(false, context)
     }
 
-    pub(crate) fn undo(&mut self) -> anyhow::Result<Dispatches> {
-        let result = self.navigate_undo_tree(Movement::Previous)?;
-        Ok(result)
-    }
-
-    pub(crate) fn redo(&mut self) -> anyhow::Result<Dispatches> {
-        self.navigate_undo_tree(Movement::Next)
-    }
-
-    pub(crate) fn swap_cursor_with_anchor(&mut self) {
+    pub(crate) fn swap_cursor(&mut self, context: &Context) {
         self.cursor_direction = match self.cursor_direction {
             Direction::Start => Direction::End,
             Direction::End => Direction::Start,
         };
-        self.recalculate_scroll_offset()
+        self.recalculate_scroll_offset(context)
     }
 
-    fn get_selection_set(
+    pub(crate) fn get_selection_set(
         &self,
         mode: &SelectionMode,
         movement: Movement,
+        context: &Context,
     ) -> anyhow::Result<Option<SelectionSet>> {
         self.selection_set.generate(
             &self.buffer.borrow(),
             mode,
-            &movement,
+            &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
             &self.cursor_direction,
+            context,
         )
     }
 
@@ -1102,8 +1569,12 @@ impl Editor {
             .to_char_index(&self.cursor_direction)
     }
 
-    pub(crate) fn toggle_visual_mode(&mut self) {
-        self.selection_set.toggle_visual_mode();
+    pub(crate) fn enable_selection_extension(&mut self) {
+        self.selection_set.enable_selection_extension();
+    }
+
+    pub(crate) fn disable_selection_extension(&mut self) {
+        self.selection_set.unset_initial_range();
     }
 
     pub(crate) fn handle_key_event(
@@ -1111,22 +1582,26 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
-        match self.handle_universal_key(key_event)? {
+        match self.handle_universal_key(key_event, context)? {
             HandleEventResult::Ignored(key_event) => {
                 if let Some(jumps) = self.jumps.take() {
                     self.handle_jump_mode(context, key_event, jumps)
+                } else if let Mode::Insert = self.mode {
+                    self.handle_insert_mode(key_event, context)
+                } else if let Mode::FindOneChar(_) = self.mode {
+                    self.handle_find_one_char_mode(
+                        IfCurrentNotFound::LookForward,
+                        key_event,
+                        context,
+                    )
                 } else {
-                    match &self.mode {
-                        Mode::Normal => self.handle_normal_mode(context, key_event),
-                        Mode::Insert => self.handle_insert_mode(key_event),
-                        Mode::MultiCursor => self.handle_multi_cursor_mode(context, key_event),
-                        Mode::FindOneChar(if_current_not_found) => {
-                            self.handle_find_one_char_mode(*if_current_not_found, key_event)
-                        }
-                        Mode::Exchange => self.handle_normal_mode(context, key_event),
-                        Mode::UndoTree => self.handle_normal_mode(context, key_event),
-                        Mode::Replace => self.handle_normal_mode(context, key_event),
+                    let keymap_legend_config = self.get_current_keymap_legend_config(context);
+
+                    if let Some(keymap) = keymap_legend_config.keymaps().get(&key_event) {
+                        return Ok(keymap.get_dispatches());
                     }
+                    log::info!("unhandled event: {key_event:?}");
+                    Ok(vec![].into())
                 }
             }
             HandleEventResult::Handled(dispatches) => Ok(dispatches),
@@ -1154,14 +1629,23 @@ impl Editor {
                     .collect_vec();
                 match matching_jumps.split_first() {
                     None => Ok(Default::default()),
-                    Some((jump, [])) => Ok(self
-                        .handle_movement(context, Movement::Jump(jump.selection.extended_range()))?
-                        .append(Dispatch::ToEditor(EnterNormalMode))),
+                    Some((jump, [])) => {
+                        let dispatches =
+                            self.handle_movement(context, Movement::Jump(jump.selection.range()))?;
+                        self.mode = Mode::Normal;
+                        Ok(dispatches.append_some(if context.is_running_as_embedded() {
+                            // We need to manually send a SelectionChanged dispatch here
+                            // because although SelectionChanged is dispatched automatically in most cases, it is not for this case.
+                            Some(self.dispatch_selection_changed())
+                        } else {
+                            None
+                        }))
+                    }
                     Some(_) => {
                         self.jumps = Some(
                             matching_jumps
                                 .into_iter()
-                                .zip(Self::jump_characters().into_iter().cycle())
+                                .zip(Self::jump_characters(context).into_iter().cycle())
                                 .map(|(jump, character)| Jump {
                                     character,
                                     ..jump.clone()
@@ -1173,20 +1657,67 @@ impl Editor {
                 }
             }
         }
+        .map(|dispatches| dispatches.append(self.dispatch_jumps_changed()))
+    }
+
+    // This is similar to Ki's Change, except it enters normal mode
+    pub(crate) fn delete_one(
+        &mut self,
+        context: &Context,
+        cut: bool,
+    ) -> anyhow::Result<Dispatches> {
+        let copy_dispatches: Dispatches = if cut { self.copy() } else { Default::default() };
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let delete_range = selection.extended_range();
+
+                    // Ensure the delete range is at least one character long
+
+                    let delete_range = if delete_range.len() == 0
+                        && delete_range.start < CharIndex(self.buffer().len_chars())
+                    {
+                        (delete_range.start..delete_range.start + 1).into()
+                    } else {
+                        delete_range
+                    };
+
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                delete_range,
+                                Rope::new(),
+                            )),
+                            Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range((delete_range.start..delete_range.start + 1).into())
+                                    .set_initial_range(None),
+                            ),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect(),
+        );
+
+        let _ = self.enter_normal_mode(context);
+
+        Ok(copy_dispatches.chain(self.apply_edit_transaction(edit_transaction, context)?))
     }
 
     /// Similar to Change in Vim, but does not copy the current selection
-    pub(crate) fn change(&mut self) -> anyhow::Result<Dispatches> {
+    pub(crate) fn change(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     let range = selection.extended_range();
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range,
-                                new: Rope::new(),
-                            }),
+                            Action::Edit(Edit::new(self.buffer().rope(), range, Rope::new())),
                             Action::Select(
                                 selection
                                     .clone()
@@ -1203,40 +1734,43 @@ impl Editor {
         );
 
         Ok(self
-            .apply_edit_transaction(edit_transaction)?
-            .chain(self.enter_insert_mode(Direction::Start)?))
+            .apply_edit_transaction(edit_transaction, context)?
+            .chain(self.enter_insert_mode(Direction::Start, context)?))
     }
 
-    pub(crate) fn change_cut(&mut self, use_system_clipboard: bool) -> anyhow::Result<Dispatches> {
-        Ok(self.copy(use_system_clipboard)?.chain(self.change()?))
+    pub(crate) fn change_cut(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        Ok(self.copy().chain(self.change(context)?))
     }
 
-    pub(crate) fn insert(&mut self, s: &str) -> anyhow::Result<Dispatches> {
-        let edit_transaction =
-            EditTransaction::from_action_groups(
-                self.selection_set
-                    .map(|selection| {
-                        let range = selection.extended_range();
-                        ActionGroup::new(
-                            [
-                                Action::Edit(Edit {
-                                    range: {
-                                        let start = selection.to_char_index(&Direction::End);
-                                        (start..start).into()
-                                    },
-                                    new: Rope::from_str(s),
-                                }),
-                                Action::Select(selection.clone().set_range(
-                                    (range.start + s.len()..range.start + s.len()).into(),
-                                )),
-                            ]
-                            .to_vec(),
-                        )
-                    })
-                    .into(),
-            );
+    pub(crate) fn insert(&mut self, s: &str, context: &Context) -> anyhow::Result<Dispatches> {
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| {
+                    let range = selection.extended_range();
+                    let new_char_index = range.start + s.chars().count();
+                    ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                {
+                                    let start = selection.to_char_index(&Direction::End);
+                                    (start..start).into()
+                                },
+                                Rope::from_str(s),
+                            )),
+                            Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range((new_char_index..new_char_index).into()),
+                            ),
+                        ]
+                        .to_vec(),
+                    )
+                })
+                .into(),
+        );
 
-        self.apply_edit_transaction(edit_transaction)
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
     pub(crate) fn get_request_params(&self) -> Option<RequestParams> {
@@ -1255,22 +1789,72 @@ impl Editor {
         &mut self,
         if_current_not_found: IfCurrentNotFound,
         selection_mode: SelectionMode,
+        context: &Context,
+        prior_change: Option<PriorChange>,
     ) -> anyhow::Result<Dispatches> {
-        self.move_selection_with_selection_mode_without_global_mode(
-            Movement::Current(if_current_not_found),
-            selection_mode.clone(),
-        )
-        .map(|dispatches| {
-            Dispatches::one(Dispatch::SetGlobalMode(None))
-                .chain(dispatches)
-                .append_some(if selection_mode.is_contiguous() {
-                    None
-                } else {
-                    Some(Dispatch::SetLastNonContiguousSelectionMode(Either::Left(
-                        selection_mode,
-                    )))
-                })
-        })
+        self.clear_incremental_search_matches();
+        self.handle_prior_change(prior_change);
+        if self.mode == Mode::MultiCursor {
+            let selection_set = self.selection_set.clone().set_mode(selection_mode.clone());
+            let selection_set = if let Some(all_selections) = selection_set.all_selections(
+                &self.buffer.borrow(),
+                &self.cursor_direction,
+                context,
+            )? {
+                let selection_set = {
+                    let selections = self
+                        .selection_set
+                        .map(|selection| {
+                            let range = selection.extended_range();
+                            all_selections
+                                .iter()
+                                .filter(|selection| {
+                                    range.is_supserset_of(&selection.extended_range())
+                                })
+                                .collect_vec()
+                        })
+                        .into_iter()
+                        .flatten()
+                        .collect_vec();
+                    if let Some((head, tail)) = selections.split_first() {
+                        selection_set.set_selections(NonEmpty {
+                            head: (**head).clone(),
+                            tail: tail.iter().map(|selection| (**selection).clone()).collect(),
+                        })
+                    } else {
+                        selection_set
+                    }
+                };
+                selection_set
+            } else {
+                selection_set
+            };
+            Ok(self
+                .update_selection_set(selection_set, true, context)
+                .append(Dispatch::ToEditor(EnterNormalMode)))
+        } else {
+            if self.reveal == Some(Reveal::CurrentSelectionMode)
+                && self.selection_set.mode() != &selection_mode
+            {
+                self.reveal = None
+            }
+            self.move_selection_with_selection_mode_without_global_mode(
+                Movement::Current(if_current_not_found),
+                selection_mode.clone(),
+                context,
+            )
+            .map(|dispatches| {
+                Dispatches::one(Dispatch::SetGlobalMode(None))
+                    .chain(dispatches)
+                    .append_some(if selection_mode.is_contiguous() {
+                        None
+                    } else {
+                        Some(Dispatch::SetLastNonContiguousSelectionMode(Either::Left(
+                            selection_mode,
+                        )))
+                    })
+            })
+        }
     }
 
     fn move_selection_with_selection_mode(
@@ -1286,7 +1870,11 @@ impl Editor {
                 }
             }
         } else {
-            self.move_selection_with_selection_mode_without_global_mode(movement, selection_mode)
+            self.move_selection_with_selection_mode_without_global_mode(
+                movement,
+                selection_mode,
+                context,
+            )
         }
     }
 
@@ -1300,70 +1888,89 @@ impl Editor {
             Mode::Normal => self.move_selection_with_selection_mode(
                 context,
                 movement,
-                self.selection_set.mode.clone(),
+                self.selection_set.mode().clone(),
             ),
-            Mode::Exchange => self.exchange(movement),
-            Mode::Replace => self.replace_with_movement(&movement),
-            Mode::UndoTree => self.navigate_undo_tree(movement),
-            Mode::MultiCursor => self.add_cursor(&movement).map(|_| Default::default()),
-            _ => Ok(Default::default()),
+            Mode::Swap => self.swap(movement, context),
+            Mode::Replace => self.replace_with_movement(&movement, context),
+            Mode::MultiCursor => self
+                .add_cursor(
+                    &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
+                    context,
+                )
+                .map(|_| Default::default()),
+            Mode::Delete => self.delete_with_movement(context, movement, false),
+            Mode::FindOneChar(_) | Mode::Insert => Ok(Default::default()),
         }
     }
 
-    pub(crate) fn toggle_bookmarks(&mut self) {
+    pub(crate) fn toggle_marks(&mut self) -> Dispatches {
         let selections = self
             .selection_set
             .map(|selection| selection.extended_range());
-        self.buffer_mut().save_bookmarks(selections.into())
+
+        self.path()
+            .map(|path| {
+                Dispatches::one(Dispatch::SaveMarks {
+                    path,
+                    marks: selections.iter().copied().collect(),
+                })
+            })
+            .unwrap_or_default()
     }
 
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {
         self.editor().buffer().path()
     }
 
-    pub(crate) fn enter_insert_mode(&mut self, direction: Direction) -> anyhow::Result<Dispatches> {
-        self.set_selection_set(self.selection_set.apply(
-            self.selection_set.mode.clone(),
-            |selection| {
-                let range = selection.extended_range();
-                let char_index = match direction {
-                    Direction::Start => range.start,
-                    Direction::End => range.end,
-                };
-                Ok(selection
-                    .clone()
-                    .set_range((char_index..char_index).into())
-                    .set_initial_range(None))
-            },
-        )?);
+    pub(crate) fn enter_insert_mode(
+        &mut self,
+        direction: Direction,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
+        self.set_selection_set(
+            self.selection_set
+                .apply(self.selection_set.mode.clone(), |selection| {
+                    let range = selection.extended_range();
+                    let char_index = match direction {
+                        Direction::Start => range.start,
+                        Direction::End => range.end,
+                    };
+                    Ok(selection
+                        .clone()
+                        .set_range((char_index..char_index).into())
+                        .set_initial_range(None))
+                })?,
+            context,
+        );
         self.mode = Mode::Insert;
         self.cursor_direction = Direction::Start;
         Ok(Dispatches::one(Dispatch::RequestSignatureHelp))
     }
 
-    pub(crate) fn enter_normal_mode(&mut self) -> anyhow::Result<()> {
+    pub(crate) fn enter_normal_mode(&mut self, context: &Context) -> anyhow::Result<()> {
         if self.mode == Mode::Insert {
             // This is necessary for cursor to not overflow after exiting insert mode
-            self.set_selection_set(self.selection_set.apply(
-                self.selection_set.mode.clone(),
-                |selection| {
-                    let range = {
-                        if let Ok(position) = self
-                            .buffer()
-                            .char_to_position(selection.extended_range().start)
-                        {
-                            let start = selection.extended_range().start
-                                - if position.column > 0 { 1 } else { 0 };
-                            (start..start + 1).into()
-                        } else {
-                            selection.extended_range()
-                        }
-                    };
-                    Ok(selection.clone().set_range(range))
-                },
-            )?);
-            self.clamp()?;
-            self.buffer_mut().reparse_tree()?
+            self.set_selection_set(
+                self.selection_set
+                    .apply(self.selection_set.mode.clone(), |selection| {
+                        let range = {
+                            if let Ok(position) = self
+                                .buffer()
+                                .char_to_position(selection.extended_range().start)
+                            {
+                                let start = selection.extended_range().start
+                                    - if position.column > 0 { 1 } else { 0 };
+                                (start..start + 1).into()
+                            } else {
+                                selection.extended_range()
+                            }
+                        };
+                        Ok(selection.clone().set_range(range))
+                    })?,
+                context,
+            );
+            self.clamp(context)?;
+            self.buffer_mut().reparse_tree()?;
         }
         // TODO: continue from here, need to add test: upon exiting insert mode, should close all panels
         // Maybe we should call this function the exit_insert_mode?
@@ -1392,10 +1999,11 @@ impl Editor {
     #[allow(dead_code)]
     pub(crate) fn set_cursor_position(
         &mut self,
-        row: u16,
-        column: u16,
+        row: usize,
+        column: usize,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        let start = (self.buffer.borrow().line_to_char(row as usize)?) + column.into();
+        let start = (self.buffer.borrow().line_to_char(row)?) + column;
         let primary = self
             .selection_set
             .primary_selection()
@@ -1406,6 +2014,7 @@ impl Editor {
                 .clone()
                 .set_selections(NonEmpty::new(primary)),
             true,
+            context,
         ))
     }
 
@@ -1416,11 +2025,12 @@ impl Editor {
         &self,
         current_selection: &Selection,
         selection_mode: &SelectionMode,
-        direction: &Movement,
+        movement: &Movement,
         get_actual_edit_transaction: impl Fn(
             /* current */ &Selection,
             /* next */ &Selection,
         ) -> anyhow::Result<EditTransaction>,
+        context: &Context,
     ) -> anyhow::Result<Either<Selection, EditTransaction>> {
         let current_selection = current_selection.clone();
 
@@ -1429,11 +2039,14 @@ impl Editor {
         // Loop until the edit transaction does not result in errorneous node
         let mut next_selection = Selection::get_selection_(
             &buffer,
-            &current_selection,
+            // Collapse selection so that "Swapping extended selection" works
+            &current_selection
+                .clone()
+                .collapsed_to_anchor_range(&movement.to_direction()),
             selection_mode,
-            direction,
+            &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
             &self.cursor_direction,
-            &self.selection_set.filters,
+            context,
         )?
         .unwrap_or_else(|| current_selection.clone().into())
         .selection;
@@ -1450,7 +2063,13 @@ impl Editor {
             let new_buffer = {
                 let mut new_buffer = self.buffer.borrow().clone();
                 if new_buffer
-                    .apply_edit_transaction(&edit_transaction, self.selection_set.clone(), true)
+                    .apply_edit_transaction(
+                        &edit_transaction,
+                        self.selection_set.clone(),
+                        true,
+                        true,
+                        self.last_visible_line(context),
+                    )
                     .is_err()
                 {
                     continue;
@@ -1469,7 +2088,7 @@ impl Editor {
                 .collect::<Result<Vec<_>, _>>()?;
 
             // Why don't we just use `tree.root_node().has_error()` instead?
-            // Because I assume we want to be able to exchange even if some part of the tree
+            // Because I assume we want to be able to swap even if some part of the tree
             // contains error
             if !selection_mode.is_node()
                 || (!text_at_next_selection.to_string().trim().is_empty()
@@ -1477,9 +2096,7 @@ impl Editor {
                         .iter()
                         .all(|next_node| match (current_node, next_node) {
                             (Some(current_node), Some(next_node)) => {
-                                current_node.kind_id() == next_node.kind_id()
-                                    && current_node.byte_range().len()
-                                        == next_node.byte_range().len()
+                                current_node.byte_range().len() == next_node.byte_range().len()
                             }
                             (_, _) => true,
                         })
@@ -1496,9 +2113,9 @@ impl Editor {
                 &buffer,
                 &next_selection,
                 selection_mode,
-                direction,
+                &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
                 &self.cursor_direction,
-                &self.selection_set.filters,
+                context,
             )?
             .unwrap_or_else(|| next_selection.clone().into())
             .selection;
@@ -1511,77 +2128,242 @@ impl Editor {
         }
     }
 
+    fn make_swap_action_groups(
+        rope: &Rope,
+        first_selection: &Selection,
+        first_selection_range: CharIndexRange,
+        first_selection_text: Rope,
+        second_selection_range: CharIndexRange,
+        second_selection_text: Rope,
+    ) -> Vec<ActionGroup> {
+        let new_select_range: CharIndexRange = (second_selection_range.start
+            ..(second_selection_range.start + first_selection_text.len_chars()))
+            .into();
+
+        let selection = first_selection.clone().apply_offset(
+            (new_select_range.start.0 as isize) - (first_selection_range.start.0 as isize),
+        );
+        [
+            ActionGroup::new(
+                [Action::Edit(Edit::new(
+                    rope,
+                    first_selection_range,
+                    second_selection_text.clone(),
+                ))]
+                .to_vec(),
+            ),
+            ActionGroup::new(
+                [
+                    Action::Edit(Edit::new(
+                        rope,
+                        second_selection_range,
+                        first_selection_text.clone(),
+                    )),
+                    Action::Select(selection),
+                ]
+                .to_vec(),
+            ),
+        ]
+        .to_vec()
+    }
+
     /// Replace the next selection with the current selection without
-    /// making the syntax node invalid
+    /// making the syntax node invalid.
     fn replace_faultlessly(
         &mut self,
         selection_mode: &SelectionMode,
         movement: Movement,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let buffer = self.buffer.borrow().clone();
-        let get_edit_transaction = |current_selection: &Selection,
-                                    next_selection: &Selection|
-         -> anyhow::Result<_> {
-            let current_selection_range = current_selection.extended_range();
-            let text_at_current_selection: Rope = buffer.slice(&current_selection_range)?;
-            let text_at_next_selection: Rope = buffer.slice(&next_selection.extended_range())?;
+        let get_edit_transaction =
+            |current_selection: &Selection, next_selection: &Selection| -> anyhow::Result<_> {
+                let current_selection_range = current_selection.extended_range();
+                let next_selection_range = next_selection
+                    .extended_range()
+                    // Subtract the current selection range to prevent duplication during swap.
+                    // Without this, overlapping selections would duplicate the overlapping text.
+                    //
+                    // Example: In "foo bar spam", if current = "foo" and next = "foo bar",
+                    // swapping without subtraction would produce "foo bar foo spam" instead of "bar foo spam".
+                    .subtracts(&current_selection_range);
 
-            Ok(EditTransaction::from_action_groups(
-                [
-                    ActionGroup::new(
-                        [Action::Edit(Edit {
-                            range: current_selection_range,
-                            new: text_at_next_selection.clone(),
-                        })]
-                        .to_vec(),
+                let text_at_current_selection: Rope = buffer.slice(&current_selection_range)?;
+                let text_at_next_selection: Rope = buffer.slice(&next_selection_range)?;
+                Ok(EditTransaction::from_action_groups(
+                    Self::make_swap_action_groups(
+                        buffer.rope(),
+                        current_selection,
+                        current_selection_range,
+                        text_at_current_selection,
+                        next_selection_range,
+                        text_at_next_selection,
                     ),
-                    ActionGroup::new(
-                        [
-                            Action::Edit(Edit {
-                                range: next_selection.extended_range(),
-                                new: text_at_current_selection.clone(),
-                            }),
-                            Action::Select(
-                                current_selection.clone().set_range(
-                                    (next_selection.extended_range().start
-                                        ..(next_selection.extended_range().start
-                                            + text_at_current_selection.len_chars()))
-                                        .into(),
-                                ),
-                            ),
-                        ]
-                        .to_vec(),
-                    ),
-                ]
-                .to_vec(),
-            ))
+                ))
+            };
+
+        let edit_transactions = self
+            .selection_set
+            .map(|selection| {
+                self.get_valid_selection(
+                    selection,
+                    selection_mode,
+                    &movement,
+                    get_edit_transaction,
+                    context,
+                )
+            })
+            .into_iter()
+            .filter_map(|transaction| transaction.ok())
+            .filter_map(|transaction| transaction.map_right(Some).right_or(None))
+            .collect_vec();
+
+        self.apply_edit_transaction(EditTransaction::merge(edit_transactions), context)
+    }
+
+    pub(crate) fn swap(
+        &mut self,
+        movement: Movement,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
+        match movement {
+            Movement::Last => self.swap_till_last(context),
+            Movement::First => self.swap_till_first(context),
+            _ => self.replace_faultlessly(&self.selection_set.mode().clone(), movement, context),
+        }
+    }
+
+    /// Swaps the current selection with the text range from
+    /// the first occurrence until just before the current selection.
+    fn swap_till_first(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        let selection_mode = self.selection_set.mode().clone();
+        let edit_transaction = {
+            let buffer = self.buffer.borrow();
+            EditTransaction::from_action_groups(
+                self.selection_set
+                    .map(|current_selection| {
+                        // Select from the first until before current
+                        let selection_mode = selection_mode
+                            .to_selection_mode_trait_object(
+                                &buffer,
+                                current_selection,
+                                &self.cursor_direction,
+                                context.current_working_directory(),
+                                context.quickfix_list_items(),
+                                &context.get_marks(self.path()),
+                            )
+                            .ok()?;
+
+                        let params = selection_mode::SelectionModeParams {
+                            buffer: &buffer,
+                            current_selection: &current_selection
+                                .clone()
+                                .collapsed_to_anchor_range(&Direction::Start),
+                            cursor_direction: &self.cursor_direction,
+                        };
+                        let first = selection_mode.first(&params).ok()??.range();
+                        // Find the before current selection
+                        let before_current = selection_mode.left(&params).ok()??.range();
+                        let first_range = current_selection.extended_range();
+                        let second_range: CharIndexRange =
+                            (first.start()..before_current.end()).into();
+                        // Swap the range with the last selection
+                        Some(Self::make_swap_action_groups(
+                            buffer.rope(),
+                            current_selection,
+                            first_range,
+                            buffer.slice(&first_range).ok()?,
+                            second_range,
+                            buffer.slice(&second_range).ok()?,
+                        ))
+                    })
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .collect(),
+            )
         };
-
-        let edit_transactions = self.selection_set.map(|selection| {
-            self.get_valid_selection(selection, selection_mode, &movement, get_edit_transaction)
-        });
-
-        self.apply_edit_transaction(EditTransaction::merge(
-            edit_transactions
-                .into_iter()
-                .filter_map(|transaction| transaction.ok())
-                .filter_map(|transaction| transaction.map_right(Some).right_or(None))
-                .collect(),
-        ))
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
-    pub(crate) fn exchange(&mut self, movement: Movement) -> anyhow::Result<Dispatches> {
-        let mode = self.selection_set.mode.clone();
-        self.replace_faultlessly(&mode, movement)
+    /// Swaps the current selection with the text range from
+    /// just after the current selection until the last occurrence.
+    fn swap_till_last(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        let selection_mode = self.selection_set.mode().clone();
+        let edit_transaction = {
+            let buffer = self.buffer.borrow();
+            EditTransaction::from_action_groups(
+                self.selection_set
+                    .map(|current_selection| {
+                        let selection_mode = selection_mode
+                            .to_selection_mode_trait_object(
+                                &buffer,
+                                current_selection,
+                                &self.cursor_direction,
+                                context.current_working_directory(),
+                                context.quickfix_list_items(),
+                                &context.get_marks(self.path()),
+                            )
+                            .ok()?;
+                        let params = selection_mode::SelectionModeParams {
+                            buffer: &buffer,
+                            current_selection: &current_selection
+                                .clone()
+                                .collapsed_to_anchor_range(&Direction::End),
+                            cursor_direction: &self.cursor_direction,
+                        };
+
+                        // Select from the first until before current
+                        let last = selection_mode.last(&params).ok()??.range();
+                        // Find the before current selection
+                        let after_current = selection_mode.right(&params).ok()??.range();
+                        let first_range = current_selection.extended_range();
+                        let second_range: CharIndexRange =
+                            (after_current.start()..last.end()).into();
+                        // Swap the range with the last selection
+                        Some(Self::make_swap_action_groups(
+                            buffer.rope(),
+                            current_selection,
+                            first_range,
+                            buffer.slice(&first_range).ok()?,
+                            second_range,
+                            buffer.slice(&second_range).ok()?,
+                        ))
+                    })
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .collect(),
+            )
+        };
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
-    pub(crate) fn add_cursor(&mut self, movement: &Movement) -> anyhow::Result<()> {
-        self.selection_set.add_selection(
-            &self.buffer.borrow(),
-            movement,
-            &self.cursor_direction,
-        )?;
-        self.recalculate_scroll_offset();
+    pub(crate) fn add_cursor(
+        &mut self,
+        movement: &MovementApplicandum,
+        context: &Context,
+    ) -> anyhow::Result<()> {
+        let mut add_selection = |movement: &MovementApplicandum| {
+            self.selection_set.add_selection(
+                &self.buffer.borrow(),
+                movement,
+                &self.cursor_direction,
+                context,
+            )
+        };
+        match movement {
+            MovementApplicandum::First => {
+                while let Ok(true) = add_selection(&MovementApplicandum::Left) {}
+            }
+            MovementApplicandum::Last => {
+                while let Ok(true) = add_selection(&MovementApplicandum::Right) {}
+            }
+            other_movement => {
+                add_selection(other_movement)?;
+            }
+        };
+        self.recalculate_scroll_offset(context);
         Ok(())
     }
 
@@ -1618,22 +2400,23 @@ impl Editor {
 
     fn apply_scroll(&mut self, direction: Direction, scroll_height: usize) {
         self.scroll_offset = match direction {
-            Direction::Start => self.scroll_offset.saturating_sub(scroll_height as u16),
-            Direction::End => self.scroll_offset.saturating_add(scroll_height as u16),
+            Direction::Start => self.scroll_offset.saturating_sub(scroll_height),
+            Direction::End => self.scroll_offset.saturating_add(scroll_height),
         };
     }
 
-    pub(crate) fn backspace(&mut self) -> anyhow::Result<Dispatches> {
+    pub(crate) fn backspace(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| {
                     let start = CharIndex(selection.extended_range().start.0.saturating_sub(1));
                     ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: (start..selection.extended_range().start).into(),
-                                new: Rope::from(""),
-                            }),
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                (start..selection.extended_range().start).into(),
+                                Rope::from(""),
+                            )),
                             Action::Select(selection.clone().set_range((start..start).into())),
                         ]
                         .to_vec(),
@@ -1642,12 +2425,13 @@ impl Editor {
                 .into(),
         );
 
-        self.apply_edit_transaction(edit_transaction)
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
     pub(crate) fn delete_word_backward(
         &mut self,
         short: bool,
+        context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
         let action_groups = self
             .selection_set
@@ -1667,13 +2451,15 @@ impl Editor {
                             &self.buffer(),
                             &current_selection.clone().set_range((start..start).into()),
                             &if short {
-                                SelectionMode::WordShort
+                                SelectionMode::Subword
                             } else {
-                                SelectionMode::WordLong
+                                SelectionMode::Word
                             },
-                            &movement,
+                            &movement.into_movement_applicandum(
+                                self.selection_set.sticky_column_index(),
+                            ),
                             &self.cursor_direction,
-                            &self.selection_set.filters,
+                            context,
                         )
                         .map(|option| option.unwrap_or_else(|| current_selection.clone().into()))
                     };
@@ -1694,10 +2480,11 @@ impl Editor {
                 let start = previous_word_range.start;
                 Ok(ActionGroup::new(
                     [
-                        Action::Edit(Edit {
-                            range: (start..end).into(),
-                            new: Rope::from(""),
-                        }),
+                        Action::Edit(Edit::new(
+                            self.buffer().rope(),
+                            (start..end).into(),
+                            Rope::from(""),
+                        )),
                         Action::Select(current_selection.clone().set_range((start..start).into())),
                     ]
                     .to_vec(),
@@ -1707,13 +2494,14 @@ impl Editor {
             .flatten()
             .collect();
         let edit_transaction = EditTransaction::from_action_groups(action_groups);
-        self.apply_edit_transaction(edit_transaction)
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
     /// Replace the parent node of the current node with the current node
     pub(crate) fn replace_with_movement(
         &mut self,
         movement: &Movement,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let buffer = self.buffer.borrow().clone();
         let edit_transactions = self.selection_set.map(|selection| {
@@ -1733,10 +2521,11 @@ impl Editor {
                     Ok(EditTransaction::from_action_groups(
                         [ActionGroup::new(
                             [
-                                Action::Edit(Edit {
-                                    range: range.clone().into(),
+                                Action::Edit(Edit::new(
+                                    self.buffer().rope(),
+                                    range.clone().into(),
                                     new,
-                                }),
+                                )),
                                 Action::Select(current_selection.clone().set_range(
                                     (range.start..(range.start + new_len_chars)).into(),
                                 )),
@@ -1748,9 +2537,10 @@ impl Editor {
                 };
             self.get_valid_selection(
                 selection,
-                &self.selection_set.mode,
+                self.selection_set.mode(),
                 movement,
                 get_edit_transaction,
+                context,
             )
         });
         let edit_transaction = EditTransaction::merge(
@@ -1760,10 +2550,10 @@ impl Editor {
                 .filter_map(|edit_transaction| edit_transaction.map_right(Some).right_or(None))
                 .collect(),
         );
-        self.apply_edit_transaction(edit_transaction)
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
-    pub(crate) fn buffer(&self) -> Ref<Buffer> {
+    pub(crate) fn buffer(&self) -> Ref<'_, Buffer> {
         self.buffer.borrow()
     }
 
@@ -1771,7 +2561,7 @@ impl Editor {
         self.buffer.clone()
     }
 
-    pub(crate) fn buffer_mut(&mut self) -> RefMut<Buffer> {
+    pub(crate) fn buffer_mut(&mut self) -> RefMut<'_, Buffer> {
         self.buffer.borrow_mut()
     }
 
@@ -1779,85 +2569,90 @@ impl Editor {
         self.buffer.borrow_mut().update(s)
     }
 
-    fn scroll(&mut self, direction: Direction, scroll_height: usize) -> anyhow::Result<Dispatches> {
-        let dispatch = self.update_selection_set(
+    fn scroll(
+        &mut self,
+        direction: Direction,
+        scroll_height: usize,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
+        let position = self
+            .selection_set
+            .primary_selection()
+            .extended_range()
+            .start
+            .to_position(&self.buffer());
+        let line = if direction == Direction::End {
+            position.line.saturating_add(scroll_height)
+        } else {
+            position.line.saturating_sub(scroll_height)
+        }
+        .min(self.buffer().len_lines().saturating_sub(1));
+        let position = Position { line, column: 0 };
+        let start = position.to_char_index(&self.buffer())?;
+        let selection_mode = self.selection_set.mode().clone();
+        self.selection_set = SelectionSet::new(NonEmpty::new(
             self.selection_set
-                .apply(self.selection_set.mode.clone(), |selection| {
-                    let position = selection.extended_range().start.to_position(&self.buffer());
-                    let line = if direction == Direction::End {
-                        position.line.saturating_add(scroll_height)
-                    } else {
-                        position.line.saturating_sub(scroll_height)
-                    };
-                    let position = Position { line, ..position };
-                    let start = position.to_char_index(&self.buffer())?;
-                    Ok(selection.clone().set_range((start..start).into()))
-                })?,
-            false,
-        );
-        self.align_cursor_to_center();
-
-        Ok(dispatch)
+                .primary_selection()
+                .clone()
+                .set_range((start..start).into()),
+        ))
+        .set_mode(selection_mode);
+        self.handle_movement(context, Movement::Current(IfCurrentNotFound::LookForward))
     }
 
     /// This returns a vector of selections
     /// with a gap that is the maximum of previous-current gap and current-next gap.
     ///
-    /// Used for `Self::open` and `Self::paste`.
-    fn get_selection_set_with_gap(&self, direction: &Direction) -> Vec<(Selection, Rope)> {
+    /// Used by `Self::paste` and `Self::open`.
+    fn get_selection_set_with_gap(
+        &self,
+        direction: &Direction,
+        context: &Context,
+    ) -> anyhow::Result<Vec<(Selection, Rope)>> {
         self.selection_set
             .map(|selection| {
+                let object = self.get_selection_mode_trait_object(
+                    selection,
+                    true,
+                    context.current_working_directory(),
+                    context.quickfix_list_items(),
+                    &context.get_marks(self.path()),
+                )?;
                 let buffer = self.buffer.borrow();
-                let get_in_between_gap = |movement: Movement| -> Option<Rope> {
-                    let other = Selection::get_selection_(
-                        &buffer,
-                        selection,
-                        &self.selection_set.mode,
-                        &movement,
-                        &self.cursor_direction,
-                        &self.selection_set.filters,
-                    )
-                    .ok()??
-                    .selection;
-                    if other.range() == selection.range() {
-                        None
-                    } else {
-                        let current_range = selection.range();
-                        let other_range = other.range();
-                        let in_between_range = current_range.end.min(other_range.end)
-                            ..current_range.start.max(other_range.start);
-                        buffer.slice(&in_between_range.into()).ok()
-                    }
-                };
-                let gap = if !self.selection_set.mode.is_contiguous() {
-                    Rope::from_str("")
-                } else {
-                    match (
-                        get_in_between_gap(Movement::Next),
-                        get_in_between_gap(Movement::Previous),
-                    ) {
-                        (None, None) => Default::default(),
-                        (None, Some(gap)) | (Some(gap), None) => gap,
-                        (Some(next_gap), Some(prev_gap)) => {
-                            let larger = next_gap.len_chars() > prev_gap.len_chars();
-                            match (direction, larger) {
-                                (Direction::Start, true) => prev_gap,
-                                (Direction::Start, false) => next_gap,
-                                (Direction::End, true) => next_gap,
-                                (Direction::End, false) => prev_gap,
+                let gap = object.get_paste_gap(
+                    &selection_mode::SelectionModeParams {
+                        buffer: &buffer,
+                        current_selection: selection,
+                        cursor_direction: &self.cursor_direction,
+                    },
+                    direction,
+                );
+                // Ensure the gap only contain at most one newline character
+                let gap: String = gap
+                    .chars()
+                    .scan(false, |newline_found, c| {
+                        if c == '\n' {
+                            if *newline_found {
+                                None
+                            } else {
+                                *newline_found = true;
+                                Some(c)
                             }
+                        } else {
+                            Some(c)
                         }
-                    }
-                };
-                (selection.clone(), gap)
+                    })
+                    .collect();
+                Ok((selection.clone(), gap.into()))
             })
             .into_iter()
-            .collect_vec()
+            .collect::<anyhow::Result<Vec<_>>>()
     }
 
-    fn open(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
+    fn open(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        let direction = self.cursor_direction.reverse();
         let edit_transaction = EditTransaction::from_action_groups(
-            self.get_selection_set_with_gap(&direction)
+            self.get_selection_set_with_gap(&direction, context)?
                 .into_iter()
                 .map(|(selection, gap)| {
                     let gap = if gap.len_chars() == 0 {
@@ -1868,16 +2663,17 @@ impl Editor {
                     let gap_len = gap.len_chars();
                     ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: {
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                {
                                     let start = match direction {
                                         Direction::Start => selection.range().start,
                                         Direction::End => selection.range().end,
                                     };
                                     (start..start).into()
                                 },
-                                new: gap,
-                            }),
+                                gap,
+                            )),
                             Action::Select(selection.clone().set_range({
                                 let start = match direction {
                                     Direction::Start => selection.range().start,
@@ -1893,13 +2689,14 @@ impl Editor {
         );
 
         Ok(self
-            .apply_edit_transaction(edit_transaction)?
+            .apply_edit_transaction(edit_transaction, context)?
             .append(Dispatch::ToEditor(EnterInsertMode(direction))))
     }
 
     pub(crate) fn apply_positional_edits(
         &mut self,
         edits: Vec<PositionalEdit>,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             edits
@@ -1908,10 +2705,11 @@ impl Editor {
                     let range = edit.range.start.to_char_index(&self.buffer()).ok()?
                         ..edit.range.end.to_char_index(&self.buffer()).ok()?;
 
-                    let action_edit = Action::Edit(Edit {
-                        range: range.clone().into(),
-                        new: edit.new_text.into(),
-                    });
+                    let action_edit = Action::Edit(Edit::new(
+                        self.buffer().rope(),
+                        range.clone().into(),
+                        edit.new_text.into(),
+                    ));
 
                     Some(ActionGroup::new(vec![action_edit]))
                 })
@@ -1922,22 +2720,37 @@ impl Editor {
                 )
                 .collect(),
         );
-        self.apply_edit_transaction(edit_transaction)
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
-    pub(crate) fn save(&mut self) -> anyhow::Result<Dispatches> {
-        let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())? else {
+    pub(crate) fn save(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        self.do_save(false, context)
+    }
+
+    fn do_save(&mut self, force: bool, context: &Context) -> anyhow::Result<Dispatches> {
+        let last_visible_line = self.last_visible_line(context);
+
+        let (dispatches, path) = if context.is_running_as_embedded() {
+            (Dispatches::default(), self.path())
+        } else {
+            self.buffer
+                .borrow_mut()
+                .save(self.selection_set.clone(), force, last_visible_line)?
+        };
+
+        let Some(path) = path else {
             return Ok(Default::default());
         };
 
-        self.clamp()?;
+        self.clamp(context)?;
         self.cursor_keep_primary_only();
-        self.enter_normal_mode()?;
+        self.enter_normal_mode(context)?;
         Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent)
             .append(Dispatch::DocumentDidSave { path })
             .chain(self.get_document_did_change_dispatch())
             .append(Dispatch::RemainOnlyCurrentComponent)
-            .append_some(if self.selection_set.mode.is_contiguous() {
+            .chain(dispatches)
+            .append_some(if self.selection_set.mode().is_contiguous() {
                 Some(Dispatch::ToEditor(MoveSelection(Movement::Current(
                     IfCurrentNotFound::LookForward,
                 ))))
@@ -1947,31 +2760,39 @@ impl Editor {
     }
 
     /// Clamp everything that might be out of bound after the buffer content is modified elsewhere
-    fn clamp(&mut self) -> anyhow::Result<()> {
+    fn clamp(&mut self, context: &Context) -> anyhow::Result<()> {
         let len_chars = self.buffer().len_chars();
-        self.set_selection_set(self.selection_set.clamp(CharIndex(len_chars))?);
+        self.set_selection_set(self.selection_set.clamp(CharIndex(len_chars))?, context);
 
         let len_lines = self.buffer().len_lines();
-        self.scroll_offset = self.scroll_offset.clamp(0, len_lines as u16);
+        self.scroll_offset = self.scroll_offset.clamp(0, len_lines);
 
         Ok(())
     }
 
-    pub(crate) fn enclose(&mut self, open: String, close: String) -> anyhow::Result<Dispatches> {
+    pub(crate) fn surround(
+        &mut self,
+        open: String,
+        close: String,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     let old = self.buffer().slice(&selection.extended_range())?;
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: selection.extended_range(),
-                                new: format!("{}{}{}", open, old, close).into(),
-                            }),
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                selection.extended_range(),
+                                format!("{open}{old}{close}").into(),
+                            )),
                             Action::Select(
                                 selection.clone().set_range(
                                     (selection.extended_range().start
-                                        ..selection.extended_range().end + 2)
+                                        ..selection.extended_range().end
+                                            + open.chars().count()
+                                            + close.chars().count())
                                         .into(),
                                 ),
                             ),
@@ -1983,13 +2804,15 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
-
-        self.apply_edit_transaction(edit_transaction)
+        Ok(self
+            .apply_edit_transaction(edit_transaction, context)?
+            .append(Dispatch::ToEditor(DisableSelectionExtension)))
     }
 
     fn transform_selection(
         &mut self,
         transformation: Transformation,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
@@ -2006,11 +2829,12 @@ impl Editor {
                     let range = selection.extended_range();
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit { range, new }),
+                            Action::Edit(Edit::new(self.buffer().rope(), range, new)),
                             Action::Select(
                                 selection
                                     .clone()
-                                    .set_range((range.start..range.start + new_char_count).into()),
+                                    .set_range((range.start..range.start + new_char_count).into())
+                                    .set_initial_range(None),
                             ),
                         ]
                         .to_vec(),
@@ -2019,65 +2843,95 @@ impl Editor {
                 .into_iter()
                 .try_collect()?,
         );
-        self.apply_edit_transaction(edit_transaction)
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
     pub(crate) fn display_mode(&self) -> String {
-        let selection_mode = self.selection_set.mode.display();
-        let filters = self
-            .selection_set
-            .filters
-            .display()
-            .map(|display| format!("({})", display))
-            .unwrap_or_default();
-        let mode = match &self.mode {
-            Mode::Normal => "MOVE",
-            Mode::Insert => "INSERT",
-            Mode::MultiCursor => "MULTI CURSOR",
-            Mode::FindOneChar(_) => "FIND ONE CHAR",
-            Mode::Exchange => "EXCHANGE",
-            Mode::UndoTree => "UNDO TREE",
-            Mode::Replace => "REPLACE",
-        };
-        let cursor_count = self.selection_set.len();
-        let mode = format!("{}:{}{} x {}", mode, selection_mode, filters, cursor_count);
         if self.jumps.is_some() {
-            format!("{} (FLY)", mode)
+            "JUMP".to_string()
         } else {
-            mode
+            match &self.mode {
+                Mode::Normal => {
+                    let prefix = if self.selection_set.is_extended() {
+                        "+"
+                    } else {
+                        ""
+                    };
+                    format!("{prefix}NORM")
+                }
+                Mode::Insert => "INST".to_string(),
+                Mode::MultiCursor => "MULTI".to_string(),
+                Mode::FindOneChar(_) => "ONE".to_string(),
+                Mode::Swap => "SWAP".to_string(),
+                Mode::Replace => "RPLCE".to_string(),
+                Mode::Delete => "DELTE".to_string(),
+            }
         }
+    }
+
+    pub(crate) fn display_selection_mode(&self) -> String {
+        let selection_mode = self.selection_set.mode().display();
+        let cursor_count = self.selection_set.len();
+        format!("{selection_mode: <5}x{cursor_count}")
     }
 
     pub(crate) fn visible_line_range(&self) -> Range<usize> {
-        let start = self.scroll_offset;
-        let end = (start as usize + self.rectangle.height as usize).min(self.buffer().len_lines());
-
-        start as usize..end
+        self.visible_line_range_given_scroll_offset_and_height(
+            self.scroll_offset,
+            self.rectangle.height,
+        )
     }
 
-    fn handle_multi_cursor_mode(
+    pub(crate) fn visible_line_range_given_scroll_offset_and_height(
+        &self,
+        scroll_offset: usize,
+        height: usize,
+    ) -> Range<usize> {
+        let start = scroll_offset;
+        let end = (start + height).min(self.buffer().len_lines());
+
+        start..end
+    }
+
+    pub(crate) fn add_cursor_to_all_selections(
         &mut self,
         context: &Context,
-        key_event: KeyEvent,
-    ) -> Result<Dispatches, anyhow::Error> {
-        match key_event {
-            key!("esc") => {
-                self.mode = Mode::Normal;
-                Ok(Default::default())
-            }
-
-            other => self.handle_normal_mode(context, other),
-        }
-    }
-
-    pub(crate) fn add_cursor_to_all_selections(&mut self) -> Result<(), anyhow::Error> {
+    ) -> Result<(), anyhow::Error> {
+        self.mode = Mode::Normal;
+        self.reveal = Some(Reveal::Cursor);
         self.selection_set
-            .add_all(&self.buffer.borrow(), &self.cursor_direction)?;
-        self.recalculate_scroll_offset();
+            .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
+        self.recalculate_scroll_offset(context);
         Ok(())
     }
 
+    pub(crate) fn dispatch_selection_changed(&self) -> Dispatch {
+        Dispatch::ToHostApp(ToHostApp::SelectionChanged {
+            component_id: self.id(),
+            selections: {
+                // Rearrange the selection such that selections[cursor_index] will be the first selection
+                let cursor_index = self.selection_set.cursor_index;
+                let (current, others): (Vec<_>, Vec<_>) = self
+                    .selection_set
+                    .selections()
+                    .into_iter()
+                    .enumerate()
+                    .partition(|(i, _)| *i == cursor_index);
+
+                current
+                    .into_iter()
+                    .map(|(_, sel)| sel.clone())
+                    .chain(others.into_iter().map(|(_, sel)| sel.clone()))
+                    .collect()
+            },
+        })
+    }
+
     pub(crate) fn cursor_keep_primary_only(&mut self) {
+        self.mode = Mode::Normal;
+        if self.reveal == Some(Reveal::Cursor) {
+            self.reveal = None;
+        }
         self.selection_set.only();
     }
 
@@ -2089,6 +2943,7 @@ impl Editor {
         &mut self,
         if_current_not_found: IfCurrentNotFound,
         key_event: KeyEvent,
+        context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
         match key_event.code {
             KeyCode::Char(c) => {
@@ -2105,6 +2960,8 @@ impl Editor {
                             }),
                         },
                     },
+                    context,
+                    None,
                 )
             }
             KeyCode::Esc => {
@@ -2120,11 +2977,24 @@ impl Editor {
     }
 
     fn half_page_height(&self) -> usize {
-        (self.dimension().height / 2) as usize
+        let height = if let Some(visible_line_ranges) = self.visible_line_ranges.as_ref() {
+            visible_line_ranges
+                .iter()
+                .map(|range| range.len())
+                .max()
+                .unwrap_or_default()
+        } else {
+            self.dimension().height
+        };
+        height / 2
     }
 
     #[cfg(test)]
-    pub(crate) fn match_literal(&mut self, search: &str) -> anyhow::Result<Dispatches> {
+    pub(crate) fn match_literal(
+        &mut self,
+        search: &str,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
         self.set_selection_mode(
             IfCurrentNotFound::LookForward,
             SelectionMode::Find {
@@ -2137,10 +3007,12 @@ impl Editor {
                     search: search.to_string(),
                 },
             },
+            context,
+            None,
         )
     }
 
-    pub(crate) fn move_to_line_start(&mut self) -> anyhow::Result<Dispatches> {
+    pub(crate) fn move_to_line_start(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -2162,7 +3034,7 @@ impl Editor {
                 .flatten()
                 .collect()
         });
-        self.apply_edit_transaction(edit_transaction)
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
     pub(crate) fn move_to_line_end(&mut self) -> anyhow::Result<Dispatches> {
@@ -2176,33 +3048,43 @@ impl Editor {
         .into())
     }
 
-    pub(crate) fn select_all(&mut self) -> Dispatches {
-        [
-            Dispatch::ToEditor(MoveSelection(Movement::First)),
-            Dispatch::ToEditor(ToggleVisualMode),
-            Dispatch::ToEditor(MoveSelection(Movement::Last)),
-        ]
-        .to_vec()
-        .into()
+    pub(crate) fn select_all(&mut self, context: &mut Context) -> anyhow::Result<Dispatches> {
+        self.handle_dispatch_editors(
+            context,
+            [
+                DisableSelectionExtension,
+                (MoveSelection(Movement::First)),
+                EnableSelectionExtension,
+                (MoveSelection(Movement::Last)),
+            ]
+            .to_vec(),
+        )
     }
 
     fn move_selection_with_selection_mode_without_global_mode(
         &mut self,
         movement: Movement,
         selection_mode: SelectionMode,
+        context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
-        let dispatches = self.select(selection_mode, movement)?;
+        let dispatches = self.select(selection_mode, movement, context)?;
         self.current_view_alignment = None;
 
         Ok(dispatches)
     }
 
-    pub(crate) fn scroll_page_down(&mut self) -> Result<Dispatches, anyhow::Error> {
-        self.scroll(Direction::End, self.half_page_height())
+    pub(crate) fn scroll_page_down(
+        &mut self,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        self.scroll(Direction::End, self.half_page_height(), context)
     }
 
-    pub(crate) fn scroll_page_up(&mut self) -> Result<Dispatches, anyhow::Error> {
-        self.scroll(Direction::Start, self.half_page_height())
+    pub(crate) fn scroll_page_up(
+        &mut self,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        self.scroll(Direction::Start, self.half_page_height(), context)
     }
 
     #[cfg(test)]
@@ -2210,34 +3092,69 @@ impl Editor {
         self.current_view_alignment
     }
 
-    pub(crate) fn switch_view_alignment(&mut self) {
+    pub(crate) fn switch_view_alignment(&mut self, context: &Context) {
         self.current_view_alignment = Some(match self.current_view_alignment {
             Some(ViewAlignment::Top) => {
-                self.align_cursor_to_center();
+                self.align_selection_to_center(context);
                 ViewAlignment::Center
             }
             Some(ViewAlignment::Center) => {
-                self.align_cursor_to_bottom();
+                self.align_selection_to_bottom(context);
                 ViewAlignment::Bottom
             }
             None | Some(ViewAlignment::Bottom) => {
-                self.align_cursor_to_top();
+                self.align_selection_to_top();
                 ViewAlignment::Top
             }
         })
     }
 
-    fn navigate_undo_tree(&mut self, movement: Movement) -> Result<Dispatches, anyhow::Error> {
-        let selection_set = self.buffer_mut().undo_tree_apply_movement(movement)?;
+    fn undo_or_redo(&mut self, undo: bool, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        let last_visible_line = self.last_visible_line(context);
 
-        Ok(selection_set
-            .map(|selection_set| self.update_selection_set(selection_set, false))
-            .unwrap_or_default()
-            .chain(self.get_document_did_change_dispatch()))
+        // Call the appropriate buffer method to perform undo/redo
+        let result = if undo {
+            self.buffer_mut().undo(last_visible_line)
+        } else {
+            self.buffer_mut().redo(last_visible_line)
+        }?;
+
+        // Create dispatches for document changes and buffer edit transaction
+        let dispatches = match result {
+            Some((selection_set, diff_edits, edits)) => {
+                // Update selection set
+                let dispatches = self.update_selection_set(selection_set, false, context);
+
+                // Create a BufferEditTransaction dispatch for external integrations
+                let dispatch = if let Some(path) = self.buffer().path() {
+                    // Create a dispatch to send buffer edit transaction
+                    Dispatches::one(Dispatch::ToHostApp(ToHostApp::BufferEditTransaction {
+                        path: path.clone(),
+                        edits: diff_edits,
+                    }))
+                    .append(Dispatch::AppliedEdits { path, edits })
+                } else {
+                    Default::default()
+                };
+
+                dispatches.chain(dispatch)
+            }
+            Option::None => Dispatches::default(),
+        };
+
+        // Add document did change dispatch
+        let dispatches = dispatches.chain(self.get_document_did_change_dispatch());
+
+        // Also send a mode change notification to ensure external integrations are in sync
+        let dispatches = dispatches.append(Dispatch::ToHostApp(ToHostApp::ModeChanged));
+
+        log::trace!("undo_or_redo: Returning dispatches");
+
+        Ok(dispatches)
     }
 
     #[cfg(test)]
-    pub(crate) fn set_scroll_offset(&mut self, scroll_offset: u16) {
+    pub(crate) fn set_scroll_offset(&mut self, scroll_offset: usize) {
         self.scroll_offset = scroll_offset
     }
 
@@ -2249,10 +3166,10 @@ impl Editor {
         self.buffer_mut().set_language(language)
     }
 
-    pub(crate) fn render_area(&self) -> Dimension {
+    pub(crate) fn render_area(&self, context: &Context) -> Dimension {
         let Dimension { height, width } = self.dimension();
         Dimension {
-            height: height.saturating_sub(WINDOW_TITLE_HEIGHT as u16),
+            height: height.saturating_sub(self.window_title_height(context)),
             width,
         }
     }
@@ -2266,17 +3183,9 @@ impl Editor {
         let mut buffer = self.buffer_mut();
         if let Some(language) = buffer.language() {
             let highlighted_spans = context.highlight(language, &source_code)?;
-            buffer.update_highlighted_spans(highlighted_spans);
+            buffer.update_highlighted_spans(Default::default(), highlighted_spans);
         }
         Ok(())
-    }
-
-    fn filters_push(&mut self, _context: &Context, filter: Filter) -> Dispatches {
-        let selection_set = self.selection_set.clone().filter_push(filter);
-        self.update_selection_set(selection_set, true)
-            .append(Dispatch::ToEditor(MoveSelection(Movement::Current(
-                IfCurrentNotFound::LookForward,
-            ))))
     }
 
     pub(crate) fn apply_dispatches(
@@ -2291,16 +3200,15 @@ impl Editor {
         Ok(result.into())
     }
 
-    fn filters_clear(&mut self) -> Dispatches {
-        let selection_set = self.selection_set.clone().filter_clear();
-        self.update_selection_set(selection_set, true)
+    fn enter_swap_mode(&mut self) {
+        self.mode = Mode::Swap
     }
 
-    fn enter_exchange_mode(&mut self) {
-        self.mode = Mode::Exchange
-    }
-
-    fn kill_line(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
+    fn kill_line(
+        &mut self,
+        direction: Direction,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2329,10 +3237,11 @@ impl Editor {
                     };
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: delete_range,
-                                new: Rope::new(),
-                            }),
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                delete_range,
+                                Rope::new(),
+                            )),
                             Action::Select(
                                 selection
                                     .clone()
@@ -2347,20 +3256,16 @@ impl Editor {
                 .collect_vec(),
         );
         let dispatches = self
-            .apply_edit_transaction(edit_transaction)?
-            .chain(self.enter_insert_mode(Direction::Start)?);
+            .apply_edit_transaction(edit_transaction, context)?
+            .chain(self.enter_insert_mode(Direction::Start, context)?);
         Ok(dispatches)
-    }
-
-    fn enter_multicursor_mode(&mut self) {
-        self.mode = Mode::MultiCursor
     }
 
     fn enter_replace_mode(&mut self) {
         self.mode = Mode::Replace
     }
 
-    pub(crate) fn scroll_offset(&self) -> u16 {
+    pub(crate) fn scroll_offset(&self) -> usize {
         self.scroll_offset
     }
 
@@ -2371,38 +3276,41 @@ impl Editor {
         self.regex_highlight_rules = regex_highlight_rules
     }
 
-    fn go_back(&mut self) {
+    fn go_back(&mut self, context: &Context) {
         let selection_set = self.buffer_mut().previous_selection_set();
         if let Some(selection_set) = selection_set {
-            self.set_selection_set(selection_set)
+            self.set_selection_set(selection_set, context)
         }
     }
 
-    fn go_forward(&mut self) {
+    fn go_forward(&mut self, context: &Context) {
         let selection_set = self.buffer_mut().next_selection_set();
         if let Some(selection_set) = selection_set {
-            self.set_selection_set(selection_set)
+            self.set_selection_set(selection_set, context)
         }
     }
 
-    fn set_selection_set(&mut self, selection_set: SelectionSet) {
+    pub(crate) fn set_selection_set(&mut self, selection_set: SelectionSet, context: &Context) {
         self.selection_set = selection_set;
-        self.recalculate_scroll_offset()
+        self.recalculate_scroll_offset(context)
     }
 
-    pub(crate) fn set_position_range(
+    pub(crate) fn set_char_index_range(
         &mut self,
-        range: Range<Position>,
+        range: CharIndexRange,
+        context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
-        let selection_set = self.position_range_to_selection_set(range)?;
-        Ok(self.update_selection_set(selection_set, true))
+        let selection_set = self.char_index_range_to_selection_set(range)?;
+        Ok(self.update_selection_set(selection_set, true, context))
     }
 
     fn select_surround(
         &mut self,
         enclosure: EnclosureKind,
         kind: SurroundKind,
+        context: &Context,
     ) -> anyhow::Result<Dispatches> {
+        self.disable_selection_extension();
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2413,6 +3321,7 @@ impl Editor {
                             &buffer.content(),
                             enclosure,
                             cursor_char_index,
+                            false,
                         )
                     {
                         let offset = match kind {
@@ -2431,19 +3340,31 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
-        let _ = self.set_selection_mode(IfCurrentNotFound::LookForward, SelectionMode::Custom);
-        self.apply_edit_transaction(edit_transaction)
+        let _ = self.set_selection_mode(
+            IfCurrentNotFound::LookForward,
+            SelectionMode::Custom,
+            context,
+            None,
+        );
+        self.disable_selection_extension();
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
-    fn delete_surround(&mut self, enclosure: EnclosureKind) -> Result<Dispatches, anyhow::Error> {
-        self.change_surround(enclosure, None)
+    fn delete_surround(
+        &mut self,
+        enclosure: EnclosureKind,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        self.change_surround(enclosure, None, context)
     }
 
     fn change_surround(
         &mut self,
         from: EnclosureKind,
         to: Option<EnclosureKind>,
+        context: &Context,
     ) -> Result<Dispatches, anyhow::Error> {
+        self.disable_selection_extension();
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2454,6 +3375,7 @@ impl Editor {
                             &buffer.content(),
                             from,
                             cursor_char_index,
+                            true,
                         )
                     {
                         let open_range = (open_index..open_index + 1).into();
@@ -2467,17 +3389,19 @@ impl Editor {
                             .into();
                         Ok([
                             ActionGroup::new(
-                                [Action::Edit(Edit {
-                                    range: open_range,
-                                    new: new_open.into(),
-                                })]
+                                [Action::Edit(Edit::new(
+                                    self.buffer().rope(),
+                                    open_range,
+                                    new_open.into(),
+                                ))]
                                 .to_vec(),
                             ),
                             ActionGroup::new(
-                                [Action::Edit(Edit {
-                                    range: close_range,
-                                    new: new_close.into(),
-                                })]
+                                [Action::Edit(Edit::new(
+                                    self.buffer().rope(),
+                                    close_range,
+                                    new_close.into(),
+                                ))]
                                 .to_vec(),
                             ),
                             ActionGroup::new(
@@ -2495,12 +3419,17 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
-        let _ = self.set_selection_mode(IfCurrentNotFound::LookForward, SelectionMode::Custom);
-        self.apply_edit_transaction(edit_transaction)
+        let _ = self.set_selection_mode(
+            IfCurrentNotFound::LookForward,
+            SelectionMode::Custom,
+            context,
+            None,
+        );
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
     fn replace_with_pattern(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let config = context.local_search_config();
+        let config = context.local_search_config(Scope::Local);
         match config.mode {
             LocalSearchConfigMode::AstGrep => {
                 let edits = if let Some(language) = self.buffer().treesitter_language() {
@@ -2533,7 +3462,7 @@ impl Editor {
                                 let new_len_chars = new.len_chars();
                                 Ok(ActionGroup::new(
                                     [
-                                        Action::Edit(Edit { range, new }),
+                                        Action::Edit(Edit::new(self.buffer().rope(), range, new)),
                                         Action::Select(selection.clone().set_range(
                                             (range.start..range.start + new_len_chars).into(),
                                         )),
@@ -2548,20 +3477,22 @@ impl Editor {
                         .flatten()
                         .collect_vec(),
                 );
-                self.apply_edit_transaction(edit_transaction)
+                self.apply_edit_transaction(edit_transaction, context)
             }
-            LocalSearchConfigMode::Regex(regex_config) => {
-                self.transform_selection(Transformation::RegexReplace {
+            LocalSearchConfigMode::Regex(regex_config) => self.transform_selection(
+                Transformation::RegexReplace {
                     regex: MyRegex(regex_config.to_regex(&config.search())?),
                     replacement: config.replacement(),
-                })
-            }
-            LocalSearchConfigMode::CaseAgnostic => {
-                self.transform_selection(Transformation::CaseAgnosticReplace {
+                },
+                context,
+            ),
+            LocalSearchConfigMode::NamingConventionAgnostic => self.transform_selection(
+                Transformation::NamingConventionAgnosticReplace {
                     search: config.search(),
                     replacement: config.replacement(),
-                })
-            }
+                },
+                context,
+            ),
         }
     }
 
@@ -2578,19 +3509,24 @@ impl Editor {
             .collect_vec())
     }
 
-    fn move_to_last_char(&mut self) -> Dispatches {
+    fn move_to_last_char(&mut self, context: &Context) -> Dispatches {
         let last_cursor_index = CharIndex(self.buffer().len_chars());
         self.update_selection_set(
             SelectionSet::new(NonEmpty::singleton(
                 Selection::default().set_range((last_cursor_index..last_cursor_index).into()),
             )),
             false,
+            context,
         )
         .append(Dispatch::ToEditor(EnterInsertMode(Direction::Start)))
     }
 
-    fn pipe_to_shell(&mut self, command: String) -> Result<Dispatches, anyhow::Error> {
-        self.transform_selection(Transformation::PipeToShell { command })
+    fn pipe_to_shell(
+        &mut self,
+        command: String,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        self.transform_selection(Transformation::PipeToShell { command }, context)
     }
 
     fn show_current_tree_sitter_node_sexp(&self) -> Result<Dispatches, anyhow::Error> {
@@ -2599,15 +3535,14 @@ impl Editor {
         let info = node
             .map(|node| node.to_sexp())
             .unwrap_or("[No node found]".to_string());
-        Ok(Dispatches::one(Dispatch::ShowEditorInfo(Info::new(
+        Ok(Dispatches::one(Dispatch::ShowGlobalInfo(Info::new(
             "Tree-sitter node S-expression".to_string(),
             info,
         ))))
     }
 
-    fn indent(&mut self) -> Result<Dispatches, anyhow::Error> {
-        let indentation: Rope = std::iter::repeat(INDENT_CHAR)
-            .take(INDENT_WIDTH)
+    fn indent(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        let indentation: Rope = std::iter::repeat_n(INDENT_CHAR, INDENT_WIDTH)
             .collect::<String>()
             .into();
         let edit_transaction = EditTransaction::from_action_groups(
@@ -2627,7 +3562,7 @@ impl Editor {
                         .map(|line| {
                             (
                                 indentation.len_chars() as isize,
-                                format!("{}{}", indentation, line),
+                                format!("{indentation}{line}"),
                             )
                         })
                         .collect_vec();
@@ -2652,10 +3587,7 @@ impl Editor {
 
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: linewise_range,
-                                new,
-                            }),
+                            Action::Edit(Edit::new(self.buffer().rope(), linewise_range, new)),
                             Action::Select(selection.clone().set_range(select_range.into())),
                         ]
                         .to_vec(),
@@ -2665,10 +3597,10 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
-        self.apply_edit_transaction(edit_transaction)
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
-    fn dedent(&mut self) -> Result<Dispatches, anyhow::Error> {
+    fn dedent(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2726,10 +3658,7 @@ impl Editor {
                     };
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit {
-                                range: linewise_range,
-                                new,
-                            }),
+                            Action::Edit(Edit::new(self.buffer().rope(), linewise_range, new)),
                             Action::Select(selection.clone().set_range(select_range.into())),
                         ]
                         .to_vec(),
@@ -2739,19 +3668,11 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
-        self.apply_edit_transaction(edit_transaction)
+        self.apply_edit_transaction(edit_transaction, context)
     }
 
     #[cfg(test)]
     pub(crate) fn primary_selection(&self) -> anyhow::Result<String> {
-        println!(
-            "Editor::primary_selection range = {:?}",
-            &self
-                .editor()
-                .selection_set
-                .primary_selection()
-                .extended_range()
-        );
         Ok(self
             .buffer()
             .slice(
@@ -2766,6 +3687,791 @@ impl Editor {
 
     fn cycle_primary_selection(&mut self, direction: Direction) {
         self.selection_set.cycle_primary_selection(direction)
+    }
+
+    fn handle_dispatch_editors(
+        &mut self,
+        context: &mut Context,
+        dispatch_editors: Vec<DispatchEditor>,
+    ) -> Result<Dispatches, anyhow::Error> {
+        Ok(Dispatches::new(
+            dispatch_editors
+                .into_iter()
+                .map(|dispatch_editor| self.handle_dispatch_editor(context, dispatch_editor))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .flat_map(|dispatches| dispatches.into_vec())
+                .collect(),
+        ))
+    }
+
+    fn collapse_selection(
+        &mut self,
+        context: &mut Context,
+        direction: Direction,
+    ) -> anyhow::Result<Dispatches> {
+        let set_column_selection_mode =
+            SetSelectionMode(IfCurrentNotFound::LookForward, SelectionMode::Character);
+        match direction {
+            Direction::Start => self.handle_dispatch_editor(context, set_column_selection_mode),
+            Direction::End => self
+                .handle_dispatch_editors(context, [SwapCursor, set_column_selection_mode].to_vec()),
+        }
+    }
+
+    fn filter_selection_matching_search(
+        &mut self,
+        local_search_config: &crate::context::LocalSearchConfig,
+        keep: bool,
+        context: &Context,
+    ) -> Dispatches {
+        let search = local_search_config.search();
+        let selections = self.selection_set.selections();
+        let filtered = selections
+            .iter()
+            .filter_map(|selection| -> Option<_> {
+                let range = selection.extended_range();
+                let haystack = self.buffer().slice(&range).unwrap_or_default().to_string();
+                let is_match = match local_search_config.mode {
+                    LocalSearchConfigMode::Regex(regex_config) => get_regex(&search, regex_config)
+                        .ok()?
+                        .is_match(&haystack)
+                        .ok()?,
+                    LocalSearchConfigMode::AstGrep => false,
+                    LocalSearchConfigMode::NamingConventionAgnostic => {
+                        selection_mode::NamingConventionAgnostic::new(search.clone())
+                            .find_all(&haystack)
+                            .is_empty()
+                            .not()
+                    }
+                };
+                if keep && is_match || !keep && !is_match {
+                    Some(selection.clone())
+                } else {
+                    None
+                }
+            })
+            .collect_vec();
+        let selections = match filtered.split_first() {
+            Some((head, tail)) => NonEmpty {
+                head: head.clone(),
+                tail: tail.to_vec(),
+            },
+            None => selections.clone(),
+        };
+        self.update_selection_set(
+            self.selection_set.clone().set_selections(selections),
+            true,
+            context,
+        )
+    }
+
+    fn delete_current_cursor(&mut self, direction: Direction) {
+        self.selection_set.delete_current_selection(direction)
+    }
+
+    fn break_selection(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        let edit_transaction = EditTransaction::from_action_groups({
+            let buffer = self.buffer();
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let select_range = selection.extended_range();
+
+                    let line_index = buffer.char_to_line(select_range.start)?;
+                    let line_char_index = buffer.line_to_char(line_index)?;
+                    let indentation: String = {
+                        let line = buffer
+                            .get_line_by_line_index(line_index)
+                            .map(|slice| slice.to_string())
+                            .unwrap_or_default();
+                        line.chars().take_while(|c| c.is_whitespace()).collect()
+                    };
+                    let current = buffer
+                        .slice(&select_range)
+                        .map(|slice| slice.to_string())
+                        .unwrap_or_default();
+
+                    // The edit range should include the leading whitespaces of the current selection
+                    // if the current selection is not befored by purely whitespaces
+                    let edit_range = {
+                        let line_leading_content = buffer
+                            .slice(&(line_char_index..select_range.start).into())?
+                            .to_string();
+
+                        let leading_whitespaces_count = line_leading_content
+                            .chars()
+                            .rev()
+                            .take_while(|c| c.is_whitespace())
+                            .count();
+
+                        if leading_whitespaces_count < line_leading_content.chars().count() {
+                            ((select_range.start - leading_whitespaces_count)..select_range.end)
+                                .into()
+                        } else {
+                            select_range
+                        }
+                    };
+
+                    Ok([
+                        ActionGroup::new(
+                            [Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                edit_range,
+                                format!("\n{indentation}{current}").into(),
+                            ))]
+                            .to_vec(),
+                        ),
+                        ActionGroup::new(
+                            [Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range(select_range)
+                                    .set_initial_range(None),
+                            )]
+                            .to_vec(),
+                        ),
+                    ])
+                })
+                .into_iter()
+                .flatten()
+                .flatten()
+                .collect()
+        });
+        self.apply_edit_transaction(edit_transaction, context)
+    }
+
+    pub(crate) fn insert_mode_keymaps(
+        &self,
+        include_universal_keymaps: bool,
+        context: &Context,
+    ) -> super::keymap_legend::Keymaps {
+        self.insert_mode_keymap_legend_config(include_universal_keymaps, context)
+            .keymaps()
+    }
+
+    pub(crate) fn set_normal_mode_override(&mut self, normal_mode_override: NormalModeOverride) {
+        self.normal_mode_override = Some(normal_mode_override)
+    }
+
+    fn show_help(&self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        Ok(Dispatches::one(Dispatch::ShowKeymapLegend(
+            self.get_current_keymap_legend_config(context),
+        )))
+    }
+
+    fn get_current_keymap_legend_config(
+        &self,
+        context: &Context,
+    ) -> super::keymap_legend::KeymapLegendConfig {
+        match self.mode {
+            Mode::Insert => self.insert_mode_keymap_legend_config(true, context),
+            _ => self.normal_mode_keymap_legend_config(context, None, None),
+        }
+    }
+
+    fn toggle_reveal(&mut self, reveal: Reveal) {
+        self.reveal = match &self.reveal {
+            Some(current_reveal) if &reveal == current_reveal => None,
+            _ => Some(reveal),
+        }
+    }
+
+    pub(crate) fn reveal(&self) -> std::option::Option<Reveal> {
+        self.reveal.clone()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn selection_extension_enabled(&self) -> bool {
+        self.selection_set.is_extended()
+    }
+
+    pub(crate) fn current_primary_selection(&self) -> anyhow::Result<String> {
+        Ok(self
+            .buffer()
+            .slice(&self.selection_set.primary_selection().extended_range())?
+            .to_string())
+    }
+
+    fn search_current_selection(
+        &mut self,
+        if_current_not_found: IfCurrentNotFound,
+        scope: Scope,
+    ) -> Dispatches {
+        self.current_primary_selection()
+            .map(|search| self.search_for_content(if_current_not_found, scope, search.to_string()))
+            .unwrap_or_default()
+    }
+
+    fn search_clipboard_content(&mut self, scope: Scope, context: &Context) -> Dispatches {
+        context
+            .get_clipboard_content(0)
+            .map(|copied_texts| {
+                self.search_for_content(
+                    self.cursor_direction.reverse().to_if_current_not_found(),
+                    scope,
+                    copied_texts.get(0),
+                )
+            })
+            .unwrap_or_default()
+    }
+
+    fn search_for_content(
+        &mut self,
+        if_current_not_found: IfCurrentNotFound,
+        scope: Scope,
+        content: String,
+    ) -> Dispatches {
+        let dispatches = Dispatches::one(Dispatch::UpdateLocalSearchConfig {
+            scope,
+            if_current_not_found,
+            update: crate::app::LocalSearchConfigUpdate::Config(
+                LocalSearchConfig::new(LocalSearchConfigMode::Regex(RegexConfig::literal()))
+                    .set_search(content.to_string())
+                    .clone(),
+            ),
+            run_search_after_config_updated: true,
+            component_id: None,
+        })
+        .append(Dispatch::PushPromptHistory {
+            key: super::prompt::PromptHistoryKey::Search,
+            line: format!("l/{}", content.replace("/", r#"\/"#)),
+        });
+
+        self.disable_selection_extension();
+        dispatches
+    }
+
+    pub(crate) fn current_selection_range(&self) -> CharIndexRange {
+        self.selection_set.primary_selection().extended_range()
+    }
+
+    pub(crate) fn window_title_height(&self, context: &Context) -> usize {
+        self.title(context).lines().count()
+    }
+
+    fn execute_completion(
+        &mut self,
+        replacement: String,
+        edit: Option<CompletionItemEdit>,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        // Only apply `edit` if there's no more than one cursor
+        match edit {
+            Some(edit) if self.selection_set.len() == 1 => self.apply_positional_edits(
+                Some(edit)
+                    .into_iter()
+                    .map(|edit| match edit {
+                        CompletionItemEdit::PositionalEdit(positional_edit) => positional_edit,
+                    })
+                    .collect_vec(),
+                context,
+            ),
+            // Otherwise, replace word under cursor(s) with replacement
+            _ => self.try_replace_current_long_word(replacement, context),
+        }
+    }
+
+    fn last_visible_line(&self, context: &Context) -> usize {
+        (self.render_area(context).height + self.scroll_offset).saturating_sub(1)
+    }
+
+    pub(crate) fn update_current_line(
+        &mut self,
+        context: &Context,
+        replacement: &str,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let current_line_index = self.buffer().char_to_line(
+            self.selection_set
+                .primary_selection()
+                .range()
+                .as_char_index(&self.cursor_direction),
+        )?;
+        let edit_transaction = EditTransaction::from_action_groups({
+            let line_char_index = self.buffer().line_to_char(current_line_index)?;
+            let line_length = self
+                .buffer()
+                .get_line_by_line_index(current_line_index)
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Unable to get line at line index {current_line_index:?}")
+                })?
+                .len_chars();
+
+            [ActionGroup::new(
+                [Action::Edit(Edit::new(
+                    self.buffer().rope(),
+                    (line_char_index..line_char_index + line_length).into(),
+                    replacement.into(),
+                ))]
+                .to_vec(),
+            )]
+            .to_vec()
+        });
+        self.apply_edit_transaction(edit_transaction, context)
+    }
+
+    pub(crate) fn set_visible_line_ranges(&mut self, visible_line_ranges: Vec<Range<usize>>) {
+        let max_line_index = self.buffer().len_lines().saturating_sub(1);
+        self.visible_line_ranges = Some(
+            visible_line_ranges
+                .into_iter()
+                .map(|range| {
+                    // Clamp range.end to buffer bounds because the VS Code adapter may send out-of-bounds ranges.
+                    // VS Code tends to under-report visible line ranges, so our adapter adds safety padding
+                    // to ensure we don't miss any visible content. This padding can cause the reported ranges
+                    // to extend beyond the actual buffer size. For example, if the buffer has 100 lines
+                    // (indices 0-99), the adapter might report a visible range like 95..105.
+                    let end = range.end.min(max_line_index);
+                    range.start..(end + 1)
+                })
+                .collect(),
+        )
+    }
+
+    fn dispatch_jumps_changed(&self) -> Dispatch {
+        Dispatch::ToHostApp(ToHostApp::JumpsChanged {
+            component_id: self.id(),
+            jumps: self
+                .jumps
+                .as_ref()
+                .map(|jumps| {
+                    jumps
+                        .iter()
+                        .map(|jump| (jump.character, jump.selection.range.start))
+                        .collect_vec()
+                })
+                .unwrap_or_default(),
+        })
+    }
+
+    pub(crate) fn dispatch_selection_mode_changed(&self) -> Dispatch {
+        Dispatch::ToHostApp(ToHostApp::SelectionModeChanged(
+            self.selection_set.mode().clone(),
+        ))
+    }
+
+    pub(crate) fn update_content(
+        &mut self,
+        new_content: &str,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
+        let current_selection_set = self.selection_set.clone();
+        let last_visible_line = self.last_visible_line(context);
+        self.buffer_mut()
+            .update_content(new_content, current_selection_set, last_visible_line)
+    }
+
+    fn toggle_line_comment(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        let Some(prefix) = self
+            .buffer()
+            .language()
+            .and_then(|langugae| langugae.line_comment_prefix())
+        else {
+            return Ok(Default::default());
+        };
+        self.transform_selection(Transformation::ToggleLineComment { prefix }, context)
+    }
+
+    fn toggle_block_comment(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        let Some((open, close)) = self
+            .buffer()
+            .language()
+            .and_then(|langugae| langugae.block_comment_affixes())
+        else {
+            return Ok(Default::default());
+        };
+        self.transform_selection(Transformation::ToggleBlockComment { open, close }, context)
+    }
+
+    fn handle_movement_with_prior_change(
+        &mut self,
+        context: &mut Context,
+        movement: Movement,
+        prior_change: Option<PriorChange>,
+    ) -> Result<Dispatches, anyhow::Error> {
+        self.handle_prior_change(prior_change);
+        self.handle_movement(context, movement)
+    }
+
+    pub(crate) fn handle_prior_change(&mut self, prior_change: Option<PriorChange>) {
+        if let Some(prior_change) = prior_change {
+            match prior_change {
+                PriorChange::EnterMultiCursorMode => self.mode = Mode::MultiCursor,
+                PriorChange::EnableSelectionExtension => self.enable_selection_extension(),
+            }
+        }
+    }
+
+    fn repeat_search(
+        &mut self,
+        context: &Context,
+        scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
+        prior_change: Option<PriorChange>,
+    ) -> anyhow::Result<Dispatches> {
+        let Some(search) = context.local_search_config(scope).last_search() else {
+            return Ok(Dispatches::default());
+        };
+        self.handle_prior_change(prior_change);
+        let dispatches = Dispatches::one(Dispatch::UpdateLocalSearchConfig {
+            scope,
+            if_current_not_found,
+            update: crate::app::LocalSearchConfigUpdate::Config(
+                LocalSearchConfig::new(search.mode)
+                    .set_search(search.search)
+                    .clone(),
+            ),
+            run_search_after_config_updated: true,
+            component_id: None,
+        });
+        Ok(dispatches)
+    }
+
+    fn revert_hunk(
+        &mut self,
+        context: &Context,
+        diff_mode: DiffMode,
+    ) -> anyhow::Result<Dispatches> {
+        let Some(path) = self.buffer().path() else {
+            return Ok(Default::default());
+        };
+        let hunks = path.simple_hunks(
+            &self.buffer().content(),
+            &diff_mode,
+            context.current_working_directory(),
+        )?;
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let buffer = self.buffer();
+                    let line_range = buffer.char_index_range_to_line_range(selection.range())?;
+                    let Some(matching_hunk) = hunks.iter().find(|hunk| {
+                        range_intersects(&hunk.new_line_range, &line_range)
+                            || hunk.new_line_range.start == line_range.start
+                    }) else {
+                        // Do nothing if this selection does not intersect with any hunks
+                        return Ok(ActionGroup::new(
+                            [Action::Select(selection.clone())].to_vec(),
+                        ));
+                    };
+
+                    let edit_range = {
+                        let start = buffer.line_to_char(matching_hunk.new_line_range.start)?;
+                        (start..start + Rope::from_str(&matching_hunk.new_content).len_chars())
+                            .into()
+                    };
+                    let replacement: Rope = matching_hunk.old_content.clone().into();
+
+                    // If the hunk is a removed hunk, we need to append a newline char
+                    let replacement = if matching_hunk.kind == SimpleHunkKind::Delete {
+                        format!("{}\n", matching_hunk.old_content).into()
+                    } else {
+                        replacement
+                    };
+                    let select_range = {
+                        let start = buffer.line_to_char(matching_hunk.new_line_range.start)?;
+                        (start..start + replacement.len_chars()).into()
+                    };
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(self.buffer().rope(), edit_range, replacement)),
+                            Action::Select(selection.clone().set_range(select_range)),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
+        self.apply_edit_transaction(edit_transaction, context)
+    }
+
+    fn git_blame(&self, context: &mut Context) -> Result<Dispatches, anyhow::Error> {
+        let Some(file_path) = self.buffer().path() else {
+            return Ok(Default::default());
+        };
+        let line_numbers: Vec<usize> = self
+            .selection_set
+            .map(|selection| self.buffer().char_to_line(selection.range.start))
+            .into_iter()
+            .try_collect()?;
+
+        let git_blame_infos: Vec<_> = line_numbers
+            .into_iter()
+            .map(|line_number| {
+                crate::git::blame::blame_line(
+                    context.current_working_directory(),
+                    &file_path,
+                    line_number,
+                )
+            })
+            .try_collect()?;
+
+        let info = git_blame_infos
+            .into_iter()
+            .map(|info| info.display())
+            .join("\n==========\n");
+
+        Ok(Dispatches::one(Dispatch::ShowEditorInfo(Info::new(
+            "Git blame".to_string(),
+            info,
+        ))))
+    }
+
+    fn merge_content(
+        &mut self,
+        context: &Context,
+        file_path: CanonicalizedPath,
+        content_editor: String,
+        content_filesystem: String,
+    ) -> anyhow::Result<Dispatches> {
+        let original = file_path
+            .content_at_last_commit(
+                &DiffMode::UnstagedAgainstCurrentBranch,
+                &GitRepo::try_from(context.current_working_directory())?,
+            )
+            .unwrap_or_default();
+        let merged = match diffy::merge(&original, &content_editor, &content_filesystem) {
+            Ok(merged_without_conflicts) => merged_without_conflicts,
+            Err(merged_with_conflicts) => merged_with_conflicts,
+        };
+        let dispatches = self.update_content(&merged, context)?;
+        Ok(dispatches.chain(self.do_save(true, context)?))
+    }
+
+    fn reload(&mut self, force: bool) -> Result<Dispatches, anyhow::Error> {
+        let dispatches = self.buffer_mut().reload(force)?;
+        Ok(dispatches.chain(self.get_document_did_change_dispatch()))
+    }
+
+    fn clear_incremental_search_matches(&mut self) {
+        self.incremental_search_matches = None
+    }
+
+    pub(crate) fn set_incremental_search_config(&mut self, config: LocalSearchConfig) {
+        let content = self.content();
+        let search = config.search();
+        if search.is_empty() {
+            // Don't set incremental search matches if the search string is empty
+            // otherwise it will cause performance issue with rendering
+            // as empty string matches every character of the file.
+            return;
+        }
+        let matches = match config.mode {
+            LocalSearchConfigMode::Regex(regex_config) => regex_config
+                .to_regex(&search)
+                .map(|regex| {
+                    regex
+                        .find_iter(&content)
+                        .filter_map(|m| Some(m.ok()?.range()))
+                        .collect_vec()
+                })
+                .unwrap_or_default(),
+            LocalSearchConfigMode::AstGrep => ast_grep::AstGrep::new(&self.buffer(), &search)
+                .map(|result| result.find_all().map(|m| m.range()).collect_vec())
+                .unwrap_or_default(),
+            LocalSearchConfigMode::NamingConventionAgnostic => {
+                NamingConventionAgnostic::new(search)
+                    .find_all(&content)
+                    .into_iter()
+                    .map(|(range, _)| range.range().clone())
+                    .collect_vec()
+            }
+        };
+        self.incremental_search_matches = Some(matches)
+    }
+
+    pub(crate) fn initialize_incremental_search_matches(&mut self) {
+        self.incremental_search_matches = Some(Vec::new())
+    }
+
+    fn go_to_file(&self) -> Result<Dispatches, anyhow::Error> {
+        Ok(Dispatches::one(Dispatch::OpenFile {
+            path: self.current_primary_selection()?.try_into()?,
+            owner: crate::buffer::BufferOwner::User,
+            focus: true,
+        }))
+    }
+
+    fn press_space(&self, context: &Context) -> Dispatches {
+        match self.mode {
+            Mode::Normal => Dispatches::one(Dispatch::ShowKeymapLegend(
+                self.space_keymap_legend_config(context),
+            )),
+            Mode::Insert => Dispatches::default(),
+            _ => Dispatches::one(Dispatch::ToEditor(EnterNormalMode)),
+        }
+    }
+
+    fn handle_path_renamed(&mut self, source: PathBuf, destination: CanonicalizedPath) {
+        let Some(path) = self.path() else { return };
+        if path.to_path_buf() == &source {
+            self.buffer_mut().update_path(destination)
+        }
+    }
+
+    fn copy_current_file_absolute_path(&self) -> Result<Dispatches, anyhow::Error> {
+        if let Some(path) = self.path() {
+            Ok(Dispatches::one(Dispatch::SetClipboardContent {
+                copied_texts: CopiedTexts::new(NonEmpty::new(path.display_absolute())),
+            }))
+        } else {
+            Err(anyhow::anyhow!(
+                "Failed to copy file path as the current buffer does not have a file path."
+            ))
+        }
+    }
+
+    fn copy_current_file_relative_path(
+        &self,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        if let Some(path) = self.path() {
+            Ok(Dispatches::one(Dispatch::SetClipboardContent {
+                copied_texts: CopiedTexts::new(NonEmpty::new(
+                    path.display_relative_to(context.current_working_directory())?,
+                )),
+            }))
+        } else {
+            Err(anyhow::anyhow!(
+                "Failed to copy file path as the current buffer does not have a file path."
+            ))
+        }
+    }
+
+    fn align_selections(
+        &mut self,
+        direction: Direction,
+        context: &Context,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let max_column = self
+            .selection_set
+            .map(|selection| -> anyhow::Result<_> {
+                let char_index = selection.to_char_index(&direction);
+                let position = self.buffer().char_to_position(char_index)?;
+                Ok(position.column)
+            })
+            .into_iter()
+            .collect::<anyhow::Result<Vec<_>>>()?
+            .into_iter()
+            .max()
+            .ok_or_else(|| anyhow::anyhow!("Unable to obtain max column"))?;
+
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let original_range = selection.extended_range();
+                    let char_index = selection.to_char_index(&direction);
+                    let position = self.buffer().char_to_position(char_index)?;
+                    let extra_leading_whitespaces_count =
+                        max_column.saturating_sub(position.column);
+                    let content = self.buffer().slice(&original_range)?;
+                    let new_content =
+                        format!("{}{}", " ".repeat(extra_leading_whitespaces_count), content);
+                    let select_range = original_range.shift_right(extra_leading_whitespaces_count);
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                original_range,
+                                new_content.into(),
+                            )),
+                            Action::Select(selection.clone().set_range(select_range)),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
+        self.apply_edit_transaction(edit_transaction, context)
+    }
+
+    fn join_selection(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+        let edit_transaction = EditTransaction::from_action_groups({
+            let buffer = self.buffer();
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let select_range = selection.extended_range();
+
+                    let line_index = buffer.char_to_line(select_range.start)?;
+                    let line = buffer.get_line_by_char_index(select_range.start)?;
+                    let leading_whitespaces_count =
+                        line.chars().take_while(|c| c.is_whitespace()).count();
+                    let line_char_index = buffer.line_to_char(line_index)?;
+                    let new_text_range: CharIndexRange = ((line_char_index
+                        + leading_whitespaces_count)
+                        ..line_char_index + line.chars().count())
+                        .into();
+                    let new_text = buffer.slice(&new_text_range)?.to_string();
+                    let edit_range: CharIndexRange =
+                        ((line_char_index - 1)..line_char_index + line.chars().count()).into();
+
+                    Ok([
+                        ActionGroup::new(
+                            [Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                edit_range,
+                                new_text.into(),
+                            ))]
+                            .to_vec(),
+                        ),
+                        ActionGroup::new([Action::Select(selection.clone())].to_vec()),
+                    ])
+                })
+                .into_iter()
+                .flatten()
+                .flatten()
+                .collect()
+        });
+        self.apply_edit_transaction(edit_transaction, context)
+    }
+
+    fn replace_selections(
+        &mut self,
+        context: &Context,
+        replacements: Vec<String>,
+    ) -> anyhow::Result<Dispatches> {
+        let Some(replacements) = NonEmpty::from_vec(replacements) else {
+            return Err(anyhow::anyhow!(
+                "Replacement texts must have at least one element."
+            ));
+        };
+        if replacements.len() != self.selection_set.len() {
+            return Err(anyhow::anyhow!(
+                r#"There are {} selection(s), but the input has a different length: {}. The input is {:?}"#,
+                self.selection_set.len(),
+                replacements.len(),
+                replacements
+            ));
+        }
+        self.transform_selection(
+            Transformation::ReplaceWithCopiedText {
+                copied_texts: CopiedTexts::new(replacements),
+            },
+            context,
+        )
+    }
+
+    pub(crate) fn get_selected_lines_indices(&self) -> anyhow::Result<Vec<usize>> {
+        Ok(self
+            .selection_set
+            .selections()
+            .into_iter()
+            .map(|selection| -> anyhow::Result<_> {
+                let range = selection.extended_range();
+                let line_start = self.buffer().char_to_line(range.start)?;
+
+                // We need to minus 1 because range end is exclusive (not inclusive)
+                let line_end = self.buffer().char_to_line(range.end - 1)?;
+
+                Ok((line_start..=line_end).collect_vec())
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?
+            .into_iter()
+            .flatten()
+            .collect_vec())
     }
 }
 
@@ -2785,9 +4491,10 @@ pub(crate) enum HandleEventResult {
 pub(crate) enum DispatchEditor {
     Surround(String, String),
     #[cfg(test)]
-    SetScrollOffset(u16),
+    SetScrollOffset(usize),
     ShowJumps {
         use_current_selection_mode: bool,
+        prior_change: Option<PriorChange>,
     },
     ScrollPageDown,
     ScrollPageUp,
@@ -2795,15 +4502,19 @@ pub(crate) enum DispatchEditor {
     AlignViewTop,
     #[cfg(test)]
     AlignViewBottom,
+    #[cfg(test)]
+    AlignViewCenter,
     Transform(Transformation),
     SetSelectionMode(IfCurrentNotFound, SelectionMode),
+    SetSelectionModeWithPriorChange(IfCurrentNotFound, SelectionMode, Option<PriorChange>),
     Save,
+    ForceSave,
     FindOneChar(IfCurrentNotFound),
     MoveSelection(Movement),
+    /// This is used for initiating modes such as Multicursor and Extend.
+    MoveSelectionWithPriorChange(Movement, Option<PriorChange>),
     SwitchViewAlignment,
-    Copy {
-        use_system_clipboard: bool,
-    },
+    Copy,
     GoBack,
     GoForward,
     SelectAll,
@@ -2811,21 +4522,19 @@ pub(crate) enum DispatchEditor {
     SetDecorations(Vec<Decoration>),
     #[cfg(test)]
     SetRectangle(Rectangle),
-    ToggleVisualMode,
+    EnableSelectionExtension,
+    DisableSelectionExtension,
+    DeleteOne,
+    DeleteCutOne,
     Change,
-    ChangeCut {
-        use_system_clipboard: bool,
-    },
-    EnterUndoTreeMode,
+    ChangeCut,
     EnterInsertMode(Direction),
     ReplaceWithCopiedText {
         cut: bool,
-        use_system_clipboard: bool,
     },
     ReplaceWithPattern,
     SelectLine(Movement),
     Backspace,
-    Delete(Direction),
     Insert(String),
     MoveToLineStart,
     MoveToLineEnd,
@@ -2835,14 +4544,10 @@ pub(crate) enum DispatchEditor {
         enclosure: EnclosureKind,
         kind: SurroundKind,
     },
-    Open(Direction),
-    ToggleBookmark,
+    Open,
     EnterNormalMode,
-    EnterExchangeMode,
+    EnterSwapMode,
     EnterReplaceMode,
-    EnterMultiCursorMode,
-    FilterPush(Filter),
-    FilterClear,
     CursorAddToAllSelections,
     CyclePrimarySelection(Direction),
     CursorKeepPrimaryOnly,
@@ -2858,22 +4563,16 @@ pub(crate) enum DispatchEditor {
         short: bool,
     },
     #[cfg(test)]
-    SetLanguage(shared::language::Language),
+    SetLanguage(Box<shared::language::Language>),
     #[cfg(test)]
     ApplySyntaxHighlight,
     ReplaceCurrentSelectionWith(String),
-    TryReplaceCurrentLongWord(String),
     SelectLineAt(usize),
-    ShowKeymapLegendNormalMode,
-    ShowKeymapLegendInsertMode,
-    Paste {
-        direction: Direction,
-        use_system_clipboard: bool,
-    },
-    SwapCursorWithAnchor,
+    Paste,
+    PasteNoGap,
+    SwapCursor,
     MoveCharacterBack,
     MoveCharacterForward,
-    ShowKeymapLegendHelp,
     DeleteSurround(EnclosureKind),
     ChangeSurround {
         from: EnclosureKind,
@@ -2890,6 +4589,53 @@ pub(crate) enum DispatchEditor {
     ShowCurrentTreeSitterNodeSexp,
     Indent,
     Dedent,
+    SwapExtensionAnchor,
+    CollapseSelection(Direction),
+    FilterSelectionMatchingSearch {
+        search: String,
+        maintain: bool,
+    },
+    EnterNewline,
+    DeleteCurrentCursor(Direction),
+    BreakSelection,
+    ShowHelp,
+    HandleEsc,
+    ToggleReveal(Reveal),
+    SearchCurrentSelection(IfCurrentNotFound, Scope),
+    ExecuteCompletion {
+        replacement: String,
+        edit: Option<CompletionItemEdit>,
+    },
+    ToggleLineComment,
+    ToggleBlockComment,
+    ShowKeymapLegendExtend,
+    RepeatSearch(Scope, IfCurrentNotFound, Option<PriorChange>),
+    RevertHunk(DiffMode),
+    GitBlame,
+    ReloadFile {
+        force: bool,
+    },
+    MergeContent {
+        content_filesystem: String,
+        content_editor: String,
+        path: CanonicalizedPath,
+    },
+    ClearIncrementalSearchMatches,
+    GoToFile,
+    SearchClipboardContent(Scope),
+    PressSpace,
+    PathRenamed {
+        source: PathBuf,
+        destination: CanonicalizedPath,
+    },
+    CopyAbsolutePath,
+    CopyRelativePath,
+    DeleteWithMovement(Movement),
+    DeleteCutWithMovement(Movement),
+    EnterDeleteMode,
+    AlignSelections(Direction),
+    JoinSelection,
+    ReplaceSelections(Vec<String>),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -2897,5 +4643,15 @@ pub(crate) enum SurroundKind {
     Inside,
     Around,
 }
+
+impl std::fmt::Display for SurroundKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SurroundKind::Inside => write!(f, "Inside"),
+            SurroundKind::Around => write!(f, "Outside"),
+        }
+    }
+}
+
 const INDENT_CHAR: char = ' ';
 const INDENT_WIDTH: usize = 4;

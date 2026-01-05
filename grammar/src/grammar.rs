@@ -43,13 +43,13 @@ pub struct GrammarConfiguration {
 }
 
 impl GrammarConfiguration {
-    pub fn remote(id: &str, repository_url: &str, revision: &str, subpath: Option<&str>) -> Self {
+    pub fn remote(id: &str, repository_url: &str, revision: &str, subpath: Option<String>) -> Self {
         Self {
             grammar_id: id.to_string(),
             source: GrammarSource::Git {
                 remote: repository_url.to_string(),
                 revision: revision.to_string(),
-                subpath: subpath.map(|s| s.to_string()),
+                subpath,
             },
         }
     }
@@ -85,13 +85,17 @@ pub fn get_language(name: &str) -> Result<Language> {
     rel_library_path.set_extension(DYLIB_EXTENSION);
     let library_path = crate::runtime_file(&rel_library_path);
 
-    let library = unsafe { Library::new(&library_path) }
-        .with_context(|| format!("Error opening dynamic library {:?}", library_path))?;
+    let library = unsafe { Library::new(&library_path) }.map_err(|err| {
+        anyhow::anyhow!(
+            "Error opening dynamic library {:?} due to {err:?}",
+            library_path
+        )
+    })?;
     let language_fn_name = format!("tree_sitter_{}", name.replace('-', "_"));
     let language = unsafe {
         let language_fn: Symbol<unsafe extern "C" fn() -> Language> = library
             .get(language_fn_name.as_bytes())
-            .with_context(|| format!("Failed to load symbol {}", language_fn_name))?;
+            .with_context(|| format!("Failed to load symbol {language_fn_name}"))?;
         language_fn()
     };
     std::mem::forget(library);
@@ -132,12 +136,12 @@ pub fn fetch_grammars(mut grammars: Vec<GrammarConfiguration>) -> Result<()> {
     git_updated.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
     if git_up_to_date != 0 {
-        println!("{} up to date git grammars", git_up_to_date);
+        println!("{git_up_to_date} up to date git grammars");
     }
 
     if !non_git.is_empty() {
         println!("{} non git grammars", non_git.len());
-        println!("\t{:?}", non_git);
+        println!("\t{non_git:?}");
     }
 
     if !git_updated.is_empty() {
@@ -145,12 +149,7 @@ pub fn fetch_grammars(mut grammars: Vec<GrammarConfiguration>) -> Result<()> {
         // We checked the vec is not empty, unwrapping will not panic
         let longest_id = git_updated.iter().map(|x| x.0.len()).max().unwrap();
         for (id, rev) in git_updated {
-            println!(
-                "\t{id:width$} now on {rev}",
-                id = id,
-                width = longest_id,
-                rev = rev
-            );
+            println!("\t{id:longest_id$} now on {rev}");
         }
     }
 
@@ -188,12 +187,12 @@ pub fn build_grammars(target: Option<String>, grammars: Vec<GrammarConfiguration
     built.sort_unstable();
 
     if already_built != 0 {
-        println!("{} grammars already built", already_built);
+        println!("{already_built} grammars already built");
     }
 
     if !built.is_empty() {
         println!("{} grammars built now", built.len());
-        println!("\t{:?}", built);
+        println!("\t{built:?}");
     }
 
     if !errors.is_empty() {
@@ -250,8 +249,7 @@ fn fetch_grammar(grammar: GrammarConfiguration) -> Result<FetchStatus> {
         println!("Fetching grammar to = {}", grammar_dir.display());
 
         fs::create_dir_all(&grammar_dir).context(format!(
-            "Could not create grammar directory {:?}",
-            grammar_dir
+            "Could not create grammar directory {grammar_dir:?}"
         ))?;
 
         // create the grammar dir contains a git directory
@@ -260,12 +258,12 @@ fn fetch_grammar(grammar: GrammarConfiguration) -> Result<FetchStatus> {
         }
 
         // ensure the remote matches the configured remote
-        if get_remote_url(&grammar_dir).map_or(true, |s| s != remote) {
+        if get_remote_url(&grammar_dir) != Some(remote.clone()) {
             set_remote(&grammar_dir, &remote)?;
         }
 
         // ensure the revision matches the configured revision
-        if get_revision(&grammar_dir).map_or(true, |s| s != revision) {
+        if get_revision(&grammar_dir) != Some(revision.clone()) {
             // Fetch the exact revision from the remote.
             // Supported by server-side git since v2.5.0 (July 2015),
             // enabled by default on major git hosts.
@@ -349,10 +347,7 @@ fn build_grammar(grammar: GrammarConfiguration, target: Option<&str>) -> Result<
         grammar_dir.display()
     );
     let grammar_dir_entries = grammar_dir.read_dir().with_context(|| {
-        format!(
-            "Failed to read directory {:?}. Did you use 'hx --grammar fetch'?",
-            grammar_dir
-        )
+        format!("Failed to read directory {grammar_dir:?}. Did you use 'hx --grammar fetch'?")
     })?;
 
     if grammar_dir_entries.count() == 0 {
@@ -538,12 +533,12 @@ fn build_tree_sitter_library(
         }
     }
 
-    let output = command
-        .output()
-        .context("Failed to execute C/C++ compiler")?;
+    let output = command.output().with_context(|| {
+        format!("Failed to execute C/C++ compiler, the command was {command:?}")
+    })?;
     if !output.status.success() {
         return Err(anyhow!(
-            "Parser compilation failed.\nStdout: {}\nStderr: {}",
+            "Parser compilation ({command:?}) failed.\nStdout: {}\nStderr: {}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         ));

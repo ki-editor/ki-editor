@@ -5,7 +5,7 @@ use crate::app::AppMessage;
 use super::process::{FromEditor, LspServerProcessChannel};
 use shared::{
     canonicalized_path::CanonicalizedPath,
-    language::{self, Language, LanguageId},
+    language::{Language, LanguageId},
 };
 
 pub(crate) struct LspManager {
@@ -17,6 +17,10 @@ pub(crate) struct LspManager {
     /// We use HashMap instead of Vec because we only one to store the latest
     /// requests of the same kind
     history: HashMap</* request name */ &'static str, FromEditor>,
+
+    #[cfg(test)]
+    /// Used for testing the correctness of initialization
+    lsp_server_initialized_args_history: Vec<(LanguageId, Vec<CanonicalizedPath>)>,
 }
 
 impl Drop for LspManager {
@@ -36,6 +40,8 @@ impl LspManager {
             current_working_directory,
             #[cfg(test)]
             history: Default::default(),
+            #[cfg(test)]
+            lsp_server_initialized_args_history: Default::default(),
         }
     }
 
@@ -45,7 +51,7 @@ impl LspManager {
         _error: &str,
         f: impl Fn(&LspServerProcessChannel) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
-        language::from_path(path)
+        crate::config::from_path(path)
             .and_then(|language| self.lsp_server_process_channels.get(&language.id()?))
             .map(f)
             .unwrap_or_else(|| Ok(()))
@@ -71,9 +77,8 @@ impl LspManager {
     /// 1. Start a new LSP server process if it is not started yet.
     /// 2. Notify the LSP server process that a new file is opened.
     /// 3. Do nothing if the LSP server process is spawned but not yet initialized.
-
     pub(crate) fn open_file(&mut self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
-        let Some(language) = language::from_path(&path) else {
+        let Some(language) = crate::config::from_path(&path) else {
             return Ok(());
         };
         let Some(language_id) = language.id() else {
@@ -111,6 +116,11 @@ impl LspManager {
         let Some(language_id) = language.id() else {
             return;
         };
+
+        #[cfg(test)]
+        self.lsp_server_initialized_args_history
+            .push((language_id.clone(), opened_documents.clone()));
+
         self.lsp_server_process_channels
             .get_mut(&language_id)
             .map(|channel| {
@@ -123,12 +133,19 @@ impl LspManager {
         for (_, channel) in self.lsp_server_process_channels.drain() {
             channel
                 .shutdown()
-                .unwrap_or_else(|error| log::error!("{:?}", error));
+                .unwrap_or_else(|error| log::error!("{error:?}"));
         }
     }
 
     #[cfg(test)]
     pub(crate) fn lsp_request_sent(&self, from_editor: &FromEditor) -> bool {
         self.history.get(from_editor.variant()) == Some(from_editor)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn lsp_server_initialized_args(
+        &self,
+    ) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
+        self.lsp_server_initialized_args_history.last().cloned()
     }
 }
