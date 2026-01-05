@@ -141,7 +141,7 @@
           # Common arguments for all builds
           crossArgs =
             {
-              src = pkgs.nix-gitignore.gitignoreSource [ ] (pkgs.lib.cleanSource ./.);
+              src = pkgs.nix-gitignore.gitignoreSource [] (pkgs.lib.cleanSource ./.);
 
               # Add a preBuild phase to create the VERSION file
               preBuildPhases = ["createVersionPhase"];
