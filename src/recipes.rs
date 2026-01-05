@@ -1596,8 +1596,8 @@ foo bar spam
             }].to_vec(),
         },
         RecipeGroup {
-            filename: "recipes",
-            recipes: recipes(),
+            filename: "showcase_simple",
+            recipes: showcase_simple(),
         },
     ]
     .to_vec()
@@ -1653,7 +1653,7 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     .trim(),
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("n q p r i n t enter r r d v l"),
+                    events: keys!("n q p r i n t enter r r d v l r f"),
                     expectations: Box::new([CurrentComponentContent(r#"pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
@@ -1712,7 +1712,7 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     file_extension: "md",
                     prepare_events: &[],
                     events: keys!(
-                        "n q r / ^ - space backslash [ space backslash ] enter r r d c v l a p b ; backspace"
+                        "n q r / ^ - space backslash [ space backslash ] enter r r d c v l a p b ; backspace esc r f"
                     ),
                     expectations: Box::new([CurrentComponentContent(r#"# Fake To-Do List
 
@@ -1767,9 +1767,33 @@ pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> 
                     file_extension: "rs",
                     prepare_events: &[],
                     events: keys!(
-                        "n q y x enter d r r k l g , j h S o m e esc d k l k T r f"
+                        "n q y x enter d r r k l g , j h S o m e esc r f"
                     ),
-                    expectations: Box::new([]),
+                    expectations: Box::new([CurrentComponentContent(r#"
+pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> Self {
+    Self {
+        yx: Some(SelectionSet {
+            primary: Selection::default(),
+            secondary: vec![],
+            mode: SelectionMode::Custom,
+            filters: Filters::default(),
+        }),
+        jumps: Some(None),
+        mode: Some(Mode::Normal),
+        cursor_direction: Some(Direction::Start),
+        scroll_offset: Some(0),
+        rectangle: Some(Rectangle::default()),
+        buffer: Some(Rc::new(RefCell::new(Buffer::new(language, text)))),
+        title: Some(None),
+        id: Some(ComponentId::new()),
+        current_view_alignment: Some(None),
+        regex_highlight_rules: Some(Vec::new()),
+        selection_set_history: Some(History::new()),
+    }
+}
+"#
+                    .trim()
+                    )]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
@@ -2100,7 +2124,7 @@ fn reveal_marks() -> RecipeGroup {
     }
 }
 
-fn recipes() -> Vec<Recipe> {
+fn showcase_simple() -> Vec<Recipe> {
     [
         Recipe {
             description: "Duplicate current line",

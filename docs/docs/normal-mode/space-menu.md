@@ -8,7 +8,7 @@ The space menu contains two major keymaps:
 1. Left
 2. Right
 
-The Left side contains the keymap of [Global secondary selection modes](docs/normal-mode/selection-modes/secondary/index.md).
+The Left side contains the keymap of [Global secondary selection modes](docs/normal-mode/selection-modes/secondary.md).
 
 The right side is a handy shortcut for (not restricted to):
 
@@ -126,7 +126,7 @@ Git status (against current branch) [^1]
 ### `Git status ^`
 
 Git status (against main/master branch) [^2]
-[^1]: See more at [Git hunk](./selection-modes/secondary/index.md#hunkhunk)
+[^1]: See more at [Git hunk](./selection-modes/secondary.md#hunkhunk)
 [^2]: This is very useful when you want to get the modified/added files commited into the current branch that you are working on.
 
 ## `Editor`
