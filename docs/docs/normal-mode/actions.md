@@ -83,7 +83,7 @@ This opens a menu with several actions:
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Delete One           | Deletes the current selection and collapses the selection.                                                                                          |
 | Delete `<movement>`  | Delete the current selection and the gap between the current selection and the `<movement>` selection, and then selects the `<movement>` selection. |
-| Enter Delete Submode | See more at [Delete Submode](../sub-modes/delete-mode.md)                                                                                        |
+| Enter Delete Submode | See more at [Delete Submode](../sub-modes/delete-mode.md)                                                                                           |
 
 <TutorialFallback filename="delete"/>
 
@@ -92,6 +92,14 @@ This opens a menu with several actions:
 <TutorialFallback filename="delete-one" />
 
 If you are interested about why Delete works like this, read more at [Evolution of Delete](/ki-editor/blog/evoluation-of-delete).
+
+### `Delete X`
+
+Delete Cut.
+
+This is similar to `Delete`, but the current selection(s) will be copied before deletion is executed.
+
+<TutorialFallback filename="delete-cut"/>
 
 ### `Replace #`
 

@@ -36,7 +36,7 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
     ],
     [
-        _____, PRplc, RplcX, Del0G, Pst0G, /****/ GSrch, ToIdx, _____, Redo_, SSEnd,
+        _____, PRplc, RplcX, DeltX, Pst0G, /****/ GSrch, ToIdx, _____, Redo_, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -636,8 +636,8 @@ pub(crate) enum Meaning {
     DeDnt,
     /// Delete
     Delte,
-    /// Delete No Gap
-    Del0G,
+    /// Delete Cut
+    DeltX,
     /// Down
     Down_,
     /// Swap
