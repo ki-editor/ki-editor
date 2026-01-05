@@ -13,8 +13,8 @@ use crate::{
         file_explorer::FileExplorer,
         keymap_legend::{Keymap, KeymapLegendConfig, Keymaps},
         prompt::{
-            Prompt, PromptConfig, PromptHistoryKey, PromptItems, PromptItemsBackgroundTask,
-            PromptOnChangeDispatch,
+            Prompt, PromptConfig, PromptEntryKind, PromptHistoryKey, PromptItems,
+            PromptItemsBackgroundTask, PromptOnChangeDispatch,
         },
         suggestive_editor::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
@@ -44,8 +44,7 @@ use crate::{
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     render_flex_layout::{self, FlexLayoutComponent},
     screen::{Screen, Window},
-    scripting::custom_keymap,
-    scripting::{ScriptDispatch, ScriptInput},
+    scripting::{custom_keymap, ScriptDispatch, ScriptInput},
     search::parse_search_config,
     selection::{CharIndex, SelectionMode},
     syntax_highlight::{HighlightedSpans, SyntaxHighlightRequest, SyntaxHighlightRequestBatchId},
@@ -952,7 +951,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::QuitAll => self.quit_all()?,
             Dispatch::RevealInExplorer(path) => self.reveal_path_in_explorer(&path)?,
-            Dispatch::OpenMoveFilePrompt => self.open_move_file_prompt()?,
+            Dispatch::OpenMovePathsPrompt => self.open_move_paths_prompt()?,
             Dispatch::OpenDuplicateFilePrompt => self.open_copy_file_prompt()?,
             Dispatch::OpenAddPathPrompt => self.open_add_path_prompt()?,
             Dispatch::OpenDeletePathsPrompt => self.open_delete_file_prompt()?,
@@ -960,7 +959,10 @@ impl<T: Frontend> App<T> {
             Dispatch::Null => {
                 // do nothing
             }
-            Dispatch::MoveFile { from, to } => self.move_file(from, to)?,
+            Dispatch::MovePaths {
+                sources,
+                destinations,
+            } => self.move_paths(sources, destinations)?,
             Dispatch::CopyFile { from, to } => self.copy_file(from, to)?,
             Dispatch::AddPath(path) => self.add_path(path)?,
             Dispatch::RefreshFileExplorer => self.layout.refresh_file_explorer(&self.context)?,
@@ -1337,17 +1339,23 @@ impl<T: Frontend> App<T> {
         }
     }
 
-    fn open_move_file_prompt(&mut self) -> anyhow::Result<()> {
-        let path = self.get_file_explorer_current_path()?;
-        if let Some(path) = path {
+    fn open_move_paths_prompt(&mut self) -> anyhow::Result<()> {
+        let paths = self.get_file_explorer_selected_paths()?;
+        if let Some(paths) = NonEmpty::from_vec(paths) {
+            let initial_lines = paths
+                .as_ref()
+                .map(|path| path.display_absolute())
+                .into_iter()
+                .collect_vec();
             self.open_prompt(
                 PromptConfig {
-                    title: "Move path".to_string(),
-                    on_enter: DispatchPrompt::MovePath { from: path.clone() },
+                    title: "Move paths".to_string(),
+                    on_enter: DispatchPrompt::MovePaths { sources: paths },
                     prompt_history_key: PromptHistoryKey::MovePath,
+                    entry_kind: PromptEntryKind::MultipleLines { initial_lines },
                     ..Default::default()
                 },
-                Some(path.display_absolute()),
+                None,
             )
         } else {
             Ok(())
@@ -1794,7 +1802,7 @@ impl<T: Frontend> App<T> {
         for operation in workspace_edit.resource_operations {
             match operation {
                 ResourceOperation::Create(path) => self.add_path(path)?,
-                ResourceOperation::Rename { old, new } => self.move_file(old, new)?,
+                ResourceOperation::Rename { old, new } => self.move_path(old, new)?,
                 ResourceOperation::Delete(path) => self.delete_paths(NonEmpty::new(path))?,
             }
         }
@@ -1928,7 +1936,26 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn move_file(&mut self, from: CanonicalizedPath, to: PathBuf) -> anyhow::Result<()> {
+    fn move_paths(
+        &mut self,
+        sources: NonEmpty<CanonicalizedPath>,
+        destinations: NonEmpty<PathBuf>,
+    ) -> anyhow::Result<()> {
+        if sources.len() != destinations.len() {
+            Err(anyhow::anyhow!(
+                "Expected destination paths to have the length of {}, but got {}",
+                sources.len(),
+                destinations.len()
+            ))
+        } else {
+            for (source, destination) in sources.into_iter().zip(destinations) {
+                self.move_path(source, destination)?;
+            }
+            Ok(())
+        }
+    }
+
+    fn move_path(&mut self, from: CanonicalizedPath, to: PathBuf) -> anyhow::Result<()> {
         use std::fs;
         self.add_path_parent(&to)?;
         fs::rename(from.clone(), to.clone())?;
@@ -3473,14 +3500,14 @@ pub(crate) enum Dispatch {
     OpenMoveToIndexPrompt(Option<PriorChange>),
     QuitAll,
     RevealInExplorer(CanonicalizedPath),
-    OpenMoveFilePrompt,
+    OpenMovePathsPrompt,
     OpenDuplicateFilePrompt,
     OpenAddPathPrompt,
     DeletePaths(NonEmpty<CanonicalizedPath>),
     Null,
-    MoveFile {
-        from: CanonicalizedPath,
-        to: PathBuf,
+    MovePaths {
+        sources: NonEmpty<CanonicalizedPath>,
+        destinations: NonEmpty<PathBuf>,
     },
     CopyFile {
         from: CanonicalizedPath,
@@ -3741,8 +3768,8 @@ pub(crate) enum DispatchPrompt {
         run_search_after_config_updated: bool,
     },
     AddPath,
-    MovePath {
-        from: CanonicalizedPath,
+    MovePaths {
+        sources: NonEmpty<CanonicalizedPath>,
     },
     CopyFile {
         from: CanonicalizedPath,
@@ -3813,10 +3840,17 @@ impl DispatchPrompt {
             DispatchPrompt::AddPath => {
                 Ok(Dispatches::new([Dispatch::AddPath(text.into())].to_vec()))
             }
-            DispatchPrompt::MovePath { from } => Ok(Dispatches::new(
-                [Dispatch::MoveFile {
-                    from,
-                    to: text.into(),
+            DispatchPrompt::MovePaths { sources } => Ok(Dispatches::new(
+                [Dispatch::MovePaths {
+                    sources,
+                    destinations: NonEmpty::from_vec(
+                        text.lines().map(|line| line.into()).collect_vec(),
+                    )
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "Failed to move path because there is no destination paths."
+                        )
+                    })?,
                 }]
                 .to_vec(),
             )),

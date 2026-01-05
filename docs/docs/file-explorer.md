@@ -45,13 +45,13 @@ Ki's file explorer is rendered using YAML, for example:
 | `Add Path`          | Add a new file/folder under current path [^1] |
 | `Dup path`          | Duplicate current file to a new path          |
 | `Delete Paths`      | Delete selected paths [^2]                    |
-| `Move Path`         | Move (or rename) current file/folder [^3]     |
+| `Move Paths`        | Move (or rename) selected paths [^3]          |
 | `Refresh`           | Refresh file explorer [^4]                    |
 | `Toggle/Open Paths` | Toggle/Open selected paths [^5]               |
 
 [^1]: To add a folder, append `/` to the file name. Can be nested, and new directories will be created as required.
 [^2]: You can delete multiple paths at once by using [selection extension](sub-modes/extend-mode.md) or [multi-cursors](sub-modes/multi-cursor-mode.md)
-[^3]: Works like `mkdir -p`, it will create new directories when required.
+[^3]: Works like `mkdir -p`, it will create new directories when required, similat to `Delete Paths`, you may rename multiple files at once via selection extension or multi-cursor.
 [^4]: This is necessary sometimes because the file system is modified by external factors, and Ki does not watch for file changes.
 [^5]: Similar to `Delete Paths`, you may open multiple files at once via selection extension or multi-cursor.
 
