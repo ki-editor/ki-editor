@@ -32,6 +32,19 @@ pub(crate) struct Prompt {
     on_change: Option<PromptOnChangeDispatch>,
     on_cancelled: Option<Dispatches>,
     matcher: Option<PromptMatcher>,
+    entry_kind: PromptEntryKind,
+}
+
+#[derive(Clone)]
+pub(crate) enum PromptEntryKind {
+    CurrentLine,
+    MultipleLines { initial_lines: Vec<String> },
+}
+
+impl Default for PromptEntryKind {
+    fn default() -> Self {
+        Self::CurrentLine
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -123,6 +136,7 @@ pub(crate) struct PromptConfig {
     pub(crate) on_cancelled: Option<Dispatches>,
     pub(crate) prompt_history_key: PromptHistoryKey,
     pub(crate) on_change: Option<PromptOnChangeDispatch>,
+    pub(crate) entry_kind: PromptEntryKind,
 }
 
 impl PromptConfig {
@@ -235,19 +249,26 @@ impl Default for PromptHistoryKey {
 
 impl Prompt {
     pub(crate) fn new(config: PromptConfig, history: Vec<String>) -> (Self, Dispatches) {
-        let text = {
-            if history.is_empty() {
-                "".to_string()
-            } else {
-                format!(
-                    "{}{}",
-                    history.join("\n"),
-                    if config.leaves_current_line_empty {
-                        "\n"
-                    } else {
-                        ""
-                    }
-                )
+        let text = match &config.entry_kind {
+            PromptEntryKind::CurrentLine => {
+                if history.is_empty() {
+                    "".to_string()
+                } else {
+                    format!(
+                        "{}{}",
+                        history.join("\n"),
+                        if config.leaves_current_line_empty {
+                            "\n"
+                        } else {
+                            ""
+                        }
+                    )
+                }
+            }
+            PromptEntryKind::MultipleLines { initial_lines } => {
+                // We shouldn't show history if the prompt entry kind is MultipleLines,
+                // otherwise the history will mix up with user's multi-line entry.
+                initial_lines.join("\n")
             }
         };
         let mut editor = SuggestiveEditor::from_buffer(
@@ -304,6 +325,7 @@ impl Prompt {
                 on_cancelled: config.on_cancelled,
                 on_change: config.on_change,
                 matcher,
+                entry_kind: config.entry_kind,
             },
             dispatches,
         )
@@ -419,9 +441,12 @@ impl Component for Prompt {
                         .map(|item| (item.display(), item.dispatches))
                         .unwrap_or_default()
                 } else {
-                    let current_line = self.editor().current_line()?;
-                    let dispatches = self.on_enter.to_dispatches(&current_line)?;
-                    (current_line, dispatches)
+                    let entry = match self.entry_kind {
+                        PromptEntryKind::CurrentLine => self.editor().current_line()?,
+                        PromptEntryKind::MultipleLines { .. } => self.editor().content(),
+                    };
+                    let dispatches = self.on_enter.to_dispatches(&entry)?;
+                    (entry, dispatches)
                 };
 
                 Ok(Dispatches::one(Dispatch::CloseCurrentWindow)

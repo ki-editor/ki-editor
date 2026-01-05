@@ -3714,9 +3714,9 @@ fn renaming_marked_files_should_update_file_marks() -> anyhow::Result<()> {
                 .to_string(),
             )),
             Expect(CurrentPath(s.gitignore())),
-            App(MoveFile {
-                from: s.gitignore(),
-                to: new_path.clone(),
+            App(MovePaths {
+                sources: NonEmpty::new(s.gitignore()),
+                destinations: NonEmpty::new(new_path.clone()),
             }),
             // Press enter to hide File Explorer and focus the renamed file
             App(HandleKeyEvent(key!("enter"))),

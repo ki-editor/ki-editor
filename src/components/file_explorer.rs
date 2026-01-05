@@ -27,8 +27,8 @@ pub(crate) fn file_explorer_normal_mode_override() -> NormalModeOverride {
             dispatch: Dispatch::OpenAddPathPrompt,
         }),
         change: Some(KeymapOverride {
-            description: "Move Path",
-            dispatch: Dispatch::OpenMoveFilePrompt,
+            description: "Move Paths",
+            dispatch: Dispatch::OpenMovePathsPrompt,
         }),
         delete: Some(KeymapOverride {
             description: "Delete Paths",
@@ -459,7 +459,8 @@ mod test_file_explorer {
     use my_proc_macros::{key, keys};
 
     use crate::buffer::BufferOwner;
-    use crate::components::editor::IfCurrentNotFound;
+    use crate::components::editor::{Direction, IfCurrentNotFound};
+    use crate::selection::SelectionMode;
     use crate::test_app::*;
 
     #[test]
@@ -501,7 +502,7 @@ mod test_file_explorer {
                 Expect(ComponentCount(1)),
                 App(HandleKeyEvents(keys!("f").to_vec())),
                 Expect(ComponentCount(2)),
-                Expect(CurrentComponentTitle("Move path".to_string())),
+                Expect(CurrentComponentTitle("Move paths".to_string())),
                 Editor(Insert("/hello/world.rs".to_string())),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(ComponentCount(2)),
@@ -633,6 +634,68 @@ mod test_file_explorer {
                         s.new_path("Cargo.toml").try_into().unwrap(),
                     ]
                     .to_vec(),
+                )),
+            ])
+        })
+    }
+
+    #[test]
+    fn rename_multiple_paths_at_once_using_extened_selections() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(RevealInExplorer(s.main_rs())),
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("Cargo.lock".to_owned())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+                Editor(EnableSelectionExtension),
+                Editor(MoveSelection(Right)),
+                Expect(CurrentSelectedTexts(&[
+                    "- 🔒  Cargo.lock\n - 📄  Cargo.toml",
+                ])),
+                App(OpenMovePathsPrompt),
+                // Expect the prompt shows the selected paths
+                Expect(CurrentComponentContentMatches(lazy_regex::regex!(
+                    "Cargo.lock"
+                ))),
+                Expect(CurrentComponentContentMatches(lazy_regex::regex!(
+                    "Cargo.toml"
+                ))),
+                // Add ".x" to the end of the paths
+                Editor(EnterNormalMode),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(CursorAddToAllSelections),
+                Editor(EnterInsertMode(Direction::End)),
+                App(HandleKeyEvents(keys!(". x enter").to_vec())),
+                // Expect the two files paths are appended with ".x"
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 📄  Cargo.lock.x
+ - 📄  Cargo.toml.x
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
                 )),
             ])
         })
