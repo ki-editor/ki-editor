@@ -1,3 +1,4 @@
+use crate::app::Dispatch;
 use crate::config::from_extension;
 use crate::context::Context;
 use crate::quickfix_list::QuickfixList;
@@ -279,11 +280,26 @@ impl Layout {
         path: &CanonicalizedPath,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        let dispatches = self
+        let result = self
             .background_file_explorer
             .borrow_mut()
-            .reveal(path, context)?;
+            .reveal(path, context);
+
+        // We will render the file explorer regardless
+        // of whether the reveal succeeded or not,
+        // so that the users will not see a blank file explorer
+        // when the reveal failed.
+
         self.open_file_explorer();
+        let dispatches = result.unwrap_or_else(|error| {
+            Dispatches::one(Dispatch::ShowGlobalInfo(Info::new(
+                "Reveal File Error".to_string(),
+                format!(
+                    "Unable to reveal '{}' due to the following error:\n\n{error}",
+                    path.try_display_relative_to(context.current_working_directory())
+                ),
+            )))
+        });
 
         Ok(dispatches)
     }
