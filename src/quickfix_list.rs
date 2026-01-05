@@ -33,11 +33,24 @@ impl QuickfixListItem {
             })
             .unwrap_or_else(|| panic!("The unique buffers of all quickfix list items should be preloaded beforehand, but the buffer for {:?} is not loaded.",
                     self.location.path));
-        let Position { line, column } = buffer
+        let position_range = buffer
             .borrow()
-            .char_to_position(self.location.range.start)
+            .char_index_range_to_position_range(self.location.range)
             .ok()
             .unwrap_or_default();
+        let Position { line, column } = position_range.start;
+
+        let prefix = format!("{}:{}  ", line + 1, column + 1);
+
+        let highlight_column_range = if position_range.end.line == position_range.start.line {
+            let left_padding = prefix.chars().count();
+            Some(
+                position_range.start.column + left_padding
+                    ..position_range.end.column + left_padding,
+            )
+        } else {
+            None
+        };
         DropdownItem::new({
             let content = self
                 .line
@@ -46,10 +59,10 @@ impl QuickfixListItem {
                     self.location
                         .read_from_buffers(buffers)
                         .unwrap_or_else(|| "[Failed to read file]".to_string())
-                        .trim_matches(|c: char| c.is_whitespace())
+                        .trim_matches(['\n', '\r'])
                         .to_string()
                 });
-            format!("{}:{}  {}", line + 1, column + 1, content)
+            format!("{prefix}{content}")
         })
         .set_info(self.info.clone())
         .set_group({
@@ -63,6 +76,7 @@ impl QuickfixListItem {
             self.location.to_owned(),
         )))
         .set_rank(Some(Box::new([line, column])))
+        .set_highlight_column_range(highlight_column_range)
     }
 
     pub(crate) fn apply_edit(self, edit: &crate::edit::Edit) -> Option<Self> {

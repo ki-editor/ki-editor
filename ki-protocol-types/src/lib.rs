@@ -57,6 +57,7 @@ pub enum EditorMode {
     FindOneChar,
     Swap,
     Replace,
+    Delete,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -287,6 +288,8 @@ pub enum OutputMessage {
     RequestLspCodeAction,
     #[serde(rename = "lsp.documentSymbols")]
     RequestLspDocumentSymbols,
+    #[serde(rename = "lsp.workspaceSymbols")]
+    RequestLspWorkspaceSymbols,
     #[serde(rename = "editor.syncBufferRequest")]
     SyncBufferRequest { uri: String },
     #[serde(rename = "editor.showInfo")]
@@ -400,6 +403,7 @@ impl MessageMethod for OutputMessage {
             OutputMessage::RequestLspRename => Cow::Borrowed("lsp.rename"),
             OutputMessage::RequestLspCodeAction => Cow::Borrowed("lsp.codeAction"),
             OutputMessage::RequestLspDocumentSymbols => Cow::Borrowed("lsp.documentSymbols"),
+            OutputMessage::RequestLspWorkspaceSymbols => Cow::Borrowed("lsp.workspaceSymbols"),
             OutputMessage::SyncBufferRequest { .. } => Cow::Borrowed("editor.requestBufferContent"),
             OutputMessage::ShowInfo { .. } => Cow::Borrowed("editor.showInfo"),
         }

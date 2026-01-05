@@ -327,6 +327,7 @@ impl EmbeddedApp {
             IntegrationEvent::RequestLspDocumentSymbols => self.request_lsp_document_symbols()?,
             IntegrationEvent::SyncBufferRequest { path } => self.request_buffer_content(path)?,
             IntegrationEvent::ShowInfo { info } => self.show_info(info)?,
+            IntegrationEvent::RequestLspWorkspaceSymbols => self.request_lsp_workspace_symbols()?,
         }
 
         Ok(())
@@ -470,6 +471,7 @@ impl EmbeddedApp {
             Mode::FindOneChar(_) => ki_protocol_types::EditorMode::FindOneChar,
             Mode::Swap => ki_protocol_types::EditorMode::Swap,
             Mode::Replace => ki_protocol_types::EditorMode::Replace,
+            Mode::Delete => ki_protocol_types::EditorMode::Delete,
         };
 
         self.send_notification(OutputMessageWrapper {
@@ -774,6 +776,14 @@ impl EmbeddedApp {
         self.send_notification(OutputMessageWrapper {
             id: 0,
             message: OutputMessage::RequestLspDocumentSymbols,
+            error: None,
+        })
+    }
+
+    fn request_lsp_workspace_symbols(&self) -> anyhow::Result<()> {
+        self.send_notification(OutputMessageWrapper {
+            id: 0,
+            message: OutputMessage::RequestLspWorkspaceSymbols,
             error: None,
         })
     }

@@ -2,13 +2,13 @@ use std::{collections::HashMap, path::PathBuf};
 
 use crate::persistence::Migration;
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
 pub(crate) struct Root {
     pub(crate) version: String,
     pub(crate) workspace_sessions: HashMap<PathBuf, WorkspaceSession>,
 }
 
-#[derive(Default, serde::Serialize, serde::Deserialize)]
+#[derive(Default, serde::Serialize, serde::Deserialize, Debug)]
 pub(crate) struct WorkspaceSession {
     /// We use PathBuf instead of CanonicalizedPath because
     /// the stored path might be deleted after Root is serialized and stored,
@@ -34,7 +34,7 @@ impl Migration for Root {
     }
 
     fn migrate_to_current(self) -> anyhow::Result<super::Root> {
-        Ok(self)
+        super::_00003::Root::from_previous_version(self).migrate_to_current()
     }
 
     fn from_previous_version(_: Self::PreviousVersion) -> Self {

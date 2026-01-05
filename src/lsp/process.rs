@@ -7,7 +7,7 @@ use lsp_types::request::{
     GotoDeclarationParams, GotoImplementationParams, GotoTypeDefinitionParams, Request,
 };
 use lsp_types::*;
-use name_variant::NamedVariant;
+use my_proc_macros::NamedVariant;
 use shared::canonicalized_path::CanonicalizedPath;
 use shared::language::Language;
 use shared::process_command::SpawnCommandResult;
@@ -60,7 +60,7 @@ struct PendingResponseRequest {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum LspNotification {
-    Initialized(Language),
+    Initialized(Box<Language>),
     PublishDiagnostics(PublishDiagnosticsParams),
     Completion(ResponseContext, Completion),
     Hover(Hover),
@@ -71,7 +71,8 @@ pub(crate) enum LspNotification {
     WorkspaceEdit(WorkspaceEdit),
     CodeAction(Vec<CodeAction>),
     SignatureHelp(Option<SignatureHelp>),
-    Symbols(Symbols),
+    DocumentSymbols(Symbols),
+    WorkspaceSymbols(Symbols),
     CompletionItemResolve(Box<lsp_types::CompletionItem>),
 }
 
@@ -136,6 +137,10 @@ pub(crate) enum FromEditor {
     TextDocumentImplementation(RequestParams),
     TextDocumentTypeDefinition(RequestParams),
     TextDocumentDocumentSymbol(RequestParams),
+    WorkspaceSymbol {
+        query: String,
+        context: ResponseContext,
+    },
     WorkspaceDidRenameFiles {
         old: CanonicalizedPath,
         new: CanonicalizedPath,
@@ -161,7 +166,6 @@ impl FromEditor {
 
 pub(crate) struct LspServerProcessChannel {
     language: Language,
-    join_handle: JoinHandle<JoinHandle<()>>,
     sender: Sender<LspServerProcessMessage>,
     is_initialized: bool,
 }
@@ -176,12 +180,7 @@ impl LspServerProcessChannel {
     }
 
     pub(crate) fn shutdown(self) -> anyhow::Result<()> {
-        self.send(LspServerProcessMessage::Shutdown)?;
-        self.join_handle
-            .join()
-            .map_err(|err| anyhow::anyhow!("Unable to join lsp server process [1]: {:?}", err))?
-            .join()
-            .map_err(|err| anyhow::anyhow!("Unable to join lsp server process [2]: {:?}", err))
+        self.send(LspServerProcessMessage::Shutdown)
     }
 
     fn send(&self, message: LspServerProcessMessage) -> anyhow::Result<()> {
@@ -281,12 +280,10 @@ impl LspServerProcess {
 
         lsp_server_process.initialize()?;
 
-        let join_handle =
-            std::thread::spawn(move || lsp_server_process.listen(receiver, app_message_sender));
+        std::thread::spawn(move || lsp_server_process.listen(receiver, app_message_sender));
 
         Ok(Some(LspServerProcessChannel {
             language,
-            join_handle,
             sender,
             is_initialized: false,
         }))
@@ -322,6 +319,9 @@ impl LspServerProcess {
                         }),
                         execute_command: Some(DynamicRegistrationClientCapabilities {
                             dynamic_registration: None,
+                        }),
+                        symbol: Some(WorkspaceSymbolClientCapabilities {
+                            ..Default::default()
                         }),
                         ..WorkspaceClientCapabilities::default()
                     }),
@@ -673,6 +673,8 @@ impl LspServerProcess {
                     path,
                 } = pending_response_request;
 
+                log::info!("LspServerProcess::handle_reply: {}", method.as_str());
+
                 match method.as_str() {
                     "initialize" => {
                         log::info!("Initialize response: {response:?}");
@@ -689,7 +691,7 @@ impl LspServerProcess {
 
                         self.app_message_sender
                             .send(AppMessage::LspNotification(Box::new(
-                                LspNotification::Initialized(self.language.clone()),
+                                LspNotification::Initialized(Box::new(self.language.clone())),
                             )))?;
                     }
                     "textDocument/completion" => {
@@ -873,7 +875,7 @@ impl LspServerProcess {
                             if let Some(path) = path {
                                 self.app_message_sender
                                     .send(AppMessage::LspNotification(Box::new(
-                                        LspNotification::Symbols(
+                                        LspNotification::DocumentSymbols(
                                             Symbols::try_from_document_symbol_response(
                                                 payload, path,
                                             )?,
@@ -892,6 +894,23 @@ impl LspServerProcess {
                                 LspNotification::CompletionItemResolve(Box::new(payload)),
                             )))
                             .unwrap();
+                    }
+                    "workspace/symbol" => {
+                        let payload: <lsp_request!("workspace/symbol") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        if let Some(workspace_symbol_response) = payload {
+                            let symbols = Symbols::try_from_workspace_symbol_response(
+                                workspace_symbol_response,
+                                &self.current_working_directory,
+                            )?;
+
+                            self.app_message_sender
+                                .send(AppMessage::LspNotification(Box::new(
+                                    LspNotification::WorkspaceSymbols(symbols),
+                                )))
+                                .unwrap();
+                        }
                     }
                     _ => {
                         log::info!("Unknown method: {method:#?}");
@@ -914,6 +933,7 @@ impl LspServerProcess {
 
                 let method = request.method;
                 // Parse the reply as Notification
+                log::info!("LspServerProcess::handle_notification: {}", method.as_str());
                 match method.as_str() {
                     "textDocument/publishDiagnostics" => {
                         let params: <lsp_notification!("textDocument/publishDiagnostics") as Notification>::Params =
@@ -1426,6 +1446,25 @@ impl LspServerProcess {
         )
     }
 
+    fn workspace_symbol(
+        &mut self,
+        context: ResponseContext,
+        query: String,
+    ) -> Result<(), anyhow::Error> {
+        if !self.has_capability(|c| c.workspace_symbol_provider.is_some()) {
+            return Ok(());
+        }
+        self.send_request::<lsp_request!("workspace/symbol")>(
+            context,
+            None,
+            WorkspaceSymbolParams {
+                partial_result_params: Default::default(),
+                work_done_progress_params: Default::default(),
+                query,
+            },
+        )
+    }
+
     fn workspace_execute_command(
         &mut self,
         params: RequestParams,
@@ -1500,6 +1539,8 @@ impl LspServerProcess {
             FromEditor::TextDocumentDocumentSymbol(params) => {
                 self.text_document_document_symbol(params)
             }
+
+            FromEditor::WorkspaceSymbol { context, query } => self.workspace_symbol(context, query),
 
             FromEditor::TextDocumentDidOpen {
                 file_path,

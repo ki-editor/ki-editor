@@ -1,0 +1,10 @@
+[package]
+name = "nvim-treesitter-highlight-queries"
+version = "0.1.0"
+edition = "2024"
+
+[build-dependencies]
+miniz_oxide.workspace = true
+
+[dependencies]
+miniz_oxide.workspace = true

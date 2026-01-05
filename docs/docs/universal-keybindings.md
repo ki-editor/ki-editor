@@ -9,7 +9,7 @@ import {TutorialFallback} from '@site/src/components/TutorialFallback';
 
 ## Intro
 
-The keybindings presented here work in any [Modes](./modes.md).
+The keybindings presented here work in any mode.
 
 ## Keymap
 
@@ -49,20 +49,3 @@ Examples of such windows are:
 Close current window
 
 Note: when the current window is closed, all of its children will be unmounted (removed) from the screen as well.
-
-### `Paste →`
-
-Although there's already a [Paste](./normal-mode/actions/index.md#paste) action
-in Normal mode, `alt+v` is more efficient sometimes than hopping between
-Insert mode and Normal mode for minuscule changes.
-
-For example, assuming the clipboard contains `hello`, and you wanted the result to be `<div>hello</div>`, and the current mode is Insert mode:
-
-| Mode   | Keys sequence                   | Keypress count |
-| ------ | ------------------------------- | -------------- |
-| Insert | `< d i v > alt+v < / d i v >`   | 12             |
-| Normal | `< d i v > esc p a < / d i v >` | 14             |
-
-### `Config`
-
-Open the [search config](./normal-mode/search-config.md).

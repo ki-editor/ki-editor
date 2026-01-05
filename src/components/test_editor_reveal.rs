@@ -27,7 +27,7 @@ fn reveal_styling() -> anyhow::Result<()> {
             Editor(SetContent("foo\nbar".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Expect(CurrentSelectedTexts(&["foo"])),
-            Editor(MoveSelection(Down)),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["bar"])),
             Editor(ToggleReveal(Reveal::Cursor)),
             Expect(GridCellStyleKey(
@@ -57,7 +57,9 @@ fn reveal_mark() -> anyhow::Result<()> {
                 owner: BufferOwner::User,
                 focus: true,
             }),
-            Editor(SetLanguage(shared::language::from_extension("md").unwrap())),
+            Editor(SetLanguage(Box::new(
+                crate::config::from_extension("md").unwrap(),
+            ))),
             Editor(SetRectangle(Rectangle {
                 origin: Position::new(0, 0),
                 width: 50,
@@ -75,12 +77,12 @@ zeta
                 .to_string(),
             )),
             Editor(MatchLiteral("mark-x".to_string())),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(MatchLiteral("mark-y".to_string())),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(MatchLiteral("zeta".to_string())),
             Expect(EditorGrid(
-                "🦀  main.rs [*]
+                "# 🦀  main.rs [*]
 4│mark-y
 5│█eta
 ",
@@ -88,7 +90,7 @@ zeta
             Editor(ToggleReveal(Reveal::Mark)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 2│mark-x
 4│mark-y
 5│█eta
@@ -98,7 +100,7 @@ zeta
             Editor(MatchLiteral("phi".to_string())),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 2│mark-x
 3│█hi
 4│mark-y
@@ -108,7 +110,7 @@ zeta
             Editor(MatchLiteral("beta".to_string())),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 1│█eta
 2│mark-x
 4│mark-y
@@ -506,12 +508,12 @@ fn total_count_of_rendered_marks_should_equal_total_count_of_actual_marks() -> a
             })),
             Editor(MatchLiteral("foo".to_string())),
             Editor(CursorAddToAllSelections),
-            Editor(ToggleMark),
+            App(MarkFileAndToggleMark),
             Editor(CursorKeepPrimaryOnly),
             Editor(ToggleReveal(Reveal::Mark)),
             Expect(EditorGrid(
                 "
-🦀  main.rs [*]
+# 🦀  main.rs [*]
 1│█oo foo foo
 1│foo foo foo
 1│foo foo foo

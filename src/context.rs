@@ -1,18 +1,18 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use globset::Glob;
 
 use indexmap::IndexSet;
 use itertools::{Either, Itertools};
 use shared::canonicalized_path::CanonicalizedPath;
-use strum::IntoEnumIterator;
 
 use crate::{
     app::{GlobalSearchConfigUpdate, LocalSearchConfigUpdate, Scope},
+    char_index_range::CharIndexRange,
     clipboard::{Clipboard, CopiedTexts},
     components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
-    persistence::Persistence,
+    persistence::{Persistence, WorkspaceSession},
     quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
     selection::SelectionMode,
     themes::Theme,
@@ -34,10 +34,13 @@ pub(crate) struct Context {
     keyboard_layout_kind: KeyboardLayoutKind,
     location_history_backward: Vec<Location>,
     location_history_forward: Vec<Location>,
+
     // We use CanonicalizedPath instead of CanonicalizedPath because these paths
     // may be deleted during program execution, and CanonicalizedPath
     // requires the path to exist on the filesystem.
     marked_files: IndexSet<CanonicalizedPath>,
+
+    marks: HashMap<CanonicalizedPath, Vec<CharIndexRange>>,
 
     /// This is true, for example, when Ki is running as a VS Code's extension
     is_running_as_embedded: bool,
@@ -85,11 +88,20 @@ impl Context {
         if let Some(persistence) = self.persistence.as_mut() {
             let current_working_directory = self.current_working_directory.to_path_buf();
             persistence.set_workspace_session(
-                current_working_directory.clone(),
-                self.marked_files
-                    .iter()
-                    .map(|path| path.to_path_buf().clone())
-                    .collect_vec(),
+                current_working_directory,
+                WorkspaceSession {
+                    marked_files: self
+                        .marked_files
+                        .iter()
+                        .map(|path| path.to_path_buf().clone())
+                        .collect_vec(),
+                    marks: self
+                        .marks
+                        .iter()
+                        .map(|(path, marks)| (path.to_path_buf().clone(), marks.clone()))
+                        .collect(),
+                    prompt_histories: self.prompt_histories.clone(),
+                },
             );
 
             if let Err(error) = persistence.write() {
@@ -149,6 +161,79 @@ impl Context {
                 }
             })
         }
+
+        self.marks = std::mem::take(&mut self.marks)
+            .into_iter()
+            .map(|(p, marks)| {
+                if p == path {
+                    (
+                        p,
+                        marks
+                            .into_iter()
+                            .filter_map(|mark| {
+                                edits
+                                    .iter()
+                                    .try_fold(mark, |mark, edit| mark.apply_edit(edit))
+                            })
+                            .collect(),
+                    )
+                } else {
+                    (p, marks)
+                }
+            })
+            .collect();
+    }
+
+    pub(crate) fn save_marks(&mut self, path: CanonicalizedPath, marks: Vec<CharIndexRange>) {
+        let old_ranges = self
+            .marks
+            .get(&path)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .collect::<HashSet<_>>();
+
+        let new_ranges = marks.into_iter().collect::<HashSet<_>>();
+
+        // We take the symmetric difference between the old ranges and the new ranges
+        // so that user can unmark existing mark
+        self.marks.insert(
+            path,
+            new_ranges
+                .symmetric_difference(&old_ranges)
+                .cloned()
+                .collect_vec(),
+        );
+    }
+
+    pub(crate) fn get_marks(&self, path: Option<CanonicalizedPath>) -> Vec<CharIndexRange> {
+        path.map(|path| self.marks.get(&path).cloned().unwrap_or_default().to_vec())
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn marks(&self) -> &HashMap<CanonicalizedPath, Vec<CharIndexRange>> {
+        &self.marks
+    }
+
+    pub(crate) fn handle_file_renamed(
+        &mut self,
+        source: std::path::PathBuf,
+        destination: CanonicalizedPath,
+    ) {
+        if let Some(path) = self
+            .marked_files
+            .iter()
+            .find(|path| path.to_path_buf() == &source)
+        {
+            self.marked_files.shift_remove(&path.clone());
+            self.marked_files.insert(destination);
+        }
+    }
+
+    pub(crate) fn mark_files(&mut self, paths: nonempty::NonEmpty<CanonicalizedPath>) {
+        for path in paths {
+            self.mark_file(path);
+        }
     }
 }
 
@@ -163,17 +248,37 @@ impl Context {
             .and_then(|persistence| {
                 Some(
                     persistence
-                        .get_marked_files(current_working_directory.to_path_buf().clone())?
+                        .get_marked_files(current_working_directory.to_path_buf())?
                         .into_iter()
                         .filter_map(|path| CanonicalizedPath::try_from(path).ok())
                         .collect(),
                 )
             })
             .unwrap_or_default();
-        log::info!("Marked paths is {marked_files:?}");
+
+        let marks = persistence
+            .as_ref()
+            .and_then(|persistence| {
+                Some(
+                    persistence
+                        .get_marks(current_working_directory.to_path_buf())?
+                        .into_iter()
+                        .filter_map(|(path, marks)| Some((path.try_into().ok()?, marks)))
+                        .collect(),
+                )
+            })
+            .unwrap_or_default();
+
+        let prompt_histories = persistence
+            .as_ref()
+            .and_then(|persistence| {
+                persistence.get_prompt_histories(current_working_directory.to_path_buf())
+            })
+            .unwrap_or_default();
+
         Self {
             clipboard: Clipboard::new(),
-            theme: Theme::default(),
+            theme: crate::config::AppConfig::singleton().theme().clone(),
             mode: None,
             #[cfg(test)]
             highlight_configs: crate::syntax_highlight::HighlightConfigs::new(),
@@ -181,22 +286,15 @@ impl Context {
             local_search_config: LocalSearchConfig::default(),
             global_search_config: GlobalSearchConfig::default(),
             quickfix_list_state: Default::default(),
-            prompt_histories: Default::default(),
+            prompt_histories,
             last_non_contiguous_selection_mode: None,
-            keyboard_layout_kind: {
-                use KeyboardLayoutKind::*;
-                crate::env::parse_env(
-                    "KI_EDITOR_KEYBOARD",
-                    &KeyboardLayoutKind::iter().collect_vec(),
-                    |layout| layout.display(),
-                    Qwerty,
-                )
-            },
+            keyboard_layout_kind: crate::config::AppConfig::singleton().keyboard_layout_kind(),
             location_history_backward: Vec::new(),
             location_history_forward: Vec::new(),
             marked_files,
             is_running_as_embedded,
             persistence,
+            marks,
         }
     }
 
@@ -222,11 +320,11 @@ impl Context {
     ///
     /// This method should never fail, if `use_system_clipboard` is true but
     /// the system clipboard is inaccessible, the app clipboard will be used.
-    pub(crate) fn get_clipboard_content(
-        &self,
-        use_system_clipboard: bool,
-        history_offset: isize,
-    ) -> Option<CopiedTexts> {
+    pub(crate) fn get_clipboard_content(&self, history_offset: isize) -> Option<CopiedTexts> {
+        // Always use the system clipboard if the content of the system clipboard is no longer the same
+        // with the content of the app clipboard
+        let use_system_clipboard = !self.clipboards_synced();
+
         if use_system_clipboard {
             match self.clipboard.get_from_system_clipboard() {
                 Ok(copied_texts) => return Some(copied_texts),
@@ -405,9 +503,13 @@ impl Context {
         if let Some(index) = self.marked_files.get_index_of(&path) {
             self.unmark_path_impl(index, path)
         } else {
-            let _ = self.marked_files.insert_sorted(path);
+            let _ = self.mark_file(path);
             None
         }
+    }
+
+    pub(crate) fn mark_file(&mut self, path: CanonicalizedPath) -> (usize, bool) {
+        self.marked_files.insert_sorted(path)
     }
 
     /// Returns true if the path to be removed is in the list
@@ -571,10 +673,16 @@ impl LocalSearchConfig {
 
 #[cfg(test)]
 mod test_context {
+    use std::collections::HashMap;
+
+    use indexmap::IndexSet;
     use itertools::Itertools;
     use shared::canonicalized_path::CanonicalizedPath;
 
-    use crate::{context::Context, persistence::Persistence};
+    use crate::{
+        char_index_range::CharIndexRange, components::prompt::PromptHistoryKey, context::Context,
+        persistence::Persistence, selection::CharIndex,
+    };
 
     #[test]
     fn test_persistence() -> anyhow::Result<()> {
@@ -585,13 +693,21 @@ mod test_context {
         std::fs::create_dir_all(temp_cwd.clone())?;
 
         let random_file = tempfile::NamedTempFile::new()?.path().to_path_buf();
-        std::fs::write(random_file.clone(), "")?;
+        std::fs::write(random_file.clone(), "foo")?;
+
+        let marks = [(CharIndex(0)..CharIndex(2)).into()].to_vec();
 
         // Save data
         {
             let persistence = Persistence::load_or_default(temp_data_file.clone());
             let mut context = Context::new(temp_cwd.clone().try_into()?, false, Some(persistence));
+            let mut index_set = IndexSet::new();
+            index_set.insert("Github Light".to_string());
             context.toggle_path_mark(random_file.clone().try_into()?);
+            context.save_marks(random_file.clone().try_into()?, marks.clone());
+            context
+                .prompt_histories
+                .insert(PromptHistoryKey::Theme, index_set);
             context.persist_data()
         }
 
@@ -605,9 +721,25 @@ mod test_context {
                 .cloned()
                 .collect_vec();
 
-            let expected_marked_files = vec![CanonicalizedPath::try_from(random_file)?];
+            let expected_marked_files = vec![CanonicalizedPath::try_from(random_file.clone())?];
 
-            assert_eq!(actual_marked_files, expected_marked_files)
+            assert_eq!(actual_marked_files, expected_marked_files);
+
+            let actual_marks = context.marks;
+
+            let expected_marks: HashMap<CanonicalizedPath, Vec<CharIndexRange>> =
+                [(random_file.try_into()?, marks)].into_iter().collect();
+
+            assert_eq!(actual_marks, expected_marks);
+
+            let actual_prompt_histories = context.prompt_histories;
+            assert_eq!(
+                actual_prompt_histories
+                    .get(&PromptHistoryKey::Theme)
+                    .unwrap()
+                    .len(),
+                1
+            );
         }
 
         Ok(())

@@ -12,6 +12,7 @@ mod grid;
 mod integration_event;
 #[cfg(test)]
 mod integration_test;
+mod render_flex_layout;
 mod search;
 
 mod layout;
@@ -37,7 +38,6 @@ pub(crate) mod soft_wrap;
 pub(crate) mod style;
 pub(crate) mod surround;
 pub(crate) mod syntax_highlight;
-mod terminal;
 #[cfg(test)]
 mod test_app;
 pub(crate) mod themes;
@@ -48,13 +48,17 @@ mod utils;
 mod embed;
 
 mod alternator;
+pub(crate) mod config;
 mod divide_viewport;
 mod env;
 pub(crate) mod file_watcher;
 mod format_path_list;
 pub(crate) mod persistence;
+pub(crate) mod scripting;
 #[cfg(test)]
 mod test_lsp;
+#[cfg(test)]
+mod test_search;
 mod thread;
 use std::{rc::Rc, sync::Mutex};
 
@@ -63,9 +67,9 @@ use frontend::crossterm::Crossterm;
 use log::LevelFilter;
 use shared::canonicalized_path::CanonicalizedPath;
 
-use app::{App, StatusLineComponent};
+use app::App;
 
-use crate::{app::AppMessage, persistence::Persistence};
+use crate::{app::AppMessage, config::AppConfig, persistence::Persistence};
 
 fn main() {
     cli::cli().unwrap();
@@ -88,18 +92,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         sender,
         receiver,
         Some(syntax_highlighter_sender),
-        [
-            StatusLineComponent::Mode,
-            StatusLineComponent::SelectionMode,
-            StatusLineComponent::LastSearchString,
-            StatusLineComponent::Reveal,
-            StatusLineComponent::CurrentWorkingDirectory,
-            StatusLineComponent::GitBranch,
-            StatusLineComponent::KeyboardLayout,
-            StatusLineComponent::Help,
-            StatusLineComponent::LastDispatch,
-        ]
-        .to_vec(),
+        AppConfig::singleton().status_lines(),
         None, // No integration event sender
         true,
         true,
@@ -111,20 +104,34 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
 
     let sender = app.sender();
 
-    let crossterm_join_handle = std::thread::spawn(move || loop {
-        if crossterm::event::read()
-            .map_err(|error| anyhow::anyhow!("{:?}", error))
-            .and_then(|event| Ok(sender.send(AppMessage::Event(event.into()))?))
-            .is_err()
-        {
-            break;
-        }
+    std::thread::spawn(move || loop {
+        let message = match crossterm::event::read() {
+            Ok(event) => {
+                match event {
+                    crossterm::event::Event::Key(key_event) => {
+                        // Only process key press events, not releases
+                        // This is especially important for Windows compatibility
+                        if key_event.kind == crossterm::event::KeyEventKind::Press {
+                            AppMessage::Event(event.into())
+                        } else {
+                            // Skip release events by continuing the loop
+                            continue;
+                        }
+                    }
+                    // For non-keyboard events, process as before
+                    other_event => AppMessage::Event(other_event.into()),
+                }
+            }
+            Err(err) => AppMessage::NotifyError(err),
+        };
+
+        let _ = sender
+            .send(message)
+            .map_err(|err| log::info!("main::run::crossterm {err:#?}"));
     });
 
     app.run(config.entry_path)
         .map_err(|error| anyhow::anyhow!("screen.run {:?}", error))?;
-
-    crossterm_join_handle.join().unwrap();
 
     Ok(())
 }

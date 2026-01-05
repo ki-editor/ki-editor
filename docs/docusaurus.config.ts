@@ -82,14 +82,23 @@ const config: Config = {
                 },
                 {
                     position: "left",
-                    label: "Tutorial",
-                    to: "/docs/tutorial",
+                    label: "Introduction",
+                    to: "/docs/introduction",
                 },
-                { to: "/blog", label: "Blog", position: "left" },
                 {
-                    href: "https://github.com/ki-editor/ki-editor",
-                    label: "GitHub",
+                    position: "left",
+                    label: "Blog",
+                    to: "/blog",
+                },
+                {
                     position: "right",
+                    label: "Chat (Zulip)",
+                    href: "https://ki-editor.zulipchat.com/join/zzhagqzl6wyzpqfeqxcsrkin/",
+                },
+                {
+                    position: "right",
+                    label: "GitHub",
+                    href: "https://github.com/ki-editor/ki-editor",
                 },
             ],
         },
@@ -109,8 +118,8 @@ const config: Config = {
                     title: "Community",
                     items: [
                         {
-                            label: "Matrix",
-                            href: "https://matrix.to/#/#ki-editor:matrix.org",
+                            label: "Zulip",
+                            href: "https://ki-editor.zulipchat.com/join/zzhagqzl6wyzpqfeqxcsrkin/",
                         },
                     ],
                 },
@@ -138,6 +147,7 @@ const config: Config = {
 
     // Refer https://github.com/praveenn77/docusaurus-lunr-search
     plugins: [require.resolve("docusaurus-lunr-search")],
+    themes: ["docusaurus-json-schema-plugin"],
 };
 
 export default config;

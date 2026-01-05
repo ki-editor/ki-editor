@@ -51,11 +51,6 @@ enum Commands {
         #[command(subcommand)]
         command: Grammar,
     },
-    /// Manage cached tree-sitter highlight files
-    HighlightQuery {
-        #[command(subcommand)]
-        command: HighlightQuery,
-    },
     /// Prints the log file path
     Log,
     /// Display the keymap in various formats
@@ -94,14 +89,6 @@ enum Grammar {
 }
 
 #[derive(Subcommand)]
-enum HighlightQuery {
-    /// Remove all donwloaded Tree-sitter highlight queries
-    Clean,
-    /// Prints the cache path
-    CachePath,
-}
-
-#[derive(Subcommand)]
 enum KeymapFormat {
     /// Display as YAML for use with Keymap Drawer
     KeymapDrawer,
@@ -111,7 +98,7 @@ enum KeymapFormat {
 
 fn create_timestamp_file() -> anyhow::Result<(PathBuf, File)> {
     let timestamp = Local::now().format("%Y-%m-%d-%H-%M-%S").to_string();
-    let path = PathBuf::from(format!("{timestamp}.txt"));
+    let path = PathBuf::from(format!("from-stdin-{timestamp}.txt"));
     let file = File::create(&path)?;
     Ok((path, file))
 }
@@ -178,17 +165,8 @@ pub(crate) fn cli() -> anyhow::Result<()> {
             }
             Commands::Grammar { command } => {
                 match command {
-                    Grammar::Build => shared::grammar::build_grammars(),
-                    Grammar::Fetch => shared::grammar::fetch_grammars(),
-                };
-                Ok(())
-            }
-            Commands::HighlightQuery { command } => {
-                match command {
-                    HighlightQuery::Clean => shared::ts_highlight_query::clear_cache()?,
-                    HighlightQuery::CachePath => {
-                        println!("{}", shared::ts_highlight_query::cache_dir().display())
-                    }
+                    Grammar::Build => build_grammars(),
+                    Grammar::Fetch => fetch_grammars(),
                 };
                 Ok(())
             }
@@ -227,6 +205,23 @@ pub(crate) fn get_version() -> String {
     let build_time = env!("BUILD_TIME");
     format!("{git_hash} (Built on {build_time})")
 }
+
+use grammar::grammar::GrammarConfiguration;
+
+pub(crate) fn grammar_configs() -> Vec<GrammarConfiguration> {
+    crate::config::AppConfig::singleton()
+        .languages()
+        .iter()
+        .flat_map(|(_, language)| language.tree_sitter_grammar_config())
+        .collect()
+}
+pub fn build_grammars() {
+    grammar::grammar::build_grammars(None, grammar_configs()).unwrap();
+}
+
+pub fn fetch_grammars() {
+    grammar::grammar::fetch_grammars(grammar_configs()).unwrap();
+}
 #[cfg(test)]
 mod test_process_edit_args {
     use shared::canonicalized_path::CanonicalizedPath;
@@ -238,6 +233,20 @@ mod test_process_edit_args {
     fn no_edit_args() -> anyhow::Result<()> {
         let actual = process_edit_args(EditArgs { path: None })?;
         assert_eq!(actual.working_directory, None);
+
+        // Delete the temporary file that will be created
+
+        for entry in std::fs::read_dir(".")? {
+            let entry = entry?;
+            let path = entry.path();
+            dbg!(&path.to_string_lossy());
+            if path.to_string_lossy().contains("from-stdin-")
+                && path.to_string_lossy().ends_with("txt")
+            {
+                std::fs::remove_file(path)?;
+            }
+        }
+
         Ok(())
     }
 

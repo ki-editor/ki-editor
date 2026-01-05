@@ -7,9 +7,10 @@ use shared::canonicalized_path::CanonicalizedPath;
 use crate::{
     app::{Dispatch, DispatchPrompt, Dispatches},
     buffer::Buffer,
-    components::editor::DispatchEditor,
+    components::{component::ComponentId, editor::DispatchEditor},
     context::Context,
     lsp::completion::Completion,
+    search::parse_search_config,
     selection::SelectionMode,
     thread::Callback,
 };
@@ -18,7 +19,7 @@ use super::{
     component::Component,
     dropdown::DropdownItem,
     editor::{Editor, Mode},
-    editor_keymap::Meaning,
+    editor_keymap::{alted, Meaning},
     suggestive_editor::{DispatchSuggestiveEditor, SuggestiveEditor, SuggestiveEditorFilter},
 };
 
@@ -28,8 +29,45 @@ pub(crate) struct Prompt {
     on_enter: DispatchPrompt,
     enter_selects_first_matching_item: bool,
     prompt_history_key: PromptHistoryKey,
-    fire_dispatches_on_change: Option<Dispatches>,
+    on_change: Option<PromptOnChangeDispatch>,
+    on_cancelled: Option<Dispatches>,
     matcher: Option<PromptMatcher>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum PromptOnChangeDispatch {
+    RequestWorkspaceSymbol(CanonicalizedPath),
+    SetIncrementalSearchConfig { component_id: ComponentId },
+}
+
+impl PromptOnChangeDispatch {
+    fn to_dispatches(&self, context: &PromptContext) -> Dispatches {
+        match self {
+            PromptOnChangeDispatch::RequestWorkspaceSymbol(path) => {
+                Dispatches::one(Dispatch::RequestWorkspaceSymbols {
+                    query: context.current_line.to_string(),
+                    path: path.clone(),
+                })
+            }
+            PromptOnChangeDispatch::SetIncrementalSearchConfig { component_id } => {
+                let search_config = parse_search_config(&context.current_line)
+                    .unwrap_or_default()
+                    .local_config;
+                Dispatches::one(Dispatch::UpdateCurrentComponentTitle(format!(
+                    "Local search ({})",
+                    search_config.mode.display()
+                )))
+                .append(Dispatch::SetIncrementalSearchConfig {
+                    config: search_config,
+                    component_id: Some(*component_id),
+                })
+            }
+        }
+    }
+}
+
+struct PromptContext {
+    current_line: String,
 }
 
 struct PromptMatcher {
@@ -42,7 +80,7 @@ impl PromptMatcher {
             .reparse(0, filter, Default::default(), Default::default(), false);
     }
 
-    fn handle_nucleo_updated(&mut self, viewport_height: u32) -> Vec<DropdownItem> {
+    fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Vec<DropdownItem> {
         let nucleo = &mut self.nucleo;
 
         nucleo.tick(10);
@@ -53,7 +91,10 @@ impl PromptMatcher {
         let scroll_offset = 0;
 
         snapshot
-            .matched_items(scroll_offset..viewport_height.min(snapshot.matched_item_count()))
+            .matched_items(
+                scroll_offset as u32
+                    ..viewport_height.min(snapshot.matched_item_count() as usize) as u32,
+            )
             .map(|item| item.data.clone())
             .collect_vec()
     }
@@ -70,7 +111,7 @@ impl PromptMatcher {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub(crate) struct PromptConfig {
     pub(crate) on_enter: DispatchPrompt,
     pub(crate) items: PromptItems,
@@ -79,8 +120,9 @@ pub(crate) struct PromptConfig {
     pub(crate) leaves_current_line_empty: bool,
 
     /// If defined, the `Dispatches` here is used for undoing the dispatches fired on change.
-    pub(crate) fire_dispatches_on_change: Option<Dispatches>,
+    pub(crate) on_cancelled: Option<Dispatches>,
     pub(crate) prompt_history_key: PromptHistoryKey,
+    pub(crate) on_change: Option<PromptOnChangeDispatch>,
 }
 
 impl PromptConfig {
@@ -109,7 +151,7 @@ impl std::fmt::Debug for PromptConfig {
                 &self.enter_selects_first_matching_item,
             )
             .field("leaves_current_line_empty", &self.leaves_current_line_empty)
-            .field("fire_dispatches_on_change", &self.fire_dispatches_on_change)
+            .field("on_cancelled", &self.on_cancelled)
             .field("prompt_history_key", &self.prompt_history_key)
             .finish()
     }
@@ -125,11 +167,18 @@ pub(crate) enum PromptItems {
     },
 }
 
+impl Default for PromptItems {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum PromptItemsBackgroundTask {
     NonGitIgnoredFiles {
         working_directory: CanonicalizedPath,
     },
+    HandledByMainEventLoop,
 }
 impl PromptItemsBackgroundTask {
     fn execute(self, injector: nucleo::Injector<DropdownItem>) {
@@ -149,11 +198,15 @@ impl PromptItemsBackgroundTask {
                     )
                 });
             }
+            PromptItemsBackgroundTask::HandledByMainEventLoop => {
+                // Do nothing if the background task is handled by the app main event loop
+                // For example: LSP Workspace Symbols
+            }
         }
     }
 }
 
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(crate) enum PromptHistoryKey {
     MoveToIndex,
     Search,
@@ -164,16 +217,20 @@ pub(crate) enum PromptHistoryKey {
     Symbol,
     OpenFile,
     CodeAction,
-    #[cfg(test)]
     Null,
     Theme,
     PipeToShell,
-    FilterSelectionsMatchingSearch {
-        maintain: bool,
-    },
+    FilterSelectionsMatchingSearch { maintain: bool },
     KeyboardLayout,
     SurroundXmlTag,
     ResolveBufferSaveConflict,
+    WorkspaceSymbol,
+}
+
+impl Default for PromptHistoryKey {
+    fn default() -> Self {
+        Self::Null
+    }
 }
 
 impl Prompt {
@@ -244,7 +301,8 @@ impl Prompt {
                 on_enter: config.on_enter,
                 enter_selects_first_matching_item: config.enter_selects_first_matching_item,
                 prompt_history_key: config.prompt_history_key,
-                fire_dispatches_on_change: config.fire_dispatches_on_change,
+                on_cancelled: config.on_cancelled,
+                on_change: config.on_change,
                 matcher,
             },
             dispatches,
@@ -272,7 +330,7 @@ impl Prompt {
         self.editor.render_completion_dropdown(true)
     }
 
-    pub(crate) fn handle_nucleo_updated(&mut self, viewport_height: u32) -> Dispatches {
+    pub(crate) fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Dispatches {
         let Some(matcher) = self.matcher.as_mut() else {
             return Default::default();
         };
@@ -288,6 +346,34 @@ impl Prompt {
         if let Some(matcher) = self.matcher.as_mut() {
             matcher.reparse(filter);
         }
+    }
+
+    pub(crate) fn clear_and_update_matcher_items(&mut self, items: Vec<DropdownItem>) {
+        let Some(matcher) = self.matcher.as_mut() else {
+            return Default::default();
+        };
+
+        matcher.nucleo.restart(true);
+
+        let injector = matcher.nucleo.injector();
+        for item in items {
+            injector.push(item, |item, columns| {
+                let group = item.group().clone().unwrap_or_default();
+                let display = item.display().clone();
+                columns[0] = format!("{group} {display}").into();
+            });
+        }
+    }
+
+    pub(crate) fn get_on_change_dispatches(&self) -> Dispatches {
+        self.on_change
+            .as_ref()
+            .map(|on_change| {
+                on_change.to_dispatches(&PromptContext {
+                    current_line: self.editor().current_line().unwrap_or_default(),
+                })
+            })
+            .unwrap_or_default()
     }
 }
 
@@ -316,10 +402,12 @@ impl Component for Prompt {
         match event {
             key!("esc") if self.editor().mode == Mode::Normal => {
                 Ok(Dispatches::one(Dispatch::CloseCurrentWindow)
-                    .chain(self.fire_dispatches_on_change.clone().unwrap_or_default()))
+                    .chain(self.on_cancelled.clone().unwrap_or_default()))
             }
             key!("tab") => self.replace_current_query_with_focused_item(context, event),
-            _ if event.display() == context.keyboard_layout_kind().get_key(&Meaning::MrkFN) => {
+            _ if event.display()
+                == alted(context.keyboard_layout_kind().get_key(&Meaning::Rplc_)) =>
+            {
                 self.replace_current_query_with_focused_item(context, event)
             }
             key!("enter") => {
@@ -358,18 +446,22 @@ impl Component for Prompt {
             }
             _ => {
                 let dispatches = self.editor.handle_key_event(context, event)?;
-                Ok(if self.fire_dispatches_on_change.is_some() {
-                    dispatches.chain(
-                        self.editor
-                            .completion_dropdown_current_item()
-                            .map(|item| item.dispatches)
-                            .unwrap_or_default(),
-                    )
-                } else {
-                    dispatches
-                })
+                Ok(dispatches.chain(
+                    self.editor
+                        .completion_dropdown_current_item()
+                        .map(|item| item.on_focused())
+                        .unwrap_or_default(),
+                ))
             }
         }
+    }
+
+    fn post_handle_event(&self, dispatches: Dispatches) -> anyhow::Result<Dispatches> {
+        Ok(dispatches
+            .append(Dispatch::GetAndHandlePromptOnChangeDispatches)
+            .append(Dispatch::ToSuggestiveEditor(
+                DispatchSuggestiveEditor::UpdateFilter,
+            )))
     }
 }
 impl Prompt {
@@ -416,13 +508,9 @@ mod test_prompt {
                     App(OpenPrompt {
                         current_line: Some("hello\nworld".to_string()),
                         config: PromptConfig {
-                            on_enter: DispatchPrompt::Null,
-                            items: PromptItems::None,
-                            title: "".to_string(),
                             enter_selects_first_matching_item: true,
                             leaves_current_line_empty,
-                            fire_dispatches_on_change: None,
-                            prompt_history_key: PromptHistoryKey::Null,
+                            ..Default::default()
                         },
                     }),
                     Expect(CurrentComponentContent(expected_text)),
@@ -436,18 +524,13 @@ mod test_prompt {
     }
 
     #[test]
-    fn prompt_history() {
+    fn prompt_history() -> anyhow::Result<()> {
         execute_test(|s| {
             let open_prompt = OpenPrompt {
                 current_line: None,
                 config: PromptConfig {
-                    on_enter: DispatchPrompt::Null,
-                    items: PromptItems::None,
-                    title: "".to_string(),
-                    enter_selects_first_matching_item: true,
                     leaves_current_line_empty: true,
-                    fire_dispatches_on_change: None,
-                    prompt_history_key: PromptHistoryKey::Null,
+                    ..Default::default()
                 },
             };
             Box::new([
@@ -477,7 +560,6 @@ mod test_prompt {
                 Expect(CurrentComponentContent("yo\nhello\n")),
             ])
         })
-        .unwrap();
     }
 
     #[test]
@@ -492,13 +574,9 @@ mod test_prompt {
                 App((OpenPrompt {
                     current_line: Some("spongebob squarepants".to_string()),
                     config: PromptConfig {
-                        on_enter: DispatchPrompt::Null,
-                        items: PromptItems::None,
-                        title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
-                        fire_dispatches_on_change: None,
-                        prompt_history_key: PromptHistoryKey::Null,
+                        ..Default::default()
                     },
                 })
                 .clone()),
@@ -523,12 +601,9 @@ mod test_prompt {
                     current_line: None,
                     config: super::PromptConfig {
                         on_enter: DispatchPrompt::SetContent,
-                        items: PromptItems::None,
-                        title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
-                        fire_dispatches_on_change: None,
-                        prompt_history_key: PromptHistoryKey::Null,
+                        ..Default::default()
                     },
                 }),
                 Expect(CurrentComponentContent("")),
@@ -537,12 +612,12 @@ mod test_prompt {
     }
 
     #[test]
-    fn enter_selects_first_matching_item() {
+    fn enter_selects_first_matching_item() -> anyhow::Result<()> {
         fn run_test(
             enter_selects_first_matching_item: bool,
             input_text: &str,
             expected_invoked_text: &'static str,
-        ) {
+        ) -> anyhow::Result<()> {
             execute_test(|s| {
                 Box::new([
                     App(OpenFile {
@@ -566,11 +641,9 @@ mod test_prompt {
                                     .collect(),
                             ),
 
-                            title: "".to_string(),
                             enter_selects_first_matching_item,
                             leaves_current_line_empty: true,
-                            fire_dispatches_on_change: None,
-                            prompt_history_key: PromptHistoryKey::Null,
+                            ..Default::default()
                         },
                     }),
                     Expect(CompletionDropdownIsOpen(true)),
@@ -581,11 +654,11 @@ mod test_prompt {
                     Expect(CurrentComponentContent(expected_invoked_text)),
                 ])
             })
-            .unwrap()
         }
 
-        run_test(true, "f", "foo");
-        run_test(false, "f", "f");
+        run_test(true, "f", "foo")?;
+        run_test(false, "f", "f")?;
+        Ok(())
     }
 
     #[test]
@@ -604,11 +677,9 @@ mod test_prompt {
                                 .collect(),
                         ),
 
-                        title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
-                        fire_dispatches_on_change: None,
-                        prompt_history_key: PromptHistoryKey::Null,
+                        ..Default::default()
                     },
                 }),
                 App(HandleKeyEvents(keys!("f o o _ b tab").to_vec())),
@@ -619,13 +690,12 @@ mod test_prompt {
     }
 
     #[test]
-    fn fire_dispatches_on_change() -> anyhow::Result<()> {
+    fn test_on_cancelled() -> anyhow::Result<()> {
         execute_test(|_| {
             Box::new([
                 App(Dispatch::OpenPrompt {
                     current_line: None,
                     config: super::PromptConfig {
-                        on_enter: DispatchPrompt::Null,
                         items: PromptItems::Precomputed(
                             [
                                 "foo_bar".to_string(),
@@ -636,20 +706,20 @@ mod test_prompt {
                             .map(|item| item.into())
                             .map(|item: DropdownItem| {
                                 let content = item.display();
-                                item.set_dispatches(Dispatches::one(Dispatch::ShowEditorInfo(
+                                item.set_on_focused(Dispatches::one(Dispatch::ShowEditorInfo(
                                     Info::new("".to_string(), content),
                                 )))
                             })
                             .collect(),
                         ),
 
-                        title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
-                        fire_dispatches_on_change: Some(Dispatches::one(Dispatch::ShowEditorInfo(
-                            Info::new("".to_string(), "back to square one".to_string()),
-                        ))),
-                        prompt_history_key: PromptHistoryKey::Null,
+                        on_cancelled: Some(Dispatches::one(Dispatch::ShowEditorInfo(Info::new(
+                            "".to_string(),
+                            "back to square one".to_string(),
+                        )))),
+                        ..Default::default()
                     },
                 }),
                 App(HandleKeyEvents(keys!("f o o _").to_vec())),
@@ -681,11 +751,9 @@ mod test_prompt {
                             .collect(),
                         ),
 
-                        title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
-                        fire_dispatches_on_change: None,
-                        prompt_history_key: PromptHistoryKey::Null,
+                        ..Default::default()
                     },
                 }),
                 App(TerminalDimensionChanged(crate::app::Dimension {
@@ -721,11 +789,9 @@ mod test_prompt {
                                 .collect(),
                         ),
 
-                        title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
-                        fire_dispatches_on_change: None,
-                        prompt_history_key: PromptHistoryKey::Null,
+                        ..Default::default()
                     },
                 }),
                 // Expect the completion dropdown to be open,
@@ -770,7 +836,7 @@ mod test_prompt {
                     if_current_not_found: IfCurrentNotFound::LookForward,
                 }),
                 Expect(CurrentComponentContent("fo\n")),
-                App(HandleKeyEvents(keys!("f o alt+l").to_vec())),
+                App(HandleKeyEvents(keys!("f o alt+x").to_vec())),
                 Expect(CurrentComponentContent("fo\nfoo")),
             ])
         })
@@ -797,6 +863,7 @@ mod test_prompt {
                     scope: Scope::Local,
                     if_current_not_found: IfCurrentNotFound::LookForward,
                     run_search_after_config_updated: false,
+                    component_id: None,
                 }),
                 App(OpenSearchPrompt {
                     scope: Scope::Local,
@@ -810,7 +877,7 @@ mod test_prompt {
                 Expect(CurrentComponentContent("foo.\n")),
                 // Navigate upwards and use the history
                 Editor(EnterNormalMode),
-                Editor(MoveSelection(Up)),
+                Editor(MoveSelection(Left)),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(CurrentSearch(Scope::Local, "foo.")),
             ])

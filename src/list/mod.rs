@@ -1,6 +1,9 @@
-use std::{ops::Range, path::PathBuf, sync::Arc};
+use std::{
+    ops::Range,
+    path::PathBuf,
+    sync::{mpsc::Sender, Arc},
+};
 
-use crossbeam::channel::Sender;
 use globset::Glob;
 use ignore::{WalkBuilder, WalkState};
 use shared::canonicalized_path::CanonicalizedPath;
@@ -57,7 +60,7 @@ impl WalkBuilderConfig {
             include,
             exclude,
         } = self;
-        let (sender, receiver) = crossbeam::channel::unbounded::<T>();
+        let (sender, receiver) = std::sync::mpsc::channel();
         let build_matcher = |glob: Option<&Glob>| -> anyhow::Result<_> {
             let pattern = if let Some(glob) = glob {
                 Some(Glob::new(&root.join(glob.glob()).to_string_lossy())?.compile_matcher())

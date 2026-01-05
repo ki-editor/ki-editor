@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ScriptInput",
+  "type": "object",
+  "properties": {
+    "current_file_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "selections": {
+      "description": "0-based index",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Selection"
+      }
+    }
+  },
+  "required": [
+    "selections"
+  ],
+  "$defs": {
+    "Position": {
+      "type": "object",
+      "properties": {
+        "column": {
+          "description": "0-based",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "line": {
+          "description": "0-based",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "line",
+        "column"
+      ]
+    },
+    "Range_of_Position": {
+      "type": "object",
+      "properties": {
+        "end": {
+          "$ref": "#/$defs/Position"
+        },
+        "start": {
+          "$ref": "#/$defs/Position"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ]
+    },
+    "Selection": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "range": {
+          "$ref": "#/$defs/Range_of_Position"
+        }
+      },
+      "required": [
+        "content",
+        "range"
+      ]
+    }
+  }
+}

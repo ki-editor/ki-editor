@@ -50,11 +50,11 @@ impl Editor {
         &self,
         context: &Context,
         focused: bool,
-        scroll_offset: u16,
+        scroll_offset: usize,
         hunks: &[SimpleHunk],
     ) -> GetGridResult {
         let title = self.title(context);
-        let title_grid_height = title.lines().count() as u16;
+        let title_grid_height = title.lines().count();
         let render_area = {
             let Dimension { height, width } = self.dimension();
             Dimension {
@@ -62,6 +62,7 @@ impl Editor {
                 width,
             }
         };
+        let marks = context.get_marks(self.path());
         let grid = match &self.reveal {
             None => self.get_grid_with_dimension(
                 context.theme(),
@@ -74,8 +75,11 @@ impl Editor {
                 true,
                 focused,
                 hunks,
+                &marks,
             ),
-            Some(reveal) => self.get_splitted_grid(context, reveal, render_area, focused, hunks),
+            Some(reveal) => {
+                self.get_splitted_grid(context, reveal, render_area, focused, hunks, &marks)
+            }
         };
         let theme = context.theme();
         let window_title_style = if focused {
@@ -115,7 +119,7 @@ impl Editor {
             editor.get_grid_with_dimension(
                 &theme,
                 context.current_working_directory(),
-                context.quickfix_list_items(),
+                Vec::new(),
                 dimension,
                 0,
                 None,
@@ -123,6 +127,7 @@ impl Editor {
                 false,
                 focused,
                 hunks,
+                &[],
             )
         };
         let grid = title_grid.merge_vertical(grid);
@@ -144,17 +149,14 @@ impl Editor {
             vec![]
         } else {
             let wrapped_items = wrap_items(
-                &get_formatted_paths(
+                get_formatted_paths(
                     &context.get_marked_files(),
                     &self.path()?,
                     context.current_working_directory(),
                     self.buffer().dirty(),
-                )
-                .iter()
-                .map(|s| s.as_str())
-                .collect_vec(),
+                ),
                 // Reference: NEED_TO_REDUCE_WIDTH_BY_1
-                (dimension.width as usize).saturating_sub(1),
+                dimension.width.saturating_sub(1),
             );
 
             trim_array(
@@ -162,14 +164,14 @@ impl Editor {
                 wrapped_items.len().saturating_sub(1)..wrapped_items.len(),
                 wrapped_items
                     .len()
-                    .saturating_sub(dimension.height.saturating_sub(1).into()),
+                    .saturating_sub(dimension.height.saturating_sub(1)),
             )
             .trimmed_array
         };
         let result = result.join("\n");
 
         // Ensure that at least one height is spared for rendering the editor's content
-        debug_assert!(result.lines().count() <= dimension.height.saturating_sub(1) as usize);
+        debug_assert!(result.lines().count() <= dimension.height.saturating_sub(1));
         Some(result)
     }
 
@@ -180,6 +182,7 @@ impl Editor {
         render_area: Dimension,
         focused: bool,
         hunks: &[SimpleHunk],
+        marks: &[CharIndexRange],
     ) -> crate::grid::Grid {
         let buffer = self.buffer();
         let ranges = match reveal {
@@ -188,6 +191,7 @@ impl Editor {
                     self.selection_set.primary_selection(),
                     context.current_working_directory(),
                     context.quickfix_list_items(),
+                    marks,
                 )
                 .unwrap_or_default()
                 .into_iter()
@@ -199,9 +203,8 @@ impl Editor {
                 .into_iter()
                 .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
                 .collect_vec(),
-            Reveal::Mark => self
-                .buffer()
-                .marks()
+            Reveal::Mark => context
+                .get_marks(buffer.path())
                 .into_iter()
                 .filter_map(|range| buffer.char_index_range_to_byte_range(range).ok())
                 .collect_vec(),
@@ -218,7 +221,7 @@ impl Editor {
         .collect_vec();
         let viewport_sections = divide_viewport(
             &ranges,
-            render_area.height as usize,
+            render_area.height,
             buffer
                 .char_index_range_to_byte_range(
                     self.selection_set.primary_selection().extended_range(),
@@ -256,15 +259,16 @@ impl Editor {
                     context.current_working_directory(),
                     context.quickfix_list_items(),
                     Dimension {
-                        height: viewport_section.height() as u16,
+                        height: viewport_section.height(),
                         width: self.dimension().width,
                     },
-                    window.start as u16,
+                    window.start,
                     Some(protected_range),
                     true,
                     true,
                     focused,
                     hunks,
+                    marks,
                 ))
             },
         )
@@ -280,12 +284,13 @@ impl Editor {
         working_directory: &CanonicalizedPath,
         quickfix_list_items: Vec<&QuickfixListItem>,
         dimension: Dimension,
-        scroll_offset: u16,
+        scroll_offset: usize,
         protected_range: Option<CharIndexRange>,
         borderize_first_line: bool,
         render_line_number: bool,
         focused: bool,
         hunks: &[SimpleHunk],
+        marks: &[CharIndexRange],
     ) -> Grid {
         let editor = self;
         let cursor_position = self.get_cursor_position().unwrap_or_default();
@@ -300,7 +305,8 @@ impl Editor {
                 .unwrap_or_default()
         });
 
-        let len_lines = rope.len_lines().max(1) as u16;
+        let len_lines = rope.len_lines().max(1);
+
         let (hidden_parent_lines, visible_parent_lines) = self
             .get_parent_lines_given_line_index_and_scroll_offset(
                 protected_range_start_line.unwrap_or_default(),
@@ -310,8 +316,8 @@ impl Editor {
         let visible_lines = rope
             .lines()
             .enumerate()
-            .skip(scroll_offset as usize)
-            .take(height as usize)
+            .skip(scroll_offset)
+            .take(height)
             .map(|(line_index, slice)| (line_index, slice.to_string()));
 
         let visible_lines_grid: Grid = Grid::new(Dimension { height, width });
@@ -337,6 +343,7 @@ impl Editor {
                 &visible_parent_lines,
                 protected_range,
                 quickfix_list_items,
+                marks,
             );
             let boundaries = hidden_parent_line_ranges
                 .into_iter()
@@ -382,7 +389,7 @@ impl Editor {
                         if render_line_number {
                             RenderContentLineNumber::LineNumber {
                                 start_line_index: line.line,
-                                max_line_number: len_lines as usize,
+                                max_line_number: len_lines,
                             }
                         } else {
                             RenderContentLineNumber::NoLineNumber
@@ -429,8 +436,8 @@ impl Editor {
                 &visible_lines_content,
                 if render_line_number {
                     RenderContentLineNumber::LineNumber {
-                        start_line_index: scroll_offset as usize,
-                        max_line_number: len_lines as usize,
+                        start_line_index: scroll_offset,
+                        max_line_number: len_lines,
                     }
                 } else {
                     RenderContentLineNumber::NoLineNumber
@@ -439,7 +446,7 @@ impl Editor {
                     .into_iter()
                     .filter_map(|cell_update| {
                         Some(CellUpdate {
-                            position: cell_update.position.move_up(scroll_offset as usize)?,
+                            position: cell_update.position.move_up(scroll_offset)?,
                             ..cell_update
                         })
                     })
@@ -452,7 +459,7 @@ impl Editor {
                 {
                     Some(
                         cursor_position
-                            .set_line(cursor_position.line.saturating_sub(scroll_offset as usize)),
+                            .set_line(cursor_position.line.saturating_sub(scroll_offset)),
                     )
                 } else {
                     None
@@ -473,9 +480,8 @@ impl Editor {
                 max_hidden_parent_lines_count,
             );
             let clamped_hidden_parent_lines_grid = hidden_parent_lines_grid.clamp_bottom(
-                (trim_result.remaining_trim_count
-                    + (hidden_parent_lines_count - max_hidden_parent_lines_count))
-                    as u16,
+                trim_result.remaining_trim_count
+                    + (hidden_parent_lines_count - max_hidden_parent_lines_count),
             );
             let trimmed_visible_lines_grid = Grid {
                 width: visible_lines_grid.width,
@@ -499,7 +505,7 @@ impl Editor {
                     {
                         (0..width)
                             .map(|column| CellUpdate {
-                                position: Position::new(0, column as usize),
+                                position: Position::new(0, column),
                                 symbol: None,
                                 style: Style::new()
                                     .background_color(theme.ui.section_divider_background),
@@ -516,8 +522,8 @@ impl Editor {
             result.apply_cell_updates(section_divider_cell_updates)
         };
 
-        debug_assert_eq!(grid.rows.len(), height as usize);
-        debug_assert!(grid.rows.iter().all(|row| row.len() == width as usize));
+        debug_assert_eq!(grid.rows.len(), height);
+        debug_assert!(grid.rows.iter().all(|row| row.len() == width));
         grid
     }
 
@@ -531,44 +537,67 @@ impl Editor {
         visible_parent_lines: &[Line],
         protected_range: Option<CharIndexRange>,
         quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
         let buffer = self.buffer();
-        let possible_selections =
-            if self.selection_set.mode().is_contiguous() && self.reveal.is_none() {
-                Default::default()
-            } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
-                protected_range
-                    .and_then(|protected_range| {
-                        buffer.char_index_range_to_byte_range(protected_range).ok()
-                    })
-                    .into_iter()
-                    .map(ByteRange::new)
-                    .collect()
-            } else {
-                self.possible_selections_in_line_number_range(
-                    self.selection_set.primary_selection(),
-                    working_directory,
-                    visible_line_range,
-                    quickfix_list_items,
-                )
-                .unwrap_or_default()
-            }
-            .into_iter()
-            .map(|range| HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                range: HighlightSpanRange::ByteRange(range.range().clone()),
-                source: Source::StyleKey(UiPossibleSelection),
-                is_protected_range_start: false,
+
+        let possible_selections = if self.incremental_search_matches.is_some() {
+            Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
+        } else {
+            Box::new(
+                if self.selection_set.mode().is_contiguous() && self.reveal.is_none() {
+                    Default::default()
+                } else if self.reveal == Some(Reveal::CurrentSelectionMode) {
+                    protected_range
+                        .and_then(|protected_range| {
+                            buffer.char_index_range_to_byte_range(protected_range).ok()
+                        })
+                        .into_iter()
+                        .map(ByteRange::new)
+                        .collect()
+                } else {
+                    self.possible_selections_in_line_number_range(
+                        self.selection_set.primary_selection(),
+                        working_directory,
+                        visible_line_range,
+                        quickfix_list_items,
+                        marks,
+                    )
+                    .unwrap_or_default()
+                }
+                .into_iter()
+                .map(|range| HighlightSpan {
+                    set_symbol: None,
+                    is_cursor: false,
+                    range: HighlightSpanRange::ByteRange(range.range().clone()),
+                    source: Source::StyleKey(UiPossibleSelection),
+                    is_protected_range_start: false,
+                }),
+            )
+        };
+
+        let incremental_search_matches = self
+            .incremental_search_matches
+            .as_ref()
+            .map(|matches| {
+                Box::new(matches.iter().map(|range| HighlightSpan {
+                    set_symbol: None,
+                    is_cursor: false,
+                    range: HighlightSpanRange::ByteRange(range.clone()),
+                    source: Source::StyleKey(UiIncrementalSearchMatch),
+                    is_protected_range_start: false,
+                })) as Box<dyn Iterator<Item = HighlightSpan>>
+            })
+            .unwrap_or_else(|| {
+                Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
             });
 
-        let marks = buffer
-            .marks()
-            .into_iter()
+        let marks_spans = marks
+            .iter()
             .filter(|mark_range| {
                 if let Some(Reveal::Mark) = self.reveal {
-                    Some(mark_range) == protected_range.as_ref()
+                    Some(*mark_range) == protected_range.as_ref()
                 } else {
                     true
                 }
@@ -577,7 +606,7 @@ impl Editor {
                 set_symbol: None,
                 is_cursor: false,
                 source: Source::StyleKey(UiMark),
-                range: HighlightSpanRange::CharIndexRange(mark),
+                range: HighlightSpanRange::CharIndexRange(*mark),
                 is_protected_range_start: false,
             });
         let secondary_selections = &self
@@ -620,8 +649,7 @@ impl Editor {
                 }
                 Some(Reveal::Mark)
                     if protected_range != Some(primary_selection.extended_range())
-                        && buffer
-                            .marks()
+                        && marks
                             .iter()
                             .any(|mark| Some(mark) == protected_range.as_ref()) =>
                 {
@@ -855,23 +883,31 @@ impl Editor {
         } else {
             Box::new(std::iter::empty()) as Box<dyn Iterator<Item = HighlightSpan>>
         };
+
+        // Note: the order here is important
+        //   - First = lowest precedence
+        //   - Last  = highest precedence
+        //
+        // Highlight spans with higher precedence will overwrite
+        // highlight spans with lower precedence.
         vec![]
             .into_iter()
             .chain(visible_parent_lines)
             .chain(filtered_highlighted_spans)
-            .chain(extra_decorations)
             .chain(possible_selections)
             .chain(primary_selection_highlight_span)
             .chain(secondary_selections_highlight_spans)
             .chain(primary_selection_anchors)
             .chain(secondary_selection_anchors)
-            .chain(marks)
+            .chain(marks_spans)
             .chain(diagnostics)
             .chain(jumps)
             .chain(primary_selection_secondary_cursor)
             .chain(secondary_selection_cursors)
             .chain(custom_regex_highlights)
             .chain(regex_highlight_rules)
+            .chain(extra_decorations)
+            .chain(incremental_search_matches)
             .collect_vec()
     }
 
@@ -881,12 +917,14 @@ impl Editor {
         working_directory: &CanonicalizedPath,
         line_number_range: &Range<usize>,
         quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> anyhow::Result<Vec<ByteRange>> {
         let object = self.get_selection_mode_trait_object(
             selection,
             true,
             working_directory,
             quickfix_list_items,
+            marks,
         )?;
         if self.selection_set.mode().is_contiguous() {
             return Ok(Vec::new());
@@ -907,12 +945,14 @@ impl Editor {
         selection: &Selection,
         working_directory: &CanonicalizedPath,
         quickfix_list_items: Vec<&QuickfixListItem>,
+        marks: &[CharIndexRange],
     ) -> anyhow::Result<Vec<ByteRange>> {
         self.get_selection_mode_trait_object(
             selection,
             true,
             working_directory,
             quickfix_list_items,
+            marks,
         )?
         .revealed_selections(&selection_mode::SelectionModeParams {
             buffer: &self.buffer(),
@@ -1201,8 +1241,8 @@ mod test_render_editor {
                 origin: Default::default(),
                 width: (u8::arbitrary(g) / 10).max(
                     MAX_CHARACTER_WIDTH + LINE_NUMBER_UI_WIDTH + PADDING_FOR_CURSOR_AT_LAST_COLUMN,
-                ) as u16,
-                height: ((u8::arbitrary(g) / 10) as u16).max(1),
+                ) as usize,
+                height: (u8::arbitrary(g) / 10).max(1) as usize,
             }
         }
     }
@@ -1215,8 +1255,7 @@ mod test_render_editor {
         let grid = editor.get_grid(&Context::default(), false);
         let cells = grid.grid.to_positioned_cells();
         cells.into_iter().all(|cell| {
-            cell.position.line < (rectangle.height as usize)
-                && cell.position.column < (rectangle.width as usize)
+            cell.position.line < rectangle.height && cell.position.column < rectangle.width
         })
     }
 }
@@ -1246,18 +1285,6 @@ where
     let safe_end = std::cmp::max(safe_start, end_idx);
 
     debug_assert!(safe_start <= safe_end);
-
-    // Return the slice containing items that potentially overlap with [start, end]
-    // Expect the result to be the same as using `range_intersection`
-    debug_assert_eq!(
-        (safe_start..safe_end).collect_vec(),
-        items
-            .iter()
-            .enumerate()
-            .filter(|(_, item)| range_intersection(&get_range(item), &(start..end)).is_some())
-            .map(|(index, _)| index)
-            .collect_vec()
-    );
 
     &items[safe_start..safe_end]
 }

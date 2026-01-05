@@ -43,13 +43,13 @@ pub struct GrammarConfiguration {
 }
 
 impl GrammarConfiguration {
-    pub fn remote(id: &str, repository_url: &str, revision: &str, subpath: Option<&str>) -> Self {
+    pub fn remote(id: &str, repository_url: &str, revision: &str, subpath: Option<String>) -> Self {
         Self {
             grammar_id: id.to_string(),
             source: GrammarSource::Git {
                 remote: repository_url.to_string(),
                 revision: revision.to_string(),
-                subpath: subpath.map(|s| s.to_string()),
+                subpath,
             },
         }
     }

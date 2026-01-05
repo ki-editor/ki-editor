@@ -16,7 +16,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::dropdown::{Dropdown, DropdownConfig};
 use super::editor::{Direction, DispatchEditor, IfCurrentNotFound};
-use super::editor_keymap::Meaning;
+use super::editor_keymap::{alted, Meaning};
 use super::keymap_legend::{Keymap, Keymaps};
 use super::{
     component::Component,
@@ -70,6 +70,12 @@ impl Component for SuggestiveEditor {
         Ok(dispatches.chain(update_filter_result?))
     }
 
+    fn post_handle_event(&self, dispatches: Dispatches) -> anyhow::Result<Dispatches> {
+        Ok(dispatches.append(Dispatch::ToSuggestiveEditor(
+            DispatchSuggestiveEditor::UpdateFilter,
+        )))
+    }
+
     fn handle_key_event(
         &mut self,
         context: &Context,
@@ -91,11 +97,9 @@ impl Component for SuggestiveEditor {
 
         // Every other character typed in Insert mode should update the dropdown to show
         // relevant completions.
-        let dispatches = self.editor.handle_key_event(context, event.clone())?;
-
-        let render_dropdown_dispatch = self.update_filter()?;
-        Ok(render_dropdown_dispatch
-            .chain(dispatches)
+        Ok(self
+            .editor
+            .handle_key_event(context, event.clone())?
             .chain(match event {
                 key!("esc") => [
                     Dispatch::CloseDropdown,
@@ -165,6 +169,7 @@ impl SuggestiveEditor {
                 self.previous_completion_item()
             }
             DispatchSuggestiveEditor::SelectCompletionItem => self.select_completion_item(),
+            DispatchSuggestiveEditor::UpdateFilter => self.update_filter(),
         }
     }
 
@@ -217,7 +222,7 @@ impl SuggestiveEditor {
         if self.editor.mode != Mode::Insert {
             return Ok(Dispatches::empty());
         }
-        let filter = match self.filter {
+        let filter = match &self.filter {
             SuggestiveEditorFilter::CurrentWord => {
                 // We need to subtract 1 because we need to get the character
                 // before the cursor, not the character at the cursor
@@ -294,6 +299,7 @@ pub(crate) enum DispatchSuggestiveEditor {
     UpdateCurrentCompletionItem(Box<CompletionItem>),
     MoveToCompletionItem(Direction),
     SelectCompletionItem,
+    UpdateFilter,
 }
 
 #[cfg(test)]
@@ -315,8 +321,10 @@ mod test_suggestive_editor {
         test_app::ExpectKind::*,
         test_app::Step::*,
     };
+    use event::event::Event;
     use lsp_types::{CompletionItemKind, CompletionTextEdit, TextEdit};
     use my_proc_macros::{key, keys};
+    use serial_test::serial;
     use shared::canonicalized_path::CanonicalizedPath;
     use std::{cell::RefCell, rc::Rc};
     use Dispatch::*;
@@ -793,9 +801,9 @@ mod test_suggestive_editor {
                 Expect(CompletionDropdownSelectedItem("Spongebob")),
                 App(HandleKeyEvent(key!("up"))),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
-                App(HandleKeyEvent(key!("alt+k"))),
+                App(HandleKeyEvent(key!("alt+l"))),
                 Expect(CompletionDropdownSelectedItem("Spongebob")),
-                App(HandleKeyEvent(key!("alt+i"))),
+                App(HandleKeyEvent(key!("alt+j"))),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
             ])
         })
@@ -998,6 +1006,39 @@ mod test_suggestive_editor {
     }
 
     #[test]
+    #[serial]
+    fn completion_should_update_for_paste_event() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("".to_string())),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                Editor(EnterInsertMode(Direction::Start)),
+                // Pretend that the LSP server returned a completion
+                // That is without edit, but contains `kind`, which means it has emoji
+                SuggestiveEditor(Completion(Completion {
+                    items: [
+                        CompletionItem::from_label("spongebob".to_string()),
+                        CompletionItem::from_label("patrick".to_string()),
+                    ]
+                    .into_iter()
+                    .map(|item| item.into())
+                    .collect(),
+                    trigger_characters: Vec::new(),
+                })),
+                Expect(CompletionDropdownContent(" patrick\n spongebob")),
+                App(HandleEvent(Event::Paste("patr".to_string()))),
+                // Expect the completion dropdown to contain only "patrick" after the paste even
+                Expect(CompletionDropdownContent(" patrick")),
+            ])
+        })
+    }
+
+    #[test]
     fn hide_dropdown_when_no_matching_candidates() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
@@ -1130,27 +1171,21 @@ impl Decoration {
 pub(crate) fn completion_item_keymaps(context: &Context) -> Keymaps {
     Keymaps::new(&[
         Keymap::new_extended(
-            context
-                .keyboard_layout_kind()
-                .get_insert_key(&Meaning::ScrlD),
+            alted(context.keyboard_layout_kind().get_key(&Meaning::Right)),
             Direction::End.format_action("Comp"),
             "Next Completion Item".to_string(),
             Dispatch::MoveToCompletionItem(Direction::End),
         ),
         Keymap::new_extended(
-            context
-                .keyboard_layout_kind()
-                .get_insert_key(&Meaning::ScrlU),
+            alted(context.keyboard_layout_kind().get_key(&Meaning::Left_)),
             Direction::Start.format_action("Comp"),
             "Previous Completion Item".to_string(),
             Dispatch::MoveToCompletionItem(Direction::Start),
         ),
         Keymap::new_extended(
-            context
-                .keyboard_layout_kind()
-                .get_insert_key(&Meaning::MrkFN),
-            "Select Comp".to_string(),
-            "Select Completion Item".to_string(),
+            alted(context.keyboard_layout_kind().get_key(&Meaning::Rplc_)),
+            "Replace Comp".to_string(),
+            "Replace Completion Item".to_string(),
             Dispatch::SelectCompletionItem,
         ),
     ])

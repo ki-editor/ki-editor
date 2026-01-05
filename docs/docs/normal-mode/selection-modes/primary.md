@@ -47,7 +47,7 @@ There are several syntax nodes that start with `f`[^1]:
 - `fox.bar` (member expression)
 - `fox.bar()` (call expression)
 
-Suppose the cursor is below `f`, pressing `s` selects `fox.bar()`, because `fox.bar()` is the largest node that starts with `f`.
+Suppose the cursor is below `f`, pressing `d` selects `fox.bar()`, because `fox.bar()` is the largest node that starts with `f`.
 
 [^1]: You can try it out at [https://astexplorer.net/](https://astexplorer.net/), using the `@typescript-eslint/parser`.
 
@@ -89,27 +89,25 @@ hello.world().foo().bar().spam().wise();
 
 If we press `d`, the whole expression will be selected[^1], and we will need to press `k` several times to shrink the selection down to `hello.world()`.
 
-However, if we use `D` instead, the selection will remain as `hello`, and pressing `k` multiple times will get us to `hello.world()`.
+However, if we use `D` instead, the selection will remain as `hello`, and pressing `i` multiple times will get us to `hello.world()`.
 
 [^1]: See [Largest Node](#largest-node)
 
 ## `Line`
 
 In this selection mode, the selection is trimmed, which means that the leading
-and trailing spaces of each line are not selected.
+and trailing spaces of each line are not meaningful.
 
-| Movement      | Meaning                                         |
-| ------------- | ----------------------------------------------- |
-| Up/Down       | Move to line above/below                        |
-| First/Last    | Move to the first/last line of the current file |
-| Left          | Move to the parent line                         |
-| Previous/Next | Move to empty lines                             |
+The meaningful selection of this mode is the trimmed portion of any non-empty line.
 
-Parent lines are highlighted lines that represent the parent nodes of the current selection.
+The meaningless selections are empty lines.
 
-This is useful for example when you are within the body of a function and you want to jump to the function name.
-
-This is also practical in the [File Explorer](../../components/file-explorer.md) because the file explorer is rendered using YAML, so going to Parent Line means going to the parent folder!
+| Movement      | Meaning                                                   |
+| ------------- | --------------------------------------------------------- |
+| Up/Down       | Move to the nearest empty lines above/below               |
+| Previous/Next | Move to all kinds of line portions                        |
+| First/Last    | Move to the first/last non-empty line of the current file |
+| Left/Right    | Move to the previous/next non-empty line                  |
 
 <TutorialFallback filename="line"/>
 
@@ -117,16 +115,16 @@ This is also practical in the [File Explorer](../../components/file-explorer.md)
 
 Full Line.
 
-Same as [Line](#line), however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.
+Same as [Line](#line), however, leading whitespaces and trailing whitespaces, including newline characters are also selected.
 
 ## `Word`
 
 Each unit is a sequence of alphanumeric characters including `-` and `_`.
 
-| Movement              | Meaning                                                      |
-| --------------------- | ------------------------------------------------------------ |
-| Up/Down/Previous/Next | Move to all kinds of word, including symbols and whitespaces |
-| Left/Right            | Move to non-symbol word only                                 |
+| Movement              | Meaning                                      |
+| --------------------- | -------------------------------------------- |
+| Up/Down/Previous/Next | Move to all kinds of word, including symbols |
+| Left/Right            | Move to non-symbol word only                 |
 
 Suppose the following example:
 
@@ -140,8 +138,6 @@ If the current selection is selecting `use`, the following table demonstrates ho
 | ---------------------------------- | -------------------------------------------------------------------- | ----- |
 | Include                            | `crate` `:` `:` `{` `components` `:` `:` `editor` `:` `:` `OpenFile` | 11    |
 | Exclude                            | `crate` `components` `editor` `OpenFile`                             | 4     |
-
-
 
 <TutorialFallback filename="word"/>
 
@@ -160,7 +156,6 @@ This is useful for renaming identifiers, especially if we only want to change a 
 | --------------------- | ----------------------------------------------- |
 | Up/Down/Previous/Next | Move to all kinds of subword, including symbols |
 | Left/Right            | Move to non-symbol subword only                 |
-
 
 <TutorialFallback filename="subword"/>
 

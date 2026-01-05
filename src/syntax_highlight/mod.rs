@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod test;
+
 use std::{
     collections::HashMap,
     ops::Range,
@@ -32,7 +35,9 @@ impl GetHighlightConfig for Language {
             return Ok(None);
         };
 
-        let highlights_query = &self.highlight_query().unwrap_or_default();
+        let Some(highlights_query) = &self.highlight_query() else {
+            return Ok(None);
+        };
         let mut config = HighlightConfiguration::new(
             tree_sitter_language,
             "highlight".to_string(),
@@ -146,6 +151,7 @@ impl SyntaxHighlightRequestBatchId {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct SyntaxHighlightRequest {
     pub(crate) component_id: ComponentId,
     pub(crate) batch_id: SyntaxHighlightRequestBatchId,

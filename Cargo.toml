@@ -14,6 +14,7 @@ members = [
   'tree_sitter_quickfix',
   'zed_theme',
   'ki-protocol-types',
+  'nvim-treesitter-highlight-queries',
 ]
 exclude = ['tests/mock_repos/rust1']
 
@@ -38,10 +39,11 @@ quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
 itertools = "~0.13.0"
 tree-sitter-quickfix = { path = "tree_sitter_quickfix" }
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+miniz_oxide = "0.8.9"
+schemars = "1.1.0"
 
 [features]
+default = ["wayland"]
 wayland = ["arboard/wayland-data-control"]
 
 [build-dependencies]
@@ -57,9 +59,8 @@ crossterm.workspace = true
 regex.workspace = true
 fancy-regex.workspace = true
 lsp-types.workspace = true
-tempfile.workspace = true
 log.workspace = true
-ropey = "1.6.0"
+ropey = "1.6.1"
 simple-logging = "2.0.2"
 once_cell.workspace = true
 serde_json.workspace = true
@@ -68,59 +69,54 @@ tree-sitter.workspace = true
 itertools.workspace = true
 thiserror = { version = "1.0.56" }
 tree-sitter-md = "~0.3.2"
-portable-pty = "0.8.1"
-vt100 = "0.15.2"
 diffy = "~0.4.0"
 ast-grep-core = "0.37.0"
 git2 = {version = "~0.19.0", default-features = false,  features = ["vendored-libgit2"] }
 grep-searcher = "0.1.11"
 grep-regex = "0.1.11"
 json-rpc-types = "1.3.0"
-arboard = { version = "3.2", features = ["wayland-data-control"] }
+arboard = { version = "3.2", default-features = false }
 event = { path = "event" }
 grammar = { path = "grammar" }
 shared = { path = "shared" }
 tree-sitter-quickfix.workspace = true
 zed-theme = { path = "zed_theme" }
 my_proc_macros = { path = "my_proc_macros" }
-pretty_assertions = "1.3.0"
 tree-sitter-highlight = "0.25.6"
 convert_case.workspace = true
 ignore = "0.4.20"
-crossbeam = "0.8.2"
 clap = { version = "~4.5.23", features = ["derive"] }
 rayon = "1.8.0"
 similar = {version = "2.4.0", features = ["unicode", "inline"]}
 tree-sitter-traversal2 = { version = "0.1.4", package = "baz-tree-sitter-traversal" }
-indexmap = "2.2.2"
+indexmap = { version = "2.2.2", features = ["serde"] }
 globset = "0.4.14"
 unicode-width = "~0.2.0"
 lazy-regex = "~3.4.1"
 debounce = "0.2.2"
 nucleo-matcher = "0.3.1"
 nary_tree = "0.4.3"
-name-variant = "0.1.0"
 strum = "0.26.2"
 strum_macros = "0.26.2"
 nonempty = "~0.11.0"
 base64 = "0.22.1"
-serde_json5 = "0.1.0"
 comfy-table = "7.1.3"
 chrono = "0.4.39"
 ki-protocol-types = { path = "ki-protocol-types" }
 uuid = { version = "1.4.1", features = ["v4", "serde"] }
 url = { version = "2.5.2" }
+figment = { version = "0.10.19", features = ["json", "toml", "yaml"] }
 
 # Add tungstenite for WebSocket support
-tungstenite = { version = "0.21", features = [
-  "rustls-tls-webpki-roots",
-] }
+tungstenite = "0.21"
 libc = "0.2.174"
 crc32fast = "1.4.2"
 scraper = "0.24.0"
 imara-diff = "0.2.0"
 nucleo = "0.5.0"
 notify = "8.2.0"
+schemars.workspace = true
+serde_path_to_error = "0.1.20"
 
 [dev-dependencies]
 serial_test = "~3.2.0"
@@ -131,6 +127,8 @@ quickcheck_macros.workspace = true
 tree-sitter-rust = "0.24.0"
 indoc = "2.0.4"
 is_ci = "1.2.0"
+nvim-treesitter-highlight-queries = { path = "nvim-treesitter-highlight-queries" }
+tempfile.workspace = true
 
 
 [profile.release]

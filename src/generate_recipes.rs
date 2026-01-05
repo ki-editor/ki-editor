@@ -55,7 +55,7 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                                     [
                                         App(TerminalDimensionChanged(crate::app::Dimension {
                                             width,
-                                            height: height as u16,
+                                            height,
                                         })),
                                         App(AddPath(temp_path.clone())),
                                         AppLater(Box::new(move || OpenFile {
@@ -66,15 +66,15 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                                         Editor(SetRectangle(Rectangle {
                                             origin: Position::default(),
                                             width,
-                                            height: (height as u16).saturating_sub(1), // Minus one because of app global status bar,
+                                            height: (height).saturating_sub(1), // Minus one because of app global status bar,
                                         })),
                                         // Editor(ApplySyntaxHighlight),
                                         App(HandleKeyEvent(key!("esc"))),
                                         Editor(SetContent(recipe.content.to_string())),
-                                        Editor(SetLanguage(
-                                            shared::language::from_extension(recipe.file_extension)
+                                        Editor(SetLanguage(Box::new(
+                                            crate::config::from_extension(recipe.file_extension)
                                                 .unwrap(),
-                                        )),
+                                        ))),
                                     ]
                                     .into_iter()
                                     .chain(Some(App(HandleKeyEvents(
@@ -110,7 +110,7 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
                             description: recipe.description.to_string(),
                             steps,
                             terminal_height: height,
-                            terminal_width: width as usize,
+                            terminal_width: width,
                             similar_vim_combos: recipe.similar_vim_combos,
                         })
                     };

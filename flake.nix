@@ -52,7 +52,11 @@
           fd
           cargo-watch
           cargo-machete
+          cargo-nextest
           samply
+
+          # For testing LSP
+          typescript-language-server
         ];
 
         # Platform-aware buildInputs
@@ -143,7 +147,9 @@
                 filter = path: type:
                   (crossCraneLib.filterCargoSources path type)
                   || (builtins.match ".*contrib/emoji-icon-theme.json$" path != null)
-                  || (builtins.match ".*tree_sitter_quickfix/src/.*$" path != null);
+                  || (builtins.match ".*tree_sitter_quickfix/src/.*$" path != null)
+                  || (builtins.match ".*nvim-treesitter-highlight-queries/queries/.*.scm$" path != null)
+                  || (builtins.match ".*src/config_default.json$" path != null);
               };
 
               # Add a preBuild phase to create the VERSION file

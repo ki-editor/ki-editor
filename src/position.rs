@@ -1,6 +1,9 @@
+use schemars::JsonSchema;
+use serde::Serialize;
+
 use crate::{buffer::Buffer, selection::CharIndex};
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Default)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Default, Serialize, JsonSchema)]
 pub(crate) struct Position {
     /// 0-based
     pub(crate) line: usize,
@@ -23,10 +26,10 @@ impl Position {
         }
     }
 
-    pub(crate) fn move_right(&self, by: u16) -> Position {
+    pub(crate) fn move_right(&self, by: usize) -> Position {
         Position {
             line: self.line,
-            column: self.column + by as usize,
+            column: self.column + by,
         }
     }
 

@@ -18,15 +18,13 @@ use crate::{
     syntax_highlight::{HighlightedSpan, HighlightedSpans},
     utils::find_previous,
 };
+use anyhow::Context as _;
 use itertools::Itertools;
 use regex::Regex;
 use ropey::Rope;
-use shared::{
-    canonicalized_path::CanonicalizedPath,
-    language::{self, Language},
-};
+use shared::{canonicalized_path::CanonicalizedPath, language::Language};
+use std::ops::Range;
 use std::time::SystemTime;
-use std::{collections::HashSet, ops::Range};
 use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal2::{traverse, Order};
 
@@ -48,7 +46,6 @@ pub(crate) struct Buffer {
     language: Option<Language>,
     path: Option<CanonicalizedPath>,
     highlighted_spans: HighlightedSpans,
-    marks: Vec<CharIndexRange>,
     diagnostics: Vec<Diagnostic>,
     decorations: Vec<Decoration>,
     selection_set_history: History<SelectionSet>,
@@ -101,7 +98,6 @@ impl Buffer {
             },
             path: None,
             highlighted_spans: HighlightedSpans::default(),
-            marks: Vec::new(),
             decorations: Vec::new(),
             diagnostics: Vec::new(),
             selection_set_history: History::new(),
@@ -163,19 +159,6 @@ impl Buffer {
         decorations.clone_into(&mut self.decorations)
     }
 
-    pub(crate) fn save_marks(&mut self, new_ranges: Vec<CharIndexRange>) {
-        let old_ranges = std::mem::take(&mut self.marks)
-            .into_iter()
-            .collect::<HashSet<_>>();
-        let new_ranges = new_ranges.into_iter().collect::<HashSet<_>>();
-        // We take the symmetric difference between the old ranges and the new ranges
-        // so that user can unmark existing mark
-        self.marks = new_ranges
-            .symmetric_difference(&old_ranges)
-            .cloned()
-            .collect_vec();
-    }
-
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {
         self.path.clone()
     }
@@ -222,7 +205,7 @@ impl Buffer {
     }
 
     pub(crate) fn words(&self) -> Vec<String> {
-        let regex = regex::Regex::new(r"\b\w+").unwrap();
+        let regex = lazy_regex::regex!(r"\b(\w|-)+");
         let str = self.rope.to_string();
         regex
             .find_iter(&str)
@@ -285,6 +268,7 @@ impl Buffer {
         let tree = language
             .map(|language| parser.set_language(&language))
             .and_then(|_| parser.parse(text, None));
+        let rope = Rope::from_str(text);
         // let start_char_index = edit.start;
         // let old_end_char_index = edit.end();
         // let new_end_char_index = edit.start + edit.new.len_chars();
@@ -316,7 +300,7 @@ impl Buffer {
         //     .parse(&self.rope.to_string(), Some(&self.tree))
         //     .unwrap();
 
-        (Rope::from_str(text), tree)
+        (rope, tree)
     }
 
     pub(crate) fn given_range_is_node(&self, range: &CharIndexRange) -> bool {
@@ -354,6 +338,10 @@ impl Buffer {
     pub(crate) fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
         self.flag_as_modified()
+    }
+
+    pub(crate) fn update_path(&mut self, path: CanonicalizedPath) {
+        self.path = Some(path)
     }
 
     pub(crate) fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
@@ -485,7 +473,7 @@ impl Buffer {
         }
     }
 
-    pub(crate) fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node> {
+    pub(crate) fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node<'_>> {
         let byte = self.char_to_byte(char_index).ok()?;
         // Preorder is the main key here,
         // because preorder traversal walks the parent first
@@ -538,7 +526,7 @@ impl Buffer {
     }
 
     #[cfg(test)]
-    pub(crate) fn get_next_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node> {
+    pub(crate) fn get_next_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node<'_>> {
         let byte = self.char_to_byte(char_index).ok()?;
         self.traverse(Order::Post).and_then(|mut iter| {
             iter.find(|&node| {
@@ -548,7 +536,7 @@ impl Buffer {
     }
 
     #[cfg(test)]
-    pub(crate) fn traverse(&self, order: Order) -> Option<impl Iterator<Item = Node>> {
+    pub(crate) fn traverse(&self, order: Order) -> Option<impl Iterator<Item = Node<'_>>> {
         self.tree.as_ref().map(|tree| traverse(tree.walk(), order))
     }
 
@@ -559,7 +547,7 @@ impl Buffer {
         current_selection_set: SelectionSet,
         reparse_tree: bool,
         update_undo_stack: bool,
-        last_visible_line: u16,
+        last_visible_line: usize,
     ) -> Result<(SelectionSet, Dispatches, Vec<ki_protocol_types::DiffEdit>), anyhow::Error> {
         let new_selection_set = edit_transaction
             .non_empty_selections()
@@ -567,7 +555,6 @@ impl Buffer {
             .unwrap_or_else(|| current_selection_set.clone());
         let current_buffer_state = BufferState {
             selection_set: current_selection_set,
-            marks: self.marks.clone(),
         };
 
         let inverted_edit_transaction = edit_transaction.inverse();
@@ -593,7 +580,6 @@ impl Buffer {
 
         let new_buffer_state = BufferState {
             selection_set: new_selection_set.clone(),
-            marks: self.marks.clone(),
         };
 
         if update_undo_stack {
@@ -633,18 +619,16 @@ impl Buffer {
     }
 
     // Add these methods for undo/redo
-    fn apply_edit(&mut self, edit: &Edit, last_visible_line: u16) -> Result<(), anyhow::Error> {
+    fn apply_edit(&mut self, edit: &Edit, last_visible_line: usize) -> Result<(), anyhow::Error> {
         // We have to get the char index range of positional spans before updating the content
         if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
             let last_line_len_bytes = self
-                .get_line_by_line_index(last_visible_line as usize)
+                .get_line_by_line_index(last_visible_line)
                 .map(|slice| slice.len_bytes())
                 .unwrap_or_default();
 
-            let range_end = self
-                .line_to_byte(last_visible_line as usize)
-                .unwrap_or_default()
-                + last_line_len_bytes;
+            let range_end =
+                self.line_to_byte(last_visible_line).unwrap_or_default() + last_line_len_bytes;
             let affected_range = byte_range.start..range_end;
 
             self.highlighted_spans.apply_edit_mut(
@@ -660,14 +644,6 @@ impl Buffer {
         self.flag_as_modified();
 
         // Update all the non-positional spans
-        self.marks.retain_mut(|mark| {
-            if let Some(range) = mark.apply_edit(edit) {
-                *mark = range;
-                true
-            } else {
-                false
-            }
-        });
         self.diagnostics.retain_mut(|diagnostic| {
             if let Some(range) = diagnostic.range.apply_edit(edit) {
                 diagnostic.range = range;
@@ -707,7 +683,8 @@ impl Buffer {
     ) -> anyhow::Result<Buffer> {
         let content = path.read()?;
         let language = if enable_tree_sitter {
-            language::from_path(path).or_else(|| language::from_content_directive(&content))
+            crate::config::from_path(path)
+                .or_else(|| crate::config::from_content_directive(&content))
         } else {
             None
         };
@@ -810,7 +787,7 @@ impl Buffer {
         &mut self,
         current_selection_set: SelectionSet,
         force: bool,
-        last_visible_line: u16,
+        last_visible_line: usize,
     ) -> anyhow::Result<(Dispatches, Option<CanonicalizedPath>)> {
         if force || self.dirty {
             if let Some(formatted_content) = self.get_formatted_content() {
@@ -831,7 +808,7 @@ impl Buffer {
         &mut self,
         new_content: &str,
         current_selection_set: SelectionSet,
-        last_visible_line: u16,
+        last_visible_line: usize,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
         let (_, dispatches, _) = self.apply_edit_transaction(
@@ -883,10 +860,6 @@ impl Buffer {
         Ok(ByteRange::new(start..end))
     }
 
-    pub(crate) fn marks(&self) -> Vec<CharIndexRange> {
-        self.marks.clone()
-    }
-
     /// Has the buffer changed since its last save?
     pub(crate) fn dirty(&self) -> bool {
         self.dirty
@@ -910,8 +883,9 @@ impl Buffer {
         range: &Range<usize>,
     ) -> anyhow::Result<CharIndexRange> {
         Ok((self.byte_to_char(range.start)?
-            ..(self.byte_to_char(range.end.saturating_sub(1))? + 1)
-                .min(CharIndex(self.len_chars())))
+            ..(self.byte_to_char(range.end.saturating_sub(1))?
+                + (if range.end > 0 { 1 } else { 0 }))
+            .min(CharIndex(self.len_chars())))
             .into())
     }
 
@@ -932,75 +906,81 @@ impl Buffer {
     /// Get an `EditTransaction` by getting the line diffs between the content of this buffer and the given `new` string
     fn get_edit_transaction(&self, new: &str) -> anyhow::Result<EditTransaction> {
         let old = self.rope.to_string();
-        let new = new.to_string();
-        let edits = {
-            let diff_from_lines = similar::TextDiff::from_lines(&old, &new);
-            let changes = diff_from_lines.iter_all_changes();
-            let mut old_line_index = 0;
-            let mut edits = vec![];
-            let mut replacement = vec![];
-            let mut current_range_start = None;
-            let mut current_range_end = 0;
-
-            for change in changes {
-                match change.tag() {
-                    similar::ChangeTag::Delete => {
-                        if current_range_start.is_none() {
-                            current_range_start = Some(old_line_index);
-                        }
-                        current_range_end = old_line_index + 1;
-                        old_line_index += 1;
-                    }
-                    similar::ChangeTag::Equal => {
-                        if let Some(start) = current_range_start {
-                            let replacement = std::mem::take(&mut replacement);
-
-                            let range = self.position_range_to_char_index_range(
-                                &(Position::new(start, 0)..Position::new(current_range_end, 0)),
-                            )?;
-                            edits.push(Edit {
-                                range,
-                                old: self.rope.slice(range.as_usize_range()).into(),
-                                new: Rope::from_str(&replacement.join("")),
-                            });
-                            current_range_start = None;
-                        }
-                        old_line_index += 1;
-                    }
-                    similar::ChangeTag::Insert => {
-                        match current_range_start {
-                            Some(_) => {}
-                            None => {
-                                current_range_start = Some(old_line_index);
-                                current_range_end = old_line_index;
-                            }
-                        };
-
-                        let content = change.to_string();
-                        let content = if change.missing_newline() && content.ends_with('\n') {
-                            content.trim_end_matches('\n').to_owned()
-                        } else {
-                            content
-                        };
-                        replacement.push(content);
-                    }
-                }
-            }
-
-            if let Some(start) = current_range_start {
-                let replacement = std::mem::take(&mut replacement);
-
-                let range = self.position_range_to_char_index_range(
-                    &(Position::new(start, 0)..Position::new(current_range_end, 0)),
-                )?;
-                edits.push(Edit {
-                    range,
-                    old: self.rope.slice(range.as_usize_range()).into(),
-                    new: Rope::from_str(&replacement.join("")),
-                });
-            };
-            edits
-        };
+        let diff = similar::TextDiff::from_lines(old.as_str(), new);
+        let edits: Vec<Edit> = diff
+            .ops()
+            .iter()
+            .map(|op| {
+                Ok(match op {
+                    similar::DiffOp::Delete {
+                        old_index,
+                        old_len,
+                        new_index: _,
+                    } => Some(Edit {
+                        range: self
+                            .line_range_to_char_index_range(&(*old_index..old_index + old_len))
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for delete?",
+                            )?,
+                        new: "".into(),
+                        old: diff
+                            .old_slices()
+                            .get(*old_index..old_index + old_len)
+                            .context("similar::TextDiff gave us an invalid line range for delete?")?
+                            .join("")
+                            .into(),
+                    }),
+                    similar::DiffOp::Insert {
+                        old_index,
+                        new_index,
+                        new_len,
+                    } => Some(Edit {
+                        range: self
+                            .line_range_to_char_index_range(&(*old_index..*old_index))
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for insert?",
+                            )?,
+                        new: diff
+                            .new_slices()
+                            .get(*new_index..new_index + new_len)
+                            .context("similar::TextDiff gave us an invalid line range for insert?")?
+                            .join("")
+                            .into(),
+                        old: "".into(),
+                    }),
+                    similar::DiffOp::Replace {
+                        old_index,
+                        old_len,
+                        new_index,
+                        new_len,
+                    } => Some(Edit {
+                        range: self
+                            .line_range_to_char_index_range(&(*old_index..old_index + old_len))
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for replace?",
+                            )?,
+                        new: diff
+                            .new_slices()
+                            .get(*new_index..new_index + new_len)
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for replace?",
+                            )?
+                            .join("")
+                            .into(),
+                        old: diff
+                            .old_slices()
+                            .get(*old_index..old_index + old_len)
+                            .context(
+                                "similar::TextDiff gave us an invalid line range for replace?",
+                            )?
+                            .join("")
+                            .into(),
+                    }),
+                    similar::DiffOp::Equal { .. } => None,
+                })
+            })
+            .filter_map(Result::transpose)
+            .collect::<anyhow::Result<_>>()?;
 
         Ok(EditTransaction::from_action_groups(
             edits
@@ -1017,7 +997,7 @@ impl Buffer {
         &mut self,
         config: LocalSearchConfig,
         current_selection_set: SelectionSet,
-        last_visible_line: u16,
+        last_visible_line: usize,
     ) -> anyhow::Result<(
         bool,
         SelectionSet,
@@ -1152,24 +1132,29 @@ impl Buffer {
 
     pub(crate) fn redo(
         &mut self,
-        last_visible_line: u16,
-    ) -> Result<Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>)>, anyhow::Error> {
+        last_visible_line: usize,
+    ) -> Result<UndoRedoReturn, anyhow::Error> {
         if let Some(history) = self.redo_stack.pop() {
-            let edits = history.unnormalized_edits.clone();
+            let diff_edits = history.unnormalized_edits.clone();
 
             // Apply the edits
-            history
+            let edits = history
                 .edit_transaction
                 .edits()
                 .into_iter()
-                .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
+                .cloned()
+                .collect_vec();
+            edits
+                .clone()
+                .into_iter()
+                .try_fold((), |_, edit| self.apply_edit(&edit, last_visible_line))?;
             self.reparse_tree()?;
 
             let selection_set = history.old_state.selection_set.clone();
             self.undo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((selection_set, edits)))
+            Ok(Some((selection_set, diff_edits, edits)))
         } else {
             Ok(None)
         }
@@ -1177,24 +1162,29 @@ impl Buffer {
 
     pub(crate) fn undo(
         &mut self,
-        last_visible_line: u16,
-    ) -> Result<Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>)>, anyhow::Error> {
+        last_visible_line: usize,
+    ) -> Result<UndoRedoReturn, anyhow::Error> {
         if let Some(history) = self.undo_stack.pop() {
-            let edits = history.unnormalized_edits.clone();
+            let diff_edits = history.unnormalized_edits.clone();
 
             // Apply the edits
-            history
+            let edits = history
                 .edit_transaction
                 .edits()
                 .into_iter()
-                .try_fold((), |_, edit| self.apply_edit(edit, last_visible_line))?;
+                .cloned()
+                .collect_vec();
+            edits
+                .clone()
+                .into_iter()
+                .try_fold((), |_, edit| self.apply_edit(&edit, last_visible_line))?;
             self.reparse_tree()?;
 
             let selection_set = history.old_state.selection_set.clone();
             self.redo_stack.push(history.inverse());
 
             // Return both the selection set and the applied transaction
-            Ok(Some((selection_set, edits)))
+            Ok(Some((selection_set, diff_edits, edits)))
         } else {
             Ok(None)
         }
@@ -1242,7 +1232,7 @@ mod test_buffer {
     #[test]
     fn get_parent_lines_1() {
         let buffer = Buffer::new(
-            shared::language::from_extension("yaml")
+            crate::config::from_extension("yaml")
                 .unwrap()
                 .tree_sitter_language(),
             "
@@ -1274,7 +1264,7 @@ mod test_buffer {
     #[test]
     fn get_parent_lines_2() {
         let buffer = Buffer::new(
-            shared::language::from_extension("rs")
+            crate::config::from_extension("rs")
                 .unwrap()
                 .tree_sitter_language(),
             "
@@ -1315,7 +1305,7 @@ fn f(
         use super::*;
         fn test(input: &str, config: LocalSearchConfig, expected: &str) -> anyhow::Result<()> {
             let mut buffer = Buffer::new(
-                shared::language::from_extension("rs")
+                crate::config::from_extension("rs")
                     .unwrap()
                     .tree_sitter_language(),
                 input,
@@ -1633,7 +1623,6 @@ fn main() {
 #[derive(Clone, PartialEq)]
 pub(crate) struct BufferState {
     pub(crate) selection_set: SelectionSet,
-    pub(crate) marks: Vec<CharIndexRange>,
 }
 
 impl std::fmt::Display for BufferState {
@@ -1670,3 +1659,5 @@ impl EditHistory {
         }
     }
 }
+
+type UndoRedoReturn = Option<(SelectionSet, Vec<ki_protocol_types::DiffEdit>, Vec<Edit>)>;

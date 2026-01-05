@@ -304,14 +304,17 @@ mod test_subword {
                     focus: true,
                 }),
                 Editor(SetContent("".to_string())),
+                Expect(CurrentSelectionMode(SelectionMode::Line)),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
                     crate::selection::SelectionMode::Subword,
                 )),
+                // Expect selection mode not changed because there is zero possible selection
+                Expect(CurrentSelectionMode(SelectionMode::Line)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&[""])),
-                Editor(MoveSelection(Up)),
+                Editor(MoveSelection(Left)),
                 Expect(CurrentSelectedTexts(&[""])),
             ])
         })

@@ -167,6 +167,8 @@ enum class EditorMode(val string: String) {
 	Swap("swap"),
 	@SerialName("replace")
 	Replace("replace"),
+	@SerialName("delete")
+	Delete("delete"),
 }
 
 @Serializable
@@ -257,6 +259,9 @@ sealed class OutputMessage {
 	@Serializable
 	@SerialName("lsp.documentSymbols")
 	object RequestLspDocumentSymbols: OutputMessage()
+	@Serializable
+	@SerialName("lsp.workspaceSymbols")
+	object RequestLspWorkspaceSymbols: OutputMessage()
 	@Serializable
 	@SerialName("editor.syncBufferRequest")
 	data class SyncBufferRequest(val params: OutputMessageSyncBufferRequestInner): OutputMessage()

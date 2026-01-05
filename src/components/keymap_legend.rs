@@ -43,7 +43,7 @@ impl Keymaps {
     fn display(
         &self,
         keyboard_layout_kind: &KeyboardLayoutKind,
-        terminal_width: u16,
+        terminal_width: usize,
         option: &KeymapDisplayOption,
     ) -> String {
         KeymapPrintSection::from_keymaps(
@@ -74,7 +74,7 @@ impl KeymapLegendConfig {
     pub(crate) fn display(
         &self,
         keyboard_layout_kind: &KeyboardLayoutKind,
-        width: u16,
+        width: usize,
         option: &KeymapDisplayOption,
     ) -> String {
         self.keymaps.display(keyboard_layout_kind, width, option)
@@ -273,7 +273,7 @@ impl KeymapLegend {
                 show_alt: true,
                 show_shift: true,
             },
-            keymap_layout_kind: context.keyboard_layout_kind().clone(),
+            keymap_layout_kind: *context.keyboard_layout_kind(),
         }
     }
 
@@ -315,7 +315,6 @@ impl Component for KeymapLegend {
                     self.editor.enter_normal_mode(context)?;
                     Ok(Default::default())
                 }
-                key!("ctrl+c") => Ok(Dispatches::one(Dispatch::CloseCurrentWindow)),
                 key_event => {
                     if let Some(keymap) = self
                         .config
@@ -386,7 +385,7 @@ mod test_keymap_legend {
                 },
             )
             .to_string();
-        let expected = "
+        let expected = r#"
 ╭───────┬───┬─────────────┬───┬──────┬───┬───┬───┬───┬───┬───╮
 │       ┆   ┆             ┆   ┆      ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
@@ -394,8 +393,8 @@ mod test_keymap_legend {
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
 │       ┆   ┆ Caterpillar ┆   ┆ Bomb ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ╰───────┴───┴─────────────┴───┴──────┴───┴───┴───┴───┴───┴───╯
-* Pick Keyboard
-"
+* Pick Keyboard    \ Leader
+"#
         .trim_matches('\n');
         assert_eq!(actual, expected);
 
@@ -411,7 +410,7 @@ mod test_keymap_legend {
             .to_string()
             .trim_matches('\n')
             .to_string();
-        let expected = "
+        let expected = r#"
 ╭───────┬───┬─────────────┬─────┬────────┬───┬───┬───┬───┬───┬───╮
 │       ┆   ┆             ┆     ┆        ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
@@ -421,7 +420,7 @@ mod test_keymap_legend {
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
 │       ┆   ┆ Caterpillar ┆     ┆  Bomb  ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
 ╰───────┴───┴─────────────┴─────┴────────┴───┴───┴───┴───┴───┴───╯
-* Pick Keyboard"
+* Pick Keyboard    \ Leader"#
             .trim_matches('\n');
         assert_eq!(actual, expected);
     }
@@ -450,7 +449,7 @@ mod test_keymap_legend {
                 },
             )
             .to_string();
-        let expected = "
+        let expected = r#"
 ╭───────┬───┬─────────────┬─────┬────────┬───╮
 │       ┆   ┆             ┆     ┆        ┆ ∅ │
 ├╌╌╌╌╌╌╌┼╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌┤
@@ -468,7 +467,7 @@ mod test_keymap_legend {
 ├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌╌╌╌┼╌╌╌┤
 │ ∅ ┆   ┆   ┆   ┆      ┆   │
 ╰───┴───┴───┴───┴──────┴───╯
-* Pick Keyboard"
+* Pick Keyboard    \ Leader"#
             .trim();
         assert_eq!(actual, expected);
     }

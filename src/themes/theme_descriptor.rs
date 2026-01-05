@@ -1,47 +1,56 @@
-use super::{from_zed_theme, vscode_dark, vscode_light, Theme};
-use itertools::Itertools;
+use std::{collections::HashMap, sync::LazyLock};
 
-pub type ThemeFn = fn() -> Theme;
+use super::{from_zed_theme, vscode_dark, vscode_light, Theme};
+use zed_theme::get_zed_themes;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum ThemeDescriptor {
-    ThemeFn(String, ThemeFn),
-    ZedThemeURLMap(&'static str, &'static str),
-}
+pub(crate) struct ThemeDescriptor(String);
 
 impl ThemeDescriptor {
     pub(crate) fn name(&self) -> &str {
-        match self {
-            ThemeDescriptor::ThemeFn(name, _) => name,
-            ThemeDescriptor::ZedThemeURLMap(name, _) => name,
-        }
+        &self.0
     }
 
     pub(crate) fn to_theme(&self) -> Theme {
-        match self {
-            ThemeDescriptor::ThemeFn(_, theme_fn) => theme_fn(),
-            ThemeDescriptor::ZedThemeURLMap(name, url) => {
-                from_zed_theme::from_url(name, url).unwrap_or_else(|_| vscode_light())
-            }
-        }
+        let theme_map = &*THEMES;
+        theme_map
+            .get(&self.0)
+            .expect("Theme descriptor had no matching theme?")
+            .clone()
     }
 }
 
 impl Default for ThemeDescriptor {
     fn default() -> Self {
-        ThemeDescriptor::ThemeFn("VS Code (Light)".to_string(), vscode_light)
+        Self("VS Code (Light)".to_string())
     }
 }
 
-pub(crate) fn all() -> Vec<ThemeDescriptor> {
-    let theme_descriptors: Vec<ThemeDescriptor> = [
-        ThemeDescriptor::ThemeFn("VS Code (Light)".to_string(), vscode_light),
-        ThemeDescriptor::ThemeFn("VS Code (Dark)".to_string(), vscode_dark),
-    ]
-    .into_iter()
-    .chain(from_zed_theme::theme_descriptors())
-    .sorted_by_key(|theme| theme.name().to_owned())
-    .collect();
+static THEMES: LazyLock<HashMap<String, Theme>> = LazyLock::new(|| {
+    let mut themes = HashMap::new();
 
-    theme_descriptors
+    // Non-zed builtin themes
+    themes.insert("VS Code (Light)".to_string(), vscode_light());
+    themes.insert("VS Code (Dark)".to_string(), vscode_dark());
+
+    // Zed builtin themes
+    for (name, theme) in get_zed_themes() {
+        themes.insert(name, from_zed_theme::from_theme_content(theme));
+    }
+
+    themes
+});
+
+pub(crate) fn all() -> Vec<ThemeDescriptor> {
+    THEMES.keys().cloned().map(ThemeDescriptor).collect()
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_all_themes_work() {
+        for theme_descriptor in super::all() {
+            theme_descriptor.to_theme();
+        }
+    }
 }
