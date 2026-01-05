@@ -9,7 +9,7 @@ import {TutorialFallback} from '@site/src/components/TutorialFallback';
 
 ## Intro
 
-The keybindings presented here work in any [Modes](./modes.md).
+The keybindings presented here work in any mode.
 
 ## Keymap
 

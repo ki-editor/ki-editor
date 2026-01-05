@@ -40,7 +40,7 @@ This is most useful when you want to search for the current selection with some 
 
 ### `Raise`
 
-This is one of my favorite actions, it only works for [syntax node](../selection-modes/primary.md#syntax) selection modes.
+This is one of my favorite actions, it only works for [syntax node](selection-modes/primary.md#syntax) selection modes.
 
 This replaces the parent node of the current node, with the current node.
 
@@ -73,7 +73,7 @@ For example:
 
 ### `Change`
 
-This deletes the current selected text, and enter [Insert mode](../../insert-mode/index.md).
+This deletes the current selected text, and enter [Insert mode](../insert-mode.md).
 
 ### `Delete`
 
@@ -83,7 +83,7 @@ This opens a menu with several actions:
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Delete One           | Deletes the current selection and collapses the selection.                                                                                          |
 | Delete `<movement>`  | Delete the current selection and the gap between the current selection and the `<movement>` selection, and then selects the `<movement>` selection. |
-| Enter Delete Submode | See more at [Delete Submode](../../sub-modes/delete-mode.md)                                                                                        |
+| Enter Delete Submode | See more at [Delete Submode](../sub-modes/delete-mode.md)                                                                                           |
 
 <TutorialFallback filename="delete"/>
 
@@ -93,12 +93,20 @@ This opens a menu with several actions:
 
 If you are interested about why Delete works like this, read more at [Evolution of Delete](/ki-editor/blog/evoluation-of-delete).
 
+### `Delete X`
+
+Delete Cut.
+
+This is similar to `Delete`, but the current selection(s) will be copied before deletion is executed.
+
+<TutorialFallback filename="delete-cut"/>
+
 ### `Replace #`
 
 Replace with pattern.
 
 This replaces the current selection using the search pattern and replacement
-pattern specified in the [Text Search Configuration](../search-config.md#replacement).
+pattern specified in the [Text Search Configuration](search-config.md#replacement).
 
 For example:
 
@@ -147,7 +155,7 @@ Transformative actions are nested under here, such as (non-exhaustive):
 
 ## Meta
 
-### [`← Insert`/`Insert →`](../../insert-mode/index.md)
+### [`← Insert`/`Insert →`](../insert-mode.md)
 
 Enter insert mode before/after selection.
 
@@ -170,7 +178,7 @@ File unmarking has two behaviors:
 1. When the current file is the only marked file: File remains unmarked and focused.
 2. When the current file is NOT the only marked file: File is unmarked and focus shifts to the next marked file, similar to closing a tab.
 
-To move between marked files, see [here](../other-movements#-markedmarked-).
+To move between marked files, see [here](other-movements#-markedmarked-).
 
 #### Workflow Overview
 
@@ -198,7 +206,7 @@ Keybinding: `enter`
 
 Upon saving, formatting will be applied if possible.
 
-After formatting, the [Current](../core-movements.md#current) movement will be executed, to reduce disorientation caused by the misplaced selection due to content changes.
+After formatting, the [Current](core-movements.md#current) movement will be executed, to reduce disorientation caused by the misplaced selection due to content changes.
 
 ## Clipboard
 
@@ -242,7 +250,7 @@ Notes:
 
 #### Smart Paste
 
-Smart Paste will be executed when the selection mode is [contiguous](../selection-modes/index.md#contiguity).
+Smart Paste will be executed when the selection mode is [contiguous](selection-modes/index.md#contiguity).
 
 Smart Paste works by analyzing the gap between the current selection and the
 previous/next selection, then insert the gap before/after the pasted text.
@@ -253,7 +261,7 @@ For example, consider the following Javascript code:
 hello(x, y);
 ```
 
-Assuming the current selection mode is [Syntax Node](../selection-modes/primary.md#syntax), and the current selection is `y`, and the
+Assuming the current selection mode is [Syntax Node](selection-modes/primary.md#syntax), and the current selection is `y`, and the
 copied text is `z`, performing a `p` results in the following:
 
 ```js
@@ -282,4 +290,4 @@ Keybinding: `*`
 
 This has a special keybinding that is non-positional so that the keyboard layout can be switched easily.
 
-[^directionality]: Actions can have Directionality which can be changed using [`⇋ Curs`](../../normal-mode/other-movements/#-curs). Directionality means, that the result of that action can be applied in two opposite directions. For example, deleting backward and deleting forward, both are the same action only directionally opposite. To change the direction of the action make sure to first swap the cursor using [`⇋ Curs`](../../normal-mode/other-movements/#-curs) before applying the action.
+[^directionality]: Actions can have Directionality which can be changed using [`⇋ Curs`](../normal-mode/other-movements/#-curs). Directionality means, that the result of that action can be applied in two opposite directions. For example, deleting backward and deleting forward, both are the same action only directionally opposite. To change the direction of the action make sure to first swap the cursor using [`⇋ Curs`](../normal-mode/other-movements/#-curs) before applying the action.

@@ -1118,6 +1118,8 @@ impl<T: Frontend> App<T> {
             Dispatch::ToSuggestiveEditor(dispatch) => {
                 self.handle_dispatch_suggestive_editor(dispatch)?;
             }
+            Dispatch::OpenAndMarkFiles(paths) => self.open_and_mark_files(paths)?,
+            Dispatch::ToggleOrOpenPaths => self.toggle_or_open_paths()?,
         }
         Ok(())
     }
@@ -3310,6 +3312,26 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         }
         Ok(())
     }
+
+    fn open_and_mark_files(&mut self, paths: NonEmpty<CanonicalizedPath>) -> anyhow::Result<()> {
+        self.open_file(paths.first(), BufferOwner::User, true, true)?;
+        self.context.mark_files(paths);
+        Ok(())
+    }
+
+    fn toggle_or_open_paths(&mut self) -> anyhow::Result<()> {
+        let dispatches = {
+            self.current_component()
+                .borrow_mut()
+                .as_any_mut()
+                .downcast_mut::<FileExplorer>()
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Unable to downcast current component to `FileExplorer`")
+                })?
+                .toggle_or_open_paths(&self.context)?
+        };
+        self.handle_dispatches(dispatches)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -3586,6 +3608,8 @@ pub(crate) enum Dispatch {
     },
     ToSuggestiveEditor(DispatchSuggestiveEditor),
     RequestCompletionDebounced,
+    OpenAndMarkFiles(NonEmpty<CanonicalizedPath>),
+    ToggleOrOpenPaths,
 }
 
 /// Used to send notify host app about changes

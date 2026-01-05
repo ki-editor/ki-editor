@@ -229,6 +229,12 @@ impl Context {
             self.marked_files.insert(destination);
         }
     }
+
+    pub(crate) fn mark_files(&mut self, paths: nonempty::NonEmpty<CanonicalizedPath>) {
+        for path in paths {
+            self.mark_file(path);
+        }
+    }
 }
 
 impl Context {

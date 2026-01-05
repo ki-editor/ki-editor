@@ -1,10 +1,14 @@
+---
+sidebar_position: 11
+---
+
 import { AppConfigSchemaViewerFallback } from "./SchemaViewerFallback.tsx"
 import { ScriptInputSchemaViewerFallback } from "./SchemaViewerFallback.tsx"
 import { ScriptOutputSchemaViewerFallback } from "./SchemaViewerFallback.tsx"
 
-# Configurations
+# Configuration
 
-Ki supports two levels of configurations:
+Ki supports two levels of configuration:
 
 1. **Global**:  
    a. Windows: `%LOCALAPPDATA%\ki\config.(json|yaml|toml)`  
@@ -60,7 +64,7 @@ Scripts are resolved in this order:
 1. Workspace: `.ki/scripts/<script-name>`
 2. Global: `~/.ki/scripts/<script-name>`
 
-### How Scripts Work?
+### How do Scripts Work?
 
 Scripts communicate with Ki through stringified JSON on STDIN/STDOUT:
 
