@@ -132,4 +132,5 @@ tempfile.workspace = true
 
 
 [profile.release]
+lto = true
 debug = false # Set this to true when using `sudo cargo flamegraph`
