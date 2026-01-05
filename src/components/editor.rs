@@ -4453,11 +4453,13 @@ impl Editor {
             .selections()
             .into_iter()
             .map(|selection| -> anyhow::Result<_> {
-                let position_range = self
-                    .buffer()
-                    .char_index_range_to_position_range(selection.extended_range())?;
+                let range = selection.extended_range();
+                let line_start = self.buffer().char_to_line(range.start)?;
 
-                Ok((position_range.start.line..position_range.end.line + 1).collect_vec())
+                // We need to minus 1 because range end is exclusive (not inclusive)
+                let line_end = self.buffer().char_to_line(range.end - 1)?;
+
+                Ok((line_start..=line_end).collect_vec())
             })
             .collect::<anyhow::Result<Vec<_>>>()?
             .into_iter()
