@@ -227,7 +227,7 @@ impl Component for Editor {
             MoveSelectionWithPriorChange(movement, prior_change) => {
                 return self.handle_movement_with_prior_change(context, movement, prior_change)
             }
-            Copy => return self.copy(),
+            Copy => return Ok(self.copy()),
             ReplaceWithCopiedText { cut } => return self.replace_with_copied_text(context, cut, 0),
             SelectAll => return self.select_all(context),
             SetContent(content) => self.set_content(&content, context)?,
@@ -264,7 +264,8 @@ impl Component for Editor {
             MoveToLineEnd => return self.move_to_line_end(),
             SelectLine(movement) => return self.select_line(movement, context),
             Redo => return self.redo(context),
-            DeleteOne => return self.delete_one(context),
+            DeleteOne => return self.delete_one(context, false),
+            DeleteCutOne => return self.delete_one(context, true),
             Change => return self.change(context),
             ChangeCut => return self.change_cut(context),
             #[cfg(test)]
@@ -399,7 +400,12 @@ impl Component for Editor {
             } => self.handle_path_renamed(source, destination),
             CopyAbsolutePath => return self.copy_current_file_absolute_path(),
             CopyRelativePath => return self.copy_current_file_relative_path(context),
-            DeleteWithMovement(movement) => return self.delete_with_movement(context, movement),
+            DeleteWithMovement(movement) => {
+                return self.delete_with_movement(context, movement, false)
+            }
+            DeleteCutWithMovement(movement) => {
+                return self.delete_with_movement(context, movement, true)
+            }
             EnterDeleteMode => self.mode = Mode::Delete,
             AlignSelections(direction) => return self.align_selections(direction, context),
             JoinSelection => return self.join_selection(context),
@@ -1085,9 +1091,9 @@ impl Editor {
         &mut self,
         context: &Context,
         movement: Movement,
+        cut: bool,
     ) -> anyhow::Result<Dispatches> {
-        // to copy deleted item to clipboard copy_dispatch should be self.copy()?
-        let copy_dispatches: Dispatches = Default::default();
+        let copy_dispatches: Dispatches = if cut { self.copy() } else { Default::default() };
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -1257,8 +1263,8 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    pub(crate) fn copy(&mut self) -> anyhow::Result<Dispatches> {
-        Ok(Dispatches::one(Dispatch::SetClipboardContent {
+    pub(crate) fn copy(&mut self) -> Dispatches {
+        Dispatches::one(Dispatch::SetClipboardContent {
             copied_texts: CopiedTexts::new(self.selection_set.map(|selection| {
                 self.buffer()
                     .slice(&selection.extended_range())
@@ -1266,7 +1272,7 @@ impl Editor {
                     .map(|s| s.to_string())
                     .unwrap_or_default()
             })),
-        }))
+        })
     }
 
     fn replace_current_selection_with<F>(
@@ -1446,11 +1452,7 @@ impl Editor {
         cut: bool,
         history_offset: isize,
     ) -> anyhow::Result<Dispatches> {
-        let dispatches = if cut {
-            self.copy()?
-        } else {
-            Default::default()
-        };
+        let dispatches = if cut { self.copy() } else { Default::default() };
 
         let Some(copied_texts) = context.get_clipboard_content(history_offset) else {
             return Ok(Default::default());
@@ -1659,7 +1661,12 @@ impl Editor {
     }
 
     // This is similar to Ki's Change, except it enters normal mode
-    pub(crate) fn delete_one(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+    pub(crate) fn delete_one(
+        &mut self,
+        context: &Context,
+        cut: bool,
+    ) -> anyhow::Result<Dispatches> {
+        let copy_dispatches: Dispatches = if cut { self.copy() } else { Default::default() };
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -1699,7 +1706,7 @@ impl Editor {
 
         let _ = self.enter_normal_mode(context);
 
-        self.apply_edit_transaction(edit_transaction, context)
+        Ok(copy_dispatches.chain(self.apply_edit_transaction(edit_transaction, context)?))
     }
 
     /// Similar to Change in Vim, but does not copy the current selection
@@ -1732,7 +1739,7 @@ impl Editor {
     }
 
     pub(crate) fn change_cut(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
-        Ok(self.copy()?.chain(self.change(context)?))
+        Ok(self.copy().chain(self.change(context)?))
     }
 
     pub(crate) fn insert(&mut self, s: &str, context: &Context) -> anyhow::Result<Dispatches> {
@@ -1891,7 +1898,7 @@ impl Editor {
                     context,
                 )
                 .map(|_| Default::default()),
-            Mode::Delete => self.delete_with_movement(context, movement),
+            Mode::Delete => self.delete_with_movement(context, movement, false),
             Mode::FindOneChar(_) | Mode::Insert => Ok(Default::default()),
         }
     }
@@ -4518,6 +4525,7 @@ pub(crate) enum DispatchEditor {
     EnableSelectionExtension,
     DisableSelectionExtension,
     DeleteOne,
+    DeleteCutOne,
     Change,
     ChangeCut,
     EnterInsertMode(Direction),
@@ -4623,6 +4631,7 @@ pub(crate) enum DispatchEditor {
     CopyAbsolutePath,
     CopyRelativePath,
     DeleteWithMovement(Movement),
+    DeleteCutWithMovement(Movement),
     EnterDeleteMode,
     AlignSelections(Direction),
     JoinSelection,

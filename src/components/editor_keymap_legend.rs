@@ -109,6 +109,13 @@ impl Editor {
         }
     }
 
+    fn delete_cut_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Delete Cut".to_string(),
+            keymaps: delete_cut_keymaps(context),
+        }
+    }
+
     pub(crate) fn keymap_other_movements(&self, context: &Context) -> Vec<Keymap> {
         [
             Keymap::new_extended(
@@ -400,6 +407,11 @@ impl Editor {
                 "Keyboard".to_string(),
                 Dispatch::OpenKeyboardLayoutPrompt,
             ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::DeltX),
+                "Delete X".to_string(),
+                Dispatch::ShowKeymapLegend(self.delete_cut_keymap_legend_config(context)),
+            ),
         ]
         .into_iter()
         .chain(self.keymap_actions_overridable(normal_mode_override, none_if_no_override, context))
@@ -423,7 +435,7 @@ impl Editor {
             .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Delte),
-                Direction::End.format_action("Delete"),
+                "Delete".to_string(),
                 Dispatch::ShowKeymapLegend(self.delete_keymap_legend_config(context)),
             )
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
@@ -1664,6 +1676,39 @@ pub(crate) fn delete_keymaps(context: &Context) -> Keymaps {
                 context.keyboard_layout_kind().get_key(&Meaning::Extnd),
                 "Enter Delete Submode".to_string(),
                 Dispatch::ToEditor(EnterDeleteMode),
+            ),
+        ]
+        .as_ref(),
+    )
+}
+
+pub(crate) fn delete_cut_keymaps(context: &Context) -> Keymaps {
+    Keymaps::new(
+        [
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Left_),
+                "Left".to_string(),
+                Dispatch::ToEditor(DeleteCutWithMovement(Movement::Left)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Right),
+                "Right".to_string(),
+                Dispatch::ToEditor(DeleteCutWithMovement(Right)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Next_),
+                "Next".to_string(),
+                Dispatch::ToEditor(DeleteCutWithMovement(Movement::Next)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                "Previous".to_string(),
+                Dispatch::ToEditor(DeleteCutWithMovement(Movement::Previous)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::DeltX),
+                "Delete Cut One".to_string(),
+                Dispatch::ToEditor(DeleteCutOne),
             ),
         ]
         .as_ref(),
