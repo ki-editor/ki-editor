@@ -21,7 +21,7 @@ jobs:
       - uses: actions/download-artifact@v7
       - name: Publish release
         run: |
-          gh release delete nightly --yes | true # Don't fail if the release doesn't exist
+          gh release delete nightly --cleanup-tag --yes | true # Don't fail if the release doesn't exist
           gh release create nightly --prerelease --title 'Nightly Release' \
             ki-linux-x64/ki-linux-x64 \
             ki-linux-arm64/ki-linux-arm64 \
