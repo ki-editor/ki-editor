@@ -172,7 +172,7 @@ mod test_scripting {
                 // This will execute the script from .ki/scripts/example_show_info.py
                 App(HandleKeyEvents(keys!("backslash q").to_vec())),
                 Expect(GlobalInfo(
-                    "The current selected texts are [\"pub(crate) struct Foo {\"]",
+                    "The current selected texts are [\"pub(crate) struct Foo {\"]".to_string(),
                 )),
             ])
         })

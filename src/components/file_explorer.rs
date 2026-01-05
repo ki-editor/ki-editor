@@ -713,4 +713,36 @@ mod test_file_explorer {
             ])
         })
     }
+
+    #[test]
+    fn revealing_a_deleted_file() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Shell("rm", [s.main_rs().display_absolute()].to_vec()),
+                App(RevealInExplorer(s.main_rs())),
+                // Although main.rs is deleted, expects the File Explorer
+                // still renders properly
+                Expect(CurrentComponentContent(
+                    " - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📁  src/ :
+",
+                )),
+                // Expect an error is shown in the global info
+                Expect(GlobalInfo(format!(
+                    r#"Unable to reveal 'src/main.rs' due to the following error:
+
+Cannot canonicalize path: "/{}". Error: Os {{ code: 2, kind: NotFound, message: "No such file or directory" }}"#,
+                    s.main_rs().display_absolute()
+                ))),
+            ])
+        })
+    }
 }
