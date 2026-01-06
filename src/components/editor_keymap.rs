@@ -18,7 +18,7 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        _____, SWord, Mark_, MultC, Swap_, /****/ First, Prev_, Up___, Next_, Last_,
+        Char_, SWord, Mark_, MultC, Swap_, /****/ First, Prev_, Up___, Next_, Last_,
     ],
     [
         Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
@@ -30,7 +30,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        _____, Char_, _____, _____, Raise, /****/ AgSlL, RplcP, Join_, RplcN, AgSlR,
+        _____, _____, _____, _____, Raise, /****/ AgSlL, RplcP, Join_, RplcN, AgSlR,
     ],
     [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
