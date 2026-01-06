@@ -44,10 +44,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Build
-        run: cargo build --release --locked
+        run: cargo build --profile release-lto --locked
 
       - name: Rename
-        run: ${{ matrix.mv }} target/release/ki${{ matrix.extension }} ki-${{ matrix.code }}${{ matrix.extension }}
+        run: ${{ matrix.mv }} target/release-lto/ki${{ matrix.extension }} ki-${{ matrix.code }}${{ matrix.extension }}
 
       - name: Upload
         uses: actions/upload-artifact@v6
@@ -81,10 +81,10 @@ jobs:
           rustup target add ${{ matrix.rustup_target }}
         
       - name: Build
-        run: cargo build --release --locked --target ${{ matrix.rustup_target }}
+        run: cargo build --profile release-lto --locked --target ${{ matrix.rustup_target }}
 
       - name: Rename
-        run: mv target/${{ matrix.rustup_target }}/release/ki ki-${{ matrix.code }}
+        run: mv target/${{ matrix.rustup_target }}/release-lto/ki ki-${{ matrix.code }}
 
       - name: Upload
         uses: actions/upload-artifact@v6
