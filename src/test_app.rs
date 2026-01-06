@@ -176,7 +176,7 @@ pub(crate) enum ExpectKind {
     ComponentCount(usize),
     CurrentComponentPath(Option<CanonicalizedPath>),
     OpenedFilesCount(usize),
-    GlobalInfo(&'static str),
+    GlobalInfo(String),
     ComponentsOrder(Vec<ComponentKind>),
     CurrentComponentTitle(String),
     CurrentSelectionMode(SelectionMode),
@@ -509,7 +509,7 @@ impl ExpectKind {
                 contextualize(expected, &app.current_component().borrow().path())
             }
             OpenedFilesCount(expected) => contextualize(expected, &app.opened_files_count()),
-            GlobalInfo(expected) => contextualize(*expected, &app.global_info().unwrap()),
+            GlobalInfo(expected) => contextualize(expected, &app.global_info().unwrap()),
             ComponentsOrder(expected) => contextualize(expected, &app.components_order()),
             CurrentComponentTitle(expected) => {
                 // Provide a minimal height and width
@@ -2088,7 +2088,7 @@ fn main() {
                 ),
             )),
             App(SetGlobalMode(Some(GlobalMode::QuickfixListItem))),
-            Expect(ExpectKind::GlobalInfo("This is fine")),
+            Expect(ExpectKind::GlobalInfo("This is fine".to_string())),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
@@ -3810,7 +3810,7 @@ fn unable_to_close_marked_files_that_became_a_directory() -> Result<(), anyhow::
             App(CycleMarkedFile(Direction::End)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Expect(MarkedFiles([s.main_rs()].to_vec())),
-            Expect(GlobalInfo("The file mark \"foo\" is removed from the list as it cannot be opened due to the following error:\n\nThe path \"foo\" is not a file.")),
+            Expect(GlobalInfo("The file mark \"foo\" is removed from the list as it cannot be opened due to the following error:\n\nThe path \"foo\" is not a file.".to_string())),
         ])
     })
 }
