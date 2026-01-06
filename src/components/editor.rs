@@ -513,15 +513,6 @@ pub(crate) struct RegexHighlightRuleCaptureStyle {
     pub(crate) source: Source,
 }
 
-impl RegexHighlightRuleCaptureStyle {
-    pub(crate) fn new(capture_name: &'static str, source: Source) -> Self {
-        Self {
-            capture_name,
-            source,
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Direction {
     /// Also means Backward or Previous

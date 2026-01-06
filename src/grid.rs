@@ -693,9 +693,6 @@ pub(crate) enum StyleKey {
     HunkOldEmphasized,
     HunkNew,
     HunkNewEmphasized,
-    KeymapHint,
-    KeymapArrow,
-    KeymapKey,
     UiFuzzyMatchedChar,
     ParentLine,
     UiPrimarySelectionSecondaryCursor,
@@ -1187,14 +1184,14 @@ mod test_cell {
                     style: CellLineStyle::Underline,
                 })),
             is_cursor: true,
-            source: Some(StyleKey::KeymapHint),
+            source: Some(StyleKey::UiMark),
             is_protected_range_start: true,
         });
         assert_eq!(cell.symbol, 'b');
         assert_eq!(cell.foreground_color, hex!("#dddddd"));
         assert_eq!(cell.background_color, hex!("#eeeeee"));
         assert!(cell.is_cursor);
-        assert_eq!(cell.source, Some(StyleKey::KeymapHint));
+        assert_eq!(cell.source, Some(StyleKey::UiMark));
         assert_eq!(
             cell.line,
             Some(CellLine {

@@ -1,25 +1,20 @@
 use event::{parse_key_event, KeyEvent};
-use regex::Regex;
 
 use itertools::Itertools;
 use my_proc_macros::key;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    components::{
-        editor::RegexHighlightRuleCaptureStyle, editor_keymap_printer::KeymapDisplayOption,
-    },
+    components::editor_keymap_printer::KeymapDisplayOption,
     context::Context,
-    grid::StyleKey,
     rectangle::Rectangle,
 };
 
 use super::{
     component::Component,
-    editor::{Direction, Editor, Mode, RegexHighlightRule},
+    editor::{Direction, Editor, Mode},
     editor_keymap::KeyboardLayoutKind,
     editor_keymap_printer::KeymapPrintSection,
-    render_editor::Source,
 };
 
 pub(crate) struct KeymapLegend {
@@ -34,8 +29,6 @@ pub(crate) struct KeymapLegendConfig {
     pub(crate) title: String,
     pub(crate) keymaps: Keymaps,
 }
-
-const BETWEEN_KEY_AND_DESCRIPTION: &str = " → ";
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymaps(Vec<Keymap>);
@@ -97,68 +90,6 @@ impl KeymapLegendConfig {
             }
         }
         keymaps.clone()
-    }
-
-    fn get_regex_highlight_rules(&self) -> Vec<RegexHighlightRule> {
-        self.keymaps()
-            .0
-            .into_iter()
-            .flat_map(|keymap| {
-                let keymap_key = RegexHighlightRule {
-                    regex: Regex::new(&format!(
-                        "(?<key>{})(?<arrow>{})({})",
-                        regex::escape(keymap.key),
-                        BETWEEN_KEY_AND_DESCRIPTION,
-                        regex::escape(&keymap.description),
-                    ))
-                    .unwrap(),
-                    capture_styles: vec![
-                        RegexHighlightRuleCaptureStyle::new(
-                            "key",
-                            Source::StyleKey(StyleKey::KeymapKey),
-                        ),
-                        RegexHighlightRuleCaptureStyle::new(
-                            "arrow",
-                            Source::StyleKey(StyleKey::KeymapArrow),
-                        ),
-                    ],
-                };
-                let keymap_hint = (|| {
-                    let index = keymap
-                        .description
-                        .to_lowercase()
-                        .find(&keymap.key.to_lowercase())?;
-                    let range = index..index + 1;
-                    let marked_description = {
-                        let mut description = keymap.description.clone();
-                        description.replace_range(
-                            range.clone(),
-                            &format!("___OPEN___{}___CLOSE___", keymap.description.get(range)?),
-                        );
-                        regex::escape(&description)
-                            .replace("___OPEN___", "(?<hint>")
-                            .replace("___CLOSE___", ")")
-                    };
-                    Some(RegexHighlightRule {
-                        regex: regex::Regex::new(
-                            &(format!(
-                                "{}{}{}",
-                                regex::escape(keymap.key),
-                                BETWEEN_KEY_AND_DESCRIPTION,
-                                marked_description
-                            )),
-                        )
-                        .unwrap(),
-                        capture_styles: vec![RegexHighlightRuleCaptureStyle::new(
-                            "hint",
-                            Source::StyleKey(StyleKey::KeymapHint),
-                        )],
-                    })
-                })();
-                vec![Some(keymap_key), keymap_hint]
-            })
-            .flatten()
-            .collect_vec()
     }
 }
 
@@ -265,7 +196,6 @@ impl KeymapLegend {
         let _ = editor
             .enter_insert_mode(Direction::End, context)
             .unwrap_or_default();
-        editor.set_regex_highlight_rules(config.get_regex_highlight_rules());
         KeymapLegend {
             editor,
             config,
@@ -527,38 +457,5 @@ mod test_keymap_legend {
                 }
             ])
         )
-    }
-
-    #[test]
-    fn test_regex_keymap_hint() {
-        let keymaps = Keymaps(
-            [
-                Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
-                Keymap::new("b", "Cob".to_string(), Dispatch::Null),
-                Keymap::new("f", "Find (Local)".to_string(), Dispatch::Null),
-                Keymap::new("g", "Find (Global)".to_string(), Dispatch::Null),
-            ]
-            .to_vec(),
-        );
-        let regexes = KeymapLegendConfig {
-            title: "".to_string(),
-            keymaps,
-        }
-        .get_regex_highlight_rules()
-        .into_iter()
-        .map(|rule| rule.regex.as_str().to_string())
-        .collect_vec();
-
-        let expected = [
-            "(?<key>a)(?<arrow> → )(Aloha)",
-            "a → (?<hint>A)loha",
-            "(?<key>b)(?<arrow> → )(Cob)",
-            "b → Co(?<hint>b)",
-            "(?<key>f)(?<arrow> → )(Find \\(Local\\))",
-            "f → (?<hint>F)ind \\(Local\\)",
-            "(?<key>g)(?<arrow> → )(Find \\(Global\\))",
-            "g → Find \\((?<hint>G)lobal\\)",
-        ];
-        assert_eq!(regexes, expected)
     }
 }

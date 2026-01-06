@@ -122,9 +122,6 @@ impl Theme {
                 .to_highlight_name()
                 .and_then(|name| self.syntax.get_style(&name))
                 .unwrap_or_default(),
-            StyleKey::KeymapHint => self.ui.keymap_hint,
-            StyleKey::KeymapArrow => self.ui.keymap_arrow,
-            StyleKey::KeymapKey => self.ui.keymap_key,
             StyleKey::UiFuzzyMatchedChar => self.ui.fuzzy_matched_char,
             StyleKey::ParentLine => Style::new().background_color(self.ui.parent_lines_background),
             StyleKey::UiPrimarySelectionSecondaryCursor => {
@@ -204,9 +201,6 @@ pub(crate) struct UiStyles {
     pub(crate) line_number: Style,
     pub(crate) border: Style,
     pub(crate) mark: Style,
-    pub(crate) keymap_key: Style,
-    pub(crate) keymap_arrow: Style,
-    pub(crate) keymap_hint: Style,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
