@@ -80,6 +80,21 @@ impl FileExplorer {
         path: &CanonicalizedPath,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
+        if !context.current_working_directory().is_parent_of(path) {
+            // Use the nearest common ancestor if possible
+            let new_root_dir = CanonicalizedPath::nearest_common_ancestor(
+                context.current_working_directory(),
+                path,
+            )
+            .unwrap_or_else(|| {
+                // Otherwise just use the parent of the path,
+                // and worse case scenario we will just use the path itself.
+                path.parent().ok().flatten().unwrap_or_else(|| path.clone())
+            });
+            let tree = std::mem::take(&mut self.tree);
+            self.tree = tree.refresh(&new_root_dir)?;
+        }
+
         let tree = std::mem::take(&mut self.tree);
         self.tree = tree.reveal(path)?;
         self.refresh_editor(context)?;
@@ -742,6 +757,41 @@ mod test_file_explorer {
 Cannot canonicalize path: "/{}". Error: Os {{ code: 2, kind: NotFound, message: "No such file or directory" }}"#,
                     s.main_rs().display_absolute()
                 ))),
+            ])
+        })
+    }
+
+    #[test]
+    /// Meaning of Excwd:
+    /// - ex = Outside of
+    /// - cwd = Current working directory
+    ///
+    /// "Outside of Current working directory"
+    fn revealing_a_excwd_path() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                // Change cwd to ./src
+                App(ChangeWorkingDirectory(
+                    s.new_path("src").try_into().unwrap(),
+                )),
+                // Reveal `src/main.rs`
+                App(RevealInExplorer(s.main_rs())),
+                // Expect the root of the file explorer is `src` now
+                Expect(CurrentComponentContent(
+                    " - 🦀  foo.rs
+ - 📘  hello.ts
+ - 🦀  main.rs",
+                )),
+                // Reveal a file which is outside of ./src
+                App(RevealInExplorer(s.gitignore())),
+                Expect(CurrentComponentContent(
+                    " - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📁  src/ :",
+                )),
+                Expect(CurrentSelectedTexts(&[" - 🙈  .gitignore\n"])),
             ])
         })
     }

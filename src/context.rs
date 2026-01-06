@@ -235,6 +235,11 @@ impl Context {
             self.mark_file(path);
         }
     }
+
+    #[cfg(test)]
+    pub(crate) fn change_working_directory(&mut self, path: CanonicalizedPath) {
+        self.current_working_directory = path
+    }
 }
 
 impl Context {
