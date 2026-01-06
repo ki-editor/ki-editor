@@ -16,6 +16,7 @@ jobs:
       - uses: actions/checkout@v6
       - name: Update query files
         run: |
+          cd nvim-treesitter-highlight-queries
           git ls-remote https://github.com/nvim-treesitter/nvim-treesitter main | awk '{print $1}' | xargs python update-queries.py
 
       - name: Configure git user
