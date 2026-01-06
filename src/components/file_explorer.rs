@@ -80,11 +80,11 @@ impl FileExplorer {
         path: &CanonicalizedPath,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
-        if !context.current_working_directory().is_parent_of(&path) {
+        if !context.current_working_directory().is_parent_of(path) {
             // Use the nearest common ancestor if possible
             let new_root_dir = CanonicalizedPath::nearest_common_ancestor(
                 context.current_working_directory(),
-                &path,
+                path,
             )
             .unwrap_or_else(|| {
                 // Otherwise just use the parent of the path,
