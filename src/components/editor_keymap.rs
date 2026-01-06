@@ -18,13 +18,13 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
 
 pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        _____, SWord, _____, MultC, Swap_, /****/ First, Prev_, Up___, Next_, Last_,
+        _____, SWord, Mark_, MultC, Swap_, /****/ First, Prev_, Up___, Next_, Last_,
     ],
     [
         Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
     ],
     [
-        Mark_, Rplc_, Copy_, Delte, Paste, /****/ LSrch, Jump_, Open_, Undo_, XAchr,
+        Undo_, Rplc_, Copy_, Delte, Paste, /****/ LSrch, Jump_, Open_, _____, XAchr,
     ],
 ];
 
@@ -45,13 +45,13 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// Meta also means Alt (Windows) or Option (Mac).
 pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
     [
-        KilLP, _____, LineU, _____, KilLN, /****/ NBack, _____, ScrlU, _____, NForw,
+        KilLP, _____, MarkF, _____, KilLN, /****/ NBack, _____, ScrlU, _____, NForw,
     ],
     [
         _____, LineP, LineD, LineN, OpenM, /****/ DWrdP, MrkFP, ScrlD, MrkFN, SView,
     ],
     [
-        MarkF, _____, _____, WClse, _____, /****/ _____, _____, _____, Undo_, WSwth,
+        Undo_, _____, LineU, WClse, _____, /****/ _____, _____, _____, _____, WSwth,
     ],
 ];
 
@@ -60,13 +60,13 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
 /// are both located on the right-side.
 pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
     [
-        Srch_, _____, SchCS, RSrch, Qkfix, /****/ OneCh, _____, _____, _____, _____,
+        Srch_, SchCS, Mark_, RSrch, Qkfix, /****/ OneCh, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        Mark_, LDefn, LType, LRfrE, LImpl, /****/ LRept, _____, _____, _____, _____,
+        _____, LDefn, LType, LRfrE, LImpl, /****/ LRept, _____, _____, _____, _____,
     ],
 ];
 pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
@@ -84,13 +84,13 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
 /// This keymap should be almost identical with that of Find Local
 pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
     [
-        Srch_, _____, SchCS, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
+        Srch_, SchCS, Mark_, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
     ],
     [
         DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        Mark_, LDefn, LType, LRfrE, LImpl, /****/ GRept, _____, _____, _____, _____,
+        _____, LDefn, LType, LRfrE, LImpl, /****/ GRept, _____, _____, _____, _____,
     ],
 ];
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
