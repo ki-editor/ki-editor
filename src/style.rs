@@ -79,11 +79,4 @@ impl Style {
             style: CellLineStyle::Undercurl,
         }))
     }
-
-    pub(crate) const fn bold(self) -> Style {
-        Style {
-            is_bold: true,
-            ..self
-        }
-    }
 }
