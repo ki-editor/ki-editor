@@ -36,7 +36,7 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
     ],
     [
-        _____, PRplc, RplcX, DeltX, Pst0G, /****/ GSrch, ToIdx, _____, Redo_, SSEnd,
+        Redo_, PRplc, RplcX, DeltX, Pst0G, /****/ GSrch, ToIdx, _____, _____, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -71,7 +71,7 @@ pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
 ];
 pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        SchWC, _____, SchCC, _____, _____, /****/ NtrlN, _____, _____, _____, _____,
+        SchWC, SchCC, _____, _____, _____, /****/ NtrlN, _____, _____, _____, _____,
     ],
     [
         _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
@@ -96,7 +96,7 @@ pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
 pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
 pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
     [
-        SchWC, _____, SchCC, _____, _____, /****/ _____, _____, _____, _____, _____,
+        SchWC, SchCC, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
