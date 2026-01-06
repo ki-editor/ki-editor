@@ -2227,7 +2227,7 @@ hello_world
             content: "camelCase".trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("w v l z >"),
+            events: keys!("w v l z Z"),
             expectations: Box::new([CurrentComponentContent("Case")]),
             terminal_height: None,
             similar_vim_combos: &["u", "ctrl+r"],
