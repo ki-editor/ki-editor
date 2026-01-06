@@ -1,0 +1,36 @@
+name: Update Queries
+on:
+  workflow_dispatch: # So we can run it manually
+  schedule:
+    - cron: '0 0 1 * *' # Monthly on the first at midnight UTC
+    
+jobs:
+  update-queries:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Update query files
+        run: |
+          git ls-remote https://github.com/nvim-treesitter/nvim-treesitter main | awk '{print $1}' | xargs python update-queries.py
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit & Push
+        run: |
+          git checkout -b github-actions-automated-update-queries
+          git add -A
+          git commit -m "chore(ts_queries): update highlight queries"
+          git push --force origin github-actions-automated-update-queries # Update branch in case it exists
+
+      - name: Create PR
+        run: gh pr create --fill # Generate PR title & body from commit
+       
+      
