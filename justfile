@@ -12,7 +12,7 @@ build-all: tree-sitter-quickfix build vscode-build
     
 install:
     rm -r ~/.cache/ki/zed-themes || echo "ok" 
-    cargo install --locked --path .
+    cargo install --locked --path ki-bin
 
 fmt-check:
     @echo "Checking formating"
