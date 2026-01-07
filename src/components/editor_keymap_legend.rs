@@ -786,25 +786,16 @@ impl Editor {
         none_if_no_override: bool,
         context: &Context,
     ) -> Vec<Keymap> {
-        [
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::MultC),
-                "Multi Curs".to_string(),
-                "Enter Multi-cursor mode".to_string(),
-                Dispatch::ShowKeymapLegend(self.multicursor_mode_keymap_legend_config(context)),
-            )
-            .override_keymap(
-                normal_mode_override.multicursor.clone().as_ref(),
-                none_if_no_override,
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Extnd),
-                "Extend".to_string(),
-                "Enter Extend Mode".to_string(),
-                Dispatch::ToEditor(DispatchEditor::ShowKeymapLegendExtend),
-            )
-            .override_keymap(normal_mode_override.v.as_ref(), none_if_no_override),
-        ]
+        [Keymap::new_extended(
+            context.keyboard_layout_kind().get_key(&Meaning::MultC),
+            "Multi Curs".to_string(),
+            "Enter Multi-cursor mode".to_string(),
+            Dispatch::ShowKeymapLegend(self.multicursor_mode_keymap_legend_config(context)),
+        )
+        .override_keymap(
+            normal_mode_override.multicursor.clone().as_ref(),
+            none_if_no_override,
+        )]
         .into_iter()
         .flatten()
         .collect_vec()
@@ -1724,7 +1715,6 @@ pub(crate) struct NormalModeOverride {
     pub(crate) open: Option<KeymapOverride>,
     pub(crate) paste: Option<KeymapOverride>,
     pub(crate) replace: Option<KeymapOverride>,
-    pub(crate) v: Option<KeymapOverride>,
     pub(crate) multicursor: Option<KeymapOverride>,
 }
 
@@ -1881,10 +1871,6 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
         open: Some(KeymapOverride {
             description: "Surround",
             dispatch: Dispatch::ShowKeymapLegend(surround_keymap_legend_config(context)),
-        }),
-        v: Some(KeymapOverride {
-            description: "Select All",
-            dispatch: Dispatch::ToEditor(SelectAll),
         }),
         ..Default::default()
     }
