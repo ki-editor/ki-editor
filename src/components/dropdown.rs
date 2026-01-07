@@ -99,7 +99,7 @@ impl DropdownItem {
                 .map(|path| path.display().to_string())
                 .unwrap_or_else(|_| path.display().to_string());
             let icon = shared::canonicalized_path::get_path_icon(&path);
-            format!("{name} {icon}")
+            format!("{icon} {name}")
         })
         .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFileFromPathBuf {
             path,
