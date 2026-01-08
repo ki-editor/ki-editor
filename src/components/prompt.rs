@@ -267,16 +267,16 @@ impl Prompt {
                 let history = if history.is_empty() {
                     "".to_string()
                 } else {
-                    history.join("\n")
+                    format!("{}\n", history.join("\n"))
                 };
                 let text = if let Some(current_line) = current_line {
                     if history.is_empty() {
                         current_line.to_string()
                     } else {
-                        format!("{history}\n{current_line}")
+                        format!("{history}{current_line}")
                     }
                 } else {
-                    format!("{history}\n")
+                    history
                 };
                 (text, current_line.is_none())
             }
