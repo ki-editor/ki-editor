@@ -27,7 +27,10 @@ impl Crossterm {
 
 use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
-    event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
+    event::{
+        DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+        KeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    },
     execute, queue,
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
@@ -72,6 +75,13 @@ impl Frontend for Crossterm {
     fn enter_alternate_screen(&mut self) -> anyhow::Result<()> {
         self.stdout.execute(EnterAlternateScreen)?;
         self.stdout.execute(EnableBracketedPaste)?;
+
+        // Enable [Kitty's Keyboard Protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/)
+        // so that we can detect Key Release events
+        // which is crucial for implementing momentary layers
+        self.stdout.execute(PushKeyboardEnhancementFlags(
+            KeyboardEnhancementFlags::REPORT_EVENT_TYPES,
+        ))?;
         Ok(())
     }
 

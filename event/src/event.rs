@@ -31,6 +31,7 @@ impl From<crossterm::event::Event> for Event {
 pub struct KeyEvent {
     pub code: crossterm::event::KeyCode,
     pub modifiers: KeyModifiers,
+    pub kind: crossterm::event::KeyEventKind,
 }
 impl fmt::Debug for KeyEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -42,13 +43,14 @@ impl KeyEvent {
         KeyEvent {
             code: key,
             modifiers,
+            kind: crossterm::event::KeyEventKind::Press,
         }
     }
 
     pub fn to_rust_code(&self) -> String {
         format!(
-            "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::KeyModifiers::{:#?}, }}",
-            self.code, self.modifiers
+            "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::KeyModifiers::{:#?}, kind: crossterm::event::KeyEventKind::{:#?} }}",
+            self.code, self.modifiers, self.kind
         )
     }
 
@@ -106,6 +108,7 @@ impl From<crossterm::event::KeyEvent> for KeyEvent {
         Self {
             code: value.code,
             modifiers: value.modifiers.into(),
+            kind: value.kind,
         }
     }
 }
