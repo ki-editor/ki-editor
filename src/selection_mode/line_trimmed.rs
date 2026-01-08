@@ -769,7 +769,7 @@ foo
                     SelectionMode::Line,
                 )),
                 Editor(Copy),
-                Editor(Paste),
+                Editor(PasteWithMovement(Right)),
                 Expect(CurrentComponentContent(
                     "
 foo
@@ -808,8 +808,7 @@ foo
                     SelectionMode::Line,
                 )),
                 Editor(Copy),
-                Editor(SwapCursor),
-                Editor(Paste),
+                Editor(PasteWithMovement(Left)),
                 Expect(CurrentComponentContent(
                     "
 foo
@@ -840,7 +839,7 @@ foo
                     SelectionMode::Line,
                 )),
                 Editor(Copy),
-                Editor(Paste),
+                Editor(PasteWithMovement(Right)),
                 Expect(CurrentComponentContent("  foo\n  foo")),
             ])
         })
@@ -863,8 +862,7 @@ foo
                     SelectionMode::Line,
                 )),
                 Editor(Copy),
-                Editor(SwapCursor),
-                Editor(Paste),
+                Editor(PasteWithMovement(Left)),
                 Expect(CurrentComponentContent("  foo\n  foo")),
             ])
         })
@@ -888,8 +886,7 @@ foo
                 )),
                 Expect(CurrentSelectedTexts(&["bar"])),
                 Editor(Copy),
-                Editor(SwapCursor),
-                Editor(Paste),
+                Editor(PasteWithMovement(Left)),
                 Expect(CurrentComponentContent("foo\nbar\nbar")),
             ])
         })
@@ -912,10 +909,9 @@ foo
                 )),
                 Expect(CurrentSelectedTexts(&[""])),
                 Editor(Copy),
-                Editor(SwapCursor),
-                Editor(Paste),
+                Editor(PasteWithMovement(Left)),
                 Expect(CurrentComponentContent(" \n ")),
-                Editor(Paste),
+                Editor(PasteWithMovement(Left)),
                 Expect(CurrentComponentContent("  \n\n ")),
             ])
         })
@@ -938,9 +934,9 @@ foo
                 )),
                 Expect(CurrentSelectedTexts(&[""])),
                 Editor(Copy),
-                Editor(Paste),
+                Editor(PasteWithMovement(Right)),
                 Expect(CurrentComponentContent(" \n ")),
-                Editor(Paste),
+                Editor(PasteWithMovement(Right)),
                 Expect(CurrentComponentContent(" \n \n ")),
             ])
         })
