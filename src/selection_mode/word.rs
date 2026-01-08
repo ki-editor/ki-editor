@@ -333,7 +333,7 @@ mod test_word {
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["barBar"])),
                 Editor(Copy),
-                Editor(Paste),
+                Editor(PasteWithMovement(Right)),
                 Expect(CurrentComponentContent("fooFoo barBar barBar\nspamSpam")),
             ])
         })
@@ -358,7 +358,7 @@ mod test_word {
                 Expect(CurrentSelectedTexts(&["barBar"])),
                 Editor(Copy),
                 Editor(SwapCursor),
-                Editor(Paste),
+                Editor(PasteWithMovement(Right)),
                 Expect(CurrentComponentContent("fooFoo barBar barBar\nspamSpam")),
             ])
         })

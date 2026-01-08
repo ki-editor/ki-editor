@@ -1132,7 +1132,7 @@ fn multi_paste() -> anyhow::Result<()> {
             Editor(ChangeCut),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("Some(".to_owned())),
-            Editor(Paste),
+            Editor(PasteWithMovement(Right)),
             Editor(Insert(")".to_owned())),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }",
@@ -1141,7 +1141,7 @@ fn multi_paste() -> anyhow::Result<()> {
             App(SetClipboardContent {
                 copied_texts: CopiedTexts::one(".hello".to_owned()),
             }),
-            Editor(Paste),
+            Editor(PasteWithMovement(Right)),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants)).hello; let y = Some(S(b)); }",
             )),
@@ -3001,7 +3001,7 @@ c1 c2 c3"
                 Editor(MoveSelection(Right)),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
-                Editor(Paste),
+                Editor(PasteWithMovement(Right)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Expect(CurrentComponentContent(
                     "
@@ -3033,7 +3033,7 @@ fn pasting_when_clipboard_html_is_set_by_other_app() -> Result<(), anyhow::Error
                 }),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
                 Editor(SetContent("".to_string())),
-                Editor(Paste),
+                Editor(PasteWithMovement(Right)),
                 Expect(CurrentComponentContent("hello")),
             ])
         }
