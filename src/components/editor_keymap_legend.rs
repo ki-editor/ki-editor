@@ -814,11 +814,6 @@ impl Editor {
                     .normal_mode_keymaps(context, normal_mode_override, prior_change)
                     .into_iter()
                     .chain(Some(Keymap::new(
-                        context.keyboard_layout_kind().get_key(&Meaning::Delte),
-                        "Delete".to_string(),
-                        Dispatch::ShowKeymapLegend(self.delete_keymap_legend_config(context)),
-                    )))
-                    .chain(Some(Keymap::new(
                         context.keyboard_layout_kind().get_key(&Meaning::MultC),
                         "Multi-cursor".to_string(),
                         Dispatch::ShowKeymapLegend(
