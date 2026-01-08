@@ -78,6 +78,7 @@ pub enum SelectionMode {
     Diagnostic(DiagnosticKind),
     GitHunk,
     LocalQuickfix,
+    BigWord,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

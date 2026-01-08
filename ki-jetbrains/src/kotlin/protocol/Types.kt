@@ -342,6 +342,9 @@ sealed class SelectionMode {
 	@Serializable
 	@SerialName("LocalQuickfix")
 	object LocalQuickfix: SelectionMode()
+	@Serializable
+	@SerialName("BigWord")
+	object BigWord: SelectionMode()
 }
 
 @Serializable
