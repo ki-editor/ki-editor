@@ -237,15 +237,16 @@ copied to the cursor-specific clipboard.
 
 ### `Paste`
 
-Paste copied content next to current selection.
+This opens a menu with several actions relating to Pasting copied content.
 
-`Paste` is directional[^directionality].
-
-This action pastes the content from the clipboard, next to the current selection.
+| Name               | Meaning                                                                                                         |
+| ------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Replace            | Replaces the current selection with the clipboard content.                                                      |
+| Paste `<movement>` | Paste the current selection with gaps (coarse movements right/left) or without gaps (fine movements prev/next). |
 
 Notes:
 
-- It does not replace the current selection.
+- Paste `<movement>` does not replace the current selection.
 - The pasted text will be selected.
 
 #### Smart Paste
