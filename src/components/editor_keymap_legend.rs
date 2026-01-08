@@ -543,10 +543,9 @@ impl Editor {
         let extra = if use_system_clipboard { "+ " } else { "" };
         let format = |description: &str| format!("{extra}{description}");
         [
-            Keymap::new_extended(
+            Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Paste),
-                format("Paste →"),
-                format!("{}{}", Direction::End.format_action("Paste"), extra),
+                format("Paste"),
                 Dispatch::ShowKeymapLegend(self.paste_keymap_legend_config(context)),
             )
             .override_keymap(
