@@ -227,8 +227,8 @@ mod test_line_full {
                     SelectionMode::LineFull,
                 )),
                 Editor(Copy),
-                Editor(Paste),
-                Editor(Paste),
+                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(Right)),
                 Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
             ])
         })
@@ -250,9 +250,8 @@ mod test_line_full {
                     SelectionMode::LineFull,
                 )),
                 Editor(Copy),
-                Editor(SwapCursor),
-                Editor(Paste),
-                Editor(Paste),
+                Editor(PasteWithMovement(Left)),
+                Editor(PasteWithMovement(Left)),
                 Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
             ])
         })

@@ -398,7 +398,7 @@ fn main() {
                 )),
                 Editor(MoveSelection(Right)),
                 Editor(Copy),
-                Editor(Paste),
+                Editor(PasteWithMovement(Right)),
                 Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
             ])
         })
@@ -422,8 +422,7 @@ fn main() {
                 )),
                 Editor(MoveSelection(Right)),
                 Editor(Copy),
-                Editor(SwapCursor),
-                Editor(Paste),
+                Editor(PasteWithMovement(Left)),
                 Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
             ])
         })

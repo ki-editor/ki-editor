@@ -102,6 +102,13 @@ impl Editor {
         .to_vec()
     }
 
+    fn paste_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Paste".to_string(),
+            keymaps: paste_keymaps(context),
+        }
+    }
+
     fn delete_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Delete".to_string(),
@@ -515,11 +522,6 @@ impl Editor {
                 format!("{}{}", "Copy", extra),
                 Dispatch::ToEditor(Copy),
             ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Pst0G),
-                "Paste 0 Gap".to_string(),
-                Dispatch::ToEditor(PasteNoGap),
-            ),
         ]
         .into_iter()
         .chain(self.keymap_clipboard_related_actions_overridable(
@@ -541,11 +543,10 @@ impl Editor {
         let extra = if use_system_clipboard { "+ " } else { "" };
         let format = |description: &str| format!("{extra}{description}");
         [
-            Keymap::new_extended(
+            Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Paste),
-                format("Paste →"),
-                format!("{}{}", Direction::End.format_action("Paste"), extra),
-                Dispatch::ToEditor(Paste),
+                format("Paste"),
+                Dispatch::ShowKeymapLegend(self.paste_keymap_legend_config(context)),
             )
             .override_keymap(
                 normal_mode_override.paste.clone().as_ref(),
@@ -1628,6 +1629,39 @@ impl Editor {
             ),
         }
     }
+}
+
+pub(crate) fn paste_keymaps(context: &Context) -> Keymaps {
+    Keymaps::new(
+        [
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Left_),
+                "Left".to_string(),
+                Dispatch::ToEditor(PasteWithMovement(Movement::Left)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Right),
+                "Right".to_string(),
+                Dispatch::ToEditor(PasteWithMovement(Right)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Next_),
+                "Next".to_string(),
+                Dispatch::ToEditor(PasteWithMovement(Movement::Next)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                "Previous".to_string(),
+                Dispatch::ToEditor(PasteWithMovement(Movement::Previous)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Paste),
+                "Replace".to_string(),
+                Dispatch::ToEditor(ReplaceWithCopiedText { cut: false }),
+            ),
+        ]
+        .as_ref(),
+    )
 }
 
 pub(crate) fn delete_keymaps(context: &Context) -> Keymaps {
