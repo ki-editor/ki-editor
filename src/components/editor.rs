@@ -298,8 +298,6 @@ impl Component for Editor {
             }
             Surround(open, close) => return self.surround(open, close, context),
             EnterReplaceMode => self.enter_replace_mode(),
-            Paste => return self.paste(context, true),
-            PasteNoGap => return self.paste(context, false),
             SwapCursor => self.swap_cursor(context),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
@@ -400,6 +398,7 @@ impl Component for Editor {
             } => self.handle_path_renamed(source, destination),
             CopyAbsolutePath => return self.copy_current_file_absolute_path(),
             CopyRelativePath => return self.copy_current_file_relative_path(context),
+            PasteWithMovement(movement) => return self.paste_with_movement(context, movement),
             DeleteWithMovement(movement) => {
                 return self.delete_with_movement(context, movement, false)
             }
@@ -1414,22 +1413,36 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    pub(crate) fn paste(
+    pub(crate) fn paste_with_movement(
         &mut self,
         context: &mut Context,
-        with_gap: bool,
+        movement: Movement,
     ) -> anyhow::Result<Dispatches> {
         let clipboards_differ: bool = !context.clipboards_synced();
         let Some(copied_texts) = context.get_clipboard_content(0) else {
             return Ok(Default::default());
         };
-        let direction = self.cursor_direction.reverse();
         // out-of-sync paste should also add the content to clipboard history
         if clipboards_differ {
             context.add_clipboard_history(copied_texts.clone());
         }
+        let direction: Option<Direction> = match movement {
+            Movement::Left | Movement::Previous => Some(Direction::Start),
+            Movement::Right | Movement::Next => Some(Direction::End),
+            _ => None,
+        };
+        let with_gap: Option<bool> = match movement {
+            Movement::Next | Movement::Previous => Some(false),
+            Movement::Right | Movement::Left => Some(true),
+            _ => None,
+        };
 
-        self.paste_text(direction, copied_texts, context, with_gap)
+        match (direction, with_gap) {
+            (None, _) | (_, None) => Ok(Default::default()),
+            (Some(direction), Some(with_gap)) => {
+                self.paste_text(direction, copied_texts, context, with_gap)
+            }
+        }
     }
 
     /// If `cut` if true, the replaced text will override the clipboard.
@@ -4559,8 +4572,6 @@ pub(crate) enum DispatchEditor {
     ApplySyntaxHighlight,
     ReplaceCurrentSelectionWith(String),
     SelectLineAt(usize),
-    Paste,
-    PasteNoGap,
     SwapCursor,
     MoveCharacterBack,
     MoveCharacterForward,
@@ -4621,6 +4632,7 @@ pub(crate) enum DispatchEditor {
     },
     CopyAbsolutePath,
     CopyRelativePath,
+    PasteWithMovement(Movement),
     DeleteWithMovement(Movement),
     DeleteCutWithMovement(Movement),
     EnterDeleteMode,
