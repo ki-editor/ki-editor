@@ -177,10 +177,6 @@ impl SuggestiveEditor {
         self.completion_dropdown.current_item()
     }
 
-    pub(crate) fn all_filtered_items(&mut self) -> Vec<DropdownItem> {
-        self.completion_dropdown.all_filtered_items()
-    }
-
     pub(crate) fn completion_dropdown_opened(&self) -> bool {
         !self.completion_dropdown.items().is_empty()
     }
