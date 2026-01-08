@@ -186,8 +186,6 @@ mod test_word {
 
     use super::*;
 
-    use serial_test::serial;
-
     #[test]
     fn all_selections_no_skip_whitespaces() -> anyhow::Result<()> {
         execute_test(|s| {
