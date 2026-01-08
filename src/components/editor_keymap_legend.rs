@@ -253,6 +253,16 @@ impl Editor {
                 )),
             ),
             Keymap::new_extended(
+                context.keyboard_layout_kind().get_key(&Meaning::BWord),
+                "Word*".to_string(),
+                "Select Big Word".to_string(),
+                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
+                    direction,
+                    BigWord,
+                    prior_change,
+                )),
+            ),
+            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::SWord),
                 "Subword".to_string(),
                 "Select Subword".to_string(),

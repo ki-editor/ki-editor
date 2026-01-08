@@ -465,6 +465,7 @@ pub(crate) enum SelectionMode {
     // Mark
     Mark,
     LineFull,
+    BigWord,
 }
 impl SelectionMode {
     pub(crate) fn is_node(&self) -> bool {
@@ -494,6 +495,7 @@ impl SelectionMode {
             SelectionMode::LocalQuickfix { title } => title.to_string(),
             SelectionMode::Subword => "SUBWORD".to_string(),
             SelectionMode::Word => "WORD".to_string(),
+            SelectionMode::BigWord => "WORD*".to_string(),
         }
     }
 
@@ -514,6 +516,7 @@ impl SelectionMode {
         Ok(match self {
             SelectionMode::Subword => Box::new(PositionBased(selection_mode::Subword::new())),
             SelectionMode::Word => Box::new(PositionBased(selection_mode::Word)),
+            SelectionMode::BigWord => Box::new(PositionBased(selection_mode::BigWord)),
             SelectionMode::Line => Box::new(PositionBased(selection_mode::LineTrimmed)),
             SelectionMode::LineFull => Box::new(PositionBased(selection_mode::LineFull::new())),
             SelectionMode::Character => Box::new(PositionBased(selection_mode::Character)),
@@ -559,6 +562,7 @@ impl SelectionMode {
             self,
             SelectionMode::Subword
                 | SelectionMode::Word
+                | SelectionMode::BigWord
                 | SelectionMode::Line
                 | SelectionMode::LineFull
                 | SelectionMode::Character

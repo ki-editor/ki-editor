@@ -33,7 +33,7 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         _____, _____, _____, _____, Raise, /****/ AgSlL, RplcP, Join_, RplcN, AgSlR,
     ],
     [
-        LineF, _____, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
+        LineF, BWord, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
     ],
     [
         Redo_, PRplc, RplcX, DeltX, Pst0G, /****/ GSrch, ToIdx, _____, _____, SSEnd,
@@ -738,6 +738,8 @@ pub(crate) enum Meaning {
     WSwth,
     /// Select Subword
     SWord,
+    /// Select big word
+    BWord,
     /// Swap cursor with anchor
     XAchr,
     /// Swap Selection End

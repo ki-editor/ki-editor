@@ -144,6 +144,23 @@ If the current selection is selecting `use`, the following table demonstrates ho
 [^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 [^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 
+## `Word*`
+
+Big Word.
+
+A big word is either:
+
+1. a sequence of non-whitespace characters
+2. a sequence of non-newline whitespaces
+3. a single newline character
+
+| Movement              | Meaning                                               |
+| --------------------- | ----------------------------------------------------- |
+| Up/Down/Previous/Next | Move to all kinds of big words, including whitespaces |
+| Left/Right            | Move to non-whitespace big words only                 |
+
+<TutorialFallback filename="big-word"/>
+
 ## `Subword`
 
 This selects subword within a subword.

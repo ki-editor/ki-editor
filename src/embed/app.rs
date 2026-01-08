@@ -518,6 +518,7 @@ impl EmbeddedApp {
             crate::selection::SelectionMode::SyntaxNodeFine => {
                 ki_protocol_types::SelectionMode::SyntaxNodeFine
             }
+            crate::selection::SelectionMode::BigWord => ki_protocol_types::SelectionMode::BigWord,
             crate::selection::SelectionMode::Diagnostic(kind) => {
                 ki_protocol_types::SelectionMode::Diagnostic(match kind {
                     crate::quickfix_list::DiagnosticSeverityRange::All => {

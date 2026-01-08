@@ -955,6 +955,35 @@ camelCase , kebab-case : snake_case
             .to_vec(),
         },
         RecipeGroup {
+            filename: "big-word",
+            recipes: [
+                Recipe {
+                    description: "Big Word: Left/Right skip whitespaces",
+                    content: "mv ./foo/bar/spam oof/rab/maps".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("S l l j"),
+                    expectations: Box::new([CurrentSelectedTexts(&["./foo/bar/spam"])]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Big Word: Previous/Next no skip whitespaces",
+                    content: "mv
+    hello/world",
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("S o o o u u"),
+                    expectations: Box::new([CurrentSelectedTexts(&["\n"])]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
             filename: "char",
             recipes: [
                 Recipe {

@@ -9,6 +9,7 @@ pub(crate) mod syntax_token;
 
 pub(crate) mod top_node;
 
+pub(crate) mod big_word;
 pub(crate) mod line_full;
 pub(crate) mod line_trimmed;
 pub(crate) mod local_quickfix;
@@ -18,6 +19,7 @@ pub(crate) mod syntax_node;
 pub(crate) mod word;
 pub(crate) use self::regex::Regex;
 pub(crate) use ast_grep::AstGrep;
+pub(crate) use big_word::BigWord;
 pub(crate) use character::Character;
 pub(crate) use custom::Custom;
 pub(crate) use diagnostic::Diagnostic;
