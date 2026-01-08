@@ -370,11 +370,6 @@ impl Component for Editor {
             }
             ToggleLineComment => return self.toggle_line_comment(context),
             ToggleBlockComment => return self.toggle_block_comment(context),
-            ShowKeymapLegendExtend => {
-                return Ok(Dispatches::one(Dispatch::ShowKeymapLegend(
-                    self.extend_mode_keymap_legend_config(context),
-                )))
-            }
             RepeatSearch(scope, if_current_not_found, prior_change) => {
                 return self.repeat_search(context, scope, if_current_not_found, prior_change)
             }
@@ -4610,7 +4605,6 @@ pub(crate) enum DispatchEditor {
     },
     ToggleLineComment,
     ToggleBlockComment,
-    ShowKeymapLegendExtend,
     RepeatSearch(Scope, IfCurrentNotFound, Option<PriorChange>),
     RevertHunk(DiffMode),
     GitBlame,

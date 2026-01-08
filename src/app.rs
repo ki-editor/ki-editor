@@ -13,8 +13,8 @@ use crate::{
         file_explorer::FileExplorer,
         keymap_legend::{Keymap, KeymapLegendConfig, Keymaps},
         prompt::{
-            Prompt, PromptConfig, PromptEntryKind, PromptHistoryKey, PromptItems,
-            PromptItemsBackgroundTask, PromptOnChangeDispatch,
+            Prompt, PromptConfig, PromptHistoryKey, PromptItems, PromptItemsBackgroundTask,
+            PromptOnChangeDispatch, PromptOnEnter,
         },
         suggestive_editor::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
@@ -1035,18 +1035,15 @@ impl<T: Frontend> App<T> {
                 }
             }
             #[cfg(test)]
-            Dispatch::OpenPrompt {
-                config,
-                current_line,
-            } => self.open_prompt(config, current_line)?,
+            Dispatch::OpenPrompt { config } => self.open_prompt(config)?,
             Dispatch::ShowEditorInfo(info) => self.show_editor_info(info)?,
             Dispatch::ReceiveCodeActions(code_actions) => {
-                self.open_code_actions_prompt(code_actions)?;
+                self.open_code_actions_picker(code_actions)?;
             }
             Dispatch::OtherWindow => self.layout.cycle_window(),
             Dispatch::CycleMarkedFile(direction) => self.cycle_marked_file(direction)?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
-            Dispatch::OpenThemePrompt => self.open_theme_prompt()?,
+            Dispatch::OpenThemePrompt => self.open_theme_picker()?,
             Dispatch::SetLastNonContiguousSelectionMode(selection_mode) => self
                 .context
                 .set_last_non_contiguous_selection_mode(selection_mode),
@@ -1073,7 +1070,7 @@ impl<T: Frontend> App<T> {
                 self.context.set_keyboard_layout_kind(keyboard_layout_kind);
                 self.keyboard_layout_changed();
             }
-            Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_prompt()?,
+            Dispatch::OpenKeyboardLayoutPrompt => self.open_keyboard_layout_picker()?,
             Dispatch::NavigateForward => self.navigate_forward()?,
             Dispatch::NavigateBack => self.navigate_back()?,
             Dispatch::MarkFileAndToggleMark => self.mark_file_and_toggle_mark()?,
@@ -1105,7 +1102,7 @@ impl<T: Frontend> App<T> {
             } => {
                 self.show_buffer_save_conflict_prompt(&path, content_editor, content_filesystem)?
             }
-            Dispatch::OpenWorkspaceSymbolsPrompt => self.open_workspace_symbols_prompt()?,
+            Dispatch::OpenWorkspaceSymbolsPrompt => self.open_workspace_symbols_picker()?,
             Dispatch::GetAndHandlePromptOnChangeDispatches => {
                 self.get_and_handle_prompt_on_change_dispatches()?
             }
@@ -1193,41 +1190,39 @@ impl<T: Frontend> App<T> {
             .borrow_mut()
             .editor_mut()
             .handle_prior_change(prior_change);
-        self.open_prompt(
-            PromptConfig {
-                title: "Move to index".to_string(),
-                on_enter: DispatchPrompt::MoveSelectionByIndex,
-                leaves_current_line_empty: true,
-                prompt_history_key: PromptHistoryKey::MoveToIndex,
-                ..Default::default()
+        self.open_prompt(PromptConfig::new(
+            "Move to index".to_string(),
+            PromptOnEnter::ParseCurrentLine {
+                parser: DispatchParser::MoveSelectionByIndex,
+                history_key: PromptHistoryKey::MoveToIndex,
+                current_line: None,
+                suggested_items: Default::default(),
             },
-            None,
-        )
+        ))
     }
 
     fn open_rename_prompt(&mut self, current_name: Option<String>) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                title: "Rename Symbol".to_string(),
-                on_enter: DispatchPrompt::RenameSymbol,
-                prompt_history_key: PromptHistoryKey::Rename,
-                ..Default::default()
+        self.open_prompt(PromptConfig::new(
+            "Rename Symbol".to_string(),
+            PromptOnEnter::ParseCurrentLine {
+                parser: DispatchParser::RenameSymbol,
+                history_key: PromptHistoryKey::Rename,
+                current_line: current_name,
+                suggested_items: Default::default(),
             },
-            current_name,
-        )
+        ))
     }
 
     fn open_surround_xml_prompt(&mut self) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                title: "Surround selection with XML tag (can be empty for React Fragment)"
-                    .to_string(),
-                on_enter: DispatchPrompt::SurroundXmlTag,
-                prompt_history_key: PromptHistoryKey::SurroundXmlTag,
-                ..Default::default()
+        self.open_prompt(PromptConfig::new(
+            "Surround selection with XML tag (can be empty for React Fragment)".to_string(),
+            PromptOnEnter::ParseCurrentLine {
+                parser: DispatchParser::SurroundXmlTag,
+                history_key: PromptHistoryKey::SurroundXmlTag,
+                current_line: None,
+                suggested_items: Default::default(),
             },
-            None,
-        )
+        ))
     }
 
     fn open_search_prompt_with_current_selection(
@@ -1253,31 +1248,31 @@ impl<T: Frontend> App<T> {
         if_current_not_found: IfCurrentNotFound,
         current_line: Option<String>,
     ) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                title: format!("{scope:?} search",),
-                items: PromptItems::Precomputed(self.words()),
-                on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
-                    scope,
-                    if_current_not_found,
-                    run_search_after_config_updated: true,
+        self.open_prompt({
+            PromptConfig::new(
+                format!("{scope:?} search",),
+                PromptOnEnter::ParseCurrentLine {
+                    parser: DispatchParser::UpdateLocalSearchConfigSearch {
+                        scope,
+                        if_current_not_found,
+                        run_search_after_config_updated: true,
+                    },
+                    history_key: PromptHistoryKey::Search,
+                    current_line,
+                    suggested_items: self.words(),
                 },
-                on_change: match scope {
-                    Scope::Local => Some({
-                        let component_id = self.current_component().borrow().id();
-                        PromptOnChangeDispatch::SetIncrementalSearchConfig { component_id }
-                    }),
-                    Scope::Global => None,
-                },
-                leaves_current_line_empty: current_line.is_none(),
-                on_cancelled: Some(Dispatches::one(Dispatch::ToEditor(
-                    DispatchEditor::ClearIncrementalSearchMatches,
-                ))),
-                prompt_history_key: PromptHistoryKey::Search,
-                ..Default::default()
-            },
-            current_line,
-        )
+            )
+            .set_on_change(match scope {
+                Scope::Local => Some({
+                    let component_id = self.current_component().borrow().id();
+                    PromptOnChangeDispatch::SetIncrementalSearchConfig { component_id }
+                }),
+                Scope::Global => None,
+            })
+            .set_on_cancelled(Some(Dispatches::one(Dispatch::ToEditor(
+                DispatchEditor::ClearIncrementalSearchMatches,
+            ))))
+        })
     }
 
     fn get_file_explorer_current_path(&mut self) -> anyhow::Result<Option<CanonicalizedPath>> {
@@ -1327,15 +1322,15 @@ impl<T: Frontend> App<T> {
 
     fn open_add_path_prompt(&mut self) -> anyhow::Result<()> {
         if let Some(path) = self.get_file_explorer_current_path()? {
-            self.open_prompt(
-                PromptConfig {
-                    title: "Add path".to_string(),
-                    on_enter: DispatchPrompt::AddPath,
-                    prompt_history_key: PromptHistoryKey::AddPath,
-                    ..Default::default()
+            self.open_prompt(PromptConfig::new(
+                "Add path".to_string(),
+                PromptOnEnter::ParseCurrentLine {
+                    parser: DispatchParser::AddPath,
+                    history_key: PromptHistoryKey::AddPath,
+                    current_line: Some(path.display_absolute()),
+                    suggested_items: Default::default(),
                 },
-                Some(path.display_absolute()),
-            )
+            ))
         } else {
             Ok(())
         }
@@ -1349,16 +1344,13 @@ impl<T: Frontend> App<T> {
                 .map(|path| path.display_absolute())
                 .into_iter()
                 .collect_vec();
-            self.open_prompt(
-                PromptConfig {
-                    title: "Move paths".to_string(),
-                    on_enter: DispatchPrompt::MovePaths { sources: paths },
-                    prompt_history_key: PromptHistoryKey::MovePath,
-                    entry_kind: PromptEntryKind::MultipleLines { initial_lines },
-                    ..Default::default()
+            self.open_prompt(PromptConfig::new(
+                "Move paths".to_string(),
+                PromptOnEnter::ParseWholeBuffer {
+                    parser: DispatchParser::MovePaths { sources: paths },
+                    initial_lines,
                 },
-                None,
-            )
+            ))
         } else {
             Ok(())
         }
@@ -1367,24 +1359,24 @@ impl<T: Frontend> App<T> {
     fn open_copy_file_prompt(&mut self) -> anyhow::Result<()> {
         let path = self.get_file_explorer_current_path()?;
         if let Some(path) = path {
-            self.open_prompt(
-                PromptConfig {
-                    title: format!("Duplicate '{}' to", path.display_absolute()),
-                    on_enter: DispatchPrompt::CopyFile { from: path.clone() },
-                    prompt_history_key: PromptHistoryKey::CopyFile,
-                    ..Default::default()
+            self.open_prompt(PromptConfig::new(
+                format!("Duplicate '{}' to", path.display_absolute()),
+                PromptOnEnter::ParseCurrentLine {
+                    parser: DispatchParser::CopyFile { from: path.clone() },
+                    history_key: PromptHistoryKey::CopyFile,
+                    current_line: Some(path.display_absolute()),
+                    suggested_items: Default::default(),
                 },
-                Some(path.display_absolute()),
-            )
+            ))
         } else {
             Ok(())
         }
     }
 
     fn open_symbol_picker(&mut self, symbols: Symbols) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                title: "Symbols".to_string(),
+        self.open_prompt(PromptConfig::new(
+            "Symbols".to_string(),
+            PromptOnEnter::SelectsFirstMatchingItem {
                 items: PromptItems::Precomputed(
                     symbols
                         .symbols
@@ -1393,66 +1385,48 @@ impl<T: Frontend> App<T> {
                         .map(|symbol| symbol.into())
                         .collect_vec(),
                 ),
-                on_enter: DispatchPrompt::SelectSymbol { symbols },
-                enter_selects_first_matching_item: true,
-                leaves_current_line_empty: true,
-                prompt_history_key: PromptHistoryKey::Symbol,
-                ..Default::default()
             },
-            None,
-        )
+        ))
     }
 
     fn open_file_picker(&mut self, kind: FilePickerKind) -> anyhow::Result<()> {
         let working_directory = self.working_directory.clone();
-        self.open_prompt(
-            PromptConfig {
-                title: format!("Open file: {}", kind.display()),
-                on_enter: DispatchPrompt::OpenFile {
-                    working_directory: working_directory.clone(),
+        let items = match kind {
+            FilePickerKind::NonGitIgnored => PromptItems::BackgroundTask {
+                task: PromptItemsBackgroundTask::NonGitIgnoredFiles { working_directory },
+                on_nucleo_tick_debounced: {
+                    let sender = self.sender.clone();
+                    Callback::new(Arc::new(move |_| {
+                        let _ = sender.send(AppMessage::NucleoTickDebounced);
+                    }))
                 },
-                items: match kind {
-                    FilePickerKind::NonGitIgnored => PromptItems::BackgroundTask {
-                        task: PromptItemsBackgroundTask::NonGitIgnoredFiles { working_directory },
-                        on_nucleo_tick_debounced: {
-                            let sender = self.sender.clone();
-                            Callback::new(Arc::new(move |_| {
-                                let _ = sender.send(AppMessage::NucleoTickDebounced);
-                            }))
-                        },
-                    },
-                    FilePickerKind::GitStatus(diff_mode) => PromptItems::Precomputed(
-                        git::GitRepo::try_from(&self.working_directory)?
-                            .diff_entries(diff_mode)?
-                            .into_iter()
-                            .map(|entry| {
-                                DropdownItem::from_path_buf(
-                                    &working_directory,
-                                    entry.new_path().into_path_buf(),
-                                )
-                            })
-                            .collect_vec(),
-                    ),
-                    FilePickerKind::Opened => PromptItems::Precomputed(
-                        self.layout
-                            .get_opened_files()
-                            .into_iter()
-                            .map(|path| {
-                                DropdownItem::from_path_buf(
-                                    &working_directory,
-                                    path.into_path_buf(),
-                                )
-                            })
-                            .collect_vec(),
-                    ),
-                },
-                enter_selects_first_matching_item: true,
-                leaves_current_line_empty: true,
-                prompt_history_key: PromptHistoryKey::OpenFile,
-                ..Default::default()
             },
-            None,
-        )
+            FilePickerKind::GitStatus(diff_mode) => PromptItems::Precomputed(
+                git::GitRepo::try_from(&self.working_directory)?
+                    .diff_entries(diff_mode)?
+                    .into_iter()
+                    .map(|entry| {
+                        DropdownItem::from_path_buf(
+                            &working_directory,
+                            entry.new_path().into_path_buf(),
+                        )
+                    })
+                    .collect_vec(),
+            ),
+            FilePickerKind::Opened => PromptItems::Precomputed(
+                self.layout
+                    .get_opened_files()
+                    .into_iter()
+                    .map(|path| {
+                        DropdownItem::from_path_buf(&working_directory, path.into_path_buf())
+                    })
+                    .collect_vec(),
+            ),
+        };
+        self.open_prompt(PromptConfig::new(
+            format!("Open file: {}", kind.display()),
+            PromptOnEnter::SelectsFirstMatchingItem { items },
+        ))
     }
 
     fn open_file(
@@ -2332,28 +2306,15 @@ impl<T: Frontend> App<T> {
             .get_component_by_kind(ComponentKind::DropdownInfo)
     }
 
-    fn open_prompt(
-        &mut self,
-        prompt_config: PromptConfig,
-        current_line: Option<String>,
-    ) -> anyhow::Result<()> {
+    fn open_prompt(&mut self, prompt_config: PromptConfig) -> anyhow::Result<()> {
         if self.is_running_as_embedded() {
-            self.open_prompt_embedded(prompt_config, current_line)
+            self.open_prompt_embedded(prompt_config)
         } else {
-            self.open_prompt_non_embedded(prompt_config, current_line)
+            self.open_prompt_non_embedded(prompt_config)
         }
     }
 
-    fn open_prompt_non_embedded(
-        &mut self,
-        prompt_config: PromptConfig,
-        current_line: Option<String>,
-    ) -> anyhow::Result<()> {
-        if let Some(line) = current_line {
-            self.context
-                .push_history_prompt(prompt_config.prompt_history_key, line)
-        }
-
+    fn open_prompt_non_embedded(&mut self, prompt_config: PromptConfig) -> anyhow::Result<()> {
         // Initialize the incremental search matches
         // so that the possible selections highlights will be "cleared" (i.e., not rendered)
         self.current_component()
@@ -2361,9 +2322,7 @@ impl<T: Frontend> App<T> {
             .editor_mut()
             .initialize_incremental_search_matches();
 
-        let key = prompt_config.prompt_history_key;
-        let history = self.context.get_prompt_history(key);
-        let (prompt, dispatches) = Prompt::new(prompt_config, history);
+        let (prompt, dispatches) = Prompt::new(prompt_config, &self.context);
 
         self.layout.add_and_focus_prompt(
             ComponentKind::Prompt,
@@ -2373,14 +2332,13 @@ impl<T: Frontend> App<T> {
         self.handle_dispatches(dispatches)
     }
 
-    fn open_prompt_embedded(
-        &mut self,
-        prompt_config: PromptConfig,
-        current_line: Option<String>,
-    ) -> anyhow::Result<()> {
-        let key = prompt_config.prompt_history_key;
-
-        let history = self.context.get_prompt_history(key);
+    fn open_prompt_embedded(&mut self, prompt_config: PromptConfig) -> anyhow::Result<()> {
+        let history = match &prompt_config.on_enter {
+            PromptOnEnter::ParseCurrentLine {
+                history_key: key, ..
+            } => self.context.get_prompt_history(*key),
+            _ => Default::default(),
+        };
 
         let items = prompt_config
             .items()
@@ -2399,9 +2357,6 @@ impl<T: Frontend> App<T> {
             )
             .collect();
 
-        if let Some(line) = current_line {
-            self.context.push_history_prompt(key, line)
-        }
         let title = prompt_config.title.clone();
 
         self.last_prompt_config = Some(prompt_config);
@@ -2415,11 +2370,20 @@ impl<T: Frontend> App<T> {
         let Some(prompt_config) = self.last_prompt_config.take() else {
             return Ok(());
         };
-        let dispatches = prompt_config.on_enter.to_dispatches(&entry)?;
-        self.handle_dispatches(dispatches.append(Dispatch::PushPromptHistory {
-            key: prompt_config.prompt_history_key,
-            line: entry,
-        }))
+        let dispatches = match prompt_config.on_enter {
+            PromptOnEnter::ParseCurrentLine {
+                parser: dispatch_parser,
+                history_key: prompt_history_key,
+                ..
+            } => dispatch_parser
+                .parse(&entry)?
+                .append(Dispatch::PushPromptHistory {
+                    key: prompt_history_key,
+                    line: entry,
+                }),
+            _ => Default::default(),
+        };
+        self.handle_dispatches(dispatches)
     }
     fn render_dropdown(
         &mut self,
@@ -2507,27 +2471,21 @@ impl<T: Frontend> App<T> {
         self.layout.file_explorer_content()
     }
 
-    fn open_code_actions_prompt(
+    fn open_code_actions_picker(
         &mut self,
         code_actions: Vec<crate::lsp::code_action::CodeAction>,
     ) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                on_enter: DispatchPrompt::Null,
+        self.open_prompt(PromptConfig::new(
+            "Code Actions".to_string(),
+            PromptOnEnter::SelectsFirstMatchingItem {
                 items: PromptItems::Precomputed(
                     code_actions
                         .into_iter()
                         .map(move |code_action| code_action.into())
                         .collect(),
                 ),
-                title: "Code Actions".to_string(),
-                enter_selects_first_matching_item: true,
-                leaves_current_line_empty: true,
-                prompt_history_key: PromptHistoryKey::CodeAction,
-                ..Default::default()
             },
-            None,
-        )?;
+        ))?;
         Ok(())
     }
 
@@ -2587,71 +2545,65 @@ impl<T: Frontend> App<T> {
         self.context.push_history_prompt(key, line)
     }
 
-    fn open_theme_prompt(&mut self) -> anyhow::Result<()> {
+    fn open_theme_picker(&mut self) -> anyhow::Result<()> {
         self.open_prompt(
-            PromptConfig {
-                on_enter: DispatchPrompt::Null,
-                items: PromptItems::Precomputed(
-                    crate::themes::theme_descriptor::all()
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, theme_descriptor)| {
-                            DropdownItem::new(theme_descriptor.name().to_string())
-                                .set_rank(Some(Box::from([index].to_vec())))
-                                .set_on_focused(Dispatches::one(Dispatch::SetThemeFromDescriptor(
-                                    theme_descriptor.clone(),
-                                )))
-                                .set_dispatches(Dispatches::one(Dispatch::SetThemeFromDescriptor(
-                                    theme_descriptor,
-                                )))
-                        })
-                        .collect_vec(),
-                ),
-                title: "Theme".to_string(),
-                enter_selects_first_matching_item: true,
-                leaves_current_line_empty: true,
-                on_cancelled: Some(Dispatches::one(Dispatch::SetTheme(
-                    self.context.theme().clone(),
-                ))),
-                prompt_history_key: PromptHistoryKey::Theme,
-                ..Default::default()
-            },
-            None,
+            PromptConfig::new(
+                "Theme".to_string(),
+                PromptOnEnter::SelectsFirstMatchingItem {
+                    items: PromptItems::Precomputed(
+                        crate::themes::theme_descriptor::all()
+                            .into_iter()
+                            .enumerate()
+                            .map(|(index, theme_descriptor)| {
+                                DropdownItem::new(theme_descriptor.name().to_string())
+                                    .set_rank(Some(Box::from([index].to_vec())))
+                                    .set_on_focused(Dispatches::one(
+                                        Dispatch::SetThemeFromDescriptor(theme_descriptor.clone()),
+                                    ))
+                                    .set_dispatches(Dispatches::one(
+                                        Dispatch::SetThemeFromDescriptor(theme_descriptor),
+                                    ))
+                            })
+                            .collect_vec(),
+                    ),
+                },
+            )
+            .set_on_cancelled(Some(Dispatches::one(Dispatch::SetTheme(
+                self.context.theme().clone(),
+            )))),
         )
     }
 
-    fn open_keyboard_layout_prompt(&mut self) -> anyhow::Result<()> {
+    fn open_keyboard_layout_picker(&mut self) -> anyhow::Result<()> {
         let embedded = self.context.is_running_as_embedded();
-        self.open_prompt(
-            PromptConfig {
-                on_enter: if embedded {
-                    DispatchPrompt::SetKeyboardLayoutKind
-                } else {
-                    DispatchPrompt::Null
-                },
-                items: PromptItems::Precomputed(
-                    KeyboardLayoutKind::iter()
-                        .map(|keyboard_layout| {
-                            DropdownItem::new(keyboard_layout.display().to_string()).set_dispatches(
-                                if embedded {
-                                    Dispatches::default()
-                                } else {
-                                    Dispatches::one(Dispatch::SetKeyboardLayoutKind(
-                                        keyboard_layout,
-                                    ))
-                                },
-                            )
-                        })
-                        .collect_vec(),
-                ),
-                title: "Keyboard Layout".to_string(),
-                enter_selects_first_matching_item: true,
-                leaves_current_line_empty: true,
-                prompt_history_key: PromptHistoryKey::KeyboardLayout,
-                ..Default::default()
+        self.open_prompt(PromptConfig::new(
+            "Keyboard Layout".to_string(),
+            if embedded {
+                PromptOnEnter::ParseCurrentLine {
+                    parser: DispatchParser::SetKeyboardLayoutKind,
+                    history_key: PromptHistoryKey::KeyboardLayout,
+                    current_line: None,
+                    suggested_items: Default::default(),
+                }
+            } else {
+                PromptOnEnter::SelectsFirstMatchingItem {
+                    items: PromptItems::Precomputed(
+                        KeyboardLayoutKind::iter()
+                            .map(|keyboard_layout| {
+                                DropdownItem::new(keyboard_layout.display().to_string())
+                                    .set_dispatches(if embedded {
+                                        Dispatches::default()
+                                    } else {
+                                        Dispatches::one(Dispatch::SetKeyboardLayoutKind(
+                                            keyboard_layout,
+                                        ))
+                                    })
+                            })
+                            .collect_vec(),
+                    ),
+                }
             },
-            None,
-        )
+        ))
     }
 
     fn update_current_completion_item(
@@ -2669,16 +2621,15 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_pipe_to_shell_prompt(&mut self) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                title: "Pipe to shell".to_string(),
-                on_enter: DispatchPrompt::PipeToShell,
-                leaves_current_line_empty: true,
-                prompt_history_key: PromptHistoryKey::PipeToShell,
-                ..Default::default()
+        self.open_prompt(PromptConfig::new(
+            "Pipe to shell".to_string(),
+            PromptOnEnter::ParseCurrentLine {
+                parser: DispatchParser::PipeToShell,
+                history_key: PromptHistoryKey::PipeToShell,
+                current_line: None,
+                suggested_items: Default::default(),
             },
-            None,
-        )
+        ))
     }
 
     fn use_last_non_contiguous_selection_mode(
@@ -2708,20 +2659,19 @@ impl<T: Frontend> App<T> {
     fn open_filter_selections_prompt(&mut self, maintain: bool) -> anyhow::Result<()> {
         let config = self.context.local_search_config(Scope::Local);
         let mode = config.mode;
-        self.open_prompt(
-            PromptConfig {
-                title: format!(
-                    "{} selections matching search ({})",
-                    if maintain { "Maintain" } else { "Remove" },
-                    mode.display()
-                ),
-                on_enter: DispatchPrompt::FilterSelectionMatchingSearch { maintain },
-                leaves_current_line_empty: true,
-                prompt_history_key: PromptHistoryKey::FilterSelectionsMatchingSearch { maintain },
-                ..Default::default()
+        self.open_prompt(PromptConfig::new(
+            format!(
+                "{} selections matching search ({})",
+                if maintain { "Maintain" } else { "Remove" },
+                mode.display()
+            ),
+            PromptOnEnter::ParseCurrentLine {
+                parser: DispatchParser::FilterSelectionMatchingSearch { maintain },
+                history_key: PromptHistoryKey::FilterSelectionsMatchingSearch { maintain },
+                current_line: None,
+                suggested_items: Default::default(),
             },
-            None,
-        )
+        ))
     }
 
     fn navigate_back(&mut self) -> anyhow::Result<()> {
@@ -3103,61 +3053,54 @@ impl<T: Frontend> App<T> {
         content_editor: String,
         content_filesystem: String,
     ) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                on_enter: DispatchPrompt::Null,
-                items: PromptItems::Precomputed(
-                    [
-                        DropdownItem::new("Force Save".to_string())
-                            .set_dispatches(Dispatches::one(Dispatch::ToEditor(
-                                DispatchEditor::ForceSave,
-                            )))
-                            .set_info(Some(Info::new(
-                                "Diff to be applied".to_string(),
-                                Self::get_diff(&content_filesystem, &content_editor),
-                            ))),
-                        DropdownItem::new("Force Reload".to_string())
-                            .set_dispatches(Dispatches::one(Dispatch::ToEditor(
-                                DispatchEditor::ReloadFile { force: true },
-                            )))
-                            .set_info(Some(Info::new(
-                                "Diff to be applied".to_string(),
-                                Self::get_diff(&content_editor, &content_filesystem),
-                            ))),
-                        DropdownItem::new("Merge".to_string())
-                            .set_dispatches(Dispatches::one(Dispatch::ToEditor(
-                                DispatchEditor::MergeContent {
-                                    content_filesystem,
-                                    content_editor,
-                                    path: path.clone(),
-                                },
-                            )))
-                            .set_info(Some(Info::new(
-                                "Info".to_string(),
-                                "Perform a 3-way merge where:
+        let items = PromptItems::Precomputed(
+            [
+                DropdownItem::new("Force Save".to_string())
+                    .set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                        DispatchEditor::ForceSave,
+                    )))
+                    .set_info(Some(Info::new(
+                        "Diff to be applied".to_string(),
+                        Self::get_diff(&content_filesystem, &content_editor),
+                    ))),
+                DropdownItem::new("Force Reload".to_string())
+                    .set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                        DispatchEditor::ReloadFile { force: true },
+                    )))
+                    .set_info(Some(Info::new(
+                        "Diff to be applied".to_string(),
+                        Self::get_diff(&content_editor, &content_filesystem),
+                    ))),
+                DropdownItem::new("Merge".to_string())
+                    .set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                        DispatchEditor::MergeContent {
+                            content_filesystem,
+                            content_editor,
+                            path: path.clone(),
+                        },
+                    )))
+                    .set_info(Some(Info::new(
+                        "Info".to_string(),
+                        "Perform a 3-way merge where:
 
 - ours     = content of file in the Editor
 - theirs   = content of file in the Filesystem
 - original = content of file in the latest Git commit
 
 Conflict markers will be injected in areas that cannot be merged gracefully."
-                                    .to_string(),
-                            ))),
-                    ]
-                    .into_iter()
-                    .collect(),
-                ),
-                title: format!(
-                    "Failed to save {}: The content of the file is newer.",
-                    path.try_display_relative_to(self.context.current_working_directory())
-                ),
-                enter_selects_first_matching_item: true,
-                leaves_current_line_empty: true,
-                prompt_history_key: PromptHistoryKey::ResolveBufferSaveConflict,
-                ..Default::default()
-            },
-            None,
-        )
+                            .to_string(),
+                    ))),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        self.open_prompt(PromptConfig::new(
+            format!(
+                "Failed to save {}: The content of the file is newer.",
+                path.try_display_relative_to(self.context.current_working_directory())
+            ),
+            PromptOnEnter::SelectsFirstMatchingItem { items },
+        ))
     }
 
     fn handle_file_watcher_event(&mut self, event: FileWatcherEvent) -> anyhow::Result<()> {
@@ -3205,7 +3148,7 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         }
     }
 
-    fn open_workspace_symbols_prompt(&mut self) -> anyhow::Result<()> {
+    fn open_workspace_symbols_picker(&mut self) -> anyhow::Result<()> {
         if self.is_running_as_embedded() {
             self.send_integration_event(IntegrationEvent::RequestLspWorkspaceSymbols);
             return Ok(());
@@ -3215,24 +3158,21 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
             return Ok(());
         };
         self.open_prompt(
-            PromptConfig {
-                title: "Workspace Symbol".to_string(),
-                on_change: Some(PromptOnChangeDispatch::RequestWorkspaceSymbol(path)),
-                items: PromptItems::BackgroundTask {
-                    task: PromptItemsBackgroundTask::HandledByMainEventLoop,
-                    on_nucleo_tick_debounced: {
-                        let sender = self.sender.clone();
-                        Callback::new(Arc::new(move |_| {
-                            let _ = sender.send(AppMessage::NucleoTickDebounced);
-                        }))
+            PromptConfig::new(
+                "Workspace Symbol".to_string(),
+                PromptOnEnter::SelectsFirstMatchingItem {
+                    items: PromptItems::BackgroundTask {
+                        task: PromptItemsBackgroundTask::HandledByMainEventLoop,
+                        on_nucleo_tick_debounced: {
+                            let sender = self.sender.clone();
+                            Callback::new(Arc::new(move |_| {
+                                let _ = sender.send(AppMessage::NucleoTickDebounced);
+                            }))
+                        },
                     },
                 },
-                enter_selects_first_matching_item: true,
-                leaves_current_line_empty: true,
-                prompt_history_key: PromptHistoryKey::WorkspaceSymbol,
-                ..Default::default()
-            },
-            None,
+            )
+            .set_on_change(Some(PromptOnChangeDispatch::RequestWorkspaceSymbol(path))),
         )
     }
 
@@ -3565,7 +3505,6 @@ pub(crate) enum Dispatch {
     #[cfg(test)]
     OpenPrompt {
         config: PromptConfig,
-        current_line: Option<String>,
     },
     ShowEditorInfo(Info),
     ReceiveCodeActions(Vec<crate::lsp::code_action::CodeAction>),
@@ -3769,7 +3708,7 @@ pub(crate) enum AppMessage {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum DispatchPrompt {
+pub(crate) enum DispatchParser {
     MoveSelectionByIndex,
     RenameSymbol,
     UpdateLocalSearchConfigSearch {
@@ -3784,15 +3723,6 @@ pub(crate) enum DispatchPrompt {
     CopyFile {
         from: CanonicalizedPath,
     },
-    Null,
-    // TODO: remove the following variants
-    // Because the following action already embeds dispatches
-    SelectSymbol {
-        symbols: Symbols,
-    },
-    OpenFile {
-        working_directory: CanonicalizedPath,
-    },
     #[cfg(test)]
     SetContent,
     PipeToShell,
@@ -3801,27 +3731,24 @@ pub(crate) enum DispatchPrompt {
     },
     SetKeyboardLayoutKind,
     SurroundXmlTag,
+    #[cfg(test)]
+    /// For testing only
+    Null,
 }
 
-impl Default for DispatchPrompt {
-    fn default() -> Self {
-        Self::Null
-    }
-}
-
-impl DispatchPrompt {
-    pub(crate) fn to_dispatches(&self, text: &str) -> anyhow::Result<Dispatches> {
+impl DispatchParser {
+    pub(crate) fn parse(&self, text: &str) -> anyhow::Result<Dispatches> {
         match self.clone() {
-            DispatchPrompt::MoveSelectionByIndex => {
+            DispatchParser::MoveSelectionByIndex => {
                 let index = text.parse::<usize>()?.saturating_sub(1);
                 Ok(Dispatches::new(
                     [Dispatch::ToEditor(MoveSelection(Movement::Index(index)))].to_vec(),
                 ))
             }
-            DispatchPrompt::RenameSymbol => Ok(Dispatches::new(vec![Dispatch::RenameSymbol {
+            DispatchParser::RenameSymbol => Ok(Dispatches::new(vec![Dispatch::RenameSymbol {
                 new_name: text.to_string(),
             }])),
-            DispatchPrompt::UpdateLocalSearchConfigSearch {
+            DispatchParser::UpdateLocalSearchConfigSearch {
                 scope,
                 if_current_not_found,
                 run_search_after_config_updated,
@@ -3847,10 +3774,10 @@ impl DispatchPrompt {
                 Ok(Dispatches::one(dispatch)
                     .append(Dispatch::ToEditor(ClearIncrementalSearchMatches)))
             }
-            DispatchPrompt::AddPath => {
+            DispatchParser::AddPath => {
                 Ok(Dispatches::new([Dispatch::AddPath(text.into())].to_vec()))
             }
-            DispatchPrompt::MovePaths { sources } => Ok(Dispatches::new(
+            DispatchParser::MovePaths { sources } => Ok(Dispatches::new(
                 [Dispatch::MovePaths {
                     sources,
                     destinations: NonEmpty::from_vec(
@@ -3864,55 +3791,29 @@ impl DispatchPrompt {
                 }]
                 .to_vec(),
             )),
-            DispatchPrompt::CopyFile { from } => Ok(Dispatches::new(
+            DispatchParser::CopyFile { from } => Ok(Dispatches::new(
                 [Dispatch::CopyFile {
                     from,
                     to: text.into(),
                 }]
                 .to_vec(),
             )),
-            DispatchPrompt::SelectSymbol { symbols } => {
-                // TODO: make Prompt generic over the item type,
-                // so that we don't have to do this,
-                // i.e. we can just return the symbol directly,
-                // instead of having to find it again.
-                if let Some(symbol) = symbols
-                    .symbols
-                    .iter()
-                    .find(|symbol| text == symbol.display())
-                {
-                    Ok(Dispatches::new(vec![Dispatch::GotoLocation(
-                        symbol.location.clone(),
-                    )]))
-                } else {
-                    Ok(Dispatches::new(vec![]))
-                }
-            }
-            DispatchPrompt::OpenFile { working_directory } => {
-                let path = working_directory.join(text)?;
-                Ok(Dispatches::new(vec![Dispatch::OpenFile {
-                    path,
-                    owner: BufferOwner::User,
-                    focus: true,
-                }]))
-            }
             #[cfg(test)]
-            DispatchPrompt::SetContent => Ok(Dispatches::new(
+            DispatchParser::SetContent => Ok(Dispatches::new(
                 [Dispatch::ToEditor(SetContent(text.to_string()))].to_vec(),
             )),
-            DispatchPrompt::Null => Ok(Default::default()),
-            DispatchPrompt::PipeToShell => Ok(Dispatches::one(Dispatch::ToEditor(
+            DispatchParser::PipeToShell => Ok(Dispatches::one(Dispatch::ToEditor(
                 DispatchEditor::PipeToShell {
                     command: text.to_string(),
                 },
             ))),
-            DispatchPrompt::FilterSelectionMatchingSearch { maintain } => Ok(Dispatches::one(
+            DispatchParser::FilterSelectionMatchingSearch { maintain } => Ok(Dispatches::one(
                 Dispatch::ToEditor(DispatchEditor::FilterSelectionMatchingSearch {
                     maintain,
                     search: text.to_string(),
                 }),
             )),
-            DispatchPrompt::SetKeyboardLayoutKind => {
+            DispatchParser::SetKeyboardLayoutKind => {
                 let keyboard_layout_kind = KeyboardLayoutKind::iter()
                     .find(|keyboard_layout| keyboard_layout.display() == text)
                     .ok_or_else(|| anyhow::anyhow!("No keyboard layout is named {text:?}"))?;
@@ -3920,9 +3821,11 @@ impl DispatchPrompt {
                     keyboard_layout_kind,
                 )))
             }
-            DispatchPrompt::SurroundXmlTag => Ok(Dispatches::one(Dispatch::ToEditor(
+            DispatchParser::SurroundXmlTag => Ok(Dispatches::one(Dispatch::ToEditor(
                 DispatchEditor::Surround(format!("<{text}>"), format!("</{text}>")),
             ))),
+            #[cfg(test)]
+            DispatchParser::Null => Ok(Default::default()),
         }
     }
 }
