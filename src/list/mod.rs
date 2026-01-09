@@ -221,7 +221,7 @@ mod test_walk_builder_config {
     #[test]
     fn test_exclude() -> anyhow::Result<()> {
         let config = WalkBuilderConfig {
-            root: "./tests/mock_repos/rust1".into(),
+            root: "./mock_repos/rust1".into(),
             include: None,
             exclude: Some(Glob::new("src/*.rs")?),
         };
@@ -232,10 +232,10 @@ mod test_walk_builder_config {
         assert_eq!(
             paths.into_iter().sorted().collect_vec(),
             [
-                PathBuf::from("./tests/mock_repos/rust1/.gitignore"),
-                PathBuf::from("./tests/mock_repos/rust1/Cargo.lock"),
-                PathBuf::from("./tests/mock_repos/rust1/Cargo.toml"),
-                PathBuf::from("./tests/mock_repos/rust1/src/hello.ts")
+                PathBuf::from("./mock_repos/rust1/.gitignore"),
+                PathBuf::from("./mock_repos/rust1/Cargo.lock"),
+                PathBuf::from("./mock_repos/rust1/Cargo.toml"),
+                PathBuf::from("./mock_repos/rust1/src/hello.ts")
             ]
         );
         Ok(())
@@ -244,7 +244,7 @@ mod test_walk_builder_config {
     #[test]
     fn test_include() -> anyhow::Result<()> {
         let config = WalkBuilderConfig {
-            root: "./tests/mock_repos/rust1".into(),
+            root: "./mock_repos/rust1".into(),
             include: Some(Glob::new("src/*.rs")?),
             exclude: None,
         };
@@ -255,8 +255,8 @@ mod test_walk_builder_config {
         assert_eq!(
             paths.into_iter().sorted().collect_vec(),
             [
-                PathBuf::from("./tests/mock_repos/rust1/src/foo.rs"),
-                PathBuf::from("./tests/mock_repos/rust1/src/main.rs")
+                PathBuf::from("./mock_repos/rust1/src/foo.rs"),
+                PathBuf::from("./mock_repos/rust1/src/main.rs")
             ]
         );
         Ok(())
