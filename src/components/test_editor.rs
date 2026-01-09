@@ -3981,7 +3981,7 @@ fn background_editor_forefront_on_edit() -> anyhow::Result<()> {
     execute_test(|_| {
         Box::new([
             App(HandleKeyEvents(
-                keys!("space q f o o : : f o o enter").to_vec(),
+                keys!("space d f o o : : f o o enter").to_vec(),
             )),
             Expect(OpenedFilesCount(0)),
             WaitForAppMessage(regex!("AddQuickfixListEntries")),
