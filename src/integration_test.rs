@@ -31,7 +31,7 @@ impl TestRunner {
         Ok(output)
     }
     fn new() -> anyhow::Result<(Self, Receiver<AppMessage>)> {
-        const MOCK_REPO_PATH: &str = "tests/mock_repos/rust1";
+        const MOCK_REPO_PATH: &str = "mock_repos/rust1";
 
         let path = tempfile::tempdir()?.keep();
         std::fs::create_dir_all(path.clone())?;

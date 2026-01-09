@@ -346,7 +346,7 @@ mod test_quickfix_list {
     #[test]
     fn should_sort_items() {
         let git_ignore_path: CanonicalizedPath = ".gitignore".try_into().unwrap();
-        let readme_path: CanonicalizedPath = "readme.md".try_into().unwrap();
+        let readme_path: CanonicalizedPath = "README.md".try_into().unwrap();
         let foo = QuickfixListItem {
             location: Location {
                 path: git_ignore_path.clone(),
@@ -385,7 +385,7 @@ mod test_quickfix_list {
 
     #[test]
     fn should_merge_items_of_same_location() {
-        let readme_path: CanonicalizedPath = "readme.md".try_into().unwrap();
+        let readme_path: CanonicalizedPath = "README.md".try_into().unwrap();
         let items = [
             QuickfixListItem {
                 location: Location {
@@ -420,7 +420,7 @@ mod test_quickfix_list {
             quickfix_list.items(),
             vec![QuickfixListItem {
                 location: Location {
-                    path: "readme.md".try_into().unwrap(),
+                    path: "README.md".try_into().unwrap(),
                     range: (CharIndex(1)..CharIndex(2)).into(),
                 },
                 info: Some(Info::new(
