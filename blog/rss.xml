@@ -4,7 +4,7 @@
         <title>Ki Editor Blog</title>
         <link>https://ki-editor.github.io/ki-editor/blog</link>
         <description>Ki Editor Blog</description>
-        <lastBuildDate>Sat, 27 Dec 2025 00:00:00 GMT</lastBuildDate>
+        <lastBuildDate>Sat, 10 Jan 2026 00:00:00 GMT</lastBuildDate>
         <docs>https://validator.w3.org/feed/docs/rss2.html</docs>
         <generator>https://github.com/jpmonette/feed</generator>
         <language>en</language>
@@ -12,7 +12,7 @@
             <title><![CDATA[Evolution of Delete]]></title>
             <link>https://ki-editor.github.io/ki-editor/blog/evoluation-of-delete</link>
             <guid>https://ki-editor.github.io/ki-editor/blog/evoluation-of-delete</guid>
-            <pubDate>Sat, 27 Dec 2025 00:00:00 GMT</pubDate>
+            <pubDate>Sat, 10 Jan 2026 00:00:00 GMT</pubDate>
             <description><![CDATA[In this article, I'll discuss how the Delete operation went through several revisions before arriving at its current behavior.]]></description>
             <content:encoded><![CDATA[<p>In this article, I'll discuss how the Delete operation went through several revisions before arriving at its current behavior.</p>
 <h2 class="anchor anchorWithStickyNavbar_FNw8" id="version-1-selection-mode-specific">Version 1: Selection mode-specific<a href="https://ki-editor.github.io/ki-editor/blog/evoluation-of-delete#version-1-selection-mode-specific" class="hash-link" aria-label="Direct link to Version 1: Selection mode-specific" title="Direct link to Version 1: Selection mode-specific">​</a></h2>
@@ -128,7 +128,12 @@
 <li><strong>With Delete Submode</strong>: Enter Delete Submode → Right → Right → Escape Delete Submode</li>
 <li><strong>With Extend + Delete Menu</strong>: Extend → Right → Open Delete Menu → Right</li>
 </ul>
-<p>Since most deletions involve only one selection, the menu approach is more efficient for the common case while keeping the Delete Submode available for users who prefer chaining deletions.</p>]]></content:encoded>
+<p>Since most deletions involve only one selection, the menu approach is more efficient for the common case while keeping the Delete Submode available for users who prefer chaining deletions.</p>
+<h2 class="anchor anchorWithStickyNavbar_FNw8" id="version-6-momentary-layer">Version 6: Momentary Layer<a href="https://ki-editor.github.io/ki-editor/blog/evoluation-of-delete#version-6-momentary-layer" class="hash-link" aria-label="Direct link to Version 6: Momentary Layer" title="Direct link to Version 6: Momentary Layer">​</a></h2>
+<p><a href="https://zmk.dev/docs/keymaps/behaviors/layers#momentary-layer" target="_blank" rel="noopener noreferrer">Momentary Layer</a> combines the best aspects of both the Delete Menu and Delete Submode approaches: it's as efficient as the Delete Menu for single deletions while being as repeatable as the Delete Submode for chained operations.</p>
+<p>Here's how it works: when the Delete key (<code>v</code> at the time of writing) is <strong>held down</strong>, the Delete submode activates, allowing you to repeatedly press movement keys like Right to delete multiple selections forward. As soon as you release the Delete key, the Delete submode automatically deactivates.</p>
+<p>When <strong>tapped</strong> (pressed and released immediately), it executes the Delete One action directly, making the most common case even more efficient than the Delete Menu, which required two keypresses (i.e. <code>v v</code>).</p>
+<p>The momentary layer approach eliminates the keypress overhead of explicitly entering and exiting modes, making deletion feel more natural and immediate.</p>]]></content:encoded>
             <category>documentation</category>
         </item>
         <item>
