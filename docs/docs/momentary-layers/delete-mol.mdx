@@ -1,0 +1,16 @@
+import {TutorialFallback} from '@site/src/components/TutorialFallback';
+
+# Delete MOL
+
+When this layer is activated, movement keys are overridden with the following behavior:
+
+> Deletes both the current selection and the whitespace/gap leading to the `<movement>` selection, then moves to select the `<movement>` selection.
+
+<TutorialFallback filename="delete"/>
+<TutorialFallback filename="delete-finer-movement"/>
+
+If the layer is deactivated immediately without pressing any movement key, the current selection is deleted and collapses to a single-character selection at the cursor position.
+
+<TutorialFallback filename="delete-one" />
+
+For more details on the design rationale behind Delete's behavior, see [Evolution of Delete](/ki-editor/blog/evoluation-of-delete).

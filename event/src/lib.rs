@@ -22,22 +22,46 @@ pub fn parse_key_event(input: &str) -> Result<KeyEvent, ParseError> {
 
 impl Token {
     fn to_key_event(&self) -> Result<KeyEvent, ParseError> {
-        match self.0.split('+').collect::<Vec<_>>().split_last() {
-            Some((key, modifiers)) => {
-                let result = Token::parse_key_code(key)?;
-                Ok(KeyEvent::new(
-                    result.key_code,
-                    Token::parse_modifiers(modifiers)?.add_shift(result.shift),
-                ))
-            }
-            _ => {
-                let result = Token::parse_key_code(&self.0)?;
-                Ok(KeyEvent::new(
-                    result.key_code,
-                    KeyModifiers::None.add_shift(result.shift),
-                ))
+        fn new_key_event(
+            key_code: KeyCode,
+            modifiers: KeyModifiers,
+            is_released: bool,
+        ) -> KeyEvent {
+            if is_released {
+                KeyEvent::released(key_code, modifiers)
+            } else {
+                KeyEvent::pressed(key_code, modifiers)
             }
         }
+
+        fn to_key_event(token: &Token, is_released: bool) -> Result<KeyEvent, ParseError> {
+            if token.0.starts_with("release-") {
+                return to_key_event(
+                    &Token(token.0.trim_start_matches("release-").to_string()),
+                    true,
+                );
+            }
+            match token.0.split('+').collect::<Vec<_>>().split_last() {
+                Some((key, modifiers)) => {
+                    let result = Token::parse_key_code(key)?;
+                    Ok(new_key_event(
+                        result.key_code,
+                        Token::parse_modifiers(modifiers)?.add_shift(result.shift),
+                        is_released,
+                    ))
+                }
+                _ => {
+                    let result = Token::parse_key_code(&token.0)?;
+                    Ok(new_key_event(
+                        result.key_code,
+                        KeyModifiers::None.add_shift(result.shift),
+                        is_released,
+                    ))
+                }
+            }
+        }
+
+        to_key_event(self, false)
     }
 
     fn parse_modifiers(modifiers: &[&str]) -> Result<KeyModifiers, ParseError> {
@@ -142,7 +166,7 @@ mod test_key_event {
     fn alphabetic_char() {
         assert_eq!(
             parse_key_events("a").unwrap(),
-            vec![KeyEvent::new(KeyCode::Char('a'), KeyModifiers::None)]
+            vec![KeyEvent::pressed(KeyCode::Char('a'), KeyModifiers::None)]
         );
     }
 
@@ -150,7 +174,18 @@ mod test_key_event {
     fn uppercase_char_should_have_shift() {
         assert_eq!(
             parse_key_events("A").unwrap(),
-            vec![KeyEvent::new(KeyCode::Char('A'), KeyModifiers::Shift)]
+            vec![KeyEvent::pressed(KeyCode::Char('A'), KeyModifiers::Shift)]
+        )
+    }
+
+    #[test]
+    fn released_events() {
+        assert_eq!(
+            parse_key_events("release-A release-ctrl+g").unwrap(),
+            vec![
+                KeyEvent::released(KeyCode::Char('A'), KeyModifiers::Shift),
+                KeyEvent::released(KeyCode::Char('g'), KeyModifiers::Ctrl)
+            ]
         )
     }
 
@@ -158,37 +193,43 @@ mod test_key_event {
     fn modifier() {
         assert_eq!(
             parse_key_events("ctrl+a").unwrap(),
-            vec![KeyEvent::new(KeyCode::Char('a'), KeyModifiers::Ctrl)]
+            vec![KeyEvent::pressed(KeyCode::Char('a'), KeyModifiers::Ctrl)]
         );
 
         assert_eq!(
             parse_key_events("alt+a").unwrap(),
-            vec![KeyEvent::new(KeyCode::Char('a'), KeyModifiers::Alt)]
+            vec![KeyEvent::pressed(KeyCode::Char('a'), KeyModifiers::Alt)]
         );
 
         assert_eq!(
             parse_key_events("shift+a").unwrap(),
-            vec![KeyEvent::new(KeyCode::Char('a'), KeyModifiers::Shift)]
+            vec![KeyEvent::pressed(KeyCode::Char('a'), KeyModifiers::Shift)]
         );
 
         assert_eq!(
             parse_key_events("ctrl+alt+a").unwrap(),
-            vec![KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CtrlAlt)]
+            vec![KeyEvent::pressed(KeyCode::Char('a'), KeyModifiers::CtrlAlt)]
         );
 
         assert_eq!(
             parse_key_events("ctrl+shift+a").unwrap(),
-            vec![KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CtrlShift)]
+            vec![KeyEvent::pressed(
+                KeyCode::Char('a'),
+                KeyModifiers::CtrlShift
+            )]
         );
 
         assert_eq!(
             parse_key_events("alt+shift+a").unwrap(),
-            vec![KeyEvent::new(KeyCode::Char('a'), KeyModifiers::AltShift)]
+            vec![KeyEvent::pressed(
+                KeyCode::Char('a'),
+                KeyModifiers::AltShift
+            )]
         );
 
         assert_eq!(
             parse_key_events("ctrl+alt+shift+a").unwrap(),
-            vec![KeyEvent::new(
+            vec![KeyEvent::pressed(
                 KeyCode::Char('a'),
                 KeyModifiers::CtrlAltShift
             )]
@@ -199,67 +240,67 @@ mod test_key_event {
     fn invisible_keys() {
         assert_eq!(
             parse_key_events("enter").unwrap(),
-            vec![KeyEvent::new(KeyCode::Enter, KeyModifiers::None)]
+            vec![KeyEvent::pressed(KeyCode::Enter, KeyModifiers::None)]
         );
 
         assert_eq!(
             parse_key_events("esc").unwrap(),
-            vec![KeyEvent::new(KeyCode::Esc, KeyModifiers::None)]
+            vec![KeyEvent::pressed(KeyCode::Esc, KeyModifiers::None)]
         );
 
         assert_eq!(
             parse_key_events("backspace").unwrap(),
-            vec![KeyEvent::new(KeyCode::Backspace, KeyModifiers::None)]
+            vec![KeyEvent::pressed(KeyCode::Backspace, KeyModifiers::None)]
         );
 
         assert_eq!(
             parse_key_events("up").unwrap(),
-            vec![KeyEvent::new(KeyCode::Up, KeyModifiers::None)]
+            vec![KeyEvent::pressed(KeyCode::Up, KeyModifiers::None)]
         );
 
         assert_eq!(
             parse_key_events("down").unwrap(),
-            vec![KeyEvent::new(KeyCode::Down, KeyModifiers::None)]
+            vec![KeyEvent::pressed(KeyCode::Down, KeyModifiers::None)]
         );
 
         assert_eq!(
             parse_key_events("left").unwrap(),
-            vec![KeyEvent::new(KeyCode::Left, KeyModifiers::None)]
+            vec![KeyEvent::pressed(KeyCode::Left, KeyModifiers::None)]
         );
 
         assert_eq!(
             parse_key_events("right").unwrap(),
-            vec![KeyEvent::new(KeyCode::Right, KeyModifiers::None)]
+            vec![KeyEvent::pressed(KeyCode::Right, KeyModifiers::None)]
         );
 
         assert_eq!(
             parse_key_events("home").unwrap(),
-            vec![KeyEvent::new(KeyCode::Home, KeyModifiers::None)]
+            vec![KeyEvent::pressed(KeyCode::Home, KeyModifiers::None)]
         );
 
         assert_eq!(
             parse_key_events("end").unwrap(),
-            vec![KeyEvent::new(KeyCode::End, KeyModifiers::None)]
+            vec![KeyEvent::pressed(KeyCode::End, KeyModifiers::None)]
         );
 
         assert_eq!(
             parse_key_events("pageup").unwrap(),
-            vec![KeyEvent::new(KeyCode::PageUp, KeyModifiers::None)]
+            vec![KeyEvent::pressed(KeyCode::PageUp, KeyModifiers::None)]
         );
 
         assert_eq!(
             parse_key_events("pagedown").unwrap(),
-            vec![KeyEvent::new(KeyCode::PageDown, KeyModifiers::None)]
+            vec![KeyEvent::pressed(KeyCode::PageDown, KeyModifiers::None)]
         );
 
         assert_eq!(
             parse_key_events("delete").unwrap(),
-            vec![KeyEvent::new(KeyCode::Delete, KeyModifiers::None)]
+            vec![KeyEvent::pressed(KeyCode::Delete, KeyModifiers::None)]
         );
 
         assert_eq!(
             parse_key_events("tab").unwrap(),
-            vec![KeyEvent::new(KeyCode::Tab, KeyModifiers::None)]
+            vec![KeyEvent::pressed(KeyCode::Tab, KeyModifiers::None)]
         );
     }
 
@@ -268,10 +309,10 @@ mod test_key_event {
         assert_eq!(
             parse_key_events("a b c alt+enter").unwrap(),
             vec![
-                KeyEvent::new(KeyCode::Char('a'), KeyModifiers::None),
-                KeyEvent::new(KeyCode::Char('b'), KeyModifiers::None),
-                KeyEvent::new(KeyCode::Char('c'), KeyModifiers::None),
-                KeyEvent::new(KeyCode::Enter, KeyModifiers::Alt),
+                KeyEvent::pressed(KeyCode::Char('a'), KeyModifiers::None),
+                KeyEvent::pressed(KeyCode::Char('b'), KeyModifiers::None),
+                KeyEvent::pressed(KeyCode::Char('c'), KeyModifiers::None),
+                KeyEvent::pressed(KeyCode::Enter, KeyModifiers::Alt),
             ]
         );
     }

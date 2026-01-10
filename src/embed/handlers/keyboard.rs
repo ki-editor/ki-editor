@@ -54,11 +54,11 @@ impl EmbeddedApp {
             }
         };
 
-        event::KeyEvent::new(code, event_modifiers)
+        event::KeyEvent::pressed(code, event_modifiers)
     }
 
     /// Handle keyboard.input request
-    pub fn handle_keyboard_input_request(
+    pub(crate) fn handle_keyboard_input_request(
         &self,
         id: u32,
         params: ki_protocol_types::KeyboardParams,

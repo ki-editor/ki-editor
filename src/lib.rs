@@ -112,10 +112,9 @@ pub fn run(config: RunConfig) -> anyhow::Result<()> {
                     crossterm::event::Event::Key(key_event) => {
                         // Only process key press events, not releases
                         // This is especially important for Windows compatibility
-                        if key_event.kind == crossterm::event::KeyEventKind::Press {
+                        if key_event.kind != crossterm::event::KeyEventKind::Repeat {
                             AppMessage::Event(event.into())
                         } else {
-                            // Skip release events by continuing the loop
                             continue;
                         }
                     }
