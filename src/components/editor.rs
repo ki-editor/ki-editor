@@ -35,8 +35,8 @@ use crate::{
     transformation::{MyRegex, Transformation},
 };
 use crate::{grid::LINE_NUMBER_VERTICAL_BORDER, selection_mode::PositionBasedSelectionMode};
-use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
-use event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEventKind, MouseButton, MouseEventKind};
+use event::{parse_key_event, KeyEvent};
 use itertools::{Either, Itertools};
 use my_proc_macros::key;
 use nonempty::NonEmpty;
@@ -1581,6 +1581,20 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
+        if self.mode == Mode::Delete
+            && key_event.kind == KeyEventKind::Release
+            && key_event.code
+                == parse_key_event(
+                    context
+                        .keyboard_layout_kind()
+                        .get_key(&super::editor_keymap::Meaning::Delte),
+                )
+                .unwrap()
+                .code
+        {
+            self.mode = Mode::Normal;
+            return Ok(Default::default());
+        }
         match self.handle_universal_key(key_event, context)? {
             HandleEventResult::Ignored(key_event) => {
                 if let Some(jumps) = self.jumps.take() {

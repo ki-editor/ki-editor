@@ -453,7 +453,7 @@ impl Editor {
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Delte),
                 "Delete".to_string(),
-                Dispatch::ShowKeymapLegend(self.delete_keymap_legend_config(context)),
+                Dispatch::ToEditor(EnterDeleteMode),
             )
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
             Keymap::new_extended(
