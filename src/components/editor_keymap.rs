@@ -55,26 +55,28 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
     ],
 ];
 
+pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
+
 /// Why only the left-side is used for Find Local/Global keybindings?
 /// This is to enable hand-alteration, as Find Local (Prev/Next) and Find Global
 /// are both located on the right-side.
-pub(crate) const KEYMAP_FIND_LOCAL: [[Meaning; 10]; 3] = [
+pub(crate) const KEYMAP_FIND_LOCAL: KeyboardMeaningLayout = [
     [
-        Srch_, SchCS, Mark_, RSrch, Qkfix, /****/ OneCh, _____, _____, _____, _____,
+        DgHnt, DgWrn, Mark_, RSrch, Qkfix, /****/ OneCh, _____, _____, _____, _____,
     ],
     [
-        DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
+        DgAll, DgErr, Srch_, SchCS, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, LDefn, LType, LRfrE, LImpl, /****/ LRept, _____, _____, _____, _____,
     ],
 ];
-pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
+pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: KeyboardMeaningLayout = [
     [
-        SchWC, SchCC, _____, _____, _____, /****/ NtrlN, _____, _____, _____, _____,
+        DgInf, _____, _____, _____, _____, /****/ NtrlN, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
+        _____, _____, SchWC, SchCC, GHnkM, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, LDecl, _____, LRfrI, _____, /****/ _____, _____, _____, _____, _____,
@@ -82,24 +84,23 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: [[Meaning; 10]; 3] = [
 ];
 
 /// This keymap should be almost identical with that of Find Local
-pub(crate) const KEYMAP_FIND_GLOBAL: [[Meaning; 10]; 3] = [
+pub(crate) const KEYMAP_FIND_GLOBAL: KeyboardMeaningLayout = [
     [
-        Srch_, SchCS, Mark_, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
+        DgHnt, DgWrn, Mark_, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        DgAll, DgErr, DgWrn, DgHnt, GHnkC, /****/ _____, _____, _____, _____, _____,
+        DgAll, DgErr, Srch_, SchCS, GHnkC, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, LDefn, LType, LRfrE, LImpl, /****/ GRept, _____, _____, _____, _____,
     ],
 ];
-pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
 pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
     [
-        SchWC, SchCC, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        DgInf, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, DgInf, GHnkM, /****/ _____, _____, _____, _____, _____,
+        _____, _____, SchWC, SchCC, GHnkM, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, LDecl, _____, LRfrI, _____, /****/ _____, _____, _____, _____, _____,
