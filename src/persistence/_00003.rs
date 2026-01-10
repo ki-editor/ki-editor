@@ -3,19 +3,19 @@ use std::{collections::HashMap, path::PathBuf};
 use crate::{char_index_range::CharIndexRange, persistence::Migration};
 
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
-pub(crate) struct Root {
-    pub(crate) version: String,
-    pub(crate) workspace_sessions: HashMap<PathBuf, WorkspaceSession>,
+pub struct Root {
+    pub version: String,
+    pub workspace_sessions: HashMap<PathBuf, WorkspaceSession>,
 }
 
 #[derive(Default, serde::Serialize, serde::Deserialize, Debug)]
-pub(crate) struct WorkspaceSession {
+pub struct WorkspaceSession {
     /// We use PathBuf instead of CanonicalizedPath because
     /// the stored path might be deleted after Root is serialized and stored,
     /// and we don't want the deserialization of Root to fail because some
     /// path inside marked_files no longer exists.
-    pub(crate) marked_files: Vec<PathBuf>,
-    pub(crate) marks: HashMap<PathBuf, Vec<CharIndexRange>>,
+    pub marked_files: Vec<PathBuf>,
+    pub marks: HashMap<PathBuf, Vec<CharIndexRange>>,
 }
 
 impl Default for Root {

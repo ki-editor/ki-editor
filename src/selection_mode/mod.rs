@@ -1,41 +1,41 @@
-pub(crate) mod ast_grep;
-pub(crate) mod character;
-pub(crate) mod custom;
-pub(crate) mod diagnostic;
-pub(crate) mod git_hunk;
-pub(crate) mod mark;
-pub(crate) mod naming_convention_agnostic;
-pub(crate) mod syntax_token;
+pub mod ast_grep;
+pub mod character;
+pub mod custom;
+pub mod diagnostic;
+pub mod git_hunk;
+pub mod mark;
+pub mod naming_convention_agnostic;
+pub mod syntax_token;
 
-pub(crate) mod top_node;
+pub mod top_node;
 
-pub(crate) mod big_word;
-pub(crate) mod line_full;
-pub(crate) mod line_trimmed;
-pub(crate) mod local_quickfix;
-pub(crate) mod regex;
-pub(crate) mod subword;
-pub(crate) mod syntax_node;
-pub(crate) mod word;
-pub(crate) use self::regex::Regex;
-pub(crate) use ast_grep::AstGrep;
-pub(crate) use big_word::BigWord;
-pub(crate) use character::Character;
-pub(crate) use custom::Custom;
-pub(crate) use diagnostic::Diagnostic;
-pub(crate) use git_hunk::GitHunk;
+pub mod big_word;
+pub mod line_full;
+pub mod line_trimmed;
+pub mod local_quickfix;
+pub mod regex;
+pub mod subword;
+pub mod syntax_node;
+pub mod word;
+pub use self::regex::Regex;
+pub use ast_grep::AstGrep;
+pub use big_word::BigWord;
+pub use character::Character;
+pub use custom::Custom;
+pub use diagnostic::Diagnostic;
+pub use git_hunk::GitHunk;
 use itertools::Itertools;
-pub(crate) use line_full::LineFull;
-pub(crate) use line_trimmed::LineTrimmed;
-pub(crate) use local_quickfix::LocalQuickfix;
-pub(crate) use mark::Mark;
-pub(crate) use naming_convention_agnostic::NamingConventionAgnostic;
+pub use line_full::LineFull;
+pub use line_trimmed::LineTrimmed;
+pub use local_quickfix::LocalQuickfix;
+pub use mark::Mark;
+pub use naming_convention_agnostic::NamingConventionAgnostic;
 use position_pair::ParsedChar;
 use std::ops::Range;
-pub(crate) use subword::Subword;
-pub(crate) use syntax_node::SyntaxNode;
-pub(crate) use top_node::TopNode;
-pub(crate) use word::Word;
+pub use subword::Subword;
+pub use syntax_node::SyntaxNode;
+pub use top_node::TopNode;
+pub use word::Word;
 
 use crate::{
     buffer::Buffer,
@@ -50,26 +50,26 @@ use crate::{
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
-pub(crate) struct ByteRange {
+pub struct ByteRange {
     range: Range<usize>,
     info: Option<Info>,
 }
 impl ByteRange {
-    pub(crate) fn new(range: Range<usize>) -> Self {
+    pub fn new(range: Range<usize>) -> Self {
         Self { range, info: None }
     }
 
-    pub(crate) fn with_info(range: Range<usize>, info: Info) -> Self {
+    pub fn with_info(range: Range<usize>, info: Info) -> Self {
         Self {
             range,
             info: Some(info),
         }
     }
-    pub(crate) fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<CharIndexRange> {
+    pub fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<CharIndexRange> {
         Ok((buffer.byte_to_char(self.range.start)?..buffer.byte_to_char(self.range.end)?).into())
     }
 
-    pub(crate) fn to_selection(
+    pub fn to_selection(
         &self,
         buffer: &Buffer,
         selection: &Selection,
@@ -84,11 +84,11 @@ impl ByteRange {
         ByteRange { info, ..self }
     }
 
-    pub(crate) fn range(&self) -> &Range<usize> {
+    pub fn range(&self) -> &Range<usize> {
         &self.range
     }
 
-    pub(crate) fn info(&self) -> Option<Info> {
+    pub fn info(&self) -> Option<Info> {
         self.info.clone()
     }
 }
@@ -108,10 +108,10 @@ impl Ord for ByteRange {
     }
 }
 
-pub(crate) struct SelectionModeParams<'a> {
-    pub(crate) buffer: &'a Buffer,
-    pub(crate) current_selection: &'a Selection,
-    pub(crate) cursor_direction: &'a Direction,
+pub struct SelectionModeParams<'a> {
+    pub buffer: &'a Buffer,
+    pub current_selection: &'a Selection,
+    pub cursor_direction: &'a Direction,
 }
 impl SelectionModeParams<'_> {
     fn cursor_char_index(&self) -> CharIndex {
@@ -265,13 +265,13 @@ impl SelectionModeParams<'_> {
     }
 }
 #[derive(Debug, Clone)]
-pub(crate) struct ApplyMovementResult {
-    pub(crate) selection: Selection,
-    pub(crate) sticky_column_index: Option<usize>,
+pub struct ApplyMovementResult {
+    pub selection: Selection,
+    pub sticky_column_index: Option<usize>,
 }
 
 impl ApplyMovementResult {
-    pub(crate) fn from_selection(selection: Selection) -> Self {
+    pub fn from_selection(selection: Selection) -> Self {
         Self {
             selection,
             sticky_column_index: None,
@@ -1116,8 +1116,8 @@ pub trait PositionBasedSelectionMode {
         Default::default()
     }
 }
-pub(crate) struct PositionBased<T: PositionBasedSelectionMode>(pub(crate) T);
-pub(crate) struct IterBased<T: IterBasedSelectionMode>(pub(crate) T);
+pub struct PositionBased<T: PositionBasedSelectionMode>(pub T);
+pub struct IterBased<T: IterBasedSelectionMode>(pub T);
 
 impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
     fn all_selections<'a>(
@@ -1228,7 +1228,7 @@ impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
     }
 }
 
-pub(crate) trait IterBasedSelectionMode {
+pub trait IterBasedSelectionMode {
     /// NOTE: this method should not be used directly,
     /// Use `iter_filtered` instead.
     /// I wish to have private trait methods :(
@@ -1924,33 +1924,27 @@ mod position_pair {
     use crate::surround::EnclosureKind;
 
     #[derive(Debug, PartialEq)]
-    pub(crate) enum Position {
+    pub enum Position {
         Open,
         Close,
         Escaped,
     }
 
     #[derive(Debug, PartialEq)]
-    pub(crate) enum ParsedChar {
+    pub enum ParsedChar {
         Enclosure(Position, EnclosureKind),
         Other(char),
     }
 
     impl ParsedChar {
-        pub(crate) fn is_closing_of(
-            &self,
-            enclosure_kind: &crate::surround::EnclosureKind,
-        ) -> bool {
+        pub fn is_closing_of(&self, enclosure_kind: &crate::surround::EnclosureKind) -> bool {
             match self {
                 ParsedChar::Enclosure(Position::Close, kind) => kind == enclosure_kind,
                 _ => false,
             }
         }
 
-        pub(crate) fn is_opening_of(
-            &self,
-            enclosure_kind: &crate::surround::EnclosureKind,
-        ) -> bool {
+        pub fn is_opening_of(&self, enclosure_kind: &crate::surround::EnclosureKind) -> bool {
             match self {
                 ParsedChar::Enclosure(Position::Open, kind) => kind == enclosure_kind,
                 _ => false,
@@ -1958,7 +1952,7 @@ mod position_pair {
         }
     }
 
-    pub(crate) fn create_position_pairs(chars: &[char]) -> Vec<ParsedChar> {
+    pub fn create_position_pairs(chars: &[char]) -> Vec<ParsedChar> {
         use EnclosureKind::*;
         use Position::*;
         let mut parsed_chars = Vec::new();

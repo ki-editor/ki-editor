@@ -23,11 +23,11 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-pub(crate) use Dispatch::*;
-pub(crate) use DispatchEditor::*;
+pub use Dispatch::*;
+pub use DispatchEditor::*;
 
-pub(crate) use Movement::*;
-pub(crate) use SelectionMode::*;
+pub use Movement::*;
+pub use SelectionMode::*;
 
 use crate::{
     app::StatusLine,
@@ -84,7 +84,7 @@ use crate::{
 use crate::{lsp::process::LspNotification, themes::Color};
 
 #[allow(clippy::large_enum_variant)]
-pub(crate) enum Step {
+pub enum Step {
     App(Dispatch),
     Shell(&'static str, Vec<String>),
     AppLater(Box<dyn Fn() -> Dispatch>),
@@ -119,7 +119,7 @@ impl Step {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum ExpectKind {
+pub enum ExpectKind {
     // This is just a placeholder for ending a test case without actual assertions.
     // Such test cases are those that just expect the series of actions to not result in failure.
     NoError,
@@ -666,10 +666,10 @@ fn run_range_style_key_check(
     )
 }
 
-pub(crate) use ExpectKind::*;
-pub(crate) use Step::*;
+pub use ExpectKind::*;
+pub use Step::*;
 #[derive(Clone)]
-pub(crate) struct State {
+pub struct State {
     temp_dir: CanonicalizedPath,
     main_rs: CanonicalizedPath,
     foo_rs: CanonicalizedPath,
@@ -677,32 +677,32 @@ pub(crate) struct State {
     git_ignore: CanonicalizedPath,
 }
 impl State {
-    pub(crate) fn main_rs(&self) -> CanonicalizedPath {
+    pub fn main_rs(&self) -> CanonicalizedPath {
         self.main_rs.clone()
     }
 
-    pub(crate) fn foo_rs(&self) -> CanonicalizedPath {
+    pub fn foo_rs(&self) -> CanonicalizedPath {
         self.foo_rs.clone()
     }
 
-    pub(crate) fn hello_ts(&self) -> CanonicalizedPath {
+    pub fn hello_ts(&self) -> CanonicalizedPath {
         self.hello_ts.clone()
     }
 
-    pub(crate) fn new_path(&self, path: &str) -> PathBuf {
+    pub fn new_path(&self, path: &str) -> PathBuf {
         self.temp_dir.to_path_buf().join(path)
     }
 
-    pub(crate) fn gitignore(&self) -> CanonicalizedPath {
+    pub fn gitignore(&self) -> CanonicalizedPath {
         self.git_ignore.clone()
     }
 
-    pub(crate) fn temp_dir(&self) -> CanonicalizedPath {
+    pub fn temp_dir(&self) -> CanonicalizedPath {
         self.temp_dir.clone()
     }
 }
 
-pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<()> {
+pub fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<()> {
     execute_test_helper(
         || Box::new(NullWriter),
         false,
@@ -721,7 +721,7 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
     Ok(())
 }
 
-pub(crate) fn execute_test_custom(
+pub fn execute_test_custom(
     options: RunTestOptions,
     callback: impl Fn(State) -> Box<[Step]>,
 ) -> anyhow::Result<()> {
@@ -739,7 +739,7 @@ pub(crate) fn execute_test_custom(
     Ok(())
 }
 
-pub(crate) fn execute_recipe(
+pub fn execute_recipe(
     callback: impl Fn(State) -> Box<[Step]>,
     assert_last_step_is_expect: bool,
 ) -> anyhow::Result<TestOutput> {
@@ -856,10 +856,10 @@ fn execute_test_helper(
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct RunTestOptions {
-    pub(crate) enable_lsp: bool,
-    pub(crate) enable_syntax_highlighting: bool,
-    pub(crate) enable_file_watcher: bool,
+pub struct RunTestOptions {
+    pub enable_lsp: bool,
+    pub enable_syntax_highlighting: bool,
+    pub enable_file_watcher: bool,
 }
 
 fn run_test(
@@ -1220,7 +1220,7 @@ fn signature_help() -> anyhow::Result<()> {
 }
 
 #[test]
-pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
+pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let path_new_file = s.new_path("new_file.md");
         fn strs_to_strings(strs: &[&str]) -> Option<Info> {
@@ -1292,7 +1292,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
 }
 
 #[test]
-pub(crate) fn revert_modified_hunk() -> Result<(), anyhow::Error> {
+pub fn revert_modified_hunk() -> Result<(), anyhow::Error> {
     let original_content = "pub(crate) struct Foo {
     a: (),
     b: (),
@@ -1371,7 +1371,7 @@ fn main() {
 }
 
 #[test]
-pub(crate) fn non_git_ignored_files() -> Result<(), anyhow::Error> {
+pub fn non_git_ignored_files() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let temp_dir = s.temp_dir();
         Box::new([

@@ -18,7 +18,7 @@ use crate::{
     themes::Theme,
 };
 
-pub(crate) struct Context {
+pub struct Context {
     clipboard: Clipboard,
     mode: Option<GlobalMode>,
     theme: Theme,
@@ -48,24 +48,24 @@ pub(crate) struct Context {
     persistence: Option<Persistence>,
 }
 
-pub(crate) struct QuickfixListState {
-    pub(crate) title: String,
-    pub(crate) source: QuickfixListSource,
-    pub(crate) current_item_index: usize,
+pub struct QuickfixListState {
+    pub title: String,
+    pub source: QuickfixListSource,
+    pub current_item_index: usize,
 }
 
-pub(crate) enum QuickfixListSource {
+pub enum QuickfixListSource {
     Diagnostic(DiagnosticSeverityRange),
     Mark,
     Custom(Vec<QuickfixListItem>),
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub(crate) enum GlobalMode {
+pub enum GlobalMode {
     QuickfixListItem,
 }
 impl GlobalMode {
-    pub(crate) fn display(&self) -> String {
+    pub fn display(&self) -> String {
         match self {
             GlobalMode::QuickfixListItem => "QFIX".to_string(),
         }
@@ -73,18 +73,18 @@ impl GlobalMode {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub(crate) struct Search {
-    pub(crate) mode: LocalSearchConfigMode,
-    pub(crate) search: String,
+pub struct Search {
+    pub mode: LocalSearchConfigMode,
+    pub search: String,
 }
 
 impl Context {
     #[cfg(test)]
-    pub(crate) fn default() -> Self {
+    pub fn default() -> Self {
         Self::new(CanonicalizedPath::try_from(".").unwrap(), false, None)
     }
 
-    pub(crate) fn persist_data(&mut self) {
+    pub fn persist_data(&mut self) {
         if let Some(persistence) = self.persistence.as_mut() {
             let current_working_directory = self.current_working_directory.to_path_buf();
             persistence.set_workspace_session(
@@ -110,7 +110,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn extend_quickfix_list_items(&mut self, new_items: Vec<QuickfixListItem>) {
+    pub fn extend_quickfix_list_items(&mut self, new_items: Vec<QuickfixListItem>) {
         if let Some(QuickfixListState {
             source: QuickfixListSource::Custom(items),
             ..
@@ -120,7 +120,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn quickfix_list_items(&self) -> Vec<&QuickfixListItem> {
+    pub fn quickfix_list_items(&self) -> Vec<&QuickfixListItem> {
         if let Some(QuickfixListState {
             source: QuickfixListSource::Custom(items),
             ..
@@ -132,11 +132,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn handle_applied_edits(
-        &mut self,
-        path: CanonicalizedPath,
-        edits: Vec<crate::edit::Edit>,
-    ) {
+    pub fn handle_applied_edits(&mut self, path: CanonicalizedPath, edits: Vec<crate::edit::Edit>) {
         if let Some(state) = self.quickfix_list_state.take() {
             self.quickfix_list_state = Some(match state.source {
                 QuickfixListSource::Diagnostic(_) => state,
@@ -184,7 +180,7 @@ impl Context {
             .collect();
     }
 
-    pub(crate) fn save_marks(&mut self, path: CanonicalizedPath, marks: Vec<CharIndexRange>) {
+    pub fn save_marks(&mut self, path: CanonicalizedPath, marks: Vec<CharIndexRange>) {
         let old_ranges = self
             .marks
             .get(&path)
@@ -206,16 +202,16 @@ impl Context {
         );
     }
 
-    pub(crate) fn get_marks(&self, path: Option<CanonicalizedPath>) -> Vec<CharIndexRange> {
+    pub fn get_marks(&self, path: Option<CanonicalizedPath>) -> Vec<CharIndexRange> {
         path.map(|path| self.marks.get(&path).cloned().unwrap_or_default().to_vec())
             .unwrap_or_default()
     }
 
-    pub(crate) fn marks(&self) -> &HashMap<CanonicalizedPath, Vec<CharIndexRange>> {
+    pub fn marks(&self) -> &HashMap<CanonicalizedPath, Vec<CharIndexRange>> {
         &self.marks
     }
 
-    pub(crate) fn handle_file_renamed(
+    pub fn handle_file_renamed(
         &mut self,
         source: std::path::PathBuf,
         destination: CanonicalizedPath,
@@ -230,20 +226,20 @@ impl Context {
         }
     }
 
-    pub(crate) fn mark_files(&mut self, paths: nonempty::NonEmpty<CanonicalizedPath>) {
+    pub fn mark_files(&mut self, paths: nonempty::NonEmpty<CanonicalizedPath>) {
         for path in paths {
             self.mark_file(path);
         }
     }
 
     #[cfg(test)]
-    pub(crate) fn change_working_directory(&mut self, path: CanonicalizedPath) {
+    pub fn change_working_directory(&mut self, path: CanonicalizedPath) {
         self.current_working_directory = path
     }
 }
 
 impl Context {
-    pub(crate) fn new(
+    pub fn new(
         current_working_directory: CanonicalizedPath,
         is_running_as_embedded: bool,
         persistence: Option<Persistence>,
@@ -304,7 +300,7 @@ impl Context {
     }
 
     /// Checks if the contents in both the system clipboard and the app clipboard is the same
-    pub(crate) fn clipboards_synced(&self) -> bool {
+    pub fn clipboards_synced(&self) -> bool {
         let history_offset = 0;
         let Some(app_clipboard_content) = self.clipboard.get(history_offset) else {
             return false;
@@ -317,7 +313,7 @@ impl Context {
         app_clipboard_content == system_clipboard_content
     }
 
-    pub(crate) fn add_clipboard_history(&mut self, item: CopiedTexts) {
+    pub fn add_clipboard_history(&mut self, item: CopiedTexts) {
         self.clipboard.add_clipboard_history(item)
     }
 
@@ -325,7 +321,7 @@ impl Context {
     ///
     /// This method should never fail, if `use_system_clipboard` is true but
     /// the system clipboard is inaccessible, the app clipboard will be used.
-    pub(crate) fn get_clipboard_content(&self, history_offset: isize) -> Option<CopiedTexts> {
+    pub fn get_clipboard_content(&self, history_offset: isize) -> Option<CopiedTexts> {
         // Always use the system clipboard if the content of the system clipboard is no longer the same
         // with the content of the app clipboard
         let use_system_clipboard = !self.clipboards_synced();
@@ -342,29 +338,29 @@ impl Context {
         self.clipboard.get(history_offset)
     }
 
-    pub(crate) fn set_clipboard_content(&mut self, contents: CopiedTexts) -> anyhow::Result<()> {
+    pub fn set_clipboard_content(&mut self, contents: CopiedTexts) -> anyhow::Result<()> {
         self.clipboard.set(contents.clone())
     }
-    pub(crate) fn mode(&self) -> Option<GlobalMode> {
+    pub fn mode(&self) -> Option<GlobalMode> {
         self.mode.clone()
     }
-    pub(crate) fn set_mode(&mut self, mode: Option<GlobalMode>) {
+    pub fn set_mode(&mut self, mode: Option<GlobalMode>) {
         self.mode = mode.clone();
         if let Some(mode) = mode {
             self.last_non_contiguous_selection_mode = Some(Either::Right(mode))
         }
     }
 
-    pub(crate) fn theme(&self) -> &Theme {
+    pub fn theme(&self) -> &Theme {
         &self.theme
     }
 
-    pub(crate) fn set_theme(&mut self, theme: Theme) {
+    pub fn set_theme(&mut self, theme: Theme) {
         self.theme = theme
     }
 
     #[cfg(test)]
-    pub(crate) fn highlight(
+    pub fn highlight(
         &mut self,
         language: shared::language::Language,
         source_code: &str,
@@ -375,19 +371,15 @@ impl Context {
             .highlight(language, source_code, &AtomicUsize::new(0))
     }
 
-    pub(crate) fn current_working_directory(&self) -> &CanonicalizedPath {
+    pub fn current_working_directory(&self) -> &CanonicalizedPath {
         &self.current_working_directory
     }
 
-    pub(crate) fn global_search_config(&self) -> &GlobalSearchConfig {
+    pub fn global_search_config(&self) -> &GlobalSearchConfig {
         &self.global_search_config
     }
 
-    pub(crate) fn update_local_search_config(
-        &mut self,
-        update: LocalSearchConfigUpdate,
-        scope: Scope,
-    ) {
+    pub fn update_local_search_config(&mut self, update: LocalSearchConfigUpdate, scope: Scope) {
         match scope {
             Scope::Local => &mut self.local_search_config,
             Scope::Global => &mut self.global_search_config.local_config,
@@ -395,7 +387,7 @@ impl Context {
         .update(update)
     }
 
-    pub(crate) fn update_global_search_config(
+    pub fn update_global_search_config(
         &mut self,
         update: GlobalSearchConfigUpdate,
     ) -> anyhow::Result<()> {
@@ -405,18 +397,18 @@ impl Context {
         Ok(())
     }
 
-    pub(crate) fn local_search_config(&self, scope: Scope) -> &LocalSearchConfig {
+    pub fn local_search_config(&self, scope: Scope) -> &LocalSearchConfig {
         match scope {
             Scope::Local => &self.local_search_config,
             Scope::Global => &self.global_search_config.local_config,
         }
     }
 
-    pub(crate) fn quickfix_list_state(&self) -> &Option<QuickfixListState> {
+    pub fn quickfix_list_state(&self) -> &Option<QuickfixListState> {
         &self.quickfix_list_state
     }
 
-    pub(crate) fn set_quickfix_list_current_item_index(&mut self, current_item_index: usize) {
+    pub fn set_quickfix_list_current_item_index(&mut self, current_item_index: usize) {
         if let Some(state) = self.quickfix_list_state.take() {
             self.quickfix_list_state = Some(QuickfixListState {
                 current_item_index,
@@ -425,7 +417,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn set_quickfix_list_source(&mut self, title: String, source: QuickfixListSource) {
+    pub fn set_quickfix_list_source(&mut self, title: String, source: QuickfixListSource) {
         self.quickfix_list_state = Some(QuickfixListState {
             title,
             source,
@@ -433,7 +425,7 @@ impl Context {
         })
     }
 
-    pub(crate) fn push_history_prompt(&mut self, key: PromptHistoryKey, line: String) {
+    pub fn push_history_prompt(&mut self, key: PromptHistoryKey, line: String) {
         if let Some(map) = self.prompt_histories.get_mut(&key) {
             map.shift_remove(&line);
             let inserted = map.insert(line);
@@ -447,7 +439,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_prompt_history(&self, key: PromptHistoryKey) -> Vec<String> {
+    pub fn get_prompt_history(&self, key: PromptHistoryKey) -> Vec<String> {
         self.prompt_histories
             .get(&key)
             .cloned()
@@ -456,28 +448,28 @@ impl Context {
             .collect_vec()
     }
 
-    pub(crate) fn set_last_non_contiguous_selection_mode(
+    pub fn set_last_non_contiguous_selection_mode(
         &mut self,
         selection_mode: Either<crate::selection::SelectionMode, GlobalMode>,
     ) {
         self.last_non_contiguous_selection_mode = Some(selection_mode)
     }
 
-    pub(crate) fn last_non_contiguous_selection_mode(
+    pub fn last_non_contiguous_selection_mode(
         &self,
     ) -> Option<&Either<crate::selection::SelectionMode, GlobalMode>> {
         self.last_non_contiguous_selection_mode.as_ref()
     }
 
-    pub(crate) fn keyboard_layout_kind(&self) -> &KeyboardLayoutKind {
+    pub fn keyboard_layout_kind(&self) -> &KeyboardLayoutKind {
         &self.keyboard_layout_kind
     }
 
-    pub(crate) fn set_keyboard_layout_kind(&mut self, keyboard_layout_kind: KeyboardLayoutKind) {
+    pub fn set_keyboard_layout_kind(&mut self, keyboard_layout_kind: KeyboardLayoutKind) {
         self.keyboard_layout_kind = keyboard_layout_kind
     }
 
-    pub(crate) fn push_location_history(&mut self, location: Location, backward: bool) {
+    pub fn push_location_history(&mut self, location: Location, backward: bool) {
         if backward {
             self.location_history_backward.push(location);
             self.location_history_forward.clear();
@@ -486,25 +478,22 @@ impl Context {
         }
     }
 
-    pub(crate) fn location_previous(&mut self) -> Option<Location> {
+    pub fn location_previous(&mut self) -> Option<Location> {
         self.location_history_backward.pop()
     }
 
-    pub(crate) fn location_next(&mut self) -> Option<Location> {
+    pub fn location_next(&mut self) -> Option<Location> {
         self.location_history_forward.pop()
     }
 
-    pub(crate) fn get_marked_files(&self) -> Vec<&CanonicalizedPath> {
+    pub fn get_marked_files(&self) -> Vec<&CanonicalizedPath> {
         self.marked_files.iter().collect()
     }
 
     /// Returns some path if we should focus another file.
     /// If the action is to unmark a file, and the file is not the only marked file left,
     /// then we return the nearest neighbor.
-    pub(crate) fn toggle_path_mark(
-        &mut self,
-        path: CanonicalizedPath,
-    ) -> Option<&CanonicalizedPath> {
+    pub fn toggle_path_mark(&mut self, path: CanonicalizedPath) -> Option<&CanonicalizedPath> {
         if let Some(index) = self.marked_files.get_index_of(&path) {
             self.unmark_path_impl(index, path)
         } else {
@@ -513,12 +502,12 @@ impl Context {
         }
     }
 
-    pub(crate) fn mark_file(&mut self, path: CanonicalizedPath) -> (usize, bool) {
+    pub fn mark_file(&mut self, path: CanonicalizedPath) -> (usize, bool) {
         self.marked_files.insert_sorted(path)
     }
 
     /// Returns true if the path to be removed is in the list
-    pub(crate) fn unmark_path(&mut self, path: CanonicalizedPath) -> Option<&CanonicalizedPath> {
+    pub fn unmark_path(&mut self, path: CanonicalizedPath) -> Option<&CanonicalizedPath> {
         if let Some(index) = self.marked_files.get_index_of(&path) {
             self.unmark_path_impl(index, path)
         } else {
@@ -540,44 +529,44 @@ impl Context {
             })
     }
 
-    pub(crate) fn is_running_as_embedded(&self) -> bool {
+    pub fn is_running_as_embedded(&self) -> bool {
         self.is_running_as_embedded
     }
 
-    pub(crate) fn rename_path_mark(&mut self, from: &CanonicalizedPath, to: &CanonicalizedPath) {
+    pub fn rename_path_mark(&mut self, from: &CanonicalizedPath, to: &CanonicalizedPath) {
         self.marked_files.shift_remove(from);
         self.marked_files.insert_sorted(to.clone());
     }
 }
 
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
-pub(crate) struct GlobalSearchConfig {
-    pub(crate) include_glob: Option<Glob>,
-    pub(crate) exclude_glob: Option<Glob>,
-    pub(crate) local_config: LocalSearchConfig,
+pub struct GlobalSearchConfig {
+    pub include_glob: Option<Glob>,
+    pub exclude_glob: Option<Glob>,
+    pub local_config: LocalSearchConfig,
 }
 impl GlobalSearchConfig {
-    pub(crate) fn local_config(&self) -> &LocalSearchConfig {
+    pub fn local_config(&self) -> &LocalSearchConfig {
         &self.local_config
     }
 
-    pub(crate) fn include_glob(&self) -> Option<Glob> {
+    pub fn include_glob(&self) -> Option<Glob> {
         self.include_glob.clone()
     }
 
-    pub(crate) fn exclude_glob(&self) -> Option<Glob> {
+    pub fn exclude_glob(&self) -> Option<Glob> {
         self.exclude_glob.clone()
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub(crate) enum LocalSearchConfigMode {
+pub enum LocalSearchConfigMode {
     Regex(RegexConfig),
     AstGrep,
     NamingConventionAgnostic,
 }
 impl LocalSearchConfigMode {
-    pub(crate) fn display(&self) -> String {
+    pub fn display(&self) -> String {
         match self {
             LocalSearchConfigMode::Regex(regex) => regex.display(),
 
@@ -615,14 +604,14 @@ impl RegexConfig {
 }
 
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
-pub(crate) struct LocalSearchConfig {
-    pub(crate) mode: LocalSearchConfigMode,
+pub struct LocalSearchConfig {
+    pub mode: LocalSearchConfigMode,
     search: Option<String>,
     replacement: Option<String>,
 }
 
 impl LocalSearchConfig {
-    pub(crate) fn new(mode: LocalSearchConfigMode) -> Self {
+    pub fn new(mode: LocalSearchConfigMode) -> Self {
         Self {
             mode,
             search: Default::default(),
@@ -646,32 +635,32 @@ impl LocalSearchConfig {
         }
     }
 
-    pub(crate) fn set_search(&mut self, search: String) -> &mut Self {
+    pub fn set_search(&mut self, search: String) -> &mut Self {
         let _ = self.search.insert(search);
         self
     }
 
-    pub(crate) fn search(&self) -> String {
+    pub fn search(&self) -> String {
         self.search.clone().unwrap_or_default()
     }
 
-    pub(crate) fn set_replacment(&mut self, replacement: String) -> &mut Self {
+    pub fn set_replacment(&mut self, replacement: String) -> &mut Self {
         let _ = self.replacement.insert(replacement);
         self
     }
 
-    pub(crate) fn last_search(&self) -> Option<Search> {
+    pub fn last_search(&self) -> Option<Search> {
         self.search.clone().map(|search| Search {
             search,
             mode: self.mode,
         })
     }
 
-    pub(crate) fn replacement(&self) -> String {
+    pub fn replacement(&self) -> String {
         self.replacement.clone().unwrap_or_default()
     }
 
-    pub(crate) fn require_tree_sitter(&self) -> bool {
+    pub fn require_tree_sitter(&self) -> bool {
         self.mode == LocalSearchConfigMode::AstGrep
     }
 }

@@ -59,7 +59,7 @@ struct PendingResponseRequest {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum LspNotification {
+pub enum LspNotification {
     Initialized(Box<Language>),
     PublishDiagnostics(PublishDiagnosticsParams),
     Completion(ResponseContext, Completion),
@@ -77,12 +77,12 @@ pub(crate) enum LspNotification {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(crate) struct ResponseContext {
-    pub(crate) scope: Option<Scope>,
-    pub(crate) description: Option<String>,
+pub struct ResponseContext {
+    pub scope: Option<Scope>,
+    pub description: Option<String>,
 }
 impl ResponseContext {
-    pub(crate) fn set_description(self, descrption: &str) -> Self {
+    pub fn set_description(self, descrption: &str) -> Self {
         Self {
             description: Some(descrption.to_owned()),
             ..self
@@ -101,7 +101,7 @@ enum LspServerProcessMessage {
 }
 
 #[derive(Debug, NamedVariant, Clone, PartialEq)]
-pub(crate) enum FromEditor {
+pub enum FromEditor {
     TextDocumentHover(RequestParams),
     TextDocumentCompletion(RequestParams),
     TextDocumentDefinition(RequestParams),
@@ -159,19 +159,19 @@ pub(crate) enum FromEditor {
 }
 
 impl FromEditor {
-    pub(crate) fn variant(&self) -> &'static str {
+    pub fn variant(&self) -> &'static str {
         self.variant_name()
     }
 }
 
-pub(crate) struct LspServerProcessChannel {
+pub struct LspServerProcessChannel {
     language: Language,
     sender: Sender<LspServerProcessMessage>,
     is_initialized: bool,
 }
 
 impl LspServerProcessChannel {
-    pub(crate) fn new(
+    pub fn new(
         language: Language,
         screen_message_sender: Sender<AppMessage>,
         current_working_directory: CanonicalizedPath,
@@ -179,7 +179,7 @@ impl LspServerProcessChannel {
         LspServerProcess::start(language, screen_message_sender, current_working_directory)
     }
 
-    pub(crate) fn shutdown(self) -> anyhow::Result<()> {
+    pub fn shutdown(self) -> anyhow::Result<()> {
         self.send(LspServerProcessMessage::Shutdown)
     }
 
@@ -192,7 +192,7 @@ impl LspServerProcessChannel {
             .map_err(|err| anyhow::anyhow!("Unable to send request: {}", err))
     }
 
-    pub(crate) fn documents_did_open(
+    pub fn documents_did_open(
         &mut self,
         paths: Vec<CanonicalizedPath>,
     ) -> Result<(), anyhow::Error> {
@@ -205,7 +205,7 @@ impl LspServerProcessChannel {
         )
     }
 
-    pub(crate) fn document_did_open(&self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
+    pub fn document_did_open(&self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
         let content = path.read()?;
         let Some(language_id) = self.language.id() else {
             return Ok(());
@@ -220,15 +220,15 @@ impl LspServerProcessChannel {
         ))
     }
 
-    pub(crate) fn is_initialized(&self) -> bool {
+    pub fn is_initialized(&self) -> bool {
         self.is_initialized
     }
 
-    pub(crate) fn initialized(&mut self) {
+    pub fn initialized(&mut self) {
         self.is_initialized = true
     }
 
-    pub(crate) fn send_from_editor(&self, from_editor: FromEditor) -> Result<(), anyhow::Error> {
+    pub fn send_from_editor(&self, from_editor: FromEditor) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(from_editor))
     }
 }
@@ -418,7 +418,7 @@ impl LspServerProcess {
     /// 2. Processes incoming messages from both the stdout reader and editor
     ///
     /// Returns the stdout reader thread handle for cleanup
-    pub(crate) fn listen(
+    pub fn listen(
         mut self,
         receiver: Receiver<LspServerProcessMessage>,
         app_message_sender: Sender<AppMessage>,
@@ -998,7 +998,7 @@ impl LspServerProcess {
             .unwrap_or_default()
     }
 
-    pub(crate) fn shutdown(&mut self) -> anyhow::Result<()> {
+    pub fn shutdown(&mut self) -> anyhow::Result<()> {
         self.send_request::<lsp_request!("shutdown")>(ResponseContext::default(), None, ())?;
         Ok(())
     }
@@ -1407,7 +1407,7 @@ impl LspServerProcess {
         )
     }
 
-    pub(crate) fn text_document_signature_help(
+    pub fn text_document_signature_help(
         &mut self,
         params: RequestParams,
     ) -> Result<(), anyhow::Error> {

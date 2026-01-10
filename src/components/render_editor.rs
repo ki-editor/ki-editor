@@ -37,16 +37,16 @@ static FOCUSED_TAB_REGEX: &Lazy<regex::Regex> =
     // We need multiline string so that wrapped filename will be highlighted as well
     lazy_regex::regex!("(?s)(?<focused_tab>\u{200B}(.*)\u{200B})");
 
-pub(crate) fn markup_focused_tab(path: &str) -> String {
+pub fn markup_focused_tab(path: &str) -> String {
     format!("\u{200B}{path}\u{200B}")
 }
 
 impl Editor {
-    pub(crate) fn get_grid(&mut self, context: &Context, focused: bool) -> GetGridResult {
+    pub fn get_grid(&mut self, context: &Context, focused: bool) -> GetGridResult {
         let hunks = self.buffer_mut().simple_hunks(context).unwrap_or_default();
         self.get_grid_with_scroll_offset(context, focused, self.scroll_offset(), &hunks)
     }
-    pub(crate) fn get_grid_with_scroll_offset(
+    pub fn get_grid_with_scroll_offset(
         &self,
         context: &Context,
         focused: bool,
@@ -143,7 +143,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn title_impl(&self, context: &Context) -> Option<String> {
+    pub fn title_impl(&self, context: &Context) -> Option<String> {
         let dimension = self.dimension();
         let result = if dimension.height <= 1 {
             vec![]
@@ -911,7 +911,7 @@ impl Editor {
             .collect_vec()
     }
 
-    pub(crate) fn possible_selections_in_line_number_range(
+    pub fn possible_selections_in_line_number_range(
         &self,
         selection: &Selection,
         working_directory: &CanonicalizedPath,
@@ -940,7 +940,7 @@ impl Editor {
         )
     }
 
-    pub(crate) fn revealed_selections(
+    pub fn revealed_selections(
         &self,
         selection: &Selection,
         working_directory: &CanonicalizedPath,
@@ -963,11 +963,11 @@ impl Editor {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub(crate) struct HighlightSpan {
-    pub(crate) source: Source,
-    pub(crate) range: HighlightSpanRange,
-    pub(crate) set_symbol: Option<char>,
-    pub(crate) is_cursor: bool,
+pub struct HighlightSpan {
+    pub source: Source,
+    pub range: HighlightSpanRange,
+    pub set_symbol: Option<char>,
+    pub is_cursor: bool,
     is_protected_range_start: bool,
 }
 
@@ -1183,13 +1183,13 @@ fn range_intersection<T: Ord + Copy>(a: &Range<T>, b: &Range<T>) -> Option<Range
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub(crate) enum Source {
+pub enum Source {
     StyleKey(StyleKey),
     Style(Style),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) enum HighlightSpanRange {
+pub enum HighlightSpanRange {
     CharIndexRange(CharIndexRange),
     ByteRange(Range<usize>),
     CharIndex(CharIndex),

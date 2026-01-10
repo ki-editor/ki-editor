@@ -24,7 +24,7 @@ use super::{
 };
 
 #[derive(Clone, PartialEq)]
-pub(crate) enum PromptOnEnter {
+pub enum PromptOnEnter {
     ParseCurrentLine {
         parser: DispatchParser,
         history_key: PromptHistoryKey,
@@ -40,7 +40,7 @@ pub(crate) enum PromptOnEnter {
     },
 }
 
-pub(crate) struct Prompt {
+pub struct Prompt {
     editor: SuggestiveEditor,
     on_enter: PromptOnEnter,
     on_change: Option<PromptOnChangeDispatch>,
@@ -49,7 +49,7 @@ pub(crate) struct Prompt {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum PromptOnChangeDispatch {
+pub enum PromptOnChangeDispatch {
     RequestWorkspaceSymbol(CanonicalizedPath),
     SetIncrementalSearchConfig { component_id: ComponentId },
 }
@@ -126,17 +126,17 @@ impl PromptMatcher {
 }
 
 #[derive(Clone, PartialEq)]
-pub(crate) struct PromptConfig {
-    pub(crate) on_enter: PromptOnEnter,
-    pub(crate) title: String,
+pub struct PromptConfig {
+    pub on_enter: PromptOnEnter,
+    pub title: String,
 
     /// If defined, the `Dispatches` here is used for undoing the dispatches fired on change.
-    pub(crate) on_cancelled: Option<Dispatches>,
-    pub(crate) on_change: Option<PromptOnChangeDispatch>,
+    pub on_cancelled: Option<Dispatches>,
+    pub on_change: Option<PromptOnChangeDispatch>,
 }
 
 impl PromptConfig {
-    pub(crate) fn new(title: String, on_enter: PromptOnEnter) -> Self {
+    pub fn new(title: String, on_enter: PromptOnEnter) -> Self {
         Self {
             title,
             on_enter,
@@ -144,7 +144,7 @@ impl PromptConfig {
             on_change: Default::default(),
         }
     }
-    pub(crate) fn items(&self) -> Vec<DropdownItem> {
+    pub fn items(&self) -> Vec<DropdownItem> {
         match &self.on_enter {
             PromptOnEnter::ParseCurrentLine {
                 suggested_items, ..
@@ -158,11 +158,11 @@ impl PromptConfig {
         }
     }
 
-    pub(crate) fn set_on_change(self, on_change: Option<PromptOnChangeDispatch>) -> Self {
+    pub fn set_on_change(self, on_change: Option<PromptOnChangeDispatch>) -> Self {
         Self { on_change, ..self }
     }
 
-    pub(crate) fn set_on_cancelled(self, on_cancelled: Option<Dispatches>) -> PromptConfig {
+    pub fn set_on_cancelled(self, on_cancelled: Option<Dispatches>) -> PromptConfig {
         Self {
             on_cancelled,
             ..self
@@ -180,7 +180,7 @@ impl std::fmt::Debug for PromptConfig {
 }
 
 #[derive(Clone, PartialEq)]
-pub(crate) enum PromptItems {
+pub enum PromptItems {
     None,
     Precomputed(Vec<DropdownItem>),
     BackgroundTask {
@@ -196,7 +196,7 @@ impl Default for PromptItems {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum PromptItemsBackgroundTask {
+pub enum PromptItemsBackgroundTask {
     NonGitIgnoredFiles {
         working_directory: CanonicalizedPath,
     },
@@ -229,7 +229,7 @@ impl PromptItemsBackgroundTask {
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
-pub(crate) enum PromptHistoryKey {
+pub enum PromptHistoryKey {
     MoveToIndex,
     Search,
     Rename,
@@ -256,7 +256,7 @@ impl Default for PromptHistoryKey {
 }
 
 impl Prompt {
-    pub(crate) fn new(config: PromptConfig, context: &Context) -> (Self, Dispatches) {
+    pub fn new(config: PromptConfig, context: &Context) -> (Self, Dispatches) {
         let (text, leaves_current_line_empty) = match &config.on_enter {
             PromptOnEnter::ParseCurrentLine {
                 history_key,
@@ -362,11 +362,11 @@ impl Prompt {
         }
     }
 
-    pub(crate) fn render_completion_dropdown(&self) -> Dispatches {
+    pub fn render_completion_dropdown(&self) -> Dispatches {
         self.editor.render_completion_dropdown(true)
     }
 
-    pub(crate) fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Dispatches {
+    pub fn handle_nucleo_updated(&mut self, viewport_height: usize) -> Dispatches {
         let Some(matcher) = self.matcher.as_mut() else {
             return Default::default();
         };
@@ -378,13 +378,13 @@ impl Prompt {
         self.render_completion_dropdown()
     }
 
-    pub(crate) fn reparse_pattern(&mut self, filter: &str) {
+    pub fn reparse_pattern(&mut self, filter: &str) {
         if let Some(matcher) = self.matcher.as_mut() {
             matcher.reparse(filter);
         }
     }
 
-    pub(crate) fn clear_and_update_matcher_items(&mut self, items: Vec<DropdownItem>) {
+    pub fn clear_and_update_matcher_items(&mut self, items: Vec<DropdownItem>) {
         let Some(matcher) = self.matcher.as_mut() else {
             return Default::default();
         };
@@ -401,7 +401,7 @@ impl Prompt {
         }
     }
 
-    pub(crate) fn get_on_change_dispatches(&self) -> Dispatches {
+    pub fn get_on_change_dispatches(&self) -> Dispatches {
         self.on_change
             .as_ref()
             .map(|on_change| {
@@ -493,7 +493,7 @@ impl Component for Prompt {
     }
 }
 impl Prompt {
-    pub(crate) fn handle_dispatch_suggestive_editor(
+    pub fn handle_dispatch_suggestive_editor(
         &mut self,
         dispatch: DispatchSuggestiveEditor,
     ) -> anyhow::Result<Dispatches> {

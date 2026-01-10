@@ -3,18 +3,18 @@
 //! This module contains handlers for various Host IPC messages, including
 //! requests, notifications, and responses.
 
-pub(crate) mod buffer;
-pub(crate) mod keyboard;
-pub(crate) mod ping;
-pub(crate) mod selection;
-pub(crate) mod viewport;
+pub mod buffer;
+pub mod keyboard;
+pub mod ping;
+pub mod selection;
+pub mod viewport;
 
 /// Common imports and types for handlers
-pub(crate) mod prelude {
+pub mod prelude {
     pub use anyhow::Result;
     pub use log::{error, info};
 
     // Use these types internally within the handlers module
-    pub(crate) use crate::embed::utils::*;
-    pub(crate) use crate::position::Position;
+    pub use crate::embed::utils::*;
+    pub use crate::position::Position;
 }

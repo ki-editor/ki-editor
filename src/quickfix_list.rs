@@ -79,7 +79,7 @@ impl QuickfixListItem {
         .set_highlight_column_range(highlight_column_range)
     }
 
-    pub(crate) fn apply_edit(self, edit: &crate::edit::Edit) -> Option<Self> {
+    pub fn apply_edit(self, edit: &crate::edit::Edit) -> Option<Self> {
         Some(Self {
             location: self.location.apply_edit(edit)?,
             ..self
@@ -87,14 +87,14 @@ impl QuickfixListItem {
     }
 }
 
-pub(crate) struct QuickfixList {
+pub struct QuickfixList {
     dropdown: Dropdown,
     #[cfg(test)]
     items: Vec<QuickfixListItem>,
 }
 
 impl QuickfixList {
-    pub(crate) fn new(
+    pub fn new(
         title: String,
         items: Vec<QuickfixListItem>,
         buffers: Vec<Rc<RefCell<Buffer>>>,
@@ -137,16 +137,16 @@ impl QuickfixList {
     }
 
     #[cfg(test)]
-    pub(crate) fn items(&self) -> Vec<QuickfixListItem> {
+    pub fn items(&self) -> Vec<QuickfixListItem> {
         self.items.clone()
     }
 
-    pub(crate) fn render(&self) -> crate::components::dropdown::DropdownRender {
+    pub fn render(&self) -> crate::components::dropdown::DropdownRender {
         self.dropdown.render()
     }
 
     /// Returns the current item index after `movement` is applied
-    pub(crate) fn get_item(&mut self, movement: Movement) -> Option<(usize, Dispatches)> {
+    pub fn get_item(&mut self, movement: Movement) -> Option<(usize, Dispatches)> {
         self.dropdown.apply_movement(movement);
         Some((
             self.dropdown.current_item_index(),
@@ -154,14 +154,14 @@ impl QuickfixList {
         ))
     }
 
-    pub(crate) fn set_current_item_index(mut self, item_index: usize) -> Self {
+    pub fn set_current_item_index(mut self, item_index: usize) -> Self {
         self.dropdown.set_current_item_index(item_index);
         self
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct QuickfixListItem {
+pub struct QuickfixListItem {
     /// This field is for performance optimization,
     /// if it exists, then we do not need to query the filesystem
     /// for the contain of this line (specified by `self.location.range.start.line`).
@@ -197,11 +197,7 @@ impl From<Location> for QuickfixListItem {
 }
 
 impl QuickfixListItem {
-    pub(crate) fn new(
-        location: Location,
-        info: Option<Info>,
-        line: Option<String>,
-    ) -> QuickfixListItem {
+    pub fn new(location: Location, info: Option<Info>, line: Option<String>) -> QuickfixListItem {
         QuickfixListItem {
             location,
             info,
@@ -209,24 +205,24 @@ impl QuickfixListItem {
         }
     }
 
-    pub(crate) fn location(&self) -> &Location {
+    pub fn location(&self) -> &Location {
         &self.location
     }
 
-    pub(crate) fn info(&self) -> &Option<Info> {
+    pub fn info(&self) -> &Option<Info> {
         &self.info
     }
 
     #[cfg(test)]
-    pub(crate) fn set_info(self, info: Option<Info>) -> Self {
+    pub fn set_info(self, info: Option<Info>) -> Self {
         Self { info, ..self }
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct Location {
-    pub(crate) path: CanonicalizedPath,
-    pub(crate) range: CharIndexRange,
+pub struct Location {
+    pub path: CanonicalizedPath,
+    pub range: CharIndexRange,
 }
 
 impl Location {
@@ -293,14 +289,14 @@ impl Ord for Location {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum QuickfixListType {
+pub enum QuickfixListType {
     Diagnostic(DiagnosticSeverityRange),
     Items(Vec<QuickfixListItem>),
     Mark,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
-pub(crate) enum DiagnosticSeverityRange {
+pub enum DiagnosticSeverityRange {
     All,
     Error,
     Warning,
@@ -308,7 +304,7 @@ pub(crate) enum DiagnosticSeverityRange {
     Hint,
 }
 impl DiagnosticSeverityRange {
-    pub(crate) fn contains(&self, severity: Option<DiagnosticSeverity>) -> bool {
+    pub fn contains(&self, severity: Option<DiagnosticSeverity>) -> bool {
         matches!(
             (self, severity),
             (DiagnosticSeverityRange::All, _)

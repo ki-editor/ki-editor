@@ -17,7 +17,7 @@ use super::{
     editor_keymap_printer::KeymapPrintSection,
 };
 
-pub(crate) struct KeymapLegend {
+pub struct KeymapLegend {
     editor: Editor,
     config: KeymapLegendConfig,
     option: KeymapDisplayOption,
@@ -25,13 +25,13 @@ pub(crate) struct KeymapLegend {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct KeymapLegendConfig {
-    pub(crate) title: String,
-    pub(crate) keymaps: Keymaps,
+pub struct KeymapLegendConfig {
+    pub title: String,
+    pub keymaps: Keymaps,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Keymaps(Vec<Keymap>);
+pub struct Keymaps(Vec<Keymap>);
 impl Keymaps {
     fn display(
         &self,
@@ -46,25 +46,25 @@ impl Keymaps {
         )
         .display(terminal_width, option)
     }
-    pub(crate) fn new(keymaps: &[Keymap]) -> Self {
+    pub fn new(keymaps: &[Keymap]) -> Self {
         Self(keymaps.to_vec())
     }
 
-    pub(crate) fn get(&self, event: &KeyEvent) -> std::option::Option<&Keymap> {
+    pub fn get(&self, event: &KeyEvent) -> std::option::Option<&Keymap> {
         self.0.iter().find(|key| &key.event == event)
     }
 
-    pub(crate) fn iter(&self) -> std::slice::Iter<'_, Keymap> {
+    pub fn iter(&self) -> std::slice::Iter<'_, Keymap> {
         self.0.iter()
     }
 
-    pub(crate) fn into_vec(self) -> Vec<Keymap> {
+    pub fn into_vec(self) -> Vec<Keymap> {
         self.0
     }
 }
 
 impl KeymapLegendConfig {
-    pub(crate) fn display(
+    pub fn display(
         &self,
         keyboard_layout_kind: &KeyboardLayoutKind,
         width: usize,
@@ -73,7 +73,7 @@ impl KeymapLegendConfig {
         self.keymaps.display(keyboard_layout_kind, width, option)
     }
 
-    pub(crate) fn keymaps(&self) -> Keymaps {
+    pub fn keymaps(&self) -> Keymaps {
         let keymaps = &self.keymaps;
         #[cfg(test)]
         {
@@ -94,7 +94,7 @@ impl KeymapLegendConfig {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Keymap {
+pub struct Keymap {
     key: &'static str,
     pub short_description: Option<String>,
     pub description: String,
@@ -103,7 +103,7 @@ pub(crate) struct Keymap {
 }
 
 impl Keymap {
-    pub(crate) fn new(key: &'static str, description: String, dispatch: Dispatch) -> Keymap {
+    pub fn new(key: &'static str, description: String, dispatch: Dispatch) -> Keymap {
         Keymap {
             key,
             short_description: None,
@@ -113,7 +113,7 @@ impl Keymap {
         }
     }
 
-    pub(crate) fn new_extended(
+    pub fn new_extended(
         key: &'static str,
         short_description: String,
         description: String,
@@ -128,18 +128,18 @@ impl Keymap {
         }
     }
 
-    pub(crate) fn get_dispatches(&self) -> Dispatches {
+    pub fn get_dispatches(&self) -> Dispatches {
         Dispatches::one(self.dispatch.clone()).append(Dispatch::SetLastActionDescription {
             long_description: self.description.clone(),
             short_description: self.short_description.clone(),
         })
     }
 
-    pub(crate) fn event(&self) -> &KeyEvent {
+    pub fn event(&self) -> &KeyEvent {
         &self.event
     }
 
-    pub(crate) fn override_keymap(
+    pub fn override_keymap(
         self,
         keymap_override: Option<&super::editor_keymap_legend::KeymapOverride>,
         none_if_no_override: bool,
@@ -161,7 +161,7 @@ impl Keymap {
         }
     }
 
-    pub(crate) fn display(&self) -> String {
+    pub fn display(&self) -> String {
         self.short_description
             .clone()
             .unwrap_or_else(|| self.description.clone())
@@ -169,7 +169,7 @@ impl Keymap {
 }
 
 impl KeymapLegend {
-    pub(crate) fn new(config: KeymapLegendConfig, context: &Context) -> KeymapLegend {
+    pub fn new(config: KeymapLegendConfig, context: &Context) -> KeymapLegend {
         // Check for duplicate keys
         let duplicates = config
             .keymaps()

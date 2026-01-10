@@ -3,7 +3,7 @@ use itertools::Itertools;
 use crate::selection::CharIndex;
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub(crate) enum EnclosureKind {
+pub enum EnclosureKind {
     Parentheses,
     CurlyBraces,
     AngularBrackets,
@@ -28,7 +28,7 @@ impl std::fmt::Display for EnclosureKind {
 }
 
 /// Return the open index and close index of the given `kind`.
-pub(crate) fn get_surrounding_indices(
+pub fn get_surrounding_indices(
     content: &str,
     kind: EnclosureKind,
     cursor_char_index: CharIndex,
@@ -87,7 +87,7 @@ pub(crate) fn get_surrounding_indices(
 }
 
 impl EnclosureKind {
-    pub(crate) const fn open_close_symbols(&self) -> (char, char) {
+    pub const fn open_close_symbols(&self) -> (char, char) {
         match self {
             EnclosureKind::Parentheses => ('(', ')'),
             EnclosureKind::CurlyBraces => ('{', '}'),
@@ -99,7 +99,7 @@ impl EnclosureKind {
         }
     }
 
-    pub(crate) const fn open_close_symbols_str(&self) -> (&'static str, &'static str) {
+    pub const fn open_close_symbols_str(&self) -> (&'static str, &'static str) {
         match self {
             EnclosureKind::Parentheses => ("(", ")"),
             EnclosureKind::CurlyBraces => ("{", "}"),
@@ -111,7 +111,7 @@ impl EnclosureKind {
         }
     }
 
-    pub(crate) fn to_str(self) -> &'static str {
+    pub fn to_str(self) -> &'static str {
         match self {
             EnclosureKind::Parentheses => "Parentheses",
             EnclosureKind::CurlyBraces => "Curly Braces",

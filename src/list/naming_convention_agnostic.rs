@@ -4,7 +4,7 @@ use crate::{list::Match, selection_mode::NamingConventionAgnostic, thread::SendR
 
 use super::WalkBuilderConfig;
 
-pub(crate) fn run(
+pub fn run(
     pattern: String,
     walk_builder_config: WalkBuilderConfig,
     send_match: Arc<dyn Fn(Match) -> SendResult + Send + Sync>,

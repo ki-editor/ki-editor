@@ -1,4 +1,4 @@
-pub(crate) fn parse_env<T: Clone>(
+pub fn parse_env<T: Clone>(
     env_name: &'static str,
     choices: &[T],
     to_string: fn(&T) -> &str,

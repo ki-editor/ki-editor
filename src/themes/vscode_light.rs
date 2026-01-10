@@ -67,6 +67,6 @@ pub fn vscode_light() -> Theme {
         },
         diagnostic: DiagnosticStyles::default(),
         hunk: super::HunkStyles::light(),
-        git_gutter: GitGutterStyles::new(),
+        git_gutter: GitGutterStyles::default(),
     }
 }

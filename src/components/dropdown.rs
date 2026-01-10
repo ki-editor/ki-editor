@@ -14,8 +14,8 @@ use super::suggestive_editor::{Decoration, Info};
 
 #[derive(Clone, Debug, PartialEq)]
 /// Note: filtering will be done on the combination of `display` and `group` (if applicable)
-pub(crate) struct DropdownItem {
-    pub(crate) dispatches: Dispatches,
+pub struct DropdownItem {
+    pub dispatches: Dispatches,
     display: String,
     group: Option<String>,
     info: Option<Info>,
@@ -30,11 +30,11 @@ pub(crate) struct DropdownItem {
 }
 
 impl DropdownItem {
-    pub(crate) fn display(&self) -> String {
+    pub fn display(&self) -> String {
         self.display.clone()
     }
 
-    pub(crate) fn new(display: String) -> Self {
+    pub fn new(display: String) -> Self {
         Self {
             dispatches: Default::default(),
             display,
@@ -47,49 +47,46 @@ impl DropdownItem {
         }
     }
 
-    pub(crate) fn set_highlight_column_range(
-        self,
-        highlight_column_range: Option<Range<usize>>,
-    ) -> Self {
+    pub fn set_highlight_column_range(self, highlight_column_range: Option<Range<usize>>) -> Self {
         Self {
             highlight_column_range,
             ..self
         }
     }
 
-    pub(crate) fn set_info(self, info: Option<Info>) -> Self {
+    pub fn set_info(self, info: Option<Info>) -> Self {
         Self { info, ..self }
     }
 
-    pub(crate) fn info(&self) -> Option<&Info> {
+    pub fn info(&self) -> Option<&Info> {
         self.info.as_ref()
     }
 
-    pub(crate) fn set_dispatches(self, dispatches: Dispatches) -> DropdownItem {
+    pub fn set_dispatches(self, dispatches: Dispatches) -> DropdownItem {
         Self { dispatches, ..self }
     }
 
-    pub(crate) fn set_group(self, group: Option<String>) -> Self {
+    pub fn set_group(self, group: Option<String>) -> Self {
         Self { group, ..self }
     }
 
-    pub(crate) fn set_rank(self, rank: Option<Box<[usize]>>) -> DropdownItem {
+    pub fn set_rank(self, rank: Option<Box<[usize]>>) -> DropdownItem {
         Self { rank, ..self }
     }
 
-    pub(crate) fn set_on_focused(self, on_focused: Dispatches) -> DropdownItem {
+    pub fn set_on_focused(self, on_focused: Dispatches) -> DropdownItem {
         Self { on_focused, ..self }
     }
 
-    pub(crate) fn on_focused(&self) -> Dispatches {
+    pub fn on_focused(&self) -> Dispatches {
         self.on_focused.clone()
     }
 
-    pub(crate) fn resolved(&self) -> bool {
+    pub fn resolved(&self) -> bool {
         self.resolved
     }
 
-    pub(crate) fn from_path_buf(
+    pub fn from_path_buf(
         working_directory: &CanonicalizedPath,
         path: std::path::PathBuf,
     ) -> DropdownItem {
@@ -108,7 +105,7 @@ impl DropdownItem {
         }))
     }
 
-    pub(crate) fn group(&self) -> &Option<String> {
+    pub fn group(&self) -> &Option<String> {
         &self.group
     }
 }
@@ -146,7 +143,7 @@ impl From<String> for DropdownItem {
     }
 }
 
-pub(crate) struct Dropdown {
+pub struct Dropdown {
     title: String,
     filter: String,
     items: Vec<DropdownItem>,
@@ -154,12 +151,12 @@ pub(crate) struct Dropdown {
     current_item_index: usize,
 }
 
-pub(crate) struct DropdownConfig {
-    pub(crate) title: String,
+pub struct DropdownConfig {
+    pub title: String,
 }
 
 impl Dropdown {
-    pub(crate) fn new(config: DropdownConfig) -> Self {
+    pub fn new(config: DropdownConfig) -> Self {
         Self {
             filter: String::new(),
             items: vec![],
@@ -169,7 +166,7 @@ impl Dropdown {
         }
     }
 
-    pub(crate) fn change_index(&mut self, index: usize) {
+    pub fn change_index(&mut self, index: usize) {
         if !self.filtered_item_groups.iter().any(|group| {
             group
                 .items
@@ -199,11 +196,11 @@ impl Dropdown {
         item_index + group_index * group_title_size + group_gap + group_title_size
     }
 
-    pub(crate) fn next_item(&mut self) {
+    pub fn next_item(&mut self) {
         self.change_index(self.current_item_index + 1)
     }
 
-    pub(crate) fn previous_item(&mut self) {
+    pub fn previous_item(&mut self) {
         self.change_index(self.current_item_index.saturating_sub(1))
     }
 
@@ -278,7 +275,7 @@ impl Dropdown {
         self.change_group_index(false).unwrap_or_default()
     }
 
-    pub(crate) fn current_item(&self) -> Option<DropdownItem> {
+    pub fn current_item(&self) -> Option<DropdownItem> {
         self.get_item_by_index(self.current_item_index)
     }
 
@@ -290,7 +287,7 @@ impl Dropdown {
             .map(|item| item.item.clone())
     }
 
-    pub(crate) fn set_items(&mut self, items: Vec<DropdownItem>) {
+    pub fn set_items(&mut self, items: Vec<DropdownItem>) {
         if items == self.items {
             return;
         }
@@ -449,7 +446,7 @@ impl Dropdown {
             .collect_vec();
     }
 
-    pub(crate) fn set_filter(&mut self, filter: &str) {
+    pub fn set_filter(&mut self, filter: &str) {
         if filter == self.filter {
             return;
         }
@@ -458,7 +455,7 @@ impl Dropdown {
         self.compute_filtered_items();
     }
 
-    pub(crate) fn render(&self) -> DropdownRender {
+    pub fn render(&self) -> DropdownRender {
         let (content, decorations) = self.content();
         DropdownRender {
             title: self.title.clone(),
@@ -558,7 +555,7 @@ impl Dropdown {
         (joined, decorations)
     }
 
-    pub(crate) fn apply_movement(&mut self, movement: Movement) {
+    pub fn apply_movement(&mut self, movement: Movement) {
         match movement {
             Movement::Right | Movement::Down => self.next_item(),
             Movement::Current(_) => {}
@@ -579,15 +576,15 @@ impl Dropdown {
         assert_eq!(highlighed_content, label);
     }
 
-    pub(crate) fn items(&self) -> Vec<DropdownItem> {
+    pub fn items(&self) -> Vec<DropdownItem> {
         self.items.clone()
     }
 
-    pub(crate) fn set_current_item_index(&mut self, current_item_index: usize) {
+    pub fn set_current_item_index(&mut self, current_item_index: usize) {
         self.current_item_index = current_item_index
     }
 
-    pub(crate) fn current_item_index(&self) -> usize {
+    pub fn current_item_index(&self) -> usize {
         self.current_item_index
     }
 
@@ -650,11 +647,11 @@ impl Dropdown {
             .collect_vec()
     }
 
-    pub(crate) fn no_matching_candidates(&self) -> bool {
+    pub fn no_matching_candidates(&self) -> bool {
         self.filtered_item_groups.is_empty()
     }
 
-    pub(crate) fn update_current_item(&mut self, item: DropdownItem) {
+    pub fn update_current_item(&mut self, item: DropdownItem) {
         if let Some(matching) = self.items.iter_mut().find(|i| i.display == item.display) {
             debug_assert!(!matching.resolved());
             *matching = DropdownItem {
@@ -1104,12 +1101,12 @@ mod test_dropdown {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct DropdownRender {
-    pub(crate) content: String,
-    pub(crate) decorations: Vec<Decoration>,
-    pub(crate) title: String,
-    pub(crate) highlight_line_index: usize,
-    pub(crate) info: Option<Info>,
+pub struct DropdownRender {
+    pub content: String,
+    pub decorations: Vec<Decoration>,
+    pub title: String,
+    pub highlight_line_index: usize,
+    pub info: Option<Info>,
 }
 #[derive(Debug, Clone, PartialEq)]
 struct FilteredDropdownItem {

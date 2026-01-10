@@ -3,7 +3,7 @@ use itertools::Itertools;
 
 use crate::utils::{distribute_items, distribute_items_by_2};
 
-pub(crate) fn divide_viewport<T: Clone + std::fmt::Debug + Eq>(
+pub fn divide_viewport<T: Clone + std::fmt::Debug + Eq>(
     items: &Vec<T>,
     viewport_height: usize,
     focused_item: T,
@@ -39,21 +39,21 @@ pub(crate) fn divide_viewport<T: Clone + std::fmt::Debug + Eq>(
 }
 
 #[derive(Debug)]
-pub(crate) struct ViewportSection<T> {
+pub struct ViewportSection<T> {
     item: T,
     height: usize,
 }
 impl<T: Clone> ViewportSection<T> {
-    pub(crate) fn height(&self) -> usize {
+    pub fn height(&self) -> usize {
         self.height
     }
 
-    pub(crate) fn item(&self) -> T {
+    pub fn item(&self) -> T {
         self.item.clone()
     }
 }
 
-pub(crate) fn extract_centered_window<T: Eq + Clone + std::fmt::Debug, F: Fn(&T) -> bool>(
+pub fn extract_centered_window<T: Eq + Clone + std::fmt::Debug, F: Fn(&T) -> bool>(
     elements: &[T],
     predicate: F,
     window_size: usize,
@@ -156,17 +156,17 @@ mod test_divide_viewport {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub(crate) struct WindowPosition {
+pub struct WindowPosition {
     /// Start index of the window (inclusive)
-    pub(crate) start: usize,
+    pub start: usize,
     /// End index of the window (inclusive)
-    pub(crate) end: usize,
+    pub end: usize,
 }
 
 impl WindowPosition {
     /// Returns the size of the window
     #[cfg(test)]
-    pub(crate) fn size(&self) -> usize {
+    pub fn size(&self) -> usize {
         self.end - self.start + 1
     }
 }
@@ -209,7 +209,7 @@ impl WindowPosition {
 /// let pos = calculate_window_position(98, 100, 5, ViewAlignment::Bottom);
 /// assert_eq!(pos.end, 99);
 /// ```
-pub(crate) fn calculate_window_position(
+pub fn calculate_window_position(
     index: usize,
     total_len: usize,
     window_size: usize,

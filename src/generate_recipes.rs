@@ -139,43 +139,43 @@ fn doc_assets_generate_recipes() -> anyhow::Result<()> {
 }
 
 #[derive(Clone)]
-pub(crate) struct RecipeGroup {
-    pub(crate) filename: &'static str,
-    pub(crate) recipes: Vec<Recipe>,
+pub struct RecipeGroup {
+    pub filename: &'static str,
+    pub recipes: Vec<Recipe>,
 }
 
 #[derive(Clone)]
-pub(crate) struct Recipe {
-    pub(crate) description: &'static str,
-    pub(crate) content: &'static str,
-    pub(crate) file_extension: &'static str,
-    pub(crate) prepare_events: &'static [event::KeyEvent],
-    pub(crate) events: &'static [event::KeyEvent],
-    pub(crate) expectations: Box<[ExpectKind]>,
-    pub(crate) terminal_height: Option<usize>,
-    pub(crate) similar_vim_combos: &'static [&'static str],
-    pub(crate) only: bool,
+pub struct Recipe {
+    pub description: &'static str,
+    pub content: &'static str,
+    pub file_extension: &'static str,
+    pub prepare_events: &'static [event::KeyEvent],
+    pub events: &'static [event::KeyEvent],
+    pub expectations: Box<[ExpectKind]>,
+    pub terminal_height: Option<usize>,
+    pub similar_vim_combos: &'static [&'static str],
+    pub only: bool,
 }
 #[derive(serde::Serialize)]
-pub(crate) struct StepOutput {
-    pub(crate) key: String,
-    pub(crate) description: String,
-    pub(crate) term_output: String,
-    pub(crate) buffer_contents_map: HashMap<String, String>,
-}
-
-#[derive(serde::Serialize)]
-pub(crate) struct RecipeOutput {
-    pub(crate) description: String,
-    pub(crate) steps: Vec<StepOutput>,
-    pub(crate) terminal_height: usize,
-    pub(crate) terminal_width: usize,
-    pub(crate) similar_vim_combos: &'static [&'static str],
+pub struct StepOutput {
+    pub key: String,
+    pub description: String,
+    pub term_output: String,
+    pub buffer_contents_map: HashMap<String, String>,
 }
 
 #[derive(serde::Serialize)]
-pub(crate) struct RecipesOutput {
-    pub(crate) recipes_output: Vec<RecipeOutput>,
+pub struct RecipeOutput {
+    pub description: String,
+    pub steps: Vec<StepOutput>,
+    pub terminal_height: usize,
+    pub terminal_width: usize,
+    pub similar_vim_combos: &'static [&'static str],
+}
+
+#[derive(serde::Serialize)]
+pub struct RecipesOutput {
+    pub recipes_output: Vec<RecipeOutput>,
 }
 
 fn create_nested_vectors<T: Clone>(input: &[T]) -> Vec<Vec<T>> {

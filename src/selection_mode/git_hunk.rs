@@ -3,12 +3,12 @@ use itertools::Itertools;
 
 use super::{ByteRange, IterBasedSelectionMode};
 
-pub(crate) struct GitHunk {
+pub struct GitHunk {
     ranges: Vec<super::ByteRange>,
 }
 
 impl GitHunk {
-    pub(crate) fn new(
+    pub fn new(
         diff_mode: &crate::git::DiffMode,
         buffer: &Buffer,
         working_directory: &shared::canonicalized_path::CanonicalizedPath,

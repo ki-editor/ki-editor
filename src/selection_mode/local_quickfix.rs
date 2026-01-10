@@ -3,12 +3,12 @@ use crate::quickfix_list::QuickfixListItem;
 use super::{ByteRange, IterBasedSelectionMode};
 
 // TODO: change this to custom selections, so it can also hold references, definitions etc
-pub(crate) struct LocalQuickfix {
+pub struct LocalQuickfix {
     ranges: Vec<ByteRange>,
 }
 
 impl LocalQuickfix {
-    pub(crate) fn new(
+    pub fn new(
         params: super::SelectionModeParams<'_>,
         quickfix_list_items: Vec<&QuickfixListItem>,
     ) -> Self {

@@ -7,8 +7,8 @@ use crate::{
 
 use super::{ByteRange, IterBasedSelectionMode, TopNode};
 
-pub(crate) struct SyntaxNode {
-    pub(crate) coarse: bool,
+pub struct SyntaxNode {
+    pub coarse: bool,
 }
 
 impl IterBasedSelectionMode for SyntaxNode {
@@ -208,7 +208,7 @@ impl SyntaxNode {
                 .ok()
         }))
     }
-    pub(crate) fn select_vertical(
+    pub fn select_vertical(
         &self,
         params: &super::SelectionModeParams,
         go_up: bool,
@@ -234,11 +234,7 @@ impl SyntaxNode {
     }
 }
 
-pub(crate) fn get_node(
-    node: tree_sitter::Node,
-    go_up: bool,
-    coarse: bool,
-) -> Option<tree_sitter::Node> {
+pub fn get_node(node: tree_sitter::Node, go_up: bool, coarse: bool) -> Option<tree_sitter::Node> {
     match (go_up, coarse) {
         (true, _) => node.parent(),
         (false, true) => node.named_child(0),
