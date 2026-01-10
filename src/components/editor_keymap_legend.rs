@@ -549,7 +549,7 @@ impl Editor {
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Paste),
                 format("Paste"),
-                Dispatch::ShowKeymapLegend(self.paste_keymap_legend_config(context)),
+                Dispatch::ToEditor(DispatchEditor::EnterPasteMode),
             )
             .override_keymap(
                 normal_mode_override.paste.clone().as_ref(),

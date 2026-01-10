@@ -59,6 +59,7 @@ pub enum Mode {
     Swap,
     Replace,
     Delete { other_key_pressed: bool },
+    Paste { other_key_pressed: bool },
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
@@ -402,6 +403,11 @@ impl Component for Editor {
             }
             EnterDeleteMode => {
                 self.mode = Mode::Delete {
+                    other_key_pressed: false,
+                }
+            }
+            EnterPasteMode => {
+                self.mode = Mode::Paste {
                     other_key_pressed: false,
                 }
             }
@@ -1410,7 +1416,7 @@ impl Editor {
 
     pub fn paste_with_movement(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         movement: Movement,
     ) -> anyhow::Result<Dispatches> {
         let clipboards_differ: bool = !context.clipboards_synced();
@@ -1418,9 +1424,11 @@ impl Editor {
             return Ok(Default::default());
         };
         // out-of-sync paste should also add the content to clipboard history
-        if clipboards_differ {
-            context.add_clipboard_history(copied_texts.clone());
-        }
+        let extra_dispatches = if clipboards_differ {
+            Dispatches::one(Dispatch::AddClipboardHistory(copied_texts.clone()))
+        } else {
+            Default::default()
+        };
         let direction: Option<Direction> = match movement {
             Movement::Left | Movement::Previous => Some(Direction::Start),
             Movement::Right | Movement::Next => Some(Direction::End),
@@ -1434,9 +1442,12 @@ impl Editor {
 
         match (direction, with_gap) {
             (None, _) | (_, None) => Ok(Default::default()),
-            (Some(direction), Some(with_gap)) => {
-                self.paste_text(direction, copied_texts, context, with_gap)
-            }
+            (Some(direction), Some(with_gap)) => Ok(extra_dispatches.chain(self.paste_text(
+                direction,
+                copied_texts,
+                context,
+                with_gap,
+            )?)),
         }
     }
 
@@ -1596,6 +1607,28 @@ impl Editor {
                     Dispatches::one(Dispatch::ToEditor(DispatchEditor::EnterNormalMode))
                         .append_some(if !other_key_pressed {
                             Some(Dispatch::ToEditor(DispatchEditor::DeleteOne))
+                        } else {
+                            None
+                        }),
+                );
+            }
+
+            if let (Mode::Paste { other_key_pressed }, true) = (
+                &self.mode,
+                parse_key_event(
+                    context
+                        .keyboard_layout_kind()
+                        .get_key(&super::editor_keymap::Meaning::Paste),
+                )
+                .unwrap()
+                .same_key(&key_event),
+            ) {
+                return Ok(
+                    Dispatches::one(Dispatch::ToEditor(DispatchEditor::EnterNormalMode))
+                        .append_some(if !other_key_pressed {
+                            Some(Dispatch::ToEditor(DispatchEditor::ReplaceWithCopiedText {
+                                cut: false,
+                            }))
                         } else {
                             None
                         }),
@@ -1917,13 +1950,19 @@ impl Editor {
                     context,
                 )
                 .map(|_| Default::default()),
+            Mode::FindOneChar(_) | Mode::Insert => Ok(Default::default()),
             Mode::Delete { .. } => {
                 self.mode = Mode::Delete {
                     other_key_pressed: true,
                 };
                 self.delete_with_movement(context, movement, false)
             }
-            Mode::FindOneChar(_) | Mode::Insert => Ok(Default::default()),
+            Mode::Paste { .. } => {
+                self.mode = Mode::Paste {
+                    other_key_pressed: true,
+                };
+                self.paste_with_movement(context, movement)
+            }
         }
     }
 
@@ -2885,6 +2924,7 @@ impl Editor {
                 Mode::Swap => "SWAP".to_string(),
                 Mode::Replace => "RPLCE".to_string(),
                 Mode::Delete { .. } => "DELTE".to_string(),
+                Mode::Paste { .. } => "PASTE".to_string(),
             }
         }
     }
@@ -4632,6 +4672,7 @@ pub enum DispatchEditor {
     AlignSelections(Direction),
     JoinSelection,
     ReplaceSelections(Vec<String>),
+    EnterPasteMode,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

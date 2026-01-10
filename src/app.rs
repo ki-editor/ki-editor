@@ -1115,6 +1115,9 @@ impl<T: Frontend> App<T> {
             Dispatch::ToggleOrOpenPaths => self.toggle_or_open_paths()?,
             #[cfg(test)]
             Dispatch::ChangeWorkingDirectory(path) => self.change_working_directory(path)?,
+            Dispatch::AddClipboardHistory(copied_texts) => {
+                self.context.add_clipboard_history(copied_texts)
+            }
         }
         Ok(())
     }
@@ -3569,6 +3572,7 @@ pub enum Dispatch {
     ToggleOrOpenPaths,
     #[cfg(test)]
     ChangeWorkingDirectory(CanonicalizedPath),
+    AddClipboardHistory(CopiedTexts),
 }
 
 /// Used to send notify host app about changes
