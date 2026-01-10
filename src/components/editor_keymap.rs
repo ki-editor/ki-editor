@@ -7,7 +7,7 @@ use Meaning::*;
 
 use crate::{app::Scope, scripting::LEADER_KEYMAP_LAYOUT};
 
-pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
+pub const KEYMAP_SCORE: [[char; 10]; 3] = [
     // a = Easiest to access
     // o = Hardest to access
     // Left side (a-o)        Right side (a-o)
@@ -16,7 +16,7 @@ pub(crate) const KEYMAP_SCORE: [[char; 10]; 3] = [
     ['j', 'k', 'l', 'g', 'o', /*|*/ 'o', 'g', 'l', 'k', 'j'], // Bottom row
 ];
 
-pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
+pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
         Char_, SWord, Mark_, MultC, Swap_, /****/ First, Prev_, Up___, Next_, Last_,
     ],
@@ -28,7 +28,7 @@ pub(crate) const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     ],
 ];
 
-pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
+pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
         _____, _____, _____, _____, Raise, /****/ AgSlL, RplcP, Join_, RplcN, AgSlR,
     ],
@@ -43,7 +43,7 @@ pub(crate) const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
 ];
 
 /// Meta also means Alt (Windows) or Option (Mac).
-pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
+pub const KEYMAP_META: [[Meaning; 10]; 3] = [
     [
         KilLP, _____, MarkF, _____, KilLN, /****/ NBack, _____, ScrlU, _____, NForw,
     ],
@@ -55,12 +55,12 @@ pub(crate) const KEYMAP_META: [[Meaning; 10]; 3] = [
     ],
 ];
 
-pub(crate) type KeyboardMeaningLayout = [[Meaning; 10]; 3];
+pub type KeyboardMeaningLayout = [[Meaning; 10]; 3];
 
 /// Why only the left-side is used for Find Local/Global keybindings?
 /// This is to enable hand-alteration, as Find Local (Prev/Next) and Find Global
 /// are both located on the right-side.
-pub(crate) const KEYMAP_FIND_LOCAL: KeyboardMeaningLayout = [
+pub const KEYMAP_FIND_LOCAL: KeyboardMeaningLayout = [
     [
         DgHnt, DgWrn, Mark_, RSrch, Qkfix, /****/ OneCh, _____, _____, _____, _____,
     ],
@@ -71,7 +71,8 @@ pub(crate) const KEYMAP_FIND_LOCAL: KeyboardMeaningLayout = [
         _____, LDefn, LType, LRfrE, LImpl, /****/ LRept, _____, _____, _____, _____,
     ],
 ];
-pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: KeyboardMeaningLayout = [
+
+pub const KEYMAP_FIND_LOCAL_SHIFTED: KeyboardMeaningLayout = [
     [
         DgInf, _____, _____, _____, _____, /****/ NtrlN, _____, _____, _____, _____,
     ],
@@ -84,7 +85,7 @@ pub(crate) const KEYMAP_FIND_LOCAL_SHIFTED: KeyboardMeaningLayout = [
 ];
 
 /// This keymap should be almost identical with that of Find Local
-pub(crate) const KEYMAP_FIND_GLOBAL: KeyboardMeaningLayout = [
+pub const KEYMAP_FIND_GLOBAL: KeyboardMeaningLayout = [
     [
         DgHnt, DgWrn, Mark_, RSrch, Qkfix, /****/ _____, _____, _____, _____, _____,
     ],
@@ -95,7 +96,7 @@ pub(crate) const KEYMAP_FIND_GLOBAL: KeyboardMeaningLayout = [
         _____, LDefn, LType, LRfrE, LImpl, /****/ GRept, _____, _____, _____, _____,
     ],
 ];
-pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
+pub const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
     [
         DgInf, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
@@ -107,7 +108,7 @@ pub(crate) const KEYMAP_FIND_GLOBAL_SHIFTED: KeyboardMeaningLayout = [
     ],
 ];
 
-pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
+pub const KEYMAP_SURROUND: KeyboardMeaningLayout = [
     [
         _____, _____, _____, _____, _____, /****/ _____, SQuot, DQuot, BckTk, XML__,
     ],
@@ -119,7 +120,7 @@ pub(crate) const KEYMAP_SURROUND: KeyboardMeaningLayout = [
     ],
 ];
 
-pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
+pub const KEYMAP_SPACE: KeyboardMeaningLayout = [
     [
         _____, _____, _____, _____, _____, /****/ _____, RevlS, RevlC, RevlM, _____,
     ],
@@ -131,7 +132,7 @@ pub(crate) const KEYMAP_SPACE: KeyboardMeaningLayout = [
     ],
 ];
 
-pub(crate) const KEYMAP_SPACE_EDITOR: KeyboardMeaningLayout = [
+pub const KEYMAP_SPACE_EDITOR: KeyboardMeaningLayout = [
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
@@ -143,7 +144,7 @@ pub(crate) const KEYMAP_SPACE_EDITOR: KeyboardMeaningLayout = [
     ],
 ];
 
-pub(crate) const KEYMAP_SPACE_CONTEXT: KeyboardMeaningLayout = [
+pub const KEYMAP_SPACE_CONTEXT: KeyboardMeaningLayout = [
     [
         _____, _____, _____, _____, TSNSx, /****/ _____, _____, _____, _____, _____,
     ],
@@ -155,7 +156,7 @@ pub(crate) const KEYMAP_SPACE_CONTEXT: KeyboardMeaningLayout = [
     ],
 ];
 
-pub(crate) const KEYMAP_SPACE_CONTEXT_SHIFTED: KeyboardMeaningLayout = [
+pub const KEYMAP_SPACE_CONTEXT_SHIFTED: KeyboardMeaningLayout = [
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
@@ -167,7 +168,7 @@ pub(crate) const KEYMAP_SPACE_CONTEXT_SHIFTED: KeyboardMeaningLayout = [
     ],
 ];
 
-pub(crate) const KEYMAP_SPACE_PICKER: KeyboardMeaningLayout = [
+pub const KEYMAP_SPACE_PICKER: KeyboardMeaningLayout = [
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
@@ -179,7 +180,7 @@ pub(crate) const KEYMAP_SPACE_PICKER: KeyboardMeaningLayout = [
     ],
 ];
 
-pub(crate) const KEYMAP_SPACE_PICKER_SHIFTED: KeyboardMeaningLayout = [
+pub const KEYMAP_SPACE_PICKER_SHIFTED: KeyboardMeaningLayout = [
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
@@ -191,7 +192,7 @@ pub(crate) const KEYMAP_SPACE_PICKER_SHIFTED: KeyboardMeaningLayout = [
     ],
 ];
 
-pub(crate) const KEYMAP_TRANSFORM: KeyboardMeaningLayout = [
+pub const KEYMAP_TRANSFORM: KeyboardMeaningLayout = [
     [
         Upper, USnke, Pscal, UKbab, Title, /****/ _____, _____, _____, _____, _____,
     ],
@@ -203,7 +204,7 @@ pub(crate) const KEYMAP_TRANSFORM: KeyboardMeaningLayout = [
     ],
 ];
 
-pub(crate) const KEYMAP_YES_NO: KeyboardMeaningLayout = [
+pub const KEYMAP_YES_NO: KeyboardMeaningLayout = [
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
@@ -215,15 +216,15 @@ pub(crate) const KEYMAP_YES_NO: KeyboardMeaningLayout = [
     ],
 ];
 
-pub(crate) type KeyboardLayout = [[&'static str; 10]; 3];
+pub type KeyboardLayout = [[&'static str; 10]; 3];
 
-pub(crate) const QWERTY: KeyboardLayout = [
+pub const QWERTY: KeyboardLayout = [
     ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
     ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
     ["z", "x", "c", "v", "b", "n", "m", ",", ".", "/"],
 ];
 
-pub(crate) const DVORAK: KeyboardLayout = [
+pub const DVORAK: KeyboardLayout = [
     ["'", ",", ".", "p", "y", "f", "g", "c", "r", "l"],
     ["a", "o", "e", "u", "i", "d", "h", "t", "n", "s"],
     [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
@@ -231,20 +232,20 @@ pub(crate) const DVORAK: KeyboardLayout = [
 
 /// I and U swapped.
 /// Refer https://www.reddit.com/r/dvorak/comments/tfz53r/have_anyone_tried_swapping_u_with_i/
-pub(crate) const DVORAK_IU: KeyboardLayout = [
+pub const DVORAK_IU: KeyboardLayout = [
     ["'", ",", ".", "p", "y", "f", "g", "c", "r", "l"],
     ["a", "o", "e", "i", "u", "d", "h", "t", "n", "s"],
     [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
 ];
 
-pub(crate) const COLEMAK: KeyboardLayout = [
+pub const COLEMAK: KeyboardLayout = [
     ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
     ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
     ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
 ];
 
 /// Refer https://colemakmods.github.io/mod-dh/
-pub(crate) const COLEMAK_DH: KeyboardLayout = [
+pub const COLEMAK_DH: KeyboardLayout = [
     ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
     ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
     ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
@@ -252,34 +253,34 @@ pub(crate) const COLEMAK_DH: KeyboardLayout = [
 
 /// Semi-colon and Quote are swapped
 /// Refer https://colemakmods.github.io/mod-dh/
-pub(crate) const COLEMAK_DH_SEMI_QUOTE: KeyboardLayout = [
+pub const COLEMAK_DH_SEMI_QUOTE: KeyboardLayout = [
     ["q", "w", "f", "p", "b", "j", "l", "u", "y", "'"],
     ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
     ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
 ];
 
-pub(crate) const COLEMAK_ANSI: KeyboardLayout = [
+pub const COLEMAK_ANSI: KeyboardLayout = [
     ["q", "w", "f", "p", "g", "j", "l", "u", "y", ";"],
     ["a", "r", "s", "t", "d", "h", "n", "e", "i", "o"],
     ["z", "x", "c", "v", "b", "k", "m", ",", ".", "/"],
 ];
 
 // https://colemakmods.github.io/mod-dh/keyboards.html#ansi-keyboards
-pub(crate) const COLEMAK_ANSI_DH: KeyboardLayout = [
+pub const COLEMAK_ANSI_DH: KeyboardLayout = [
     ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
     ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
     ["x", "c", "d", "v", "z", "k", "h", ",", ".", "/"],
 ];
 
 /// Refer https://workmanlayout.org/
-pub(crate) const WORKMAN: KeyboardLayout = [
+pub const WORKMAN: KeyboardLayout = [
     ["q", "d", "r", "w", "b", "j", "f", "u", "p", ";"],
     ["a", "s", "h", "t", "g", "y", "n", "e", "o", "i"],
     ["z", "x", "m", "c", "v", "k", "l", ",", ".", "/"],
 ];
 
 /// Refer http://adnw.de/index.php?n=Main.OptimierungF%c3%bcrDieGeradeTastaturMitDaumen-Shift
-pub(crate) const PUQ: KeyboardLayout = [
+pub const PUQ: KeyboardLayout = [
     ["p", "u", ":", ",", "q", "g", "c", "l", "m", "f"],
     ["h", "i", "e", "a", "o", "d", "t", "r", "n", "s"],
     ["k", "y", ".", "'", "x", "j", "v", "w", "b", "z"],
@@ -438,7 +439,7 @@ static PUQ_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(PUQ));
 #[derive(
     Debug, Clone, strum_macros::EnumIter, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Copy,
 )]
-pub(crate) enum KeyboardLayoutKind {
+pub enum KeyboardLayoutKind {
     Qwerty,
     Dvorak,
     DvorakIu,
@@ -452,7 +453,7 @@ pub(crate) enum KeyboardLayoutKind {
 }
 
 impl KeyboardLayoutKind {
-    pub(crate) const fn display(&self) -> &'static str {
+    pub const fn display(&self) -> &'static str {
         match self {
             Self::Qwerty => "QWERTY",
             Self::Dvorak => "DVORAK",
@@ -467,7 +468,7 @@ impl KeyboardLayoutKind {
         }
     }
 
-    pub(crate) fn get_keyboard_layout(&self) -> &KeyboardLayout {
+    pub fn get_keyboard_layout(&self) -> &KeyboardLayout {
         match self {
             Self::Qwerty => &QWERTY,
             Self::Dvorak => &DVORAK,
@@ -482,7 +483,7 @@ impl KeyboardLayoutKind {
         }
     }
 
-    pub(crate) fn get_key(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_key(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .normal
@@ -493,7 +494,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub(crate) fn get_insert_key(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_insert_key(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .insert_control
@@ -502,7 +503,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub(crate) fn get_find_keymap(&self, scope: Scope, meaning: &Meaning) -> &'static str {
+    pub fn get_find_keymap(&self, scope: Scope, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         match scope {
             Scope::Local => keyset
@@ -518,7 +519,7 @@ impl KeyboardLayoutKind {
         }
     }
 
-    pub(crate) fn get_leader_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_leader_keymap(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .leader
@@ -527,7 +528,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub(crate) fn get_space_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_space_keymap(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .space
@@ -536,7 +537,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub(crate) fn get_space_context_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_space_context_keymap(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .space_context
@@ -545,7 +546,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub(crate) fn get_space_editor_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_space_editor_keymap(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .space_editor
@@ -554,7 +555,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub(crate) fn get_space_picker_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_space_picker_keymap(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .space_picker
@@ -563,7 +564,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub(crate) fn get_surround_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_surround_keymap(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .surround
@@ -572,7 +573,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub(crate) fn get_transform_key(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_transform_key(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .transform
@@ -581,7 +582,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub(crate) fn get_yes_no_key(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_yes_no_key(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .yes_no
@@ -610,7 +611,7 @@ impl KeyboardLayoutKind {
 /// X means Swap/Cut
 /// Prefix W means Window
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
-pub(crate) enum Meaning {
+pub enum Meaning {
     /// Empty, not assigned
     _____,
     /// Break line
@@ -970,7 +971,7 @@ pub(crate) enum Meaning {
     /// Align selections (based on right anchor)
     AgSlR,
 }
-pub(crate) fn shifted(c: &'static str) -> &'static str {
+pub fn shifted(c: &'static str) -> &'static str {
     match c {
         "." => ">",
         "," => "<",
@@ -1048,7 +1049,7 @@ pub(crate) fn shifted(c: &'static str) -> &'static str {
     }
 }
 
-pub(crate) fn shifted_char(c: char) -> char {
+pub fn shifted_char(c: char) -> char {
     match c {
         '.' => '>',
         ',' => '<',
@@ -1126,7 +1127,7 @@ pub(crate) fn shifted_char(c: char) -> char {
     }
 }
 
-pub(crate) fn alted(c: &'static str) -> &'static str {
+pub fn alted(c: &'static str) -> &'static str {
     match c {
         "." => "alt+.",
         "," => "alt+,",

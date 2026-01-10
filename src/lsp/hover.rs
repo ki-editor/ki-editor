@@ -1,6 +1,6 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Hover {
-    pub(crate) contents: Vec<String>,
+pub struct Hover {
+    pub contents: Vec<String>,
 }
 
 impl From<lsp_types::Hover> for Hover {
@@ -19,7 +19,7 @@ impl From<lsp_types::Hover> for Hover {
     }
 }
 
-pub(crate) fn marked_string_to_string(marked_string: lsp_types::MarkedString) -> String {
+pub fn marked_string_to_string(marked_string: lsp_types::MarkedString) -> String {
     match marked_string {
         lsp_types::MarkedString::String(string) => string,
         lsp_types::MarkedString::LanguageString(language_string) => language_string.value,

@@ -67,6 +67,6 @@ pub fn vscode_dark() -> Theme {
         },
         diagnostic: DiagnosticStyles::default(),
         hunk: super::HunkStyles::dark(),
-        git_gutter: GitGutterStyles::new(),
+        git_gutter: GitGutterStyles::default(),
     }
 }

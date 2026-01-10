@@ -4,13 +4,7 @@ use crate::selection_mode::ApplyMovementResult;
 
 use super::{ByteRange, PositionBasedSelectionMode};
 
-pub(crate) struct LineFull;
-
-impl LineFull {
-    pub(crate) fn new() -> Self {
-        Self
-    }
-}
+pub struct LineFull;
 
 impl PositionBasedSelectionMode for LineFull {
     fn up(

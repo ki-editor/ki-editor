@@ -5437,9 +5437,21 @@ fn git_hunk_gutter() -> anyhow::Result<()> {
 6│}
 7│"#,
             )),
-            Expect(GridCellBackground(2, 1, GitGutterStyles::new().insertion)),
-            Expect(GridCellBackground(4, 1, GitGutterStyles::new().replacement)),
-            Expect(GridCellBackground(6, 1, GitGutterStyles::new().deletion)),
+            Expect(GridCellBackground(
+                2,
+                1,
+                GitGutterStyles::default().insertion,
+            )),
+            Expect(GridCellBackground(
+                4,
+                1,
+                GitGutterStyles::default().replacement,
+            )),
+            Expect(GridCellBackground(
+                6,
+                1,
+                GitGutterStyles::default().deletion,
+            )),
         ])
     })
 }

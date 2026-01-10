@@ -2,12 +2,12 @@ use log::{LevelFilter, Log, Metadata, Record};
 use std::io::{self, Write};
 
 /// Forwards log messages to host app
-pub(crate) struct HostLogger {
+pub struct HostLogger {
     min_level: LevelFilter,
 }
 
 impl HostLogger {
-    pub(crate) fn new(min_level: LevelFilter) -> Self {
+    pub fn new(min_level: LevelFilter) -> Self {
         Self { min_level }
     }
 }

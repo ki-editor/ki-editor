@@ -27,21 +27,21 @@ use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
 
 #[derive(Debug, Clone)]
-pub(crate) struct KeymapPrintSection {
+pub struct KeymapPrintSection {
     name: String,
     keys: Vec<Vec<Key>>,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Key {
-    pub(crate) normal: Option<Keymap>,
-    pub(crate) shifted: Option<Keymap>,
-    pub(crate) alted: Option<Keymap>,
+pub struct Key {
+    pub normal: Option<Keymap>,
+    pub shifted: Option<Keymap>,
+    pub alted: Option<Keymap>,
 }
 
-pub(crate) struct KeymapDisplayOption {
-    pub(crate) show_alt: bool,
-    pub(crate) show_shift: bool,
+pub struct KeymapDisplayOption {
+    pub show_alt: bool,
+    pub show_shift: bool,
 }
 
 impl Key {
@@ -81,11 +81,7 @@ impl Key {
 }
 
 impl KeymapPrintSection {
-    pub(crate) fn from_keymaps(
-        name: String,
-        keymaps: &Keymaps,
-        keyboard_layout: &KeyboardLayout,
-    ) -> Self {
+    pub fn from_keymaps(name: String, keymaps: &Keymaps, keyboard_layout: &KeyboardLayout) -> Self {
         KeymapPrintSection {
             name,
             keys: keyboard_layout
@@ -114,14 +110,14 @@ impl KeymapPrintSection {
         }
     }
 
-    pub(crate) fn has_content(&self) -> bool {
+    pub fn has_content(&self) -> bool {
         self.keys
             .iter()
             .any(|keys| keys.iter().any(|key| key.has_content()))
     }
 
     /// Returns None if the terminal width is too small
-    pub(crate) fn display(&self, terminal_width: usize, option: &KeymapDisplayOption) -> String {
+    pub fn display(&self, terminal_width: usize, option: &KeymapDisplayOption) -> String {
         let table = self.display_full(terminal_width, option);
 
         fn get_content_width(table: &Table) -> usize {
@@ -145,12 +141,12 @@ impl KeymapPrintSection {
     }
 
     #[cfg(test)]
-    pub(crate) fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
     #[cfg(test)]
-    pub(crate) fn keys(&self) -> &Vec<Vec<Key>> {
+    pub fn keys(&self) -> &Vec<Vec<Key>> {
         &self.keys
     }
 
@@ -241,14 +237,14 @@ impl KeymapPrintSection {
     }
 }
 
-pub(crate) struct KeymapPrintSections {
+pub struct KeymapPrintSections {
     #[allow(unused)]
     context: Context,
     sections: Vec<KeymapPrintSection>,
 }
 
 impl KeymapPrintSections {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         let context = Context::new(CanonicalizedPath::try_from(".").unwrap(), false, None);
         let layout = context.keyboard_layout_kind().get_keyboard_layout();
         let editor = Editor::from_text(Option::None, "");
@@ -393,13 +389,13 @@ impl KeymapPrintSections {
         }
     }
 
-    pub(crate) fn sections(&self) -> &Vec<KeymapPrintSection> {
+    pub fn sections(&self) -> &Vec<KeymapPrintSection> {
         &self.sections
     }
 }
 
 /// Print an ASCII representation of the keymap.
-pub(crate) fn print_keymap_table() -> anyhow::Result<()> {
+pub fn print_keymap_table() -> anyhow::Result<()> {
     KeymapPrintSections::new()
         .sections()
         .iter()
@@ -425,7 +421,7 @@ fn print_single_keymap_table(keymap: &KeymapPrintSection) {
 
 /// Print a YAML representation of the keymap suitable for use with keymap drawer,
 /// https://keymap-drawer.streamlit.app
-pub(crate) fn print_keymap_drawer_yaml() -> anyhow::Result<()> {
+pub fn print_keymap_drawer_yaml() -> anyhow::Result<()> {
     println!("layout:");
     println!("  qmk_keyboard: corne_rotated");
     println!("  layout_name: LAYOUT_split_3x5_3");

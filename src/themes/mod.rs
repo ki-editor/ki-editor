@@ -1,29 +1,29 @@
 pub mod from_zed_theme;
-pub(crate) mod theme_descriptor;
-pub(crate) mod vscode_dark;
-pub(crate) mod vscode_light;
+pub mod theme_descriptor;
+pub mod vscode_dark;
+pub mod vscode_light;
 use std::collections::HashMap;
 
 use itertools::Itertools;
 use my_proc_macros::hex;
 use once_cell::sync::OnceCell;
 use strum::IntoEnumIterator as _;
-pub(crate) use vscode_dark::vscode_dark;
-pub(crate) use vscode_light::vscode_light;
+pub use vscode_dark::vscode_dark;
+pub use vscode_light::vscode_light;
 
 use crate::{env::parse_env, grid::StyleKey, style::Style};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct Theme {
-    pub(crate) name: String,
-    pub(crate) syntax: SyntaxStyles,
-    pub(crate) ui: UiStyles,
-    pub(crate) diagnostic: DiagnosticStyles,
-    pub(crate) hunk: HunkStyles,
-    pub(crate) git_gutter: GitGutterStyles,
+pub struct Theme {
+    pub name: String,
+    pub syntax: SyntaxStyles,
+    pub ui: UiStyles,
+    pub diagnostic: DiagnosticStyles,
+    pub hunk: HunkStyles,
+    pub git_gutter: GitGutterStyles,
 }
 
-pub(crate) fn from_name(name: &str) -> Result<Theme, String> {
+pub fn from_name(name: &str) -> Result<Theme, String> {
     let descriptors = crate::themes::theme_descriptor::all();
     descriptors
         .iter()
@@ -36,11 +36,11 @@ pub(crate) fn from_name(name: &str) -> Result<Theme, String> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct HunkStyles {
-    pub(crate) old_background: Color,
-    pub(crate) new_background: Color,
-    pub(crate) old_emphasized_background: Color,
-    pub(crate) new_emphasized_background: Color,
+pub struct HunkStyles {
+    pub old_background: Color,
+    pub new_background: Color,
+    pub old_emphasized_background: Color,
+    pub new_emphasized_background: Color,
 }
 
 impl HunkStyles {
@@ -64,14 +64,14 @@ impl HunkStyles {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct GitGutterStyles {
-    pub(crate) insertion: Color,
-    pub(crate) deletion: Color,
-    pub(crate) replacement: Color,
+pub struct GitGutterStyles {
+    pub insertion: Color,
+    pub deletion: Color,
+    pub replacement: Color,
 }
 
-impl GitGutterStyles {
-    pub(crate) fn new() -> Self {
+impl Default for GitGutterStyles {
+    fn default() -> Self {
         Self {
             insertion: hex!("#BAF0C0"),
             deletion: hex!("#F9D8D6"),
@@ -81,7 +81,7 @@ impl GitGutterStyles {
 }
 
 impl Theme {
-    pub(crate) fn get_style(&self, source: &StyleKey) -> Style {
+    pub fn get_style(&self, source: &StyleKey) -> Style {
         match source {
             StyleKey::UiMark => self.ui.mark,
             StyleKey::UiPrimarySelection => {
@@ -157,12 +157,12 @@ impl Default for Theme {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub(crate) struct DiagnosticStyles {
-    pub(crate) error: Style,
-    pub(crate) warning: Style,
-    pub(crate) info: Style,
-    pub(crate) hint: Style,
-    pub(crate) default: Style,
+pub struct DiagnosticStyles {
+    pub error: Style,
+    pub warning: Style,
+    pub info: Style,
+    pub hint: Style,
+    pub default: Style,
 }
 
 impl DiagnosticStyles {
@@ -178,33 +178,33 @@ impl DiagnosticStyles {
 }
 
 #[derive(Default, Clone, PartialEq, Eq, Debug)]
-pub(crate) struct UiStyles {
-    pub(crate) fuzzy_matched_char: Style,
-    pub(crate) global_title: Style,
-    pub(crate) window_title_focused: Style,
-    pub(crate) window_title_unfocused: Style,
-    pub(crate) parent_lines_background: Color,
-    pub(crate) section_divider_background: Color,
-    pub(crate) jump_mark_odd: Style,
-    pub(crate) jump_mark_even: Style,
-    pub(crate) text_foreground: Color,
-    pub(crate) background_color: Color,
-    pub(crate) primary_selection_background: Color,
-    pub(crate) primary_selection_anchor_background: Color,
-    pub(crate) primary_selection_secondary_cursor: Style,
-    pub(crate) secondary_selection_background: Color,
-    pub(crate) secondary_selection_anchor_background: Color,
-    pub(crate) possible_selection_background: Color,
-    pub(crate) incremental_search_match_background: Color,
-    pub(crate) secondary_selection_primary_cursor: Style,
-    pub(crate) secondary_selection_secondary_cursor: Style,
-    pub(crate) line_number: Style,
-    pub(crate) border: Style,
-    pub(crate) mark: Style,
+pub struct UiStyles {
+    pub fuzzy_matched_char: Style,
+    pub global_title: Style,
+    pub window_title_focused: Style,
+    pub window_title_unfocused: Style,
+    pub parent_lines_background: Color,
+    pub section_divider_background: Color,
+    pub jump_mark_odd: Style,
+    pub jump_mark_even: Style,
+    pub text_foreground: Color,
+    pub background_color: Color,
+    pub primary_selection_background: Color,
+    pub primary_selection_anchor_background: Color,
+    pub primary_selection_secondary_cursor: Style,
+    pub secondary_selection_background: Color,
+    pub secondary_selection_anchor_background: Color,
+    pub possible_selection_background: Color,
+    pub incremental_search_match_background: Color,
+    pub secondary_selection_primary_cursor: Style,
+    pub secondary_selection_secondary_cursor: Style,
+    pub line_number: Style,
+    pub border: Style,
+    pub mark: Style,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
-pub(crate) struct SyntaxStyles {
+pub struct SyntaxStyles {
     map: once_cell::sync::OnceCell<HashMap<HighlightName, Style>>,
     groups: Vec<(HighlightName, Style)>,
 }
@@ -652,7 +652,7 @@ pub fn highlight_names() -> &'static Vec<&'static str> {
 
 /// This should be constructed using the `hex!` macro.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Deserialize, PartialOrd, Ord)]
-pub(crate) struct Color {
+pub struct Color {
     r: u8,
     g: u8,
     b: u8,
@@ -688,7 +688,7 @@ impl Color {
         }
     }
 
-    pub(crate) fn from_hex(hex: &str) -> anyhow::Result<Color> {
+    pub fn from_hex(hex: &str) -> anyhow::Result<Color> {
         let regex = lazy_regex::regex!(r"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3}|[A-Fa-f0-9]{8})$");
         if !regex.is_match(hex) {
             return Err(anyhow::anyhow!("Invalid hex color: {}", hex));
@@ -710,7 +710,7 @@ impl Color {
 
     /// Refer https://docs.rs/colorsys/latest/src/colorsys/rgb/transform.rs.html#61
     /// Refer https://sl.bing.net/b69EKNHqrLw
-    pub(crate) fn get_contrasting_color(&self) -> Color {
+    pub fn get_contrasting_color(&self) -> Color {
         let Color { r, g, b, a } = self;
         // Calculate the luminance of the color
         let luminance = (0.299 * (*r as f64) + 0.587 * (*g as f64) + 0.114 * (*b as f64)) / 255.0;

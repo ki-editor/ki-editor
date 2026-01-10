@@ -11,7 +11,7 @@ use crate::{
 use super::{ByteRange, PositionBasedSelectionMode, SelectionModeParams};
 
 #[derive(Clone)]
-pub(crate) struct LineTrimmed;
+pub struct LineTrimmed;
 
 impl PositionBasedSelectionMode for LineTrimmed {
     fn get_current_selection_by_cursor(
@@ -621,7 +621,7 @@ fn get_line(
     Ok(Some(ByteRange::new(trimmed_range)))
 }
 
-pub(crate) fn process_paste_gap(
+pub fn process_paste_gap(
     params: &SelectionModeParams,
     prev_gap: Option<String>,
     next_gap: Option<String>,

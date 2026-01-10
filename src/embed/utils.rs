@@ -4,7 +4,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 use url::Url;
 
 // Convert Host protocol position to Ki editor position
-pub(crate) fn host_position_to_ki_position(pos: &HostPosition) -> KiPosition {
+pub fn host_position_to_ki_position(pos: &HostPosition) -> KiPosition {
     KiPosition {
         line: pos.line as usize,
         column: pos.character as usize,
@@ -12,14 +12,14 @@ pub(crate) fn host_position_to_ki_position(pos: &HostPosition) -> KiPosition {
 }
 
 // Convert a CanonicalizedPath to a file URI string
-pub(crate) fn path_to_uri(path: &CanonicalizedPath) -> String {
+pub fn path_to_uri(path: &CanonicalizedPath) -> String {
     Url::from_file_path(path.as_ref())
         .map(|url| url.to_string())
         .unwrap_or_else(|_| path.display_absolute()) // Fallback to absolute path if URL conversion fails
 }
 
 // Convert a file URI string back to a CanonicalizedPath
-pub(crate) fn uri_to_path(uri: &str) -> anyhow::Result<CanonicalizedPath> {
+pub fn uri_to_path(uri: &str) -> anyhow::Result<CanonicalizedPath> {
     // First, check if the URI is already in the form of a CanonicalizedPath string
     if let Some(path_str) = extract_canonicalized_path(uri) {
         return path_str.try_into().map_err(|e| {

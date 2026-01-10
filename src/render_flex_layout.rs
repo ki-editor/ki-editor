@@ -3,7 +3,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::utils::distribute_items;
 
-pub(crate) enum FlexLayoutComponent {
+pub enum FlexLayoutComponent {
     Text(String),
     Spacer,
 }
@@ -15,7 +15,7 @@ pub(crate) enum FlexLayoutComponent {
 /// - `width`: Target width of the rendered output in character cells
 ///
 /// Returns a String formatted according to the layout rules.
-pub(crate) fn render_flex_layout(
+pub fn render_flex_layout(
     width: usize,
     separator: &str,
     components: &[FlexLayoutComponent],

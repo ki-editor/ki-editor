@@ -2,12 +2,12 @@ use itertools::Itertools;
 
 use super::{ByteRange, IterBasedSelectionMode};
 
-pub(crate) struct NamingConventionAgnostic {
+pub struct NamingConventionAgnostic {
     pattern: String,
 }
 
 impl NamingConventionAgnostic {
-    pub(crate) fn replace(input: &str, _: &str, replace_pattern: &str) -> anyhow::Result<String> {
+    pub fn replace(input: &str, _: &str, replace_pattern: &str) -> anyhow::Result<String> {
         let case = Self::cases()
             .into_iter()
             .find(|case| convert_case::Casing::is_case(&input, *case))
@@ -18,7 +18,7 @@ impl NamingConventionAgnostic {
 
         Ok(convert_case::Casing::to_case(&replace_pattern, case))
     }
-    pub(crate) fn new(pattern: String) -> Self {
+    pub fn new(pattern: String) -> Self {
         Self { pattern }
     }
     fn cases() -> Vec<convert_case::Case> {
@@ -35,7 +35,7 @@ impl NamingConventionAgnostic {
             .collect()
     }
 
-    pub(crate) fn find_all(&self, haystack: &str) -> Vec<(ByteRange, String)> {
+    pub fn find_all(&self, haystack: &str) -> Vec<(ByteRange, String)> {
         self.possible_patterns()
             .into_iter()
             .flat_map(move |pattern| {
@@ -52,7 +52,7 @@ impl NamingConventionAgnostic {
             .collect()
     }
 
-    pub(crate) fn replace_all(&self, haystack: &str, replace_pattern: String) -> String {
+    pub fn replace_all(&self, haystack: &str, replace_pattern: String) -> String {
         self.find_all(haystack)
             .into_iter()
             .filter_map(move |(_, str)| {

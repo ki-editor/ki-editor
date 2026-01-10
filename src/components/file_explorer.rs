@@ -15,12 +15,12 @@ use super::{
     editor_keymap_legend::{KeymapOverride, NormalModeOverride},
 };
 
-pub(crate) struct FileExplorer {
+pub struct FileExplorer {
     editor: Editor,
     tree: Tree,
 }
 
-pub(crate) fn file_explorer_normal_mode_override() -> NormalModeOverride {
+pub fn file_explorer_normal_mode_override() -> NormalModeOverride {
     NormalModeOverride {
         append: Some(KeymapOverride {
             description: "Add Path",
@@ -50,7 +50,7 @@ pub(crate) fn file_explorer_normal_mode_override() -> NormalModeOverride {
     }
 }
 impl FileExplorer {
-    pub(crate) fn new(path: &CanonicalizedPath) -> anyhow::Result<Self> {
+    pub fn new(path: &CanonicalizedPath) -> anyhow::Result<Self> {
         let tree = Tree::new(path)?;
         let text = tree.render();
         let mut editor = Editor::from_text(
@@ -63,7 +63,7 @@ impl FileExplorer {
         Ok(Self { editor, tree })
     }
 
-    pub(crate) fn expanded_folders(&self) -> Vec<CanonicalizedPath> {
+    pub fn expanded_folders(&self) -> Vec<CanonicalizedPath> {
         self.tree
             .walk_visible(Vec::new(), |result, node| Continuation {
                 state: if matches!(node.kind, NodeKind::Directory { open: true, .. }) {
@@ -75,7 +75,7 @@ impl FileExplorer {
             })
     }
 
-    pub(crate) fn reveal(
+    pub fn reveal(
         &mut self,
         path: &CanonicalizedPath,
         context: &Context,
@@ -105,7 +105,7 @@ impl FileExplorer {
         }
     }
 
-    pub(crate) fn refresh(&mut self, context: &Context) -> anyhow::Result<()> {
+    pub fn refresh(&mut self, context: &Context) -> anyhow::Result<()> {
         let tree = std::mem::take(&mut self.tree);
         self.tree = tree.refresh(context.current_working_directory())?;
         self.refresh_editor(context)?;
@@ -130,20 +130,17 @@ impl FileExplorer {
             .collect_vec())
     }
 
-    pub(crate) fn get_selected_paths(&self) -> anyhow::Result<Vec<CanonicalizedPath>> {
+    pub fn get_selected_paths(&self) -> anyhow::Result<Vec<CanonicalizedPath>> {
         self.get_selected_nodes()
             .map(|nodes| nodes.into_iter().map(|node| node.path).collect_vec())
     }
 
-    pub(crate) fn get_current_path(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
+    pub fn get_current_path(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
         self.get_current_node()
             .map(|node| node.map(|node| node.path))
     }
 
-    pub(crate) fn toggle_or_open_paths(
-        &mut self,
-        context: &Context,
-    ) -> Result<Dispatches, anyhow::Error> {
+    pub fn toggle_or_open_paths(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
         let nodes = self.get_selected_nodes()?;
         let Some(nodes) = NonEmpty::from_vec(nodes) else {
             return Err(anyhow::anyhow!("No paths are selected."));

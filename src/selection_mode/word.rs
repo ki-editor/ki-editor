@@ -65,7 +65,7 @@ impl PositionBasedSelectionMode for Word {
     }
 }
 
-pub(crate) fn process_paste_gap(prev_gap: Option<String>, next_gap: Option<String>) -> String {
+pub fn process_paste_gap(prev_gap: Option<String>, next_gap: Option<String>) -> String {
     match (prev_gap, next_gap) {
         (None, None) => Default::default(),
         (None, Some(gap)) | (Some(gap), None) => gap,

@@ -7,7 +7,7 @@ use crate::{
     test_app::*,
 };
 
-pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
+pub fn recipe_groups() -> Vec<RecipeGroup> {
     [
         swap_cursors(),
         swap_current_selection_using_a_different_selection_mode(),
@@ -1710,7 +1710,7 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     file_extension: "rs",
                     prepare_events: &[],
                     events: keys!("n d p r i n t enter r r d v l r f"),
-                    expectations: Box::new([CurrentComponentContent(r#"pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
+                     expectations: Box::new([CurrentComponentContent(r#"pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
     let mut app = App::from_channel(

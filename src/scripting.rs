@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{io::Write, ops::Range, process::Stdio};
 
-pub(crate) const LEADER_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
+pub const LEADER_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
     [
         __Q__, __W__, __E__, __R__, __T__, /****/ __Y__, __U__, __I__, __O__, __P__,
     ],
@@ -23,14 +23,14 @@ pub(crate) const LEADER_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
     ],
 ];
 
-pub(crate) fn leader_meanings() -> Vec<Meaning> {
+pub fn leader_meanings() -> Vec<Meaning> {
     LEADER_KEYMAP_LAYOUT
         .iter()
         .flat_map(|row| row.iter().cloned())
         .collect_vec()
 }
 
-pub(crate) fn custom_keymap() -> Vec<CustomActionKeymap> {
+pub fn custom_keymap() -> Vec<CustomActionKeymap> {
     AppConfig::singleton()
         .leader_keymap()
         .keybindings()
@@ -46,33 +46,33 @@ pub(crate) fn custom_keymap() -> Vec<CustomActionKeymap> {
 }
 
 #[derive(Clone, Deserialize, Serialize, JsonSchema)]
-pub(crate) struct Keybinding {
-    pub(crate) name: String,
-    pub(crate) script: Script,
+pub struct Keybinding {
+    pub name: String,
+    pub script: Script,
 }
 
-pub(crate) type CustomActionKeymap = (Meaning, String, Script);
+pub type CustomActionKeymap = (Meaning, String, Script);
 
 #[derive(Serialize, Clone, JsonSchema)]
-pub(crate) struct ScriptInput {
-    pub(crate) current_file_path: Option<String>,
+pub struct ScriptInput {
+    pub current_file_path: Option<String>,
     /// 0-based index
-    pub(crate) selections: Vec<Selection>,
+    pub selections: Vec<Selection>,
 }
 
 #[derive(Serialize, Clone, JsonSchema)]
-pub(crate) struct Selection {
-    pub(crate) content: String,
-    pub(crate) range: Range<Position>,
+pub struct Selection {
+    pub content: String,
+    pub range: Range<Position>,
 }
 
 #[derive(Deserialize, JsonSchema)]
-pub(crate) struct ScriptOutput {
-    pub(crate) dispatches: Vec<ScriptDispatch>,
+pub struct ScriptOutput {
+    pub dispatches: Vec<ScriptDispatch>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, PartialEq, Clone)]
-pub(crate) enum ScriptDispatch {
+pub enum ScriptDispatch {
     ShowInfo { title: String, content: String },
     ReplaceSelections(Vec<String>),
 }
@@ -83,16 +83,13 @@ struct ScriptName(String);
 
 #[derive(Clone, Deserialize, Serialize, JsonSchema, Debug)]
 #[serde(try_from = "ScriptName", into = "ScriptName")]
-pub(crate) struct Script {
-    pub(crate) path: CanonicalizedPath,
-    pub(crate) name: String,
+pub struct Script {
+    pub path: CanonicalizedPath,
+    pub name: String,
 }
 
 impl Script {
-    pub(crate) fn execute(
-        &self,
-        context: crate::scripting::ScriptInput,
-    ) -> anyhow::Result<ScriptOutput> {
+    pub fn execute(&self, context: crate::scripting::ScriptInput) -> anyhow::Result<ScriptOutput> {
         let json = serde_json::to_string(&context)?;
 
         let mut child = std::process::Command::new(self.path.display_absolute())
@@ -136,7 +133,7 @@ impl From<Script> for ScriptName {
 }
 
 impl ScriptDispatch {
-    pub(crate) fn into_app_dispatch(self) -> Dispatch {
+    pub fn into_app_dispatch(self) -> Dispatch {
         match self {
             ScriptDispatch::ShowInfo { title, content } => {
                 Dispatch::ShowGlobalInfo(Info::new(title, content))

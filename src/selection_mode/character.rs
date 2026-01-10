@@ -5,7 +5,7 @@ use super::{
     SelectionModeTrait, Subword,
 };
 
-pub(crate) struct Character;
+pub struct Character;
 
 impl PositionBasedSelectionMode for Character {
     fn first(
@@ -44,7 +44,7 @@ fn get_char(
     params: &super::SelectionModeParams,
     position: SelectionPosition,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {
-    if let Some(current_word) = PositionBased(Subword::new()).current(
+    if let Some(current_word) = PositionBased(Subword).current(
         params,
         crate::components::editor::IfCurrentNotFound::LookForward,
     )? {

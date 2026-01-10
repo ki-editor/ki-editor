@@ -13,7 +13,7 @@ use tungstenite::{
 use uuid::Uuid;
 
 #[derive(Debug, Error)]
-pub(crate) enum IpcError {
+pub enum IpcError {
     #[error("Network IO error: {0}")]
     Network(#[from] std::io::Error),
 
@@ -34,7 +34,7 @@ pub(crate) enum IpcError {
 type WsStream = WebSocket<TcpStream>;
 
 /// Manages the WebSocket IPC communication with the Host extension.
-pub(crate) struct WebSocketIpc {
+pub struct WebSocketIpc {
     to_host_sender: Sender<OutputMessageWrapper>, // Sends messages *to* the WebSocket thread
     from_host_receiver: Receiver<(u32, InputMessage, String)>, // Receives messages *from* the WebSocket thread
     // JoinHandle is stored to ensure the thread is properly waited for on drop
@@ -45,7 +45,7 @@ impl WebSocketIpc {
     /// Sets up WebSocket IPC.
     /// Binds a TCP listener, prints the port, and spawns a handler thread.
     #[allow(clippy::result_large_err)]
-    pub(crate) fn new() -> Result<(Self, u16), IpcError> {
+    pub fn new() -> Result<(Self, u16), IpcError> {
         info!("Setting up Host WebSocket IPC...");
 
         let listener = TcpListener::bind("127.0.0.1:0")?;
@@ -228,10 +228,7 @@ impl WebSocketIpc {
 
     /// Sends a message to the Host extension via the handler thread.
     #[allow(clippy::result_large_err)]
-    pub(crate) fn send_message_to_host(
-        &self,
-        message: OutputMessageWrapper,
-    ) -> Result<(), IpcError> {
+    pub fn send_message_to_host(&self, message: OutputMessageWrapper) -> Result<(), IpcError> {
         let id = message.id;
         let message_type = format!("{:?}", message.message);
 
@@ -253,9 +250,7 @@ impl WebSocketIpc {
 
     /// Receives a message from the Host extension via the handler thread.
     /// This is non-blocking.
-    pub(crate) fn try_receive_from_host(
-        &self,
-    ) -> Result<(u32, InputMessage, String), TryRecvError> {
+    pub fn try_receive_from_host(&self) -> Result<(u32, InputMessage, String), TryRecvError> {
         self.from_host_receiver.try_recv()
     }
 }

@@ -1,6 +1,6 @@
-pub(crate) mod crossterm;
+pub mod crossterm;
 #[cfg(test)]
-pub(crate) mod mock;
+pub mod mock;
 
 use std::any::Any;
 use std::io::Write;
@@ -18,7 +18,7 @@ use ::crossterm::{
 };
 use itertools::Itertools;
 
-pub(crate) trait Frontend {
+pub trait Frontend {
     fn get_terminal_dimension(&self) -> anyhow::Result<Dimension>;
     fn enter_alternate_screen(&mut self) -> anyhow::Result<()>;
     fn enable_mouse_capture(&mut self) -> anyhow::Result<()>;
@@ -99,7 +99,7 @@ fn reveal(s: char) -> char {
     }
 }
 
-pub(crate) trait MyWriter: Write + Any {
+pub trait MyWriter: Write + Any {
     #[cfg(test)]
     fn as_any(&self) -> &dyn Any;
 }
@@ -119,17 +119,18 @@ impl MyWriter for NullWriter {
 }
 
 #[cfg(test)]
-pub(crate) struct StringWriter {
+#[derive(Default)]
+pub struct StringWriter {
     buffer: Vec<u8>,
 }
 
 #[cfg(test)]
 impl StringWriter {
-    pub(crate) fn new() -> Self {
-        StringWriter { buffer: Vec::new() }
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub(crate) fn get_string(&self) -> String {
+    pub fn get_string(&self) -> String {
         String::from_utf8(self.buffer.clone()).unwrap_or_default()
     }
 }
@@ -147,7 +148,7 @@ impl Write for StringWriter {
 }
 
 #[cfg(test)]
-pub(crate) struct NullWriter;
+pub struct NullWriter;
 
 #[cfg(test)]
 impl Write for NullWriter {

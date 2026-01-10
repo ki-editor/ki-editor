@@ -17,7 +17,7 @@ fn format_path_list(
     formatted_paths.join("")
 }
 
-pub(crate) fn get_formatted_paths(
+pub fn get_formatted_paths(
     paths: &[&CanonicalizedPath],
     current_path: &CanonicalizedPath,
     current_working_directory: &CanonicalizedPath,

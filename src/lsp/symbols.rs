@@ -8,8 +8,8 @@ use lsp_types::{DocumentSymbolResponse, SymbolKind};
 use shared::{canonicalized_path::CanonicalizedPath, icons::get_icon_config};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Symbols {
-    pub(crate) symbols: Vec<Symbol>,
+pub struct Symbols {
+    pub symbols: Vec<Symbol>,
 }
 
 /// This limit is defined so that we don't send too much symbols to the main event loop,
@@ -49,7 +49,7 @@ impl Symbols {
         Ok(symbols)
     }
 
-    pub(crate) fn try_from_document_symbol_response(
+    pub fn try_from_document_symbol_response(
         value: DocumentSymbolResponse,
         path: CanonicalizedPath,
     ) -> anyhow::Result<Self> {
@@ -70,7 +70,7 @@ impl Symbols {
         Ok(Self { symbols })
     }
 
-    pub(crate) fn try_from_workspace_symbol_response(
+    pub fn try_from_workspace_symbol_response(
         workspace_symbol_response: lsp_types::WorkspaceSymbolResponse,
         working_directory: &CanonicalizedPath,
     ) -> anyhow::Result<Self> {
@@ -164,14 +164,14 @@ impl Symbol {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Symbol {
-    pub(crate) name: String,
-    pub(crate) kind: SymbolKind,
-    pub(crate) location: Location,
-    pub(crate) container_name: Option<String>,
+pub struct Symbol {
+    pub name: String,
+    pub kind: SymbolKind,
+    pub location: Location,
+    pub container_name: Option<String>,
 }
 impl Symbol {
-    pub(crate) fn display(&self) -> String {
+    pub fn display(&self) -> String {
         let icon = get_icon_config()
             .completion
             .get(&format!("{:?}", self.kind))

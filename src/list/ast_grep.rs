@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use super::WalkBuilderConfig;
 
-pub(crate) fn run(
+pub fn run(
     pattern: String,
     walk_builder_config: WalkBuilderConfig,
     send_match: Arc<dyn Fn(Match) -> SendResult + Send + Sync>,

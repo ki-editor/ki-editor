@@ -30,7 +30,7 @@ use super::{
 use DispatchEditor::*;
 use Movement::*;
 impl Editor {
-    pub(crate) fn keymap_core_movements(
+    pub fn keymap_core_movements(
         &self,
         context: &Context,
         prior_change: Option<PriorChange>,
@@ -123,7 +123,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn keymap_other_movements(&self, context: &Context) -> Vec<Keymap> {
+    pub fn keymap_other_movements(&self, context: &Context) -> Vec<Keymap> {
         [
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::CrsrP),
@@ -202,7 +202,7 @@ impl Editor {
         .collect()
     }
 
-    pub(crate) fn keymap_primary_selection_modes(
+    pub fn keymap_primary_selection_modes(
         &self,
         context: &Context,
         prior_change: Option<PriorChange>,
@@ -293,7 +293,7 @@ impl Editor {
         .to_vec()
     }
 
-    pub(crate) fn keymap_secondary_selection_modes_init(
+    pub fn keymap_secondary_selection_modes_init(
         &self,
         context: &Context,
         prior_change: Option<PriorChange>,
@@ -312,7 +312,7 @@ impl Editor {
         .to_vec()
     }
 
-    pub(crate) fn keymap_actions(
+    pub fn keymap_actions(
         &self,
         normal_mode_override: &NormalModeOverride,
         none_if_no_override: bool,
@@ -436,7 +436,7 @@ impl Editor {
         .collect_vec()
     }
 
-    pub(crate) fn keymap_actions_overridable(
+    pub fn keymap_actions_overridable(
         &self,
         normal_mode_override: &NormalModeOverride,
         none_if_no_override: bool,
@@ -483,7 +483,7 @@ impl Editor {
         .collect_vec()
     }
 
-    pub(crate) fn keymap_overridable(
+    pub fn keymap_overridable(
         &self,
         normal_mode_override: &NormalModeOverride,
         none_if_no_override: bool,
@@ -575,7 +575,7 @@ impl Editor {
         .collect_vec()
     }
 
-    pub(crate) fn keymap_universal(&self, context: &Context) -> Vec<Keymap> {
+    pub fn keymap_universal(&self, context: &Context) -> Vec<Keymap> {
         [
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::WClse),
@@ -601,7 +601,7 @@ impl Editor {
         .to_vec()
     }
 
-    pub(crate) fn insert_mode_keymap_legend_config(
+    pub fn insert_mode_keymap_legend_config(
         &self,
         include_universal_keymaps: bool,
         context: &Context,
@@ -720,7 +720,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn handle_insert_mode(
+    pub fn handle_insert_mode(
         &mut self,
         event: KeyEvent,
         context: &Context,
@@ -739,7 +739,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn handle_universal_key(
+    pub fn handle_universal_key(
         &mut self,
         event: KeyEvent,
         context: &Context,
@@ -751,7 +751,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn keymap_others(&self) -> Vec<Keymap> {
+    pub fn keymap_others(&self) -> Vec<Keymap> {
         [
             Keymap::new(
                 "space",
@@ -767,7 +767,7 @@ impl Editor {
         .to_vec()
     }
 
-    pub(crate) fn keymap_sub_modes(&self, context: &Context) -> Vec<Keymap> {
+    pub fn keymap_sub_modes(&self, context: &Context) -> Vec<Keymap> {
         [
             Some(Keymap::new(
                 "~",
@@ -812,7 +812,7 @@ impl Editor {
         .collect_vec()
     }
 
-    pub(crate) fn normal_mode_keymap_legend_config(
+    pub fn normal_mode_keymap_legend_config(
         &self,
         context: &Context,
         normal_mode_override: Option<NormalModeOverride>,
@@ -841,7 +841,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn normal_mode_keymaps(
+    pub fn normal_mode_keymaps(
         &self,
         context: &Context,
         normal_mode_override: Option<NormalModeOverride>,
@@ -863,10 +863,7 @@ impl Editor {
             .collect_vec()
     }
 
-    pub(crate) fn multicursor_mode_keymap_legend_config(
-        &self,
-        context: &Context,
-    ) -> KeymapLegendConfig {
+    pub fn multicursor_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Multi-cursor".to_string(),
             keymaps: Keymaps::new(
@@ -888,7 +885,7 @@ impl Editor {
             ),
         }
     }
-    pub(crate) fn extend_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub fn extend_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Extend".to_string(),
             keymaps: Keymaps::new(
@@ -908,7 +905,7 @@ impl Editor {
             ),
         }
     }
-    pub(crate) fn keymap_transform(&self, context: &Context) -> Vec<Keymap> {
+    pub fn keymap_transform(&self, context: &Context) -> Vec<Keymap> {
         [
             (Meaning::Camel, "camelCase", Case::Camel),
             (Meaning::Lower, "lower case", Case::Lower),
@@ -958,7 +955,7 @@ impl Editor {
         )))
         .collect_vec()
     }
-    pub(crate) fn transform_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub fn transform_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Transform".to_string(),
 
@@ -966,7 +963,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn space_pick_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub fn space_pick_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Pick".to_string(),
 
@@ -1041,10 +1038,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn space_context_keymap_legend_config(
-        &self,
-        context: &Context,
-    ) -> KeymapLegendConfig {
+    pub fn space_context_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Context".to_string(),
 
@@ -1142,10 +1136,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn space_editor_keymap_legend_config(
-        &self,
-        context: &Context,
-    ) -> KeymapLegendConfig {
+    pub fn space_editor_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Editor".to_string(),
 
@@ -1203,7 +1194,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn space_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub fn space_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Space".to_string(),
 
@@ -1289,7 +1280,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn leader_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub fn leader_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Leader".to_string(),
 
@@ -1341,7 +1332,7 @@ impl Editor {
         .to_vec()
     }
 
-    pub(crate) fn secondary_selection_modes_keymap_legend_config(
+    pub fn secondary_selection_modes_keymap_legend_config(
         &self,
         context: &Context,
         scope: Scope,
@@ -1641,7 +1632,7 @@ impl Editor {
     }
 }
 
-pub(crate) fn paste_keymaps(context: &Context) -> Keymaps {
+pub fn paste_keymaps(context: &Context) -> Keymaps {
     Keymaps::new(
         [
             Keymap::new(
@@ -1674,7 +1665,7 @@ pub(crate) fn paste_keymaps(context: &Context) -> Keymaps {
     )
 }
 
-pub(crate) fn delete_keymaps(context: &Context) -> Keymaps {
+pub fn delete_keymaps(context: &Context) -> Keymaps {
     Keymaps::new(
         [
             Keymap::new(
@@ -1712,7 +1703,7 @@ pub(crate) fn delete_keymaps(context: &Context) -> Keymaps {
     )
 }
 
-pub(crate) fn delete_cut_keymaps(context: &Context) -> Keymaps {
+pub fn delete_cut_keymaps(context: &Context) -> Keymaps {
     Keymaps::new(
         [
             Keymap::new(
@@ -1746,21 +1737,21 @@ pub(crate) fn delete_cut_keymaps(context: &Context) -> Keymaps {
 }
 
 #[derive(Default, Clone)]
-pub(crate) struct NormalModeOverride {
-    pub(crate) change: Option<KeymapOverride>,
-    pub(crate) delete: Option<KeymapOverride>,
-    pub(crate) insert: Option<KeymapOverride>,
-    pub(crate) append: Option<KeymapOverride>,
-    pub(crate) open: Option<KeymapOverride>,
-    pub(crate) paste: Option<KeymapOverride>,
-    pub(crate) replace: Option<KeymapOverride>,
-    pub(crate) multicursor: Option<KeymapOverride>,
+pub struct NormalModeOverride {
+    pub change: Option<KeymapOverride>,
+    pub delete: Option<KeymapOverride>,
+    pub insert: Option<KeymapOverride>,
+    pub append: Option<KeymapOverride>,
+    pub open: Option<KeymapOverride>,
+    pub paste: Option<KeymapOverride>,
+    pub replace: Option<KeymapOverride>,
+    pub multicursor: Option<KeymapOverride>,
 }
 
 #[derive(Clone)]
-pub(crate) struct KeymapOverride {
-    pub(crate) description: &'static str,
-    pub(crate) dispatch: Dispatch,
+pub struct KeymapOverride {
+    pub description: &'static str,
+    pub dispatch: Dispatch,
 }
 
 fn generate_enclosures_keymaps(
@@ -1790,7 +1781,7 @@ fn generate_enclosures_keymaps(
     )
 }
 
-pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeOverride {
+pub fn extend_mode_normal_mode_override(context: &Context) -> NormalModeOverride {
     fn select_surround_keymap_legend_config(
         kind: SurroundKind,
         context: &Context,
@@ -1915,7 +1906,7 @@ pub(crate) fn extend_mode_normal_mode_override(context: &Context) -> NormalModeO
     }
 }
 
-pub(crate) fn multicursor_mode_normal_mode_override(direction: Direction) -> NormalModeOverride {
+pub fn multicursor_mode_normal_mode_override(direction: Direction) -> NormalModeOverride {
     NormalModeOverride {
         insert: Some(KeymapOverride {
             description: "Keep Match",

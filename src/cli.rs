@@ -154,7 +154,7 @@ fn process_edit_args(args: EditArgs) -> anyhow::Result<RunConfig> {
     }
 }
 
-pub(crate) fn cli() -> anyhow::Result<()> {
+pub fn cli() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
@@ -200,7 +200,7 @@ pub(crate) fn cli() -> anyhow::Result<()> {
     }
 }
 
-pub(crate) fn get_version() -> String {
+pub fn get_version() -> String {
     let git_hash = env!("GIT_HASH");
     let build_time = env!("BUILD_TIME");
     format!("{git_hash} (Built on {build_time})")
@@ -208,7 +208,7 @@ pub(crate) fn get_version() -> String {
 
 use grammar::grammar::GrammarConfiguration;
 
-pub(crate) fn grammar_configs() -> Vec<GrammarConfiguration> {
+pub fn grammar_configs() -> Vec<GrammarConfiguration> {
     crate::config::AppConfig::singleton()
         .languages()
         .iter()

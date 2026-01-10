@@ -4,10 +4,10 @@
 //! It handles communication with the Host extension host process, and provides
 //! functionality for converting between Ki and Host data structures.
 
-pub(crate) mod app;
-pub(crate) mod handlers;
-pub(crate) mod ipc;
-pub(crate) mod logger;
-pub(crate) mod utils;
+pub mod app;
+pub mod handlers;
+pub mod ipc;
+pub mod logger;
+pub mod utils;
 
-pub(crate) use app::EmbeddedApp;
+pub use app::EmbeddedApp;
