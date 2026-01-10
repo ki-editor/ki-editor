@@ -1,5 +1,5 @@
-pub(crate) mod blame;
-pub(crate) mod hunk;
+pub mod blame;
+pub mod hunk;
 
 use anyhow::bail;
 use rayon::prelude::*;
@@ -13,7 +13,7 @@ use crate::git::hunk::SimpleHunk;
 
 use self::hunk::Hunk;
 
-pub(crate) struct GitRepo {
+pub struct GitRepo {
     repo: Repository,
     path: CanonicalizedPath,
 }
@@ -33,7 +33,7 @@ impl TryFrom<&CanonicalizedPath> for GitRepo {
 }
 
 impl GitRepo {
-    pub(crate) fn diffs(&self, diff_mode: DiffMode) -> anyhow::Result<Vec<FileDiff>> {
+    pub fn diffs(&self, diff_mode: DiffMode) -> anyhow::Result<Vec<FileDiff>> {
         Ok(self
             .diff_entries(diff_mode)?
             .into_iter()
@@ -46,7 +46,7 @@ impl GitRepo {
         &self.path
     }
 
-    pub(crate) fn diff_entries(&self, diff_mode: DiffMode) -> anyhow::Result<Vec<DiffEntry>> {
+    pub fn diff_entries(&self, diff_mode: DiffMode) -> anyhow::Result<Vec<DiffEntry>> {
         // Open the repository
         let repo = &self.repo;
 
@@ -132,16 +132,16 @@ impl GitRepo {
     }
 }
 
-pub(crate) struct FileDiff {
+pub struct FileDiff {
     path: CanonicalizedPath,
     hunks: Vec<Hunk>,
 }
 impl FileDiff {
-    pub(crate) fn hunks(&self) -> &Vec<Hunk> {
+    pub fn hunks(&self) -> &Vec<Hunk> {
         &self.hunks
     }
 
-    pub(crate) fn path(&self) -> &CanonicalizedPath {
+    pub fn path(&self) -> &CanonicalizedPath {
         &self.path
     }
 }
@@ -226,7 +226,7 @@ use git2::DiffOptions;
 use std::str;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct DiffEntry {
+pub struct DiffEntry {
     new_path: CanonicalizedPath,
     old_content: Option<String>,
     new_content: String,
@@ -248,19 +248,19 @@ impl DiffEntry {
         }
     }
 
-    pub(crate) fn new_path(&self) -> CanonicalizedPath {
+    pub fn new_path(&self) -> CanonicalizedPath {
         self.new_path.clone()
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DiffMode {
+pub enum DiffMode {
     UnstagedAgainstMainBranch,
     UnstagedAgainstCurrentBranch,
 }
 
 impl DiffMode {
-    pub(crate) fn display(&self) -> String {
+    pub fn display(&self) -> String {
         match self {
             DiffMode::UnstagedAgainstMainBranch => "^".to_string(),
             DiffMode::UnstagedAgainstCurrentBranch => "@".to_string(),

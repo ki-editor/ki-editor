@@ -1,4 +1,4 @@
-pub(crate) struct SyntaxToken;
+pub struct SyntaxToken;
 
 use crate::components::editor::IfCurrentNotFound;
 

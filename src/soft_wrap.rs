@@ -8,14 +8,14 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Default)]
-pub(crate) struct WrappedLines {
+pub struct WrappedLines {
     width: usize,
     lines: Vec<WrappedLine>,
     ending_with_newline_character: bool,
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum CalibrationError {
+pub enum CalibrationError {
     LineOutOfRange,
     ColumnOutOfRange,
 }
@@ -33,14 +33,14 @@ impl Display for WrappedLines {
     }
 }
 
-pub(crate) struct Positions(Box<dyn Iterator<Item = Position>>);
+pub struct Positions(Box<dyn Iterator<Item = Position>>);
 
 impl Positions {
-    pub(crate) fn into_iter(self) -> Box<dyn Iterator<Item = Position>> {
+    pub fn into_inner(self) -> Box<dyn Iterator<Item = Position>> {
         self.0
     }
 
-    pub(crate) fn first(&mut self) -> Option<Position> {
+    pub fn first(&mut self) -> Option<Position> {
         self.0.next()
     }
 
@@ -50,13 +50,13 @@ impl Positions {
 
     #[cfg(test)]
     fn into_vec(self) -> Vec<Position> {
-        self.into_iter().collect_vec()
+        self.into_inner().collect_vec()
     }
 }
 impl WrappedLines {
     /// The returned value is not one position but potentially multiple positions
     /// because some characters take multiple cells in terminal
-    pub(crate) fn calibrate(&self, position: Position) -> Result<Positions, CalibrationError> {
+    pub fn calibrate(&self, position: Position) -> Result<Positions, CalibrationError> {
         if self.lines.is_empty() && position.line == 0 && position.column == 0 {
             return Ok(Positions::single(Position::new(0, 0)));
         }
@@ -84,7 +84,7 @@ impl WrappedLines {
 
         let width = self.width;
 
-        Ok(Positions(Box::new(new_positions.into_iter().map(
+        Ok(Positions(Box::new(new_positions.into_inner().map(
             move |new_position| {
                 debug_assert!(new_position.column <= width);
                 Position {
@@ -95,17 +95,17 @@ impl WrappedLines {
         ))))
     }
 
-    pub(crate) fn lines(&self) -> &Vec<WrappedLine> {
+    pub fn lines(&self) -> &Vec<WrappedLine> {
         &self.lines
     }
 
-    pub(crate) fn wrapped_lines_count(&self) -> usize {
+    pub fn wrapped_lines_count(&self) -> usize {
         self.lines.iter().map(|line| line.count()).sum()
     }
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct WrappedLine {
+pub struct WrappedLine {
     /// 0-based
     line_number: usize,
     primary: String,
@@ -120,14 +120,14 @@ impl Display for WrappedLine {
     }
 }
 impl WrappedLine {
-    pub(crate) fn lines(&self) -> Vec<String> {
+    pub fn lines(&self) -> Vec<String> {
         [self.primary.clone()]
             .into_iter()
             .chain(self.wrapped.iter().cloned())
             .collect()
     }
 
-    pub(crate) fn line_number(&self) -> usize {
+    pub fn line_number(&self) -> usize {
         self.line_number
     }
 
@@ -168,7 +168,7 @@ impl WrappedLine {
     }
 }
 
-pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
+pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
     let re = lazy_regex::lazy_regex!(r"\b");
 
     // LABEL: NEED_TO_REDUCE_WIDTH_BY_1
@@ -211,7 +211,7 @@ pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
     result
 }
 
-pub(crate) fn wrap_items(items: Vec<String>, wrap_width: usize) -> Vec<String> {
+pub fn wrap_items(items: Vec<String>, wrap_width: usize) -> Vec<String> {
     if wrap_width == 0 {
         return Vec::new();
     }

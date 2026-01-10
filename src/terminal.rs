@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 #[allow(dead_code)]
 /// This piece of function is left in the codebase as a reference,
 /// in case we want to implement integrated terminal.
-pub(crate) fn run_integrated_terminal(rows: u16, cols: u16) -> Result<(), anyhow::Error> {
+pub fn run_integrated_terminal(rows: u16, cols: u16) -> Result<(), anyhow::Error> {
     crossterm::terminal::enable_raw_mode()?;
     use portable_pty::CommandBuilder;
 

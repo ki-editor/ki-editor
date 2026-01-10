@@ -3,7 +3,7 @@ use std::io::{self};
 
 use super::{Frontend, MyWriter};
 
-pub(crate) struct Crossterm {
+pub struct Crossterm {
     stdout: Box<dyn MyWriter>,
     /// Used for diffing to reduce unnecessary re-painting.
     previous_screen: Screen,
@@ -17,7 +17,7 @@ impl MyWriter for std::io::Stdout {
 }
 
 impl Crossterm {
-    pub(crate) fn new() -> anyhow::Result<Crossterm> {
+    pub fn new() -> anyhow::Result<Crossterm> {
         Ok(Crossterm {
             stdout: Box::new(io::stdout()),
             previous_screen: Screen::default(),

@@ -11,7 +11,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub(crate) struct Hunk {
+pub struct Hunk {
     /// 0-based index
     new_line_range: Range<usize>,
 
@@ -25,24 +25,24 @@ pub(crate) struct Hunk {
 /// Simple Hunk is used for Git Gutter,
 /// it is less expensive to compute as it needs less data
 /// than `Hunk`.
-pub(crate) struct SimpleHunk {
+pub struct SimpleHunk {
     /// 0-based index
-    pub(crate) new_line_range: Range<usize>,
-    pub(crate) new_content: String,
-    pub(crate) old_content: String,
+    pub new_line_range: Range<usize>,
+    pub new_content: String,
+    pub old_content: String,
 
-    pub(crate) kind: SimpleHunkKind,
+    pub kind: SimpleHunkKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum SimpleHunkKind {
+pub enum SimpleHunkKind {
     Delete,
     Insert,
     Replace,
 }
 
 impl Hunk {
-    pub(crate) fn get_simple_hunks(old: &str, new: &str) -> Vec<SimpleHunk> {
+    pub fn get_simple_hunks(old: &str, new: &str) -> Vec<SimpleHunk> {
         // We use imara_diff instead of `similar` because
         // imara_diff is much more faster, and more suitable
         // for computing git gutter.
@@ -64,7 +64,7 @@ impl Hunk {
             .collect_vec()
     }
 
-    pub(crate) fn get_hunks(old: &str, new: &str) -> Vec<Hunk> {
+    pub fn get_hunks(old: &str, new: &str) -> Vec<Hunk> {
         let simple_hunks = Self::get_simple_hunks(old, new);
         simple_hunks
             .into_iter()
@@ -86,7 +86,7 @@ impl Hunk {
             .collect_vec()
     }
 
-    pub(crate) fn get_detailed_hunk(old: &str, new: &str) -> (String, Vec<Decoration>) {
+    pub fn get_detailed_hunk(old: &str, new: &str) -> (String, Vec<Decoration>) {
         let diff = TextDiff::from_lines(old, new);
 
         #[derive(PartialEq)]
@@ -155,11 +155,11 @@ impl Hunk {
         (content, decorations)
     }
 
-    pub(crate) fn line_range(&self) -> &Range<usize> {
+    pub fn line_range(&self) -> &Range<usize> {
         &self.new_line_range
     }
 
-    pub(crate) fn one_insert(message: &str) -> Hunk {
+    pub fn one_insert(message: &str) -> Hunk {
         Hunk {
             new_line_range: 0..0,
             content: message.to_string(),
@@ -167,7 +167,7 @@ impl Hunk {
         }
     }
 
-    pub(crate) fn to_info(&self) -> Option<crate::components::suggestive_editor::Info> {
+    pub fn to_info(&self) -> Option<crate::components::suggestive_editor::Info> {
         let info = Info::new("Git Hunk Diff".to_string(), self.content.clone())
             .set_decorations(self.decorations.clone());
         Some(info)

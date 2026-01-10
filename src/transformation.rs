@@ -7,7 +7,7 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Transformation {
+pub enum Transformation {
     Case(convert_case::Case),
     Unwrap,
     Wrap,
@@ -58,7 +58,7 @@ impl std::fmt::Display for Transformation {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct MyRegex(pub(crate) fancy_regex::Regex);
+pub struct MyRegex(pub fancy_regex::Regex);
 
 impl PartialEq for MyRegex {
     fn eq(&self, other: &Self) -> bool {
@@ -69,7 +69,7 @@ impl PartialEq for MyRegex {
 impl Eq for MyRegex {}
 
 impl Transformation {
-    pub(crate) fn apply(&self, selection_index: usize, string: String) -> anyhow::Result<String> {
+    pub fn apply(&self, selection_index: usize, string: String) -> anyhow::Result<String> {
         match self {
             Transformation::Case(case) => Ok(string.to_case(*case)),
             Transformation::Unwrap => Ok(regex::Regex::new(r"\s*\n+\s*")

@@ -171,6 +171,6 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
         } else {
             super::HunkStyles::dark()
         },
-        git_gutter: GitGutterStyles::new(),
+        git_gutter: GitGutterStyles::default(),
     }
 }

@@ -2,12 +2,12 @@ use crate::selection::Selection;
 
 use super::IterBasedSelectionMode;
 
-pub(crate) struct Custom {
+pub struct Custom {
     current_selection: Selection,
 }
 
 impl Custom {
-    pub(crate) fn new(current_selection: Selection) -> Custom {
+    pub fn new(current_selection: Selection) -> Custom {
         Custom { current_selection }
     }
 }

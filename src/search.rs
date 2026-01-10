@@ -7,7 +7,7 @@ use crate::{
     list::grep::RegexConfig,
 };
 
-pub(crate) fn parse_search_config(input: &str) -> anyhow::Result<GlobalSearchConfig> {
+pub fn parse_search_config(input: &str) -> anyhow::Result<GlobalSearchConfig> {
     let default = || {
         Ok(GlobalSearchConfig {
             include_glob: None,

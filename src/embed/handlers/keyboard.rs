@@ -58,7 +58,7 @@ impl EmbeddedApp {
     }
 
     /// Handle keyboard.input request
-    pub(crate) fn handle_keyboard_input_request(
+    pub fn handle_keyboard_input_request(
         &self,
         id: u32,
         params: ki_protocol_types::KeyboardParams,

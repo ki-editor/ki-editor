@@ -1,4 +1,4 @@
-pub(crate) fn find_previous<T>(
+pub fn find_previous<T>(
     iter: impl Iterator<Item = T>,
     set_last_match_predicate: impl Fn(&T, &Option<T>) -> bool,
     break_predicate: impl Fn(&T) -> bool,
@@ -16,7 +16,7 @@ pub(crate) fn find_previous<T>(
     last_match
 }
 
-pub(crate) fn consolidate_errors<T, E: std::fmt::Debug>(
+pub fn consolidate_errors<T, E: std::fmt::Debug>(
     message: &str,
     results: Vec<Result<T, E>>,
 ) -> anyhow::Result<()> {
@@ -40,7 +40,7 @@ pub(crate) fn consolidate_errors<T, E: std::fmt::Debug>(
 /// assert_eq!(distribute_items(5, 2), vec![3, 2]);
 /// assert_eq!(distribute_items(6, 3), vec![2, 2, 2]);
 /// ```
-pub(crate) fn distribute_items(total: usize, n_parts: usize) -> Vec<usize> {
+pub fn distribute_items(total: usize, n_parts: usize) -> Vec<usize> {
     if n_parts == 0 {
         return vec![];
     }
@@ -60,7 +60,7 @@ pub(crate) fn distribute_items(total: usize, n_parts: usize) -> Vec<usize> {
     result
 }
 
-pub(crate) fn distribute_items_by_2(total: usize) -> (usize, usize) {
+pub fn distribute_items_by_2(total: usize) -> (usize, usize) {
     distribute_items(total, 2)
         .into_iter()
         .collect_tuple()
@@ -161,7 +161,7 @@ pub struct TrimResult<T> {
 /// * When equal trimming isn't possible, trims from the side with more available elements
 /// * Never removes elements from the protected range
 /// * If requested trim count exceeds available elements, trims what it can and returns the remainder
-pub(crate) fn trim_array<T: Clone + std::fmt::Debug>(
+pub fn trim_array<T: Clone + std::fmt::Debug>(
     arr: &[T],
     protected_range: Range<usize>,
     trim_count: usize,

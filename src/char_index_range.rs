@@ -15,9 +15,9 @@ use crate::{edit::Edit, selection::CharIndex};
     serde::Serialize,
     serde::Deserialize,
 )]
-pub(crate) struct CharIndexRange {
-    pub(crate) start: CharIndex,
-    pub(crate) end: CharIndex,
+pub struct CharIndexRange {
+    pub start: CharIndex,
+    pub end: CharIndex,
 }
 
 impl std::ops::Sub<usize> for CharIndexRange {
@@ -38,40 +38,45 @@ impl From<CharIndexRange> for Range<CharIndex> {
 }
 
 impl CharIndexRange {
-    pub(crate) fn iter(&self) -> CharIndexRangeIter {
+    pub fn iter(&self) -> CharIndexRangeIter {
         CharIndexRangeIter {
             range: *self,
             current: self.start,
         }
     }
 
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.end.0.saturating_sub(self.start.0)
     }
 
-    pub(crate) fn shift_left(&self, len: usize) -> CharIndexRange {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn shift_left(&self, len: usize) -> CharIndexRange {
         CharIndexRange {
             start: self.start - len,
             end: self.end - len,
         }
     }
 
-    pub(crate) fn shift_right(&self, len: usize) -> CharIndexRange {
+    pub fn shift_right(&self, len: usize) -> CharIndexRange {
         CharIndexRange {
             start: self.start + len,
             end: self.end + len,
         }
     }
 
-    pub(crate) fn end(&self) -> CharIndex {
+    pub fn end(&self) -> CharIndex {
         self.end
     }
 
-    pub(crate) fn start(&self) -> CharIndex {
+    pub fn start(&self) -> CharIndex {
         self.start
     }
 
-    pub(crate) fn apply_edit(&self, edit: &Edit) -> Option<CharIndexRange> {
+    pub fn apply_edit(&self, edit: &Edit) -> Option<CharIndexRange> {
         let range = apply_edit(
             self.start.0..self.end.0,
             &(edit.range.start.0..edit.range.end.0),
@@ -80,11 +85,11 @@ impl CharIndexRange {
         Some((CharIndex(range.start)..(CharIndex(range.end))).into())
     }
 
-    pub(crate) fn contains(&self, char_index: &CharIndex) -> bool {
+    pub fn contains(&self, char_index: &CharIndex) -> bool {
         &self.start <= char_index && char_index <= &self.end
     }
 
-    pub(crate) fn trimmed(&self, buffer: &crate::buffer::Buffer) -> anyhow::Result<Self> {
+    pub fn trimmed(&self, buffer: &crate::buffer::Buffer) -> anyhow::Result<Self> {
         let text = buffer.slice(self)?.to_string();
 
         if text.chars().all(char::is_whitespace) {
@@ -100,11 +105,11 @@ impl CharIndexRange {
         }
     }
 
-    pub(crate) fn is_supserset_of(&self, other: &CharIndexRange) -> bool {
+    pub fn is_supserset_of(&self, other: &CharIndexRange) -> bool {
         self.start <= other.start && other.end <= self.end
     }
 
-    pub(crate) fn as_char_index(
+    pub fn as_char_index(
         &self,
         cursor_direction: &crate::components::editor::Direction,
     ) -> CharIndex {
@@ -114,20 +119,20 @@ impl CharIndexRange {
         }
     }
 
-    pub(crate) fn as_usize_range(&self) -> Range<usize> {
+    pub fn as_usize_range(&self) -> Range<usize> {
         self.start.0..self.end.0
     }
 
     /// Range with 0 length (e.g. 1..1) is defined as never intersecting with other ranges.
     /// This is because a 0 length Edit represents a pure insertion without modifications,
     /// and multiple insertions at the same position are both theoretically feasible and practical.
-    pub(crate) fn intersects_with(&self, other: &CharIndexRange) -> bool {
-        self.len() > 0
-            && other.len() > 0
+    pub fn intersects_with(&self, other: &CharIndexRange) -> bool {
+        !self.is_empty()
+            && !other.is_empty()
             && range_intersects(&self.as_usize_range(), &other.as_usize_range())
     }
 
-    pub(crate) fn subtracts(&self, other: &CharIndexRange) -> CharIndexRange {
+    pub fn subtracts(&self, other: &CharIndexRange) -> CharIndexRange {
         // If no intersection, return the original range
         if !self.intersects_with(other) {
             return *self;
@@ -164,11 +169,11 @@ impl CharIndexRange {
     }
 }
 
-pub(crate) fn range_intersects<T: PartialOrd>(a: &Range<T>, b: &Range<T>) -> bool {
+pub fn range_intersects<T: PartialOrd>(a: &Range<T>, b: &Range<T>) -> bool {
     a.start < b.end && b.start < a.end
 }
 
-pub(crate) struct CharIndexRangeIter {
+pub struct CharIndexRangeIter {
     range: CharIndexRange,
     current: CharIndex,
 }
@@ -196,7 +201,7 @@ impl From<Range<CharIndex>> for CharIndexRange {
 }
 
 /// `change` = new length - old length
-pub(crate) fn apply_edit(
+pub fn apply_edit(
     range: Range<usize>,
     edited_range: &Range<usize>,
     change: isize,

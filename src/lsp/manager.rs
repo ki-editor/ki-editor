@@ -8,7 +8,7 @@ use shared::{
     language::{Language, LanguageId},
 };
 
-pub(crate) struct LspManager {
+pub struct LspManager {
     lsp_server_process_channels: HashMap<LanguageId, LspServerProcessChannel>,
     sender: Sender<AppMessage>,
     current_working_directory: CanonicalizedPath,
@@ -30,7 +30,7 @@ impl Drop for LspManager {
 }
 
 impl LspManager {
-    pub(crate) fn new(
+    pub fn new(
         sender: Sender<AppMessage>,
         current_working_directory: CanonicalizedPath,
     ) -> LspManager {
@@ -57,7 +57,7 @@ impl LspManager {
             .unwrap_or_else(|| Ok(()))
     }
 
-    pub(crate) fn send_message(
+    pub fn send_message(
         &mut self,
         path: CanonicalizedPath,
         from_editor: FromEditor,
@@ -77,7 +77,7 @@ impl LspManager {
     /// 1. Start a new LSP server process if it is not started yet.
     /// 2. Notify the LSP server process that a new file is opened.
     /// 3. Do nothing if the LSP server process is spawned but not yet initialized.
-    pub(crate) fn open_file(&mut self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
+    pub fn open_file(&mut self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
         let Some(language) = crate::config::from_path(&path) else {
             return Ok(());
         };
@@ -108,11 +108,7 @@ impl LspManager {
         }
     }
 
-    pub(crate) fn initialized(
-        &mut self,
-        language: Language,
-        opened_documents: Vec<CanonicalizedPath>,
-    ) {
+    pub fn initialized(&mut self, language: Language, opened_documents: Vec<CanonicalizedPath>) {
         let Some(language_id) = language.id() else {
             return;
         };
@@ -129,7 +125,7 @@ impl LspManager {
             });
     }
 
-    pub(crate) fn shutdown(&mut self) {
+    pub fn shutdown(&mut self) {
         for (_, channel) in self.lsp_server_process_channels.drain() {
             channel
                 .shutdown()
@@ -138,14 +134,12 @@ impl LspManager {
     }
 
     #[cfg(test)]
-    pub(crate) fn lsp_request_sent(&self, from_editor: &FromEditor) -> bool {
+    pub fn lsp_request_sent(&self, from_editor: &FromEditor) -> bool {
         self.history.get(from_editor.variant()) == Some(from_editor)
     }
 
     #[cfg(test)]
-    pub(crate) fn lsp_server_initialized_args(
-        &self,
-    ) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
+    pub fn lsp_server_initialized_args(&self) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
         self.lsp_server_initialized_args_history.last().cloned()
     }
 }

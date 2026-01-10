@@ -3,13 +3,13 @@ use crate::{components::suggestive_editor::Info, quickfix_list::DiagnosticSeveri
 use super::IterBasedSelectionMode;
 
 // TODO: change this to custom selections, so it can also hold references, definitions etc
-pub(crate) struct Diagnostic {
+pub struct Diagnostic {
     severity_range: DiagnosticSeverityRange,
     diagnostics: Vec<crate::lsp::diagnostic::Diagnostic>,
 }
 
 impl Diagnostic {
-    pub(crate) fn new(
+    pub fn new(
         severity_range: DiagnosticSeverityRange,
         params: super::SelectionModeParams<'_>,
     ) -> Self {

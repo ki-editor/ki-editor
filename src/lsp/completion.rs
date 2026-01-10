@@ -13,31 +13,31 @@ use crate::{
 use super::documentation::Documentation;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Completion {
-    pub(crate) items: Vec<DropdownItem>,
-    pub(crate) trigger_characters: Vec<String>,
+pub struct Completion {
+    pub items: Vec<DropdownItem>,
+    pub trigger_characters: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CompletionItem {
-    pub(crate) label: String,
-    pub(crate) kind: Option<CompletionItemKind>,
-    pub(crate) detail: Option<String>,
-    pub(crate) documentation: Option<Documentation>,
-    pub(crate) sort_text: Option<String>,
-    pub(crate) insert_text: Option<String>,
-    pub(crate) edit: Option<CompletionItemEdit>,
-    pub(crate) completion_item: lsp_types::CompletionItem,
+pub struct CompletionItem {
+    pub label: String,
+    pub kind: Option<CompletionItemKind>,
+    pub detail: Option<String>,
+    pub documentation: Option<Documentation>,
+    pub sort_text: Option<String>,
+    pub insert_text: Option<String>,
+    pub edit: Option<CompletionItemEdit>,
+    pub completion_item: lsp_types::CompletionItem,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum CompletionItemEdit {
+pub enum CompletionItemEdit {
     PositionalEdit(PositionalEdit),
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PositionalEdit {
-    pub(crate) range: Range<Position>,
-    pub(crate) new_text: String,
+pub struct PositionalEdit {
+    pub range: Range<Position>,
+    pub new_text: String,
 }
 
 impl TryFrom<lsp_types::AnnotatedTextEdit> for PositionalEdit {
@@ -60,7 +60,7 @@ impl TryFrom<lsp_types::TextEdit> for PositionalEdit {
 }
 
 impl CompletionItem {
-    pub(crate) fn emoji(&self) -> String {
+    pub fn emoji(&self) -> String {
         self.kind
             .map(|kind| {
                 get_icon_config()
@@ -71,7 +71,7 @@ impl CompletionItem {
             })
             .unwrap_or_default()
     }
-    pub(crate) fn info(&self) -> Option<Info> {
+    pub fn info(&self) -> Option<Info> {
         let kind = self.kind.map(|kind| {
             convert_case::Casing::to_case(&format!("{kind:?}"), convert_case::Case::Title)
         });
@@ -91,7 +91,7 @@ impl CompletionItem {
         }
     }
     #[cfg(test)]
-    pub(crate) fn from_label(label: String) -> Self {
+    pub fn from_label(label: String) -> Self {
         Self {
             label,
             kind: None,
@@ -104,15 +104,15 @@ impl CompletionItem {
         }
     }
 
-    pub(crate) fn label(&self) -> String {
+    pub fn label(&self) -> String {
         self.label.clone()
     }
 
-    pub(crate) fn documentation(&self) -> Option<Documentation> {
+    pub fn documentation(&self) -> Option<Documentation> {
         self.documentation.clone()
     }
 
-    pub(crate) fn additional_text_edits(&self) -> Vec<CompletionItemEdit> {
+    pub fn additional_text_edits(&self) -> Vec<CompletionItemEdit> {
         self.completion_item
             .additional_text_edits
             .as_ref()
@@ -131,7 +131,7 @@ impl CompletionItem {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_documentation(self, description: Option<Documentation>) -> CompletionItem {
+    pub fn set_documentation(self, description: Option<Documentation>) -> CompletionItem {
         CompletionItem {
             documentation: description,
             ..self
@@ -139,18 +139,18 @@ impl CompletionItem {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_insert_text(self, insert_text: Option<String>) -> CompletionItem {
+    pub fn set_insert_text(self, insert_text: Option<String>) -> CompletionItem {
         CompletionItem {
             insert_text,
             ..self
         }
     }
 
-    pub(crate) fn insert_text(&self) -> Option<String> {
+    pub fn insert_text(&self) -> Option<String> {
         self.insert_text.clone()
     }
 
-    pub(crate) fn dispatches(&self) -> crate::app::Dispatches {
+    pub fn dispatches(&self) -> crate::app::Dispatches {
         Dispatches::one(Dispatch::ToEditor(DispatchEditor::ExecuteCompletion {
             replacement: self
                 .insert_text()
@@ -170,7 +170,7 @@ impl CompletionItem {
         )
     }
 
-    pub(crate) fn completion_item(&self) -> lsp_types::CompletionItem {
+    pub fn completion_item(&self) -> lsp_types::CompletionItem {
         self.completion_item.clone()
     }
 

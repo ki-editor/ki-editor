@@ -1,10 +1,10 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Documentation {
-    pub(crate) content: String,
+pub struct Documentation {
+    pub content: String,
 }
 impl Documentation {
     #[cfg(test)]
-    pub(crate) fn new(content: &str) -> Documentation {
+    pub fn new(content: &str) -> Documentation {
         Documentation {
             content: content.to_string(),
         }

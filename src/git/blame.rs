@@ -3,7 +3,7 @@ use std::path::Path;
 use git2::{BlameOptions, Repository};
 use shared::canonicalized_path::CanonicalizedPath;
 
-pub(crate) struct GitBlameInfo {
+pub struct GitBlameInfo {
     commit: String,
     author: String,
     date: String,
@@ -12,7 +12,7 @@ pub(crate) struct GitBlameInfo {
 }
 
 impl GitBlameInfo {
-    pub(crate) fn display(&self) -> String {
+    pub fn display(&self) -> String {
         format!(
             "Commit: {}
 Author: {}
@@ -33,7 +33,7 @@ URL: {}
 }
 
 /// `line_index` is 0-based.
-pub(crate) fn blame_line(
+pub fn blame_line(
     repo_path: &CanonicalizedPath,
     file_path: &CanonicalizedPath,
     line_index: usize,

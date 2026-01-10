@@ -6,7 +6,7 @@ use scraper::{Html, Selector};
 use crate::osc52;
 
 #[derive(Clone)]
-pub(crate) struct Clipboard {
+pub struct Clipboard {
     history: RingHistory<CopiedTexts>,
 }
 
@@ -15,11 +15,11 @@ pub(crate) struct Clipboard {
 /// Because it needs to support multiple cursors.
 /// The first entry represent the copied text of the first cursor,
 /// and so forth.
-pub(crate) struct CopiedTexts {
+pub struct CopiedTexts {
     texts: NonEmpty<String>,
 }
 impl CopiedTexts {
-    pub(crate) fn new(texts: NonEmpty<String>) -> Self {
+    pub fn new(texts: NonEmpty<String>) -> Self {
         Self { texts }
     }
 
@@ -28,7 +28,7 @@ impl CopiedTexts {
     }
 
     /// Returns the first element if no element is found at the given `index`
-    pub(crate) fn get(&self, index: usize) -> String {
+    pub fn get(&self, index: usize) -> String {
         self.texts
             .get(index)
             .unwrap_or_else(|| self.texts.first())
@@ -36,7 +36,7 @@ impl CopiedTexts {
     }
 
     #[cfg(test)]
-    pub(crate) fn one(string: String) -> CopiedTexts {
+    pub fn one(string: String) -> CopiedTexts {
         CopiedTexts::new(NonEmpty::singleton(string))
     }
 
@@ -142,17 +142,17 @@ impl CopiedTexts {
 }
 
 impl Clipboard {
-    pub(crate) fn new() -> Clipboard {
+    pub fn new() -> Clipboard {
         Clipboard {
             history: RingHistory::new(),
         }
     }
 
-    pub(crate) fn get(&self, history_offset: isize) -> Option<CopiedTexts> {
+    pub fn get(&self, history_offset: isize) -> Option<CopiedTexts> {
         self.history.get(history_offset)
     }
 
-    pub(crate) fn get_from_system_clipboard(&self) -> anyhow::Result<CopiedTexts> {
+    pub fn get_from_system_clipboard(&self) -> anyhow::Result<CopiedTexts> {
         // Try to parse the HTML as a Ki-injected HTML
         let mut clipboard = arboard::Clipboard::new()?;
         clipboard
@@ -167,7 +167,7 @@ impl Clipboard {
             })
     }
 
-    pub(crate) fn set(&mut self, copied_texts: CopiedTexts) -> anyhow::Result<()> {
+    pub fn set(&mut self, copied_texts: CopiedTexts) -> anyhow::Result<()> {
         self.history.add(copied_texts.clone());
         arboard::Clipboard::new()
             .and_then(|mut clipboard| {
@@ -177,20 +177,20 @@ impl Clipboard {
         Ok(())
     }
 
-    pub(crate) fn add_clipboard_history(&mut self, copied_texts: CopiedTexts) {
+    pub fn add_clipboard_history(&mut self, copied_texts: CopiedTexts) {
         self.history.add(copied_texts.clone());
     }
 }
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default)]
-pub(crate) struct RingHistory<T: Clone> {
+pub struct RingHistory<T: Clone> {
     items: Vec<T>,
 }
 impl<T: Clone> RingHistory<T> {
     /// 0 means latest.  
     /// -1 means previous.  
     /// +1 means next.  
-    pub(crate) fn get(&self, history_offset: isize) -> Option<T> {
+    pub fn get(&self, history_offset: isize) -> Option<T> {
         let len = self.items.len();
         if len == 0 {
             return None;
@@ -211,7 +211,7 @@ impl<T: Clone> RingHistory<T> {
         }
     }
 
-    pub(crate) fn add(&mut self, item: T) {
+    pub fn add(&mut self, item: T) {
         self.items.push(item)
     }
 

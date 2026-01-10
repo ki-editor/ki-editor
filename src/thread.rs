@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 #[derive(Clone)]
-pub(crate) struct Callback<T>(Arc<dyn Fn(T) + Send + Sync>);
+pub struct Callback<T>(Arc<dyn Fn(T) + Send + Sync>);
 
 impl<T> PartialEq for Callback<T> {
     fn eq(&self, other: &Self) -> bool {
@@ -12,16 +12,16 @@ impl<T> PartialEq for Callback<T> {
 }
 
 impl<T> Callback<T> {
-    pub(crate) fn new(callback: Arc<dyn Fn(T) + Send + Sync>) -> Self {
+    pub fn new(callback: Arc<dyn Fn(T) + Send + Sync>) -> Self {
         Self(callback)
     }
 
-    pub(crate) fn call(&self, event: T) {
+    pub fn call(&self, event: T) {
         self.0(event)
     }
 }
 
-pub(crate) fn debounce<T: PartialEq + Eq + Send + Sync + 'static>(
+pub fn debounce<T: PartialEq + Eq + Send + Sync + 'static>(
     callback: Callback<T>,
     duration: Duration,
 ) -> Callback<T> {
@@ -41,12 +41,12 @@ pub(crate) fn debounce<T: PartialEq + Eq + Send + Sync + 'static>(
     }))
 }
 
-pub(crate) enum SendResult {
+pub enum SendResult {
     Succeeed,
     ReceiverDisconnected,
 }
 impl SendResult {
-    pub(crate) fn is_receiver_disconnected(&self) -> bool {
+    pub fn is_receiver_disconnected(&self) -> bool {
         matches!(self, SendResult::ReceiverDisconnected)
     }
 }
@@ -60,7 +60,7 @@ impl<T> From<Result<(), SendError<T>>> for SendResult {
     }
 }
 
-pub(crate) fn batch<T: Send + Sync + 'static>(
+pub fn batch<T: Send + Sync + 'static>(
     callback: Arc<dyn Fn(Vec<T>) -> SendResult + Send + Sync>,
     interval: Duration,
 ) -> Arc<dyn Fn(T) -> SendResult + Send + Sync> {

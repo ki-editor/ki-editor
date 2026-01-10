@@ -8,9 +8,9 @@ use crate::{context::Context, grid::Grid, position::Position, rectangle::Rectang
 
 use super::editor::{DispatchEditor, Editor};
 
-pub(crate) struct GetGridResult {
-    pub(crate) grid: Grid,
-    pub(crate) cursor: Option<Cursor>,
+pub struct GetGridResult {
+    pub grid: Grid,
+    pub cursor: Option<Cursor>,
 }
 
 #[cfg(test)]
@@ -31,7 +31,7 @@ impl std::fmt::Display for GetGridResult {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Cursor {
+pub struct Cursor {
     position: Position,
     style: SetCursorStyle,
 }
@@ -65,19 +65,19 @@ impl From<&SetCursorStyle> for crossterm::cursor::SetCursorStyle {
 }
 
 impl Cursor {
-    pub(crate) fn style(&self) -> &SetCursorStyle {
+    pub fn style(&self) -> &SetCursorStyle {
         &self.style
     }
 
-    pub(crate) fn position(&self) -> &Position {
+    pub fn position(&self) -> &Position {
         &self.position
     }
 
-    pub(crate) fn new(position: Position, style: SetCursorStyle) -> Cursor {
+    pub fn new(position: Position, style: SetCursorStyle) -> Cursor {
         Cursor { position, style }
     }
 
-    pub(crate) fn set_position(self, position: Position) -> Cursor {
+    pub fn set_position(self, position: Position) -> Cursor {
         Cursor { position, ..self }
     }
 }
@@ -209,9 +209,9 @@ fn increment_counter() -> usize {
 }
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash, Default)]
-pub(crate) struct ComponentId(usize);
+pub struct ComponentId(usize);
 impl ComponentId {
-    pub(crate) fn new() -> ComponentId {
+    pub fn new() -> ComponentId {
         ComponentId(increment_counter())
     }
 }

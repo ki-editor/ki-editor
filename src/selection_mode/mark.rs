@@ -2,8 +2,8 @@ use crate::char_index_range::CharIndexRange;
 
 use super::IterBasedSelectionMode;
 
-pub(crate) struct Mark {
-    pub(crate) marks: Vec<CharIndexRange>,
+pub struct Mark {
+    pub marks: Vec<CharIndexRange>,
 }
 
 impl IterBasedSelectionMode for Mark {

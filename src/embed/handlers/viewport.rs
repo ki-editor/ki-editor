@@ -5,7 +5,7 @@ use ki_protocol_types::ViewportParams;
 
 impl EmbeddedApp {
     /// Handle viewport change request from Host
-    pub(crate) fn handle_viewport_change_request(&mut self, params: ViewportParams) -> Result<()> {
+    pub fn handle_viewport_change_request(&mut self, params: ViewportParams) -> Result<()> {
         let component = self.app.lock().unwrap().current_component();
         let mut component_ref = component.borrow_mut();
         let editor = component_ref.editor_mut();

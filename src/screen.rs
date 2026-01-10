@@ -8,7 +8,7 @@ use crate::{
 };
 
 #[derive(Default, Clone)]
-pub(crate) struct Screen {
+pub struct Screen {
     windows: Vec<Window>,
     borders: Vec<Border>,
     cursor: Option<crate::components::component::Cursor>,
@@ -17,7 +17,7 @@ pub(crate) struct Screen {
 }
 
 impl Screen {
-    pub(crate) fn new(
+    pub fn new(
         windows: Vec<Window>,
         borders: Vec<Border>,
         cursor: Option<crate::components::component::Cursor>,
@@ -34,7 +34,7 @@ impl Screen {
     /// This takes a `&mut self` instead of a `&self` because memoization.
     /// Memoization is necessary because there are other functions that depends on the result of this function,
     /// for example `Screen::dimension`.
-    pub(crate) fn get_positioned_cells(&mut self) -> Vec<PositionedCell> {
+    pub fn get_positioned_cells(&mut self) -> Vec<PositionedCell> {
         if let Some(positioned_cells) = self.memoized_positioned_cells.clone() {
             positioned_cells
         } else {
@@ -56,12 +56,12 @@ impl Screen {
         }
     }
 
-    pub(crate) fn cursor(&self) -> Option<crate::components::component::Cursor> {
+    pub fn cursor(&self) -> Option<crate::components::component::Cursor> {
         self.cursor.clone()
     }
 
     /// The `new_screen` need not be the same size as the old screen (`self`).
-    pub(crate) fn diff(&mut self, old_screen: &mut Screen) -> Vec<PositionedCell> {
+    pub fn diff(&mut self, old_screen: &mut Screen) -> Vec<PositionedCell> {
         // We use `IndexSet` instead of `HashSet` because the latter does not preserve ordering,
         // which can cause re-render to flicker like old TV (at least on Kitty term)
 
@@ -74,7 +74,7 @@ impl Screen {
     }
 
     #[cfg(test)]
-    pub(crate) fn stringify(&mut self) -> String {
+    pub fn stringify(&mut self) -> String {
         self.get_positioned_cells()
             .into_iter()
             .chunk_by(|cell| cell.position.line)
@@ -98,7 +98,7 @@ impl Screen {
             .join("\n")
     }
 
-    pub(crate) fn dimension(&mut self) -> Dimension {
+    pub fn dimension(&mut self) -> Dimension {
         let cells = self.get_positioned_cells();
         let max_column = cells
             .iter()
@@ -116,20 +116,20 @@ impl Screen {
         }
     }
 
-    pub(crate) fn add_window(mut self, window: Window) -> Screen {
+    pub fn add_window(mut self, window: Window) -> Screen {
         self.windows.push(window);
         self
     }
 }
 
 #[derive(Clone)]
-pub(crate) struct Window {
+pub struct Window {
     grid: Grid,
     rectangle: Rectangle,
 }
 
 impl Window {
-    pub(crate) fn to_positioned_cells(&self) -> Vec<PositionedCell> {
+    pub fn to_positioned_cells(&self) -> Vec<PositionedCell> {
         self.grid
             .to_positioned_cells()
             .into_iter()
@@ -140,7 +140,7 @@ impl Window {
             .collect()
     }
 
-    pub(crate) fn new(grid: Grid, rectangle: Rectangle) -> Self {
+    pub fn new(grid: Grid, rectangle: Rectangle) -> Self {
         Self { grid, rectangle }
     }
 }

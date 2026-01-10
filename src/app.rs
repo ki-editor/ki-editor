@@ -82,7 +82,7 @@ use crate::{layout::BufferContentsMap, test_app::RunTestOptions};
 // The scroll offset of each componentn should only be recalculated when:
 // 1. The number of components is changed (this means we need to store the components)
 // 2. The terminal dimension is changed
-pub(crate) struct App<T: Frontend> {
+pub struct App<T: Frontend> {
     context: Context,
 
     sender: Sender<AppMessage>,
@@ -123,17 +123,17 @@ pub(crate) struct App<T: Frontend> {
 }
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
-pub(crate) struct StatusLine {
+pub struct StatusLine {
     components: Vec<StatusLineComponent>,
 }
 impl StatusLine {
     #[cfg(test)]
-    pub(crate) fn new(components: Vec<StatusLineComponent>) -> Self {
+    pub fn new(components: Vec<StatusLineComponent>) -> Self {
         Self { components }
     }
 }
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
-pub(crate) enum StatusLineComponent {
+pub enum StatusLineComponent {
     KiCharacter,
     CurrentWorkingDirectory,
     GitBranch,
@@ -156,7 +156,7 @@ pub(crate) enum StatusLineComponent {
 
 impl<T: Frontend> App<T> {
     #[cfg(test)]
-    pub(crate) fn new(
+    pub fn new(
         frontend: Rc<Mutex<T>>,
         working_directory: CanonicalizedPath,
         status_lines: Vec<StatusLine>,
@@ -186,7 +186,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn from_channel(
+    pub fn from_channel(
         frontend: Rc<Mutex<T>>,
         working_directory: CanonicalizedPath,
         sender: Sender<AppMessage>,
@@ -278,10 +278,7 @@ impl<T: Frontend> App<T> {
     }
 
     /// This is the main event loop.
-    pub(crate) fn run(
-        mut self,
-        entry_path: Option<CanonicalizedPath>,
-    ) -> Result<(), anyhow::Error> {
+    pub fn run(mut self, entry_path: Option<CanonicalizedPath>) -> Result<(), anyhow::Error> {
         self.set_terminal_options()?;
 
         if let Some(entry_path) = entry_path {
@@ -310,7 +307,7 @@ impl<T: Frontend> App<T> {
         self.quit()
     }
 
-    pub(crate) fn process_message(&mut self, message: AppMessage) -> anyhow::Result<bool> {
+    pub fn process_message(&mut self, message: AppMessage) -> anyhow::Result<bool> {
         match message {
             AppMessage::Event(event) => self.handle_event(event),
             AppMessage::LspNotification(notification) => {
@@ -356,7 +353,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    pub(crate) fn quit(&mut self) -> anyhow::Result<()> {
+    pub fn quit(&mut self) -> anyhow::Result<()> {
         self.prepare_to_suspend_or_quit()?;
 
         self.lsp_manager.shutdown();
@@ -393,12 +390,12 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    pub(crate) fn components(&self) -> Vec<KindedComponent> {
+    pub fn components(&self) -> Vec<KindedComponent> {
         self.layout.components()
     }
 
     /// Returns true if the app should quit.
-    pub(crate) fn handle_event(&mut self, event: Event) -> anyhow::Result<bool> {
+    pub fn handle_event(&mut self, event: Event) -> anyhow::Result<bool> {
         // Pass event to focused window
         let component = self.current_component();
         match event {
@@ -425,7 +422,7 @@ impl<T: Frontend> App<T> {
         self.layout.components().is_empty()
     }
 
-    pub(crate) fn render(&mut self) -> Result<(), anyhow::Error> {
+    pub fn render(&mut self) -> Result<(), anyhow::Error> {
         let screen = self.get_screen()?;
         self.render_screen(screen)?;
         Ok(())
@@ -435,7 +432,7 @@ impl<T: Frontend> App<T> {
         self.context.keyboard_layout_kind()
     }
 
-    pub(crate) fn get_screen(&mut self) -> Result<Screen, anyhow::Error> {
+    pub fn get_screen(&mut self) -> Result<Screen, anyhow::Error> {
         // Recalculate layout before each render
         self.layout.recalculate_layout(&self.context);
 
@@ -666,10 +663,7 @@ impl<T: Frontend> App<T> {
         self.handle_dispatches(dispatches?)
     }
 
-    pub(crate) fn handle_dispatches(
-        &mut self,
-        dispatches: Dispatches,
-    ) -> Result<(), anyhow::Error> {
+    pub fn handle_dispatches(&mut self, dispatches: Dispatches) -> Result<(), anyhow::Error> {
         for dispatch in dispatches.into_vec() {
             self.handle_dispatch(dispatch)?;
         }
@@ -691,7 +685,7 @@ impl<T: Frontend> App<T> {
         self.integration_event_sender.emit_event(event)
     }
 
-    pub(crate) fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
+    pub fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
         log::info!("App::handle_dispatch = {}", dispatch.variant_name());
         match dispatch {
             Dispatch::Suspend => {
@@ -1125,14 +1119,14 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    pub(crate) fn get_editor_by_file_path(
+    pub fn get_editor_by_file_path(
         &self,
         path: &CanonicalizedPath,
     ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
         self.layout.get_existing_editor(path)
     }
 
-    pub(crate) fn current_component(&self) -> Rc<RefCell<dyn Component>> {
+    pub fn current_component(&self) -> Rc<RefCell<dyn Component>> {
         self.layout.get_current_component()
     }
 
@@ -1488,10 +1482,7 @@ impl<T: Frontend> App<T> {
         Ok(component)
     }
 
-    pub(crate) fn handle_lsp_notification(
-        &mut self,
-        notification: LspNotification,
-    ) -> anyhow::Result<()> {
+    pub fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
         match notification {
             LspNotification::Hover(hover) => self.show_editor_info(Info::new(
                 "Hover Info".to_string(),
@@ -1611,7 +1602,7 @@ impl<T: Frontend> App<T> {
         }
     }
 
-    pub(crate) fn update_diagnostics(
+    pub fn update_diagnostics(
         &mut self,
         path: CanonicalizedPath,
         diagnostics: Vec<lsp_types::Diagnostic>,
@@ -1626,7 +1617,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    pub(crate) fn get_quickfix_list(&self) -> Option<QuickfixList> {
+    pub fn get_quickfix_list(&self) -> Option<QuickfixList> {
         self.context.quickfix_list_state().as_ref().map(|state| {
             let items = self
                 .layout
@@ -1869,11 +1860,11 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    pub(crate) fn quit_all(&self) -> Result<(), anyhow::Error> {
+    pub fn quit_all(&self) -> Result<(), anyhow::Error> {
         Ok(self.sender.send(AppMessage::QuitAll)?)
     }
 
-    pub(crate) fn sender(&self) -> Sender<AppMessage> {
+    pub fn sender(&self) -> Sender<AppMessage> {
         self.sender.clone()
     }
 
@@ -2015,7 +2006,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn get_current_selected_texts(&self) -> Vec<String> {
+    pub fn get_current_selected_texts(&self) -> Vec<String> {
         self.current_component()
             .borrow()
             .editor()
@@ -2023,7 +2014,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn get_current_editor(&self) -> Rc<RefCell<dyn Component>> {
+    pub fn get_current_editor(&self) -> Rc<RefCell<dyn Component>> {
         let component = self
             .layout
             .get_component_by_kind(ComponentKind::SuggestiveEditor)
@@ -2032,7 +2023,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn get_file_content(&self, path: &CanonicalizedPath) -> String {
+    pub fn get_file_content(&self, path: &CanonicalizedPath) -> String {
         self.layout
             .get_existing_editor(path)
             .unwrap()
@@ -2040,7 +2031,7 @@ impl<T: Frontend> App<T> {
             .content()
     }
 
-    pub(crate) fn handle_dispatch_editor(
+    pub fn handle_dispatch_editor(
         &mut self,
         dispatch_editor: DispatchEditor,
     ) -> anyhow::Result<()> {
@@ -2124,7 +2115,7 @@ impl<T: Frontend> App<T> {
         self.global_title = Some(title)
     }
 
-    pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
+    pub fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
         self.current_component().borrow().path()
     }
 
@@ -2137,7 +2128,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn context(&self) -> &Context {
+    pub fn context(&self) -> &Context {
         &self.context
     }
 
@@ -2239,12 +2230,12 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn get_current_component_content(&self) -> String {
+    pub fn get_current_component_content(&self) -> String {
         self.current_component().borrow().editor().content()
     }
 
     #[cfg(test)]
-    pub(crate) fn get_buffer_contents_map(&self) -> BufferContentsMap {
+    pub fn get_buffer_contents_map(&self) -> BufferContentsMap {
         self.layout.get_buffer_contents_map()
     }
 
@@ -2256,7 +2247,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    pub(crate) fn handle_dispatch_suggestive_editor(
+    pub fn handle_dispatch_suggestive_editor(
         &mut self,
         dispatch: DispatchSuggestiveEditor,
     ) -> anyhow::Result<()> {
@@ -2292,16 +2283,16 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn completion_dropdown_is_open(&self) -> bool {
+    pub fn completion_dropdown_is_open(&self) -> bool {
         self.layout.completion_dropdown_is_open()
     }
 
-    pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
+    pub fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout.current_completion_dropdown()
     }
 
     #[cfg(test)]
-    pub(crate) fn current_completion_dropdown_info(&self) -> Option<Rc<RefCell<dyn Component>>> {
+    pub fn current_completion_dropdown_info(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout
             .get_component_by_kind(ComponentKind::DropdownInfo)
     }
@@ -2405,14 +2396,11 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn get_dropdown_infos_count(&self) -> usize {
+    pub fn get_dropdown_infos_count(&self) -> usize {
         self.layout.get_dropdown_infos_count()
     }
 
-    pub(crate) fn render_quickfix_list(
-        &mut self,
-        quickfix_list: QuickfixList,
-    ) -> anyhow::Result<()> {
+    pub fn render_quickfix_list(&mut self, quickfix_list: QuickfixList) -> anyhow::Result<()> {
         let (editor, dispatches) = self
             .layout
             .show_quickfix_list(quickfix_list, &self.context)?;
@@ -2442,12 +2430,12 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn editor_info_contents(&self) -> Vec<String> {
+    pub fn editor_info_contents(&self) -> Vec<String> {
         self.layout.editor_info_contents()
     }
 
     #[cfg(test)]
-    pub(crate) fn global_info_contents(&self) -> Vec<String> {
+    pub fn global_info_contents(&self) -> Vec<String> {
         self.layout.global_info_contents()
     }
 
@@ -2467,7 +2455,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn file_explorer_content(&self) -> String {
+    pub fn file_explorer_content(&self) -> String {
         self.layout.file_explorer_content()
     }
 
@@ -2495,20 +2483,17 @@ impl<T: Frontend> App<T> {
             .emit_event(IntegrationEvent::ShowInfo { info: None });
     }
 
-    pub(crate) fn opened_files_count(&self) -> usize {
+    pub fn opened_files_count(&self) -> usize {
         self.layout.get_opened_files().len()
     }
 
     #[cfg(test)]
-    pub(crate) fn global_info(&self) -> Option<String> {
+    pub fn global_info(&self) -> Option<String> {
         self.layout.global_info()
     }
 
     #[cfg(test)]
-    pub(crate) fn get_component_by_kind(
-        &self,
-        kind: ComponentKind,
-    ) -> Option<Rc<RefCell<dyn Component>>> {
+    pub fn get_component_by_kind(&self, kind: ComponentKind) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout.get_component_by_kind(kind)
     }
 
@@ -2517,7 +2502,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn components_order(&self) -> Vec<ComponentKind> {
+    pub fn components_order(&self) -> Vec<ComponentKind> {
         self.layout
             .components()
             .into_iter()
@@ -2616,7 +2601,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn lsp_request_sent(&self, from_editor: &FromEditor) -> bool {
+    pub fn lsp_request_sent(&self, from_editor: &FromEditor) -> bool {
         self.lsp_manager.lsp_request_sent(from_editor)
     }
 
@@ -2813,7 +2798,7 @@ impl<T: Frontend> App<T> {
         self.context.is_running_as_embedded()
     }
 
-    pub(crate) fn take_queued_events(&mut self) -> Vec<Event> {
+    pub fn take_queued_events(&mut self) -> Vec<Event> {
         std::mem::take(&mut self.queued_events)
     }
 
@@ -2910,9 +2895,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn lsp_server_initialized_args(
-        &self,
-    ) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
+    pub fn lsp_server_initialized_args(&self) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
         self.lsp_manager.lsp_server_initialized_args()
     }
 
@@ -2985,7 +2968,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn wait_for_app_message(
+    pub fn wait_for_app_message(
         &mut self,
         app_message_matcher: &lazy_regex::Lazy<regex::Regex>,
         timeout: Option<Duration>,
@@ -3011,7 +2994,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn expect_app_message_not_received(
+    pub fn expect_app_message_not_received(
         &mut self,
         regex: &&'static lazy_regex::Lazy<regex::Regex>,
         timeout: &Duration,
@@ -3310,19 +3293,19 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct Dimension {
-    pub(crate) height: usize,
-    pub(crate) width: usize,
+pub struct Dimension {
+    pub height: usize,
+    pub width: usize,
 }
 
 impl Dimension {
     #[cfg(test)]
-    pub(crate) fn area(&self) -> usize {
+    pub fn area(&self) -> usize {
         self.height * self.width
     }
 
     #[cfg(test)]
-    pub(crate) fn positions(&self) -> std::collections::HashSet<Position> {
+    pub fn positions(&self) -> std::collections::HashSet<Position> {
         (0..self.height)
             .flat_map(|line| (0..self.width).map(move |column| Position { column, line }))
             .collect()
@@ -3338,30 +3321,30 @@ impl Dimension {
 
 #[must_use]
 #[derive(Clone, Debug, PartialEq, Default)]
-pub(crate) struct Dispatches(Vec<Dispatch>);
+pub struct Dispatches(Vec<Dispatch>);
 impl From<Vec<Dispatch>> for Dispatches {
     fn from(value: Vec<Dispatch>) -> Self {
         Self(value)
     }
 }
 impl Dispatches {
-    pub(crate) fn into_vec(self) -> Vec<Dispatch> {
+    pub fn into_vec(self) -> Vec<Dispatch> {
         self.0
     }
 
-    pub(crate) fn new(dispatches: Vec<Dispatch>) -> Dispatches {
+    pub fn new(dispatches: Vec<Dispatch>) -> Dispatches {
         Dispatches(dispatches)
     }
 
-    pub(crate) fn chain(self, other: Dispatches) -> Dispatches {
+    pub fn chain(self, other: Dispatches) -> Dispatches {
         self.0.into_iter().chain(other.0).collect_vec().into()
     }
 
-    pub(crate) fn append(self, other: Dispatch) -> Dispatches {
+    pub fn append(self, other: Dispatch) -> Dispatches {
         self.0.into_iter().chain(Some(other)).collect_vec().into()
     }
 
-    pub(crate) fn append_some(self, dispatch: Option<Dispatch>) -> Dispatches {
+    pub fn append_some(self, dispatch: Option<Dispatch>) -> Dispatches {
         if let Some(dispatch) = dispatch {
             self.append(dispatch)
         } else {
@@ -3369,11 +3352,11 @@ impl Dispatches {
         }
     }
 
-    pub(crate) fn one(edit: Dispatch) -> Dispatches {
+    pub fn one(edit: Dispatch) -> Dispatches {
         Dispatches(vec![edit])
     }
 
-    pub(crate) fn empty() -> Dispatches {
+    pub fn empty() -> Dispatches {
         Dispatches(Default::default())
     }
 }
@@ -3381,7 +3364,7 @@ impl Dispatches {
 #[must_use]
 #[derive(Clone, Debug, PartialEq, NamedVariant)]
 /// Dispatch are for child component to request action from the root node
-pub(crate) enum Dispatch {
+pub enum Dispatch {
     SetTheme(crate::themes::Theme),
     SetThemeFromDescriptor(crate::themes::theme_descriptor::ThemeDescriptor),
     CloseCurrentWindow,
@@ -3590,7 +3573,7 @@ pub(crate) enum Dispatch {
 
 /// Used to send notify host app about changes
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum ToHostApp {
+pub enum ToHostApp {
     BufferEditTransaction {
         path: CanonicalizedPath,
         edits: Vec<ki_protocol_types::DiffEdit>,
@@ -3610,7 +3593,7 @@ pub(crate) enum ToHostApp {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum FromHostApp {
+pub enum FromHostApp {
     TargetedEvent {
         event: Event,
         path: Option<CanonicalizedPath>,
@@ -3619,12 +3602,12 @@ pub(crate) enum FromHostApp {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum GlobalSearchConfigUpdate {
+pub enum GlobalSearchConfigUpdate {
     Config(GlobalSearchConfig),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum LocalSearchConfigUpdate {
+pub enum LocalSearchConfigUpdate {
     #[cfg(test)]
     Mode(LocalSearchConfigMode),
     #[cfg(test)]
@@ -3635,19 +3618,19 @@ pub(crate) enum LocalSearchConfigUpdate {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct YesNoPrompt {
-    pub(crate) title: String,
-    pub(crate) yes: Box<Dispatch>,
+pub struct YesNoPrompt {
+    pub title: String,
+    pub yes: Box<Dispatch>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum FilePickerKind {
+pub enum FilePickerKind {
     NonGitIgnored,
     GitStatus(git::DiffMode),
     Opened,
 }
 impl FilePickerKind {
-    pub(crate) fn display(&self) -> String {
+    pub fn display(&self) -> String {
         match self {
             FilePickerKind::NonGitIgnored => "Not Git Ignored".to_string(),
             FilePickerKind::GitStatus(diff_mode) => format!("Git Status ({})", diff_mode.display()),
@@ -3657,13 +3640,13 @@ impl FilePickerKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RequestParams {
-    pub(crate) path: CanonicalizedPath,
-    pub(crate) position: Position,
-    pub(crate) context: ResponseContext,
+pub struct RequestParams {
+    pub path: CanonicalizedPath,
+    pub position: Position,
+    pub context: ResponseContext,
 }
 impl RequestParams {
-    pub(crate) fn set_kind(self, scope: Option<Scope>) -> Self {
+    pub fn set_kind(self, scope: Option<Scope>) -> Self {
         Self {
             context: ResponseContext {
                 scope,
@@ -3673,7 +3656,7 @@ impl RequestParams {
         }
     }
 
-    pub(crate) fn set_description(self, description: &str) -> Self {
+    pub fn set_description(self, description: &str) -> Self {
         Self {
             context: ResponseContext {
                 description: Some(description.to_string()),
@@ -3685,13 +3668,13 @@ impl RequestParams {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Copy)]
-pub(crate) enum Scope {
+pub enum Scope {
     Local,
     Global,
 }
 
 #[derive(Debug)]
-pub(crate) enum AppMessage {
+pub enum AppMessage {
     LspNotification(Box<LspNotification>),
     Event(Event),
     QuitAll,
@@ -3708,7 +3691,7 @@ pub(crate) enum AppMessage {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum DispatchParser {
+pub enum DispatchParser {
     MoveSelectionByIndex,
     RenameSymbol,
     UpdateLocalSearchConfigSearch {
@@ -3737,7 +3720,7 @@ pub(crate) enum DispatchParser {
 }
 
 impl DispatchParser {
-    pub(crate) fn parse(&self, text: &str) -> anyhow::Result<Dispatches> {
+    pub fn parse(&self, text: &str) -> anyhow::Result<Dispatches> {
         match self.clone() {
             DispatchParser::MoveSelectionByIndex => {
                 let index = text.parse::<usize>()?.saturating_sub(1);
