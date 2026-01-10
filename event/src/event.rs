@@ -1,5 +1,7 @@
 use std::{collections::HashSet, fmt};
 
+use crossterm::event::KeyEventKind;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Event {
     Key(KeyEvent),
@@ -39,11 +41,25 @@ impl fmt::Debug for KeyEvent {
     }
 }
 impl KeyEvent {
-    pub const fn new(key: crossterm::event::KeyCode, modifiers: KeyModifiers) -> KeyEvent {
+    /// Returns `true` if this key event has the same key code and modifiers as `other`,
+    /// ignoring the event kind (press/release/repeat).
+    pub fn same_key(&self, other: &KeyEvent) -> bool {
+        self.code == other.code && self.modifiers == other.modifiers
+    }
+
+    pub const fn pressed(key: crossterm::event::KeyCode, modifiers: KeyModifiers) -> KeyEvent {
         KeyEvent {
             code: key,
             modifiers,
             kind: crossterm::event::KeyEventKind::Press,
+        }
+    }
+
+    pub const fn released(key: crossterm::event::KeyCode, modifiers: KeyModifiers) -> KeyEvent {
+        KeyEvent {
+            code: key,
+            modifiers,
+            kind: crossterm::event::KeyEventKind::Release,
         }
     }
 
@@ -92,12 +108,20 @@ impl KeyEvent {
         } else {
             None
         };
-        format!(
+        let modified = format!(
             "{}{key_code}",
             if let Some(modifier) = modifier {
                 format!("{modifier}+")
             } else {
                 "".to_string()
+            }
+        );
+        format!(
+            "{}{modified}",
+            if self.kind == KeyEventKind::Release {
+                "release-"
+            } else {
+                ""
             }
         )
     }
