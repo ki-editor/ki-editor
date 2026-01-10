@@ -4,9 +4,7 @@ import {TutorialFallback} from '@site/src/components/TutorialFallback';
 
 When this layer is activated, movement keys are overridden with the following behavior:
 
-| Movement                 | Behavior                                                                                                                   |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| Left/Right/Previous/Next | Deletes the current selection, the gap between it and the `<movement>` selection, then selects the `<movement>` selection. |
+> Deletes both the current selection and the whitespace/gap leading to the `<movement>` selection, then moves to select the `<movement>` selection.
 
 <TutorialFallback filename="delete"/>
 <TutorialFallback filename="delete-finer-movement"/>

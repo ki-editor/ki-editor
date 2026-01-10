@@ -77,7 +77,7 @@ This deletes the current selected text, and enter [Insert mode](../insert-mode.m
 
 ### `Delete`
 
-Activates the [Delete MOL](../momentary-layers/delete-mol.md).
+Activates the [Delete MOL](../momentary-layers/delete-mol.mdx).
 
 ### `Delete X`
 
