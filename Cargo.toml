@@ -16,7 +16,7 @@ members = [
   'ki-protocol-types',
   'nvim-treesitter-highlight-queries',
 ]
-exclude = ['tests/mock_repos/rust1']
+exclude = ['mock_repos/rust1']
 
 [workspace.dependencies]
 # `use-dev-tty` is needed so that the app doesn't hang if STDIN is present
