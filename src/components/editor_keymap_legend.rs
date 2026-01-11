@@ -9,7 +9,7 @@ use crate::{
     app::{Dispatch, Dispatches, FilePickerKind, Scope},
     components::{
         editor::{Movement, PriorChange},
-        keymap_legend::{OnTap, ReleaseKey},
+        keymap_legend::{MomentaryLayer, OnTap},
     },
     context::{Context, LocalSearchConfigMode, Search},
     git::DiffMode,
@@ -549,21 +549,19 @@ impl Editor {
         let extra = if use_system_clipboard { "+ " } else { "" };
         let format = |description: &str| format!("{extra}{description}");
         [
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Paste),
-                format("Paste"),
-                Dispatch::ShowKeymapLegendWithReleaseKey(
-                    self.paste_keymap_legend_config(context),
-                    ReleaseKey::new(
-                        Meaning::Paste,
-                        Some(OnTap::new(
-                            "Replace",
-                            Dispatches::one(Dispatch::ToEditor(
-                                DispatchEditor::ReplaceWithCopiedText { cut: false },
-                            )),
+            Keymap::momentary_layer(
+                context,
+                MomentaryLayer {
+                    meaning: Meaning::Paste,
+                    description: format("Paste"),
+                    config: self.paste_keymap_legend_config(context),
+                    on_tap: Some(OnTap::new(
+                        "Replace",
+                        Dispatches::one(Dispatch::ToEditor(
+                            DispatchEditor::ReplaceWithCopiedText { cut: false },
                         )),
-                    ),
-                ),
+                    )),
+                },
             )
             .override_keymap(
                 normal_mode_override.paste.clone().as_ref(),

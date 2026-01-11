@@ -10,11 +10,7 @@ use crate::{
     app::{Dimension, Dispatch, ToHostApp},
     buffer::Buffer,
     char_index_range::range_intersects,
-    components::{
-        component::Component,
-        editor_keymap::Meaning,
-        keymap_legend::{OnTap, ReleaseKey},
-    },
+    components::component::Component,
     context::LocalSearchConfig,
     edit::{Action, ActionGroup, Edit, EditTransaction},
     git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _, GitRepo},

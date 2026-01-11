@@ -31,6 +31,13 @@ pub struct KeymapLegendConfig {
     pub keymaps: Keymaps,
 }
 
+pub struct MomentaryLayer {
+    pub meaning: Meaning,
+    pub description: String,
+    pub config: KeymapLegendConfig,
+    pub on_tap: Option<OnTap>,
+}
+
 struct ParsedReleaseKey {
     key_event: KeyEvent,
     meaning: Meaning,
@@ -151,6 +158,28 @@ impl Keymap {
             short_description: None,
             description,
             dispatch,
+            event: parse_key_event(key).unwrap(),
+        }
+    }
+
+    pub fn momentary_layer(
+        context: &Context,
+        MomentaryLayer {
+            meaning,
+            description,
+            config,
+            on_tap,
+        }: MomentaryLayer,
+    ) -> Keymap {
+        let key = context.keyboard_layout_kind().get_key(&meaning);
+        Keymap {
+            key,
+            short_description: None,
+            description,
+            dispatch: Dispatch::ShowKeymapLegendWithReleaseKey(
+                config,
+                ReleaseKey::new(meaning, on_tap),
+            ),
             event: parse_key_event(key).unwrap(),
         }
     }

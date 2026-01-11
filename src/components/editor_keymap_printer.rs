@@ -13,6 +13,7 @@ use crate::{
     components::{
         editor::{Direction, Editor},
         editor_keymap::{shifted, KeyboardLayout},
+        editor_keymap_legend::paste_keymaps,
     },
     context::Context,
 };
@@ -371,6 +372,7 @@ impl KeymapPrintSections {
                 &Keymaps::new(&editor.keymap_transform(&context)),
                 layout,
             ),
+            KeymapPrintSection::from_keymaps("Paste".to_string(), &paste_keymaps(&context), layout),
         ]
         .to_vec();
 

@@ -1,18 +1,17 @@
 import {TutorialFallback} from '@site/src/components/TutorialFallback';
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # Paste MOL
 
-When this layer is activated, the following movements are overridden with the following behaviors:
+## Keymap
 
-| Movement      | Meaning            |
-| ------------- | ------------------ |
-| Left/Right    | Paste with gaps    |
-| Previous/Next | Paste without gaps |
+<KeymapFallback filename="paste"/>
 
-Notes:
+## Paste
 
-- Paste `<movement>` does not replace the current selection.
-- The pasted text will be selected.
+Paste the clipboard content before or after the current selection, without automatic gaps insertion.
+
+<TutorialFallback filename="paste"/>
 
 ## Paste with gaps
 
@@ -32,6 +31,10 @@ copied text is `z`, performing a `p` results in the following:
 hello(x, y, z);
 ```
 
-<TutorialFallback filename="paste"/>
+<TutorialFallback filename="paste-with-gaps"/>
 
-If the layer is deactivated immediately without pressing any movement key, the current selection is replaced with the clipboard content.
+## Replace
+
+If this layer is deactivated immediately without pressing any movement key, the current selection is replaced with the clipboard content.
+
+<TutorialFallback filename="replace"/>
