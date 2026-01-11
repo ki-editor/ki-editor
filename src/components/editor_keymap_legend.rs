@@ -725,25 +725,6 @@ impl Editor {
         }
     }
 
-    pub fn handle_paste_mode(
-        &mut self,
-        context: &Context,
-        event: KeyEvent,
-    ) -> anyhow::Result<Dispatches> {
-        self.mode = super::editor::Mode::Paste {
-            other_key_pressed: true,
-        };
-        if let Some(dispatches) = paste_keymaps(context)
-            .iter()
-            .find(|keymap| &event == keymap.event())
-            .map(|keymap| keymap.get_dispatches())
-        {
-            Ok(dispatches)
-        } else {
-            Ok(Default::default())
-        }
-    }
-
     pub fn handle_universal_key(
         &mut self,
         event: KeyEvent,
