@@ -1618,39 +1618,6 @@ impl Editor {
     }
 }
 
-pub fn paste_keymaps(context: &Context) -> Keymaps {
-    Keymaps::new(
-        [
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Left_),
-                "Left".to_string(),
-                Dispatch::ToEditor(PasteWithMovement(Movement::Left)),
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Right),
-                "Right".to_string(),
-                Dispatch::ToEditor(PasteWithMovement(Right)),
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Next_),
-                "Next".to_string(),
-                Dispatch::ToEditor(PasteWithMovement(Movement::Next)),
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Prev_),
-                "Previous".to_string(),
-                Dispatch::ToEditor(PasteWithMovement(Movement::Previous)),
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Paste),
-                "Replace".to_string(),
-                Dispatch::ToEditor(ReplaceWithCopiedText { cut: false }),
-            ),
-        ]
-        .as_ref(),
-    )
-}
-
 pub fn delete_cut_keymaps(context: &Context) -> Keymaps {
     Keymaps::new(
         [
