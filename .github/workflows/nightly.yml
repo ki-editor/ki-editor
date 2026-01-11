@@ -25,8 +25,6 @@ jobs:
           gh release create nightly --prerelease --title 'Nightly Release' \
             ki-linux-x64/ki-linux-x64 \
             ki-linux-arm64/ki-linux-arm64 \
-            ki-linux-x64-musl/ki-linux-x64-musl \
-            ki-linux-arm64-musl/ki-linux-arm64-musl \
             ki-windows-x64/ki-windows-x64.exe \
             ki-windows-arm64/ki-windows-arm64.exe \
             ki-macos-x64/ki-macos-x64 \
