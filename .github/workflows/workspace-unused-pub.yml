@@ -1,0 +1,24 @@
+name: Detect Unused Workspace Public Functions
+on:
+  workflow_dispatch: # So we can run it manually
+  schedule:
+    - cron: '0 0 1 * *' # Monthly on the first at midnight UTC
+    
+jobs:
+  workspace-unused-pub:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install dependencies
+        run: |
+          rustup component add rust-analyzer
+          cargo install cargo-workspace-unused-pub
+
+      - name: Scan & Create Issue
+        run: | # We intentionally ignore the status code of the scan, since it will output a failure if it finds something.
+          cargo workspace-unused-pub > unused.txt || cat unused.txt
+          gh issue create --title "tidy(deps): cargo-workspace-unused-pub found possibly unused functions" --body-file unused.txt
