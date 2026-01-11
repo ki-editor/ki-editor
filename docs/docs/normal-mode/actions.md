@@ -223,39 +223,7 @@ copied to the cursor-specific clipboard.
 
 ### `Paste`
 
-This opens a menu with several actions relating to Pasting copied content.
-
-| Name               | Meaning                                                                                                         |
-| ------------------ | --------------------------------------------------------------------------------------------------------------- |
-| Replace            | Replaces the current selection with the clipboard content.                                                      |
-| Paste `<movement>` | Paste the current selection with gaps (coarse movements right/left) or without gaps (fine movements prev/next). |
-
-Notes:
-
-- Paste `<movement>` does not replace the current selection.
-- The pasted text will be selected.
-
-#### Smart Paste
-
-Smart Paste will be executed when the selection mode is [contiguous](selection-modes/index.md#contiguity).
-
-Smart Paste works by analyzing the gap between the current selection and the
-previous/next selection, then insert the gap before/after the pasted text.
-
-For example, consider the following Javascript code:
-
-```js
-hello(x, y);
-```
-
-Assuming the current selection mode is [Syntax Node](selection-modes/primary.md#syntax), and the current selection is `y`, and the
-copied text is `z`, performing a `p` results in the following:
-
-```js
-hello(x, y, z);
-```
-
-<TutorialFallback filename="paste"/>
+Activates the [Paste MOL](../momentary-layers/paste-mol.mdx).
 
 ### `Change X`
 

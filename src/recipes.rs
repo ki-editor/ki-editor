@@ -2141,7 +2141,7 @@ fn reveal_marks() -> RecipeGroup {
                 .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("n d f o o enter l b l space o l j j"),
+            events: keys!("n d f o o enter l b l release-b o l j j"),
             expectations: Box::new([CurrentSelectedTexts(&["foo"])]),
             terminal_height: Some(9),
             similar_vim_combos: &[],

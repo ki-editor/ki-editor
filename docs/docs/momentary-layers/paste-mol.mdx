@@ -1,0 +1,37 @@
+import {TutorialFallback} from '@site/src/components/TutorialFallback';
+
+# Paste MOL
+
+When this layer is activated, the following movements are overridden with the following behaviors:
+
+| Movement      | Meaning            |
+| ------------- | ------------------ |
+| Left/Right    | Paste with gaps    |
+| Previous/Next | Paste without gaps |
+
+Notes:
+
+- Paste `<movement>` does not replace the current selection.
+- The pasted text will be selected.
+
+## Paste with gaps
+
+Paste with gaps works by analyzing the gap between the current selection and the
+previous/next selection, then insert the gap before/after the pasted text.
+
+For example, consider the following Javascript code:
+
+```js
+hello(x, y);
+```
+
+Assuming the current selection mode is Syntax Node, and the current selection is `y`, and the
+copied text is `z`, performing a `p` results in the following:
+
+```js
+hello(x, y, z);
+```
+
+<TutorialFallback filename="paste"/>
+
+If the layer is deactivated immediately without pressing any movement key, the current selection is replaced with the clipboard content.

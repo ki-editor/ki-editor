@@ -1367,7 +1367,7 @@ impl Editor {
                     let copied_text: Rope = copied_texts.get(index).into();
                     let copied_text_len = copied_text.len_chars();
 
-                    let (selection_range, paste_text) = if self.mode == Mode::Normal {
+                    let (selection_range, paste_text) = if self.mode != Mode::Insert {
                         let range: CharIndexRange =
                             (insertion_range_start..insertion_range_start + copied_text_len).into();
                         let selection_range = match direction {
@@ -1642,7 +1642,7 @@ impl Editor {
                     if let Some(jumps) = self.jumps.take() {
                         self.handle_jump_mode(context, key_event, jumps)
                     } else if let Mode::Insert = self.mode {
-                        self.handle_insert_mode(key_event, context)
+                        self.handle_insert_mode(context, key_event)
                     } else if let Mode::FindOneChar(_) = self.mode {
                         self.handle_find_one_char_mode(
                             IfCurrentNotFound::LookForward,

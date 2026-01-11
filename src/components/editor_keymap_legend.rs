@@ -102,13 +102,6 @@ impl Editor {
         .to_vec()
     }
 
-    fn paste_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Paste".to_string(),
-            keymaps: paste_keymaps(context),
-        }
-    }
-
     fn delete_cut_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Delete Cut".to_string(),
@@ -715,8 +708,8 @@ impl Editor {
 
     pub fn handle_insert_mode(
         &mut self,
-        event: KeyEvent,
         context: &Context,
+        event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         if let Some(dispatches) = self
             .insert_mode_keymaps(true, context)
@@ -727,6 +720,25 @@ impl Editor {
             Ok(dispatches)
         } else if let KeyCode::Char(c) = event.code {
             self.insert(&c.to_string(), context)
+        } else {
+            Ok(Default::default())
+        }
+    }
+
+    pub fn handle_paste_mode(
+        &mut self,
+        context: &Context,
+        event: KeyEvent,
+    ) -> anyhow::Result<Dispatches> {
+        self.mode = super::editor::Mode::Paste {
+            other_key_pressed: true,
+        };
+        if let Some(dispatches) = paste_keymaps(context)
+            .iter()
+            .find(|keymap| &event == keymap.event())
+            .map(|keymap| keymap.get_dispatches())
+        {
+            Ok(dispatches)
         } else {
             Ok(Default::default())
         }
