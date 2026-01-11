@@ -1,4 +1,4 @@
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyEventKind};
 use SelectionMode::*;
 
 use convert_case::Case;
@@ -109,6 +109,13 @@ impl Editor {
         KeymapLegendConfig {
             title: "Paste".to_string(),
             keymaps: paste_keymaps(context),
+        }
+    }
+
+    fn delete_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Delete".to_string(),
+            keymaps: delete_keymaps(context),
         }
     }
 
@@ -446,10 +453,17 @@ impl Editor {
                 Dispatch::ToEditor(Change),
             )
             .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Delte),
-                "Delete".to_string(),
-                Dispatch::ToEditor(EnterDeleteMode),
+            Keymap::momentary_layer(
+                context,
+                MomentaryLayer {
+                    meaning: Meaning::Delte,
+                    description: "Delete".to_string(),
+                    config: self.delete_keymap_legend_config(context),
+                    on_tap: Some(OnTap::new(
+                        "Delete One",
+                        Dispatches::one(Dispatch::ToEditor(DispatchEditor::DeleteOne)),
+                    )),
+                },
             )
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
             Keymap::new_extended(
@@ -737,7 +751,7 @@ impl Editor {
             .map(|keymap| keymap.get_dispatches())
         {
             Ok(dispatches)
-        } else if let KeyCode::Char(c) = event.code {
+        } else if let (KeyCode::Char(c), KeyEventKind::Press) = (event.code, event.kind) {
             self.insert(&c.to_string(), context)
         } else {
             Ok(Default::default())
@@ -1692,6 +1706,34 @@ pub fn delete_cut_keymaps(context: &Context) -> Keymaps {
                 context.keyboard_layout_kind().get_key(&Meaning::DeltX),
                 "Delete Cut One".to_string(),
                 Dispatch::ToEditor(DeleteCutOne),
+            ),
+        ]
+        .as_ref(),
+    )
+}
+
+pub fn delete_keymaps(context: &Context) -> Keymaps {
+    Keymaps::new(
+        [
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Left_),
+                "<< Delete".to_string(),
+                Dispatch::ToEditor(DeleteWithMovement(Movement::Left)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Right),
+                "Delete >>".to_string(),
+                Dispatch::ToEditor(DeleteWithMovement(Right)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                "Delete <".to_string(),
+                Dispatch::ToEditor(DeleteWithMovement(Movement::Previous)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Next_),
+                "Delete >".to_string(),
+                Dispatch::ToEditor(DeleteWithMovement(Movement::Next)),
             ),
         ]
         .as_ref(),

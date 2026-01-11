@@ -1,13 +1,25 @@
 import {TutorialFallback} from '@site/src/components/TutorialFallback';
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 # Delete MOL
 
-When this layer is activated, movement keys are overridden with the following behavior:
+## Keymap
 
-> Deletes both the current selection and the whitespace/gap leading to the `<movement>` selection, then moves to select the `<movement>` selection.
+<KeymapFallback filename="delete"/>
+
+### Directional Deletes
+
+Directional Deletes deletes the current selection, along with the gap between the current selection and the `<movement>` selection,
+then selects the `<movement>` selection, where `<movement>` can be any of the following movements:
+
+1. Left/Right
+2. Previous/Next
 
 <TutorialFallback filename="delete"/>
+
 <TutorialFallback filename="delete-finer-movement"/>
+
+### Delete One
 
 If the layer is deactivated immediately without pressing any movement key, the current selection is deleted and collapses to a single-character selection at the cursor position.
 

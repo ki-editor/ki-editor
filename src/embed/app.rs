@@ -470,7 +470,6 @@ impl EmbeddedApp {
             Mode::FindOneChar(_) => ki_protocol_types::EditorMode::FindOneChar,
             Mode::Swap => ki_protocol_types::EditorMode::Swap,
             Mode::Replace => ki_protocol_types::EditorMode::Replace,
-            Mode::Delete { .. } => ki_protocol_types::EditorMode::Delete,
         };
 
         self.send_notification(OutputMessageWrapper {
