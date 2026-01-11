@@ -41,12 +41,6 @@ impl fmt::Debug for KeyEvent {
     }
 }
 impl KeyEvent {
-    /// Returns `true` if this key event has the same key code and modifiers as `other`,
-    /// ignoring the event kind (press/release/repeat).
-    pub fn same_key(&self, other: &KeyEvent) -> bool {
-        self.code == other.code && self.modifiers == other.modifiers
-    }
-
     pub const fn pressed(key: crossterm::event::KeyCode, modifiers: KeyModifiers) -> KeyEvent {
         KeyEvent {
             code: key,

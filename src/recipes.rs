@@ -339,7 +339,7 @@ Why?
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s v o"),
+                    events: keys!("s v o release-v"),
                     expectations: Box::new([CurrentSelectedTexts(&["world"])]),
                     terminal_height: None,
                     similar_vim_combos: &[],

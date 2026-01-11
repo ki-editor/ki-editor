@@ -35,8 +35,8 @@ use crate::{
     transformation::{MyRegex, Transformation},
 };
 use crate::{grid::LINE_NUMBER_VERTICAL_BORDER, selection_mode::PositionBasedSelectionMode};
-use crossterm::event::{KeyCode, KeyEventKind, MouseButton, MouseEventKind};
-use event::{parse_key_event, KeyEvent};
+use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
+use event::KeyEvent;
 use itertools::{Either, Itertools};
 use my_proc_macros::key;
 use nonempty::NonEmpty;
@@ -58,7 +58,6 @@ pub enum Mode {
     FindOneChar(IfCurrentNotFound),
     Swap,
     Replace,
-    Delete { other_key_pressed: bool },
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
@@ -399,11 +398,6 @@ impl Component for Editor {
             }
             DeleteCutWithMovement(movement) => {
                 return self.delete_with_movement(context, movement, true)
-            }
-            EnterDeleteMode => {
-                self.mode = Mode::Delete {
-                    other_key_pressed: false,
-                }
             }
             AlignSelections(direction) => return self.align_selections(direction, context),
             JoinSelection => return self.join_selection(context),
@@ -1586,53 +1580,29 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
-        if key_event.kind == KeyEventKind::Release {
-            if let (Mode::Delete { other_key_pressed }, true) = (
-                &self.mode,
-                parse_key_event(
-                    context
-                        .keyboard_layout_kind()
-                        .get_key(&super::editor_keymap::Meaning::Delte),
-                )
-                .unwrap()
-                .same_key(&key_event),
-            ) {
-                return Ok(
-                    Dispatches::one(Dispatch::ToEditor(DispatchEditor::EnterNormalMode))
-                        .append_some(if !other_key_pressed {
-                            Some(Dispatch::ToEditor(DispatchEditor::DeleteOne))
-                        } else {
-                            None
-                        }),
-                );
-            }
+        match self.handle_universal_key(key_event, context)? {
+            HandleEventResult::Ignored(key_event) => {
+                if let Some(jumps) = self.jumps.take() {
+                    self.handle_jump_mode(context, key_event, jumps)
+                } else if let Mode::Insert = self.mode {
+                    self.handle_insert_mode(context, key_event)
+                } else if let Mode::FindOneChar(_) = self.mode {
+                    self.handle_find_one_char_mode(
+                        IfCurrentNotFound::LookForward,
+                        key_event,
+                        context,
+                    )
+                } else {
+                    let keymap_legend_config = self.get_current_keymap_legend_config(context);
 
-            Ok(Default::default())
-        } else {
-            match self.handle_universal_key(key_event, context)? {
-                HandleEventResult::Ignored(key_event) => {
-                    if let Some(jumps) = self.jumps.take() {
-                        self.handle_jump_mode(context, key_event, jumps)
-                    } else if let Mode::Insert = self.mode {
-                        self.handle_insert_mode(context, key_event)
-                    } else if let Mode::FindOneChar(_) = self.mode {
-                        self.handle_find_one_char_mode(
-                            IfCurrentNotFound::LookForward,
-                            key_event,
-                            context,
-                        )
-                    } else {
-                        let keymap_legend_config = self.get_current_keymap_legend_config(context);
-
-                        if let Some(keymap) = keymap_legend_config.keymaps().get(&key_event) {
-                            return Ok(keymap.get_dispatches());
-                        }
-                        log::info!("unhandled event: {key_event:?}");
-                        Ok(vec![].into())
+                    if let Some(keymap) = keymap_legend_config.keymaps().get(&key_event) {
+                        return Ok(keymap.get_dispatches());
                     }
+                    log::info!("unhandled event: {key_event:?}");
+                    Ok(vec![].into())
                 }
-                HandleEventResult::Handled(dispatches) => Ok(dispatches),
             }
+            HandleEventResult::Handled(dispatches) => Ok(dispatches),
         }
     }
 
@@ -1923,12 +1893,6 @@ impl Editor {
                 )
                 .map(|_| Default::default()),
             Mode::FindOneChar(_) | Mode::Insert => Ok(Default::default()),
-            Mode::Delete { .. } => {
-                self.mode = Mode::Delete {
-                    other_key_pressed: true,
-                };
-                self.delete_with_movement(context, movement, false)
-            }
         }
     }
 
@@ -2889,7 +2853,6 @@ impl Editor {
                 Mode::FindOneChar(_) => "ONE".to_string(),
                 Mode::Swap => "SWAP".to_string(),
                 Mode::Replace => "RPLCE".to_string(),
-                Mode::Delete { .. } => "DELTE".to_string(),
             }
         }
     }
@@ -4633,7 +4596,6 @@ pub enum DispatchEditor {
     PasteWithMovement(Movement),
     DeleteWithMovement(Movement),
     DeleteCutWithMovement(Movement),
-    EnterDeleteMode,
     AlignSelections(Direction),
     JoinSelection,
     ReplaceSelections(Vec<String>),
