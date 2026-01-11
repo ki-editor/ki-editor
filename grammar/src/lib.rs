@@ -8,8 +8,6 @@ static CWD: RwLock<Option<PathBuf>> = RwLock::new(None);
 
 static RUNTIME_DIR: once_cell::sync::Lazy<PathBuf> = once_cell::sync::Lazy::new(get_runtime_dir);
 
-static CONFIG_FILE: once_cell::sync::OnceCell<PathBuf> = once_cell::sync::OnceCell::new();
-
 static LOG_FILE: once_cell::sync::OnceCell<PathBuf> = once_cell::sync::OnceCell::new();
 
 // Get the current working directory.
@@ -27,26 +25,6 @@ pub fn current_working_dir() -> PathBuf {
     *cwd = Some(path.clone());
 
     path
-}
-
-pub fn set_current_working_dir(path: PathBuf) -> std::io::Result<()> {
-    let path = dunce::canonicalize(path)?;
-    std::env::set_current_dir(path.clone())?;
-    let mut cwd = CWD.write().unwrap();
-    *cwd = Some(path);
-    Ok(())
-}
-
-pub fn initialize_config_file(specified_file: Option<PathBuf>) {
-    let config_file = specified_file.unwrap_or_else(default_config_file);
-    ensure_parent_dir(&config_file);
-    CONFIG_FILE.set(config_file).ok();
-}
-
-pub fn initialize_log_file(specified_file: Option<PathBuf>) {
-    let log_file = specified_file.unwrap_or_else(default_log_file);
-    ensure_parent_dir(&log_file);
-    LOG_FILE.set(log_file).ok();
 }
 
 fn get_runtime_dir() -> PathBuf {
@@ -95,52 +73,10 @@ pub fn cache_dir() -> PathBuf {
     path
 }
 
-pub fn config_file() -> PathBuf {
-    CONFIG_FILE.get().map(|path| path.to_path_buf()).unwrap()
-}
-
 pub fn log_file() -> PathBuf {
     LOG_FILE.get().map(|path| path.to_path_buf()).unwrap()
 }
 
-pub fn workspace_config_file() -> PathBuf {
-    find_workspace().0.join(".ki").join("config.toml")
-}
-
-pub fn lang_config_file() -> PathBuf {
-    config_dir().join("languages.toml")
-}
-
 pub fn default_log_file() -> PathBuf {
     cache_dir().join("ki.log")
-}
-
-/// Finds the current workspace folder.
-/// Used as a ceiling dir for LSP root resolution, the filepicker and potentially as a future filewatching root
-///
-/// This function starts searching the FS upward from the CWD
-/// and returns the first directory that contains either `.git` or `.ki`.
-/// If no workspace was found returns (CWD, true).
-/// Otherwise (workspace, false) is returned
-pub fn find_workspace() -> (PathBuf, bool) {
-    let current_dir = current_working_dir();
-    for ancestor in current_dir.ancestors() {
-        if ancestor.join(".git").exists() || ancestor.join(".ki").exists() {
-            return (ancestor.to_owned(), false);
-        }
-    }
-
-    (current_dir, true)
-}
-
-fn default_config_file() -> PathBuf {
-    config_dir().join("config.toml")
-}
-
-fn ensure_parent_dir(path: &Path) {
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            std::fs::create_dir_all(parent).ok();
-        }
-    }
 }
