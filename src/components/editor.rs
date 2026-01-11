@@ -10,7 +10,11 @@ use crate::{
     app::{Dimension, Dispatch, ToHostApp},
     buffer::Buffer,
     char_index_range::range_intersects,
-    components::component::Component,
+    components::{
+        component::Component,
+        editor_keymap::Meaning,
+        keymap_legend::{OnTap, ReleaseKey},
+    },
     context::LocalSearchConfig,
     edit::{Action, ActionGroup, Edit, EditTransaction},
     git::{hunk::SimpleHunkKind, DiffMode, GitOperation as _, GitRepo},
@@ -59,7 +63,6 @@ pub enum Mode {
     Swap,
     Replace,
     Delete { other_key_pressed: bool },
-    Paste { other_key_pressed: bool },
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
@@ -403,11 +406,6 @@ impl Component for Editor {
             }
             EnterDeleteMode => {
                 self.mode = Mode::Delete {
-                    other_key_pressed: false,
-                }
-            }
-            EnterPasteMode => {
-                self.mode = Mode::Paste {
                     other_key_pressed: false,
                 }
             }
@@ -1613,28 +1611,6 @@ impl Editor {
                 );
             }
 
-            if let (Mode::Paste { other_key_pressed }, true) = (
-                &self.mode,
-                parse_key_event(
-                    context
-                        .keyboard_layout_kind()
-                        .get_key(&super::editor_keymap::Meaning::Paste),
-                )
-                .unwrap()
-                .same_key(&key_event),
-            ) {
-                return Ok(
-                    Dispatches::one(Dispatch::ToEditor(DispatchEditor::EnterNormalMode))
-                        .append_some(if !other_key_pressed {
-                            Some(Dispatch::ToEditor(DispatchEditor::ReplaceWithCopiedText {
-                                cut: false,
-                            }))
-                        } else {
-                            None
-                        }),
-                );
-            }
-
             Ok(Default::default())
         } else {
             match self.handle_universal_key(key_event, context)? {
@@ -1956,12 +1932,6 @@ impl Editor {
                     other_key_pressed: true,
                 };
                 self.delete_with_movement(context, movement, false)
-            }
-            Mode::Paste { .. } => {
-                self.mode = Mode::Paste {
-                    other_key_pressed: true,
-                };
-                self.paste_with_movement(context, movement)
             }
         }
     }
@@ -2924,7 +2894,6 @@ impl Editor {
                 Mode::Swap => "SWAP".to_string(),
                 Mode::Replace => "RPLCE".to_string(),
                 Mode::Delete { .. } => "DELTE".to_string(),
-                Mode::Paste { .. } => "PASTE".to_string(),
             }
         }
     }
@@ -4672,7 +4641,6 @@ pub enum DispatchEditor {
     AlignSelections(Direction),
     JoinSelection,
     ReplaceSelections(Vec<String>),
-    EnterPasteMode,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

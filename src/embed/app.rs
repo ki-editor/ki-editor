@@ -471,7 +471,6 @@ impl EmbeddedApp {
             Mode::Swap => ki_protocol_types::EditorMode::Swap,
             Mode::Replace => ki_protocol_types::EditorMode::Replace,
             Mode::Delete { .. } => ki_protocol_types::EditorMode::Delete,
-            Mode::Paste { .. } => ki_protocol_types::EditorMode::Paste,
         };
 
         self.send_notification(OutputMessageWrapper {

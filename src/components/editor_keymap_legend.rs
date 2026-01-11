@@ -7,7 +7,10 @@ use itertools::Itertools;
 
 use crate::{
     app::{Dispatch, Dispatches, FilePickerKind, Scope},
-    components::editor::{Movement, PriorChange},
+    components::{
+        editor::{Movement, PriorChange},
+        keymap_legend::{OnTap, ReleaseKey},
+    },
     context::{Context, LocalSearchConfigMode, Search},
     git::DiffMode,
     list::grep::RegexConfig,
@@ -100,6 +103,13 @@ impl Editor {
             ),
         ]
         .to_vec()
+    }
+
+    pub(crate) fn paste_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Paste".to_string(),
+            keymaps: paste_keymaps(context),
+        }
     }
 
     fn delete_cut_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
@@ -542,7 +552,18 @@ impl Editor {
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Paste),
                 format("Paste"),
-                Dispatch::ToEditor(DispatchEditor::EnterPasteMode),
+                Dispatch::ShowKeymapLegendWithReleaseKey(
+                    self.paste_keymap_legend_config(context),
+                    ReleaseKey::new(
+                        Meaning::Paste,
+                        Some(OnTap::new(
+                            "Replace",
+                            Dispatches::one(Dispatch::ToEditor(
+                                DispatchEditor::ReplaceWithCopiedText { cut: false },
+                            )),
+                        )),
+                    ),
+                ),
             )
             .override_keymap(
                 normal_mode_override.paste.clone().as_ref(),
@@ -1616,6 +1637,34 @@ impl Editor {
             ),
         }
     }
+}
+
+pub fn paste_keymaps(context: &Context) -> Keymaps {
+    Keymaps::new(
+        [
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Left_),
+                Direction::Start.format_action("Paste with gaps"),
+                Dispatch::ToEditor(PasteWithMovement(Movement::Left)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Right),
+                Direction::End.format_action("Paste with gaps"),
+                Dispatch::ToEditor(PasteWithMovement(Right)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Next_),
+                Direction::End.format_action("Paste"),
+                Dispatch::ToEditor(PasteWithMovement(Movement::Next)),
+            ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                Direction::Start.format_action("Paste"),
+                Dispatch::ToEditor(PasteWithMovement(Movement::Previous)),
+            ),
+        ]
+        .as_ref(),
+    )
 }
 
 pub fn delete_cut_keymaps(context: &Context) -> Keymaps {

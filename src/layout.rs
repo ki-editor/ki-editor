@@ -1,4 +1,5 @@
 use crate::app::Dispatch;
+use crate::components::keymap_legend::ReleaseKey;
 use crate::config::from_extension;
 use crate::context::Context;
 use crate::quickfix_list::QuickfixList;
@@ -223,6 +224,7 @@ impl Layout {
         &mut self,
         keymap_legend_config: KeymapLegendConfig,
         context: &Context,
+        release_key: Option<ReleaseKey>,
     ) {
         self.tree.append_component_to_current(
             KindedComponent::new(
@@ -230,6 +232,7 @@ impl Layout {
                 Rc::new(RefCell::new(KeymapLegend::new(
                     keymap_legend_config,
                     context,
+                    release_key,
                 ))),
             ),
             true,

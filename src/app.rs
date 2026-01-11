@@ -11,7 +11,7 @@ use crate::{
         editor_keymap::{KeyboardLayoutKind, Meaning},
         editor_keymap_printer::KeymapDisplayOption,
         file_explorer::FileExplorer,
-        keymap_legend::{Keymap, KeymapLegendConfig, Keymaps},
+        keymap_legend::{Keymap, KeymapLegendConfig, Keymaps, ReleaseKey},
         prompt::{
             Prompt, PromptConfig, PromptHistoryKey, PromptItems, PromptItemsBackgroundTask,
             PromptOnChangeDispatch, PromptOnEnter,
@@ -933,7 +933,10 @@ impl<T: Frontend> App<T> {
                 self.apply_workspace_edit(workspace_edit)?;
             }
             Dispatch::ShowKeymapLegend(keymap_legend_config) => {
-                self.show_keymap_legend(keymap_legend_config)
+                self.show_keymap_legend(keymap_legend_config, None)
+            }
+            Dispatch::ShowKeymapLegendWithReleaseKey(keymap_legend_config, release_key) => {
+                self.show_keymap_legend(keymap_legend_config, Some(release_key))
             }
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
@@ -1779,7 +1782,11 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
+    fn show_keymap_legend(
+        &mut self,
+        keymap_legend_config: KeymapLegendConfig,
+        release_key: Option<ReleaseKey>,
+    ) {
         if self.is_running_as_embedded() {
             let title = keymap_legend_config.title.clone();
             let body = keymap_legend_config.display(
@@ -1796,7 +1803,7 @@ impl<T: Frontend> App<T> {
                 });
         }
         self.layout
-            .show_keymap_legend(keymap_legend_config, &self.context);
+            .show_keymap_legend(keymap_legend_config, &self.context, release_key);
         self.layout.recalculate_layout(&self.context);
     }
 
@@ -3423,6 +3430,8 @@ pub enum Dispatch {
     GotoQuickfixListItem(Movement),
     ApplyWorkspaceEdit(WorkspaceEdit),
     ShowKeymapLegend(KeymapLegendConfig),
+    /// This means showing a momentary layer.
+    ShowKeymapLegendWithReleaseKey(KeymapLegendConfig, ReleaseKey),
     RemainOnlyCurrentComponent,
 
     #[cfg(test)]
