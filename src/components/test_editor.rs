@@ -6014,3 +6014,22 @@ fn swap_extended_syntax_node_selection_till_last_and_first() -> anyhow::Result<(
         ])
     })
 }
+
+#[test]
+fn test_paste_mol() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam".to_string())),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            App(HandleKeyEvents(keys!("c b l release-b").to_vec())),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Expect(CurrentComponentContent("foo bar bar spam")),
+        ])
+    })
+}

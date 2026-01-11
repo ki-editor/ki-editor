@@ -116,6 +116,7 @@ export enum EditorMode {
 	Swap = "swap",
 	Replace = "replace",
 	Delete = "delete",
+	Paste = "paste",
 }
 
 export interface ModeParams {

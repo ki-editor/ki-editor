@@ -5,7 +5,7 @@ use my_proc_macros::key;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    components::editor_keymap_printer::KeymapDisplayOption,
+    components::{editor_keymap::Meaning, editor_keymap_printer::KeymapDisplayOption},
     context::Context,
     rectangle::Rectangle,
 };
@@ -22,12 +22,61 @@ pub struct KeymapLegend {
     config: KeymapLegendConfig,
     option: KeymapDisplayOption,
     keymap_layout_kind: super::editor_keymap::KeyboardLayoutKind,
+    release_key: Option<ParsedReleaseKey>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct KeymapLegendConfig {
     pub title: String,
     pub keymaps: Keymaps,
+}
+
+pub struct MomentaryLayer {
+    pub meaning: Meaning,
+    pub description: String,
+    pub config: KeymapLegendConfig,
+    pub on_tap: Option<OnTap>,
+}
+
+struct ParsedReleaseKey {
+    key_event: KeyEvent,
+    meaning: Meaning,
+    on_tap: Option<OnTap>,
+    other_keys_pressed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ReleaseKey {
+    meaning: Meaning,
+    on_tap: Option<OnTap>,
+    /// Initial value should be false.
+    /// This field is necessary for implementing `on_tap`.
+    other_keys_pressed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct OnTap {
+    description: &'static str,
+    dispatches: Dispatches,
+}
+
+impl OnTap {
+    pub fn new(description: &'static str, dispatches: Dispatches) -> Self {
+        Self {
+            description,
+            dispatches,
+        }
+    }
+}
+
+impl ReleaseKey {
+    pub fn new(meaning: Meaning, on_tap: Option<OnTap>) -> Self {
+        Self {
+            meaning,
+            on_tap,
+            other_keys_pressed: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -113,6 +162,28 @@ impl Keymap {
         }
     }
 
+    pub fn momentary_layer(
+        context: &Context,
+        MomentaryLayer {
+            meaning,
+            description,
+            config,
+            on_tap,
+        }: MomentaryLayer,
+    ) -> Keymap {
+        let key = context.keyboard_layout_kind().get_key(&meaning);
+        Keymap {
+            key,
+            short_description: None,
+            description,
+            dispatch: Dispatch::ShowKeymapLegendWithReleaseKey(
+                config,
+                ReleaseKey::new(meaning, on_tap),
+            ),
+            event: parse_key_event(key).unwrap(),
+        }
+    }
+
     pub fn new_extended(
         key: &'static str,
         short_description: String,
@@ -169,7 +240,11 @@ impl Keymap {
 }
 
 impl KeymapLegend {
-    pub fn new(config: KeymapLegendConfig, context: &Context) -> KeymapLegend {
+    pub fn new(
+        config: KeymapLegendConfig,
+        context: &Context,
+        release_key: Option<ReleaseKey>,
+    ) -> KeymapLegend {
         // Check for duplicate keys
         let duplicates = config
             .keymaps()
@@ -196,6 +271,18 @@ impl KeymapLegend {
         let _ = editor
             .enter_insert_mode(Direction::End, context)
             .unwrap_or_default();
+
+        let release_key = release_key.map(|release_key| ParsedReleaseKey {
+            key_event: KeyEvent {
+                kind: crossterm::event::KeyEventKind::Release,
+                ..parse_key_event(context.keyboard_layout_kind().get_key(&release_key.meaning))
+                    .unwrap()
+            },
+            meaning: release_key.meaning,
+            on_tap: release_key.on_tap,
+            other_keys_pressed: release_key.other_keys_pressed,
+        });
+
         KeymapLegend {
             editor,
             config,
@@ -204,18 +291,30 @@ impl KeymapLegend {
                 show_shift: true,
             },
             keymap_layout_kind: *context.keyboard_layout_kind(),
+            release_key,
         }
     }
 
     fn refresh(&mut self, context: &Context) {
+        let content = self.display();
+        self.editor_mut()
+            .set_content(&content, context)
+            .unwrap_or_default();
+    }
+
+    fn display(&self) -> String {
         let content = self.config.display(
             &self.keymap_layout_kind,
             self.editor.rectangle().width,
             &self.option,
         );
-        self.editor_mut()
-            .set_content(&content, context)
-            .unwrap_or_default();
+        if let Some((false, on_tap)) = self.release_key.as_ref().and_then(|release_key| {
+            Some((release_key.other_keys_pressed, release_key.on_tap.clone()?))
+        }) {
+            format!("{content}\nRelease hold: {}", on_tap.description)
+        } else {
+            content
+        }
     }
 }
 
@@ -252,7 +351,33 @@ impl Component for KeymapLegend {
                         .iter()
                         .find(|keymap| &keymap.event == key_event)
                     {
-                        Ok(Dispatches::one(close_current_window).chain(keymap.get_dispatches()))
+                        Ok(Dispatches::one(close_current_window)
+                            .chain(keymap.get_dispatches())
+                            // If release key is enabled, it means that this is a momentary layer,
+                            // so we should keep showing the menu even after some keys are executed.
+                            .append_some(self.release_key.as_ref().map(
+                                |release_key| -> Dispatch {
+                                    Dispatch::ShowKeymapLegendWithReleaseKey(
+                                        self.config.clone(),
+                                        ReleaseKey {
+                                            meaning: release_key.meaning.clone(),
+                                            on_tap: release_key.on_tap.clone(),
+                                            other_keys_pressed: true,
+                                        },
+                                    )
+                                },
+                            )))
+                    } else if let Some(release_key) = &self.release_key {
+                        if &release_key.key_event == key_event {
+                            let on_tap_dispatches =
+                                match (&release_key.on_tap, release_key.other_keys_pressed) {
+                                    (Some(on_tap), false) => on_tap.dispatches.clone(),
+                                    _ => Default::default(),
+                                };
+                            Ok(Dispatches::one(close_current_window).chain(on_tap_dispatches))
+                        } else {
+                            Ok(vec![].into())
+                        }
                     } else {
                         Ok(vec![].into())
                     }
@@ -269,7 +394,8 @@ impl Component for KeymapLegend {
 #[cfg(test)]
 mod test_keymap_legend {
     use super::*;
-    use crate::{buffer::BufferOwner, test_app::*};
+    use crate::{buffer::BufferOwner, components::editor::DispatchEditor, test_app::*};
+    use crossterm::event::KeyEventKind;
     use my_proc_macros::keys;
 
     #[test]
@@ -442,6 +568,7 @@ mod test_keymap_legend {
                 )]),
             },
             &Context::default(),
+            None,
         );
 
         let dispatches = keymap_legend.handle_events(keys!("s")).unwrap();
@@ -457,5 +584,132 @@ mod test_keymap_legend {
                 }
             ])
         )
+    }
+
+    #[test]
+    /// When release key is defined and on tap is defined, display should show the on tap action.
+    fn on_tap_display() {
+        let mut keymap_legend = KeymapLegend::new(
+            KeymapLegendConfig {
+                title: "".to_string(),
+                keymaps: Keymaps::new(&[]),
+            },
+            &Context::default(),
+            Some(ReleaseKey::new(
+                Meaning::AgSlL,
+                Some(OnTap::new("Conichihuahua", Dispatches::default())),
+            )),
+        );
+
+        let _ = keymap_legend
+            .handle_dispatch_editor(
+                &mut Context::default(),
+                DispatchEditor::SetRectangle(Rectangle {
+                    origin: Default::default(),
+                    width: 100,
+                    height: 100,
+                }),
+            )
+            .unwrap();
+
+        assert_eq!(
+            keymap_legend.display(),
+            "
+╭───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───╮
+│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+├╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┼╌╌╌┤
+│   ┆   ┆   ┆   ┆   ┆ ∅ ┆   ┆   ┆   ┆   ┆   │
+╰───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───╯
+* Pick Keyboard    \\ Leader
+Release hold: Conichihuahua
+"
+            .trim()
+        )
+    }
+
+    #[test]
+    /// When release key is defined and the release key is immediately received
+    /// before any actions in the keymap is executed, the on tap dispatches should be fired.
+    fn release_key_on_tap() -> anyhow::Result<()> {
+        let context = Context::default();
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("".to_string())),
+                App(ShowKeymapLegendWithReleaseKey(
+                    KeymapLegendConfig {
+                        title: "LEGEND_TITLE".to_string(),
+                        keymaps: Keymaps::new(&[]),
+                    },
+                    ReleaseKey::new(
+                        Meaning::Paste,
+                        Some(OnTap::new(
+                            "",
+                            Dispatches::one(Dispatch::ToEditor(SetContent(
+                                "on tapped!".to_string(),
+                            ))),
+                        )),
+                    ),
+                )),
+                // Expect the keymap legend is opened
+                Expect(AppGridContains("LEGEND_TITLE")),
+                // Simulate key release
+                App(HandleKeyEvent(
+                    parse_key_event(context.keyboard_layout_kind().get_key(&Meaning::Paste))
+                        .unwrap()
+                        .set_event_kind(KeyEventKind::Release),
+                )),
+                Expect(CurrentComponentContent("on tapped!")),
+            ])
+        })
+    }
+
+    #[test]
+    fn when_release_key_is_defined_legend_should_show_until_release_key_is_received(
+    ) -> anyhow::Result<()> {
+        let context = Context::default();
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent("".to_string())),
+                App(ShowKeymapLegendWithReleaseKey(
+                    KeymapLegendConfig {
+                        title: "LEGEND_TITLE".to_string(),
+                        keymaps: Keymaps::new(&[Keymap::new(
+                            "x",
+                            "".to_string(),
+                            Dispatch::ToEditor(Insert("hello".to_string())),
+                        )]),
+                    },
+                    ReleaseKey::new(Meaning::Paste, None),
+                )),
+                // Expect the keymap legend is opened
+                Expect(AppGridContains("LEGEND_TITLE")),
+                // Execute an action defined in the keymap
+                App(HandleKeyEvent(key!("x"))),
+                // Expect the keymap legend is still opened
+                Expect(AppGridContains("LEGEND_TITLE")),
+                // Simulate key release
+                App(HandleKeyEvent(
+                    parse_key_event(context.keyboard_layout_kind().get_key(&Meaning::Paste))
+                        .unwrap()
+                        .set_event_kind(KeyEventKind::Release),
+                )),
+                // Expect the legend is closed
+                Expect(Not(Box::new(AppGridContains("LEGEND_TITLE")))),
+                // Expect the action defined in the keymap is actually executed
+                Expect(CurrentComponentContent("hello")),
+            ])
+        })
     }
 }

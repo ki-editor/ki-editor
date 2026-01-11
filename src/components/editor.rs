@@ -1361,7 +1361,7 @@ impl Editor {
                     let copied_text: Rope = copied_texts.get(index).into();
                     let copied_text_len = copied_text.len_chars();
 
-                    let (selection_range, paste_text) = if self.mode == Mode::Normal {
+                    let (selection_range, paste_text) = if self.mode != Mode::Insert {
                         let range: CharIndexRange =
                             (insertion_range_start..insertion_range_start + copied_text_len).into();
                         let selection_range = match direction {
@@ -1410,7 +1410,7 @@ impl Editor {
 
     pub fn paste_with_movement(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         movement: Movement,
     ) -> anyhow::Result<Dispatches> {
         let clipboards_differ: bool = !context.clipboards_synced();
@@ -1418,9 +1418,11 @@ impl Editor {
             return Ok(Default::default());
         };
         // out-of-sync paste should also add the content to clipboard history
-        if clipboards_differ {
-            context.add_clipboard_history(copied_texts.clone());
-        }
+        let extra_dispatches = if clipboards_differ {
+            Dispatches::one(Dispatch::AddClipboardHistory(copied_texts.clone()))
+        } else {
+            Default::default()
+        };
         let direction: Option<Direction> = match movement {
             Movement::Left | Movement::Previous => Some(Direction::Start),
             Movement::Right | Movement::Next => Some(Direction::End),
@@ -1434,9 +1436,12 @@ impl Editor {
 
         match (direction, with_gap) {
             (None, _) | (_, None) => Ok(Default::default()),
-            (Some(direction), Some(with_gap)) => {
-                self.paste_text(direction, copied_texts, context, with_gap)
-            }
+            (Some(direction), Some(with_gap)) => Ok(extra_dispatches.chain(self.paste_text(
+                direction,
+                copied_texts,
+                context,
+                with_gap,
+            )?)),
         }
     }
 
@@ -1609,7 +1614,7 @@ impl Editor {
                     if let Some(jumps) = self.jumps.take() {
                         self.handle_jump_mode(context, key_event, jumps)
                     } else if let Mode::Insert = self.mode {
-                        self.handle_insert_mode(key_event, context)
+                        self.handle_insert_mode(context, key_event)
                     } else if let Mode::FindOneChar(_) = self.mode {
                         self.handle_find_one_char_mode(
                             IfCurrentNotFound::LookForward,
@@ -1917,13 +1922,13 @@ impl Editor {
                     context,
                 )
                 .map(|_| Default::default()),
+            Mode::FindOneChar(_) | Mode::Insert => Ok(Default::default()),
             Mode::Delete { .. } => {
                 self.mode = Mode::Delete {
                     other_key_pressed: true,
                 };
                 self.delete_with_movement(context, movement, false)
             }
-            Mode::FindOneChar(_) | Mode::Insert => Ok(Default::default()),
         }
     }
 

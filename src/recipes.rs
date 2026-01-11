@@ -165,7 +165,7 @@ baz"
                     content: "[{foo: bar}, spam, 1 + 1]".trim(),
                     file_extension: "js",
                     prepare_events: keys!("w o"),
-                    events: keys!("d V l b l"),
+                    events: keys!("d V l b l release-b"),
                     expectations: Box::new([CurrentSelectedTexts(&["{foo: bar}"]), CurrentComponentContent("[spam, {foo: bar}, 1 + 1]")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -510,6 +510,44 @@ Why?
             ].to_vec(),
         },
         RecipeGroup {
+            filename: "replace",
+            recipes: [
+                Recipe {
+                    description: "Replace word",
+                    content: "hello world".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("s c l b release-b"),
+                    expectations: Box::new([CurrentComponentContent("hello hello")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Replace current line with current word",
+                    content: "foo bar spam".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("s l c a b release-b"),
+                    expectations: Box::new([CurrentComponentContent("bar")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Replace current word with current subword",
+                    content: "fooBarSpam".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w l c s b release-b"),
+                    expectations: Box::new([CurrentComponentContent("Bar")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                }
+            ].to_vec(),
+        },
+        RecipeGroup {
             filename: "replace-cut",
             recipes: [
                 Recipe {
@@ -534,30 +572,57 @@ foo(bar, 1 + 1, spam)
             recipes: [
                 Recipe {
                     description: "Paste forward",
-                    content: "foo bar spam"
-                    .trim(),
+                    content: "foo bar".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s l c j b l"),
-                    expectations: Box::new([CurrentComponentContent("foo bar bar spam")]),
+                    events: keys!("a c b o release-b"),
+                    expectations: Box::new([CurrentComponentContent("foo barfoo bar")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
                 },
                 Recipe {
                     description: "Paste backward",
+                    content: "foo bar".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("a c b u release-b"),
+                    expectations: Box::new([CurrentComponentContent("foo barfoo bar")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                }
+            ].to_vec(),
+        },
+        RecipeGroup {
+            filename: "paste-with-gaps",
+            recipes: [
+                Recipe {
+                    description: "Paste word forward",
                     content: "foo bar spam"
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s l c j / b j"),
+                    events: keys!("s l c j b l release-b"),
+                    expectations: Box::new([CurrentComponentContent("foo bar bar spam")]),
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Paste word backward",
+                    content: "foo bar spam"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("s l c j / b j release-b"),
                     expectations: Box::new([CurrentComponentContent("bar foo bar spam")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
                 },
                 Recipe {
-                    description: "Paste with automatic gap insertion (Line)",
+                    description: "Paste lines",
                     content: "
 foo bar
 spam baz
@@ -565,30 +630,19 @@ spam baz
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("a c b l"),
+                    events: keys!("a c b l release-b"),
                     expectations: Box::new([CurrentComponentContent("foo bar\nfoo bar\nspam baz")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
                 },
                 Recipe {
-                    description: "Paste with automatic gap insertion (Syntax Node)",
+                    description: "Paste Syntax Node",
                     content: "function foo(bar: Bar, spam: Spam) {}",
                     file_extension: "ts",
                     prepare_events: keys!("n d b a r enter"),
-                    events: keys!("d c b l"),
+                    events: keys!("d c b l release-b"),
                     expectations: Box::new([CurrentComponentContent("function foo(bar: Bar, bar: Bar, spam: Spam) {}")]),
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-                Recipe {
-                    description: "Paste without automatic gap insertion",
-                    content: "foo bar".trim(),
-                    file_extension: "md",
-                    prepare_events: &[],
-                    events: keys!("a c b o"),
-                    expectations: Box::new([CurrentComponentContent("foo barfoo bar")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
@@ -1739,7 +1793,7 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     file_extension: "md",
                     prepare_events: &[],
                     events: keys!(
-                        "n d r / ^ - space backslash [ space backslash ] enter r r d c v l release-v a p b l ; backspace esc r f"
+                        "n d r / ^ - space backslash [ space backslash ] enter r r d c v l release-v a p b l release-b ; backspace esc r f"
                     ),
                     expectations: Box::new([CurrentComponentContent(r#"# Fake To-Do List
 
@@ -2141,7 +2195,7 @@ fn reveal_marks() -> RecipeGroup {
                 .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("n d f o o enter l b l space o l j j"),
+            events: keys!("n d f o o enter l b l release-b o l j j"),
             expectations: Box::new([CurrentSelectedTexts(&["foo"])]),
             terminal_height: Some(9),
             similar_vim_combos: &[],
@@ -2162,7 +2216,7 @@ That, is the question.
             .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("a c b l"),
+            events: keys!("a c b l release-b"),
             expectations: Box::new([CurrentComponentContent(
                 "To be, or not to be?
 To be, or not to be?
@@ -2260,7 +2314,7 @@ foo bar spam",
             content: "[{\"a\": b}, \"c\", [], {}]".trim(),
             file_extension: "json",
             prepare_events: keys!("w o"),
-            events: keys!("d g l c v l release-v p b l"),
+            events: keys!("d g l c v l release-v p b l release-b"),
             expectations: Box::new([CurrentComponentContent("[[], {}, {\"a\": b}, \"c\"]")]),
             terminal_height: None,
             similar_vim_combos: &[],

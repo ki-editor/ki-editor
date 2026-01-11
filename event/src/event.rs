@@ -125,6 +125,10 @@ impl KeyEvent {
             }
         )
     }
+
+    pub fn set_event_kind(self, kind: KeyEventKind) -> KeyEvent {
+        Self { kind, ..self }
+    }
 }
 
 impl From<crossterm::event::KeyEvent> for KeyEvent {

@@ -7,7 +7,10 @@ use itertools::Itertools;
 
 use crate::{
     app::{Dispatch, Dispatches, FilePickerKind, Scope},
-    components::editor::{Movement, PriorChange},
+    components::{
+        editor::{Movement, PriorChange},
+        keymap_legend::{MomentaryLayer, OnTap},
+    },
     context::{Context, LocalSearchConfigMode, Search},
     git::DiffMode,
     list::grep::RegexConfig,
@@ -102,7 +105,7 @@ impl Editor {
         .to_vec()
     }
 
-    fn paste_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub(crate) fn paste_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Paste".to_string(),
             keymaps: paste_keymaps(context),
@@ -546,10 +549,19 @@ impl Editor {
         let extra = if use_system_clipboard { "+ " } else { "" };
         let format = |description: &str| format!("{extra}{description}");
         [
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Paste),
-                format("Paste"),
-                Dispatch::ShowKeymapLegend(self.paste_keymap_legend_config(context)),
+            Keymap::momentary_layer(
+                context,
+                MomentaryLayer {
+                    meaning: Meaning::Paste,
+                    description: format("Paste"),
+                    config: self.paste_keymap_legend_config(context),
+                    on_tap: Some(OnTap::new(
+                        "Replace",
+                        Dispatches::one(Dispatch::ToEditor(
+                            DispatchEditor::ReplaceWithCopiedText { cut: false },
+                        )),
+                    )),
+                },
             )
             .override_keymap(
                 normal_mode_override.paste.clone().as_ref(),
@@ -715,8 +727,8 @@ impl Editor {
 
     pub fn handle_insert_mode(
         &mut self,
-        event: KeyEvent,
         context: &Context,
+        event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         if let Some(dispatches) = self
             .insert_mode_keymaps(true, context)
@@ -1630,28 +1642,23 @@ pub fn paste_keymaps(context: &Context) -> Keymaps {
         [
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Left_),
-                "Left".to_string(),
+                Direction::Start.format_action("Paste with gaps"),
                 Dispatch::ToEditor(PasteWithMovement(Movement::Left)),
             ),
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Right),
-                "Right".to_string(),
+                Direction::End.format_action("Paste with gaps"),
                 Dispatch::ToEditor(PasteWithMovement(Right)),
             ),
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Next_),
-                "Next".to_string(),
+                Direction::End.format_action("Paste"),
                 Dispatch::ToEditor(PasteWithMovement(Movement::Next)),
             ),
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Prev_),
-                "Previous".to_string(),
+                Direction::Start.format_action("Paste"),
                 Dispatch::ToEditor(PasteWithMovement(Movement::Previous)),
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Paste),
-                "Replace".to_string(),
-                Dispatch::ToEditor(ReplaceWithCopiedText { cut: false }),
             ),
         ]
         .as_ref(),
