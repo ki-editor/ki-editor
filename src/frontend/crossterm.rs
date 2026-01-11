@@ -80,7 +80,9 @@ impl Frontend for Crossterm {
         // so that we can detect Key Release events
         // which is crucial for implementing momentary layers
         self.stdout.execute(PushKeyboardEnhancementFlags(
-            KeyboardEnhancementFlags::REPORT_EVENT_TYPES,
+            KeyboardEnhancementFlags::REPORT_EVENT_TYPES
+                | KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES,
+            // DISAMBIGUATE_ESCAPE_CODES is necessary for preventing an Esc tap to be captured as a double esc presses
         ))?;
         Ok(())
     }

@@ -21,4 +21,4 @@ jobs:
       - name: Scan & Create Issue
         run: | # We intentionally ignore the status code of the scan, since it will output a failure if it finds something.
           cargo workspace-unused-pub > unused.txt || cat unused.txt
-          gh issue create --title "tidy(deps): cargo-workspace-unused-pub found possibly unused functions" --body-file unused.txt
+          gh issue create --title "tidy(unused): cargo-workspace-unused-pub found possibly unused functions" --body-file unused.txt
