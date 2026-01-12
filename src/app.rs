@@ -98,7 +98,6 @@ pub struct App<T: Frontend> {
     lsp_manager: LspManager,
     enable_lsp: bool,
 
-    working_directory: CanonicalizedPath,
     global_title: Option<String>,
 
     layout: Layout,
@@ -237,7 +236,6 @@ impl<T: Frontend> App<T> {
                 dimension.decrement_height(status_lines.len()),
                 &working_directory,
             )?,
-            working_directory,
             frontend,
             syntax_highlight_request_sender,
             global_title: None,
@@ -530,10 +528,10 @@ impl<T: Frontend> App<T> {
                         }
                         StatusLineComponent::CurrentWorkingDirectory => {
                             Some(FlexLayoutComponent::Text(
-                                self.working_directory
+                                self.working_directory()
                                     .display_relative_to_home()
                                     .ok()
-                                    .unwrap_or_else(|| self.working_directory.display_absolute()),
+                                    .unwrap_or_else(|| self.working_directory().display_absolute()),
                             ))
                         }
                         StatusLineComponent::GitBranch => self
@@ -636,7 +634,7 @@ impl<T: Frontend> App<T> {
 
     fn current_branch(&self) -> Option<String> {
         // Open the repository
-        let repo = git2::Repository::open(self.working_directory.display_absolute()).ok()?;
+        let repo = git2::Repository::open(self.working_directory().display_absolute()).ok()?;
 
         // Get the current branch
         let head = repo.head().ok()?;
@@ -1116,10 +1114,12 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::OpenAndMarkFiles(paths) => self.open_and_mark_files(paths)?,
             Dispatch::ToggleOrOpenPaths => self.toggle_or_open_paths()?,
-            #[cfg(test)]
             Dispatch::ChangeWorkingDirectory(path) => self.change_working_directory(path)?,
             Dispatch::AddClipboardHistory(copied_texts) => {
                 self.context.add_clipboard_history(copied_texts)
+            }
+            Dispatch::OpenChangeWorkingDirectoryPrompt => {
+                self.open_change_working_directory_prompt()?
             }
         }
         Ok(())
@@ -1390,7 +1390,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_file_picker(&mut self, kind: FilePickerKind) -> anyhow::Result<()> {
-        let working_directory = self.working_directory.clone();
+        let working_directory = self.working_directory().clone();
         let items = match kind {
             FilePickerKind::NonGitIgnored => PromptItems::BackgroundTask {
                 task: PromptItemsBackgroundTask::NonGitIgnoredFiles { working_directory },
@@ -1402,7 +1402,7 @@ impl<T: Frontend> App<T> {
                 },
             },
             FilePickerKind::GitStatus(diff_mode) => PromptItems::Precomputed(
-                git::GitRepo::try_from(&self.working_directory)?
+                git::GitRepo::try_from(self.working_directory())?
                     .diff_entries(diff_mode)?
                     .into_iter()
                     .map(|entry| {
@@ -1808,7 +1808,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn global_replace(&mut self) -> anyhow::Result<()> {
-        let working_directory = self.working_directory.clone();
+        let working_directory = self.working_directory().clone();
         let global_search_config = self.context.global_search_config();
         let walk_builder_config = WalkBuilderConfig {
             root: working_directory.clone().into(),
@@ -1824,7 +1824,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn global_search(&mut self) -> anyhow::Result<()> {
-        let working_directory = self.working_directory.clone();
+        let working_directory = self.working_directory().clone();
 
         let global_search_config = self.context.global_search_config();
         let walk_builder_config = WalkBuilderConfig {
@@ -2090,7 +2090,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn get_repo_git_hunks(&mut self, diff_mode: git::DiffMode) -> anyhow::Result<()> {
-        let working_directory = self.working_directory.clone();
+        let working_directory = self.working_directory().clone();
         let repo = git::GitRepo::try_from(&working_directory)?;
         let diffs = repo.diffs(diff_mode)?;
         self.set_quickfix_list_type(
@@ -3295,10 +3295,34 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         self.handle_dispatches(dispatches)
     }
 
-    #[cfg(test)]
     fn change_working_directory(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
         self.context.change_working_directory(path);
         self.layout.refresh_file_explorer(&self.context)
+    }
+
+    fn open_change_working_directory_prompt(&mut self) -> anyhow::Result<()> {
+        self.open_prompt(
+            PromptConfig::new(
+                "Change Working Directory".to_string(),
+                PromptOnEnter::ParseCurrentLine {
+                    parser: DispatchParser::ChangeWorkingDirectory,
+                    history_key: PromptHistoryKey::ChangeWorkingDirectory,
+                    current_line: Some(format!(
+                        "{}{}",
+                        self.context.current_working_directory().display_absolute(),
+                        std::path::MAIN_SEPARATOR
+                    )),
+                    suggested_items: Vec::new(),
+                },
+            )
+            .set_on_change(Some(
+                PromptOnChangeDispatch::UpdateSuggestedItemsWithChildPaths,
+            )),
+        )
+    }
+
+    fn working_directory(&self) -> &CanonicalizedPath {
+        self.context.current_working_directory()
     }
 }
 
@@ -3579,9 +3603,9 @@ pub enum Dispatch {
     RequestCompletionDebounced,
     OpenAndMarkFiles(NonEmpty<CanonicalizedPath>),
     ToggleOrOpenPaths,
-    #[cfg(test)]
     ChangeWorkingDirectory(CanonicalizedPath),
     AddClipboardHistory(CopiedTexts),
+    OpenChangeWorkingDirectoryPrompt,
 }
 
 /// Used to send notify host app about changes
@@ -3730,6 +3754,7 @@ pub enum DispatchParser {
     #[cfg(test)]
     /// For testing only
     Null,
+    ChangeWorkingDirectory,
 }
 
 impl DispatchParser {
@@ -3822,6 +3847,9 @@ impl DispatchParser {
             ))),
             #[cfg(test)]
             DispatchParser::Null => Ok(Default::default()),
+            DispatchParser::ChangeWorkingDirectory => Ok(Dispatches::one(
+                Dispatch::ChangeWorkingDirectory(text.try_into()?),
+            )),
         }
     }
 }

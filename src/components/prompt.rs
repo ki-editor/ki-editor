@@ -1,4 +1,10 @@
-use std::{cell::RefCell, rc::Rc, sync::Arc, time::Duration};
+use std::{
+    cell::RefCell,
+    path::{Path, PathBuf},
+    rc::Rc,
+    sync::Arc,
+    time::Duration,
+};
 
 use itertools::Itertools;
 use my_proc_macros::key;
@@ -52,6 +58,7 @@ pub struct Prompt {
 pub enum PromptOnChangeDispatch {
     RequestWorkspaceSymbol(CanonicalizedPath),
     SetIncrementalSearchConfig { component_id: ComponentId },
+    UpdateSuggestedItemsWithChildPaths,
 }
 
 impl PromptOnChangeDispatch {
@@ -76,8 +83,49 @@ impl PromptOnChangeDispatch {
                     component_id: Some(*component_id),
                 })
             }
+            PromptOnChangeDispatch::UpdateSuggestedItemsWithChildPaths => {
+                let path = PathBuf::from(&context.current_line);
+                let path = if path.is_dir() {
+                    Some(path.as_path())
+                } else {
+                    path.parent()
+                };
+                if let Some(path) = path {
+                    if let Ok(paths) = get_child_directories(path) {
+                        Dispatches::one(Dispatch::ToSuggestiveEditor(
+                            DispatchSuggestiveEditor::Completion(Completion {
+                                items: paths
+                                    .into_iter()
+                                    .map(|path| {
+                                        DropdownItem::new(format!(
+                                            "{}{}",
+                                            path.display_absolute(),
+                                            std::path::MAIN_SEPARATOR
+                                        ))
+                                    })
+                                    .collect_vec(),
+                                trigger_characters: Vec::new(),
+                            }),
+                        ))
+                    } else {
+                        Default::default()
+                    }
+                } else {
+                    Default::default()
+                }
+            }
         }
     }
+}
+
+fn get_child_directories(path: &Path) -> anyhow::Result<Vec<CanonicalizedPath>> {
+    Ok(std::fs::read_dir(path)?
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
+        .filter_map(|path| path.try_into().ok())
+        .sorted()
+        .collect())
 }
 
 struct PromptContext {
@@ -247,6 +295,7 @@ pub enum PromptHistoryKey {
     SurroundXmlTag,
     ResolveBufferSaveConflict,
     WorkspaceSymbol,
+    ChangeWorkingDirectory,
 }
 
 impl Default for PromptHistoryKey {

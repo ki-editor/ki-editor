@@ -137,7 +137,7 @@ pub const KEYMAP_SPACE_EDITOR: KeyboardMeaningLayout = [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, RlBfr, Pipe_, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, RlBfr, CWDir, Pipe_, /****/ _____, _____, _____, _____, _____,
     ],
     [
         _____, RplcA, SaveA, QNSav, _____, /****/ _____, _____, _____, _____, _____,
@@ -970,6 +970,8 @@ pub enum Meaning {
     AgSlL,
     /// Align selections (based on right anchor)
     AgSlR,
+    /// Change working directory
+    CWDir,
 }
 pub fn shifted(c: &'static str) -> &'static str {
     match c {
