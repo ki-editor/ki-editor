@@ -232,7 +232,6 @@ impl Context {
         }
     }
 
-    #[cfg(test)]
     pub fn change_working_directory(&mut self, path: CanonicalizedPath) {
         self.current_working_directory = path
     }

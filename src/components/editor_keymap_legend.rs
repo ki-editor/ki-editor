@@ -1205,6 +1205,13 @@ impl Editor {
                 Keymap::new(
                     context
                         .keyboard_layout_kind()
+                        .get_space_editor_keymap(&Meaning::CWDir),
+                    "Change Work Dir".to_string(),
+                    Dispatch::OpenChangeWorkingDirectoryPrompt,
+                ),
+                Keymap::new(
+                    context
+                        .keyboard_layout_kind()
                         .get_space_editor_keymap(&Meaning::RlBfr),
                     "Reload File".to_string(),
                     Dispatch::ToEditor(ReloadFile { force: false }),

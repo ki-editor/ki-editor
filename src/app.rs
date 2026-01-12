@@ -1116,10 +1116,12 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::OpenAndMarkFiles(paths) => self.open_and_mark_files(paths)?,
             Dispatch::ToggleOrOpenPaths => self.toggle_or_open_paths()?,
-            #[cfg(test)]
             Dispatch::ChangeWorkingDirectory(path) => self.change_working_directory(path)?,
             Dispatch::AddClipboardHistory(copied_texts) => {
                 self.context.add_clipboard_history(copied_texts)
+            }
+            Dispatch::OpenChangeWorkingDirectoryPrompt => {
+                self.open_change_working_directory_prompt()?
             }
         }
         Ok(())
@@ -3295,10 +3297,30 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         self.handle_dispatches(dispatches)
     }
 
-    #[cfg(test)]
     fn change_working_directory(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
         self.context.change_working_directory(path);
         self.layout.refresh_file_explorer(&self.context)
+    }
+
+    fn open_change_working_directory_prompt(&mut self) -> anyhow::Result<()> {
+        self.open_prompt(
+            PromptConfig::new(
+                "Change Working Directory".to_string(),
+                PromptOnEnter::ParseCurrentLine {
+                    parser: DispatchParser::ChangeWorkingDirectory,
+                    history_key: PromptHistoryKey::ChangeWorkingDirectory,
+                    current_line: Some(format!(
+                        "{}{}",
+                        self.context.current_working_directory().display_absolute(),
+                        std::path::MAIN_SEPARATOR
+                    )),
+                    suggested_items: Vec::new(),
+                },
+            )
+            .set_on_change(Some(
+                PromptOnChangeDispatch::UpdateSuggestedItemsWithChildPaths,
+            )),
+        )
     }
 }
 
@@ -3579,9 +3601,9 @@ pub enum Dispatch {
     RequestCompletionDebounced,
     OpenAndMarkFiles(NonEmpty<CanonicalizedPath>),
     ToggleOrOpenPaths,
-    #[cfg(test)]
     ChangeWorkingDirectory(CanonicalizedPath),
     AddClipboardHistory(CopiedTexts),
+    OpenChangeWorkingDirectoryPrompt,
 }
 
 /// Used to send notify host app about changes
@@ -3730,6 +3752,7 @@ pub enum DispatchParser {
     #[cfg(test)]
     /// For testing only
     Null,
+    ChangeWorkingDirectory,
 }
 
 impl DispatchParser {
@@ -3822,6 +3845,9 @@ impl DispatchParser {
             ))),
             #[cfg(test)]
             DispatchParser::Null => Ok(Default::default()),
+            DispatchParser::ChangeWorkingDirectory => Ok(Dispatches::one(
+                Dispatch::ChangeWorkingDirectory(text.try_into()?),
+            )),
         }
     }
 }

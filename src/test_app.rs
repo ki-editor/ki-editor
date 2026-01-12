@@ -131,6 +131,7 @@ pub enum ExpectKind {
     DropdownInfosCount(usize),
     QuickfixListContent(String),
     CompletionDropdownContent(&'static str),
+    CompletionDropdownContentString(String),
     CompletionDropdownInfoContent(&'static str),
     CompletionDropdownIsOpen(bool),
     CompletionDropdownSelectedItem(&'static str),
@@ -138,6 +139,7 @@ pub enum ExpectKind {
     CurrentLine(&'static str),
     Not(Box<ExpectKind>),
     CurrentComponentContent(&'static str),
+    CurrentComponentContentString(String),
     CurrentComponentContentMatches(&'static lazy_regex::Lazy<regex::Regex>),
     CurrentSearch(Scope, &'static str),
     EditorCursorPosition(Position),
@@ -200,6 +202,7 @@ pub enum ExpectKind {
     },
     CurrentEditorIncrementalSearchMatches(Vec<std::ops::Range<usize>>),
     CurrentRangeAndInitialRange(CharIndexRange, Option<CharIndexRange>),
+    CurrentWorkingDirectory(CanonicalizedPath),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -242,6 +245,12 @@ impl ExpectKind {
                 println!("Actual =\n{actual}");
                 println!("\nExpected =\n{expected_content}");
                 contextualize(actual, expected_content.to_string())
+            }
+            CurrentComponentContentString(expected_content) => {
+                let actual = app.get_current_component_content();
+                println!("Actual =\n{actual}");
+                println!("\nExpected =\n{expected_content}");
+                contextualize(actual, expected_content.to_owned())
             }
             CurrentComponentContentMatches(regex) => {
                 let content = app.get_current_component_content();
@@ -407,6 +416,13 @@ impl ExpectKind {
                 contextualize(app.completion_dropdown_is_open(), *is_open)
             }
             CompletionDropdownContent(content) => contextualize(
+                app.current_completion_dropdown()
+                    .unwrap()
+                    .borrow()
+                    .content(),
+                content.to_string(),
+            ),
+            CompletionDropdownContentString(content) => contextualize(
                 app.current_completion_dropdown()
                     .unwrap()
                     .borrow()
@@ -622,6 +638,9 @@ impl ExpectKind {
                     (range, initial_range),
                     (&selection.range, &selection.initial_range),
                 )
+            }
+            CurrentWorkingDirectory(expected) => {
+                contextualize(expected, app.context().current_working_directory())
             }
         })
     }
@@ -3861,6 +3880,45 @@ fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Err
  Close current window"
                     .to_string(),
             )),
+        ])
+    })
+}
+
+#[test]
+fn change_working_directory_prompt() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        let get_path = |child: &str| {
+            format!(
+                "{}{}",
+                s.temp_dir().join(child).unwrap().display_absolute(),
+                std::path::MAIN_SEPARATOR
+            )
+        };
+        Box::new([
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentWorkingDirectory(s.temp_dir())),
+            App(OpenChangeWorkingDirectoryPrompt),
+            Expect(ExpectKind::CompletionDropdownIsOpen(false)),
+            // Expect the prompt is opened with the current working directory
+            Expect(CurrentComponentContentString(
+                s.temp_dir().display_absolute(),
+            )),
+            // Type slash to simulate the computation of suggested items
+            App(HandleKeyEvent(key!("/"))),
+            Expect(ExpectKind::CompletionDropdownIsOpen(true)),
+            // The suggested items should be the children directories
+            // of the current directory (i.e., the content of the prompt)
+            Expect(ExpectKind::CompletionDropdownContentString(
+                [get_path("src/"), get_path(".git/")].join("\n").to_string(),
+            )),
+            App(HandleKeyEvent(key!("tab"))),
+            Expect(CurrentComponentContentString(get_path("src/"))),
+            App(HandleKeyEvent(key!("enter"))),
+            Expect(CurrentWorkingDirectory(s.temp_dir().join("src").unwrap())),
         ])
     })
 }

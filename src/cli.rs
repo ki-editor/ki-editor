@@ -239,7 +239,6 @@ mod test_process_edit_args {
         for entry in std::fs::read_dir(".")? {
             let entry = entry?;
             let path = entry.path();
-            dbg!(&path.to_string_lossy());
             if path.to_string_lossy().contains("from-stdin-")
                 && path.to_string_lossy().ends_with("txt")
             {
