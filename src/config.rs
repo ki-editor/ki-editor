@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::{collections::HashMap, io::Read, path::PathBuf, str::FromStr};
+use std::{collections::HashMap, io::Read, path::PathBuf};
 
 use itertools::Itertools;
 use regex::Regex;
@@ -85,7 +85,7 @@ impl JsonSchema for ConfigThemeName {
 const DEFAULT_CONFIG: &str = include_str!("config_default.json");
 
 fn ki_workspace_directory() -> anyhow::Result<PathBuf> {
-    Ok(PathBuf::from_str(".")?.join(".ki"))
+    Ok(std::env::current_dir()?.join(".ki"))
 }
 
 fn ki_global_directory() -> PathBuf {
