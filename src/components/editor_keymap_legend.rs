@@ -1734,7 +1734,7 @@ pub fn delete_keymaps(context: &Context) -> Keymaps {
             ),
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::Prev_),
-                "Delete <".to_string(),
+                "< Delete".to_string(),
                 Dispatch::ToEditor(DeleteWithMovement(Movement::Previous)),
             ),
             Keymap::new(
