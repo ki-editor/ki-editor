@@ -88,10 +88,10 @@ impl PromptOnChangeDispatch {
                 let path = if path.is_dir() {
                     Some(path.as_path())
                 } else {
-                    path.parent().clone()
+                    path.parent()
                 };
                 if let Some(path) = path {
-                    if let Ok(paths) = get_child_directories(&path) {
+                    if let Ok(paths) = get_child_directories(path) {
                         Dispatches::one(Dispatch::ToSuggestiveEditor(
                             DispatchSuggestiveEditor::Completion(Completion {
                                 items: paths
@@ -99,7 +99,7 @@ impl PromptOnChangeDispatch {
                                     .map(|path| {
                                         DropdownItem::new(format!(
                                             "{}{}",
-                                            path.display().to_string(),
+                                            path.display_absolute(),
                                             std::path::MAIN_SEPARATOR
                                         ))
                                     })
@@ -118,11 +118,12 @@ impl PromptOnChangeDispatch {
     }
 }
 
-fn get_child_directories(path: &Path) -> anyhow::Result<Vec<PathBuf>> {
+fn get_child_directories(path: &Path) -> anyhow::Result<Vec<CanonicalizedPath>> {
     Ok(std::fs::read_dir(path)?
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
         .filter(|path| path.is_dir())
+        .filter_map(|path| path.try_into().ok())
         .sorted()
         .collect())
 }

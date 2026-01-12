@@ -3904,19 +3904,17 @@ fn change_working_directory_prompt() -> Result<(), anyhow::Error> {
             App(OpenChangeWorkingDirectoryPrompt),
             Expect(ExpectKind::CompletionDropdownIsOpen(false)),
             // Expect the prompt is opened with the current working directory
-            Expect(CurrentComponentContentString(
-                s.temp_dir().display_absolute(),
-            )),
+            Expect(CurrentComponentContentString(get_path(""))),
             // Type slash to simulate the computation of suggested items
             App(HandleKeyEvent(key!("/"))),
             Expect(ExpectKind::CompletionDropdownIsOpen(true)),
             // The suggested items should be the children directories
             // of the current directory (i.e., the content of the prompt)
             Expect(ExpectKind::CompletionDropdownContentString(
-                [get_path("src/"), get_path(".git/")].join("\n").to_string(),
+                [get_path("src"), get_path(".git")].join("\n").to_string(),
             )),
             App(HandleKeyEvent(key!("tab"))),
-            Expect(CurrentComponentContentString(get_path("src/"))),
+            Expect(CurrentComponentContentString(get_path("src"))),
             App(HandleKeyEvent(key!("enter"))),
             Expect(CurrentWorkingDirectory(s.temp_dir().join("src").unwrap())),
         ])
