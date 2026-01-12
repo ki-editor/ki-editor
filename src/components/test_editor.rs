@@ -6062,3 +6062,23 @@ fn release_key_events_should_not_affect_jump_mode() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn delete_one_extended_selection() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar spam".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(EnableSelectionExtension),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&["foo bar"])),
+            Editor(DeleteOne),
+            Expect(CurrentComponentContent(" spam")),
+        ])
+    })
+}
