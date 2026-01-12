@@ -1614,9 +1614,7 @@ impl Editor {
         if key_event.kind != KeyEventKind::Press {
             return None;
         }
-        let Some(jumps) = self.jumps.take() else {
-            return None;
-        };
+        let jumps = self.jumps.take()?;
         Some(self.handle_jump_mode_impl(context, key_event, jumps))
     }
 
