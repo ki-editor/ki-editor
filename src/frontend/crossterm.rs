@@ -79,6 +79,8 @@ impl Frontend for Crossterm {
         // Enable [Kitty's Keyboard Protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/)
         // so that we can detect Key Release events
         // which is crucial for implementing momentary layers
+        // HACK: crossterm on windows unconditionally errors when we attempt KKP initializaiton. See #1212
+        #[cfg(not(windows))]
         self.stdout.execute(PushKeyboardEnhancementFlags(
             KeyboardEnhancementFlags::REPORT_EVENT_TYPES
                 | KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES,
