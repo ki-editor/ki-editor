@@ -35,7 +35,7 @@ use crate::{
     transformation::{MyRegex, Transformation},
 };
 use crate::{grid::LINE_NUMBER_VERTICAL_BORDER, selection_mode::PositionBasedSelectionMode};
-use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
+use crossterm::event::{KeyCode, KeyEventKind, MouseButton, MouseEventKind};
 use event::KeyEvent;
 use itertools::{Either, Itertools};
 use my_proc_macros::key;
@@ -1582,8 +1582,8 @@ impl Editor {
     ) -> anyhow::Result<Dispatches> {
         match self.handle_universal_key(key_event, context)? {
             HandleEventResult::Ignored(key_event) => {
-                if let Some(jumps) = self.jumps.take() {
-                    self.handle_jump_mode(context, key_event, jumps)
+                if let Some(dispatches) = self.handle_jump_mode(context, &key_event) {
+                    dispatches
                 } else if let Mode::Insert = self.mode {
                     self.handle_insert_mode(context, key_event)
                 } else if let Mode::FindOneChar(_) = self.mode {
@@ -1609,7 +1609,19 @@ impl Editor {
     fn handle_jump_mode(
         &mut self,
         context: &Context,
-        key_event: KeyEvent,
+        key_event: &KeyEvent,
+    ) -> Option<anyhow::Result<Dispatches>> {
+        if key_event.kind != KeyEventKind::Press {
+            return None;
+        }
+        let jumps = self.jumps.take()?;
+        Some(self.handle_jump_mode_impl(context, key_event, jumps))
+    }
+
+    fn handle_jump_mode_impl(
+        &mut self,
+        context: &Context,
+        key_event: &KeyEvent,
         jumps: Vec<Jump>,
     ) -> anyhow::Result<Dispatches> {
         match key_event {

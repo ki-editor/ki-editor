@@ -6033,3 +6033,32 @@ fn test_paste_mol() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn release_key_events_should_not_affect_jump_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("foo bar".to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 1,
+            })),
+            Expect(JumpChars(&[])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(ShowJumps {
+                use_current_selection_mode: false,
+                prior_change: None,
+            }),
+            Expect(JumpChars(&['f', 'b'])),
+            App(HandleKeyEvent(key!("release-b"))),
+            // Expect nothing happens
+            Expect(JumpChars(&['f', 'b'])),
+        ])
+    })
+}
