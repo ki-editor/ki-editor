@@ -23,16 +23,15 @@ function flattenTree(node: Node | Parent): (Node | Parent)[] {
 }
 
 // Pure predicate function to check if node is a TutorialFallback element
-function isTutorialFallbackNode(
-    node: Node,
-): node is MdxJsxFlowElement | MdxJsxTextElement {
-    const isFlowElement = node.type === "mdxJsxFlowElement";
-    const isJsxTextElement = node.type === "mdxJsxTextElement";
-    const isNameTutorialFallback =
-        "name" in node && node.name === "TutorialFallback";
+const isFallbackNode =
+    (name: string) =>
+    (node: Node): node is MdxJsxFlowElement | MdxJsxTextElement => {
+        const isFlowElement = node.type === "mdxJsxFlowElement";
+        const isJsxTextElement = node.type === "mdxJsxTextElement";
+        const isNameFallback = "name" in node && node.name === name;
 
-    return (isFlowElement || isJsxTextElement) && isNameTutorialFallback;
-}
+        return (isFlowElement || isJsxTextElement) && isNameFallback;
+    };
 
 // Pure function to extract filename from node attributes
 function extractFilename(
@@ -45,38 +44,41 @@ function extractFilename(
     return (fileNameAttr?.value as string) || null;
 }
 
-export function extractArgumentFileNames(mdxContent: Value): (string | null)[] {
-    const tree = fromMarkdown(mdxContent, {
-        extensions: [mdx()],
-        mdastExtensions: [mdxFromMarkdown()],
-    });
+export const makeExtractArgumentFileNames =
+    (tagName: string) =>
+    (mdxContent: Value): (string | null)[] => {
+        const tree = fromMarkdown(mdxContent, {
+            extensions: [mdx()],
+            mdastExtensions: [mdxFromMarkdown()],
+        });
 
-    return flattenTree(tree)
-        .filter(isTutorialFallbackNode)
-        .map(extractFilename);
-}
+        return flattenTree(tree)
+            .filter(isFallbackNode(tagName))
+            .map(extractFilename);
+    };
 
 function validateResourceAccess(
     mdxContent: Value,
     validFilenames: string[],
+    tagName: string,
 ): string[] {
-    const argFilenames = extractArgumentFileNames(mdxContent);
+    const argFilenames = makeExtractArgumentFileNames(tagName)(mdxContent);
     return argFilenames.filter(
         (argFilename) => !validFilenames.includes(argFilename as string),
     );
 }
 
 module.exports = {
-    extractArgumentFileNames,
+    extractArgumentFileNames: makeExtractArgumentFileNames,
     validateResourceAccess,
 };
 
-if (require.main === module) {
+function validate(tagName: string, resourcesPath: string) {
     const glob = require("glob");
     const path = require("node:path");
     const fs = require("node:fs");
 
-    const staticResources = glob.sync("static/**/*.json");
+    const staticResources = glob.sync(resourcesPath);
     const validResourceFilenames = staticResources.map((filePath: string) =>
         path.basename(filePath, path.extname(filePath)),
     );
@@ -95,6 +97,7 @@ if (require.main === module) {
                 invalidResources: validateResourceAccess(
                     content,
                     validResourceFilenames,
+                    tagName,
                 ),
             }))
             .filter(({ invalidResources }) => invalidResources.length > 0);
@@ -116,5 +119,12 @@ if (require.main === module) {
         );
     }
 
-    console.log("\tALL STATIC RESOURCE ACCESSES in md/mdx WERE VALID!");
+    console.log(
+        `\tALL STATIC RESOURCE ACCESSES of ${tagName} in md/mdx WERE VALID!`,
+    );
+}
+
+if (require.main === module) {
+    validate("TutorialFallback", "static/recipes/*.json");
+    validate("KeymapFallback", "static/keymaps/*.json");
 }

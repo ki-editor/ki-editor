@@ -1,6 +1,9 @@
-import { extractArgumentFileNames } from "./validate";
+import { makeExtractArgumentFileNames } from "./validate";
 
 import { describe, expect, it } from "vitest";
+
+const extractArgumentFileNames =
+    makeExtractArgumentFileNames("TutorialFallback");
 
 describe("Validating correctness of `extractArgumentFileNames`", () => {
     it("Empty mdx should return empty array", () => {
