@@ -13,7 +13,7 @@ use crate::{
     components::{
         editor::{Direction, Editor},
         editor_keymap::{shifted, KeyboardLayout},
-        editor_keymap_legend::{delete_keymaps, paste_keymaps},
+        editor_keymap_legend::{delete_keymaps, paste_keymaps, swap_keymaps},
     },
     context::Context,
 };
@@ -373,6 +373,7 @@ impl KeymapPrintSections {
                 layout,
             ),
             KeymapPrintSection::from_keymaps("Paste".to_string(), &paste_keymaps(&context), layout),
+            KeymapPrintSection::from_keymaps("Swap".to_string(), &swap_keymaps(&context), layout),
             KeymapPrintSection::from_keymaps(
                 "Delete".to_string(),
                 &delete_keymaps(&context),

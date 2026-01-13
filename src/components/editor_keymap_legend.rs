@@ -105,20 +105,6 @@ impl Editor {
         .to_vec()
     }
 
-    pub(crate) fn paste_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Paste".to_string(),
-            keymaps: paste_keymaps(context),
-        }
-    }
-
-    fn delete_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Delete".to_string(),
-            keymaps: delete_keymaps(context),
-        }
-    }
-
     fn delete_cut_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Delete Cut".to_string(),
@@ -458,7 +444,10 @@ impl Editor {
                 MomentaryLayer {
                     meaning: Meaning::Delte,
                     description: "Delete".to_string(),
-                    config: self.delete_keymap_legend_config(context),
+                    config: KeymapLegendConfig {
+                        title: "Delete".to_string(),
+                        keymaps: delete_keymaps(context),
+                    },
                     on_tap: Some(OnTap::new(
                         "Delete One",
                         Dispatches::one(Dispatch::ToEditor(DispatchEditor::DeleteOne)),
@@ -568,7 +557,10 @@ impl Editor {
                 MomentaryLayer {
                     meaning: Meaning::Paste,
                     description: format("Paste"),
-                    config: self.paste_keymap_legend_config(context),
+                    config: KeymapLegendConfig {
+                        title: "Paste".to_string(),
+                        keymaps: paste_keymaps(context),
+                    },
                     on_tap: Some(OnTap::new(
                         "Replace",
                         Dispatches::one(Dispatch::ToEditor(
@@ -793,11 +785,17 @@ impl Editor {
                 "Replace".to_string(),
                 Dispatch::ToEditor(EnterReplaceMode),
             )),
-            Some(Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Swap_),
-                "Swap".to_string(),
-                "Enter Swap mode".to_string(),
-                Dispatch::ToEditor(EnterSwapMode),
+            Some(Keymap::momentary_layer(
+                context,
+                MomentaryLayer {
+                    meaning: Meaning::Swap_,
+                    description: "Swap".to_string(),
+                    config: KeymapLegendConfig {
+                        title: "Swap".to_string(),
+                        keymaps: swap_keymaps(context),
+                    },
+                    on_tap: None,
+                },
             )),
             Some(Keymap::new(
                 "backslash",
@@ -1658,6 +1656,38 @@ impl Editor {
     }
 }
 
+pub fn swap_keymaps(context: &Context) -> Keymaps {
+    Keymaps::new(
+        &[
+            (Movement::Up, Meaning::Up___),
+            (Movement::Down, Meaning::Down_),
+            (Movement::Left, Meaning::Left_),
+            (Movement::Right, Meaning::Right),
+            (Movement::Previous, Meaning::Prev_),
+            (Movement::Next, Meaning::Next_),
+            (Movement::First, Meaning::First),
+            (Movement::Last, Meaning::Last_),
+        ]
+        .into_iter()
+        .map(|(movement, meaning)| {
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&meaning),
+                movement.format_action("Swap"),
+                Dispatch::ToEditor(DispatchEditor::SwapWithMovement(movement)),
+            )
+        })
+        .chain(Some(Keymap::new(
+            context.keyboard_layout_kind().get_key(&Meaning::Jump_),
+            "Jump Swap".to_string(),
+            Dispatch::ToEditor(ShowJumps {
+                use_current_selection_mode: true,
+                prior_change: Some(PriorChange::EnterSwapMode),
+            }),
+        )))
+        .collect_vec(),
+    )
+}
+
 pub fn paste_keymaps(context: &Context) -> Keymaps {
     Keymaps::new(
         [
@@ -1721,29 +1751,23 @@ pub fn delete_cut_keymaps(context: &Context) -> Keymaps {
 
 pub fn delete_keymaps(context: &Context) -> Keymaps {
     Keymaps::new(
-        [
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Left_),
-                "<< Delete".to_string(),
-                Dispatch::ToEditor(DeleteWithMovement(Movement::Left)),
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Right),
-                "Delete >>".to_string(),
-                Dispatch::ToEditor(DeleteWithMovement(Right)),
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Prev_),
-                "< Delete".to_string(),
-                Dispatch::ToEditor(DeleteWithMovement(Movement::Previous)),
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Next_),
-                "Delete >".to_string(),
-                Dispatch::ToEditor(DeleteWithMovement(Movement::Next)),
-            ),
+        &[
+            (Movement::Left, Meaning::Left_),
+            (Movement::Right, Meaning::Right),
+            (Movement::Previous, Meaning::Prev_),
+            (Movement::Next, Meaning::Next_),
+            (Movement::First, Meaning::First),
+            (Movement::Last, Meaning::Last_),
         ]
-        .as_ref(),
+        .into_iter()
+        .map(|(movement, meaning)| {
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&meaning),
+                movement.format_action("Delete"),
+                Dispatch::ToEditor(DeleteWithMovement(movement)),
+            )
+        })
+        .collect_vec(),
     )
 }
 
