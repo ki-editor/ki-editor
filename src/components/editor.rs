@@ -64,6 +64,7 @@ pub enum Mode {
 pub enum PriorChange {
     EnterMultiCursorMode,
     EnableSelectionExtension,
+    EnterSwapMode,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -404,6 +405,7 @@ impl Component for Editor {
             ReplaceSelections(replacements) => {
                 return self.replace_selections(context, replacements)
             }
+            SwapWithMovement(movement) => return self.swap(movement, context),
         }
         Ok(Default::default())
     }
@@ -628,6 +630,23 @@ impl Movement {
             Movement::Right => Movement::Next,
             Movement::Left => Movement::Previous,
             _ => *self,
+        }
+    }
+
+    pub(crate) fn format_action(&self, action: &str) -> String {
+        match self {
+            Movement::Left => format!("<< {action}"),
+            Movement::Right => format!("{action} >>"),
+            Movement::First => format!("|< {action}"),
+            Movement::Last => format!("{action} >|"),
+            Movement::Up => format!("^ {action}"),
+            Movement::Down => format!("{action} v"),
+            Movement::Current(_) => action.to_string(),
+            Movement::Index(_) => format!("[{action}]"),
+            Movement::Jump(_) => format!("{action} Jump"),
+            Movement::Expand => action.to_string(),
+            Movement::Previous => format!("< {action}"),
+            Movement::Next => format!("{action}> >"),
         }
     }
 }
@@ -4075,6 +4094,7 @@ impl Editor {
             match prior_change {
                 PriorChange::EnterMultiCursorMode => self.mode = Mode::MultiCursor,
                 PriorChange::EnableSelectionExtension => self.enable_selection_extension(),
+                PriorChange::EnterSwapMode => self.enter_swap_mode(),
             }
         }
     }
@@ -4611,6 +4631,7 @@ pub enum DispatchEditor {
     AlignSelections(Direction),
     JoinSelection,
     ReplaceSelections(Vec<String>),
+    SwapWithMovement(Movement),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

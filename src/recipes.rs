@@ -694,7 +694,7 @@ def foo():
                     content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                     file_extension: "json",
                     prepare_events: keys!("w o"),
-                    events: keys!("d t l l"),
+                    events: keys!("d t l l release-t"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["{\"x\": 123}"]),
                         CurrentComponentContent("[true, {\"y\": {}}, {\"x\": 123}]"),
@@ -708,7 +708,7 @@ def foo():
                     content: "<x><y>foo</y><div/></x>".trim(),
                     file_extension: "xml",
                     prepare_events: keys!("w o o o"),
-                    events: keys!("d k t l"),
+                    events: keys!("d k t l release-t"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["<y>foo</y>"]),
                         CurrentComponentContent("<x><div/><y>foo</y></x>"),
@@ -722,7 +722,7 @@ def foo():
                     content: "fn main(foo: F, bar: B, spam: S, zap: Z) {}".trim(),
                     file_extension: "rs",
                     prepare_events: keys!("n d s p a m enter"),
-                    events: keys!("d t y"),
+                    events: keys!("d t y release-t"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["spam: S"]),
                         CurrentComponentContent("fn main(spam: S, foo: F, bar: B, zap: Z) {}"),
@@ -736,7 +736,7 @@ def foo():
                     content: "fn main(foo: F, bar: B, spam: S, zap: Z) {}".trim(),
                     file_extension: "rs",
                     prepare_events: keys!("n d b a r enter"),
-                    events: keys!("d t p"),
+                    events: keys!("d t p release-t"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["bar: B"]),
                         CurrentComponentContent("fn main(foo: F, spam: S, zap: Z, bar: B) {}"),
@@ -750,7 +750,7 @@ def foo():
                     content: "if(condition) { x(bar(baz)) } else { 'hello world' }".trim(),
                     file_extension: "js",
                     prepare_events: keys!("n d x enter"),
-                    events: keys!("d t m ' d"),
+                    events: keys!("d t m release-t ' d"),
                     expectations: Box::new([CurrentComponentContent(
                         "if(condition) { 'hello world' } else { x(bar(baz)) }",
                     )]),
@@ -783,7 +783,7 @@ impl<C> Iterator for PostorderTraverse<C>
                     file_extension: "rs",
                     prepare_events: &[],
                     events: keys!(
-                        "n d { enter d t m { k"
+                        "n d { enter d t m release-t { k"
                     ),
                     expectations: Box::new([]),
                     terminal_height: None,
@@ -795,7 +795,7 @@ impl<C> Iterator for PostorderTraverse<C>
                     content: "[{\"x\": 123}, true, {\"y\": {}}, false]".trim(),
                     file_extension: "json",
                     prepare_events: keys!("w o"),
-                    events: keys!("d g l t l l j"),
+                    events: keys!("d g l t l l j release-t"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["{\"x\": 123}, true"]),
                         CurrentComponentContent("[{\"y\": {}}, {\"x\": 123}, true, false]"),
@@ -809,7 +809,7 @@ impl<C> Iterator for PostorderTraverse<C>
                     content: "foo\nbar\nspam\nbaz".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("a g l t l l j"),
+                    events: keys!("a g l t l l j release-t"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["foo\nbar"]),
                         CurrentComponentContent("spam\nfoo\nbar\nbaz"),
@@ -823,12 +823,25 @@ impl<C> Iterator for PostorderTraverse<C>
                     content: "foo bar spam baz".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("w g l t l l j"),
+                    events: keys!("w g l t l l j release-t"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["foo bar"]),
                         CurrentComponentContent("spam foo bar baz"),
                     ]),
                     terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Swap words vertically",
+                    content: "foo bar spam\nxxx yyy zzzz".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("s l t k i k release-t"),
+                    expectations: Box::new([
+                        CurrentComponentContent("foo yyy spam\nxxx bar zzzz"),
+                    ]),
+                    terminal_height: Some(10),
                     similar_vim_combos: &[],
                     only: false,
                 }
@@ -2162,7 +2175,7 @@ betty bought some butter, so betty bought some better butter
             .trim(),
             file_extension: "rs",
             prepare_events: &[],
-            events: keys!("a l g s t j j j j j j"),
+            events: keys!("a l g s t j j j j j j release-t"),
             expectations: Box::new([CurrentComponentContent("betty bought some butter, **but the butter was bitter** so betty bought some better\nbutter")]),
             terminal_height: Some(10),
             similar_vim_combos: &[],
