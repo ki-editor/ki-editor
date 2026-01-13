@@ -514,12 +514,6 @@ impl Editor {
                 Dispatch::ToEditor(ChangeCut),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::RplcX),
-                format("Replace X"),
-                format!("{}{}", "Replace Cut", extra),
-                Dispatch::ToEditor(ReplaceWithCopiedText { cut: true }),
-            ),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Copy_),
                 format("Copy"),
                 format!("{}{}", "Copy", extra),

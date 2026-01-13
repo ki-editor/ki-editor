@@ -229,12 +229,6 @@ This is similar to [Change](#change), but it copies the deleted text into the cl
 
 This replaces the current selected text with the copied text.
 
-### `Replace X`
-
-Replace Cut, swaps the current selection with the content in the clipboard.
-
-<TutorialFallback filename="replace-cut"/>
-
 ### `Change keyboard layout`
 
 Keybinding: `*`
