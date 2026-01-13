@@ -24,7 +24,7 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
     ],
     [
-        Undo_, Rplc_, Copy_, Delte, Paste, /****/ LSrch, Jump_, Open_, _____, XAchr,
+        Undo_, Cut__, Copy_, Delte, Paste, /****/ LSrch, Jump_, Open_, _____, XAchr,
     ],
 ];
 
@@ -36,7 +36,7 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         LineF, BWord, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
     ],
     [
-        Redo_, PRplc, RplcX, DeltX, Pst0G, /****/ GSrch, ToIdx, _____, _____, SSEnd,
+        Redo_, _____, RplcX, DeltX, Pst0G, /****/ GSrch, ToIdx, _____, _____, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -688,8 +688,6 @@ pub enum Meaning {
     MultC,
     /// Open
     Open_,
-    /// Replace with pattern
-    PRplc,
     /// Paste
     Paste,
     /// Paste No Gap
@@ -706,8 +704,8 @@ pub enum Meaning {
     RplcP,
     /// Replace cut
     RplcX,
-    /// Replace
-    Rplc_,
+    /// Cut
+    Cut__,
     /// Switch view alignment
     SView,
     /// Scroll down

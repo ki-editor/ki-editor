@@ -79,13 +79,9 @@ This deletes the current selected text, and enter [Insert mode](../insert-mode.m
 
 Activates the [Delete MOL](../momentary-layers/delete-mol.mdx).
 
-### `Delete X`
+### `Cut`
 
-Delete Cut.
-
-This is similar to `Delete`, but the current selection(s) will be copied before deletion is executed.
-
-<TutorialFallback filename="delete-cut"/>
+Activates the [Cut MOL](../momentary-layers/cut-mol.mdx).
 
 ### `Replace #`
 

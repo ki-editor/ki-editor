@@ -1179,7 +1179,7 @@ pub fn completion_item_keymaps(context: &Context) -> Keymaps {
             Dispatch::MoveToCompletionItem(Direction::Start),
         ),
         Keymap::new_extended(
-            alted(context.keyboard_layout_kind().get_key(&Meaning::Rplc_)),
+            alted(context.keyboard_layout_kind().get_key(&Meaning::Cut__)),
             "Replace Comp".to_string(),
             "Replace Completion Item".to_string(),
             Dispatch::SelectCompletionItem,

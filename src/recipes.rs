@@ -158,25 +158,30 @@ baz"
             ].to_vec(),
         },
         RecipeGroup {
-            filename: "delete-cut",
+            filename: "cut",
             recipes: [
                 Recipe {
                     description: "Delete Cut (with movements)",
                     content: "[{foo: bar}, spam, 1 + 1]".trim(),
                     file_extension: "js",
                     prepare_events: keys!("w o"),
-                    events: keys!("d V l b l release-b"),
+                    events: keys!("d x l release-x b l release-b"),
                     expectations: Box::new([CurrentSelectedTexts(&["{foo: bar}"]), CurrentComponentContent("[spam, {foo: bar}, 1 + 1]")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
-                },
+                }
+            ].to_vec(),
+        },
+        RecipeGroup {
+            filename: "cut-one",
+            recipes: [
                 Recipe {
                     description: "Delete Cut One",
                     content: "[{foo: bar}, spam, 1 + 1]".trim(),
                     file_extension: "js",
                     prepare_events: keys!("w o"),
-                    events: keys!("d V V"),
+                    events: keys!("d x release-x"),
                     expectations: Box::new([CurrentSelectedTexts(&[","]), CurrentComponentContent("[, spam, 1 + 1]")]),
                     terminal_height: None,
                     similar_vim_combos: &[],
