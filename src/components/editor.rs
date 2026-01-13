@@ -1358,7 +1358,7 @@ impl Editor {
         with_gap: bool,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
-            self.get_selection_set_with_gap(&direction, context)?
+            self.get_selection_set_with_gap(&direction, context, false)?
                 .into_iter()
                 .enumerate()
                 .map(|(index, (selection, gap))| {
@@ -2626,6 +2626,7 @@ impl Editor {
         &self,
         direction: &Direction,
         context: &Context,
+        gap_at_most_one_newline: bool,
     ) -> anyhow::Result<Vec<(Selection, Rope)>> {
         self.selection_set
             .map(|selection| {
@@ -2645,22 +2646,25 @@ impl Editor {
                     },
                     direction,
                 );
-                // Ensure the gap only contain at most one newline character
-                let gap: String = gap
-                    .chars()
-                    .scan(false, |newline_found, c| {
-                        if c == '\n' {
-                            if *newline_found {
-                                None
+
+                let gap: String = if gap_at_most_one_newline {
+                    gap.chars()
+                        .scan(false, |newline_found, c| {
+                            if c == '\n' {
+                                if *newline_found {
+                                    None
+                                } else {
+                                    *newline_found = true;
+                                    Some(c)
+                                }
                             } else {
-                                *newline_found = true;
                                 Some(c)
                             }
-                        } else {
-                            Some(c)
-                        }
-                    })
-                    .collect();
+                        })
+                        .collect()
+                } else {
+                    gap
+                };
                 Ok((selection.clone(), gap.into()))
             })
             .into_iter()
@@ -2670,7 +2674,7 @@ impl Editor {
     fn open(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
         let direction = self.cursor_direction.reverse();
         let edit_transaction = EditTransaction::from_action_groups(
-            self.get_selection_set_with_gap(&direction, context)?
+            self.get_selection_set_with_gap(&direction, context, true)?
                 .into_iter()
                 .map(|(selection, gap)| {
                     let gap = if gap.len_chars() == 0 {

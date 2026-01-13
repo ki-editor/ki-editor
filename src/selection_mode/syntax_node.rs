@@ -423,4 +423,44 @@ fn main() {
             ])
         })
     }
+
+    #[serial]
+    #[test]
+    fn paste_indented_blocks_with_gaps() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    "
+mod x {
+    fn main() {}
+
+    fn foo() {}
+}"
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("fn foo() {}".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::SyntaxNode,
+                )),
+                Editor(Copy),
+                Editor(PasteWithMovement(Right)),
+                Expect(CurrentComponentContent(
+                    "
+mod x {
+    fn main() {}
+
+    fn foo() {}
+
+    fn foo() {}
+}",
+                )),
+            ])
+        })
+    }
 }
