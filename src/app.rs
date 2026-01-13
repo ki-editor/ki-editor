@@ -1036,7 +1036,7 @@ impl<T: Frontend> App<T> {
                 self.open_code_actions_picker(code_actions)?;
             }
             Dispatch::OtherWindow => self.layout.cycle_window(),
-            Dispatch::CycleMarkedFile(direction) => self.cycle_marked_file(direction)?,
+            Dispatch::CycleMarkedFile(movement) => self.cycle_marked_file(movement)?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
             Dispatch::OpenThemePrompt => self.open_theme_picker()?,
             Dispatch::SetLastNonContiguousSelectionMode(selection_mode) => self
@@ -2187,7 +2187,7 @@ impl<T: Frontend> App<T> {
             .collect_vec()
     }
 
-    fn cycle_marked_file(&mut self, direction: Direction) -> anyhow::Result<()> {
+    fn cycle_marked_file(&mut self, movement: Movement) -> anyhow::Result<()> {
         if let Some(next_file_path) = {
             let file_paths = self.context.get_marked_files();
             self.get_current_file_path()
@@ -2196,11 +2196,12 @@ impl<T: Frontend> App<T> {
                         .iter()
                         .position(|path| path == &&current_file_path)
                     {
-                        let next_index = match direction {
-                            Direction::Start if current_index == 0 => file_paths.len() - 1,
-                            Direction::Start => current_index - 1,
-                            Direction::End if current_index == file_paths.len() - 1 => 0,
-                            Direction::End => current_index + 1,
+                        let next_index = match movement {
+                            Movement::Left if current_index == 0 => file_paths.len() - 1,
+                            Movement::Left => current_index - 1,
+                            Movement::Right if current_index == file_paths.len() - 1 => 0,
+                            Movement::Right => current_index + 1,
+                            _ => return None,
                         };
                         // We are doing defensive programming here
                         // to ensure that Ki editor never crashes
@@ -2233,7 +2234,7 @@ impl<T: Frontend> App<T> {
                             .try_display_relative_to(self.context.current_working_directory())
                     ),
                 ));
-                self.cycle_marked_file(direction)?;
+                self.cycle_marked_file(movement)?;
             }
         }
         Ok(())
@@ -2949,7 +2950,7 @@ impl<T: Frontend> App<T> {
         // a path argument to the Ki CLI
         if self.opened_files_count() == 0 {
             // Try to go to a marked file, if there are loaded marked file from the persistence
-            let _ = self.cycle_marked_file(Direction::End);
+            let _ = self.cycle_marked_file(Movement::Right);
         }
     }
 
@@ -3531,7 +3532,7 @@ pub enum Dispatch {
     CloseCurrentWindowAndFocusParent,
     CloseEditorInfo,
     CloseGlobalInfo,
-    CycleMarkedFile(Direction),
+    CycleMarkedFile(Movement),
     PushPromptHistory {
         key: PromptHistoryKey,
         line: String,

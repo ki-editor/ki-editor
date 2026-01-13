@@ -155,17 +155,17 @@ impl Editor {
                 "Navigate forward".to_string(),
                 Dispatch::NavigateForward,
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::MrkFP),
-                Direction::Start.format_action("Marked"),
-                "Go to previous marked file".to_string(),
-                Dispatch::CycleMarkedFile(Direction::Start),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::MrkFN),
-                Direction::End.format_action("Marked"),
-                "Go to next marked file".to_string(),
-                Dispatch::CycleMarkedFile(Direction::End),
+            Keymap::momentary_layer(
+                context,
+                MomentaryLayer {
+                    meaning: Meaning::Mark_,
+                    description: "A Navigate Files".to_string(),
+                    config: KeymapLegendConfig {
+                        title: "B Navigate Files".to_string(),
+                        keymaps: navigate_file_keymaps(context),
+                    },
+                    on_tap: None,
+                },
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::SSEnd),
@@ -1729,6 +1729,28 @@ pub fn cut_keymaps(context: &Context) -> Keymaps {
             "Replace Cut".to_string(),
             Dispatch::ToEditor(ReplaceWithCopiedText { cut: true }),
         )))
+        .collect_vec(),
+    )
+}
+
+pub fn navigate_file_keymaps(context: &Context) -> Keymaps {
+    Keymaps::new(
+        &[
+            (Meaning::Left_, Movement::Left),
+            (Meaning::Right, Movement::Right),
+            (Meaning::Prev_, Movement::Previous),
+            (Meaning::Next_, Movement::Next),
+            (Meaning::First, Movement::First),
+            (Meaning::Last_, Movement::Last),
+        ]
+        .into_iter()
+        .map(|(meaning, movement)| {
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&meaning),
+                movement.format_action("Navigate File"),
+                Dispatch::CycleMarkedFile(movement),
+            )
+        })
         .collect_vec(),
     )
 }
