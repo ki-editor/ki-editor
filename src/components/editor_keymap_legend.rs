@@ -105,13 +105,6 @@ impl Editor {
         .to_vec()
     }
 
-    fn cut_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Cut".to_string(),
-            keymaps: cut_keymaps(context),
-        }
-    }
-
     pub fn keymap_other_movements(&self, context: &Context) -> Vec<Keymap> {
         [
             Keymap::new_extended(
@@ -406,11 +399,6 @@ impl Editor {
                 "*",
                 "Keyboard".to_string(),
                 Dispatch::OpenKeyboardLayoutPrompt,
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::DeltX),
-                "Delete X".to_string(),
-                Dispatch::ShowKeymapLegend(self.cut_keymap_legend_config(context)),
             ),
         ]
         .into_iter()
