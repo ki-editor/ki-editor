@@ -34,7 +34,7 @@ pub fn file_explorer_normal_mode_override() -> NormalModeOverride {
             description: "Delete Paths",
             dispatch: Dispatch::OpenDeletePathsPrompt,
         }),
-        replace: Some(KeymapOverride {
+        cut: Some(KeymapOverride {
             description: "Refresh",
             dispatch: Dispatch::RefreshFileExplorer,
         }),

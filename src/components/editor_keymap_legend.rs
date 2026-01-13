@@ -105,10 +105,10 @@ impl Editor {
         .to_vec()
     }
 
-    fn delete_cut_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    fn cut_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "Delete Cut".to_string(),
-            keymaps: delete_cut_keymaps(context),
+            title: "Cut".to_string(),
+            keymaps: cut_keymaps(context),
         }
     }
 
@@ -362,12 +362,6 @@ impl Editor {
                 Dispatch::ToEditor(Redo),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::PRplc),
-                "Replace #".to_string(),
-                "Replace with pattern".to_string(),
-                Dispatch::ToEditor(ReplaceWithPattern),
-            ),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::RplcP),
                 Direction::Start.format_action("Replace"),
                 "Replace (with previous copied text)".to_string(),
@@ -416,7 +410,7 @@ impl Editor {
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&Meaning::DeltX),
                 "Delete X".to_string(),
-                Dispatch::ShowKeymapLegend(self.delete_cut_keymap_legend_config(context)),
+                Dispatch::ShowKeymapLegend(self.cut_keymap_legend_config(context)),
             ),
         ]
         .into_iter()
@@ -520,12 +514,6 @@ impl Editor {
                 Dispatch::ToEditor(ChangeCut),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::RplcX),
-                format("Replace X"),
-                format!("{}{}", "Replace Cut", extra),
-                Dispatch::ToEditor(ReplaceWithCopiedText { cut: true }),
-            ),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Copy_),
                 format("Copy"),
                 format!("{}{}", "Copy", extra),
@@ -573,13 +561,22 @@ impl Editor {
                 normal_mode_override.paste.clone().as_ref(),
                 none_if_no_override,
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Rplc_),
-                format("Replace"),
-                format!("{}{}", "Replace", extra),
-                Dispatch::ToEditor(ReplaceWithCopiedText { cut: false }),
+            Keymap::momentary_layer(
+                context,
+                MomentaryLayer {
+                    meaning: Meaning::Cut__,
+                    description: "Cut".to_string(),
+                    config: KeymapLegendConfig {
+                        title: "Cut".to_string(),
+                        keymaps: cut_keymaps(context),
+                    },
+                    on_tap: Some(OnTap::new(
+                        "Cut One",
+                        Dispatches::one(Dispatch::ToEditor(DispatchEditor::CutOne)),
+                    )),
+                },
             )
-            .override_keymap(normal_mode_override.replace.as_ref(), none_if_no_override),
+            .override_keymap(normal_mode_override.cut.as_ref(), none_if_no_override),
         ]
         .into_iter()
         .flatten()
@@ -1711,41 +1708,40 @@ pub fn paste_keymaps(context: &Context) -> Keymaps {
                 Direction::Start.format_action("Paste"),
                 Dispatch::ToEditor(PasteWithMovement(Movement::Previous)),
             ),
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&Meaning::Down_),
+                "Replace with pattern".to_string(),
+                Dispatch::ToEditor(ReplaceWithPattern),
+            ),
         ]
         .as_ref(),
     )
 }
 
-pub fn delete_cut_keymaps(context: &Context) -> Keymaps {
+pub fn cut_keymaps(context: &Context) -> Keymaps {
     Keymaps::new(
-        [
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Left_),
-                "Left".to_string(),
-                Dispatch::ToEditor(DeleteCutWithMovement(Movement::Left)),
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Right),
-                "Right".to_string(),
-                Dispatch::ToEditor(DeleteCutWithMovement(Right)),
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Next_),
-                "Next".to_string(),
-                Dispatch::ToEditor(DeleteCutWithMovement(Movement::Next)),
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Prev_),
-                "Previous".to_string(),
-                Dispatch::ToEditor(DeleteCutWithMovement(Movement::Previous)),
-            ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::DeltX),
-                "Delete Cut One".to_string(),
-                Dispatch::ToEditor(DeleteCutOne),
-            ),
+        &[
+            (Movement::Left, Meaning::Left_),
+            (Movement::Right, Meaning::Right),
+            (Movement::Previous, Meaning::Prev_),
+            (Movement::Next, Meaning::Next_),
+            (Movement::First, Meaning::First),
+            (Movement::Last, Meaning::Last_),
         ]
-        .as_ref(),
+        .into_iter()
+        .map(|(movement, meaning)| {
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&meaning),
+                movement.format_action("Cut"),
+                Dispatch::ToEditor(CutWithMovement(movement)),
+            )
+        })
+        .chain(Some(Keymap::new(
+            context.keyboard_layout_kind().get_key(&Meaning::Paste),
+            "Replace Cut".to_string(),
+            Dispatch::ToEditor(ReplaceWithCopiedText { cut: true }),
+        )))
+        .collect_vec(),
     )
 }
 
@@ -1779,7 +1775,7 @@ pub struct NormalModeOverride {
     pub append: Option<KeymapOverride>,
     pub open: Option<KeymapOverride>,
     pub paste: Option<KeymapOverride>,
-    pub replace: Option<KeymapOverride>,
+    pub cut: Option<KeymapOverride>,
     pub multicursor: Option<KeymapOverride>,
 }
 

@@ -491,7 +491,7 @@ impl Component for Prompt {
             }
             key!("tab") => self.replace_current_query_with_focused_item(context, event),
             _ if event.display()
-                == alted(context.keyboard_layout_kind().get_key(&Meaning::Rplc_)) =>
+                == alted(context.keyboard_layout_kind().get_key(&Meaning::Cut__)) =>
             {
                 self.replace_current_query_with_focused_item(context, event)
             }

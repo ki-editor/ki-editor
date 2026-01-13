@@ -265,7 +265,7 @@ impl Component for Editor {
             SelectLine(movement) => return self.select_line(movement, context),
             Redo => return self.redo(context),
             DeleteOne => return self.delete_one(context, false),
-            DeleteCutOne => return self.delete_one(context, true),
+            CutOne => return self.delete_one(context, true),
             Change => return self.change(context),
             ChangeCut => return self.change_cut(context),
             #[cfg(test)]
@@ -397,9 +397,7 @@ impl Component for Editor {
             DeleteWithMovement(movement) => {
                 return self.delete_with_movement(context, movement, false)
             }
-            DeleteCutWithMovement(movement) => {
-                return self.delete_with_movement(context, movement, true)
-            }
+            CutWithMovement(movement) => return self.delete_with_movement(context, movement, true),
             AlignSelections(direction) => return self.align_selections(direction, context),
             JoinSelection => return self.join_selection(context),
             ReplaceSelections(replacements) => {
@@ -4523,7 +4521,7 @@ pub enum DispatchEditor {
     EnableSelectionExtension,
     DisableSelectionExtension,
     DeleteOne,
-    DeleteCutOne,
+    CutOne,
     Change,
     ChangeCut,
     EnterInsertMode(Direction),
@@ -4627,7 +4625,7 @@ pub enum DispatchEditor {
     CopyRelativePath,
     PasteWithMovement(Movement),
     DeleteWithMovement(Movement),
-    DeleteCutWithMovement(Movement),
+    CutWithMovement(Movement),
     AlignSelections(Direction),
     JoinSelection,
     ReplaceSelections(Vec<String>),
