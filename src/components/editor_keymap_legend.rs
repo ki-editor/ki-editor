@@ -159,9 +159,9 @@ impl Editor {
                 context,
                 MomentaryLayer {
                     meaning: Meaning::Mark_,
-                    description: "A Navigate Files".to_string(),
+                    description: "Mark".to_string(),
                     config: KeymapLegendConfig {
-                        title: "B Navigate Files".to_string(),
+                        title: "Marked File Keymaps".to_string(),
                         keymaps: navigate_file_keymaps(context),
                     },
                     on_tap: Some(OnTap::new(
@@ -1738,7 +1738,7 @@ pub fn navigate_file_keymaps(context: &Context) -> Keymaps {
         .map(|(meaning, movement)| {
             Keymap::new(
                 context.keyboard_layout_kind().get_key(&meaning),
-                movement.format_action("Navigate File"),
+                movement.format_action("Marked File"),
                 Dispatch::CycleMarkedFile(movement),
             )
         })
