@@ -1729,8 +1729,6 @@ pub fn marked_file_keymaps(context: &Context) -> Keymaps {
         &[
             (Meaning::Left_, Movement::Left),
             (Meaning::Right, Movement::Right),
-            (Meaning::Prev_, Movement::Previous),
-            (Meaning::Next_, Movement::Next),
             (Meaning::First, Movement::First),
             (Meaning::Last_, Movement::Last),
         ]
