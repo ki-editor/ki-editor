@@ -334,12 +334,6 @@ impl Editor {
                 Dispatch::ToEditor(Replace(Expand)),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::MarkF),
-                "Mark File".to_string(),
-                "Toggle File Mark".to_string(),
-                Dispatch::ToggleFileMark,
-            ),
-            Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Undo_),
                 "Undo".to_string(),
                 "Undo".to_string(),
@@ -1748,6 +1742,12 @@ pub fn navigate_file_keymaps(context: &Context) -> Keymaps {
                 Dispatch::CycleMarkedFile(movement),
             )
         })
+        .chain(Some(Keymap::new_extended(
+            context.keyboard_layout_kind().get_key(&Meaning::Down_),
+            "Mark File".to_string(),
+            "Toggle File Mark".to_string(),
+            Dispatch::ToggleFileMark,
+        )))
         .collect_vec(),
     )
 }
