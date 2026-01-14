@@ -1731,6 +1731,8 @@ pub fn marked_file_keymaps(context: &Context) -> Keymaps {
             (Meaning::Right, Movement::Right),
             (Meaning::First, Movement::First),
             (Meaning::Last_, Movement::Last),
+            (Meaning::Prev_, Movement::Previous),
+            (Meaning::Next_, Movement::Next),
         ]
         .into_iter()
         .map(|(meaning, movement)| {

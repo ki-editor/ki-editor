@@ -52,6 +52,7 @@ use crate::{
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
+use indexmap::IndexMap;
 use itertools::{Either, Itertools};
 use my_proc_macros::NamedVariant;
 use nonempty::NonEmpty;
@@ -2189,32 +2190,56 @@ impl<T: Frontend> App<T> {
 
     fn cycle_marked_file(&mut self, movement: Movement) -> anyhow::Result<()> {
         if let Some(next_file_path) = {
-            let file_paths = self.context.get_marked_files();
+            let marked_file_paths = self.context.get_marked_files();
+            let buffer_file_paths = self.layout.get_opened_files();
+
+            let merge_file_paths_map = || {
+                let mut merged_file_paths_map = IndexMap::<CanonicalizedPath, bool>::new();
+                marked_file_paths.iter().for_each(|path| {
+                    merged_file_paths_map.insert((*path).clone(), true);
+                });
+                buffer_file_paths.iter().for_each(|path| {
+                    if !merged_file_paths_map.contains_key(path) {
+                        merged_file_paths_map.insert((*path).clone(), false);
+                    }
+                });
+                merged_file_paths_map
+            };
+
+            let merged_file_paths_map = merge_file_paths_map();
+
             self.get_current_file_path()
                 .and_then(|current_file_path| {
-                    if let Some(current_index) = file_paths
+                    if let Some(current_index) = merged_file_paths_map
                         .iter()
-                        .position(|path| path == &&current_file_path)
+                        .position(|(path, _)| path == &current_file_path)
                     {
                         let next_index = match movement {
                             Movement::Left if current_index == 0 => 0,
                             Movement::Left => current_index - 1,
-                            Movement::Right if current_index == file_paths.len() - 1 => {
-                                file_paths.len() - 1
+                            Movement::Right if current_index == marked_file_paths.len() - 1 => {
+                                marked_file_paths.len() - 1
                             }
                             Movement::Right => current_index + 1,
                             Movement::First => 0,
-                            Movement::Last => file_paths.len() - 1,
+                            Movement::Last => marked_file_paths.len() - 1,
+                            Movement::Previous if current_index == 0 => current_index,
+
+                            Movement::Next if current_index == merged_file_paths_map.len() => {
+                                current_index
+                            }
+                            Movement::Previous => current_index - 1,
+                            Movement::Next => current_index + 1,
 
                             _ => return None,
                         };
                         // We are doing defensive programming here
                         // to ensure that Ki editor never crashes
-                        return file_paths.get(next_index);
+                        return merged_file_paths_map.get_index(next_index);
                     }
                     None
                 })
-                .or_else(|| file_paths.first())
+                .or_else(|| marked_file_paths.first())
                 .cloned()
         } {
             let next_file_path = next_file_path.clone();
