@@ -164,7 +164,10 @@ impl Editor {
                         title: "B Navigate Files".to_string(),
                         keymaps: navigate_file_keymaps(context),
                     },
-                    on_tap: None,
+                    on_tap: Some(OnTap::new(
+                        "Toggle Selection Mark",
+                        Dispatches::one(Dispatch::MarkFileAndToggleMark),
+                    )),
                 },
             ),
             Keymap::new_extended(
@@ -329,12 +332,6 @@ impl Editor {
                 "Raise".to_string(),
                 "Raise".to_string(),
                 Dispatch::ToEditor(Replace(Expand)),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Mark_),
-                "Mark Sel".to_string(),
-                "Toggle Selection Mark".to_string(),
-                Dispatch::MarkFileAndToggleMark,
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::MarkF),
