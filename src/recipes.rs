@@ -1183,7 +1183,7 @@ fn main(foo: str) {
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("s e l l e a r n e"),
+                    events: keys!("s e release-e l l e release-e a r n e release-e"),
                     expectations: Box::new([
                         CurrentSelectedTexts(&["foo", "spam"]),
                     ]),
@@ -1657,7 +1657,7 @@ foo bar spam
             .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("space ; n d s r c enter enter n d m a enter enter alt+e space ; n d f o enter enter alt+e space ; n d g i t enter enter alt+e alt+l alt+l alt+j alt+j alt+e"),
+            events: keys!("space ; n d s r c enter enter n d m a enter enter e k release-e space ; n d f o enter enter e k release-e space ; n d g i t enter enter e k release-e alt+l alt+l alt+j alt+j e k release-e"),
             expectations: Box::new([CurrentComponentTitle("\u{200b} # 🦀 foo.rs \u{200b} # 🦀 main.rs ".to_string())]),
             terminal_height: Some(10),
             similar_vim_combos: &[],
