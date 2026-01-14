@@ -3670,7 +3670,7 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
             )),
             Expect(CurrentPath(s.gitignore())),
             App(DeletePaths(NonEmpty::new(s.main_rs()))),
-            App(CycleMarkedFile(Movement::Left)),
+            App(CycleMarkedFile(Movement::Last)),
             Expect(NoError),
             Expect(CurrentPath(s.hello_ts())),
             // Expect main.rs is removed from the tabline
