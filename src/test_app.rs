@@ -3379,7 +3379,7 @@ fn close_buffer_should_remove_mark() -> anyhow::Result<()> {
             }),
             App(ToggleFileMark),
             App(CloseCurrentWindow),
-            App(CycleMarkedFile(Direction::End)),
+            App(CycleMarkedFile(Movement::Right)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
         ])
     })
@@ -3670,7 +3670,7 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
             )),
             Expect(CurrentPath(s.gitignore())),
             App(DeletePaths(NonEmpty::new(s.main_rs()))),
-            App(CycleMarkedFile(Direction::Start)),
+            App(CycleMarkedFile(Movement::Left)),
             Expect(NoError),
             Expect(CurrentPath(s.hello_ts())),
             // Expect main.rs is removed from the tabline
@@ -3816,7 +3816,7 @@ fn unable_to_close_marked_files_that_became_a_directory() -> Result<(), anyhow::
                 let foo_path = foo_path.clone();
                 move || CurrentPath(foo_path.clone().try_into().unwrap())
             })),
-            App(CycleMarkedFile(Direction::End)),
+            App(CycleMarkedFile(Movement::Right)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Shell("mv",[foo_path.display().to_string(),temp_path.display().to_string()].to_vec()),
             Shell("mkdir",[foo_path.display().to_string()
@@ -3826,7 +3826,7 @@ fn unable_to_close_marked_files_that_became_a_directory() -> Result<(), anyhow::
                 temp_path.display().to_string(),
                 foo_path.display().to_string()
             ].to_vec()),
-            App(CycleMarkedFile(Direction::End)),
+            App(CycleMarkedFile(Movement::Right)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Expect(MarkedFiles([s.main_rs()].to_vec())),
             Expect(GlobalInfo("The file mark \"foo\" is removed from the list as it cannot be opened due to the following error:\n\nThe path \"foo\" is not a file.".to_string())),
