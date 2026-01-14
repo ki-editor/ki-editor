@@ -2201,6 +2201,8 @@ impl<T: Frontend> App<T> {
                             Movement::Left => current_index - 1,
                             Movement::Right if current_index == file_paths.len() - 1 => 0,
                             Movement::Right => current_index + 1,
+                            Movement::First => 0,
+                            Movement::Last => file_paths.len() - 1,
                             _ => return None,
                         };
                         // We are doing defensive programming here
