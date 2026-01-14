@@ -644,7 +644,7 @@ impl Movement {
             Movement::Jump(_) => format!("{action} Jump"),
             Movement::Expand => action.to_string(),
             Movement::Previous => format!("< {action}"),
-            Movement::Next => format!("{action}> >"),
+            Movement::Next => format!("{action} >"),
         }
     }
 }

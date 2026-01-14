@@ -155,17 +155,20 @@ impl Editor {
                 "Navigate forward".to_string(),
                 Dispatch::NavigateForward,
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::MrkFP),
-                Direction::Start.format_action("Marked"),
-                "Go to previous marked file".to_string(),
-                Dispatch::CycleMarkedFile(Direction::Start),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::MrkFN),
-                Direction::End.format_action("Marked"),
-                "Go to next marked file".to_string(),
-                Dispatch::CycleMarkedFile(Direction::End),
+            Keymap::momentary_layer(
+                context,
+                MomentaryLayer {
+                    meaning: Meaning::Mark_,
+                    description: "Mark".to_string(),
+                    config: KeymapLegendConfig {
+                        title: "Marked File Keymaps".to_string(),
+                        keymaps: marked_file_keymaps(context),
+                    },
+                    on_tap: Some(OnTap::new(
+                        "Toggle Selection Mark",
+                        Dispatches::one(Dispatch::MarkFileAndToggleMark),
+                    )),
+                },
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::SSEnd),
@@ -329,18 +332,6 @@ impl Editor {
                 "Raise".to_string(),
                 "Raise".to_string(),
                 Dispatch::ToEditor(Replace(Expand)),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Mark_),
-                "Mark Sel".to_string(),
-                "Toggle Selection Mark".to_string(),
-                Dispatch::MarkFileAndToggleMark,
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::MarkF),
-                "Mark File".to_string(),
-                "Toggle File Mark".to_string(),
-                Dispatch::ToggleFileMark,
             ),
             Keymap::new_extended(
                 context.keyboard_layout_kind().get_key(&Meaning::Undo_),
@@ -1728,6 +1719,32 @@ pub fn cut_keymaps(context: &Context) -> Keymaps {
             context.keyboard_layout_kind().get_key(&Meaning::Paste),
             "Replace Cut".to_string(),
             Dispatch::ToEditor(ReplaceWithCopiedText { cut: true }),
+        )))
+        .collect_vec(),
+    )
+}
+
+pub fn marked_file_keymaps(context: &Context) -> Keymaps {
+    Keymaps::new(
+        &[
+            (Meaning::Left_, Movement::Left),
+            (Meaning::Right, Movement::Right),
+            (Meaning::First, Movement::First),
+            (Meaning::Last_, Movement::Last),
+        ]
+        .into_iter()
+        .map(|(meaning, movement)| {
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&meaning),
+                movement.format_action("Marked File"),
+                Dispatch::CycleMarkedFile(movement),
+            )
+        })
+        .chain(Some(Keymap::new_extended(
+            context.keyboard_layout_kind().get_key(&Meaning::Down_),
+            "Mark File".to_string(),
+            "Toggle File Mark".to_string(),
+            Dispatch::ToggleFileMark,
         )))
         .collect_vec(),
     )
