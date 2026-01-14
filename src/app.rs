@@ -2197,12 +2197,15 @@ impl<T: Frontend> App<T> {
                         .position(|path| path == &&current_file_path)
                     {
                         let next_index = match movement {
-                            Movement::Left if current_index == 0 => file_paths.len() - 1,
+                            Movement::Left if current_index == 0 => 0,
                             Movement::Left => current_index - 1,
-                            Movement::Right if current_index == file_paths.len() - 1 => 0,
+                            Movement::Right if current_index == file_paths.len() - 1 => {
+                                file_paths.len() - 1
+                            }
                             Movement::Right => current_index + 1,
                             Movement::First => 0,
                             Movement::Last => file_paths.len() - 1,
+
                             _ => return None,
                         };
                         // We are doing defensive programming here
