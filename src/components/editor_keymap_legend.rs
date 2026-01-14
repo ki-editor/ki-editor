@@ -162,7 +162,7 @@ impl Editor {
                     description: "Mark".to_string(),
                     config: KeymapLegendConfig {
                         title: "Marked File Keymaps".to_string(),
-                        keymaps: navigate_file_keymaps(context),
+                        keymaps: marked_file_keymaps(context),
                     },
                     on_tap: Some(OnTap::new(
                         "Toggle Selection Mark",
@@ -1724,7 +1724,7 @@ pub fn cut_keymaps(context: &Context) -> Keymaps {
     )
 }
 
-pub fn navigate_file_keymaps(context: &Context) -> Keymaps {
+pub fn marked_file_keymaps(context: &Context) -> Keymaps {
     Keymaps::new(
         &[
             (Meaning::Left_, Movement::Left),
