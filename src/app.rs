@@ -2190,10 +2190,10 @@ impl<T: Frontend> App<T> {
 
     fn cycle_marked_file(&mut self, movement: Movement) -> anyhow::Result<()> {
         if let Some(next_file_path) = {
-            let marked_file_paths = self.context.get_marked_files();
-            let buffer_file_paths = self.layout.get_opened_files();
-
             let merge_file_paths_map = || {
+                let marked_file_paths = self.context.get_marked_files();
+                let buffer_file_paths = self.layout.get_opened_files();
+
                 let mut merged_file_paths_map = IndexMap::<CanonicalizedPath, bool>::new();
                 marked_file_paths.iter().for_each(|path| {
                     merged_file_paths_map.insert((*path).clone(), true);
@@ -2217,15 +2217,14 @@ impl<T: Frontend> App<T> {
                         let next_index = match movement {
                             Movement::Left if current_index == 0 => 0,
                             Movement::Left => current_index - 1,
-                            Movement::Right if current_index == marked_file_paths.len() - 1 => {
-                                marked_file_paths.len() - 1
+                            Movement::Right if current_index == merged_file_paths_map.len() - 1 => {
+                                merged_file_paths_map.len() - 1
                             }
                             Movement::Right => current_index + 1,
                             Movement::First => 0,
-                            Movement::Last => marked_file_paths.len() - 1,
+                            Movement::Last => merged_file_paths_map.len() - 1,
                             Movement::Previous if current_index == 0 => current_index,
-
-                            Movement::Next if current_index == merged_file_paths_map.len() => {
+                            Movement::Next if current_index == merged_file_paths_map.len() - 1 => {
                                 current_index
                             }
                             Movement::Previous => current_index - 1,
@@ -2235,11 +2234,17 @@ impl<T: Frontend> App<T> {
                         };
                         // We are doing defensive programming here
                         // to ensure that Ki editor never crashes
-                        return merged_file_paths_map.get_index(next_index);
+                        return merged_file_paths_map
+                            .get_index(next_index)
+                            .and_then(|(path, _)| Some(path));
                     }
                     None
                 })
-                .or_else(|| marked_file_paths.first())
+                .or_else(|| {
+                    merged_file_paths_map
+                        .first()
+                        .and_then(|(path, _)| Some(path))
+                })
                 .cloned()
         } {
             let next_file_path = next_file_path.clone();
