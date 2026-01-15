@@ -216,6 +216,18 @@ pub const KEYMAP_YES_NO: KeyboardMeaningLayout = [
     ],
 ];
 
+pub const KEYMAP_PASTE: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, PBWoG, _____, PAWoG, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ RplcP, PBWiG, PRplc, PAWiG, RplcN,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+];
+
 pub type KeyboardLayout = [[&'static str; 10]; 3];
 
 pub const QWERTY: KeyboardLayout = [
@@ -301,6 +313,7 @@ struct KeySet {
     transform: HashMap<Meaning, &'static str>,
     yes_no: HashMap<Meaning, &'static str>,
     leader: HashMap<Meaning, &'static str>,
+    paste: HashMap<Meaning, &'static str>,
 }
 
 impl KeySet {
@@ -416,6 +429,12 @@ impl KeySet {
             ),
             leader: HashMap::from_iter(
                 LEADER_KEYMAP_LAYOUT
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten()),
+            ),
+            paste: HashMap::from_iter(
+                KEYMAP_PASTE
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten()),
@@ -586,6 +605,15 @@ impl KeyboardLayoutKind {
         let keyset = self.get_keyset();
         keyset
             .yes_no
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
+    }
+
+    pub fn get_paste_keymap(&self, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        keyset
+            .paste
             .get(meaning)
             .cloned()
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
@@ -966,6 +994,16 @@ pub enum Meaning {
     AgSlR,
     /// Change working directory
     CWDir,
+    /// Replace with pattern
+    PRplc,
+    /// Paste after with gaps
+    PAWiG,
+    /// Paste before with gaps
+    PBWiG,
+    /// Paste after without gaps
+    PAWoG,
+    /// Paste before without gaps
+    PBWoG,
 }
 pub fn shifted(c: &'static str) -> &'static str {
     match c {
