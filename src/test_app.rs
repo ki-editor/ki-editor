@@ -3670,7 +3670,7 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
             )),
             Expect(CurrentPath(s.gitignore())),
             App(DeletePaths(NonEmpty::new(s.main_rs()))),
-            App(CycleMarkedFile(Movement::Left)),
+            App(CycleMarkedFile(Movement::Last)),
             Expect(NoError),
             Expect(CurrentPath(s.hello_ts())),
             // Expect main.rs is removed from the tabline
@@ -3826,7 +3826,7 @@ fn unable_to_close_marked_files_that_became_a_directory() -> Result<(), anyhow::
                 temp_path.display().to_string(),
                 foo_path.display().to_string()
             ].to_vec()),
-            App(CycleMarkedFile(Movement::Right)),
+            App(CycleMarkedFile(Movement::Left)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Expect(MarkedFiles([s.main_rs()].to_vec())),
             Expect(GlobalInfo("The file mark \"foo\" is removed from the list as it cannot be opened due to the following error:\n\nThe path \"foo\" is not a file.".to_string())),

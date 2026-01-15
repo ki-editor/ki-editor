@@ -48,14 +48,6 @@ This replaces the parent node of the current node, with the current node.
 
 Note: Raise should never cause any syntax errors, if it does that's a bug.
 
-### `← Replace`/`Replace →`
-
-Replace current selection with previous/next copied text in the clipboard history.
-
-This is similar to [Yanking Earlier Kills](https://www.gnu.org/software/emacs/manual/html_node/emacs/Earlier-Kills.html) in Emacs.
-
-This is useful when you want to retrieve earlier copies.
-
 ### `Open`
 
 Open next to current selection.

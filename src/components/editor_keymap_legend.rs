@@ -346,18 +346,6 @@ impl Editor {
                 Dispatch::ToEditor(Redo),
             ),
             Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::RplcP),
-                Direction::Start.format_action("Replace"),
-                "Replace (with previous copied text)".to_string(),
-                Dispatch::ToEditor(ReplaceWithPreviousCopiedText),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::RplcN),
-                Direction::End.format_action("Replace"),
-                "Replace (with next copied text)".to_string(),
-                Dispatch::ToEditor(ReplaceWithNextCopiedText),
-            ),
-            Keymap::new_extended(
                 "enter",
                 "save".to_string(),
                 "Save".to_string(),
@@ -1668,29 +1656,53 @@ pub fn paste_keymaps(context: &Context) -> Keymaps {
     Keymaps::new(
         [
             Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Left_),
+                context
+                    .keyboard_layout_kind()
+                    .get_paste_keymap(&Meaning::PBWiG),
                 Direction::Start.format_action("Paste with gaps"),
                 Dispatch::ToEditor(PasteWithMovement(Movement::Left)),
             ),
             Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Right),
+                context
+                    .keyboard_layout_kind()
+                    .get_paste_keymap(&Meaning::PAWiG),
                 Direction::End.format_action("Paste with gaps"),
                 Dispatch::ToEditor(PasteWithMovement(Right)),
             ),
             Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Next_),
+                context
+                    .keyboard_layout_kind()
+                    .get_paste_keymap(&Meaning::PAWoG),
                 Direction::End.format_action("Paste"),
                 Dispatch::ToEditor(PasteWithMovement(Movement::Next)),
             ),
             Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Prev_),
+                context
+                    .keyboard_layout_kind()
+                    .get_paste_keymap(&Meaning::PBWoG),
                 Direction::Start.format_action("Paste"),
                 Dispatch::ToEditor(PasteWithMovement(Movement::Previous)),
             ),
             Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Down_),
+                context
+                    .keyboard_layout_kind()
+                    .get_paste_keymap(&Meaning::PRplc),
                 "Replace with pattern".to_string(),
                 Dispatch::ToEditor(ReplaceWithPattern),
+            ),
+            Keymap::new(
+                context
+                    .keyboard_layout_kind()
+                    .get_paste_keymap(&Meaning::RplcP),
+                Direction::Start.format_action("Replace with copied text"),
+                Dispatch::ToEditor(ReplaceWithPreviousCopiedText),
+            ),
+            Keymap::new(
+                context
+                    .keyboard_layout_kind()
+                    .get_paste_keymap(&Meaning::RplcN),
+                Direction::End.format_action("Replace with copied text"),
+                Dispatch::ToEditor(ReplaceWithNextCopiedText),
             ),
         ]
         .as_ref(),
