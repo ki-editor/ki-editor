@@ -107,21 +107,7 @@ pub fn run(config: RunConfig) -> anyhow::Result<()> {
 
     std::thread::spawn(move || loop {
         let message = match crossterm::event::read() {
-            Ok(event) => {
-                match event {
-                    crossterm::event::Event::Key(key_event) => {
-                        // Only process key press events, not releases
-                        // This is especially important for Windows compatibility
-                        if key_event.kind != crossterm::event::KeyEventKind::Repeat {
-                            AppMessage::Event(event.into())
-                        } else {
-                            continue;
-                        }
-                    }
-                    // For non-keyboard events, process as before
-                    other_event => AppMessage::Event(other_event.into()),
-                }
-            }
+            Ok(event) => AppMessage::Event(event.into()),
             Err(err) => AppMessage::NotifyError(err),
         };
 

@@ -57,6 +57,14 @@ impl KeyEvent {
         }
     }
 
+    pub const fn repeated(key: crossterm::event::KeyCode, modifiers: KeyModifiers) -> KeyEvent {
+        KeyEvent {
+            code: key,
+            modifiers,
+            kind: crossterm::event::KeyEventKind::Repeat,
+        }
+    }
+
     pub fn to_rust_code(&self) -> String {
         format!(
             "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::KeyModifiers::{:#?}, kind: crossterm::event::KeyEventKind::{:#?} }}",
@@ -122,6 +130,17 @@ impl KeyEvent {
 
     pub fn set_event_kind(self, kind: KeyEventKind) -> KeyEvent {
         Self { kind, ..self }
+    }
+
+    #[allow(clippy::match_like_matches_macro)]
+    pub fn is_press_or_repeat_equivalent(&self, event: &KeyEvent) -> bool {
+        match (self.kind, event.kind) {
+            (
+                KeyEventKind::Press | KeyEventKind::Repeat,
+                KeyEventKind::Press | KeyEventKind::Repeat,
+            ) if self.code == event.code && self.modifiers == event.modifiers => true,
+            _ => false,
+        }
     }
 }
 
