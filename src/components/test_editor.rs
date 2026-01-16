@@ -6082,3 +6082,23 @@ fn delete_one_extended_selection() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn handle_repeated_arrow_keys_in_insert_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile {
+                path: s.main_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Editor(SetContent("fooz".to_string())),
+            Editor(MatchLiteral("fooz".to_owned())),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvents(
+                keys!("repeat-left repeat-left repeat-left").to_vec(),
+            )),
+            Expect(ExpectKind::EditorCursorPosition(Position::new(0, 1))),
+        ])
+    })
+}
