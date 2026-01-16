@@ -451,11 +451,6 @@ impl Editor {
     ) -> Vec<Keymap> {
         self.keymap_actions_overridable(normal_mode_override, none_if_no_override, context)
             .into_iter()
-            .chain(self.keymap_sub_modes_overridable(
-                normal_mode_override,
-                none_if_no_override,
-                context,
-            ))
             .chain(self.keymap_clipboard_related_actions_overridable(
                 false,
                 normal_mode_override.clone(),
@@ -768,28 +763,22 @@ impl Editor {
                 "Leader".to_string(),
                 Dispatch::ShowKeymapLegend(self.leader_keymap_legend_config(context)),
             )),
+            Some(Keymap::momentary_layer(
+                context,
+                MomentaryLayer {
+                    meaning: Meaning::MultC,
+                    description: "Multi-cursor".to_string(),
+                    config: KeymapLegendConfig {
+                        title: "Multi-cursor".to_string(),
+                        keymaps: multicursor_keymaps(context),
+                    },
+                    on_tap: Some(OnTap::new(
+                        "Split Selection by next selection mode",
+                        Dispatches::one(Dispatch::ToEditor(DispatchEditor::EnterMulticursorMode)),
+                    )),
+                },
+            )),
         ]
-        .into_iter()
-        .flatten()
-        .collect_vec()
-    }
-
-    fn keymap_sub_modes_overridable(
-        &self,
-        normal_mode_override: &NormalModeOverride,
-        none_if_no_override: bool,
-        context: &Context,
-    ) -> Vec<Keymap> {
-        [Keymap::new_extended(
-            context.keyboard_layout_kind().get_key(&Meaning::MultC),
-            "Multi Curs".to_string(),
-            "Enter Multi-cursor mode".to_string(),
-            Dispatch::ShowKeymapLegend(self.multicursor_mode_keymap_legend_config(context)),
-        )
-        .override_keymap(
-            normal_mode_override.multicursor.clone().as_ref(),
-            none_if_no_override,
-        )]
         .into_iter()
         .flatten()
         .collect_vec()
@@ -1708,6 +1697,76 @@ pub fn paste_keymaps(context: &Context) -> Keymaps {
             ),
         ]
         .as_ref(),
+    )
+}
+
+pub fn multicursor_keymaps(context: &Context) -> Keymaps {
+    let other_keybindings = [
+        Keymap::new(
+            context
+                .keyboard_layout_kind()
+                .get_multicursor_keymap(&Meaning::CrsAl),
+            "Curs All".to_string(),
+            Dispatch::ToEditor(CursorAddToAllSelections),
+        ),
+        Keymap::new(
+            context
+                .keyboard_layout_kind()
+                .get_multicursor_keymap(&Meaning::DlCrs),
+            "Delete Curs".to_string(),
+            Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
+        ),
+        Keymap::new(
+            context.keyboard_layout_kind().get_key(&Meaning::Jump_),
+            "Jump Add Curs".to_string(),
+            Dispatch::ToEditor(ShowJumps {
+                use_current_selection_mode: true,
+                prior_change: Some(PriorChange::EnterMultiCursorMode),
+            }),
+        ),
+        Keymap::new(
+            context
+                .keyboard_layout_kind()
+                .get_multicursor_keymap(&Meaning::KpMch),
+            "Keep Match".to_string(),
+            Dispatch::OpenFilterSelectionsPrompt { maintain: true },
+        ),
+        Keymap::new(
+            context
+                .keyboard_layout_kind()
+                .get_multicursor_keymap(&Meaning::RmMch),
+            "Remove Match".to_string(),
+            Dispatch::OpenFilterSelectionsPrompt { maintain: false },
+        ),
+        Keymap::new(
+            context
+                .keyboard_layout_kind()
+                .get_multicursor_keymap(&Meaning::PCrsO),
+            "Keep Primary Curs".to_string(),
+            Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
+        ),
+    ];
+    Keymaps::new(
+        &[
+            (Movement::Up, Meaning::Up___),
+            (Movement::Down, Meaning::Down_),
+            (Movement::Left, Meaning::Left_),
+            (Movement::Right, Meaning::Right),
+            (Movement::Previous, Meaning::Prev_),
+            (Movement::Next, Meaning::Next_),
+            (Movement::First, Meaning::First),
+            (Movement::Last, Meaning::Last_),
+        ]
+        .into_iter()
+        .map(|(movement, meaning)| {
+            Keymap::new(
+                context.keyboard_layout_kind().get_key(&meaning),
+                movement.format_action("Add Curs"),
+                Dispatch::ToEditor(DispatchEditor::AddCursorWithMovement(movement)),
+            )
+        })
+        .chain(other_keybindings)
+        .collect_vec(),
     )
 }
 
