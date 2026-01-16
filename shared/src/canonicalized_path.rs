@@ -157,6 +157,14 @@ impl CanonicalizedPath {
             .collect::<Vec<_>>()
     }
 
+    pub fn ancestors(&self) -> anyhow::Result<Vec<CanonicalizedPath>> {
+        self.0
+            .ancestors()
+            .skip(1)
+            .map(|path| path.try_into())
+            .collect()
+    }
+
     pub fn parent(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
         self.0.parent().map(|path| path.try_into()).transpose()
     }
