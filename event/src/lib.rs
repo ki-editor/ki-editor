@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 pub use crate::event::{KeyEvent, KeyModifiers};
 
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyEventKind};
 
 #[derive(Debug, PartialEq)]
 struct Token(String);
@@ -25,20 +25,26 @@ impl Token {
         fn new_key_event(
             key_code: KeyCode,
             modifiers: KeyModifiers,
-            is_released: bool,
+            event_kind: KeyEventKind,
         ) -> KeyEvent {
-            if is_released {
-                KeyEvent::released(key_code, modifiers)
-            } else {
-                KeyEvent::pressed(key_code, modifiers)
+            match event_kind {
+                KeyEventKind::Press => KeyEvent::pressed(key_code, modifiers),
+                KeyEventKind::Repeat => KeyEvent::repeated(key_code, modifiers),
+                KeyEventKind::Release => KeyEvent::released(key_code, modifiers),
             }
         }
 
-        fn to_key_event(token: &Token, is_released: bool) -> Result<KeyEvent, ParseError> {
+        fn to_key_event(token: &Token, event_kind: KeyEventKind) -> Result<KeyEvent, ParseError> {
             if token.0.starts_with("release-") {
                 return to_key_event(
                     &Token(token.0.trim_start_matches("release-").to_string()),
-                    true,
+                    KeyEventKind::Release,
+                );
+            }
+            if token.0.starts_with("repeat-") {
+                return to_key_event(
+                    &Token(token.0.trim_start_matches("repeat-").to_string()),
+                    KeyEventKind::Repeat,
                 );
             }
             match token.0.split('+').collect::<Vec<_>>().split_last() {
@@ -47,7 +53,7 @@ impl Token {
                     Ok(new_key_event(
                         result.key_code,
                         Token::parse_modifiers(modifiers)?.add_shift(result.shift),
-                        is_released,
+                        event_kind,
                     ))
                 }
                 _ => {
@@ -55,13 +61,13 @@ impl Token {
                     Ok(new_key_event(
                         result.key_code,
                         KeyModifiers::None.add_shift(result.shift),
-                        is_released,
+                        event_kind,
                     ))
                 }
             }
         }
 
-        to_key_event(self, false)
+        to_key_event(self, KeyEventKind::Press)
     }
 
     fn parse_modifiers(modifiers: &[&str]) -> Result<KeyModifiers, ParseError> {

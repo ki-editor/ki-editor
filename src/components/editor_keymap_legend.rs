@@ -703,11 +703,13 @@ impl Editor {
         if let Some(dispatches) = self
             .insert_mode_keymaps(true, context)
             .iter()
-            .find(|keymap| &event == keymap.event())
+            .find(|keymap| keymap.event().is_press_or_repeat_equivalent(&event))
             .map(|keymap| keymap.get_dispatches())
         {
             Ok(dispatches)
-        } else if let (KeyCode::Char(c), KeyEventKind::Press) = (event.code, event.kind) {
+        } else if let (KeyCode::Char(c), KeyEventKind::Press | KeyEventKind::Repeat) =
+            (event.code, event.kind)
+        {
             self.insert(&c.to_string(), context)
         } else {
             Ok(Default::default())
