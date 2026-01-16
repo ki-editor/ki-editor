@@ -132,6 +132,7 @@ impl KeyEvent {
         Self { kind, ..self }
     }
 
+    #[allow(clippy::match_like_matches_macro)]
     pub fn is_press_or_repeat_equivalent(&self, event: &KeyEvent) -> bool {
         match (self.kind, event.kind) {
             (
