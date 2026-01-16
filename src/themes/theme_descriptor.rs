@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::LazyLock};
 
 use super::{from_zed_theme, vscode_dark, vscode_light, Theme};
-use zed_theme::get_zed_themes;
+use zed_theme::{get_config_themes, get_zed_themes};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ThemeDescriptor(String);
@@ -29,12 +29,17 @@ impl Default for ThemeDescriptor {
 static THEMES: LazyLock<HashMap<String, Theme>> = LazyLock::new(|| {
     let mut themes = HashMap::new();
 
-    // Non-zed builtin themes
+    // Non-zed, builtin themes
     themes.insert("VS Code (Light)".to_string(), vscode_light());
     themes.insert("VS Code (Dark)".to_string(), vscode_dark());
 
-    // Zed builtin themes
+    // Zed, builtin themes
     for (name, theme) in get_zed_themes() {
+        themes.insert(name, from_zed_theme::from_theme_content(theme));
+    }
+
+    // Zed, config loaded themes
+    for (name, theme) in get_config_themes() {
         themes.insert(name, from_zed_theme::from_theme_content(theme));
     }
 

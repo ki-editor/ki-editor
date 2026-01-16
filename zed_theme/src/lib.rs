@@ -2,7 +2,7 @@ mod zed_theme_schema;
 
 pub use zed_theme_schema::*;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, fs};
 
 const COMPILED_THEME_BYTES: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/compiled_themes.bin"));
@@ -23,6 +23,37 @@ pub fn get_zed_themes() -> HashMap<String, ThemeContent> {
                 .map(|theme| (theme.name.clone(), theme))
         })
         .collect()
+}
+
+pub fn get_config_themes() -> HashMap<String, ThemeContent> {
+    let themes_glob = "/home/haxfn/.config/ki/themes/*.json";
+    let theme_families: Vec<ThemeFamilyContent> = glob::glob(themes_glob)
+        .expect("Failed to read glob pattern")
+        .map(|entry| match entry {
+            Ok(path) => {
+                let file = fs::File::open(&path)
+                    .unwrap_or_else(|e| panic!("Could not open file {:?}, error: {:?}", path, e));
+                serde_json_lenient::from_reader(file)
+                    .expect("Compiled theme isn't valid lenient JSON?")
+            }
+            Err(e) => panic!("What kind of error is this? {:?}", e),
+        })
+        .collect();
+
+    theme_families
+        .into_iter()
+        .flat_map(|theme_family| {
+            theme_family
+                .themes
+                .into_iter()
+                .map(|theme| (theme.name.clone(), theme))
+        })
+        .collect()
+    /* theme_family
+    .themes
+    .into_iter()
+    .map(|theme| (theme.name.clone(), theme))
+    .collect() */
 }
 
 #[cfg(test)]
