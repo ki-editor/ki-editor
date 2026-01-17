@@ -130,6 +130,10 @@ is_ci = "1.2.0"
 nvim-treesitter-highlight-queries = { path = "nvim-treesitter-highlight-queries" }
 tempfile.workspace = true
 
+[profile.dev.package."*"]
+opt-level = 1
+debug = false
+
 
 [profile.release]
 debug = false # Set this to true when using `sudo cargo flamegraph`

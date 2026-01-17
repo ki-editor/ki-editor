@@ -254,17 +254,22 @@ impl Editor {
                     prior_change,
                 )),
             ),
-            Keybinding::new_extended(
-                context
-                    .keyboard_layout_kind()
-                    .get_normal_keymap_keybinding(&Meaning::Sytx_),
-                "Syntax".to_string(),
-                "Select Syntax Node".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    SyntaxNode,
-                    prior_change,
-                )),
+            Keybinding::momentary_layer(
+                context,
+                MomentaryLayer {
+                    meaning: Meaning::Delte,
+                    description: "Delete".to_string(),
+                    config: KeymapLegendConfig {
+                        title: "Delete".to_string(),
+                        keymap: delete_keymap(context),
+                    },
+                    on_tap: Some(OnTap::new(
+                        "Syntax Node",
+                        Dispatches::from(vec![Dispatch::ToEditor(
+                            SetSelectionModeWithPriorChange(direction, SyntaxNode, prior_change),
+                        )]),
+                    )),
+                },
             ),
             Keybinding::new_extended(
                 context
@@ -476,22 +481,6 @@ impl Editor {
                 Dispatch::ToEditor(Change),
             )
             .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
-            Keybinding::momentary_layer(
-                context,
-                MomentaryLayer {
-                    meaning: Meaning::Delte,
-                    description: "Delete".to_string(),
-                    config: KeymapLegendConfig {
-                        title: "Delete".to_string(),
-                        keymap: delete_keymap(context),
-                    },
-                    on_tap: Some(OnTap::new(
-                        "Delete One",
-                        Dispatches::one(Dispatch::ToEditor(DispatchEditor::DeleteOne)),
-                    )),
-                },
-            )
-            .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
             Keybinding::new_extended(
                 context
                     .keyboard_layout_kind()
