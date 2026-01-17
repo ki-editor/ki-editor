@@ -404,6 +404,13 @@ impl Component for Editor {
                 return self.replace_selections(context, replacements)
             }
             SwapWithMovement(movement) => return self.swap(movement, context),
+            AddCursorWithMovement(movement) => {
+                self.add_cursor(
+                    &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
+                    context,
+                )?;
+            }
+            EnterMulticursorMode => self.mode = Mode::MultiCursor,
         }
         Ok(Default::default())
     }
@@ -4634,6 +4641,8 @@ pub enum DispatchEditor {
     JoinSelection,
     ReplaceSelections(Vec<String>),
     SwapWithMovement(Movement),
+    AddCursorWithMovement(Movement),
+    EnterMulticursorMode,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

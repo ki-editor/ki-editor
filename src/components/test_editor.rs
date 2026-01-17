@@ -4747,7 +4747,9 @@ fuor
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["foo", "for", "fuor"])),
             // Keep only selections matching `r/f.o`
-            App(HandleKeyEvents(keys!("r h r / f . o enter").to_vec())),
+            App(HandleKeyEvents(
+                keys!("r h release-r r / f . o enter").to_vec(),
+            )),
             Expect(CurrentSelectedTexts(&["foo", "fuor"])),
         ])
     })

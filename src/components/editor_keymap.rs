@@ -228,6 +228,18 @@ pub const KEYMAP_PASTE: KeyboardMeaningLayout = [
     ],
 ];
 
+pub const KEYMAP_MULTICURSOR: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ KpMch, _____, _____, _____, RmMch,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ CrsAl, _____, PCrsO, DlCrs, _____,
+    ],
+];
+
 pub type KeyboardLayout = [[&'static str; 10]; 3];
 
 pub const QWERTY: KeyboardLayout = [
@@ -314,6 +326,7 @@ struct KeySet {
     yes_no: HashMap<Meaning, &'static str>,
     leader: HashMap<Meaning, &'static str>,
     paste: HashMap<Meaning, &'static str>,
+    multicursor: HashMap<Meaning, &'static str>,
 }
 
 impl KeySet {
@@ -435,6 +448,12 @@ impl KeySet {
             ),
             paste: HashMap::from_iter(
                 KEYMAP_PASTE
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten()),
+            ),
+            multicursor: HashMap::from_iter(
+                KEYMAP_MULTICURSOR
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten()),
@@ -614,6 +633,15 @@ impl KeyboardLayoutKind {
         let keyset = self.get_keyset();
         keyset
             .paste
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
+    }
+
+    pub(crate) fn get_multicursor_keymap(&self, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        keyset
+            .multicursor
             .get(meaning)
             .cloned()
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
@@ -1004,6 +1032,16 @@ pub enum Meaning {
     PAWoG,
     /// Paste before without gaps
     PBWoG,
+    /// Keep matching selections
+    KpMch,
+    /// Removing matching selections
+    RmMch,
+    /// Delete Primary Cursor
+    DlCrs,
+    /// Keep Primary Cursor only
+    PCrsO,
+    /// Add cursor to all possible selections
+    CrsAl,
 }
 pub fn shifted(c: &'static str) -> &'static str {
     match c {
