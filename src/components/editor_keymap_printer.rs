@@ -1,9 +1,7 @@
 use super::{
     editor::IfCurrentNotFound,
     editor_keymap::alted,
-    editor_keymap_legend::{
-        extend_mode_normal_mode_override, multicursor_mode_normal_mode_override,
-    },
+    editor_keymap_legend::extend_mode_normal_mode_override,
     file_explorer::file_explorer_normal_mode_override,
     keymap_legend::{Keybinding, Keymap},
     suggestive_editor::completion_item_keymap,
@@ -11,7 +9,7 @@ use super::{
 use crate::{
     app::Scope,
     components::{
-        editor::{Direction, Editor},
+        editor::Editor,
         editor_keymap::{shifted, KeyboardLayout},
         editor_keymap_legend::{
             cut_keymap, delete_keymap, multicursor_keymap, paste_keymap, swap_keymap,
@@ -338,14 +336,6 @@ impl KeymapPrintSections {
             KeymapPrintSection::from_keymap(
                 "Extend".to_string(),
                 &Keymap::new(&editor.keymap_overridable(&extend_mode_normal_mode_override(), true)),
-                layout,
-            ),
-            KeymapPrintSection::from_keymap(
-                "Multi-cursor".to_string(),
-                &Keymap::new(&editor.keymap_overridable(
-                    &multicursor_mode_normal_mode_override(Direction::End),
-                    true,
-                )),
                 layout,
             ),
             KeymapPrintSection::from_keymap(

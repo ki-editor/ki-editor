@@ -10,7 +10,7 @@ use crate::{
     components::{
         editor::{Movement, PriorChange},
         editor_keymap::QWERTY,
-        keymap_legend::{MomentaryLayer, OnTap},
+        keymap_legend::{MomentaryLayer, OnSpacebarTapped, OnTap},
     },
     context::{Context, LocalSearchConfigMode, Search},
     git::DiffMode,
@@ -104,18 +104,6 @@ impl Editor {
     pub fn keymap_other_movements(&self) -> Vec<Keybinding> {
         [
             Keybinding::new_extended(
-                "H",
-                Direction::Start.format_action("Curs"),
-                Direction::Start.format_action("Cycle primary selection"),
-                Dispatch::ToEditor(CyclePrimarySelection(Direction::Start)),
-            ),
-            Keybinding::new_extended(
-                ":",
-                Direction::End.format_action("Curs"),
-                Direction::End.format_action("Cycle primary selection"),
-                Dispatch::ToEditor(CyclePrimarySelection(Direction::End)),
-            ),
-            Keybinding::new_extended(
                 "alt+k",
                 "Scroll ↓".to_string(),
                 "Scroll down".to_string(),
@@ -162,6 +150,7 @@ impl Editor {
                     "Toggle Selection Mark",
                     Dispatches::one(Dispatch::MarkFileAndToggleMark),
                 )),
+                on_spacebar_tapped: None,
             }),
             Keybinding::new_extended(
                 "?",
@@ -185,89 +174,20 @@ impl Editor {
         prior_change: Option<PriorChange>,
     ) -> Vec<Keybinding> {
         let direction = self.cursor_direction.reverse().to_if_current_not_found();
-        [
-            Keybinding::new_extended(
-                "a",
-                "Line".to_string(),
-                "Select Line".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    Line,
-                    prior_change,
-                )),
-            ),
-            Keybinding::new_extended(
-                "A",
-                "Line*".to_string(),
-                "Select Line*".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    LineFull,
-                    prior_change,
-                )),
-            ),
-            Keybinding::new_extended(
-                "d",
-                "Syntax".to_string(),
-                "Select Syntax Node".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    SyntaxNode,
-                    prior_change,
-                )),
-            ),
-            Keybinding::new_extended(
-                "D",
-                "Syntax*".to_string(),
-                "Select Syntax Node*".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    SyntaxNodeFine,
-                    prior_change,
-                )),
-            ),
-            Keybinding::new_extended(
-                "s",
-                "Word".to_string(),
-                "Select Word".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    Word,
-                    prior_change,
-                )),
-            ),
-            Keybinding::new_extended(
-                "S",
-                "Word*".to_string(),
-                "Select Big Word".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    BigWord,
-                    prior_change,
-                )),
-            ),
-            Keybinding::new_extended(
-                "w",
-                "Subword".to_string(),
-                "Select Subword".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    Subword,
-                    prior_change,
-                )),
-            ),
-            Keybinding::new_extended(
-                "q",
-                "Char".to_string(),
-                "Select Character".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    Character,
-                    prior_change,
-                )),
-            ),
-        ]
-        .to_vec()
+        primary_selection_modes()
+            .into_iter()
+            .map(|(key, selection_mode)| {
+                Keybinding::new(
+                    key,
+                    selection_mode.display(),
+                    Dispatch::ToEditor(SetSelectionModeWithPriorChange(
+                        direction,
+                        selection_mode,
+                        prior_change,
+                    )),
+                )
+            })
+            .collect_vec()
     }
 
     pub fn keymap_secondary_selection_modes_init(
@@ -399,6 +319,7 @@ impl Editor {
                     "Delete One",
                     Dispatches::one(Dispatch::ToEditor(DispatchEditor::DeleteOne)),
                 )),
+                on_spacebar_tapped: None,
             })
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
             Keybinding::new_extended(
@@ -495,6 +416,7 @@ impl Editor {
                         cut: false,
                     })),
                 )),
+                on_spacebar_tapped: None,
             })
             .override_keymap(
                 normal_mode_override.paste.clone().as_ref(),
@@ -511,6 +433,7 @@ impl Editor {
                     "Cut One",
                     Dispatches::one(Dispatch::ToEditor(DispatchEditor::CutOne)),
                 )),
+                on_spacebar_tapped: None,
             })
             .override_keymap(normal_mode_override.cut.as_ref(), none_if_no_override),
         ]
@@ -713,6 +636,7 @@ impl Editor {
                     keymap: swap_keymap(),
                 },
                 on_tap: None,
+                on_spacebar_tapped: None,
             })),
             Some(Keybinding::new(
                 "backslash",
@@ -723,18 +647,72 @@ impl Editor {
                 key: "r",
                 description: "Multi-cursor".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Multi-cursor".to_string(),
-                    keymap: multicursor_keymap(),
+                    title: "Multi-cursor Momentary Layer".to_string(),
+                    keymap: self.multicursor_momentary_layer_keymap(),
                 },
-                on_tap: Some(OnTap::new(
-                    "Split Selection by next selection mode",
-                    Dispatches::one(Dispatch::ToEditor(DispatchEditor::EnterMulticursorMode)),
+                on_tap: None,
+                on_spacebar_tapped: Some(OnSpacebarTapped::DeactivatesMomentaryLaterAndOpenMenu(
+                    KeymapLegendConfig {
+                        title: "Multi-cursor Menu".to_string(),
+                        keymap: self.multicursor_menu_keymap(),
+                    },
                 )),
             })),
         ]
         .into_iter()
         .flatten()
         .collect_vec()
+    }
+
+    pub fn multicursor_momentary_layer_keymap(&self) -> Keymap {
+        Keymap::new(
+            &[
+                (Movement::Up, "i"),
+                (Movement::Down, "k"),
+                (Movement::Left, "j"),
+                (Movement::Right, "l"),
+                (Movement::Previous, "u"),
+                (Movement::Next, "o"),
+                (Movement::First, "y"),
+                (Movement::Last, "p"),
+            ]
+            .into_iter()
+            .map(|(movement, key)| {
+                Keybinding::new(
+                    key,
+                    movement.format_action("Add Curs"),
+                    Dispatch::ToEditor(DispatchEditor::AddCursorWithMovement(movement)),
+                )
+            })
+            .chain([
+                Keybinding::new(
+                    "n",
+                    "Delete Curs".to_string(),
+                    Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
+                ),
+                Keybinding::new_extended(
+                    "h",
+                    Direction::Start.format_action("Curs"),
+                    Direction::Start.format_action("Cycle primary selection"),
+                    Dispatch::ToEditor(CyclePrimarySelection(Direction::Start)),
+                ),
+                Keybinding::new_extended(
+                    ";",
+                    Direction::End.format_action("Curs"),
+                    Direction::End.format_action("Cycle primary selection"),
+                    Dispatch::ToEditor(CyclePrimarySelection(Direction::End)),
+                ),
+                Keybinding::new(
+                    "m",
+                    "Jump Add Curs".to_string(),
+                    Dispatch::ToEditor(ShowJumps {
+                        use_current_selection_mode: true,
+                        prior_change: Some(PriorChange::EnterMultiCursorMode),
+                    }),
+                ),
+            ])
+            .collect_vec(),
+        )
     }
 
     pub fn normal_mode_keymap_legend_config(
@@ -1121,6 +1099,29 @@ impl Editor {
         if_current_not_found: IfCurrentNotFound,
         prior_change: Option<PriorChange>,
     ) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: format!(
+                "Find ({})",
+                match scope {
+                    Scope::Local => "Local",
+                    Scope::Global => "Global",
+                }
+            ),
+
+            keymap: Keymap::new(&self.secondary_selection_modes_keybindings(
+                scope,
+                if_current_not_found,
+                prior_change,
+            )),
+        }
+    }
+
+    fn secondary_selection_modes_keybindings(
+        &self,
+        scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
+        prior_change: Option<PriorChange>,
+    ) -> Vec<Keybinding> {
         let search_keybindings = {
             [].into_iter()
                 .chain(
@@ -1337,25 +1338,49 @@ impl Editor {
             .chain(self.search_current_keymap(scope, if_current_not_found))
             .collect_vec(),
         };
-        KeymapLegendConfig {
-            title: format!(
-                "Find ({})",
-                match scope {
-                    Scope::Local => "Local",
-                    Scope::Global => "Global",
-                }
-            ),
+        search_keybindings
+            .into_iter()
+            .chain(misc_keybindings)
+            .chain(diagnostics_keybindings)
+            .chain(lsp_keybindings)
+            .chain(scope_specific_keybindings)
+            .collect_vec()
+    }
 
-            keymap: Keymap::new(
-                &search_keybindings
-                    .into_iter()
-                    .chain(misc_keybindings)
-                    .chain(diagnostics_keybindings)
-                    .chain(lsp_keybindings)
-                    .chain(scope_specific_keybindings)
-                    .collect_vec(),
+    pub fn multicursor_menu_keymap(&self) -> Keymap {
+        let primary_selection_mode_keybindings =
+            self.keymap_primary_selection_modes(Some(PriorChange::EnterMultiCursorMode));
+        let secondary_selection_mode_keybindings =
+            self.keymap_secondary_selection_modes_init(Some(PriorChange::EnterMultiCursorMode));
+        let other_keybindings = [
+            Keybinding::new(
+                "j",
+                "Curs All".to_string(),
+                Dispatch::ToEditor(CursorAddToAllSelections),
             ),
-        }
+            Keybinding::new(
+                "i",
+                "Keep Match".to_string(),
+                Dispatch::OpenFilterSelectionsPrompt { maintain: true },
+            ),
+            Keybinding::new(
+                "k",
+                "Remove Match".to_string(),
+                Dispatch::OpenFilterSelectionsPrompt { maintain: false },
+            ),
+            Keybinding::new(
+                "l",
+                "Keep Primary Curs".to_string(),
+                Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
+            ),
+        ];
+        Keymap::new(
+            &[].into_iter()
+                .chain(primary_selection_mode_keybindings)
+                .chain(secondary_selection_mode_keybindings)
+                .chain(other_keybindings)
+                .collect_vec(),
+        )
     }
 }
 
@@ -1437,37 +1462,14 @@ pub fn paste_keymap() -> Keymap {
 pub fn multicursor_keymap() -> Keymap {
     let other_keybindings = [
         Keybinding::new(
-            "n",
+            "j",
             "Curs All".to_string(),
             Dispatch::ToEditor(CursorAddToAllSelections),
         ),
         Keybinding::new(
-            ".",
+            "n",
             "Delete Curs".to_string(),
             Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
-        ),
-        Keybinding::new(
-            "m",
-            "Jump Add Curs".to_string(),
-            Dispatch::ToEditor(ShowJumps {
-                use_current_selection_mode: true,
-                prior_change: Some(PriorChange::EnterMultiCursorMode),
-            }),
-        ),
-        Keybinding::new(
-            "h",
-            "Keep Match".to_string(),
-            Dispatch::OpenFilterSelectionsPrompt { maintain: true },
-        ),
-        Keybinding::new(
-            ";",
-            "Remove Match".to_string(),
-            Dispatch::OpenFilterSelectionsPrompt { maintain: false },
-        ),
-        Keybinding::new(
-            ",",
-            "Keep Primary Curs".to_string(),
-            Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
         ),
     ];
     Keymap::new(
@@ -1705,28 +1707,16 @@ pub fn extend_mode_normal_mode_override() -> NormalModeOverride {
     }
 }
 
-pub fn multicursor_mode_normal_mode_override(direction: Direction) -> NormalModeOverride {
-    NormalModeOverride {
-        insert: Some(KeymapOverride {
-            description: "Keep Match",
-            dispatch: Dispatch::OpenFilterSelectionsPrompt { maintain: true },
-        }),
-        append: Some(KeymapOverride {
-            description: "Remove Match",
-            dispatch: Dispatch::OpenFilterSelectionsPrompt { maintain: false },
-        }),
-        change: Some(KeymapOverride {
-            description: "Keep Prime Curs",
-            dispatch: Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
-        }),
-        delete: Some(KeymapOverride {
-            description: "Delete Curs",
-            dispatch: Dispatch::ToEditor(DeleteCurrentCursor(direction)),
-        }),
-        multicursor: Some(KeymapOverride {
-            description: "Curs All",
-            dispatch: Dispatch::ToEditor(CursorAddToAllSelections),
-        }),
-        ..Default::default()
-    }
+fn primary_selection_modes() -> Vec<(&'static str, SelectionMode)> {
+    [
+        ("a", Line),
+        ("A", LineFull),
+        ("d", SyntaxNode),
+        ("D", SyntaxNodeFine),
+        ("s", Word),
+        ("S", BigWord),
+        ("w", Subword),
+        ("q", Character),
+    ]
+    .to_vec()
 }
