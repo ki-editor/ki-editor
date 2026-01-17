@@ -24,7 +24,7 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
     ],
     [
-        Undo_, Cut__, Copy_, Delte, Paste, /****/ LSrch, Jump_, Open_, _____, XAchr,
+        Undo_, Cut__, Copy_, Delte, Paste, /****/ SSlMd, Jump_, Open_, _____, XAchr,
     ],
 ];
 
@@ -33,10 +33,10 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         _____, _____, _____, _____, Raise, /****/ AgSlL, RplcP, Join_, RplcN, AgSlR,
     ],
     [
-        LineF, BWord, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
+        LineF, BWord, FStyx, ChngX, Trsfm, /****/ _____, DeDnt, Break, Indnt, _____,
     ],
     [
-        Redo_, _____, _____, _____, Pst0G, /****/ GSrch, ToIdx, _____, _____, SSEnd,
+        Redo_, _____, _____, _____, Pst0G, /****/ _____, ToIdx, _____, _____, SSEnd,
     ],
     // Why is Raise placed at the same Position as Swap?
     // Because Raise is a special-case of Swap where the movement is Up
@@ -228,15 +228,27 @@ pub const KEYMAP_PASTE: KeyboardMeaningLayout = [
     ],
 ];
 
-pub const KEYMAP_MULTICURSOR: KeyboardMeaningLayout = [
+pub const KEYMAP_MULTICURSOR_MOMENTARY_LAYER: KeyboardMeaningLayout = [
     [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ KpMch, _____, _____, _____, RmMch,
+        _____, _____, _____, _____, _____, /****/ CrsrP, _____, _____, _____, CrsrN,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ CrsAl, _____, PCrsO, DlCrs, _____,
+        _____, _____, _____, _____, _____, /****/ DlCrs, _____, _____, _____, _____,
+    ],
+];
+
+pub const KEYMAP_MULTICURSOR_MENU: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ KpMch, CrsAl, _____, PCrsO, RmMch,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
@@ -326,7 +338,8 @@ struct KeySet {
     yes_no: HashMap<Meaning, &'static str>,
     leader: HashMap<Meaning, &'static str>,
     paste: HashMap<Meaning, &'static str>,
-    multicursor: HashMap<Meaning, &'static str>,
+    multicursor_momentary_layer: HashMap<Meaning, &'static str>,
+    multicursor_menu: HashMap<Meaning, &'static str>,
 }
 
 impl KeySet {
@@ -452,8 +465,14 @@ impl KeySet {
                     .flatten()
                     .zip(layout.into_iter().flatten()),
             ),
-            multicursor: HashMap::from_iter(
-                KEYMAP_MULTICURSOR
+            multicursor_momentary_layer: HashMap::from_iter(
+                KEYMAP_MULTICURSOR_MOMENTARY_LAYER
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten()),
+            ),
+            multicursor_menu: HashMap::from_iter(
+                KEYMAP_MULTICURSOR_MENU
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten()),
@@ -638,10 +657,22 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub(crate) fn get_multicursor_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
+    pub(crate) fn get_multicursor_momentary_layer_keybinding(
+        &self,
+        meaning: &Meaning,
+    ) -> &'static str {
         let keyset = self.get_keyset();
         keyset
-            .multicursor
+            .multicursor_momentary_layer
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
+    }
+
+    pub(crate) fn get_multicursor_menu_keybinding(&self, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        keyset
+            .multicursor_menu
             .get(meaning)
             .cloned()
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
@@ -804,10 +835,6 @@ pub enum Meaning {
     GRept,
     /// Repeat Search
     RSrch,
-    /// Find (Local)
-    LSrch,
-    /// Find (Global)
-    GSrch,
     /// Quickfix
     Qkfix,
     /// Git Hunk (against current branch)
@@ -1042,6 +1069,8 @@ pub enum Meaning {
     PCrsO,
     /// Add cursor to all possible selections
     CrsAl,
+    /// Secondary selection modes
+    SSlMd,
 }
 pub fn shifted(c: &'static str) -> &'static str {
     match c {

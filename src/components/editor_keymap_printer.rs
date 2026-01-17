@@ -14,7 +14,8 @@ use crate::{
         editor::{Direction, Editor},
         editor_keymap::{shifted, KeyboardLayout},
         editor_keymap_legend::{
-            cut_keymap, delete_keymap, multicursor_keymap, paste_keymap, swap_keymap,
+            cut_keymap, delete_keymap, multicursor_momentary_layer_keymap, paste_keymap,
+            swap_keymap,
         },
     },
     context::Context,
@@ -375,7 +376,7 @@ impl KeymapPrintSections {
             KeymapPrintSection::from_keymap("Paste".to_string(), &paste_keymap(&context), layout),
             KeymapPrintSection::from_keymap(
                 "Multi-cursor".to_string(),
-                &multicursor_keymap(&context),
+                &multicursor_momentary_layer_keymap(&context),
                 layout,
             ),
             KeymapPrintSection::from_keymap("Cut".to_string(), &cut_keymap(&context), layout),
