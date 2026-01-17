@@ -228,6 +228,18 @@ pub const KEYMAP_PASTE: KeyboardMeaningLayout = [
     ],
 ];
 
+pub const KEYMAP_MULTICURSOR: KeyboardMeaningLayout = [
+    [
+        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ KpMch, _____, _____, _____, RmMch,
+    ],
+    [
+        _____, _____, _____, _____, _____, /****/ CrsAl, _____, PCrsO, DlCrs, _____,
+    ],
+];
+
 pub type KeyboardLayout = [[&'static str; 10]; 3];
 
 pub const QWERTY: KeyboardLayout = [
@@ -314,6 +326,7 @@ struct KeySet {
     yes_no: HashMap<Meaning, &'static str>,
     leader: HashMap<Meaning, &'static str>,
     paste: HashMap<Meaning, &'static str>,
+    multicursor: HashMap<Meaning, &'static str>,
 }
 
 impl KeySet {
@@ -439,6 +452,12 @@ impl KeySet {
                     .flatten()
                     .zip(layout.into_iter().flatten()),
             ),
+            multicursor: HashMap::from_iter(
+                KEYMAP_MULTICURSOR
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten()),
+            ),
         }
     }
 }
@@ -502,7 +521,7 @@ impl KeyboardLayoutKind {
         }
     }
 
-    pub fn get_key(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_normal_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .normal
@@ -513,7 +532,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_insert_key(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_insert_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .insert_control
@@ -522,7 +541,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_find_keymap(&self, scope: Scope, meaning: &Meaning) -> &'static str {
+    pub fn get_find_keymap_keybinding(&self, scope: Scope, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         match scope {
             Scope::Local => keyset
@@ -538,7 +557,7 @@ impl KeyboardLayoutKind {
         }
     }
 
-    pub fn get_leader_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_leader_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .leader
@@ -547,7 +566,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_space_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_space_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .space
@@ -556,7 +575,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_space_context_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_space_context_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .space_context
@@ -565,7 +584,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_space_editor_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_space_editor_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .space_editor
@@ -574,7 +593,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_space_picker_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_space_picker_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .space_picker
@@ -583,7 +602,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_surround_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_surround_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .surround
@@ -592,7 +611,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_transform_key(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_transform_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .transform
@@ -601,7 +620,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_yes_no_key(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_yes_no_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .yes_no
@@ -610,10 +629,19 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_paste_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_paste_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .paste
+            .get(meaning)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
+    }
+
+    pub(crate) fn get_multicursor_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
+        let keyset = self.get_keyset();
+        keyset
+            .multicursor
             .get(meaning)
             .cloned()
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
@@ -1004,6 +1032,16 @@ pub enum Meaning {
     PAWoG,
     /// Paste before without gaps
     PBWoG,
+    /// Keep matching selections
+    KpMch,
+    /// Removing matching selections
+    RmMch,
+    /// Delete Primary Cursor
+    DlCrs,
+    /// Keep Primary Cursor only
+    PCrsO,
+    /// Add cursor to all possible selections
+    CrsAl,
 }
 pub fn shifted(c: &'static str) -> &'static str {
     match c {

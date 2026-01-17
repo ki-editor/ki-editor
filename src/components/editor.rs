@@ -404,6 +404,13 @@ impl Component for Editor {
                 return self.replace_selections(context, replacements)
             }
             SwapWithMovement(movement) => return self.swap(movement, context),
+            AddCursorWithMovement(movement) => {
+                self.add_cursor(
+                    &movement.into_movement_applicandum(self.selection_set.sticky_column_index()),
+                    context,
+                )?;
+            }
+            EnterMulticursorMode => self.mode = Mode::MultiCursor,
         }
         Ok(Default::default())
     }
@@ -1612,7 +1619,7 @@ impl Editor {
                 } else {
                     let keymap_legend_config = self.get_current_keymap_legend_config(context);
 
-                    if let Some(keymap) = keymap_legend_config.keymaps().get(&key_event) {
+                    if let Some(keymap) = keymap_legend_config.keymap().get(&key_event) {
                         return Ok(keymap.get_dispatches());
                     }
                     log::info!("unhandled event: {key_event:?}");
@@ -3839,13 +3846,13 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction, context)
     }
 
-    pub fn insert_mode_keymaps(
+    pub fn insert_mode_keymap(
         &self,
-        include_universal_keymaps: bool,
+        include_universal_keymap: bool,
         context: &Context,
-    ) -> super::keymap_legend::Keymaps {
-        self.insert_mode_keymap_legend_config(include_universal_keymaps, context)
-            .keymaps()
+    ) -> super::keymap_legend::Keymap {
+        self.insert_mode_keymap_legend_config(include_universal_keymap, context)
+            .keymap()
     }
 
     pub fn set_normal_mode_override(&mut self, normal_mode_override: NormalModeOverride) {
@@ -4634,6 +4641,8 @@ pub enum DispatchEditor {
     JoinSelection,
     ReplaceSelections(Vec<String>),
     SwapWithMovement(Movement),
+    AddCursorWithMovement(Movement),
+    EnterMulticursorMode,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
