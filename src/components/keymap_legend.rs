@@ -28,7 +28,7 @@ pub struct KeymapLegend {
 #[derive(Debug, Clone, PartialEq)]
 pub struct KeymapLegendConfig {
     pub title: String,
-    pub keymaps: Keymaps,
+    pub keymap: Keymap,
 }
 
 pub struct MomentaryLayer {
@@ -80,34 +80,34 @@ impl ReleaseKey {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Keymaps(Vec<Keymap>);
-impl Keymaps {
+pub struct Keymap(Vec<Keybinding>);
+impl Keymap {
     fn display(
         &self,
         keyboard_layout_kind: &KeyboardLayoutKind,
         terminal_width: usize,
         option: &KeymapDisplayOption,
     ) -> String {
-        KeymapPrintSection::from_keymaps(
+        KeymapPrintSection::from_keymap(
             "".to_string(),
             self,
             keyboard_layout_kind.get_keyboard_layout(),
         )
         .display(terminal_width, option)
     }
-    pub fn new(keymaps: &[Keymap]) -> Self {
-        Self(keymaps.to_vec())
+    pub fn new(keybindings: &[Keybinding]) -> Self {
+        Self(keybindings.to_vec())
     }
 
-    pub fn get(&self, event: &KeyEvent) -> std::option::Option<&Keymap> {
+    pub fn get(&self, event: &KeyEvent) -> std::option::Option<&Keybinding> {
         self.0.iter().find(|key| &key.event == event)
     }
 
-    pub fn iter(&self) -> std::slice::Iter<'_, Keymap> {
+    pub fn iter(&self) -> std::slice::Iter<'_, Keybinding> {
         self.0.iter()
     }
 
-    pub fn into_vec(self) -> Vec<Keymap> {
+    pub fn into_vec(self) -> Vec<Keybinding> {
         self.0
     }
 }
@@ -119,31 +119,31 @@ impl KeymapLegendConfig {
         width: usize,
         option: &KeymapDisplayOption,
     ) -> String {
-        self.keymaps.display(keyboard_layout_kind, width, option)
+        self.keymap.display(keyboard_layout_kind, width, option)
     }
 
-    pub fn keymaps(&self) -> Keymaps {
-        let keymaps = &self.keymaps;
+    pub fn keymap(&self) -> Keymap {
+        let keymap = &self.keymap;
         #[cfg(test)]
         {
-            let conflicting_keymaps = keymaps
+            let conflicting_keybindings = keymap
                 .iter()
                 .chunk_by(|keymap| keymap.key)
                 .into_iter()
-                .map(|(key, keymaps)| (key, keymaps.collect_vec()))
-                .filter(|(_, keymaps)| keymaps.len() > 1)
+                .map(|(key, keybindings)| (key, keybindings.collect_vec()))
+                .filter(|(_, keybindings)| keybindings.len() > 1)
                 .collect_vec();
 
-            if !conflicting_keymaps.is_empty() {
-                panic!("Conflicting keymaps detected:\n\n{conflicting_keymaps:#?}");
+            if !conflicting_keybindings.is_empty() {
+                panic!("Conflicting keybindings detected:\n\n{conflicting_keybindings:#?}");
             }
         }
-        keymaps.clone()
+        keymap.clone()
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Keymap {
+pub struct Keybinding {
     key: &'static str,
     pub short_description: Option<String>,
     pub description: String,
@@ -151,9 +151,9 @@ pub struct Keymap {
     dispatch: Dispatch,
 }
 
-impl Keymap {
-    pub fn new(key: &'static str, description: String, dispatch: Dispatch) -> Keymap {
-        Keymap {
+impl Keybinding {
+    pub fn new(key: &'static str, description: String, dispatch: Dispatch) -> Keybinding {
+        Keybinding {
             key,
             short_description: None,
             description,
@@ -170,9 +170,11 @@ impl Keymap {
             config,
             on_tap,
         }: MomentaryLayer,
-    ) -> Keymap {
-        let key = context.keyboard_layout_kind().get_key(&meaning);
-        Keymap {
+    ) -> Keybinding {
+        let key = context
+            .keyboard_layout_kind()
+            .get_normal_keymap_keybinding(&meaning);
+        Keybinding {
             key,
             short_description: None,
             description,
@@ -189,8 +191,8 @@ impl Keymap {
         short_description: String,
         description: String,
         dispatch: Dispatch,
-    ) -> Keymap {
-        Keymap {
+    ) -> Keybinding {
+        Keybinding {
             key,
             short_description: Some(short_description),
             description,
@@ -214,7 +216,7 @@ impl Keymap {
         self,
         keymap_override: Option<&super::editor_keymap_legend::KeymapOverride>,
         none_if_no_override: bool,
-    ) -> Option<Keymap> {
+    ) -> Option<Keybinding> {
         match keymap_override {
             Some(keymap_override) => Some(Self {
                 short_description: Some(keymap_override.description.to_string()),
@@ -247,7 +249,7 @@ impl KeymapLegend {
     ) -> KeymapLegend {
         // Check for duplicate keys
         let duplicates = config
-            .keymaps()
+            .keymap()
             .0
             .into_iter()
             .duplicates_by(|keymap| keymap.key)
@@ -275,8 +277,12 @@ impl KeymapLegend {
         let release_key = release_key.map(|release_key| ParsedReleaseKey {
             key_event: KeyEvent {
                 kind: crossterm::event::KeyEventKind::Release,
-                ..parse_key_event(context.keyboard_layout_kind().get_key(&release_key.meaning))
-                    .unwrap()
+                ..parse_key_event(
+                    context
+                        .keyboard_layout_kind()
+                        .get_normal_keymap_keybinding(&release_key.meaning),
+                )
+                .unwrap()
             },
             meaning: release_key.meaning,
             on_tap: release_key.on_tap,
@@ -347,7 +353,7 @@ impl Component for KeymapLegend {
                 key_event => {
                     if let Some(keymap) = self
                         .config
-                        .keymaps()
+                        .keymap()
                         .iter()
                         .find(|keymap| &keymap.event == key_event)
                     {
@@ -409,7 +415,7 @@ mod test_keymap_legend {
                 }),
                 App(ShowKeymapLegend(KeymapLegendConfig {
                     title: "".to_string(),
-                    keymaps: Keymaps::new(&[]),
+                    keymap: Keymap::new(&[]),
                 })),
                 App(HandleKeyEvent(key!("esc"))),
                 App(HandleKeyEvent(key!("esc"))),
@@ -420,18 +426,18 @@ mod test_keymap_legend {
 
     #[test]
     fn test_display_positional_full() {
-        let keymaps = Keymaps(
+        let keymap = Keymap(
             [
-                Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
-                Keymap::new("b", "Bomb".to_string(), Dispatch::Null),
-                Keymap::new("F", "Foo".to_string(), Dispatch::Null),
-                Keymap::new("c", "Caterpillar".to_string(), Dispatch::Null),
-                Keymap::new("alt+g", "Gogagg".to_string(), Dispatch::Null),
+                Keybinding::new("a", "Aloha".to_string(), Dispatch::Null),
+                Keybinding::new("b", "Bomb".to_string(), Dispatch::Null),
+                Keybinding::new("F", "Foo".to_string(), Dispatch::Null),
+                Keybinding::new("c", "Caterpillar".to_string(), Dispatch::Null),
+                Keybinding::new("alt+g", "Gogagg".to_string(), Dispatch::Null),
             ]
             .to_vec(),
         );
         let context = Context::default();
-        let actual = keymaps
+        let actual = keymap
             .display(
                 context.keyboard_layout_kind(),
                 100,
@@ -454,7 +460,7 @@ mod test_keymap_legend {
         .trim_matches('\n');
         assert_eq!(actual, expected);
 
-        let actual = keymaps
+        let actual = keymap
             .display(
                 context.keyboard_layout_kind(),
                 100,
@@ -483,19 +489,19 @@ mod test_keymap_legend {
 
     #[test]
     fn test_display_positional_stacked() {
-        let keymaps = Keymaps(
+        let keymap = Keymap(
             [
-                Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
-                Keymap::new("b", "Bomb".to_string(), Dispatch::Null),
-                Keymap::new("F", "Foo".to_string(), Dispatch::Null),
-                Keymap::new("c", "Caterpillar".to_string(), Dispatch::Null),
-                Keymap::new("alt+g", "Gogagg".to_string(), Dispatch::Null),
-                Keymap::new("alt+l", "Lamp".to_string(), Dispatch::Null),
+                Keybinding::new("a", "Aloha".to_string(), Dispatch::Null),
+                Keybinding::new("b", "Bomb".to_string(), Dispatch::Null),
+                Keybinding::new("F", "Foo".to_string(), Dispatch::Null),
+                Keybinding::new("c", "Caterpillar".to_string(), Dispatch::Null),
+                Keybinding::new("alt+g", "Gogagg".to_string(), Dispatch::Null),
+                Keybinding::new("alt+l", "Lamp".to_string(), Dispatch::Null),
             ]
             .to_vec(),
         );
         let context = Context::default();
-        let actual = keymaps
+        let actual = keymap
             .display(
                 context.keyboard_layout_kind(),
                 50,
@@ -530,19 +536,19 @@ mod test_keymap_legend {
 
     #[test]
     fn test_display_positional_too_small() {
-        let keymaps = Keymaps(
+        let keymap = Keymap(
             [
-                Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
-                Keymap::new("b", "Bomb".to_string(), Dispatch::Null),
-                Keymap::new("F", "Foo".to_string(), Dispatch::Null),
-                Keymap::new("c", "Caterpillar".to_string(), Dispatch::Null),
-                Keymap::new("alt+g", "Gogagg".to_string(), Dispatch::Null),
-                Keymap::new("alt+l", "Lamp".to_string(), Dispatch::Null),
+                Keybinding::new("a", "Aloha".to_string(), Dispatch::Null),
+                Keybinding::new("b", "Bomb".to_string(), Dispatch::Null),
+                Keybinding::new("F", "Foo".to_string(), Dispatch::Null),
+                Keybinding::new("c", "Caterpillar".to_string(), Dispatch::Null),
+                Keybinding::new("alt+g", "Gogagg".to_string(), Dispatch::Null),
+                Keybinding::new("alt+l", "Lamp".to_string(), Dispatch::Null),
             ]
             .to_vec(),
         );
         let context = Context::default();
-        let actual = keymaps
+        let actual = keymap
             .display(
                 context.keyboard_layout_kind(),
                 10,
@@ -561,7 +567,7 @@ mod test_keymap_legend {
         let mut keymap_legend = KeymapLegend::new(
             KeymapLegendConfig {
                 title: "Test".to_string(),
-                keymaps: Keymaps::new(&[Keymap::new(
+                keymap: Keymap::new(&[Keybinding::new(
                     "s",
                     "fifafofum".to_string(),
                     Dispatch::Custom("Spongebob".to_string()),
@@ -592,7 +598,7 @@ mod test_keymap_legend {
         let mut keymap_legend = KeymapLegend::new(
             KeymapLegendConfig {
                 title: "".to_string(),
-                keymaps: Keymaps::new(&[]),
+                keymap: Keymap::new(&[]),
             },
             &Context::default(),
             Some(ReleaseKey::new(
@@ -645,7 +651,7 @@ Release hold: Conichihuahua
                 App(ShowKeymapLegendWithReleaseKey(
                     KeymapLegendConfig {
                         title: "LEGEND_TITLE".to_string(),
-                        keymaps: Keymaps::new(&[]),
+                        keymap: Keymap::new(&[]),
                     },
                     ReleaseKey::new(
                         Meaning::Paste,
@@ -661,9 +667,13 @@ Release hold: Conichihuahua
                 Expect(AppGridContains("LEGEND_TITLE")),
                 // Simulate key release
                 App(HandleKeyEvent(
-                    parse_key_event(context.keyboard_layout_kind().get_key(&Meaning::Paste))
-                        .unwrap()
-                        .set_event_kind(KeyEventKind::Release),
+                    parse_key_event(
+                        context
+                            .keyboard_layout_kind()
+                            .get_normal_keymap_keybinding(&Meaning::Paste),
+                    )
+                    .unwrap()
+                    .set_event_kind(KeyEventKind::Release),
                 )),
                 Expect(CurrentComponentContent("on tapped!")),
             ])
@@ -685,7 +695,7 @@ Release hold: Conichihuahua
                 App(ShowKeymapLegendWithReleaseKey(
                     KeymapLegendConfig {
                         title: "LEGEND_TITLE".to_string(),
-                        keymaps: Keymaps::new(&[Keymap::new(
+                        keymap: Keymap::new(&[Keybinding::new(
                             "x",
                             "".to_string(),
                             Dispatch::ToEditor(Insert("hello".to_string())),
@@ -701,9 +711,13 @@ Release hold: Conichihuahua
                 Expect(AppGridContains("LEGEND_TITLE")),
                 // Simulate key release
                 App(HandleKeyEvent(
-                    parse_key_event(context.keyboard_layout_kind().get_key(&Meaning::Paste))
-                        .unwrap()
-                        .set_event_kind(KeyEventKind::Release),
+                    parse_key_event(
+                        context
+                            .keyboard_layout_kind()
+                            .get_normal_keymap_keybinding(&Meaning::Paste),
+                    )
+                    .unwrap()
+                    .set_event_kind(KeyEventKind::Release),
                 )),
                 // Expect the legend is closed
                 Expect(Not(Box::new(AppGridContains("LEGEND_TITLE")))),

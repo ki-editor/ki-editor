@@ -11,7 +11,7 @@ use crate::{
         editor_keymap::{KeyboardLayoutKind, Meaning},
         editor_keymap_printer::KeymapDisplayOption,
         file_explorer::FileExplorer,
-        keymap_legend::{Keymap, KeymapLegendConfig, Keymaps, ReleaseKey},
+        keymap_legend::{Keybinding, Keymap, KeymapLegendConfig, ReleaseKey},
         prompt::{
             Prompt, PromptConfig, PromptHistoryKey, PromptItems, PromptItemsBackgroundTask,
             PromptOnChangeDispatch, PromptOnEnter,
@@ -565,7 +565,7 @@ impl<T: Frontend> App<T> {
                         StatusLineComponent::Help => {
                             let key = self
                                 .keyboard_layout_kind()
-                                .get_space_keymap(&Meaning::SHelp);
+                                .get_space_keymap_keybinding(&Meaning::SHelp);
                             Some(FlexLayoutComponent::Text(format!("Help(Space+{key})")))
                         }
                         StatusLineComponent::KeyboardLayout => Some(FlexLayoutComponent::Text(
@@ -1885,14 +1885,16 @@ impl<T: Frontend> App<T> {
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
         self.handle_dispatch(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
             title: prompt.title.to_string(),
-            keymaps: Keymaps::new(&[
-                Keymap::new(
-                    self.keyboard_layout_kind().get_yes_no_key(&Meaning::Yes__),
+            keymap: Keymap::new(&[
+                Keybinding::new(
+                    self.keyboard_layout_kind()
+                        .get_yes_no_keymap_keybinding(&Meaning::Yes__),
                     "Yes".to_string(),
                     *prompt.yes,
                 ),
-                Keymap::new(
-                    self.keyboard_layout_kind().get_yes_no_key(&Meaning::No___),
+                Keybinding::new(
+                    self.keyboard_layout_kind()
+                        .get_yes_no_keymap_keybinding(&Meaning::No___),
                     "No".to_string(),
                     Dispatch::Null,
                 ),
