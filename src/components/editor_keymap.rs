@@ -236,7 +236,7 @@ pub const KEYMAP_MULTICURSOR: KeyboardMeaningLayout = [
         _____, _____, _____, _____, _____, /****/ KpMch, _____, _____, _____, RmMch,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ CrsAl, _____, PCrsO, DlCrs, _____,
+        _____, _____, _____, _____, _____, /****/ _____, _____, PCrsO, DlCrs, CrsAl,
     ],
 ];
 
