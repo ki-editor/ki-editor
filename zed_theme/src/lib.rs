@@ -25,16 +25,15 @@ pub fn get_zed_themes() -> HashMap<String, ThemeContent> {
         .collect()
 }
 
-pub fn get_config_themes() -> HashMap<String, ThemeContent> {
-    let themes_glob = "/home/haxfn/.config/ki/themes/*.json";
+pub fn get_config_themes(themes_glob: &str) -> HashMap<String, ThemeContent> {
     let theme_families: Vec<ThemeFamilyContent> = glob::glob(themes_glob)
         .expect("Failed to read glob pattern")
         .map(|entry| match entry {
             Ok(path) => {
                 let file = fs::File::open(&path)
                     .unwrap_or_else(|e| panic!("Could not open file {:?}, error: {:?}", path, e));
-                serde_json_lenient::from_reader(file)
-                    .expect("Compiled theme isn't valid lenient JSON?")
+                dbg!(&file);
+                serde_json_lenient::from_reader(file).expect("Compiled theme isn't valid JSON?")
             }
             Err(e) => panic!("What kind of error is this? {:?}", e),
         })
@@ -49,11 +48,6 @@ pub fn get_config_themes() -> HashMap<String, ThemeContent> {
                 .map(|theme| (theme.name.clone(), theme))
         })
         .collect()
-    /* theme_family
-    .themes
-    .into_iter()
-    .map(|theme| (theme.name.clone(), theme))
-    .collect() */
 }
 
 #[cfg(test)]
