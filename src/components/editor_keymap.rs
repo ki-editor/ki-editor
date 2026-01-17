@@ -21,10 +21,10 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         Char_, SWord, Mark_, MultC, Swap_, /****/ First, Prev_, Up___, Next_, Last_,
     ],
     [
-        Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
+        Line_, Word_, Delte, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
     ],
     [
-        Undo_, Cut__, Copy_, Delte, Paste, /****/ LSrch, Jump_, Open_, _____, XAchr,
+        Undo_, Cut__, Copy_, _____, Paste, /****/ LSrch, Jump_, Open_, _____, XAchr,
     ],
 ];
 
