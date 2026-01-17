@@ -32,7 +32,6 @@ pub fn get_config_themes(themes_glob: &str) -> HashMap<String, ThemeContent> {
             Ok(path) => {
                 let file = fs::File::open(&path)
                     .unwrap_or_else(|e| panic!("Could not open file {:?}, error: {:?}", path, e));
-                dbg!(&file);
                 serde_json_lenient::from_reader(file).expect("Compiled theme isn't valid JSON?")
             }
             Err(e) => panic!("What kind of error is this? {:?}", e),

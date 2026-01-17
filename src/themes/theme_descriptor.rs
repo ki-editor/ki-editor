@@ -1,7 +1,5 @@
 use std::{collections::HashMap, sync::LazyLock};
 
-use crate::config::ki_workspace_directory;
-
 use super::{from_zed_theme, vscode_dark, vscode_light, Theme};
 use zed_theme::{get_config_themes, get_zed_themes};
 
@@ -40,17 +38,34 @@ static THEMES: LazyLock<HashMap<String, Theme>> = LazyLock::new(|| {
         themes.insert(name, from_zed_theme::from_theme_content(theme));
     }
 
-    // Zed, {.config,.ki}/themes/ directory loaded themes
-    use crate::config::ki_global_directory;
-    let global_themes = ki_global_directory().join("themes/*.json").into_os_string();
-
-    let themes_glob = global_themes
+    // Zed, ~/.config/themes/ directory loaded themes
+    let global_glob_os_string = crate::config::ki_global_directory()
+        .join("themes/*.json")
+        .into_os_string();
+    let global_glob = global_glob_os_string
         .to_str()
-        .expect("Could not convert global themes path OsStr to &str");
+        .expect("Not able to convert global glob os string to str");
 
-    for (name, theme) in get_config_themes(themes_glob) {
-        themes.insert(name, from_zed_theme::from_theme_content(theme));
-    }
+    get_config_themes(&global_glob)
+        .into_iter()
+        .for_each(|(name, theme)| {
+            themes.insert(name, from_zed_theme::from_theme_content(theme));
+        });
+
+    // Zed, .ki/themes/ directory loaded themes
+    let workspace_glob_os_string = crate::config::ki_workspace_directory()
+        .map(|path| path.join("themes/*.json").into_os_string());
+
+    if let Ok(workspace_glob_os_string) = workspace_glob_os_string {
+        let workspace_glob = workspace_glob_os_string
+            .to_str()
+            .expect("Not able to convert workspace glob os string to str");
+        get_config_themes(&workspace_glob)
+            .into_iter()
+            .for_each(|(name, theme)| {
+                themes.insert(name, from_zed_theme::from_theme_content(theme));
+            });
+    };
 
     themes
 });
