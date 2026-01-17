@@ -521,7 +521,7 @@ impl KeyboardLayoutKind {
         }
     }
 
-    pub fn get_key(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_normal_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .normal
@@ -532,7 +532,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_insert_key(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_insert_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .insert_control
@@ -541,7 +541,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_find_keymap(&self, scope: Scope, meaning: &Meaning) -> &'static str {
+    pub fn get_find_keymap_keybinding(&self, scope: Scope, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         match scope {
             Scope::Local => keyset
@@ -557,7 +557,7 @@ impl KeyboardLayoutKind {
         }
     }
 
-    pub fn get_leader_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_leader_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .leader
@@ -566,7 +566,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_space_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_space_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .space
@@ -575,7 +575,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_space_context_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_space_context_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .space_context
@@ -584,7 +584,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_space_editor_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_space_editor_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .space_editor
@@ -593,7 +593,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_space_picker_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_space_picker_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .space_picker
@@ -602,7 +602,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_surround_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_surround_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .surround
@@ -611,7 +611,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_transform_key(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_transform_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .transform
@@ -620,7 +620,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_yes_no_key(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_yes_no_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .yes_no
@@ -629,7 +629,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub fn get_paste_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub fn get_paste_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .paste
@@ -638,7 +638,7 @@ impl KeyboardLayoutKind {
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 
-    pub(crate) fn get_multicursor_keymap(&self, meaning: &Meaning) -> &'static str {
+    pub(crate) fn get_multicursor_keymap_keybinding(&self, meaning: &Meaning) -> &'static str {
         let keyset = self.get_keyset();
         keyset
             .multicursor

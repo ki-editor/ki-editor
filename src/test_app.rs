@@ -54,7 +54,7 @@ use crate::{
         },
         editor_keymap::KeyboardLayoutKind,
         editor_keymap_printer::KeymapPrintSections,
-        keymap_legend::Keymap,
+        keymap_legend::Keybinding,
         prompt::PromptHistoryKey,
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
@@ -2945,9 +2945,9 @@ fn doc_assets_export_keymaps_json() {
                     RowsJson(
                         keys.iter()
                             .map(|key| {
-                                let normal = key.normal.as_ref().map(Keymap::display);
-                                let alted = key.alted.as_ref().map(Keymap::display);
-                                let shifted = key.shifted.as_ref().map(Keymap::display);
+                                let normal = key.normal.as_ref().map(Keybinding::display);
+                                let alted = key.alted.as_ref().map(Keybinding::display);
+                                let shifted = key.shifted.as_ref().map(Keybinding::display);
 
                                 KeyJson {
                                     normal,
