@@ -3928,6 +3928,7 @@ dependencies = [
  "miniz_oxide",
  "serde",
  "serde_json_lenient",
+ "tempfile",
 ]
 
 [[package]]

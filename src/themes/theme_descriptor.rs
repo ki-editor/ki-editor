@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::LazyLock};
 
 use super::{from_zed_theme, vscode_dark, vscode_light, Theme};
-use zed_theme::{get_config_themes, get_zed_themes};
+use zed_theme::{get_custom_themes, get_zed_themes};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ThemeDescriptor(String);
@@ -46,7 +46,7 @@ static THEMES: LazyLock<HashMap<String, Theme>> = LazyLock::new(|| {
         .to_str()
         .expect("Not able to convert global glob os string to str");
 
-    get_config_themes(global_glob)
+    get_custom_themes(global_glob)
         .into_iter()
         .for_each(|(name, theme)| {
             themes.insert(name, from_zed_theme::from_theme_content(theme));
@@ -60,7 +60,7 @@ static THEMES: LazyLock<HashMap<String, Theme>> = LazyLock::new(|| {
         let workspace_glob = workspace_glob_os_string
             .to_str()
             .expect("Not able to convert workspace glob os string to str");
-        get_config_themes(workspace_glob)
+        get_custom_themes(workspace_glob)
             .into_iter()
             .for_each(|(name, theme)| {
                 themes.insert(name, from_zed_theme::from_theme_content(theme));

@@ -25,7 +25,7 @@ pub fn get_zed_themes() -> HashMap<String, ThemeContent> {
         .collect()
 }
 
-pub fn get_config_themes(themes_glob: &str) -> HashMap<String, ThemeContent> {
+pub fn get_custom_themes(themes_glob: &str) -> HashMap<String, ThemeContent> {
     let theme_families: Vec<ThemeFamilyContent> = glob::glob(themes_glob)
         .expect("Failed to read glob pattern")
         .map(|entry| match entry {
@@ -59,5 +59,32 @@ mod test {
     #[test]
     fn test_zed_themes_can_be_loaded() {
         assert!(!get_zed_themes().is_empty());
+    }
+
+    #[test]
+    fn test_custom_themes_can_be_loaded() {
+        let temp_dir = tempfile::tempdir().unwrap_or_else(|error| {
+            panic!("Could not create a temp directory.\n\tError:{error:?}")
+        });
+        let theme_file_path = temp_dir.path().join("test_theme.json");
+
+        let theme_json = r#"{
+            "name": "Test Theme",
+            "author": "Tester",
+            "themes": [
+                { 
+                    "name": "My Awesome Theme", 
+                    "appearance": "dark", 
+                    "style": {} 
+                }
+            ]
+        }"#;
+
+        std::fs::write(theme_file_path, &theme_json)
+            .unwrap_or_else(|error| panic!("Could not write to temp file.\n\tError: {error:?}"));
+
+        let theme_path_buf = temp_dir.path().join("*.json");
+        let theme_glob = theme_path_buf.to_str().unwrap();
+        assert!(!get_custom_themes(theme_glob).is_empty());
     }
 }
