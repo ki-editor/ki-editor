@@ -31,10 +31,13 @@ pub fn get_config_themes(themes_glob: &str) -> HashMap<String, ThemeContent> {
         .map(|entry| match entry {
             Ok(path) => {
                 let file = fs::File::open(&path)
-                    .unwrap_or_else(|e| panic!("Could not open file {:?}, error: {:?}", path, e));
-                serde_json_lenient::from_reader(file).expect("Compiled theme isn't valid JSON?")
+                    .unwrap_or_else(|error| panic!("Failed to read file {path:?}, error: {error:?}"));
+                match serde_json_lenient::from_reader(file) {
+                    Ok(content) => content,
+                    Err(error) =>panic!("Invalid JSON syntax in theme definition.\n\tPath: {path:?}\n\t Error: {error:?}"),
+                }
             }
-            Err(e) => panic!("What kind of error is this? {:?}", e),
+            Err(error) => panic!("Failed to read glob entry path. Error: {error:?}"),
         })
         .collect();
 

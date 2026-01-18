@@ -7,19 +7,18 @@ Ki can import themes made for [Zed Editor](https://zed.dev/), examples of import
 1. Gruvbox
 2. Ayu
 3. One
-4. Cattupuccin
-5. Tokyo night
 
-The user can drop-in zed themes fetched from the internet into the config folder's theme directory, specifically this mean any of the following locations:
+The user can drop-in zed themes fetched from the internet into the config folder's
+theme directory, specifically this mean any of the following locations:
 
 - Global `~/.config/ki/themes/`
-- Project `.ki/themes/`
+- Workspace `.ki/themes/`
 
 Refer to [Space Menu](normal-mode/space-menu.md) to pick and change a theme from within Ki.
 
-Or to define a theme as your default refer to [Configuration](configuration.mdx).
+To change your default theme refer to [Configuration](configuration.mdx).
 
-User may refer to [zed-themes.com](https://zed-themes.com) to search for their preffered themes.
+User may refer to [zed-themes.com](https://zed-themes.com) to download their preffered themes.
 
 ## Syntax highlighting
 
@@ -39,5 +38,4 @@ Currently, the largest of such communities are Neovim and Helix.
 To avoid further fragmentation, Ki currently downloads highlight queries from [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter)[^2], until there's a standardized editor-agnostic highlight queries repository.
 
 [^1]: See more at [Zed default themes](https://github.com/zed-industries/zed/tree/main/assets/themes)
-
 [^2]: Why not from Helix? Because Helix [precedence ordering](https://github.com/helix-editor/helix/issues/9436) is not compatible with the [tree-sitter-highlight](https://github.com/tree-sitter/tree-sitter/tree/master/highlight) library yet.

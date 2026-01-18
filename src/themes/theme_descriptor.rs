@@ -29,16 +29,16 @@ impl Default for ThemeDescriptor {
 static THEMES: LazyLock<HashMap<String, Theme>> = LazyLock::new(|| {
     let mut themes = HashMap::new();
 
-    // Non-zed, builtin themes
+    // Non-zed builtin themes
     themes.insert("VS Code (Light)".to_string(), vscode_light());
     themes.insert("VS Code (Dark)".to_string(), vscode_dark());
 
-    // Zed, builtin themes
+    // Zed builtin themes
     for (name, theme) in get_zed_themes() {
         themes.insert(name, from_zed_theme::from_theme_content(theme));
     }
 
-    // Zed, ~/.config/themes/ directory loaded themes
+    // Zed ~/.config/themes/ directory loaded themes
     let global_glob_os_string = crate::config::ki_global_directory()
         .join("themes/*.json")
         .into_os_string();
@@ -52,7 +52,7 @@ static THEMES: LazyLock<HashMap<String, Theme>> = LazyLock::new(|| {
             themes.insert(name, from_zed_theme::from_theme_content(theme));
         });
 
-    // Zed, .ki/themes/ directory loaded themes
+    // Zed .ki/themes/ directory loaded themes
     let workspace_glob_os_string = crate::config::ki_workspace_directory()
         .map(|path| path.join("themes/*.json").into_os_string());
 
