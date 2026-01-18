@@ -33,7 +33,7 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         _____, _____, _____, _____, Raise, /****/ AgSlL, RplcP, Join_, RplcN, AgSlR,
     ],
     [
-        LineF, BWord, FStyx, ChngX, Trsfm, /****/ CrsrP, DeDnt, Break, Indnt, CrsrN,
+        LineF, BWord, FStyx, ChngX, Trsfm, /****/ _____, DeDnt, Break, Indnt, _____,
     ],
     [
         Redo_, _____, _____, _____, Pst0G, /****/ GSrch, ToIdx, _____, _____, SSEnd,
@@ -233,10 +233,10 @@ pub const KEYMAP_MULTICURSOR: KeyboardMeaningLayout = [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ KpMch, _____, _____, _____, RmMch,
+        _____, _____, _____, _____, _____, /****/ CrsrP, _____, _____, _____, CrsrN,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, PCrsO, DlCrs, CrsAl,
+        _____, _____, _____, _____, _____, /****/ _____, _____, DlCrs, KpMch, RmMch,
     ],
 ];
 

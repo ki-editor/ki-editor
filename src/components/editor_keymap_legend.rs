@@ -130,22 +130,6 @@ impl Editor {
             Keybinding::new_extended(
                 context
                     .keyboard_layout_kind()
-                    .get_normal_keymap_keybinding(&Meaning::CrsrP),
-                Direction::Start.format_action("Curs"),
-                Direction::Start.format_action("Cycle primary selection"),
-                Dispatch::ToEditor(CyclePrimarySelection(Direction::Start)),
-            ),
-            Keybinding::new_extended(
-                context
-                    .keyboard_layout_kind()
-                    .get_normal_keymap_keybinding(&Meaning::CrsrN),
-                Direction::End.format_action("Curs"),
-                Direction::End.format_action("Cycle primary selection"),
-                Dispatch::ToEditor(CyclePrimarySelection(Direction::End)),
-            ),
-            Keybinding::new_extended(
-                context
-                    .keyboard_layout_kind()
                     .get_normal_keymap_keybinding(&Meaning::ScrlD),
                 "Scroll ↓".to_string(),
                 "Scroll down".to_string(),
@@ -864,7 +848,10 @@ impl Editor {
                         title: "Multi-cursor".to_string(),
                         keymap: self.multicursor_keymap(context),
                     },
-                    on_tap: None,
+                    on_tap: Some(OnTap::new(
+                        "Curs All",
+                        Dispatches::one(Dispatch::ToEditor(CursorAddToAllSelections)),
+                    )),
                 },
             )),
         ]
@@ -1689,13 +1676,6 @@ impl Editor {
             Keybinding::new(
                 context
                     .keyboard_layout_kind()
-                    .get_multicursor_keymap_keybinding(&Meaning::CrsAl),
-                "Curs All".to_string(),
-                Dispatch::ToEditor(CursorAddToAllSelections),
-            ),
-            Keybinding::new(
-                context
-                    .keyboard_layout_kind()
                     .get_multicursor_keymap_keybinding(&Meaning::DlCrs),
                 "Delete Curs".to_string(),
                 Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
@@ -1725,9 +1705,7 @@ impl Editor {
                 Dispatch::OpenFilterSelectionsPrompt { maintain: false },
             ),
             Keybinding::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_multicursor_keymap_keybinding(&Meaning::PCrsO),
+                "space",
                 "Keep Primary Curs".to_string(),
                 Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
             ),
