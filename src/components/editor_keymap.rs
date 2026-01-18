@@ -24,7 +24,7 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         Line_, Word_, Sytx_, Chng_, Extnd, /****/ InstP, Left_, Down_, Right, InstN,
     ],
     [
-        Undo_, Cut__, Copy_, Delte, Paste, /****/ SSlMd, Jump_, Open_, _____, XAchr,
+        Undo_, Cut__, Copy_, Delte, Paste, /****/ SSlMd, Jump_, Open_, MulCM, XAchr,
     ],
 ];
 
@@ -245,10 +245,10 @@ pub const KEYMAP_MULTICURSOR_MENU: KeyboardMeaningLayout = [
         _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ KpMch, CrsAl, _____, PCrsO, RmMch,
+        _____, _____, _____, PCrsO, _____, /****/ _____, _____, _____, _____, _____,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        KpMch, _____, _____, _____, RmMch, /****/ _____, _____, _____, CrsAl, _____,
     ],
 ];
 
@@ -1071,6 +1071,8 @@ pub enum Meaning {
     CrsAl,
     /// Secondary selection modes
     SSlMd,
+    /// Multi-cursor menu
+    MulCM,
 }
 pub fn shifted(c: &'static str) -> &'static str {
     match c {

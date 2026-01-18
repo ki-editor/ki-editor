@@ -756,6 +756,16 @@ impl Editor {
                 "Leader".to_string(),
                 Dispatch::ShowKeymapLegend(self.leader_keymap_legend_config(context)),
             )),
+            Some(Keybinding::new(
+                context
+                    .keyboard_layout_kind()
+                    .get_normal_keymap_keybinding(&Meaning::MulCM),
+                "Multi-cursor menu".to_owned(),
+                Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                    title: "Multi-cursor Menu".to_string(),
+                    keymap: self.multicursor_menu_keymap(context),
+                }),
+            )),
             Some(Keybinding::momentary_layer(
                 context,
                 MomentaryLayer {
@@ -765,13 +775,7 @@ impl Editor {
                         title: "Multi-cursor Momentary Layer".to_string(),
                         keymap: multicursor_momentary_layer_keymap(context),
                     },
-                    on_tap: Some(OnTap::new(
-                        "Show Multi-cursor Menu",
-                        Dispatches::one(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                            title: "Multi-cursor Menu".to_string(),
-                            keymap: self.multicursor_menu_keymap(context),
-                        })),
-                    )),
+                    on_tap: None,
                 },
             )),
         ]
