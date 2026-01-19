@@ -20,7 +20,6 @@ use super::{
 pub struct KeymapLegend {
     editor: Editor,
     config: KeymapLegendConfig,
-    option: KeymapDisplayOption,
     keymap_layout_kind: super::editor_keymap::KeyboardLayoutKind,
     release_key: Option<ParsedReleaseKey>,
 }
@@ -292,10 +291,6 @@ impl KeymapLegend {
         KeymapLegend {
             editor,
             config,
-            option: KeymapDisplayOption {
-                show_alt: true,
-                show_shift: true,
-            },
             keymap_layout_kind: *context.keyboard_layout_kind(),
             release_key,
         }
@@ -312,7 +307,10 @@ impl KeymapLegend {
         let content = self.config.display(
             &self.keymap_layout_kind,
             self.editor.rectangle().width,
-            &self.option,
+            &KeymapDisplayOption {
+                show_alt: true,
+                show_shift: true,
+            },
         );
         if let Some((false, on_tap)) = self.release_key.as_ref().and_then(|release_key| {
             Some((release_key.other_keys_pressed, release_key.on_tap.clone()?))
