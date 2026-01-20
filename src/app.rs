@@ -8,7 +8,7 @@ use crate::{
         editor::{
             Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, PriorChange, Reveal,
         },
-        editor_keymap::{KeyboardLayoutKind, Meaning},
+        editor_keymap::KeyboardLayoutKind,
         editor_keymap_printer::KeymapDisplayOption,
         file_explorer::FileExplorer,
         keymap_legend::{Keybinding, Keymap, KeymapLegendConfig, ReleaseKey},
@@ -404,6 +404,15 @@ impl<T: Frontend> App<T> {
                 });
             }
             event => {
+                // Translate key events so that other layouts pretend to be QWERTY for the rest of the code
+                let event = match event {
+                    Event::Key(key_event) => Event::Key(
+                        self.context
+                            .keyboard_layout_kind()
+                            .translate_key_event_to_qwerty(key_event),
+                    ),
+                    event => event,
+                };
                 let dispatches = component.borrow_mut().handle_event(&self.context, event);
                 self.handle_dispatches_result(dispatches)
                     .unwrap_or_else(|e| {
@@ -563,10 +572,11 @@ impl<T: Frontend> App<T> {
                             .last()
                             .map(|search| FlexLayoutComponent::Text(format!("{search:?}"))),
                         StatusLineComponent::Help => {
-                            let key = self
+                            let help_key = self
+                                .context
                                 .keyboard_layout_kind()
-                                .get_space_keymap_keybinding(&Meaning::SHelp);
-                            Some(FlexLayoutComponent::Text(format!("Help(Space+{key})")))
+                                .translate_char_to_qwerty('/');
+                            Some(FlexLayoutComponent::Text(format!("Help(Space+{help_key})")))
                         }
                         StatusLineComponent::KeyboardLayout => Some(FlexLayoutComponent::Text(
                             self.keyboard_layout_kind().display().to_string(),
@@ -1089,7 +1099,7 @@ impl<T: Frontend> App<T> {
                 self.add_quickfix_list_entries(locations)?
             }
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
-            Dispatch::ExecuteLeaderMeaning(meaning) => self.execute_leader_meaning(meaning)?,
+            Dispatch::ExecuteLeaderKey(key) => self.execute_leader_key(key)?,
             Dispatch::ShowBufferSaveConflictPrompt {
                 path,
                 content_editor,
@@ -1886,18 +1896,8 @@ impl<T: Frontend> App<T> {
         self.handle_dispatch(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
             title: prompt.title.to_string(),
             keymap: Keymap::new(&[
-                Keybinding::new(
-                    self.keyboard_layout_kind()
-                        .get_yes_no_keymap_keybinding(&Meaning::Yes__),
-                    "Yes".to_string(),
-                    *prompt.yes,
-                ),
-                Keybinding::new(
-                    self.keyboard_layout_kind()
-                        .get_yes_no_keymap_keybinding(&Meaning::No___),
-                    "No".to_string(),
-                    Dispatch::Null,
-                ),
+                Keybinding::new("d", "Yes".to_string(), *prompt.yes),
+                Keybinding::new("k", "No".to_string(), Dispatch::Null),
             ]),
         }))
     }
@@ -3247,8 +3247,8 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         ))
     }
 
-    fn execute_leader_meaning(&mut self, meaning: Meaning) -> anyhow::Result<()> {
-        if let Some((_, _, script)) = custom_keymap().into_iter().find(|(m, _, _)| *m == meaning) {
+    fn execute_leader_key(&mut self, key: String) -> anyhow::Result<()> {
+        if let Some((_, _, script)) = custom_keymap().into_iter().find(|(k, _, _)| k == &key) {
             let output = {
                 let component = self.current_component();
                 let borrow = component.borrow();
@@ -3586,7 +3586,7 @@ pub enum Dispatch {
         edits: Vec<Edit>,
         path: CanonicalizedPath,
     },
-    ExecuteLeaderMeaning(Meaning),
+    ExecuteLeaderKey(String),
     ShowBufferSaveConflictPrompt {
         path: CanonicalizedPath,
         content_filesystem: String,
