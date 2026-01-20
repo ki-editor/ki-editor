@@ -679,7 +679,7 @@ mod test_line {
 
     use serial_test::serial;
 
-    use crate::selection_mode::{PositionBased, SelectionModeTrait};
+    use crate::selection_mode::{GetGapMovement, PositionBased, SelectionModeTrait};
 
     #[test]
     fn left_right_movement() {
@@ -769,7 +769,7 @@ foo
                     SelectionMode::Line,
                 )),
                 Editor(Copy),
-                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent(
                     "
 foo
@@ -808,7 +808,7 @@ foo
                     SelectionMode::Line,
                 )),
                 Editor(Copy),
-                Editor(PasteWithMovement(Left)),
+                Editor(PasteWithMovement(GetGapMovement::Left)),
                 Expect(CurrentComponentContent(
                     "
 foo
@@ -839,7 +839,7 @@ foo
                     SelectionMode::Line,
                 )),
                 Editor(Copy),
-                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent("  foo\n  foo")),
             ])
         })
@@ -862,7 +862,7 @@ foo
                     SelectionMode::Line,
                 )),
                 Editor(Copy),
-                Editor(PasteWithMovement(Left)),
+                Editor(PasteWithMovement(GetGapMovement::Left)),
                 Expect(CurrentComponentContent("  foo\n  foo")),
             ])
         })
@@ -886,7 +886,7 @@ foo
                 )),
                 Expect(CurrentSelectedTexts(&["bar"])),
                 Editor(Copy),
-                Editor(PasteWithMovement(Left)),
+                Editor(PasteWithMovement(GetGapMovement::Left)),
                 Expect(CurrentComponentContent("foo\nbar\nbar")),
             ])
         })
@@ -909,9 +909,9 @@ foo
                 )),
                 Expect(CurrentSelectedTexts(&[""])),
                 Editor(Copy),
-                Editor(PasteWithMovement(Left)),
+                Editor(PasteWithMovement(GetGapMovement::Left)),
                 Expect(CurrentComponentContent(" \n ")),
-                Editor(PasteWithMovement(Left)),
+                Editor(PasteWithMovement(GetGapMovement::Left)),
                 Expect(CurrentComponentContent("  \n\n ")),
             ])
         })
@@ -934,9 +934,9 @@ foo
                 )),
                 Expect(CurrentSelectedTexts(&[""])),
                 Editor(Copy),
-                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent(" \n ")),
-                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent(" \n \n ")),
             ])
         })

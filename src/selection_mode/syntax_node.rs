@@ -246,6 +246,7 @@ pub fn get_node(node: tree_sitter::Node, go_up: bool, coarse: bool) -> Option<tr
 mod test_syntax_node {
     use crate::buffer::BufferOwner;
     use crate::selection::SelectionMode;
+    use crate::selection_mode::GetGapMovement;
     use crate::test_app::*;
     use crate::{
         buffer::Buffer,
@@ -394,7 +395,7 @@ fn main() {
                 )),
                 Editor(MoveSelection(Right)),
                 Editor(Copy),
-                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
             ])
         })
@@ -418,7 +419,7 @@ fn main() {
                 )),
                 Editor(MoveSelection(Right)),
                 Editor(Copy),
-                Editor(PasteWithMovement(Left)),
+                Editor(PasteWithMovement(GetGapMovement::Left)),
                 Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
             ])
         })
@@ -449,7 +450,7 @@ mod x {
                     SelectionMode::SyntaxNode,
                 )),
                 Editor(Copy),
-                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent(
                     "
 mod x {

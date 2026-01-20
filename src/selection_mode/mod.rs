@@ -605,13 +605,38 @@ pub trait SelectionModeTrait {
         assert_eq!(expected, actual_backward, "backward assertion");
     }
 
-    fn get_paste_gap(&self, params: &SelectionModeParams, direction: &Direction) -> String {
+    fn get_paste_gap(
+        &self,
+        params: &SelectionModeParams,
+        get_gap_movement: &GetGapMovement,
+    ) -> String {
         let buffer = params.buffer;
         let selection = params.current_selection;
+        let get_current_line_indentation = || {
+            params
+                .buffer
+                .get_line_by_char_index(selection.extended_range().start())
+                .map(|line| line.chars().take_while(|c| c.is_whitespace()).join(""))
+                .unwrap_or_default()
+        };
+        let process_gap = |other: Selection| {
+            if other.range() == selection.range() {
+                Default::default()
+            } else {
+                let current_range = selection.range();
+                let other_range = other.range();
+                let in_between_range = current_range.end.min(other_range.end)
+                    ..current_range.start.max(other_range.start);
+                Some(buffer.slice(&in_between_range.into()).ok()?.to_string())
+            }
+        };
         let get_in_between_gap = |direction: Direction| {
-            let other = match direction {
-                Direction::Start => self.left(params),
-                Direction::End => self.right(params),
+            let other = match get_gap_movement {
+                GetGapMovement::Left => self.left(params),
+                GetGapMovement::Right => self.right(params),
+                GetGapMovement::Next => self.next(params),
+                GetGapMovement::Previous => self.previous(params),
+                GetGapMovement::BeforeWithoutGap | GetGapMovement::AfterWithoutGap => Ok(None),
             }
             .ok()??;
             if other.range() == selection.range() {
@@ -626,7 +651,7 @@ pub trait SelectionModeTrait {
         };
         let prev_gap = get_in_between_gap(Direction::Start);
         let next_gap = get_in_between_gap(Direction::End);
-        self.process_paste_gap(params, prev_gap, next_gap, direction)
+        self.process_paste_gap(params, prev_gap, next_gap, &get_gap_movement.to_direction())
     }
 
     fn process_paste_gap(
@@ -636,6 +661,28 @@ pub trait SelectionModeTrait {
         next_gap: Option<String>,
         direction: &Direction,
     ) -> String;
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum GetGapMovement {
+    Next,
+    Previous,
+    Right,
+    Left,
+    BeforeWithoutGap,
+    AfterWithoutGap,
+}
+impl GetGapMovement {
+    pub(crate) fn to_direction(&self) -> Direction {
+        match self {
+            GetGapMovement::Next => Direction::End,
+            GetGapMovement::Right => Direction::End,
+            GetGapMovement::Previous => Direction::Start,
+            GetGapMovement::Left => Direction::Start,
+            GetGapMovement::BeforeWithoutGap => Direction::Start,
+            GetGapMovement::AfterWithoutGap => Direction::End,
+        }
+    }
 }
 
 pub trait PositionBasedSelectionMode {

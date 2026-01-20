@@ -166,6 +166,7 @@ mod test_line_full {
     use crate::buffer::BufferOwner;
     use crate::components::editor::IfCurrentNotFound;
     use crate::selection::SelectionMode;
+    use crate::selection_mode::GetGapMovement;
     use crate::test_app::*;
 
     use crate::{
@@ -221,8 +222,8 @@ mod test_line_full {
                     SelectionMode::LineFull,
                 )),
                 Editor(Copy),
-                Editor(PasteWithMovement(Right)),
-                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
             ])
         })
@@ -244,8 +245,8 @@ mod test_line_full {
                     SelectionMode::LineFull,
                 )),
                 Editor(Copy),
-                Editor(PasteWithMovement(Left)),
-                Editor(PasteWithMovement(Left)),
+                Editor(PasteWithMovement(GetGapMovement::Left)),
+                Editor(PasteWithMovement(GetGapMovement::Left)),
                 Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
             ])
         })

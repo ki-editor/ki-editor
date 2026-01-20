@@ -207,7 +207,7 @@ mod test_subword {
     use crate::buffer::BufferOwner;
     use crate::components::editor::PriorChange;
     use crate::selection::SelectionMode;
-    use crate::selection_mode::SelectionModeTrait as _;
+    use crate::selection_mode::{GetGapMovement, SelectionModeTrait as _};
     use crate::test_app::*;
     use crate::{buffer::Buffer, selection::Selection, selection_mode::PositionBased};
 
@@ -334,7 +334,7 @@ mod test_subword {
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["bar"])),
                 Editor(Copy),
-                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent("foo bar bar\nspam")),
             ])
         })
@@ -358,7 +358,7 @@ mod test_subword {
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["bar"])),
                 Editor(Copy),
-                Editor(PasteWithMovement(Left)),
+                Editor(PasteWithMovement(GetGapMovement::Left)),
                 Expect(CurrentComponentContent("foo bar bar\nspam")),
             ])
         })

@@ -218,13 +218,13 @@ pub const KEYMAP_YES_NO: KeyboardMeaningLayout = [
 
 pub const KEYMAP_PASTE: KeyboardMeaningLayout = [
     [
-        _____, _____, _____, _____, _____, /****/ _____, PBWoG, _____, PAWoG, _____,
+        _____, _____, _____, _____, _____, /****/ RplcP, PBWSG, PstAb, PAWSG, RplcN,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ RplcP, PBWiG, PRplc, PAWiG, RplcN,
+        _____, _____, _____, _____, _____, /****/ PBWoG, PBWBG, PstBl, PAWBG, PAWoG,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, _____, _____, _____,
+        _____, _____, _____, _____, _____, /****/ _____, PRplc, _____, _____, _____,
     ],
 ];
 
@@ -1024,14 +1024,22 @@ pub enum Meaning {
     CWDir,
     /// Replace with pattern
     PRplc,
-    /// Paste after with gaps
-    PAWiG,
-    /// Paste before with gaps
-    PBWiG,
+    /// Paste after with big gaps
+    PAWBG,
+    /// Paste before with big gap
+    PBWBG,
+    /// Paste after with small gaps
+    PAWSG,
+    /// Paste before with small gap
+    PBWSG,
     /// Paste after without gaps
     PAWoG,
     /// Paste before without gaps
     PBWoG,
+    /// Paste above
+    PstAb,
+    /// Paste below
+    PstBl,
     /// Keep matching selections
     KpMch,
     /// Removing matching selections

@@ -17,6 +17,7 @@ use crate::{
     quickfix_list::{DiagnosticSeverityRange, QuickfixListType},
     scripting::{custom_keymap, leader_meanings},
     selection::SelectionMode,
+    selection_mode::GetGapMovement,
     surround::EnclosureKind,
     transformation::Transformation,
 };
@@ -1723,51 +1724,79 @@ pub fn paste_keymap(context: &Context) -> Keymap {
             Keybinding::new(
                 context
                     .keyboard_layout_kind()
-                    .get_paste_keymap_keybinding(&Meaning::PBWiG),
-                Direction::Start.format_action("Paste with gaps"),
-                Dispatch::ToEditor(PasteWithMovement(Movement::Left)),
+                    .get_paste_keymap_keybinding(&Meaning::PBWBG),
+                Movement::Left.format_action("Gapped Paste"),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Left)),
             ),
             Keybinding::new(
                 context
                     .keyboard_layout_kind()
-                    .get_paste_keymap_keybinding(&Meaning::PAWiG),
-                Direction::End.format_action("Paste with gaps"),
-                Dispatch::ToEditor(PasteWithMovement(Right)),
+                    .get_paste_keymap_keybinding(&Meaning::PAWBG),
+                Movement::Right.format_action("Gapped Paste"),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Right)),
+            ),
+            Keybinding::new(
+                context
+                    .keyboard_layout_kind()
+                    .get_paste_keymap_keybinding(&Meaning::PAWSG),
+                Movement::Next.format_action("Gapped Paste"),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Next)),
+            ),
+            Keybinding::new(
+                context
+                    .keyboard_layout_kind()
+                    .get_paste_keymap_keybinding(&Meaning::PBWSG),
+                Movement::Previous.format_action("Gapped Paste"),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Previous)),
             ),
             Keybinding::new(
                 context
                     .keyboard_layout_kind()
                     .get_paste_keymap_keybinding(&Meaning::PAWoG),
-                Direction::End.format_action("Paste"),
-                Dispatch::ToEditor(PasteWithMovement(Movement::Next)),
+                "Paste|".to_string(),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::AfterWithoutGap)),
             ),
             Keybinding::new(
                 context
                     .keyboard_layout_kind()
                     .get_paste_keymap_keybinding(&Meaning::PBWoG),
-                Direction::Start.format_action("Paste"),
-                Dispatch::ToEditor(PasteWithMovement(Movement::Previous)),
+                "|Paste".to_string(),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::BeforeWithoutGap)),
             ),
             Keybinding::new(
                 context
                     .keyboard_layout_kind()
                     .get_paste_keymap_keybinding(&Meaning::PRplc),
-                "Replace with pattern".to_string(),
+                "Replace w/ pattern".to_string(),
                 Dispatch::ToEditor(ReplaceWithPattern),
             ),
             Keybinding::new(
                 context
                     .keyboard_layout_kind()
                     .get_paste_keymap_keybinding(&Meaning::RplcP),
-                Direction::Start.format_action("Replace with copied text"),
+                Direction::Start.format_action("Replace w/ copied text"),
                 Dispatch::ToEditor(ReplaceWithPreviousCopiedText),
             ),
             Keybinding::new(
                 context
                     .keyboard_layout_kind()
                     .get_paste_keymap_keybinding(&Meaning::RplcN),
-                Direction::End.format_action("Replace with copied text"),
+                Direction::End.format_action("Replace w/ copied text"),
                 Dispatch::ToEditor(ReplaceWithNextCopiedText),
+            ),
+            Keybinding::new(
+                context
+                    .keyboard_layout_kind()
+                    .get_paste_keymap_keybinding(&Meaning::PstAb),
+                Movement::Up.format_action("Paste"),
+                Dispatch::ToEditor(PasteVertically(Direction::Start)),
+            ),
+            Keybinding::new(
+                context
+                    .keyboard_layout_kind()
+                    .get_paste_keymap_keybinding(&Meaning::PstBl),
+                Movement::Down.format_action("Paste"),
+                Dispatch::ToEditor(DispatchEditor::PasteVertically(Direction::End)),
             ),
         ]
         .as_ref(),
