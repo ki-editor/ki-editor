@@ -168,7 +168,7 @@ pub enum KeyModifiers {
 }
 
 impl KeyModifiers {
-    pub(crate) fn add_shift(self, shift: bool) -> KeyModifiers {
+    pub(crate) fn add_shift(self, shift: bool) -> Self {
         use KeyModifiers::*;
         if !shift {
             return self;
@@ -180,6 +180,28 @@ impl KeyModifiers {
             CtrlAlt => CtrlAltShift,
             Unknown => Shift,
             _ => self,
+        }
+    }
+
+    pub(crate) fn remove_shift(self, shift: bool) -> Self {
+        use KeyModifiers::*;
+        if shift {
+            return self;
+        }
+        match self {
+            Shift => None,
+            CtrlShift => Ctrl,
+            AltShift => Alt,
+            CtrlAltShift => CtrlAlt,
+            _ => self,
+        }
+    }
+
+    pub fn set_shift(self, shift: bool) -> Self {
+        if shift {
+            self.add_shift(shift)
+        } else {
+            self.remove_shift(shift)
         }
     }
 

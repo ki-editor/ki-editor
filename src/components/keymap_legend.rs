@@ -5,7 +5,7 @@ use my_proc_macros::key;
 
 use crate::{
     app::{Dispatch, Dispatches},
-    components::{editor_keymap::Meaning, editor_keymap_printer::KeymapDisplayOption},
+    components::editor_keymap_printer::KeymapDisplayOption,
     context::Context,
     rectangle::Rectangle,
 };
@@ -31,22 +31,22 @@ pub struct KeymapLegendConfig {
 }
 
 pub struct MomentaryLayer {
-    pub meaning: Meaning,
+    pub key: &'static str,
     pub description: String,
     pub config: KeymapLegendConfig,
     pub on_tap: Option<OnTap>,
 }
 
 struct ParsedReleaseKey {
+    key: &'static str,
     key_event: KeyEvent,
-    meaning: Meaning,
     on_tap: Option<OnTap>,
     other_keys_pressed: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReleaseKey {
-    meaning: Meaning,
+    key: &'static str,
     on_tap: Option<OnTap>,
     /// Initial value should be false.
     /// This field is necessary for implementing `on_tap`.
@@ -69,9 +69,9 @@ impl OnTap {
 }
 
 impl ReleaseKey {
-    pub fn new(meaning: Meaning, on_tap: Option<OnTap>) -> Self {
+    pub fn new(key: &'static str, on_tap: Option<OnTap>) -> Self {
         Self {
-            meaning,
+            key,
             on_tap,
             other_keys_pressed: false,
         }
@@ -162,24 +162,20 @@ impl Keybinding {
     }
 
     pub fn momentary_layer(
-        context: &Context,
         MomentaryLayer {
-            meaning,
+            key,
             description,
             config,
             on_tap,
         }: MomentaryLayer,
     ) -> Keybinding {
-        let key = context
-            .keyboard_layout_kind()
-            .get_normal_keymap_keybinding(&meaning);
         Keybinding {
             key,
             short_description: None,
             description,
             dispatch: Dispatch::ShowKeymapLegendWithReleaseKey(
                 config,
-                ReleaseKey::new(meaning, on_tap),
+                ReleaseKey::new(key, on_tap),
             ),
             event: parse_key_event(key).unwrap(),
         }
@@ -274,16 +270,11 @@ impl KeymapLegend {
             .unwrap_or_default();
 
         let release_key = release_key.map(|release_key| ParsedReleaseKey {
+            key: release_key.key,
             key_event: KeyEvent {
                 kind: crossterm::event::KeyEventKind::Release,
-                ..parse_key_event(
-                    context
-                        .keyboard_layout_kind()
-                        .get_normal_keymap_keybinding(&release_key.meaning),
-                )
-                .unwrap()
+                ..parse_key_event(release_key.key).unwrap()
             },
-            meaning: release_key.meaning,
             on_tap: release_key.on_tap,
             other_keys_pressed: release_key.other_keys_pressed,
         });
@@ -364,7 +355,7 @@ impl Component for KeymapLegend {
                                     Dispatch::ShowKeymapLegendWithReleaseKey(
                                         self.config.clone(),
                                         ReleaseKey {
-                                            meaning: release_key.meaning.clone(),
+                                            key: release_key.key,
                                             on_tap: release_key.on_tap.clone(),
                                             other_keys_pressed: true,
                                         },
@@ -600,7 +591,7 @@ mod test_keymap_legend {
             },
             &Context::default(),
             Some(ReleaseKey::new(
-                Meaning::AgSlL,
+                "Y",
                 Some(OnTap::new("Conichihuahua", Dispatches::default())),
             )),
         );
@@ -637,7 +628,6 @@ Release hold: Conichihuahua
     /// When release key is defined and the release key is immediately received
     /// before any actions in the keymap is executed, the on tap dispatches should be fired.
     fn release_key_on_tap() -> anyhow::Result<()> {
-        let context = Context::default();
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -652,7 +642,7 @@ Release hold: Conichihuahua
                         keymap: Keymap::new(&[]),
                     },
                     ReleaseKey::new(
-                        Meaning::Paste,
+                        "b",
                         Some(OnTap::new(
                             "",
                             Dispatches::one(Dispatch::ToEditor(SetContent(
@@ -665,13 +655,9 @@ Release hold: Conichihuahua
                 Expect(AppGridContains("LEGEND_TITLE")),
                 // Simulate key release
                 App(HandleKeyEvent(
-                    parse_key_event(
-                        context
-                            .keyboard_layout_kind()
-                            .get_normal_keymap_keybinding(&Meaning::Paste),
-                    )
-                    .unwrap()
-                    .set_event_kind(KeyEventKind::Release),
+                    parse_key_event("b")
+                        .unwrap()
+                        .set_event_kind(KeyEventKind::Release),
                 )),
                 Expect(CurrentComponentContent("on tapped!")),
             ])
@@ -681,7 +667,6 @@ Release hold: Conichihuahua
     #[test]
     fn when_release_key_is_defined_legend_should_show_until_release_key_is_received(
     ) -> anyhow::Result<()> {
-        let context = Context::default();
         execute_test(|s| {
             Box::new([
                 App(OpenFile {
@@ -699,7 +684,7 @@ Release hold: Conichihuahua
                             Dispatch::ToEditor(Insert("hello".to_string())),
                         )]),
                     },
-                    ReleaseKey::new(Meaning::Paste, None),
+                    ReleaseKey::new("b", None),
                 )),
                 // Expect the keymap legend is opened
                 Expect(AppGridContains("LEGEND_TITLE")),
@@ -709,13 +694,9 @@ Release hold: Conichihuahua
                 Expect(AppGridContains("LEGEND_TITLE")),
                 // Simulate key release
                 App(HandleKeyEvent(
-                    parse_key_event(
-                        context
-                            .keyboard_layout_kind()
-                            .get_normal_keymap_keybinding(&Meaning::Paste),
-                    )
-                    .unwrap()
-                    .set_event_kind(KeyEventKind::Release),
+                    parse_key_event("b")
+                        .unwrap()
+                        .set_event_kind(KeyEventKind::Release),
                 )),
                 // Expect the legend is closed
                 Expect(Not(Box::new(AppGridContains("LEGEND_TITLE")))),

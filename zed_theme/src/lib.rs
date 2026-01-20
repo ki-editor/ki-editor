@@ -80,7 +80,7 @@ mod test {
             ]
         }"#;
 
-        std::fs::write(theme_file_path, &theme_json)
+        std::fs::write(theme_file_path, theme_json)
             .unwrap_or_else(|error| panic!("Could not write to temp file.\n\tError: {error:?}"));
 
         let theme_path_buf = temp_dir.path().join("*.json");
