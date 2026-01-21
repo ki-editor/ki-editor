@@ -25,7 +25,7 @@ use super::{
     component::Component,
     dropdown::DropdownItem,
     editor::{Editor, Mode},
-    editor_keymap::{alted, Meaning},
+    editor_keymap::alted,
     suggestive_editor::{DispatchSuggestiveEditor, SuggestiveEditor, SuggestiveEditorFilter},
 };
 
@@ -490,13 +490,7 @@ impl Component for Prompt {
                     .chain(self.on_cancelled.clone().unwrap_or_default()))
             }
             key!("tab") => self.replace_current_query_with_focused_item(context, event),
-            _ if event.display()
-                == alted(
-                    context
-                        .keyboard_layout_kind()
-                        .get_normal_keymap_keybinding(&Meaning::Cut__),
-                ) =>
-            {
+            _ if event.display() == alted("x") => {
                 self.replace_current_query_with_focused_item(context, event)
             }
             key!("enter") => {

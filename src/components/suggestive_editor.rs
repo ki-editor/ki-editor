@@ -16,7 +16,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::dropdown::{Dropdown, DropdownConfig};
 use super::editor::{Direction, DispatchEditor, IfCurrentNotFound};
-use super::editor_keymap::{alted, Meaning};
+use super::editor_keymap::alted;
 use super::keymap_legend::{Keybinding, Keymap};
 use super::{
     component::Component,
@@ -82,7 +82,7 @@ impl Component for SuggestiveEditor {
         event: event::KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
-            if let Some(keymap) = completion_item_keymap(context).get(&event) {
+            if let Some(keymap) = completion_item_keymap().get(&event) {
                 log::info!("dispatches = {:?}", keymap.get_dispatches());
                 return Ok(keymap.get_dispatches());
             };
@@ -1164,34 +1164,22 @@ impl Decoration {
     }
 }
 
-pub fn completion_item_keymap(context: &Context) -> Keymap {
+pub fn completion_item_keymap() -> Keymap {
     Keymap::new(&[
         Keybinding::new_extended(
-            alted(
-                context
-                    .keyboard_layout_kind()
-                    .get_normal_keymap_keybinding(&Meaning::Right),
-            ),
+            alted("l"),
             Direction::End.format_action("Comp"),
             "Next Completion Item".to_string(),
             Dispatch::MoveToCompletionItem(Direction::End),
         ),
         Keybinding::new_extended(
-            alted(
-                context
-                    .keyboard_layout_kind()
-                    .get_normal_keymap_keybinding(&Meaning::Left_),
-            ),
+            alted("j"),
             Direction::Start.format_action("Comp"),
             "Previous Completion Item".to_string(),
             Dispatch::MoveToCompletionItem(Direction::Start),
         ),
         Keybinding::new_extended(
-            alted(
-                context
-                    .keyboard_layout_kind()
-                    .get_normal_keymap_keybinding(&Meaning::Cut__),
-            ),
+            alted("x"),
             "Replace Comp".to_string(),
             "Replace Completion Item".to_string(),
             Dispatch::SelectCompletionItem,

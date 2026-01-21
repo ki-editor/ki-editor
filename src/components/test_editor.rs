@@ -4749,7 +4749,7 @@ fuor
             Expect(CurrentSelectedTexts(&["foo", "for", "fuor"])),
             // Keep only selections matching `r/f.o`
             App(HandleKeyEvents(
-                keys!("r h release-r r / f . o enter").to_vec(),
+                keys!("r space i release-r r / f . o enter").to_vec(),
             )),
             Expect(CurrentSelectedTexts(&["foo", "fuor"])),
         ])

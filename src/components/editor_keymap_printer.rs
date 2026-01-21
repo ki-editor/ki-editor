@@ -1,9 +1,7 @@
 use super::{
     editor::IfCurrentNotFound,
     editor_keymap::alted,
-    editor_keymap_legend::{
-        extend_mode_normal_mode_override, multicursor_mode_normal_mode_override,
-    },
+    editor_keymap_legend::extend_mode_normal_mode_override,
     file_explorer::file_explorer_normal_mode_override,
     keymap_legend::{Keybinding, Keymap},
     suggestive_editor::completion_item_keymap,
@@ -11,11 +9,9 @@ use super::{
 use crate::{
     app::Scope,
     components::{
-        editor::{Direction, Editor},
+        editor::Editor,
         editor_keymap::{shifted, KeyboardLayout},
-        editor_keymap_legend::{
-            cut_keymap, delete_keymap, multicursor_keymap, paste_keymap, swap_keymap,
-        },
+        editor_keymap_legend::{cut_keymap, delete_keymap, paste_keymap, swap_keymap},
     },
     context::Context,
 };
@@ -253,34 +249,33 @@ impl KeymapPrintSections {
         let sections: Vec<KeymapPrintSection> = [
             KeymapPrintSection::from_keymap(
                 "Insert".to_string(),
-                &editor.insert_mode_keymap(false, &context),
+                &editor.insert_mode_keymap(false),
                 layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Normal".to_string(),
-                &Keymap::new(&editor.normal_mode_keymap(&context, Default::default(), None)),
+                &Keymap::new(&editor.normal_mode_keymap(Default::default(), None)),
                 layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Movements".to_string(),
-                &Keymap::new(&editor.keymap_core_movements(&context, None)),
+                &Keymap::new(&editor.keymap_core_movements(None)),
                 layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Primary Selection Modes".to_string(),
-                &Keymap::new(&editor.keymap_primary_selection_modes(&context, None)),
+                &Keymap::new(&editor.keymap_primary_selection_modes(None)),
                 layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Secondary Selection Modes Init".to_string(),
-                &Keymap::new(&editor.keymap_secondary_selection_modes_init(&context, None)),
+                &Keymap::new(&editor.keymap_secondary_selection_modes_init(None)),
                 layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Secondary Selection Modes (Local)".to_string(),
                 &editor
                     .secondary_selection_modes_keymap_legend_config(
-                        &context,
                         Scope::Local,
                         IfCurrentNotFound::LookForward,
                         None,
@@ -292,7 +287,6 @@ impl KeymapPrintSections {
                 "Secondary Selection Modes (Global)".to_string(),
                 &editor
                     .secondary_selection_modes_keymap_legend_config(
-                        &context,
                         Scope::Global,
                         IfCurrentNotFound::LookForward,
                         None,
@@ -302,12 +296,12 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymap(
                 "Actions".to_string(),
-                &Keymap::new(&editor.keymap_actions(&Default::default(), false, &context, None)),
+                &Keymap::new(&editor.keymap_actions(&Default::default(), false, None)),
                 layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Other Movements".to_string(),
-                &Keymap::new(&editor.keymap_other_movements(&context)),
+                &Keymap::new(&editor.keymap_other_movements()),
                 layout,
             ),
             KeymapPrintSection::from_keymap(
@@ -317,70 +311,60 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymap(
                 "Space Context".to_string(),
-                &editor.space_context_keymap_legend_config(&context).keymap(),
+                &editor.space_context_keymap_legend_config().keymap(),
                 layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Space Editor".to_string(),
-                &editor.space_editor_keymap_legend_config(&context).keymap(),
+                &editor.space_editor_keymap_legend_config().keymap(),
                 layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Space Pick".to_string(),
-                &editor.space_pick_keymap_legend_config(&context).keymap(),
+                &editor.space_pick_keymap_legend_config().keymap(),
                 layout,
             ),
             KeymapPrintSection::from_keymap(
                 "File Explorer Actions".to_string(),
-                &Keymap::new(&editor.keymap_overridable(
-                    &file_explorer_normal_mode_override(),
-                    true,
-                    &context,
-                )),
+                &Keymap::new(
+                    &editor.keymap_overridable(&file_explorer_normal_mode_override(), true),
+                ),
                 layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Extend".to_string(),
-                &Keymap::new(&editor.keymap_overridable(
-                    &extend_mode_normal_mode_override(&context),
-                    true,
-                    &context,
-                )),
-                layout,
-            ),
-            KeymapPrintSection::from_keymap(
-                "Multi-cursor".to_string(),
-                &Keymap::new(&editor.keymap_overridable(
-                    &multicursor_mode_normal_mode_override(Direction::End),
-                    true,
-                    &context,
-                )),
+                &Keymap::new(&editor.keymap_overridable(&extend_mode_normal_mode_override(), true)),
                 layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Completion Items".to_string(),
-                &completion_item_keymap(&context),
+                &completion_item_keymap(),
                 layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Universal Keymap".to_string(),
-                &Keymap::new(&editor.keymap_universal(&context)),
+                &Keymap::new(&editor.keymap_universal()),
                 layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Transform".to_string(),
-                &Keymap::new(&editor.keymap_transform(&context)),
+                &Keymap::new(&editor.keymap_transform()),
                 layout,
             ),
-            KeymapPrintSection::from_keymap("Paste".to_string(), &paste_keymap(&context), layout),
+            KeymapPrintSection::from_keymap("Paste".to_string(), &paste_keymap(), layout),
             KeymapPrintSection::from_keymap(
-                "Multi-cursor".to_string(),
-                &multicursor_keymap(&context),
+                "Multi-cursor Momentary Layer".to_string(),
+                &editor.multicursor_momentary_layer_keymap(),
                 layout,
             ),
-            KeymapPrintSection::from_keymap("Cut".to_string(), &cut_keymap(&context), layout),
-            KeymapPrintSection::from_keymap("Swap".to_string(), &swap_keymap(&context), layout),
-            KeymapPrintSection::from_keymap("Delete".to_string(), &delete_keymap(&context), layout),
+            KeymapPrintSection::from_keymap(
+                "Multi-cursor Menu".to_string(),
+                &editor.multicursor_menu_keymap(),
+                layout,
+            ),
+            KeymapPrintSection::from_keymap("Cut".to_string(), &cut_keymap(), layout),
+            KeymapPrintSection::from_keymap("Swap".to_string(), &swap_keymap(), layout),
+            KeymapPrintSection::from_keymap("Delete".to_string(), &delete_keymap(), layout),
         ]
         .to_vec();
 

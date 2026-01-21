@@ -354,7 +354,7 @@ impl Component for Editor {
             EnterNewline => return self.enter_newline(context),
             DeleteCurrentCursor(direction) => self.delete_current_cursor(direction),
             BreakSelection => return self.break_selection(context),
-            ShowHelp => return self.show_help(context),
+            ShowHelp => return self.show_help(),
             HandleEsc => {
                 self.disable_selection_extension();
                 self.mode = Mode::Normal;
@@ -1653,7 +1653,7 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
-        match self.handle_universal_key(key_event, context)? {
+        match self.handle_universal_key(key_event)? {
             HandleEventResult::Ignored(key_event) => {
                 if let Some(dispatches) = self.handle_jump_mode(context, &key_event) {
                     dispatches
@@ -1666,7 +1666,7 @@ impl Editor {
                         context,
                     )
                 } else {
-                    let keymap_legend_config = self.get_current_keymap_legend_config(context);
+                    let keymap_legend_config = self.get_current_keymap_legend_config();
 
                     if let Some(keymap) = keymap_legend_config.keymap().get(&key_event) {
                         return Ok(keymap.get_dispatches());
@@ -3905,9 +3905,8 @@ impl Editor {
     pub fn insert_mode_keymap(
         &self,
         include_universal_keymap: bool,
-        context: &Context,
     ) -> super::keymap_legend::Keymap {
-        self.insert_mode_keymap_legend_config(include_universal_keymap, context)
+        self.insert_mode_keymap_legend_config(include_universal_keymap)
             .keymap()
     }
 
@@ -3915,19 +3914,16 @@ impl Editor {
         self.normal_mode_override = Some(normal_mode_override)
     }
 
-    fn show_help(&self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+    fn show_help(&self) -> Result<Dispatches, anyhow::Error> {
         Ok(Dispatches::one(Dispatch::ShowKeymapLegend(
-            self.get_current_keymap_legend_config(context),
+            self.get_current_keymap_legend_config(),
         )))
     }
 
-    fn get_current_keymap_legend_config(
-        &self,
-        context: &Context,
-    ) -> super::keymap_legend::KeymapLegendConfig {
+    fn get_current_keymap_legend_config(&self) -> super::keymap_legend::KeymapLegendConfig {
         match self.mode {
-            Mode::Insert => self.insert_mode_keymap_legend_config(true, context),
-            _ => self.normal_mode_keymap_legend_config(context, None, None),
+            Mode::Insert => self.insert_mode_keymap_legend_config(true),
+            _ => self.normal_mode_keymap_legend_config(None, None),
         }
     }
 

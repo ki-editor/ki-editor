@@ -1,34 +1,12 @@
-use crate::app::Dispatch;
 use crate::components::editor::DispatchEditor;
-use crate::components::editor_keymap::KeyboardMeaningLayout;
-use crate::components::editor_keymap::Meaning::{self, *};
 use crate::components::suggestive_editor::Info;
 use crate::config::AppConfig;
 use crate::position::Position;
-use itertools::Itertools;
+use crate::{app::Dispatch, components::editor_keymap::QWERTY};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{io::Write, ops::Range, process::Stdio};
-
-pub const LEADER_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
-    [
-        __Q__, __W__, __E__, __R__, __T__, /****/ __Y__, __U__, __I__, __O__, __P__,
-    ],
-    [
-        __A__, __S__, __D__, __F__, __G__, /****/ __H__, __J__, __K__, __L__, _SEMI,
-    ],
-    [
-        __Z__, __X__, __C__, __V__, __B__, /****/ __N__, __M__, _COMA, _DOT_, _SLSH,
-    ],
-];
-
-pub fn leader_meanings() -> Vec<Meaning> {
-    LEADER_KEYMAP_LAYOUT
-        .iter()
-        .flat_map(|row| row.iter().cloned())
-        .collect_vec()
-}
 
 pub fn custom_keymap() -> Vec<CustomActionKeymap> {
     AppConfig::singleton()
@@ -40,8 +18,14 @@ pub fn custom_keymap() -> Vec<CustomActionKeymap> {
                 .iter()
                 .filter_map(|keybinding| keybinding.clone())
         })
-        .zip(leader_meanings())
-        .map(|(keybinding, meaning)| (meaning, keybinding.name.clone(), keybinding.script.clone()))
+        .zip(QWERTY.iter().flatten())
+        .map(|(keybinding, key)| {
+            (
+                key.to_string(),
+                keybinding.name.clone(),
+                keybinding.script.clone(),
+            )
+        })
         .collect()
 }
 
@@ -51,7 +35,7 @@ pub struct Keybinding {
     pub script: Script,
 }
 
-pub type CustomActionKeymap = (Meaning, String, Script);
+pub type CustomActionKeymap = (String, String, Script);
 
 #[derive(Serialize, Clone, JsonSchema)]
 pub struct ScriptInput {
