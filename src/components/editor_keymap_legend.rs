@@ -1459,43 +1459,6 @@ pub fn paste_keymap() -> Keymap {
     )
 }
 
-pub fn multicursor_keymap() -> Keymap {
-    let other_keybindings = [
-        Keybinding::new(
-            "j",
-            "Curs All".to_string(),
-            Dispatch::ToEditor(CursorAddToAllSelections),
-        ),
-        Keybinding::new(
-            "n",
-            "Delete Curs".to_string(),
-            Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
-        ),
-    ];
-    Keymap::new(
-        &[
-            (Movement::Up, "i"),
-            (Movement::Down, "k"),
-            (Movement::Left, "j"),
-            (Movement::Right, "l"),
-            (Movement::Previous, "u"),
-            (Movement::Next, "o"),
-            (Movement::First, "y"),
-            (Movement::Last, "p"),
-        ]
-        .into_iter()
-        .map(|(movement, key)| {
-            Keybinding::new(
-                key,
-                movement.format_action("Add Curs"),
-                Dispatch::ToEditor(DispatchEditor::AddCursorWithMovement(movement)),
-            )
-        })
-        .chain(other_keybindings)
-        .collect_vec(),
-    )
-}
-
 pub fn cut_keymap() -> Keymap {
     Keymap::new(
         &[

@@ -353,7 +353,7 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymap("Paste".to_string(), &paste_keymap(), layout),
             KeymapPrintSection::from_keymap(
-                "Multi-cursor".to_string(),
+                "Multi-cursor Momentary Layer".to_string(),
                 &editor.multicursor_momentary_layer_keymap(),
                 layout,
             ),
