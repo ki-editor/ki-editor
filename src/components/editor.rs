@@ -1440,7 +1440,7 @@ impl Editor {
                 .selections
                 .iter()
                 .enumerate()
-                .map(|(index, selection)| -> anyhow::Result<_> {
+                .flat_map(|(index, selection)| -> anyhow::Result<_> {
                     let range = selection.extended_range();
                     let line_index = self
                         .buffer()
@@ -1490,7 +1490,6 @@ impl Editor {
                         .to_vec(),
                     ))
                 })
-                .flatten()
                 .collect(),
         );
         Ok(extra_dispatches.chain(self.apply_edit_transaction(edit_transaction, context)?))

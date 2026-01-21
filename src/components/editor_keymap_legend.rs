@@ -1422,32 +1422,32 @@ pub fn paste_keymap() -> Keymap {
         [
             Keybinding::new(
                 "j",
-                Movement::Left.format_action("Gapped Paste"),
+                Movement::Left.format_action("Gap Paste"),
                 Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Left)),
             ),
             Keybinding::new(
                 "l",
-                Movement::Right.format_action("Gapped Paste"),
+                Movement::Right.format_action("Gap Paste"),
                 Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Right)),
             ),
             Keybinding::new(
                 "o",
-                Movement::Next.format_action("Gapped Paste"),
+                Movement::Next.format_action("Gap Paste"),
                 Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Next)),
             ),
             Keybinding::new(
                 "u",
-                Movement::Previous.format_action("Gapped Paste"),
+                Movement::Previous.format_action("Gap Paste"),
                 Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Previous)),
             ),
             Keybinding::new(
                 ";",
-                "Paste|".to_string(),
+                "< Paste".to_string(),
                 Dispatch::ToEditor(PasteWithMovement(GetGapMovement::AfterWithoutGap)),
             ),
             Keybinding::new(
                 "h",
-                "|Paste".to_string(),
+                "Paste >".to_string(),
                 Dispatch::ToEditor(PasteWithMovement(GetGapMovement::BeforeWithoutGap)),
             ),
             Keybinding::new(

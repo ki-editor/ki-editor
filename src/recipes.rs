@@ -599,6 +599,59 @@ foo(bar, 1 + 1, spam)
             ].to_vec(),
         },
         RecipeGroup {
+            filename: "vertical-paste",
+            recipes: [
+                Recipe {
+                    description: "Paste above",
+                    content: "
+// foo
+fn main() {
+    fn bar() {
+        }
+}
+".trim(),
+                    file_extension: "rs",
+                    prepare_events: &[],
+                    events: keys!("a c l l d b i release-b"),
+                    expectations: Box::new([CurrentComponentContent("
+// foo
+fn main() {
+    // foo
+    fn bar() {
+        }
+}
+".trim())]),
+                    terminal_height: Some(12),
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Paste below",
+                    content: "
+// foo
+fn main() {
+    fn bar() {
+        }
+}
+".trim(),
+                    file_extension: "rs",
+                    prepare_events: &[],
+                    events: keys!("a c l l d b k release-b"),
+                    expectations: Box::new([CurrentComponentContent("
+// foo
+fn main() {
+    fn bar() {
+        }
+        // foo
+}
+".trim())]),
+                    terminal_height: Some(12),
+                    similar_vim_combos: &[],
+                    only: false,
+                }
+            ].to_vec(),
+        },
+        RecipeGroup {
             filename: "paste-with-gaps",
             recipes: [
                 Recipe {
