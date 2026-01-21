@@ -1490,7 +1490,6 @@ impl Editor {
                         .to_vec(),
                     ))
                 })
-                .into_iter()
                 .flatten()
                 .collect(),
         );
