@@ -64,10 +64,6 @@ Press `Select →` to restore the selection to the current state.
 
 These are useful for navigating back to previous locations after actions such as Go to Definition/References or Global Search.
 
-### `← Curs`/`Curs →`
-
-Cycle primary cursor (selection) backward/forward.
-
 ### `← Marked`/`Marked →`
 
 Go to the previous/next marked files.

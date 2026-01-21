@@ -79,6 +79,10 @@ tree-sitter-quickfix:
 doc-assets testname="": test-setup
     cargo nextest run --workspace -- 'doc_assets_' {{testname}}
 
+doc-assets-generate-keymaps:
+    cargo test -- doc_assets_export_keymaps_json
+
+
 check-config-schema:
     #!/bin/sh
     set -e

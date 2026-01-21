@@ -1,9 +1,7 @@
 use super::{
     editor::IfCurrentNotFound,
     editor_keymap::alted,
-    editor_keymap_legend::{
-        extend_mode_normal_mode_override, multicursor_mode_normal_mode_override,
-    },
+    editor_keymap_legend::extend_mode_normal_mode_override,
     file_explorer::file_explorer_normal_mode_override,
     keymap_legend::{Keybinding, Keymap},
     suggestive_editor::completion_item_keymap,
@@ -11,11 +9,9 @@ use super::{
 use crate::{
     app::Scope,
     components::{
-        editor::{Direction, Editor},
+        editor::Editor,
         editor_keymap::{shifted, KeyboardLayout},
-        editor_keymap_legend::{
-            cut_keymap, delete_keymap, multicursor_keymap, paste_keymap, swap_keymap,
-        },
+        editor_keymap_legend::{cut_keymap, delete_keymap, paste_keymap, swap_keymap},
     },
     context::Context,
 };
@@ -341,14 +337,6 @@ impl KeymapPrintSections {
                 layout,
             ),
             KeymapPrintSection::from_keymap(
-                "Multi-cursor".to_string(),
-                &Keymap::new(&editor.keymap_overridable(
-                    &multicursor_mode_normal_mode_override(Direction::End),
-                    true,
-                )),
-                layout,
-            ),
-            KeymapPrintSection::from_keymap(
                 "Completion Items".to_string(),
                 &completion_item_keymap(),
                 layout,
@@ -365,8 +353,13 @@ impl KeymapPrintSections {
             ),
             KeymapPrintSection::from_keymap("Paste".to_string(), &paste_keymap(), layout),
             KeymapPrintSection::from_keymap(
-                "Multi-cursor".to_string(),
-                &multicursor_keymap(),
+                "Multi-cursor Momentary Layer".to_string(),
+                &editor.multicursor_momentary_layer_keymap(),
+                layout,
+            ),
+            KeymapPrintSection::from_keymap(
+                "Multi-cursor Menu".to_string(),
+                &editor.multicursor_menu_keymap(),
                 layout,
             ),
             KeymapPrintSection::from_keymap("Cut".to_string(), &cut_keymap(), layout),
