@@ -4,10 +4,10 @@ sidebar_position: 2
 
 # Installation
 
-## Nightly build
+## Latest build
 
 Ki is under heavy development, so we recommend downloading the most recent
-[nightly build from github](https://github.com/ki-editor/ki-editor/releases/tag/nightly).
+[build from github](https://github.com/ki-editor/ki-editor/releases/tag/latest).
 
 ## VS Code Extension
 
