@@ -1465,6 +1465,16 @@ pub fn paste_keymap() -> Keymap {
                 Direction::End.format_action("Replace w/ copied text"),
                 Dispatch::ToEditor(DispatchEditor::PasteVertically(Direction::End)),
             ),
+            Keybinding::new(
+                "i",
+                Movement::Up.format_action("Paste"),
+                Dispatch::ToEditor(PasteVertically(Direction::Start)),
+            ),
+            Keybinding::new(
+                "k",
+                Movement::Down.format_action("Paste"),
+                Dispatch::ToEditor(PasteVertically(Direction::End)),
+            ),
         ]
         .as_ref(),
     )
