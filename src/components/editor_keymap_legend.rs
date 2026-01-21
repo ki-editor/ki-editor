@@ -645,7 +645,7 @@ impl Editor {
             )),
             Some(Keybinding::momentary_layer(MomentaryLayer {
                 key: "r",
-                description: "Multi-cursor".to_string(),
+                description: "Multi-cursor Momentary Layer".to_string(),
                 config: KeymapLegendConfig {
                     title: "Multi-cursor Momentary Layer".to_string(),
                     keymap: self.multicursor_momentary_layer_keymap(),
