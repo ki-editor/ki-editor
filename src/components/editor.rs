@@ -2622,7 +2622,10 @@ impl Editor {
                 .set_range((start..start).into()),
         ))
         .set_mode(selection_mode);
-        self.handle_movement(context, Movement::Current(IfCurrentNotFound::LookForward))
+        let dispatches =
+            self.handle_movement(context, Movement::Current(IfCurrentNotFound::LookForward))?;
+        self.align_selection_to_center(context);
+        Ok(dispatches)
     }
 
     /// This returns a vector of selections
