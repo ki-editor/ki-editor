@@ -136,19 +136,12 @@ impl PositionBasedSelectionMode for LineFull {
 
 #[cfg(test)]
 mod test_line_full {
-    
-    
-    
-    
-    
 
     use crate::{
         buffer::Buffer,
         selection::Selection,
         selection_mode::{PositionBased, SelectionModeTrait as _},
     };
-
-    
 
     #[test]
     fn case_1() {
