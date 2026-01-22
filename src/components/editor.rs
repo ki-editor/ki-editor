@@ -1663,6 +1663,9 @@ impl Editor {
                         context,
                     )
                 } else {
+                    let key_event = context
+                        .keyboard_layout_kind()
+                        .translate_key_event_to_qwerty(key_event);
                     let keymap_legend_config = self.get_current_keymap_legend_config();
 
                     if let Some(keymap) = keymap_legend_config.keymap().get(&key_event) {
