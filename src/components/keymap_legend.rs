@@ -353,17 +353,20 @@ impl Component for KeymapLegend {
     ) -> Result<Dispatches, anyhow::Error> {
         let close_current_window = Dispatch::CloseCurrentWindowAndFocusParent;
         if self.editor.mode == Mode::Insert {
-            match &event {
+            match event {
                 key!("esc") => {
                     self.editor.enter_normal_mode(context)?;
                     Ok(Default::default())
                 }
                 key_event => {
+                    let key_event = context
+                        .keyboard_layout_kind()
+                        .translate_key_event_to_qwerty(key_event.clone());
                     if let Some(keymap) = self
                         .config
                         .keymap()
                         .iter()
-                        .find(|keymap| &keymap.event == key_event)
+                        .find(|keymap| keymap.event == key_event)
                     {
                         Ok(Dispatches::one(close_current_window)
                             .chain(keymap.get_dispatches())
@@ -395,7 +398,7 @@ impl Component for KeymapLegend {
                                     Dispatch::ShowKeymapLegend(keymap_legend_config.clone()),
                                 )),
                             }
-                        } else if &release_key.key_event == key_event {
+                        } else if release_key.key_event == key_event {
                             let on_tap_dispatches =
                                 match (&release_key.on_tap, release_key.other_keys_pressed) {
                                     (Some(on_tap), false) => on_tap.dispatches.clone(),

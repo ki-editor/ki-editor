@@ -404,15 +404,6 @@ impl<T: Frontend> App<T> {
                 });
             }
             event => {
-                // Translate key events so that other layouts pretend to be QWERTY for the rest of the code
-                let event = match event {
-                    Event::Key(key_event) => Event::Key(
-                        self.context
-                            .keyboard_layout_kind()
-                            .translate_key_event_to_qwerty(key_event),
-                    ),
-                    event => event,
-                };
                 let dispatches = component.borrow_mut().handle_event(&self.context, event);
                 self.handle_dispatches_result(dispatches)
                     .unwrap_or_else(|e| {
