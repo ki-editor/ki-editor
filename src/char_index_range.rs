@@ -165,7 +165,7 @@ impl CharIndexRange {
         }
     }
 
-    pub(crate) fn to_char_index(&self, direction: &Direction) -> CharIndex {
+    pub(crate) fn to_char_index(self, direction: &Direction) -> CharIndex {
         match direction {
             Direction::Start => self.start,
             Direction::End => self.end,

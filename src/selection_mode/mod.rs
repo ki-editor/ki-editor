@@ -612,25 +612,12 @@ pub trait SelectionModeTrait {
     ) -> String {
         let buffer = params.buffer;
         let selection = params.current_selection;
-        let get_current_line_indentation = || {
-            params
-                .buffer
-                .get_line_by_char_index(selection.extended_range().start())
-                .map(|line| line.chars().take_while(|c| c.is_whitespace()).join(""))
-                .unwrap_or_default()
-        };
-        let process_gap = |other: Selection| {
-            if other.range() == selection.range() {
-                Default::default()
+        let get_in_between_gap = |reversed: bool| {
+            let get_gap_movement = if reversed {
+                get_gap_movement.reversed()
             } else {
-                let current_range = selection.range();
-                let other_range = other.range();
-                let in_between_range = current_range.end.min(other_range.end)
-                    ..current_range.start.max(other_range.start);
-                Some(buffer.slice(&in_between_range.into()).ok()?.to_string())
-            }
-        };
-        let get_in_between_gap = |direction: Direction| {
+                get_gap_movement.clone()
+            };
             let other = match get_gap_movement {
                 GetGapMovement::Left => self.left(params),
                 GetGapMovement::Right => self.right(params),
@@ -649,9 +636,14 @@ pub trait SelectionModeTrait {
                 Some(buffer.slice(&in_between_range.into()).ok()?.to_string())
             }
         };
-        let prev_gap = get_in_between_gap(Direction::Start);
-        let next_gap = get_in_between_gap(Direction::End);
-        self.process_paste_gap(params, prev_gap, next_gap, &get_gap_movement.to_direction())
+        let gap = get_in_between_gap(false);
+        let gap_in_reversed_direction = get_in_between_gap(true);
+        self.process_paste_gap(
+            params,
+            gap,
+            gap_in_reversed_direction,
+            &get_gap_movement.to_direction(),
+        )
     }
 
     fn process_paste_gap(
@@ -681,6 +673,17 @@ impl GetGapMovement {
             GetGapMovement::Left => Direction::Start,
             GetGapMovement::BeforeWithoutGap => Direction::Start,
             GetGapMovement::AfterWithoutGap => Direction::End,
+        }
+    }
+
+    fn reversed(&self) -> GetGapMovement {
+        match self {
+            GetGapMovement::Next => GetGapMovement::Previous,
+            GetGapMovement::Previous => GetGapMovement::Next,
+            GetGapMovement::Right => GetGapMovement::Left,
+            GetGapMovement::Left => GetGapMovement::Right,
+            GetGapMovement::BeforeWithoutGap => GetGapMovement::AfterWithoutGap,
+            GetGapMovement::AfterWithoutGap => GetGapMovement::BeforeWithoutGap,
         }
     }
 }

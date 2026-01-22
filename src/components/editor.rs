@@ -1497,9 +1497,7 @@ impl Editor {
 
     fn pre_paste(context: &Context) -> Option<(CopiedTexts, Dispatches)> {
         let clipboards_differ: bool = !context.clipboards_synced();
-        let Some(copied_texts) = context.get_clipboard_content(0) else {
-            return None;
-        };
+        let copied_texts = context.get_clipboard_content(0)?;
         // out-of-sync paste should also add the content to clipboard history
         Some(if clipboards_differ {
             (
