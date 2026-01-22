@@ -2,6 +2,7 @@ use crate::app::{Dispatch, Dispatches};
 use crate::context::{Context, GlobalMode};
 use crate::grid::StyleKey;
 use crate::selection::SelectionMode;
+use crossterm::event::KeyEventKind;
 use DispatchEditor::*;
 
 use crate::selection_range::SelectionRange;
@@ -124,7 +125,7 @@ impl Component for SuggestiveEditor {
                 })
                 .collect_vec()
                 .into(),
-                _ if self.editor.mode == Mode::Insert => {
+                _ if self.editor.mode == Mode::Insert && event.kind != KeyEventKind::Release => {
                     vec![Dispatch::RequestCompletion, Dispatch::RequestSignatureHelp].into()
                 }
                 _ => Default::default(),
