@@ -38,46 +38,46 @@ impl Editor {
         [
             Keybinding::new_extended(
                 "j",
-                "◀".to_string(),
+                "<<".to_string(),
                 "Left".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Movement::Left, prior_change)),
             ),
             Keybinding::new_extended(
                 "l",
-                "▶".to_string(),
+                ">>".to_string(),
                 "Right".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Right, prior_change)),
             ),
             Keybinding::new_extended(
                 "i",
-                "▲".to_string(),
+                "^".to_string(),
                 "Up".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Up, prior_change)),
             ),
             Keybinding::new_extended(
                 "k",
-                "▼".to_string(),
+                "v".to_string(),
                 "Down".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Down, prior_change)),
             ),
             Keybinding::new(
                 "y",
-                "First".to_string(),
+                "|<".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Movement::First, prior_change)),
             ),
             Keybinding::new(
                 "p",
-                "Last".to_string(),
+                ">|".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Movement::Last, prior_change)),
             ),
             Keybinding::new(
                 "o",
-                "Next".to_string(),
+                ">".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Movement::Next, prior_change)),
             ),
             Keybinding::new(
                 "u",
-                "Previous".to_string(),
+                "<".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(
                     Movement::Previous,
                     prior_change,

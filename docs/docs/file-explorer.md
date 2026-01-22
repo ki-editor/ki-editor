@@ -66,7 +66,7 @@ Because the File Explorer is just a YAML file, the following actions are free[^1
 | Go to next/previous file/folder at current level, skipping expanded children | Use [Left/Right][4] with [Syntax Node][3] |
 
 [1]: normal-mode/selection-modes/primary.md#line
-[2]: normal-mode/core-movements.md#firstlast
+[2]: normal-mode/core-movements.md#--firstlast
 [3]: normal-mode/selection-modes/primary.md#syntax-1
 [4]: normal-mode/core-movements.md#--leftright
 

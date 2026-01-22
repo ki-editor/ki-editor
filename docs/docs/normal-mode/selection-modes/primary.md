@@ -27,7 +27,7 @@ There are two Syntax Node selection modes:
 | Movement                                           | Meaning                                              |
 | -------------------------------------------------- | ---------------------------------------------------- |
 | [Left/Right](../core-movements.md#--leftright)     | Next/Previous **named** sibling node                 |
-| [Previous/Next](../core-movements.md#previousnext) | Next/Previous sibling node, including anonymous ones |
+| [Previous/Next](../core-movements.md#--previousnext) | Next/Previous sibling node, including anonymous ones |
 | Up                                                 | Parent node                                          |
 | Down                                               | First **named** child                                |
 | Current                                            | Select the largest node                              |
@@ -73,7 +73,7 @@ Fine Syntax Node.
 | Movement                                           | Meaning                                              |
 | -------------------------------------------------- | ---------------------------------------------------- |
 | [Left/Right](../core-movements.md#--leftright)     | Next/Previous **named** sibling node                 |
-| [Previous/Next](../core-movements.md#previousnext) | Next/Previous sibling node, including anonymous ones |
+| [Previous/Next](../core-movements.md#--previousnext) | Next/Previous sibling node, including anonymous ones |
 | Up                                                 | Parent node                                          |
 | Shrink                                             | First child (including anonymous)                    |
 | Current                                            | Smallest node that matches the current selection     |
@@ -182,6 +182,6 @@ Character.
 
 In this selection mode, the movements behave like the usual editor, where [Left/Right](./../core-movements.md#--leftright) means left/right, and so on.
 
-[First/Last](./../core-movements.md#firstlast) means the first/last character of the current word.
+[First/Last](./../core-movements.md#--firstlast) means the first/last character of the current word.
 
 <TutorialFallback filename="char"/>
