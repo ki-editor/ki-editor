@@ -612,7 +612,6 @@ pub trait SelectionModeTrait {
     ) -> String {
         let buffer = params.buffer;
         let selection = params.current_selection;
-        dbg!(&get_gap_movement);
         let get_in_between_gap = |reversed: bool| {
             let get_gap_movement = if reversed {
                 get_gap_movement.reversed()
@@ -640,14 +639,13 @@ pub trait SelectionModeTrait {
             }
         };
         let gap = get_in_between_gap(false);
-        dbg!(&gap);
         let gap_in_reversed_direction = get_in_between_gap(true);
-        dbg!(self.process_paste_gap(
+        self.process_paste_gap(
             params,
             gap,
             gap_in_reversed_direction,
             &get_gap_movement.to_direction(),
-        ))
+        )
     }
 
     fn process_paste_gap(

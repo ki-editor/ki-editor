@@ -1442,12 +1442,12 @@ pub fn paste_keymap() -> Keymap {
             ),
             Keybinding::new(
                 ";",
-                "< Paste".to_string(),
+                "Paste >".to_string(),
                 Dispatch::ToEditor(PasteWithMovement(GetGapMovement::AfterWithoutGap)),
             ),
             Keybinding::new(
                 "h",
-                "Paste >".to_string(),
+                "< Paste".to_string(),
                 Dispatch::ToEditor(PasteWithMovement(GetGapMovement::BeforeWithoutGap)),
             ),
             Keybinding::new(
