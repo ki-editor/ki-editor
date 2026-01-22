@@ -599,6 +599,59 @@ foo(bar, 1 + 1, spam)
             ].to_vec(),
         },
         RecipeGroup {
+            filename: "vertical-paste",
+            recipes: [
+                Recipe {
+                    description: "Paste above",
+                    content: "
+// foo
+fn main() {
+    fn bar() {
+        }
+}
+".trim(),
+                    file_extension: "rs",
+                    prepare_events: &[],
+                    events: keys!("a c l l d b i release-b"),
+                    expectations: Box::new([CurrentComponentContent("
+// foo
+fn main() {
+    // foo
+    fn bar() {
+        }
+}
+".trim())]),
+                    terminal_height: Some(12),
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Paste below",
+                    content: "
+// foo
+fn main() {
+    fn bar() {
+        }
+}
+".trim(),
+                    file_extension: "rs",
+                    prepare_events: &[],
+                    events: keys!("a c l l d b k release-b"),
+                    expectations: Box::new([CurrentComponentContent("
+// foo
+fn main() {
+    fn bar() {
+        }
+        // foo
+}
+".trim())]),
+                    terminal_height: Some(12),
+                    similar_vim_combos: &[],
+                    only: false,
+                }
+            ].to_vec(),
+        },
+        RecipeGroup {
             filename: "paste-with-gaps",
             recipes: [
                 Recipe {
@@ -1473,7 +1526,7 @@ pub(crate) fn get_selection_mode_trait_object(
 "#,
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("n d n / s e l e c t i o n space m o d e / f o o space b a r enter r space release-r j b k release-b r m"),
+                    events: keys!("n d n / s e l e c t i o n space m o d e / f o o space b a r enter r space release-r j b m release-b r m"),
                     expectations: Box::new([]),
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -1484,7 +1537,7 @@ pub(crate) fn get_selection_mode_trait_object(
                     content: "fo x fo x fo".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("n d l space f o space b a enter r l release-r b k release-b"),
+                    events: keys!("n d l space f o space b a enter r l release-r b m release-b"),
                     expectations: Box::new([CurrentComponentContent("ba x ba x fo")]),
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
@@ -1501,7 +1554,7 @@ pub(crate) fn get_selection_mode_trait_object(
                     content: "1 x 2".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("n d r space ( backslash d ) space ( $ 1 ) enter r space release-r j b k release-b"),
+                    events: keys!("n d r space ( backslash d ) space ( $ 1 ) enter r space release-r j b m release-b"),
                     expectations: Box::new([CurrentComponentContent("(1) x (2)")]),
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
@@ -1512,7 +1565,7 @@ pub(crate) fn get_selection_mode_trait_object(
                     content: "foBa x fo_ba x fo ba x fo-ba".trim(),
                     file_extension: "js",
                     prepare_events: &[],
-                    events: keys!("n d n / f o space b a / k a _ t o enter r space release-r j b k release-b"),
+                    events: keys!("n d n / f o space b a / k a _ t o enter r space release-r j b m release-b"),
                     expectations: Box::new([CurrentComponentContent("kaTo x ka_to x ka to x ka-to")]),
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
@@ -1523,7 +1576,7 @@ pub(crate) fn get_selection_mode_trait_object(
                     content: "f(1+1); f(x); f('f()')".trim(),
                     file_extension: "js",
                     prepare_events: &[],
-                    events: keys!("n d a space f ( $ X ) space ( $ X ) . z enter r space release-r j b k release-b"),
+                    events: keys!("n d a space f ( $ X ) space ( $ X ) . z enter r space release-r j b m release-b"),
                     expectations: Box::new([CurrentComponentContent("(1+1).z; (x).z; ('f()').z")]),
                     terminal_height: Some(7),
                     similar_vim_combos: &[],

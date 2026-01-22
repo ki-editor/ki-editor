@@ -160,26 +160,6 @@ impl IterBasedSelectionMode for SyntaxNode {
             Ok(Box::new(std::iter::empty()))
         }
     }
-
-    fn process_paste_gap(
-        &self,
-        _: &super::SelectionModeParams,
-        prev_gap: Option<String>,
-        next_gap: Option<String>,
-        _: &Direction,
-    ) -> String {
-        match (prev_gap, next_gap) {
-            (None, None) => Default::default(),
-            (None, Some(gap)) | (Some(gap), None) => gap,
-            (Some(prev_gap), Some(next_gap)) => {
-                if prev_gap.chars().count() > next_gap.chars().count() {
-                    prev_gap
-                } else {
-                    next_gap
-                }
-            }
-        }
-    }
 }
 
 impl SyntaxNode {
@@ -246,6 +226,7 @@ pub fn get_node(node: tree_sitter::Node, go_up: bool, coarse: bool) -> Option<tr
 mod test_syntax_node {
     use crate::buffer::BufferOwner;
     use crate::selection::SelectionMode;
+    use crate::selection_mode::GetGapMovement;
     use crate::test_app::*;
     use crate::{
         buffer::Buffer,
@@ -394,7 +375,7 @@ fn main() {
                 )),
                 Editor(MoveSelection(Right)),
                 Editor(Copy),
-                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
             ])
         })
@@ -418,7 +399,7 @@ fn main() {
                 )),
                 Editor(MoveSelection(Right)),
                 Editor(Copy),
-                Editor(PasteWithMovement(Left)),
+                Editor(PasteWithMovement(GetGapMovement::Left)),
                 Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
             ])
         })
@@ -449,7 +430,7 @@ mod x {
                     SelectionMode::SyntaxNode,
                 )),
                 Editor(Copy),
-                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent(
                     "
 mod x {

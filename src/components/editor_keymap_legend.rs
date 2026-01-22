@@ -18,6 +18,7 @@ use crate::{
     quickfix_list::{DiagnosticSeverityRange, QuickfixListType},
     scripting::custom_keymap,
     selection::SelectionMode,
+    selection_mode::GetGapMovement,
     surround::EnclosureKind,
     transformation::Transformation,
 };
@@ -1428,38 +1429,58 @@ pub fn paste_keymap() -> Keymap {
         [
             Keybinding::new(
                 "j",
-                Direction::Start.format_action("Paste with gaps"),
-                Dispatch::ToEditor(PasteWithMovement(Movement::Left)),
+                Movement::Left.format_action("Gap Paste"),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Left)),
             ),
             Keybinding::new(
                 "l",
-                Direction::End.format_action("Paste with gaps"),
-                Dispatch::ToEditor(PasteWithMovement(Movement::Right)),
+                Movement::Right.format_action("Gap Paste"),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Right)),
             ),
             Keybinding::new(
                 "o",
-                Direction::End.format_action("Paste"),
-                Dispatch::ToEditor(PasteWithMovement(Movement::Next)),
+                Movement::Next.format_action("Gap Paste"),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Next)),
             ),
             Keybinding::new(
                 "u",
-                Direction::Start.format_action("Paste"),
-                Dispatch::ToEditor(PasteWithMovement(Movement::Previous)),
-            ),
-            Keybinding::new(
-                "k",
-                "Replace with pattern".to_string(),
-                Dispatch::ToEditor(ReplaceWithPattern),
-            ),
-            Keybinding::new(
-                "h",
-                Direction::Start.format_action("Replace with copied text"),
-                Dispatch::ToEditor(ReplaceWithPreviousCopiedText),
+                Movement::Previous.format_action("Gap Paste"),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Previous)),
             ),
             Keybinding::new(
                 ";",
-                Direction::End.format_action("Replace with copied text"),
-                Dispatch::ToEditor(ReplaceWithNextCopiedText),
+                "Paste >".to_string(),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::AfterWithoutGap)),
+            ),
+            Keybinding::new(
+                "h",
+                "< Paste".to_string(),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::BeforeWithoutGap)),
+            ),
+            Keybinding::new(
+                "m",
+                "Replace w/ pattern".to_string(),
+                Dispatch::ToEditor(ReplaceWithPattern),
+            ),
+            Keybinding::new(
+                "y",
+                Direction::Start.format_action("Replace w/ copied text"),
+                Dispatch::ToEditor(ReplaceWithPreviousCopiedText),
+            ),
+            Keybinding::new(
+                "p",
+                Direction::End.format_action("Replace w/ copied text"),
+                Dispatch::ToEditor(DispatchEditor::PasteVertically(Direction::End)),
+            ),
+            Keybinding::new(
+                "i",
+                Movement::Up.format_action("Paste"),
+                Dispatch::ToEditor(PasteVertically(Direction::Start)),
+            ),
+            Keybinding::new(
+                "k",
+                Movement::Down.format_action("Paste"),
+                Dispatch::ToEditor(PasteVertically(Direction::End)),
             ),
         ]
         .as_ref(),
