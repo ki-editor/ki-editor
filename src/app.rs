@@ -1800,7 +1800,6 @@ impl<T: Frontend> App<T> {
         if self.is_running_as_embedded() {
             let title = keymap_legend_config.title.clone();
             let body = keymap_legend_config.display(
-                self.context.keyboard_layout_kind(),
                 usize::MAX,
                 &KeymapDisplayOption {
                     show_alt: false,

@@ -13,14 +13,12 @@ use crate::{
 use super::{
     component::Component,
     editor::{Direction, Editor, Mode},
-    editor_keymap::KeyboardLayoutKind,
     editor_keymap_printer::KeymapPrintSection,
 };
 
 pub struct KeymapLegend {
     editor: Editor,
     config: KeymapLegendConfig,
-    keymap_layout_kind: super::editor_keymap::KeyboardLayoutKind,
     release_key: Option<ParsedReleaseKey>,
 }
 
@@ -103,18 +101,8 @@ impl ReleaseKey {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Keymap(Vec<Keybinding>);
 impl Keymap {
-    fn display(
-        &self,
-        keyboard_layout_kind: &KeyboardLayoutKind,
-        terminal_width: usize,
-        option: &KeymapDisplayOption,
-    ) -> String {
-        KeymapPrintSection::from_keymap(
-            "".to_string(),
-            self,
-            keyboard_layout_kind.get_keyboard_layout(),
-        )
-        .display(terminal_width, option)
+    fn display(&self, terminal_width: usize, option: &KeymapDisplayOption) -> String {
+        KeymapPrintSection::from_keymap("".to_string(), self).display(terminal_width, option)
     }
     pub fn new(keybindings: &[Keybinding]) -> Self {
         Self(keybindings.to_vec())
@@ -134,13 +122,8 @@ impl Keymap {
 }
 
 impl KeymapLegendConfig {
-    pub fn display(
-        &self,
-        keyboard_layout_kind: &KeyboardLayoutKind,
-        width: usize,
-        option: &KeymapDisplayOption,
-    ) -> String {
-        self.keymap.display(keyboard_layout_kind, width, option)
+    pub fn display(&self, width: usize, option: &KeymapDisplayOption) -> String {
+        self.keymap.display(width, option)
     }
 
     pub fn keymap(&self) -> Keymap {
@@ -306,7 +289,6 @@ impl KeymapLegend {
         KeymapLegend {
             editor,
             config,
-            keymap_layout_kind: *context.keyboard_layout_kind(),
             release_key,
         }
     }
@@ -320,7 +302,6 @@ impl KeymapLegend {
 
     fn display(&self) -> String {
         let content = self.config.display(
-            &self.keymap_layout_kind,
             self.editor.rectangle().width,
             &KeymapDisplayOption {
                 show_alt: true,
@@ -478,10 +459,8 @@ mod test_keymap_legend {
             ]
             .to_vec(),
         );
-        let context = Context::default();
         let actual = keymap
             .display(
-                context.keyboard_layout_kind(),
                 100,
                 &KeymapDisplayOption {
                     show_alt: false,
@@ -504,7 +483,6 @@ mod test_keymap_legend {
 
         let actual = keymap
             .display(
-                context.keyboard_layout_kind(),
                 100,
                 &KeymapDisplayOption {
                     show_alt: true,
@@ -542,10 +520,8 @@ mod test_keymap_legend {
             ]
             .to_vec(),
         );
-        let context = Context::default();
         let actual = keymap
             .display(
-                context.keyboard_layout_kind(),
                 50,
                 &KeymapDisplayOption {
                     show_alt: true,
@@ -589,10 +565,8 @@ mod test_keymap_legend {
             ]
             .to_vec(),
         );
-        let context = Context::default();
         let actual = keymap
             .display(
-                context.keyboard_layout_kind(),
                 10,
                 &KeymapDisplayOption {
                     show_alt: true,
