@@ -9,14 +9,37 @@ import {KeymapFallback} from '@site/src/components/KeymapFallback';
 
 ## Paste
 
-Paste the clipboard content before or after the current selection, without automatic gaps insertion.
+| Action    | Meaning                                |
+| --------- | -------------------------------------- |
+| `< Paste` | Paste **BEFORE** the current selection |
+| `Paste >` | Paste **AFTER** the current selection  |
+
+Paste the clipboard content before/after the current selection, without automatic gaps insertion.
 
 <TutorialFallback filename="paste"/>
 
-## Paste with gaps
+## Vertical Paste
 
-Paste with gaps works by analyzing the gap between the current selection and the
-previous/next selection, then insert the gap before/after the pasted text.
+| Action    | Meaning                               |
+| --------- | ------------------------------------- |
+| `Paste ^` | Paste **ABOVE** the current selection |
+| `Paste v` | Paste **BELOW** the current selection |
+
+Paste above/below the current selection, following the indentation of the first/last line of the current selection (which can be multiple lines).
+
+<TutorialFallback filename="vertical-paste"/>
+
+## Gap Paste
+
+| Action         | Meaning                                                                                                               |
+| -------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `< Gap Paste`  | Paste **BEFORE** the current selection with gaps between the current selection and the **`<`**/**`>`** selection(s)   |
+| `Gap Paste >`  | Paste **AFTER** the current selection with gaps between the current selection and the **`<`**/**`>`** selection(s)    |
+| `<< Gap Paste` | Paste **BEFORE** the current selection with gaps between the current selection and the **`<<`**/**`>>`** selection(s) |
+| `Gap Paste >>` | Paste **AFTER** the current selection with gaps between the current selection and the **`<<`**/**`>>`** selection(s)  |
+
+Gap Paste works by analyzing the gap between the current selection and the
+`<`/`>`/`<<`/`>>` selection, then insert the gap before/after the pasted text.
 
 For example, consider the following Javascript code:
 
@@ -25,11 +48,13 @@ hello(x, y);
 ```
 
 Assuming the current selection mode is Syntax Node, and the current selection is `y`, and the
-copied text is `z`, performing a `p` results in the following:
+copied text is `z`, performing a `Paste >>` results in the following:
 
 ```js
 hello(x, y, z);
 ```
+
+Because the gap between the current selection (`y`) and the the `<<`/`>>` selection is `, `, where the `<<` selection is `x`.
 
 <TutorialFallback filename="paste-with-gaps"/>
 
