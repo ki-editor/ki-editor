@@ -802,41 +802,6 @@ fn open_before_selection() -> anyhow::Result<()> {
 }
 
 #[test]
-fn open_before_use_min_gap() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent(
-                "
-def main():
-  hello
-    world
-"
-                .trim()
-                .to_string(),
-            )),
-            Editor(MatchLiteral("hello".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(SwapCursor),
-            Editor(Open),
-            Expect(CurrentComponentContent(
-                "
-def main():
-  
-  hello
-    world
-"
-                .trim(),
-            )),
-        ])
-    })
-}
-
-#[test]
 fn open_after_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -1197,7 +1162,7 @@ fn paste_no_gap() -> anyhow::Result<()> {
             Editor(SetContent("foo\nbar".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(Copy),
-            Editor(PasteWithMovement(GetGapMovement::Next)),
+            Editor(PasteWithMovement(GetGapMovement::AfterWithoutGap)),
             Expect(CurrentComponentContent("foofoo\nbar")),
         ])
     })
@@ -3071,7 +3036,7 @@ fn show_current_tree_sitter_node_sexp() -> Result<(), anyhow::Error> {
 
 #[serial]
 #[test]
-fn yank_paste_extended_selection() -> Result<(), anyhow::Error> {
+fn copy_paste_extended_selection() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         {
             Box::new([

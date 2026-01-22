@@ -1,14 +1,11 @@
 use std::ops::Not;
 
-use itertools::Itertools;
-
 use crate::{
-    components::editor::{Direction, IfCurrentNotFound},
-    selection::CharIndex,
+    components::editor::IfCurrentNotFound, selection::CharIndex,
     selection_mode::ApplyMovementResult,
 };
 
-use super::{ByteRange, PositionBasedSelectionMode, SelectionModeParams};
+use super::{ByteRange, PositionBasedSelectionMode};
 
 #[derive(Clone)]
 pub struct LineTrimmed;
@@ -403,16 +400,6 @@ impl PositionBasedSelectionMode for LineTrimmed {
         get_line(buffer, cursor_char_index, if_current_not_found)
     }
 
-    fn process_paste_gap(
-        &self,
-        params: &super::SelectionModeParams,
-        prev_gap: Option<String>,
-        next_gap: Option<String>,
-        direction: &crate::components::editor::Direction,
-    ) -> String {
-        process_paste_gap(params, prev_gap, next_gap, direction)
-    }
-
     fn down(
         &self,
         params: &super::SelectionModeParams,
@@ -621,50 +608,6 @@ fn get_line(
     Ok(Some(ByteRange::new(trimmed_range)))
 }
 
-pub fn process_paste_gap(
-    params: &SelectionModeParams,
-    prev_gap: Option<String>,
-    next_gap: Option<String>,
-    direction: &Direction,
-) -> String {
-    let add_newline = |gap: String| {
-        if gap.chars().any(|c| c == '\n') {
-            gap
-        } else {
-            format!("\n{gap}")
-        }
-    };
-    match (prev_gap, next_gap) {
-        (None, None) => {
-            // Get the indent of the current line
-            let current_line = params
-                .buffer
-                .get_line_by_char_index(params.cursor_char_index())
-                .unwrap_or_default();
-
-            let indentation = current_line
-                .chars()
-                .take_while(|c| c.is_ascii_whitespace())
-                .join("");
-
-            add_newline(indentation)
-        }
-        (Some(gap), None) => add_newline(gap),
-        (None, Some(gap)) => add_newline(gap),
-        (Some(prev_gap), Some(next_gap)) => {
-            let prev_gap = add_newline(prev_gap);
-            let next_gap = add_newline(next_gap);
-            let larger = next_gap.chars().count() > prev_gap.chars().count();
-            match (direction, larger) {
-                (Direction::Start, true) => prev_gap,
-                (Direction::Start, false) => next_gap,
-                (Direction::End, true) => next_gap,
-                (Direction::End, false) => prev_gap,
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod test_line {
     use crate::buffer::BufferOwner;
@@ -785,91 +728,6 @@ foo
 
     #[serial]
     #[test]
-    fn paste_backward_use_larger_indent() -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent(
-                    "
-foo
-  bar
-    spam
-"
-                    .trim()
-                    .to_string(),
-                )),
-                Editor(MatchLiteral("bar".to_string())),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    SelectionMode::Line,
-                )),
-                Editor(Copy),
-                Editor(PasteWithMovement(GetGapMovement::Left)),
-                Expect(CurrentComponentContent(
-                    "
-foo
-  bar
-  bar
-    spam
-"
-                    .trim(),
-                )),
-            ])
-        })
-    }
-
-    #[serial]
-    #[test]
-    fn still_paste_forward_with_newline_with_indent_despite_only_one_line_present(
-    ) -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent("  foo".to_string())),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    SelectionMode::Line,
-                )),
-                Editor(Copy),
-                Editor(PasteWithMovement(GetGapMovement::Right)),
-                Expect(CurrentComponentContent("  foo\n  foo")),
-            ])
-        })
-    }
-
-    #[serial]
-    #[test]
-    fn still_paste_backward_with_newline_with_indent_despite_only_one_line_present(
-    ) -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent("  foo".to_string())),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    SelectionMode::Line,
-                )),
-                Editor(Copy),
-                Editor(PasteWithMovement(GetGapMovement::Left)),
-                Expect(CurrentComponentContent("  foo\n  foo")),
-            ])
-        })
-    }
-
-    #[serial]
-    #[test]
     fn paste_previous_using_last_line() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
@@ -888,56 +746,6 @@ foo
                 Editor(Copy),
                 Editor(PasteWithMovement(GetGapMovement::Left)),
                 Expect(CurrentComponentContent("foo\nbar\nbar")),
-            ])
-        })
-    }
-
-    #[serial]
-    #[test]
-    fn copy_pasting_backward_nothing_but_with_indentation() -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent(" ".to_string())),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    SelectionMode::Line,
-                )),
-                Expect(CurrentSelectedTexts(&[""])),
-                Editor(Copy),
-                Editor(PasteWithMovement(GetGapMovement::Left)),
-                Expect(CurrentComponentContent(" \n ")),
-                Editor(PasteWithMovement(GetGapMovement::Left)),
-                Expect(CurrentComponentContent("  \n\n ")),
-            ])
-        })
-    }
-
-    #[serial]
-    #[test]
-    fn copy_pasting_forward_nothing_but_with_indentation() -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent(" ".to_string())),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    SelectionMode::Line,
-                )),
-                Expect(CurrentSelectedTexts(&[""])),
-                Editor(Copy),
-                Editor(PasteWithMovement(GetGapMovement::Right)),
-                Expect(CurrentComponentContent(" \n ")),
-                Editor(PasteWithMovement(GetGapMovement::Right)),
-                Expect(CurrentComponentContent(" \n \n ")),
             ])
         })
     }

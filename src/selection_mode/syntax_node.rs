@@ -160,26 +160,6 @@ impl IterBasedSelectionMode for SyntaxNode {
             Ok(Box::new(std::iter::empty()))
         }
     }
-
-    fn process_paste_gap(
-        &self,
-        _: &super::SelectionModeParams,
-        prev_gap: Option<String>,
-        next_gap: Option<String>,
-        _: &Direction,
-    ) -> String {
-        match (prev_gap, next_gap) {
-            (None, None) => Default::default(),
-            (None, Some(gap)) | (Some(gap), None) => gap,
-            (Some(prev_gap), Some(next_gap)) => {
-                if prev_gap.chars().count() > next_gap.chars().count() {
-                    prev_gap
-                } else {
-                    next_gap
-                }
-            }
-        }
-    }
 }
 
 impl SyntaxNode {

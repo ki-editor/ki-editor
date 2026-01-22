@@ -1368,6 +1368,7 @@ impl Editor {
                 .into_iter()
                 .enumerate()
                 .map(|(index, (selection, gap))| {
+                    dbg!(&gap);
                     let current_range = selection.extended_range();
                     let direction = get_gap_movement.to_direction();
                     let insertion_range_start = match direction {
@@ -2699,6 +2700,7 @@ impl Editor {
                     },
                     get_gap_movement,
                 );
+                dbg!(&gap);
 
                 let gap: String = if gap_at_most_one_newline {
                     gap.chars()

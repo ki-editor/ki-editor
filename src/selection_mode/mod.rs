@@ -612,6 +612,7 @@ pub trait SelectionModeTrait {
     ) -> String {
         let buffer = params.buffer;
         let selection = params.current_selection;
+        dbg!(&get_gap_movement);
         let get_in_between_gap = |reversed: bool| {
             let get_gap_movement = if reversed {
                 get_gap_movement.reversed()
@@ -623,7 +624,9 @@ pub trait SelectionModeTrait {
                 GetGapMovement::Right => self.right(params),
                 GetGapMovement::Next => self.next(params),
                 GetGapMovement::Previous => self.previous(params),
-                GetGapMovement::BeforeWithoutGap | GetGapMovement::AfterWithoutGap => Ok(None),
+                GetGapMovement::BeforeWithoutGap | GetGapMovement::AfterWithoutGap => {
+                    return Some("".to_string())
+                }
             }
             .ok()??;
             if other.range() == selection.range() {
@@ -637,13 +640,14 @@ pub trait SelectionModeTrait {
             }
         };
         let gap = get_in_between_gap(false);
+        dbg!(&gap);
         let gap_in_reversed_direction = get_in_between_gap(true);
-        self.process_paste_gap(
+        dbg!(self.process_paste_gap(
             params,
             gap,
             gap_in_reversed_direction,
             &get_gap_movement.to_direction(),
-        )
+        ))
     }
 
     fn process_paste_gap(
@@ -1155,15 +1159,24 @@ pub trait PositionBasedSelectionMode {
         Ok(None)
     }
 
-    /// By default, paste gap should be empty string
     fn process_paste_gap(
         &self,
         _: &SelectionModeParams,
-        _: Option<String>,
-        _: Option<String>,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
         _: &Direction,
     ) -> String {
-        Default::default()
+        match (prev_gap, next_gap) {
+            (None, None) => Default::default(),
+            (None, Some(gap)) | (Some(gap), None) => gap,
+            (Some(prev_gap), Some(next_gap)) => {
+                if prev_gap.chars().count() > next_gap.chars().count() {
+                    prev_gap
+                } else {
+                    next_gap
+                }
+            }
+        }
     }
 }
 pub struct PositionBased<T: PositionBasedSelectionMode>(pub T);
@@ -1761,15 +1774,24 @@ pub trait IterBasedSelectionMode {
         assert_eq!(expected, actual);
     }
 
-    /// By default, paste gap should be empty string
     fn process_paste_gap(
         &self,
         _: &SelectionModeParams,
-        _: Option<String>,
-        _: Option<String>,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
         _: &Direction,
     ) -> String {
-        Default::default()
+        match (prev_gap, next_gap) {
+            (None, None) => Default::default(),
+            (None, Some(gap)) | (Some(gap), None) => gap,
+            (Some(prev_gap), Some(next_gap)) => {
+                if prev_gap.chars().count() > next_gap.chars().count() {
+                    prev_gap
+                } else {
+                    next_gap
+                }
+            }
+        }
     }
 }
 
