@@ -581,10 +581,17 @@ impl Editor {
         context: &Context,
         event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
+        let translated_event = context
+            .keyboard_layout_kind()
+            .translate_key_event_to_qwerty(event.clone());
         if let Some(dispatches) = self
             .insert_mode_keymap(true)
             .iter()
-            .find(|keymap| keymap.event().is_press_or_repeat_equivalent(&event))
+            .find(|keymap| {
+                keymap
+                    .event()
+                    .is_press_or_repeat_equivalent(&translated_event)
+            })
             .map(|keymap| keymap.get_dispatches())
         {
             Ok(dispatches)

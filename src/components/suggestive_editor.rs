@@ -83,11 +83,14 @@ impl Component for SuggestiveEditor {
         event: event::KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
-            if let Some(keymap) = completion_item_keymap().get(&event) {
+            let translated_event = context
+                .keyboard_layout_kind()
+                .translate_key_event_to_qwerty(event.clone());
+            if let Some(keymap) = completion_item_keymap().get(&translated_event) {
                 log::info!("dispatches = {:?}", keymap.get_dispatches());
                 return Ok(keymap.get_dispatches());
             };
-            match event {
+            match translated_event {
                 key!("down") => return self.next_completion_item(),
                 key!("up") => return self.previous_completion_item(),
                 key!("tab") => return self.select_completion_item(),
