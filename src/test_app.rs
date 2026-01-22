@@ -2035,17 +2035,17 @@ foo a // Line 10
                 // Line 10 should be placed below Line 2 (sorted numerically, not lexicograhically)
                 "
 src/foo.rs
-    2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
+     2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
     10:1  foo a // Line 10
 
 src/main.rs
-    1:1  foo d
-    2:1  foo c
+     1:1  foo d
+     2:1  foo c
                ".to_string()
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine("    2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
+            Expect(QuickfixListCurrentLine("     2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
             Expect(CurrentPath(s.foo_rs())),
             Expect(CurrentLine("foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
             Expect(CurrentSelectedTexts(&["foo"])),

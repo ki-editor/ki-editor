@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, ops::Range, rc::Rc};
 
 use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
@@ -20,27 +20,25 @@ impl QuickfixListItem {
     fn into_dropdown_item(
         self: QuickfixListItem,
         buffers: &[Rc<RefCell<Buffer>>],
+        position_range: Range<Position>,
         current_working_directory: &CanonicalizedPath,
+        show_line_number: bool,
+        max_line_number_digits_count: usize,
+        max_column_number_digits_count: usize,
     ) -> DropdownItem {
-        let buffer = buffers
-            .iter()
-            .find(|buffer| {
-                if let Some(path) = buffer.borrow().path() {
-                    path == self.location.path
-                } else {
-                   false
-                }
-            })
-            .unwrap_or_else(|| panic!("The unique buffers of all quickfix list items should be preloaded beforehand, but the buffer for {:?} is not loaded.",
-                    self.location.path));
-        let position_range = buffer
-            .borrow()
-            .char_index_range_to_position_range(self.location.range)
-            .ok()
-            .unwrap_or_default();
         let Position { line, column } = position_range.start;
 
-        let prefix = format!("{}:{}  ", line + 1, column + 1);
+        let line_number = if show_line_number {
+            format!("{:>width$}", line + 1, width = max_line_number_digits_count)
+        } else {
+            " ".repeat(max_line_number_digits_count)
+        };
+
+        let prefix = format!(
+            "{line_number}:{:>width$}  ",
+            column + 1,
+            width = max_column_number_digits_count
+        );
 
         let highlight_column_range = if position_range.end.line == position_range.start.line {
             let left_padding = prefix.chars().count();
@@ -119,14 +117,76 @@ impl QuickfixList {
                     .reduce(Info::join),
             })
             .collect_vec();
+        let items_with_position_range = items
+            .iter()
+            .map(|item| {
+                let buffer = buffers
+                    .iter()
+                    .find(|buffer| {
+                        if let Some(path) = buffer.borrow().path() {
+                            path == item.location.path
+                        } else {
+                            false
+                        }
+                    })
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "The unique buffers of all quickfix list items
+should be preloaded beforehand,
+but the buffer for {:?} is not loaded.",
+                            item.location.path
+                        )
+                    });
+                let position_range = buffer
+                    .borrow()
+                    .char_index_range_to_position_range(item.location.range)
+                    .ok()
+                    .unwrap_or_default();
+                (position_range, item)
+            })
+            .collect_vec();
+
+        let max_line_number_digits_count = (items_with_position_range
+            .iter()
+            .map(|(position_range, _)| position_range.start.line)
+            .max()
+            .unwrap_or(0)
+            + 1)
+        .to_string()
+        .chars()
+        .count();
+
+        let max_column_number_digits_count = (items_with_position_range
+            .iter()
+            .map(|(position_range, _)| position_range.start.column)
+            .max()
+            .unwrap_or(0)
+            + 1)
+        .to_string()
+        .chars()
+        .count();
+
         dropdown.set_items(
-            items
-                .iter()
-                .map(|item| {
-                    item.to_owned()
-                        .into_dropdown_item(&buffers, current_working_directory)
+            items_with_position_range
+                .into_iter()
+                .chunk_by(|(position_range, _)| position_range.start.line)
+                .into_iter()
+                .flat_map(|(_, items)| {
+                    items
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, (position_range, item))| {
+                            item.to_owned().into_dropdown_item(
+                                &buffers,
+                                position_range,
+                                current_working_directory,
+                                index == 0,
+                                max_line_number_digits_count,
+                                max_column_number_digits_count,
+                            )
+                        })
                 })
-                .collect(),
+                .collect_vec(),
         );
 
         QuickfixList {
@@ -332,7 +392,19 @@ impl DiagnosticSeverityRange {
 mod test_quickfix_list {
     use std::{cell::RefCell, rc::Rc};
 
-    use crate::{buffer::Buffer, components::suggestive_editor::Info, selection::CharIndex};
+    use crate::{
+        app::{
+            Dispatch::{self, *},
+            LocalSearchConfigUpdate, Scope,
+        },
+        buffer::{Buffer, BufferOwner},
+        components::{
+            editor::{DispatchEditor::*, IfCurrentNotFound},
+            suggestive_editor::Info,
+        },
+        selection::CharIndex,
+        test_app::{execute_test, ExpectKind::*, Step::*},
+    };
 
     use super::{Location, QuickfixList, QuickfixListItem};
     use itertools::Itertools;
@@ -426,5 +498,85 @@ mod test_quickfix_list {
                 line: None
             }]
         )
+    }
+    #[test]
+    fn should_hide_line_number_of_non_first_same_line_entries() -> anyhow::Result<()> {
+        test_display_quickfix_list(
+            "alohax alohax
+bar
+alohax third line",
+            "alohax",
+            "
+src/foo.rs
+    1:1  alohax alohax
+     :8  alohax alohax
+    3:1  alohax third line",
+        )
+    }
+
+    #[test]
+    fn line_number_should_align_right() -> anyhow::Result<()> {
+        test_display_quickfix_list(
+            "
+one
+2
+3
+4
+5
+6
+7
+8
+9
+one",
+            "one",
+            "
+src/foo.rs
+     1:1  one
+    10:1  one",
+        )
+    }
+
+    #[test]
+    fn column_number_should_align_right() -> anyhow::Result<()> {
+        test_display_quickfix_list(
+            "hax                    hax",
+            "hax",
+            "
+src/foo.rs
+    1: 1  hax                    hax
+     :24  hax                    hax",
+        )
+    }
+
+    fn test_display_quickfix_list(
+        file_content: &'static str,
+        search: &'static str,
+        expected: &'static str,
+    ) -> anyhow::Result<()> {
+        execute_test(|s| {
+            let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
+                UpdateLocalSearchConfig {
+                    update,
+                    scope: Scope::Global,
+                    if_current_not_found: IfCurrentNotFound::LookForward,
+                    run_search_after_config_updated: true,
+                    component_id: None,
+                }
+            };
+            Box::new([
+                App(OpenFile {
+                    path: s.foo_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(file_content.trim().to_string())),
+                Editor(Save),
+                App(new_dispatch(LocalSearchConfigUpdate::Search(
+                    search.to_string(),
+                ))),
+                WaitForAppMessage(lazy_regex::regex!("AddQuickfixListEntries")),
+                Expect(QuickfixListContent(expected.to_string().trim().to_string())),
+            ])
+        })
     }
 }
