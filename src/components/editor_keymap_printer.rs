@@ -10,7 +10,7 @@ use crate::{
     app::Scope,
     components::{
         editor::Editor,
-        editor_keymap::{shifted, KeyboardLayout},
+        editor_keymap::{shifted, QWERTY},
         editor_keymap_legend::{cut_keymap, delete_keymap, paste_keymap, swap_keymap},
     },
     context::Context,
@@ -79,10 +79,10 @@ impl Key {
 }
 
 impl KeymapPrintSection {
-    pub fn from_keymap(name: String, keymap: &Keymap, keyboard_layout: &KeyboardLayout) -> Self {
+    pub fn from_keymap(name: String, keymap: &Keymap) -> Self {
         KeymapPrintSection {
             name,
-            keys: keyboard_layout
+            keys: QWERTY
                 .iter()
                 .map(|row| {
                     row.iter()
@@ -244,33 +244,27 @@ pub struct KeymapPrintSections {
 impl KeymapPrintSections {
     pub fn new() -> Self {
         let context = Context::new(CanonicalizedPath::try_from(".").unwrap(), false, None);
-        let layout = context.keyboard_layout_kind().get_keyboard_layout();
         let editor = Editor::from_text(Option::None, "");
         let sections: Vec<KeymapPrintSection> = [
             KeymapPrintSection::from_keymap(
                 "Insert".to_string(),
                 &editor.insert_mode_keymap(false),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Normal".to_string(),
                 &Keymap::new(&editor.normal_mode_keymap(Default::default(), None)),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Movements".to_string(),
                 &Keymap::new(&editor.keymap_core_movements(None)),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Primary Selection Modes".to_string(),
                 &Keymap::new(&editor.keymap_primary_selection_modes(None)),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Secondary Selection Modes Init".to_string(),
                 &Keymap::new(&editor.keymap_secondary_selection_modes_init(None)),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Secondary Selection Modes (Local)".to_string(),
@@ -281,7 +275,6 @@ impl KeymapPrintSections {
                         None,
                     )
                     .keymap(),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Secondary Selection Modes (Global)".to_string(),
@@ -292,79 +285,65 @@ impl KeymapPrintSections {
                         None,
                     )
                     .keymap(),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Actions".to_string(),
                 &Keymap::new(&editor.keymap_actions(&Default::default(), false, None)),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Other Movements".to_string(),
                 &Keymap::new(&editor.keymap_other_movements()),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Space".to_string(),
                 &editor.space_keymap_legend_config(&context).keymap(),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Space Context".to_string(),
                 &editor.space_context_keymap_legend_config().keymap(),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Space Editor".to_string(),
                 &editor.space_editor_keymap_legend_config().keymap(),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Space Pick".to_string(),
                 &editor.space_pick_keymap_legend_config().keymap(),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "File Explorer Actions".to_string(),
                 &Keymap::new(
                     &editor.keymap_overridable(&file_explorer_normal_mode_override(), true),
                 ),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Extend".to_string(),
                 &Keymap::new(&editor.keymap_overridable(&extend_mode_normal_mode_override(), true)),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Completion Items".to_string(),
                 &completion_item_keymap(),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Universal Keymap".to_string(),
                 &Keymap::new(&editor.keymap_universal()),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Transform".to_string(),
                 &Keymap::new(&editor.keymap_transform()),
-                layout,
             ),
-            KeymapPrintSection::from_keymap("Paste".to_string(), &paste_keymap(), layout),
+            KeymapPrintSection::from_keymap("Paste".to_string(), &paste_keymap()),
             KeymapPrintSection::from_keymap(
                 "Multi-cursor Momentary Layer".to_string(),
                 &editor.multicursor_momentary_layer_keymap(),
-                layout,
             ),
             KeymapPrintSection::from_keymap(
                 "Multi-cursor Menu".to_string(),
                 &editor.multicursor_menu_keymap(),
-                layout,
             ),
-            KeymapPrintSection::from_keymap("Cut".to_string(), &cut_keymap(), layout),
-            KeymapPrintSection::from_keymap("Swap".to_string(), &swap_keymap(), layout),
-            KeymapPrintSection::from_keymap("Delete".to_string(), &delete_keymap(), layout),
+            KeymapPrintSection::from_keymap("Cut".to_string(), &cut_keymap()),
+            KeymapPrintSection::from_keymap("Swap".to_string(), &swap_keymap()),
+            KeymapPrintSection::from_keymap("Delete".to_string(), &delete_keymap()),
         ]
         .to_vec();
 
