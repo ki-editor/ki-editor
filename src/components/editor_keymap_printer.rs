@@ -402,7 +402,7 @@ pub fn print_keymap_drawer_yaml() -> anyhow::Result<()> {
     println!("draw_config:");
     println!("  key_w: 82");
     println!("  key_h: 72");
-    println!("  footer_text: Keymap for the <a href=\"https://ki-editor.github.io/ki-editor/\">Ki editor</a>");
+    println!("  footer_text: Keymap for the <a href=\"https://ki-editor.org/\">Ki editor</a>");
 
     Ok(())
 }

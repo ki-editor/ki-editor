@@ -26,7 +26,7 @@ and features, while enjoying Ki's fluid and efficient text editing motions.
 ## Features
 
 -   🚀 Most Ki Editor functionality in VSCode.
--   See the [Ki Editor documentation](https://ki-editor.github.io/ki-editor/) to learn about Ki's innovative editing
+-   See the [Ki Editor documentation](https://ki-editor.org/) to learn about Ki's innovative editing
     model.
 -   Static binaries for most platforms included, no need to install anything
 
