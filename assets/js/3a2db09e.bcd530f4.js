@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkdocu=globalThis.webpackChunkdocu||[]).push([[8121],{68070(a){a.exports=JSON.parse('{"tags":[{"label":"documentation","permalink":"/blog/tags/documentation","count":2}]}')}}]);

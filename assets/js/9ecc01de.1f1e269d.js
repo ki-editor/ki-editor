@@ -1,1 +1,0 @@
-"use strict";(globalThis.webpackChunkdocu=globalThis.webpackChunkdocu||[]).push([[9347],{33052(o){o.exports=JSON.parse('{"metadata":{"permalink":"/ki-editor/blog","page":1,"postsPerPage":10,"totalPages":1,"totalCount":2,"blogDescription":"Blog","blogTitle":"Blog"}}')}}]);
