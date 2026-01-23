@@ -14,6 +14,7 @@ use shared::process_command::SpawnCommandResult;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 
+use std::path::Path;
 use std::process::{self};
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::{self, JoinHandle};
@@ -47,6 +48,12 @@ struct LspServerProcess {
     app_message_sender: Sender<AppMessage>,
 
     sender: Sender<LspServerProcessMessage>,
+    progress_tokens: HashMap<String, ProgressData>,
+}
+
+#[derive(Debug, Default, Clone)]
+struct ProgressData {
+    title: String,
 }
 
 type RequestId = u64;
@@ -74,6 +81,7 @@ pub enum LspNotification {
     DocumentSymbols(Symbols),
     WorkspaceSymbols(Symbols),
     CompletionItemResolve(Box<lsp_types::CompletionItem>),
+    Progress { message: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -276,6 +284,7 @@ impl LspServerProcess {
             server_capabilities: None,
             app_message_sender: app_message_sender.clone(),
             sender: sender.clone(),
+            progress_tokens: Default::default(),
         };
 
         lsp_server_process.initialize()?;
@@ -324,6 +333,10 @@ impl LspServerProcess {
                             ..Default::default()
                         }),
                         ..WorkspaceClientCapabilities::default()
+                    }),
+                    window: Some(WindowClientCapabilities {
+                        work_done_progress: Some(true),
+                        ..Default::default()
                     }),
                     text_document: Some(TextDocumentClientCapabilities {
                         publish_diagnostics: Some(PublishDiagnosticsClientCapabilities {
@@ -976,6 +989,54 @@ impl LspServerProcess {
                             "LSP(window/logMessage)({command})[{typ}]: '{}'",
                             params.message
                         )
+                    }
+                    "$/progress" => {
+                        let params: <lsp_notification!("$/progress") as Notification>::Params =
+                            serde_json::from_value(
+                                request
+                                    .params
+                                    .ok_or_else(|| anyhow::anyhow!("Missing params"))?,
+                            )?;
+                        let token = match params.token {
+                            NumberOrString::Number(number) => number.to_string(),
+                            NumberOrString::String(string) => string,
+                        };
+                        match params.value {
+                            ProgressParamsValue::WorkDone(work_done_progress) => {
+                                let message = match work_done_progress {
+                                    WorkDoneProgress::Begin(work_done_progress_begin) => {
+                                        self.progress_tokens.insert(
+                                            token,
+                                            ProgressData {
+                                                title: work_done_progress_begin.title,
+                                            },
+                                        );
+                                        work_done_progress_begin.message
+                                    }
+                                    WorkDoneProgress::Report(work_done_progress_report) => {
+                                        let title = self
+                                            .progress_tokens
+                                            .get(&token)
+                                            .cloned()
+                                            .unwrap_or_default()
+                                            .title;
+                                        work_done_progress_report
+                                            .message
+                                            .map(|message| format!("{title} {message}"))
+                                    }
+                                    WorkDoneProgress::End(work_done_progress_end) => {
+                                        work_done_progress_end.message
+                                    }
+                                };
+                                if let Some(message) = message {
+                                    self.app_message_sender
+                                        .send(AppMessage::LspNotification(Box::new(
+                                            LspNotification::Progress { message },
+                                        )))
+                                        .unwrap()
+                                }
+                            }
+                        }
                     }
 
                     _ => log::info!("unhandled Incoming Notification: {method}"),
@@ -1706,6 +1767,7 @@ mod test_lsp_server_process {
             pending_response_requests: HashMap::new(),
             app_message_sender: app_sender.clone(),
             sender,
+            progress_tokens: Default::default(),
         };
 
         // Start listening in a separate thread
