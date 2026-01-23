@@ -3787,7 +3787,7 @@ fn escape_global_diagnostics_should_not_change_selection() -> Result<(), anyhow:
             ))),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
             Expect(CurrentSelectedTexts(&["pub"])),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Expect(CurrentSelectedTexts(&["mod"])),
             App(HandleKeyEvent(key!("esc"))),

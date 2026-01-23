@@ -75,6 +75,7 @@ impl QuickfixListItem {
         )))
         .set_rank(Some(Box::new([line, column])))
         .set_highlight_column_range(highlight_column_range)
+        .set_is_significant(Some(show_line_number))
     }
 
     pub fn apply_edit(self, edit: &crate::edit::Edit) -> Option<Self> {
@@ -399,7 +400,7 @@ mod test_quickfix_list {
         },
         buffer::{Buffer, BufferOwner},
         components::{
-            editor::{DispatchEditor::*, IfCurrentNotFound},
+            editor::{DispatchEditor::*, IfCurrentNotFound, Movement::*},
             suggestive_editor::Info,
         },
         selection::CharIndex,
@@ -576,6 +577,65 @@ src/foo.rs
                 ))),
                 WaitForAppMessage(lazy_regex::regex!("AddQuickfixListEntries")),
                 Expect(QuickfixListContent(expected.to_string().trim().to_string())),
+            ])
+        })
+    }
+
+    #[test]
+    fn left_right_movement_skips_same_line_entries() -> anyhow::Result<()> {
+        execute_test(|s| {
+            let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
+                UpdateLocalSearchConfig {
+                    update,
+                    scope: Scope::Global,
+                    if_current_not_found: IfCurrentNotFound::LookForward,
+                    run_search_after_config_updated: true,
+                    component_id: None,
+                }
+            };
+            Box::new([
+                App(OpenFile {
+                    path: s.foo_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    "
+aslmlkm world aslmlkm
+bar bar
+aslmlkm kitty aslmlkm
+spam spam
+aslmlkm ki aslmlkm"
+                        .trim()
+                        .to_string(),
+                )),
+                Editor(Save),
+                App(new_dispatch(LocalSearchConfigUpdate::Search(
+                    "aslmlkm".to_string(),
+                ))),
+                WaitForAppMessage(lazy_regex::regex!("AddQuickfixListEntries")),
+                Expect(QuickfixListContent(
+                    "
+src/foo.rs
+    1: 1  aslmlkm world aslmlkm
+     :15  aslmlkm world aslmlkm
+    3: 1  aslmlkm kitty aslmlkm
+     :15  aslmlkm kitty aslmlkm
+    5: 1  aslmlkm ki aslmlkm
+     :12  aslmlkm ki aslmlkm"
+                        .to_string()
+                        .trim()
+                        .to_string(),
+                )),
+                Expect(QuickfixListCurrentLine("    1: 1  aslmlkm world aslmlkm")),
+                Editor(MoveSelection(Right)),
+                Expect(QuickfixListCurrentLine("    3: 1  aslmlkm kitty aslmlkm")),
+                Editor(MoveSelection(Right)),
+                Expect(QuickfixListCurrentLine("    5: 1  aslmlkm ki aslmlkm")),
+                Editor(MoveSelection(Left)),
+                Expect(QuickfixListCurrentLine("    3: 1  aslmlkm kitty aslmlkm")),
+                Editor(MoveSelection(Left)),
+                Expect(QuickfixListCurrentLine("    1: 1  aslmlkm world aslmlkm")),
             ])
         })
     }

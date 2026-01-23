@@ -155,6 +155,15 @@ Repeats the last search.
 When getting selections using the Global mode, the matches will be stored into
 the Quickfix List.
 
+In the Global Quickfix selection mode, core movements means:
+
+| Movement    | Meaning                                   |
+| ----------- | ----------------------------------------- |
+| `<`/`>`     | Previous/Next entry                       |
+| `<<`/`>>`   | First entry of the previous/next **line** |
+| `^`/`v`     | First entry of the previous/next **file** |
+| `\|<`/`>\|` | First/Last entry                          |
+
 The quickfix selection mode behaves slightly differently in the Global/Local context:
 
 | Context | Meaning                                                              |
