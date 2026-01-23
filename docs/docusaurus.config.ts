@@ -8,15 +8,10 @@ const config: Config = {
     favicon: "img/favicon.ico",
 
     // Set the production url of your site here
-    url: "https://ki-editor.github.io",
+    url: "https://ki-editor.org",
     // Set the /<baseUrl>/ pathname under which your site is served
     // For GitHub pages deployment, it is often '/<projectName>/'
-    baseUrl: "/ki-editor/",
-
-    // GitHub pages deployment config.
-    // If you aren't using GitHub pages, you don't need these.
-    organizationName: "ki-editor", // Usually your GitHub org/user name.
-    projectName: "ki-editor", // Usually your repo name.
+    baseUrl: "/",
 
     onBrokenLinks: "throw",
     onBrokenMarkdownLinks: "throw",
