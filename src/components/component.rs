@@ -1,5 +1,6 @@
 use crate::app::Dispatches;
 use std::any::Any;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use event::event::Event;
 use shared::canonicalized_path::CanonicalizedPath;
@@ -200,18 +201,11 @@ impl<T: Component> AnyComponent for T {
     }
 }
 
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-static COUNTER: AtomicUsize = AtomicUsize::new(0);
-
-fn increment_counter() -> usize {
-    COUNTER.fetch_add(1, Ordering::SeqCst)
-}
-
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash, Default)]
 pub struct ComponentId(usize);
 impl ComponentId {
     pub fn new() -> ComponentId {
-        ComponentId(increment_counter())
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+        ComponentId(COUNTER.fetch_add(1, Ordering::Relaxed))
     }
 }
