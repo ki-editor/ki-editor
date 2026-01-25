@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::{edit::Edit, selection::CharIndex};
+use crate::{components::editor::Direction, edit::Edit, selection::CharIndex};
 
 #[derive(
     PartialEq,
@@ -109,13 +109,10 @@ impl CharIndexRange {
         self.start <= other.start && other.end <= self.end
     }
 
-    pub fn as_char_index(
-        &self,
-        cursor_direction: &crate::components::editor::Direction,
-    ) -> CharIndex {
+    pub fn as_char_index(&self, cursor_direction: &Direction) -> CharIndex {
         match cursor_direction {
-            crate::components::editor::Direction::Start => self.start,
-            crate::components::editor::Direction::End => self.end - 1,
+            Direction::Start => self.start,
+            Direction::End => self.end - 1,
         }
     }
 
@@ -165,6 +162,13 @@ impl CharIndexRange {
             (self.start..other.start).into()
         } else {
             (other.end..self.end).into()
+        }
+    }
+
+    pub(crate) fn to_char_index(self, direction: &Direction) -> CharIndex {
+        match direction {
+            Direction::Start => self.start,
+            Direction::End => self.end,
         }
     }
 }

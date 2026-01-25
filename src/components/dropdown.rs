@@ -27,6 +27,9 @@ pub struct DropdownItem {
     resolved: bool,
     /// Used for highlighting portion of the dropdown item display
     highlight_column_range: Option<Range<usize>>,
+
+    /// Used for differentiating the </> movement and the <</>> movement.    
+    is_significant: Option<bool>,
 }
 
 impl DropdownItem {
@@ -44,6 +47,7 @@ impl DropdownItem {
             on_focused: Default::default(),
             resolved: false,
             highlight_column_range: None,
+            is_significant: None,
         }
     }
 
@@ -107,6 +111,13 @@ impl DropdownItem {
 
     pub fn group(&self) -> &Option<String> {
         &self.group
+    }
+
+    pub(crate) fn set_is_significant(self, is_significant: Option<bool>) -> DropdownItem {
+        Self {
+            is_significant,
+            ..self
+        }
     }
 }
 
@@ -557,13 +568,14 @@ impl Dropdown {
 
     pub fn apply_movement(&mut self, movement: Movement) {
         match movement {
-            Movement::Right | Movement::Down => self.next_item(),
-            Movement::Current(_) => {}
-            Movement::Left | Movement::Up => self.previous_item(),
+            Movement::Next => self.next_item(),
+            Movement::Right => self.next_significantly_different_item(),
+            Movement::Previous => self.previous_item(),
+            Movement::Left => self.previous_significantly_different_item(),
             Movement::Last => self.last_item(),
             Movement::First => self.first_item(),
-            Movement::Previous => self.previous_group(),
-            Movement::Next => self.next_group(),
+            Movement::Up => self.previous_group(),
+            Movement::Down => self.next_group(),
             _ => {}
         }
     }
@@ -660,6 +672,28 @@ impl Dropdown {
             }
         }
         self.compute_filtered_items()
+    }
+
+    fn next_significantly_different_item(&mut self) {
+        if let Some(item) = self.filtered_item_groups.iter().find_map(|group| {
+            group.items.iter().find(|item| {
+                item.item_index as usize > self.current_item_index
+                    && item.item.is_significant.unwrap_or(false)
+            })
+        }) {
+            self.current_item_index = item.item_index as usize;
+        }
+    }
+
+    fn previous_significantly_different_item(&mut self) {
+        if let Some(item) = self.filtered_item_groups.iter().rev().find_map(|group| {
+            group.items.iter().rev().find(|item| {
+                (item.item_index as usize) < self.current_item_index
+                    && item.item.is_significant.unwrap_or(false)
+            })
+        }) {
+            self.current_item_index = item.item_index as usize;
+        }
     }
 }
 

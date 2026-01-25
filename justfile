@@ -79,6 +79,10 @@ tree-sitter-quickfix:
 doc-assets testname="": test-setup
     cargo nextest run --workspace -- 'doc_assets_' {{testname}}
 
+doc-assets-generate-keymaps:
+    cargo test -- doc_assets_export_keymaps_json
+
+
 check-config-schema:
     #!/bin/sh
     set -e
@@ -107,7 +111,7 @@ codecov:
     
 
 watch-test testname:
-	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains --ignore 'mock_repos/*' --ignore 'docs/static/*.json' -- cargo nextest run --workspace  -- {{testname}}
+	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains --ignore 'mock_repos/*' --ignore 'docs/static/*.json' -- cargo test --workspace  -- {{testname}}
 	
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo clippy --workspace --tests

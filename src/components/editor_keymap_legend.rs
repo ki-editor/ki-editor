@@ -9,14 +9,16 @@ use crate::{
     app::{Dispatch, Dispatches, FilePickerKind, Scope},
     components::{
         editor::{Movement, PriorChange},
-        keymap_legend::{MomentaryLayer, OnTap},
+        editor_keymap::QWERTY,
+        keymap_legend::{MomentaryLayer, OnSpacebarTapped, OnTap},
     },
     context::{Context, LocalSearchConfigMode, Search},
     git::DiffMode,
     list::grep::RegexConfig,
     quickfix_list::{DiagnosticSeverityRange, QuickfixListType},
-    scripting::{custom_keymap, leader_meanings},
+    scripting::custom_keymap,
     selection::SelectionMode,
+    selection_mode::GetGapMovement,
     surround::EnclosureKind,
     transformation::Transformation,
 };
@@ -26,68 +28,59 @@ use super::{
         Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Reveal,
         SurroundKind,
     },
-    editor_keymap::*,
-    keymap_legend::{Keymap, KeymapLegendConfig, Keymaps},
+    keymap_legend::{Keybinding, Keymap, KeymapLegendConfig},
 };
 
 use DispatchEditor::*;
 use Movement::*;
 impl Editor {
-    pub fn keymap_core_movements(
-        &self,
-        context: &Context,
-        prior_change: Option<PriorChange>,
-    ) -> Vec<Keymap> {
+    pub fn keymap_core_movements(&self, prior_change: Option<PriorChange>) -> Vec<Keybinding> {
         [
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Left_),
-                "◀".to_string(),
-                "Left".to_string(),
+            Keybinding::new(
+                "j",
+                "<<".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Movement::Left, prior_change)),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Right),
-                "▶".to_string(),
-                "Right".to_string(),
+            Keybinding::new(
+                "l",
+                ">>".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Right, prior_change)),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Up___),
-                "▲".to_string(),
-                "Up".to_string(),
+            Keybinding::new(
+                "i",
+                "^".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Up, prior_change)),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Down_),
-                "▼".to_string(),
-                "Down".to_string(),
+            Keybinding::new(
+                "k",
+                "v".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Down, prior_change)),
             ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::First),
-                "First".to_string(),
+            Keybinding::new(
+                "y",
+                "|<".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Movement::First, prior_change)),
             ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Last_),
-                "Last".to_string(),
+            Keybinding::new(
+                "p",
+                ">|".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Movement::Last, prior_change)),
             ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Next_),
-                "Next".to_string(),
+            Keybinding::new(
+                "o",
+                ">".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Movement::Next, prior_change)),
             ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::Prev_),
-                "Previous".to_string(),
+            Keybinding::new(
+                "u",
+                "<".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(
                     Movement::Previous,
                     prior_change,
                 )),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Jump_),
+            Keybinding::new_extended(
+                "m",
                 "Jump".to_string(),
                 "Jump".to_string(),
                 Dispatch::ToEditor(DispatchEditor::ShowJumps {
@@ -95,8 +88,8 @@ impl Editor {
                     prior_change,
                 }),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::ToIdx),
+            Keybinding::new_extended(
+                "M",
                 "Index".to_string(),
                 "To Index (1-based)".to_string(),
                 Dispatch::OpenMoveToIndexPrompt(prior_change),
@@ -105,79 +98,65 @@ impl Editor {
         .to_vec()
     }
 
-    pub fn keymap_other_movements(&self, context: &Context) -> Vec<Keymap> {
+    pub fn keymap_other_movements(&self) -> Vec<Keybinding> {
         [
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::CrsrP),
-                Direction::Start.format_action("Curs"),
-                Direction::Start.format_action("Cycle primary selection"),
-                Dispatch::ToEditor(CyclePrimarySelection(Direction::Start)),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::CrsrN),
-                Direction::End.format_action("Curs"),
-                Direction::End.format_action("Cycle primary selection"),
-                Dispatch::ToEditor(CyclePrimarySelection(Direction::End)),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::ScrlD),
+            Keybinding::new_extended(
+                "alt+k",
                 "Scroll ↓".to_string(),
                 "Scroll down".to_string(),
                 Dispatch::ToEditor(ScrollPageDown),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::ScrlU),
+            Keybinding::new_extended(
+                "alt+i",
                 "Scroll ↑".to_string(),
                 "Scroll up".to_string(),
                 Dispatch::ToEditor(ScrollPageUp),
             ),
-            Keymap::new_extended(
+            Keybinding::new_extended(
                 "backspace",
                 Direction::Start.format_action("Select"),
                 "Go back".to_string(),
                 Dispatch::ToEditor(GoBack),
             ),
-            Keymap::new_extended(
+            Keybinding::new_extended(
                 "tab",
                 Direction::End.format_action("Select"),
                 "Go forward".to_string(),
                 Dispatch::ToEditor(GoForward),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::NBack),
+            Keybinding::new_extended(
+                "alt+y",
                 Direction::Start.format_action("Nav"),
                 "Navigate back".to_string(),
                 Dispatch::NavigateBack,
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::NForw),
+            Keybinding::new_extended(
+                "alt+p",
                 Direction::End.format_action("Nav"),
                 "Navigate forward".to_string(),
                 Dispatch::NavigateForward,
             ),
-            Keymap::momentary_layer(
-                context,
-                MomentaryLayer {
-                    meaning: Meaning::Mark_,
-                    description: "Mark".to_string(),
-                    config: KeymapLegendConfig {
-                        title: "Marked File Keymaps".to_string(),
-                        keymaps: marked_file_keymaps(context),
-                    },
-                    on_tap: Some(OnTap::new(
-                        "Toggle Selection Mark",
-                        Dispatches::one(Dispatch::MarkFileAndToggleMark),
-                    )),
+            Keybinding::momentary_layer(MomentaryLayer {
+                key: "e",
+                description: "Mark".to_string(),
+                config: KeymapLegendConfig {
+                    title: "Marked File Keymap".to_string(),
+                    keymap: marked_file_keymap(),
                 },
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::SSEnd),
+                on_tap: Some(OnTap::new(
+                    "Toggle Selection Mark",
+                    Dispatches::one(Dispatch::MarkFileAndToggleMark),
+                )),
+                on_spacebar_tapped: None,
+            }),
+            Keybinding::new_extended(
+                "?",
                 "⇋ Anchor".to_string(),
                 "Swap Anchor".to_string(),
                 Dispatch::ToEditor(SwapExtensionAnchor),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::XAchr),
+            Keybinding::new_extended(
+                "/",
                 "⇋ Curs".to_string(),
                 "Swap cursor".to_string(),
                 Dispatch::ToEditor(DispatchEditor::SwapCursor),
@@ -189,106 +168,34 @@ impl Editor {
 
     pub fn keymap_primary_selection_modes(
         &self,
-        context: &Context,
         prior_change: Option<PriorChange>,
-    ) -> Vec<Keymap> {
+    ) -> Vec<Keybinding> {
         let direction = self.cursor_direction.reverse().to_if_current_not_found();
-        [
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Line_),
-                "Line".to_string(),
-                "Select Line".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    Line,
-                    prior_change,
-                )),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::LineF),
-                "Line*".to_string(),
-                "Select Line*".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    LineFull,
-                    prior_change,
-                )),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Sytx_),
-                "Syntax".to_string(),
-                "Select Syntax Node".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    SyntaxNode,
-                    prior_change,
-                )),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::FStyx),
-                "Syntax*".to_string(),
-                "Select Syntax Node*".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    SyntaxNodeFine,
-                    prior_change,
-                )),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Word_),
-                "Word".to_string(),
-                "Select Word".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    Word,
-                    prior_change,
-                )),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::BWord),
-                "Word*".to_string(),
-                "Select Big Word".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    BigWord,
-                    prior_change,
-                )),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::SWord),
-                "Subword".to_string(),
-                "Select Subword".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    Subword,
-                    prior_change,
-                )),
-            ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Char_),
-                "Char".to_string(),
-                "Select Character".to_string(),
-                Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    direction,
-                    Character,
-                    prior_change,
-                )),
-            ),
-        ]
-        .to_vec()
+        primary_selection_modes()
+            .into_iter()
+            .map(|(key, selection_mode)| {
+                Keybinding::new(
+                    key,
+                    selection_mode.display(),
+                    Dispatch::ToEditor(SetSelectionModeWithPriorChange(
+                        direction,
+                        selection_mode,
+                        prior_change,
+                    )),
+                )
+            })
+            .collect_vec()
     }
 
     pub fn keymap_secondary_selection_modes_init(
         &self,
-        context: &Context,
         prior_change: Option<PriorChange>,
-    ) -> Vec<Keymap> {
-        [Keymap::new_extended(
-            context.keyboard_layout_kind().get_key(&Meaning::LSrch),
+    ) -> Vec<Keybinding> {
+        [Keybinding::new_extended(
+            "n",
             Direction::End.format_action("Local"),
             "Find (Local)".to_string(),
             Dispatch::ShowKeymapLegend(self.secondary_selection_modes_keymap_legend_config(
-                context,
                 Scope::Local,
                 self.cursor_direction.reverse().to_if_current_not_found(),
                 prior_change,
@@ -301,88 +208,87 @@ impl Editor {
         &self,
         normal_mode_override: &NormalModeOverride,
         none_if_no_override: bool,
-        context: &Context,
         _prior_change: Option<PriorChange>,
-    ) -> Vec<Keymap> {
+    ) -> Vec<Keybinding> {
         [
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Join_),
+            Keybinding::new_extended(
+                "I",
                 "Join".to_string(),
                 "Join".to_string(),
                 Dispatch::ToEditor(JoinSelection),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Break),
+            Keybinding::new_extended(
+                "K",
                 "Break".to_string(),
                 "Break".to_string(),
                 Dispatch::ToEditor(BreakSelection),
             ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::AgSlL),
+            Keybinding::new(
+                "Y",
                 Direction::Start.format_action("Align"),
                 Dispatch::ToEditor(AlignSelections(Direction::Start)),
             ),
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&Meaning::AgSlR),
+            Keybinding::new(
+                "P",
                 Direction::End.format_action("Align"),
                 Dispatch::ToEditor(AlignSelections(Direction::End)),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Raise),
+            Keybinding::new_extended(
+                "T",
                 "Raise".to_string(),
                 "Raise".to_string(),
                 Dispatch::ToEditor(Replace(Expand)),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Undo_),
+            Keybinding::new_extended(
+                "z",
                 "Undo".to_string(),
                 "Undo".to_string(),
                 Dispatch::ToEditor(Undo),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Redo_),
+            Keybinding::new_extended(
+                "Z",
                 "Redo".to_string(),
                 "Redo".to_string(),
                 Dispatch::ToEditor(Redo),
             ),
-            Keymap::new_extended(
+            Keybinding::new_extended(
                 "enter",
                 "save".to_string(),
                 "Save".to_string(),
                 Dispatch::ToEditor(Save),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Trsfm),
+            Keybinding::new_extended(
+                "G",
                 "Transform".to_string(),
                 "Transform".to_string(),
-                Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config(context)),
+                Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
             ),
-            Keymap::new(
+            Keybinding::new(
                 "$",
                 Direction::End.format_action("Collapse selection"),
                 Dispatch::ToEditor(DispatchEditor::CollapseSelection(Direction::End)),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Indnt),
+            Keybinding::new_extended(
+                "L",
                 "Indent".to_string(),
                 "Indent".to_string(),
                 Dispatch::ToEditor(Indent),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::DeDnt),
+            Keybinding::new_extended(
+                "J",
                 "Dedent".to_string(),
                 "Dedent".to_string(),
                 Dispatch::ToEditor(Dedent),
             ),
-            Keymap::new(
+            Keybinding::new(
                 "*",
                 "Keyboard".to_string(),
                 Dispatch::OpenKeyboardLayoutPrompt,
             ),
         ]
         .into_iter()
-        .chain(self.keymap_actions_overridable(normal_mode_override, none_if_no_override, context))
-        .chain(self.keymap_clipboard_related_actions(false, normal_mode_override.clone(), context))
+        .chain(self.keymap_actions_overridable(normal_mode_override, none_if_no_override))
+        .chain(self.keymap_clipboard_related_actions(false, normal_mode_override.clone()))
         .collect_vec()
     }
 
@@ -390,48 +296,45 @@ impl Editor {
         &self,
         normal_mode_override: &NormalModeOverride,
         none_if_no_override: bool,
-        context: &Context,
-    ) -> Vec<Keymap> {
+    ) -> Vec<Keybinding> {
         [
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Chng_),
+            Keybinding::new_extended(
+                "f",
                 "Change".to_string(),
                 "Change".to_string(),
                 Dispatch::ToEditor(Change),
             )
             .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
-            Keymap::momentary_layer(
-                context,
-                MomentaryLayer {
-                    meaning: Meaning::Delte,
-                    description: "Delete".to_string(),
-                    config: KeymapLegendConfig {
-                        title: "Delete".to_string(),
-                        keymaps: delete_keymaps(context),
-                    },
-                    on_tap: Some(OnTap::new(
-                        "Delete One",
-                        Dispatches::one(Dispatch::ToEditor(DispatchEditor::DeleteOne)),
-                    )),
+            Keybinding::momentary_layer(MomentaryLayer {
+                key: "v",
+                description: "Delete".to_string(),
+                config: KeymapLegendConfig {
+                    title: "Delete".to_string(),
+                    keymap: delete_keymap(),
                 },
-            )
+                on_tap: Some(OnTap::new(
+                    "Delete One",
+                    Dispatches::one(Dispatch::ToEditor(DispatchEditor::DeleteOne)),
+                )),
+                on_spacebar_tapped: None,
+            })
             .override_keymap(normal_mode_override.delete.as_ref(), none_if_no_override),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::InstP),
+            Keybinding::new_extended(
+                "h",
                 Direction::Start.format_action("Insert"),
                 Direction::Start.format_action("Insert"),
                 Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
             )
             .override_keymap(normal_mode_override.insert.as_ref(), none_if_no_override),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::InstN),
+            Keybinding::new_extended(
+                ";",
                 Direction::End.format_action("Insert"),
                 Direction::End.format_action("Insert"),
                 Dispatch::ToEditor(EnterInsertMode(Direction::End)),
             )
             .override_keymap(normal_mode_override.append.as_ref(), none_if_no_override),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Open_),
+            Keybinding::new_extended(
+                ",",
                 Direction::End.format_action("Open"),
                 Direction::End.format_action("Open"),
                 Dispatch::ToEditor(Open),
@@ -447,20 +350,13 @@ impl Editor {
         &self,
         normal_mode_override: &NormalModeOverride,
         none_if_no_override: bool,
-        context: &Context,
-    ) -> Vec<Keymap> {
-        self.keymap_actions_overridable(normal_mode_override, none_if_no_override, context)
+    ) -> Vec<Keybinding> {
+        self.keymap_actions_overridable(normal_mode_override, none_if_no_override)
             .into_iter()
-            .chain(self.keymap_sub_modes_overridable(
-                normal_mode_override,
-                none_if_no_override,
-                context,
-            ))
             .chain(self.keymap_clipboard_related_actions_overridable(
                 false,
                 normal_mode_override.clone(),
                 none_if_no_override,
-                context,
             ))
             .collect_vec()
     }
@@ -469,19 +365,18 @@ impl Editor {
         &self,
         use_system_clipboard: bool,
         normal_mode_override: NormalModeOverride,
-        context: &Context,
-    ) -> Vec<Keymap> {
+    ) -> Vec<Keybinding> {
         let extra = if use_system_clipboard { "+ " } else { "" };
         let format = |description: &str| format!("{extra}{description}");
         [
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::ChngX),
+            Keybinding::new_extended(
+                "F",
                 format("Change X"),
                 format!("{}{}", "Change Cut", extra),
                 Dispatch::ToEditor(ChangeCut),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::Copy_),
+            Keybinding::new_extended(
+                "c",
                 format("Copy"),
                 format!("{}{}", "Copy", extra),
                 Dispatch::ToEditor(Copy),
@@ -492,7 +387,6 @@ impl Editor {
             use_system_clipboard,
             normal_mode_override,
             false,
-            context,
         ))
         .collect_vec()
     }
@@ -502,47 +396,42 @@ impl Editor {
         use_system_clipboard: bool,
         normal_mode_override: NormalModeOverride,
         none_if_no_override: bool,
-        context: &Context,
-    ) -> Vec<Keymap> {
+    ) -> Vec<Keybinding> {
         let extra = if use_system_clipboard { "+ " } else { "" };
         let format = |description: &str| format!("{extra}{description}");
         [
-            Keymap::momentary_layer(
-                context,
-                MomentaryLayer {
-                    meaning: Meaning::Paste,
-                    description: format("Paste"),
-                    config: KeymapLegendConfig {
-                        title: "Paste".to_string(),
-                        keymaps: paste_keymaps(context),
-                    },
-                    on_tap: Some(OnTap::new(
-                        "Replace",
-                        Dispatches::one(Dispatch::ToEditor(
-                            DispatchEditor::ReplaceWithCopiedText { cut: false },
-                        )),
-                    )),
+            Keybinding::momentary_layer(MomentaryLayer {
+                key: "b",
+                description: format("Paste"),
+                config: KeymapLegendConfig {
+                    title: "Paste".to_string(),
+                    keymap: paste_keymap(),
                 },
-            )
+                on_tap: Some(OnTap::new(
+                    "Replace",
+                    Dispatches::one(Dispatch::ToEditor(DispatchEditor::ReplaceWithCopiedText {
+                        cut: false,
+                    })),
+                )),
+                on_spacebar_tapped: None,
+            })
             .override_keymap(
                 normal_mode_override.paste.clone().as_ref(),
                 none_if_no_override,
             ),
-            Keymap::momentary_layer(
-                context,
-                MomentaryLayer {
-                    meaning: Meaning::Cut__,
-                    description: "Cut".to_string(),
-                    config: KeymapLegendConfig {
-                        title: "Cut".to_string(),
-                        keymaps: cut_keymaps(context),
-                    },
-                    on_tap: Some(OnTap::new(
-                        "Cut One",
-                        Dispatches::one(Dispatch::ToEditor(DispatchEditor::CutOne)),
-                    )),
+            Keybinding::momentary_layer(MomentaryLayer {
+                key: "x",
+                description: "Cut".to_string(),
+                config: KeymapLegendConfig {
+                    title: "Cut".to_string(),
+                    keymap: cut_keymap(),
                 },
-            )
+                on_tap: Some(OnTap::new(
+                    "Cut One",
+                    Dispatches::one(Dispatch::ToEditor(DispatchEditor::CutOne)),
+                )),
+                on_spacebar_tapped: None,
+            })
             .override_keymap(normal_mode_override.cut.as_ref(), none_if_no_override),
         ]
         .into_iter()
@@ -550,143 +439,132 @@ impl Editor {
         .collect_vec()
     }
 
-    pub fn keymap_universal(&self, context: &Context) -> Vec<Keymap> {
+    pub fn keymap_universal(&self) -> Vec<Keybinding> {
         [
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::WClse),
+            Keybinding::new_extended(
+                "alt+v",
                 "Close".to_string(),
                 "Close current window".to_string(),
                 Dispatch::CloseCurrentWindow,
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::SView),
+            Keybinding::new_extended(
+                "alt+;",
                 "⇋ Align View".to_string(),
                 "Switch view alignment".to_string(),
                 Dispatch::ToEditor(SwitchViewAlignment),
             ),
-            Keymap::new_extended(
-                context.keyboard_layout_kind().get_key(&Meaning::WSwth),
+            Keybinding::new_extended(
+                "alt+/",
                 "⇋ Window".to_string(),
                 "Switch window".to_string(),
                 Dispatch::OtherWindow,
             ),
             #[cfg(unix)]
-            Keymap::new("ctrl+z", "Suspend".to_string(), Dispatch::Suspend),
+            Keybinding::new("ctrl+z", "Suspend".to_string(), Dispatch::Suspend),
         ]
         .to_vec()
     }
 
     pub fn insert_mode_keymap_legend_config(
         &self,
-        include_universal_keymaps: bool,
-        context: &Context,
+        include_universal_keymap: bool,
     ) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "Insert mode keymaps".to_string(),
-            keymaps: Keymaps::new(
+            title: "Insert mode keymap".to_string(),
+            keymap: Keymap::new(
                 &[
-                    Keymap::new_extended(
+                    Keybinding::new_extended(
                         "left",
                         "Char ←".to_string(),
                         "Move back a character".to_string(),
                         Dispatch::ToEditor(MoveCharacterBack),
                     ),
-                    Keymap::new_extended(
+                    Keybinding::new_extended(
                         "right",
                         "Char →".to_string(),
                         "Move forward a character".to_string(),
                         Dispatch::ToEditor(MoveCharacterForward),
                     ),
-                    Keymap::new_extended(
-                        context
-                            .keyboard_layout_kind()
-                            .get_insert_key(&Meaning::LineP),
+                    Keybinding::new_extended(
+                        "alt+s",
                         "Line ←".to_string(),
                         "Move to line start".to_string(),
                         Dispatch::ToEditor(MoveToLineStart),
                     ),
-                    Keymap::new_extended(
-                        context
-                            .keyboard_layout_kind()
-                            .get_insert_key(&Meaning::LineN),
+                    Keybinding::new_extended(
+                        "alt+f",
                         "Line →".to_string(),
                         "Move to line end".to_string(),
                         Dispatch::ToEditor(MoveToLineEnd),
                     ),
-                    Keymap::new_extended(
-                        context
-                            .keyboard_layout_kind()
-                            .get_insert_key(&Meaning::KilLP),
+                    Keybinding::new_extended(
+                        "alt+q",
                         "Kill Line ←".to_string(),
                         Direction::End.format_action("Kill line"),
                         Dispatch::ToEditor(KillLine(Direction::Start)),
                     ),
-                    Keymap::new_extended(
-                        context
-                            .keyboard_layout_kind()
-                            .get_insert_key(&Meaning::KilLN),
+                    Keybinding::new_extended(
+                        "alt+t",
                         "Kill Line →".to_string(),
                         Direction::End.format_action("Kill line"),
                         Dispatch::ToEditor(KillLine(Direction::End)),
                     ),
-                    Keymap::new_extended(
-                        context
-                            .keyboard_layout_kind()
-                            .get_insert_key(&Meaning::DWrdP),
+                    Keybinding::new_extended(
+                        "alt+h",
                         "Delete Word ←".to_string(),
                         "Delete word backward".to_string(),
                         Dispatch::ToEditor(DeleteWordBackward { short: false }),
                     ),
-                    Keymap::new_extended(
+                    Keybinding::new_extended(
                         "alt+backspace",
                         "Delete Word ←".to_string(),
                         "Delete word backward".to_string(),
                         Dispatch::ToEditor(DeleteWordBackward { short: true }),
                     ),
-                    Keymap::new(
+                    Keybinding::new(
                         "left",
                         "Move back a character".to_string(),
                         Dispatch::ToEditor(MoveCharacterBack),
                     ),
-                    Keymap::new(
+                    Keybinding::new(
                         "right",
                         "Move forward a character".to_string(),
                         Dispatch::ToEditor(MoveCharacterForward),
                     ),
-                    Keymap::new(
+                    Keybinding::new(
                         "esc",
                         "Enter normal mode".to_string(),
                         Dispatch::ToEditor(EnterNormalMode),
                     ),
-                    Keymap::new(
+                    Keybinding::new(
                         "backspace",
                         "Delete character backward".to_string(),
                         Dispatch::ToEditor(Backspace),
                     ),
-                    Keymap::new(
+                    Keybinding::new(
                         "enter",
                         "Enter new line".to_string(),
                         Dispatch::ToEditor(EnterNewline),
                     ),
-                    Keymap::new(
+                    Keybinding::new(
                         "tab",
                         "Enter tab".to_string(),
                         Dispatch::ToEditor(Insert("\t".to_string())),
                     ),
-                    Keymap::new(
+                    Keybinding::new(
                         "home",
                         "Move to line start".to_string(),
                         Dispatch::ToEditor(MoveToLineStart),
                     ),
-                    Keymap::new(
+                    Keybinding::new(
                         "end",
                         "Move to line end".to_string(),
                         Dispatch::ToEditor(MoveToLineEnd),
                     ),
                 ]
                 .into_iter()
-                .chain(if include_universal_keymaps {
-                    self.keymap_universal(context)
+                .chain(if include_universal_keymap {
+                    self.keymap_universal()
                 } else {
                     Default::default()
                 })
@@ -700,10 +578,17 @@ impl Editor {
         context: &Context,
         event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
+        let translated_event = context
+            .keyboard_layout_kind()
+            .translate_key_event_to_qwerty(event.clone());
         if let Some(dispatches) = self
-            .insert_mode_keymaps(true, context)
+            .insert_mode_keymap(true)
             .iter()
-            .find(|keymap| keymap.event().is_press_or_repeat_equivalent(&event))
+            .find(|keymap| {
+                keymap
+                    .event()
+                    .is_press_or_repeat_equivalent(&translated_event)
+            })
             .map(|keymap| keymap.get_dispatches())
         {
             Ok(dispatches)
@@ -716,26 +601,22 @@ impl Editor {
         }
     }
 
-    pub fn handle_universal_key(
-        &mut self,
-        event: KeyEvent,
-        context: &Context,
-    ) -> anyhow::Result<HandleEventResult> {
-        if let Some(keymap) = Keymaps::new(&self.keymap_universal(context)).get(&event) {
+    pub fn handle_universal_key(&mut self, event: KeyEvent) -> anyhow::Result<HandleEventResult> {
+        if let Some(keymap) = Keymap::new(&self.keymap_universal()).get(&event) {
             Ok(HandleEventResult::Handled(keymap.get_dispatches()))
         } else {
             Ok(HandleEventResult::Ignored(event))
         }
     }
 
-    pub fn keymap_others(&self) -> Vec<Keymap> {
+    pub fn keymap_others(&self) -> Vec<Keybinding> {
         [
-            Keymap::new(
+            Keybinding::new(
                 "space",
                 "Space".to_string(),
                 Dispatch::ToEditor(DispatchEditor::PressSpace),
             ),
-            Keymap::new(
+            Keybinding::new(
                 "esc",
                 "Remain only this window".to_string(),
                 Dispatch::ToEditor(DispatchEditor::HandleEsc),
@@ -744,143 +625,153 @@ impl Editor {
         .to_vec()
     }
 
-    pub fn keymap_sub_modes(&self, context: &Context) -> Vec<Keymap> {
+    pub fn keymap_sub_modes(&self) -> Vec<Keybinding> {
         [
-            Some(Keymap::new(
+            Some(Keybinding::new(
                 "~",
                 "Replace".to_string(),
                 Dispatch::ToEditor(EnterReplaceMode),
             )),
-            Some(Keymap::momentary_layer(
-                context,
-                MomentaryLayer {
-                    meaning: Meaning::Swap_,
-                    description: "Swap".to_string(),
-                    config: KeymapLegendConfig {
-                        title: "Swap".to_string(),
-                        keymaps: swap_keymaps(context),
-                    },
-                    on_tap: None,
+            Some(Keybinding::momentary_layer(MomentaryLayer {
+                key: "t",
+                description: "Swap".to_string(),
+                config: KeymapLegendConfig {
+                    title: "Swap".to_string(),
+                    keymap: swap_keymap(),
                 },
-            )),
-            Some(Keymap::new(
+                on_tap: None,
+                on_spacebar_tapped: None,
+            })),
+            Some(Keybinding::new(
                 "backslash",
                 "Leader".to_string(),
-                Dispatch::ShowKeymapLegend(self.leader_keymap_legend_config(context)),
+                Dispatch::ShowKeymapLegend(self.leader_keymap_legend_config()),
             )),
+            Some(Keybinding::momentary_layer(MomentaryLayer {
+                key: "r",
+                description: "Multi-cursor Momentary Layer".to_string(),
+                config: KeymapLegendConfig {
+                    title: "Multi-cursor Momentary Layer".to_string(),
+                    keymap: self.multicursor_momentary_layer_keymap(),
+                },
+                on_tap: None,
+                on_spacebar_tapped: Some(OnSpacebarTapped::DeactivatesMomentaryLaterAndOpenMenu(
+                    KeymapLegendConfig {
+                        title: "Multi-cursor Menu".to_string(),
+                        keymap: self.multicursor_menu_keymap(),
+                    },
+                )),
+            })),
         ]
         .into_iter()
         .flatten()
         .collect_vec()
     }
 
-    fn keymap_sub_modes_overridable(
-        &self,
-        normal_mode_override: &NormalModeOverride,
-        none_if_no_override: bool,
-        context: &Context,
-    ) -> Vec<Keymap> {
-        [Keymap::new_extended(
-            context.keyboard_layout_kind().get_key(&Meaning::MultC),
-            "Multi Curs".to_string(),
-            "Enter Multi-cursor mode".to_string(),
-            Dispatch::ShowKeymapLegend(self.multicursor_mode_keymap_legend_config(context)),
+    pub fn multicursor_momentary_layer_keymap(&self) -> Keymap {
+        Keymap::new(
+            &[
+                (Movement::Up, "i"),
+                (Movement::Down, "k"),
+                (Movement::Left, "j"),
+                (Movement::Right, "l"),
+                (Movement::Previous, "u"),
+                (Movement::Next, "o"),
+                (Movement::First, "y"),
+                (Movement::Last, "p"),
+            ]
+            .into_iter()
+            .map(|(movement, key)| {
+                Keybinding::new(
+                    key,
+                    movement.format_action("Add Curs"),
+                    Dispatch::ToEditor(DispatchEditor::AddCursorWithMovement(movement)),
+                )
+            })
+            .chain([
+                Keybinding::new(
+                    "n",
+                    "Delete Curs".to_string(),
+                    Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
+                ),
+                Keybinding::new_extended(
+                    "h",
+                    Direction::Start.format_action("Curs"),
+                    Direction::Start.format_action("Cycle primary selection"),
+                    Dispatch::ToEditor(CyclePrimarySelection(Direction::Start)),
+                ),
+                Keybinding::new_extended(
+                    ";",
+                    Direction::End.format_action("Curs"),
+                    Direction::End.format_action("Cycle primary selection"),
+                    Dispatch::ToEditor(CyclePrimarySelection(Direction::End)),
+                ),
+                Keybinding::new(
+                    "m",
+                    "Jump Add Curs".to_string(),
+                    Dispatch::ToEditor(ShowJumps {
+                        use_current_selection_mode: true,
+                        prior_change: Some(PriorChange::EnterMultiCursorMode),
+                    }),
+                ),
+            ])
+            .collect_vec(),
         )
-        .override_keymap(
-            normal_mode_override.multicursor.clone().as_ref(),
-            none_if_no_override,
-        )]
-        .into_iter()
-        .flatten()
-        .collect_vec()
     }
 
     pub fn normal_mode_keymap_legend_config(
         &self,
-        context: &Context,
         normal_mode_override: Option<NormalModeOverride>,
         prior_change: Option<PriorChange>,
     ) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Normal".to_string(),
-            keymaps: Keymaps::new(
+            keymap: Keymap::new(
                 &self
-                    .normal_mode_keymaps(context, normal_mode_override, prior_change)
+                    .normal_mode_keymap(normal_mode_override, prior_change)
                     .into_iter()
-                    .chain(Some(Keymap::new(
-                        context.keyboard_layout_kind().get_key(&Meaning::MultC),
-                        "Multi-cursor".to_string(),
-                        Dispatch::ShowKeymapLegend(
-                            self.multicursor_mode_keymap_legend_config(context),
-                        ),
-                    )))
-                    .chain(Some(Keymap::new(
-                        context.keyboard_layout_kind().get_key(&Meaning::Extnd),
+                    .chain(Some(Keybinding::new(
+                        "g",
                         "Extend".to_string(),
-                        Dispatch::ShowKeymapLegend(self.extend_mode_keymap_legend_config(context)),
+                        Dispatch::ShowKeymapLegend(self.extend_mode_keymap_legend_config()),
                     )))
                     .collect_vec(),
             ),
         }
     }
 
-    pub fn normal_mode_keymaps(
+    pub fn normal_mode_keymap(
         &self,
-        context: &Context,
         normal_mode_override: Option<NormalModeOverride>,
         prior_change: Option<PriorChange>,
-    ) -> Vec<Keymap> {
+    ) -> Vec<Keybinding> {
         let normal_mode_override = normal_mode_override
             .clone()
             .or_else(|| self.normal_mode_override.clone())
             .unwrap_or_default();
-        self.keymap_core_movements(context, prior_change)
+        self.keymap_core_movements(prior_change)
             .into_iter()
-            .chain(self.keymap_sub_modes(context))
-            .chain(self.keymap_other_movements(context))
-            .chain(self.keymap_primary_selection_modes(context, prior_change))
-            .chain(self.keymap_secondary_selection_modes_init(context, prior_change))
-            .chain(self.keymap_actions(&normal_mode_override, false, context, prior_change))
+            .chain(self.keymap_sub_modes())
+            .chain(self.keymap_other_movements())
+            .chain(self.keymap_primary_selection_modes(prior_change))
+            .chain(self.keymap_secondary_selection_modes_init(prior_change))
+            .chain(self.keymap_actions(&normal_mode_override, false, prior_change))
             .chain(self.keymap_others())
-            .chain(self.keymap_universal(context))
+            .chain(self.keymap_universal())
             .collect_vec()
     }
-
-    pub fn multicursor_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Multi-cursor".to_string(),
-            keymaps: Keymaps::new(
-                &self
-                    .normal_mode_keymaps(
-                        context,
-                        Some(multicursor_mode_normal_mode_override(
-                            self.cursor_direction.reverse(),
-                        )),
-                        Some(PriorChange::EnterMultiCursorMode),
-                    )
-                    .into_iter()
-                    .chain(Some(Keymap::new(
-                        context.keyboard_layout_kind().get_key(&Meaning::MultC),
-                        "Curs All".to_string(),
-                        Dispatch::ToEditor(CursorAddToAllSelections),
-                    )))
-                    .collect_vec(),
-            ),
-        }
-    }
-    pub fn extend_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub fn extend_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Extend".to_string(),
-            keymaps: Keymaps::new(
+            keymap: Keymap::new(
                 &self
-                    .normal_mode_keymaps(
-                        context,
-                        Some(extend_mode_normal_mode_override(context)),
+                    .normal_mode_keymap(
+                        Some(extend_mode_normal_mode_override()),
                         Some(PriorChange::EnableSelectionExtension),
                     )
                     .into_iter()
-                    .chain(Some(Keymap::new(
-                        context.keyboard_layout_kind().get_key(&Meaning::Extnd),
+                    .chain(Some(Keybinding::new(
+                        "g",
                         "Select All".to_string(),
                         Dispatch::ToEditor(SelectAll),
                     )))
@@ -888,131 +779,95 @@ impl Editor {
             ),
         }
     }
-    pub fn keymap_transform(&self, context: &Context) -> Vec<Keymap> {
+    pub fn keymap_transform(&self) -> Vec<Keybinding> {
         [
-            (Meaning::Camel, "camelCase", Case::Camel),
-            (Meaning::Lower, "lower case", Case::Lower),
-            (Meaning::Kbab_, "kebab-case", Case::Kebab),
-            (Meaning::UKbab, "Upper-Kebab", Case::UpperKebab),
-            (Meaning::Pscal, "PascalCase", Case::Pascal),
-            (Meaning::Snke_, "snake_case", Case::Snake),
-            (Meaning::USnke, "UPPER_SNAKE_CASE", Case::UpperSnake),
-            (Meaning::Title, "Title Case", Case::Title),
-            (Meaning::Upper, "UPPER CASE", Case::Upper),
+            ("q", "UPPER CASE", Case::Upper),
+            ("w", "UPPER_SNAKE_CASE", Case::UpperSnake),
+            ("e", "PascalCase", Case::Pascal),
+            ("r", "Upper-Kebab", Case::UpperKebab),
+            ("t", "Title Case", Case::Title),
+            ("a", "lower case", Case::Lower),
+            ("s", "snake_case", Case::Snake),
+            ("d", "camelCase", Case::Camel),
+            ("f", "kebab-case", Case::Kebab),
         ]
         .into_iter()
-        .map(|(meaning, description, case)| {
-            Keymap::new(
-                context.keyboard_layout_kind().get_transform_key(&meaning),
+        .map(|(keybinding, description, case)| {
+            Keybinding::new(
+                keybinding,
                 description.to_string(),
                 Dispatch::ToEditor(Transform(Transformation::Case(case))),
             )
         })
-        .chain(Some(Keymap::new(
-            context
-                .keyboard_layout_kind()
-                .get_transform_key(&Meaning::Wrap_),
+        .chain(Some(Keybinding::new(
+            "j",
             "Wrap".to_string(),
             Dispatch::ToEditor(Transform(Transformation::Wrap)),
         )))
-        .chain(Some(Keymap::new(
-            context
-                .keyboard_layout_kind()
-                .get_transform_key(&Meaning::Unwrp),
+        .chain(Some(Keybinding::new(
+            "h",
             "Unwrap".to_string(),
             Dispatch::ToEditor(Transform(Transformation::Unwrap)),
         )))
-        .chain(Some(Keymap::new(
-            context
-                .keyboard_layout_kind()
-                .get_transform_key(&Meaning::CmtLn),
+        .chain(Some(Keybinding::new(
+            "k",
             "Line Comment".to_string(),
             Dispatch::ToEditor(DispatchEditor::ToggleLineComment),
         )))
-        .chain(Some(Keymap::new(
-            context
-                .keyboard_layout_kind()
-                .get_transform_key(&Meaning::CmtBk),
+        .chain(Some(Keybinding::new(
+            "l",
             "Block Comment".to_string(),
             Dispatch::ToEditor(DispatchEditor::ToggleBlockComment),
         )))
         .collect_vec()
     }
-    pub fn transform_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub fn transform_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Transform".to_string(),
 
-            keymaps: Keymaps::new(&self.keymap_transform(context)),
+            keymap: Keymap::new(&self.keymap_transform()),
         }
     }
 
-    pub fn space_pick_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub fn space_pick_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Pick".to_string(),
 
-            keymaps: Keymaps::new(
+            keymap: Keymap::new(
                 &[
-                    (
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_picker_keymap(&Meaning::Buffr),
-                        "Buffer",
-                        FilePickerKind::Opened,
-                    ),
-                    (
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_picker_keymap(&Meaning::File_),
-                        "File",
-                        FilePickerKind::NonGitIgnored,
-                    ),
+                    ("f", "Buffer", FilePickerKind::Opened),
+                    ("d", "File", FilePickerKind::NonGitIgnored),
                 ]
                 .into_iter()
                 .map(|(key, description, kind)| {
-                    Keymap::new(key, description.to_string(), Dispatch::OpenFilePicker(kind))
+                    Keybinding::new(key, description.to_string(), Dispatch::OpenFilePicker(kind))
                 })
                 .chain(
                     [
-                        (
-                            context
-                                .keyboard_layout_kind()
-                                .get_space_picker_keymap(&Meaning::GitFC),
-                            DiffMode::UnstagedAgainstCurrentBranch,
-                        ),
-                        (
-                            context
-                                .keyboard_layout_kind()
-                                .get_space_picker_keymap(&Meaning::GitFM),
-                            DiffMode::UnstagedAgainstMainBranch,
-                        ),
+                        ("g", DiffMode::UnstagedAgainstCurrentBranch),
+                        ("G", DiffMode::UnstagedAgainstMainBranch),
                     ]
                     .into_iter()
                     .map(|(key, diff_mode)| {
-                        Keymap::new(
+                        Keybinding::new(
                             key,
                             format!("Git status {}", diff_mode.display()),
                             Dispatch::OpenFilePicker(FilePickerKind::GitStatus(diff_mode)),
                         )
                     }),
                 )
-                .chain(Some(Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_picker_keymap(&Meaning::SyblD),
+                .chain(Some(Keybinding::new(
+                    "s",
                     "Symbol (Document)".to_string(),
                     Dispatch::RequestDocumentSymbols,
                 )))
-                .chain(Some(Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_picker_keymap(&Meaning::SyblW),
+                .chain(Some(Keybinding::new(
+                    "S",
                     "Symbol (Workspace)".to_string(),
                     Dispatch::OpenWorkspaceSymbolsPrompt,
                 )))
-                .chain(Some(Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_picker_keymap(&Meaning::Theme),
+                .chain(Some(Keybinding::new(
+                    "a",
                     "Theme".to_string(),
                     Dispatch::OpenThemePrompt,
                 )))
@@ -1021,52 +876,32 @@ impl Editor {
         }
     }
 
-    pub fn space_context_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub fn space_context_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Context".to_string(),
 
-            keymaps: Keymaps::new(&[
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_context_keymap(&Meaning::LCdAc),
-                    "Code Actions".to_string(),
-                    {
-                        let cursor_char_index = self.get_cursor_char_index();
-                        Dispatch::RequestCodeAction {
-                            diagnostics: self
-                                .buffer()
-                                .diagnostics()
-                                .into_iter()
-                                .filter_map(|diagnostic| {
-                                    if diagnostic.range.contains(&cursor_char_index) {
-                                        diagnostic.original_value.clone()
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .collect_vec(),
-                        }
-                    },
-                ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_context_keymap(&Meaning::LHovr),
-                    "Hover".to_string(),
-                    Dispatch::RequestHover,
-                ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_context_keymap(&Meaning::LRnme),
-                    "Rename".to_string(),
-                    Dispatch::PrepareRename,
-                ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_context_keymap(&Meaning::RvHkC),
+            keymap: Keymap::new(&[
+                Keybinding::new("d", "Code Actions".to_string(), {
+                    let cursor_char_index = self.get_cursor_char_index();
+                    Dispatch::RequestCodeAction {
+                        diagnostics: self
+                            .buffer()
+                            .diagnostics()
+                            .into_iter()
+                            .filter_map(|diagnostic| {
+                                if diagnostic.range.contains(&cursor_char_index) {
+                                    diagnostic.original_value.clone()
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect_vec(),
+                    }
+                }),
+                Keybinding::new("s", "Hover".to_string(), Dispatch::RequestHover),
+                Keybinding::new("f", "Rename".to_string(), Dispatch::PrepareRename),
+                Keybinding::new(
+                    "g",
                     format!(
                         "Revert Hunk{}",
                         DiffMode::UnstagedAgainstCurrentBranch.display()
@@ -1075,10 +910,8 @@ impl Editor {
                         DiffMode::UnstagedAgainstCurrentBranch,
                     )),
                 ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_context_keymap(&Meaning::RvHkM),
+                Keybinding::new(
+                    "G",
                     format!(
                         "Revert Hunk{}",
                         DiffMode::UnstagedAgainstMainBranch.display()
@@ -1087,31 +920,23 @@ impl Editor {
                         DiffMode::UnstagedAgainstMainBranch,
                     )),
                 ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_context_keymap(&Meaning::GtBlm),
+                Keybinding::new(
+                    "b",
                     "Git Blame".to_string(),
                     Dispatch::ToEditor(DispatchEditor::GitBlame),
                 ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_context_keymap(&Meaning::GoFil),
+                Keybinding::new(
+                    "x",
                     "Go to File".to_string(),
                     Dispatch::ToEditor(DispatchEditor::GoToFile),
                 ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_context_keymap(&Meaning::CpAbP),
+                Keybinding::new(
+                    "C",
                     "Copy Absolute Path".to_string(),
                     Dispatch::ToEditor(DispatchEditor::CopyAbsolutePath),
                 ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_context_keymap(&Meaning::CpReP),
+                Keybinding::new(
+                    "c",
                     "Copy Relative Path".to_string(),
                     Dispatch::ToEditor(DispatchEditor::CopyRelativePath),
                 ),
@@ -1119,64 +944,38 @@ impl Editor {
         }
     }
 
-    pub fn space_editor_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub fn space_editor_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Editor".to_string(),
 
-            keymaps: Keymaps::new(&[
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_editor_keymap(&Meaning::RplcA),
+            keymap: Keymap::new(&[
+                Keybinding::new(
+                    "x",
                     "Replace all".to_string(),
                     Dispatch::Replace {
                         scope: Scope::Global,
                     },
                 ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_context_keymap(&Meaning::TSNSx),
+                Keybinding::new(
+                    "t",
                     "TS Node Sexp".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
                 ),
-                Keymap::new(
+                Keybinding::new(
                     "enter",
                     "Force Save".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ForceSave),
                 ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_editor_keymap(&Meaning::SaveA),
-                    "Save All".to_string(),
-                    Dispatch::SaveAll,
-                ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_editor_keymap(&Meaning::QNSav),
-                    "Quit No Save".to_string(),
-                    Dispatch::QuitAll,
-                ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_editor_keymap(&Meaning::Pipe_),
-                    "Pipe".to_string(),
-                    Dispatch::OpenPipeToShellPrompt,
-                ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_editor_keymap(&Meaning::CWDir),
+                Keybinding::new("c", "Save All".to_string(), Dispatch::SaveAll),
+                Keybinding::new("v", "Quit No Save".to_string(), Dispatch::QuitAll),
+                Keybinding::new("g", "Pipe".to_string(), Dispatch::OpenPipeToShellPrompt),
+                Keybinding::new(
+                    "f",
                     "Change Work Dir".to_string(),
                     Dispatch::OpenChangeWorkingDirectoryPrompt,
                 ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_space_editor_keymap(&Meaning::RlBfr),
+                Keybinding::new(
+                    "d",
                     "Reload File".to_string(),
                     Dispatch::ToEditor(ReloadFile { force: false }),
                 ),
@@ -1188,81 +987,62 @@ impl Editor {
         KeymapLegendConfig {
             title: "Space".to_string(),
 
-            keymaps: Keymaps::new(
+            keymap: Keymap::new(
                 &[
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::RevlS),
+                    Keybinding::new(
+                        "u",
                         "÷ Selection".to_string(),
                         Dispatch::ToEditor(DispatchEditor::ToggleReveal(
                             Reveal::CurrentSelectionMode,
                         )),
                     ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::RevlC),
+                    Keybinding::new(
+                        "i",
                         "÷ Cursor".to_string(),
                         Dispatch::ToEditor(DispatchEditor::ToggleReveal(Reveal::Cursor)),
                     ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::RevlM),
+                    Keybinding::new(
+                        "o",
                         "÷ Mark".to_string(),
                         Dispatch::ToEditor(DispatchEditor::ToggleReveal(Reveal::Mark)),
                     ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::SpEdt),
+                    Keybinding::new(
+                        "j",
                         "Editor".to_string(),
-                        Dispatch::ShowKeymapLegend(self.space_editor_keymap_legend_config(context)),
+                        Dispatch::ShowKeymapLegend(self.space_editor_keymap_legend_config()),
                     ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::SpCtx),
-                        "Context".to_string(),
-                        Dispatch::ShowKeymapLegend(
-                            self.space_context_keymap_legend_config(context),
-                        ),
-                    ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::SpPck),
+                    Keybinding::new(
+                        "k",
                         "Pick".to_string(),
-                        Dispatch::ShowKeymapLegend(self.space_pick_keymap_legend_config(context)),
+                        Dispatch::ShowKeymapLegend(self.space_pick_keymap_legend_config()),
                     ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::SHelp),
-                        "Help".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::ShowHelp),
+                    Keybinding::new(
+                        "l",
+                        "Context".to_string(),
+                        Dispatch::ShowKeymapLegend(self.space_context_keymap_legend_config()),
                     ),
-                    Keymap::new(
-                        context
-                            .keyboard_layout_kind()
-                            .get_space_keymap(&Meaning::Explr),
+                    Keybinding::new(
+                        ";",
                         "Explorer".to_string(),
                         Dispatch::RevealInExplorer(
                             self.path()
                                 .unwrap_or_else(|| context.current_working_directory().clone()),
                         ),
                     ),
+                    Keybinding::new(
+                        "/",
+                        "Help".to_string(),
+                        Dispatch::ToEditor(DispatchEditor::ShowHelp),
+                    ),
                 ]
                 .into_iter()
                 .chain(
                     self.secondary_selection_modes_keymap_legend_config(
-                        context,
                         Scope::Global,
                         IfCurrentNotFound::LookForward,
                         None,
                     )
-                    .keymaps
+                    .keymap
                     .into_vec(),
                 )
                 .collect_vec(),
@@ -1270,21 +1050,21 @@ impl Editor {
         }
     }
 
-    pub fn leader_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub fn leader_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Leader".to_string(),
 
-            keymaps: Keymaps::new(
-                &leader_meanings()
-                    .into_iter()
-                    .filter_map(|meaning| {
-                        let (_, description, _) = custom_keymap()
-                            .into_iter()
-                            .find(|(m, _, _)| &meaning == m)?;
-                        Some(Keymap::new(
-                            context.keyboard_layout_kind().get_leader_keymap(&meaning),
+            keymap: Keymap::new(
+                &QWERTY
+                    .iter()
+                    .flatten()
+                    .filter_map(|key| {
+                        let (_, description, _) =
+                            custom_keymap().into_iter().find(|(k, _, _)| k == key)?;
+                        Some(Keybinding::new(
+                            key,
                             description.to_string(),
-                            Dispatch::ExecuteLeaderMeaning(meaning),
+                            Dispatch::ExecuteLeaderKey(key.to_string()),
                         ))
                     })
                     .collect_vec(),
@@ -1294,15 +1074,12 @@ impl Editor {
 
     fn search_current_keymap(
         &self,
-        context: &Context,
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
-    ) -> Vec<Keymap> {
+    ) -> Vec<Keybinding> {
         [
-            Keymap::new_extended(
-                context
-                    .keyboard_layout_kind()
-                    .get_find_keymap(scope, &Meaning::SchCS),
+            Keybinding::new_extended(
+                "f",
                 "Search This".to_string(),
                 "Search current selection".to_string(),
                 Dispatch::ToEditor(DispatchEditor::SearchCurrentSelection(
@@ -1310,10 +1087,8 @@ impl Editor {
                     scope,
                 )),
             ),
-            Keymap::new_extended(
-                context
-                    .keyboard_layout_kind()
-                    .get_find_keymap(scope, &Meaning::SchCC),
+            Keybinding::new_extended(
+                "F",
                 "Search Clipboard".to_string(),
                 "Search clipboard content".to_string(),
                 Dispatch::ToEditor(DispatchEditor::SearchClipboardContent(scope)),
@@ -1324,26 +1099,38 @@ impl Editor {
 
     pub fn secondary_selection_modes_keymap_legend_config(
         &self,
-        context: &Context,
         scope: Scope,
         if_current_not_found: IfCurrentNotFound,
         prior_change: Option<PriorChange>,
     ) -> KeymapLegendConfig {
-        let search_keymaps = {
+        KeymapLegendConfig {
+            title: format!(
+                "Find ({})",
+                match scope {
+                    Scope::Local => "Local",
+                    Scope::Global => "Global",
+                }
+            ),
+
+            keymap: Keymap::new(&self.secondary_selection_modes_keybindings(
+                scope,
+                if_current_not_found,
+                prior_change,
+            )),
+        }
+    }
+
+    fn secondary_selection_modes_keybindings(
+        &self,
+        scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
+        prior_change: Option<PriorChange>,
+    ) -> Vec<Keybinding> {
+        let search_keybindings = {
             [].into_iter()
                 .chain(
-                    [Keymap::new(
-                        match (scope, if_current_not_found) {
-                            (Scope::Local, IfCurrentNotFound::LookForward) => context
-                                .keyboard_layout_kind()
-                                .get_find_keymap(scope, &Meaning::LRept),
-                            (Scope::Local, IfCurrentNotFound::LookBackward) => context
-                                .keyboard_layout_kind()
-                                .get_find_keymap(scope, &Meaning::LRept),
-                            (Scope::Global, _) => context
-                                .keyboard_layout_kind()
-                                .get_find_keymap(scope, &Meaning::GRept),
-                        },
+                    [Keybinding::new(
+                        "n",
                         "Repeat".to_string(),
                         Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
                     )]
@@ -1351,11 +1138,9 @@ impl Editor {
                 )
                 .collect_vec()
         };
-        let misc_keymaps = [
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_find_keymap(scope, &Meaning::Mark_),
+        let misc_keybindings = [
+            Keybinding::new(
+                "e",
                 "Mark".to_string(),
                 match scope {
                     Scope::Global => Dispatch::SetQuickfixList(QuickfixListType::Mark),
@@ -1366,10 +1151,8 @@ impl Editor {
                     )),
                 },
             ),
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_find_keymap(scope, &Meaning::Qkfix),
+            Keybinding::new(
+                "t",
                 "Quickfix".to_string(),
                 match scope {
                     Scope::Global => {
@@ -1388,14 +1171,12 @@ impl Editor {
         .into_iter()
         .chain(
             [
-                (Meaning::GHnkC, DiffMode::UnstagedAgainstCurrentBranch),
-                (Meaning::GHnkM, DiffMode::UnstagedAgainstMainBranch),
+                ("g", DiffMode::UnstagedAgainstCurrentBranch),
+                ("G", DiffMode::UnstagedAgainstMainBranch),
             ]
-            .map(|(meaning, diff_mode)| {
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_find_keymap(scope, &meaning),
+            .map(|(key, diff_mode)| {
+                Keybinding::new(
+                    key,
                     format!("Hunk{}", diff_mode.display()),
                     match scope {
                         Scope::Global => Dispatch::GetRepoGitHunks(diff_mode),
@@ -1409,19 +1190,17 @@ impl Editor {
             }),
         )
         .collect_vec();
-        let diagnostics_keymaps = [
-            (Meaning::DgAll, "All", DiagnosticSeverityRange::All),
-            (Meaning::DgErr, "Error", DiagnosticSeverityRange::Error),
-            (Meaning::DgHnt, "Hint", DiagnosticSeverityRange::Hint),
-            (Meaning::DgInf, "Info", DiagnosticSeverityRange::Information),
-            (Meaning::DgWrn, "Warn", DiagnosticSeverityRange::Warning),
+        let diagnostics_keybindings = [
+            ("a", "All", DiagnosticSeverityRange::All),
+            ("s", "Error", DiagnosticSeverityRange::Error),
+            ("q", "Hint", DiagnosticSeverityRange::Hint),
+            ("Q", "Info", DiagnosticSeverityRange::Information),
+            ("w", "Warn", DiagnosticSeverityRange::Warning),
         ]
         .into_iter()
-        .map(|(meaning, description, severity)| {
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_find_keymap(scope, &meaning),
+        .map(|(key, description, severity)| {
+            Keybinding::new(
+                key,
                 description.to_string(),
                 match scope {
                     Scope::Local => Dispatch::ToEditor(SetSelectionModeWithPriorChange(
@@ -1436,137 +1215,104 @@ impl Editor {
             )
         })
         .collect_vec();
-        let lsp_keymaps = [
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_find_keymap(scope, &Meaning::LDefn),
-                "Def".to_string(),
-                Dispatch::RequestDefinitions(scope),
-            ),
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_find_keymap(scope, &Meaning::LDecl),
+        let lsp_keybindings = [
+            Keybinding::new("x", "Def".to_string(), Dispatch::RequestDefinitions(scope)),
+            Keybinding::new(
+                "X",
                 "Decl".to_string(),
                 Dispatch::RequestDeclarations(scope),
             ),
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_find_keymap(scope, &Meaning::LImpl),
+            Keybinding::new(
+                "b",
                 "Impl".to_string(),
                 Dispatch::RequestImplementations(scope),
             ),
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_find_keymap(scope, &Meaning::LRfrE),
+            Keybinding::new(
+                "v",
                 "Ref-".to_string(),
                 Dispatch::RequestReferences {
                     include_declaration: false,
                     scope,
                 },
             ),
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_find_keymap(scope, &Meaning::LRfrI),
+            Keybinding::new(
+                "V",
                 "Ref+".to_string(),
                 Dispatch::RequestReferences {
                     include_declaration: true,
                     scope,
                 },
             ),
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_find_keymap(scope, &Meaning::LType),
+            Keybinding::new(
+                "c",
                 "Type".to_string(),
                 Dispatch::RequestTypeDefinitions(scope),
             ),
         ];
-        let scope_specific_keymaps = match scope {
-            Scope::Local => [(
-                context
-                    .keyboard_layout_kind()
-                    .get_find_keymap(scope, &Meaning::NtrlN),
-                "Int",
-                r"\d+",
-            )]
-            .into_iter()
-            .map(|(key, description, regex)| {
-                let search = Search {
-                    search: regex.to_string(),
-                    mode: LocalSearchConfigMode::Regex(RegexConfig {
-                        escaped: false,
-                        match_whole_word: false,
-                        case_sensitive: false,
-                    }),
-                };
-                let dispatch = Dispatch::ToEditor(SetSelectionModeWithPriorChange(
-                    if_current_not_found,
-                    Find { search },
-                    prior_change,
-                ));
-                Keymap::new(key, description.to_string(), dispatch)
-            })
-            .chain([
-                Keymap::new_extended(
-                    context
-                        .keyboard_layout_kind()
-                        .get_find_keymap(scope, &Meaning::Srch_),
-                    Direction::Start.format_action("Search"),
-                    Direction::Start.format_action("Search"),
-                    Dispatch::OpenSearchPromptWithPriorChange {
-                        scope: Scope::Local,
-                        if_current_not_found: self
-                            .cursor_direction
-                            .reverse()
-                            .to_if_current_not_found(),
+        let scope_specific_keybindings = match scope {
+            Scope::Local => [("Y", "Int", r"\d+")]
+                .into_iter()
+                .map(|(key, description, regex)| {
+                    let search = Search {
+                        search: regex.to_string(),
+                        mode: LocalSearchConfigMode::Regex(RegexConfig {
+                            escaped: false,
+                            match_whole_word: false,
+                            case_sensitive: false,
+                        }),
+                    };
+                    let dispatch = Dispatch::ToEditor(SetSelectionModeWithPriorChange(
+                        if_current_not_found,
+                        Find { search },
                         prior_change,
-                    },
-                ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_find_keymap(scope, &Meaning::SchWC),
-                    "With".to_string(),
-                    Dispatch::OpenSearchPromptWithCurrentSelection {
-                        scope: Scope::Local,
-                        prior_change,
-                    },
-                ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_find_keymap(scope, &Meaning::OneCh),
-                    "One".to_string(),
-                    Dispatch::ToEditor(FindOneChar(if_current_not_found)),
-                ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_find_keymap(scope, &Meaning::RSrch),
-                    Direction::End.format_action("Repeat Search"),
-                    Dispatch::ToEditor(DispatchEditor::RepeatSearch(
-                        Scope::Local,
-                        self.cursor_direction.reverse().to_if_current_not_found(),
-                        prior_change,
-                    )),
-                ),
-            ])
-            .chain(self.search_current_keymap(
-                context,
-                Scope::Local,
-                self.cursor_direction.reverse().to_if_current_not_found(),
-            ))
-            .collect_vec(),
+                    ));
+                    Keybinding::new(key, description.to_string(), dispatch)
+                })
+                .chain([
+                    Keybinding::new_extended(
+                        "d",
+                        Direction::Start.format_action("Search"),
+                        Direction::Start.format_action("Search"),
+                        Dispatch::OpenSearchPromptWithPriorChange {
+                            scope: Scope::Local,
+                            if_current_not_found: self
+                                .cursor_direction
+                                .reverse()
+                                .to_if_current_not_found(),
+                            prior_change,
+                        },
+                    ),
+                    Keybinding::new(
+                        "D",
+                        "With".to_string(),
+                        Dispatch::OpenSearchPromptWithCurrentSelection {
+                            scope: Scope::Local,
+                            prior_change,
+                        },
+                    ),
+                    Keybinding::new(
+                        "y",
+                        "One".to_string(),
+                        Dispatch::ToEditor(FindOneChar(if_current_not_found)),
+                    ),
+                    Keybinding::new(
+                        "r",
+                        Direction::End.format_action("Repeat Search"),
+                        Dispatch::ToEditor(DispatchEditor::RepeatSearch(
+                            Scope::Local,
+                            self.cursor_direction.reverse().to_if_current_not_found(),
+                            prior_change,
+                        )),
+                    ),
+                ])
+                .chain(self.search_current_keymap(
+                    Scope::Local,
+                    self.cursor_direction.reverse().to_if_current_not_found(),
+                ))
+                .collect_vec(),
             Scope::Global => [
-                Keymap::new_extended(
-                    context
-                        .keyboard_layout_kind()
-                        .get_find_keymap(scope, &Meaning::Srch_),
+                Keybinding::new_extended(
+                    "d",
                     "Search".to_string(),
                     "Search".to_string(),
                     Dispatch::OpenSearchPrompt {
@@ -1574,20 +1320,16 @@ impl Editor {
                         if_current_not_found,
                     },
                 ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_find_keymap(scope, &Meaning::SchWC),
+                Keybinding::new(
+                    "D",
                     "With".to_string(),
                     Dispatch::OpenSearchPromptWithCurrentSelection {
                         scope,
                         prior_change,
                     },
                 ),
-                Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_find_keymap(scope, &Meaning::RSrch),
+                Keybinding::new(
+                    "r",
                     "Repeat Search".to_string(),
                     Dispatch::ToEditor(DispatchEditor::RepeatSearch(
                         Scope::Global,
@@ -1597,53 +1339,77 @@ impl Editor {
                 ),
             ]
             .into_iter()
-            .chain(self.search_current_keymap(context, scope, if_current_not_found))
+            .chain(self.search_current_keymap(scope, if_current_not_found))
             .collect_vec(),
         };
-        KeymapLegendConfig {
-            title: format!(
-                "Find ({})",
-                match scope {
-                    Scope::Local => "Local",
-                    Scope::Global => "Global",
-                }
-            ),
+        search_keybindings
+            .into_iter()
+            .chain(misc_keybindings)
+            .chain(diagnostics_keybindings)
+            .chain(lsp_keybindings)
+            .chain(scope_specific_keybindings)
+            .collect_vec()
+    }
 
-            keymaps: Keymaps::new(
-                &search_keymaps
-                    .into_iter()
-                    .chain(misc_keymaps)
-                    .chain(diagnostics_keymaps)
-                    .chain(lsp_keymaps)
-                    .chain(scope_specific_keymaps)
-                    .collect_vec(),
+    pub fn multicursor_menu_keymap(&self) -> Keymap {
+        let primary_selection_mode_keybindings =
+            self.keymap_primary_selection_modes(Some(PriorChange::EnterMultiCursorMode));
+        let secondary_selection_mode_keybindings =
+            self.keymap_secondary_selection_modes_init(Some(PriorChange::EnterMultiCursorMode));
+        let other_keybindings = [
+            Keybinding::new(
+                "j",
+                "Curs All".to_string(),
+                Dispatch::ToEditor(CursorAddToAllSelections),
             ),
-        }
+            Keybinding::new(
+                "i",
+                "Keep Match".to_string(),
+                Dispatch::OpenFilterSelectionsPrompt { maintain: true },
+            ),
+            Keybinding::new(
+                "k",
+                "Remove Match".to_string(),
+                Dispatch::OpenFilterSelectionsPrompt { maintain: false },
+            ),
+            Keybinding::new(
+                "l",
+                "Keep Primary Curs".to_string(),
+                Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
+            ),
+        ];
+        Keymap::new(
+            &[].into_iter()
+                .chain(primary_selection_mode_keybindings)
+                .chain(secondary_selection_mode_keybindings)
+                .chain(other_keybindings)
+                .collect_vec(),
+        )
     }
 }
 
-pub fn swap_keymaps(context: &Context) -> Keymaps {
-    Keymaps::new(
+pub fn swap_keymap() -> Keymap {
+    Keymap::new(
         &[
-            (Movement::Up, Meaning::Up___),
-            (Movement::Down, Meaning::Down_),
-            (Movement::Left, Meaning::Left_),
-            (Movement::Right, Meaning::Right),
-            (Movement::Previous, Meaning::Prev_),
-            (Movement::Next, Meaning::Next_),
-            (Movement::First, Meaning::First),
-            (Movement::Last, Meaning::Last_),
+            (Movement::Up, "i"),
+            (Movement::Down, "k"),
+            (Movement::Left, "j"),
+            (Movement::Right, "l"),
+            (Movement::Previous, "u"),
+            (Movement::Next, "o"),
+            (Movement::First, "y"),
+            (Movement::Last, "p"),
         ]
         .into_iter()
-        .map(|(movement, meaning)| {
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&meaning),
+        .map(|(movement, key)| {
+            Keybinding::new(
+                key,
                 movement.format_action("Swap"),
                 Dispatch::ToEditor(DispatchEditor::SwapWithMovement(movement)),
             )
         })
-        .chain(Some(Keymap::new(
-            context.keyboard_layout_kind().get_key(&Meaning::Jump_),
+        .chain(Some(Keybinding::new(
+            "m",
             "Jump Swap".to_string(),
             Dispatch::ToEditor(ShowJumps {
                 use_current_selection_mode: true,
@@ -1654,83 +1420,89 @@ pub fn swap_keymaps(context: &Context) -> Keymaps {
     )
 }
 
-pub fn paste_keymaps(context: &Context) -> Keymaps {
-    Keymaps::new(
+pub fn paste_keymap() -> Keymap {
+    Keymap::new(
         [
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_paste_keymap(&Meaning::PBWiG),
-                Direction::Start.format_action("Paste with gaps"),
-                Dispatch::ToEditor(PasteWithMovement(Movement::Left)),
+            Keybinding::new(
+                "j",
+                Movement::Left.format_action("Gap Paste"),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Left)),
             ),
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_paste_keymap(&Meaning::PAWiG),
-                Direction::End.format_action("Paste with gaps"),
-                Dispatch::ToEditor(PasteWithMovement(Right)),
+            Keybinding::new(
+                "l",
+                Movement::Right.format_action("Gap Paste"),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Right)),
             ),
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_paste_keymap(&Meaning::PAWoG),
-                Direction::End.format_action("Paste"),
-                Dispatch::ToEditor(PasteWithMovement(Movement::Next)),
+            Keybinding::new(
+                "o",
+                Movement::Next.format_action("Gap Paste"),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Next)),
             ),
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_paste_keymap(&Meaning::PBWoG),
-                Direction::Start.format_action("Paste"),
-                Dispatch::ToEditor(PasteWithMovement(Movement::Previous)),
+            Keybinding::new(
+                "u",
+                Movement::Previous.format_action("Gap Paste"),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::Previous)),
             ),
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_paste_keymap(&Meaning::PRplc),
-                "Replace with pattern".to_string(),
+            Keybinding::new(
+                ";",
+                "Paste >".to_string(),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::AfterWithoutGap)),
+            ),
+            Keybinding::new(
+                "h",
+                "< Paste".to_string(),
+                Dispatch::ToEditor(PasteWithMovement(GetGapMovement::BeforeWithoutGap)),
+            ),
+            Keybinding::new(
+                "m",
+                "Replace w/ pattern".to_string(),
                 Dispatch::ToEditor(ReplaceWithPattern),
             ),
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_paste_keymap(&Meaning::RplcP),
-                Direction::Start.format_action("Replace with copied text"),
+            Keybinding::new(
+                "y",
+                Direction::Start.format_action("Replace w/ copied text"),
                 Dispatch::ToEditor(ReplaceWithPreviousCopiedText),
             ),
-            Keymap::new(
-                context
-                    .keyboard_layout_kind()
-                    .get_paste_keymap(&Meaning::RplcN),
-                Direction::End.format_action("Replace with copied text"),
-                Dispatch::ToEditor(ReplaceWithNextCopiedText),
+            Keybinding::new(
+                "p",
+                Direction::End.format_action("Replace w/ copied text"),
+                Dispatch::ToEditor(DispatchEditor::PasteVertically(Direction::End)),
+            ),
+            Keybinding::new(
+                "i",
+                Movement::Up.format_action("Paste"),
+                Dispatch::ToEditor(PasteVertically(Direction::Start)),
+            ),
+            Keybinding::new(
+                "k",
+                Movement::Down.format_action("Paste"),
+                Dispatch::ToEditor(PasteVertically(Direction::End)),
             ),
         ]
         .as_ref(),
     )
 }
 
-pub fn cut_keymaps(context: &Context) -> Keymaps {
-    Keymaps::new(
+pub fn cut_keymap() -> Keymap {
+    Keymap::new(
         &[
-            (Movement::Left, Meaning::Left_),
-            (Movement::Right, Meaning::Right),
-            (Movement::Previous, Meaning::Prev_),
-            (Movement::Next, Meaning::Next_),
-            (Movement::First, Meaning::First),
-            (Movement::Last, Meaning::Last_),
+            (Movement::Left, "j"),
+            (Movement::Right, "l"),
+            (Movement::Previous, "u"),
+            (Movement::Next, "o"),
+            (Movement::First, "y"),
+            (Movement::Last, "p"),
         ]
         .into_iter()
-        .map(|(movement, meaning)| {
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&meaning),
+        .map(|(movement, key)| {
+            Keybinding::new(
+                key,
                 movement.format_action("Cut"),
                 Dispatch::ToEditor(CutWithMovement(movement)),
             )
         })
-        .chain(Some(Keymap::new(
-            context.keyboard_layout_kind().get_key(&Meaning::Paste),
+        .chain(Some(Keybinding::new(
+            "b",
             "Replace Cut".to_string(),
             Dispatch::ToEditor(ReplaceWithCopiedText { cut: true }),
         )))
@@ -1738,26 +1510,26 @@ pub fn cut_keymaps(context: &Context) -> Keymaps {
     )
 }
 
-pub fn marked_file_keymaps(context: &Context) -> Keymaps {
-    Keymaps::new(
+pub fn marked_file_keymap() -> Keymap {
+    Keymap::new(
         &[
-            (Meaning::Left_, Movement::Left),
-            (Meaning::Right, Movement::Right),
-            (Meaning::First, Movement::First),
-            (Meaning::Last_, Movement::Last),
-            (Meaning::Prev_, Movement::Previous),
-            (Meaning::Next_, Movement::Next),
+            ("j", Movement::Left),
+            ("l", Movement::Right),
+            ("y", Movement::First),
+            ("p", Movement::Last),
+            ("u", Movement::Previous),
+            ("o", Movement::Next),
         ]
         .into_iter()
-        .map(|(meaning, movement)| {
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&meaning),
+        .map(|(key, movement)| {
+            Keybinding::new(
+                key,
                 movement.format_action("Marked File"),
                 Dispatch::CycleMarkedFile(movement),
             )
         })
-        .chain(Some(Keymap::new_extended(
-            context.keyboard_layout_kind().get_key(&Meaning::Down_),
+        .chain(Some(Keybinding::new_extended(
+            "k",
             "Mark File".to_string(),
             "Toggle File Mark".to_string(),
             Dispatch::ToggleFileMark,
@@ -1766,20 +1538,20 @@ pub fn marked_file_keymaps(context: &Context) -> Keymaps {
     )
 }
 
-pub fn delete_keymaps(context: &Context) -> Keymaps {
-    Keymaps::new(
+pub fn delete_keymap() -> Keymap {
+    Keymap::new(
         &[
-            (Movement::Left, Meaning::Left_),
-            (Movement::Right, Meaning::Right),
-            (Movement::Previous, Meaning::Prev_),
-            (Movement::Next, Meaning::Next_),
-            (Movement::First, Meaning::First),
-            (Movement::Last, Meaning::Last_),
+            (Movement::Left, "j"),
+            (Movement::Right, "l"),
+            (Movement::Previous, "u"),
+            (Movement::Next, "o"),
+            (Movement::First, "y"),
+            (Movement::Last, "p"),
         ]
         .into_iter()
-        .map(|(movement, meaning)| {
-            Keymap::new(
-                context.keyboard_layout_kind().get_key(&meaning),
+        .map(|(movement, key)| {
+            Keybinding::new(
+                key,
                 movement.format_action("Delete"),
                 Dispatch::ToEditor(DeleteWithMovement(movement)),
             )
@@ -1806,82 +1578,63 @@ pub struct KeymapOverride {
     pub dispatch: Dispatch,
 }
 
-fn generate_enclosures_keymaps(
-    get_dispatch: impl Fn(EnclosureKind) -> Dispatch,
-    context: &Context,
-) -> Keymaps {
-    Keymaps::new(
+fn generate_enclosures_keymap(get_dispatch: impl Fn(EnclosureKind) -> Dispatch) -> Keymap {
+    Keymap::new(
         &[
-            (Meaning::Anglr, EnclosureKind::AngularBrackets),
-            (Meaning::Paren, EnclosureKind::Parentheses),
-            (Meaning::Brckt, EnclosureKind::SquareBrackets),
-            (Meaning::Brace, EnclosureKind::CurlyBraces),
-            (Meaning::DQuot, EnclosureKind::DoubleQuotes),
-            (Meaning::SQuot, EnclosureKind::SingleQuotes),
-            (Meaning::BckTk, EnclosureKind::Backticks),
+            ("j", EnclosureKind::Parentheses),
+            ("k", EnclosureKind::SquareBrackets),
+            ("l", EnclosureKind::CurlyBraces),
+            (";", EnclosureKind::AngularBrackets),
+            ("u", EnclosureKind::SingleQuotes),
+            ("i", EnclosureKind::DoubleQuotes),
+            ("o", EnclosureKind::Backticks),
         ]
         .into_iter()
-        .map(|(meaning, enclosure)| {
+        .map(|(key, enclosure)| {
             let (open, close) = enclosure.open_close_symbols_str();
-            Keymap::new(
-                context.keyboard_layout_kind().get_surround_keymap(&meaning),
-                format!("{open} {close}"),
-                get_dispatch(enclosure),
-            )
+            Keybinding::new(key, format!("{open} {close}"), get_dispatch(enclosure))
         })
         .collect_vec(),
     )
 }
 
-pub fn extend_mode_normal_mode_override(context: &Context) -> NormalModeOverride {
-    fn select_surround_keymap_legend_config(
-        kind: SurroundKind,
-        context: &Context,
-    ) -> KeymapLegendConfig {
+pub fn extend_mode_normal_mode_override() -> NormalModeOverride {
+    fn select_surround_keymap_legend_config(kind: SurroundKind) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: format!("Select Surround ({kind:?})"),
 
-            keymaps: generate_enclosures_keymaps(
-                |enclosure| {
-                    Dispatch::ToEditor(SelectSurround {
-                        enclosure,
-                        kind: kind.clone(),
-                    })
-                },
-                context,
-            ),
+            keymap: generate_enclosures_keymap(|enclosure| {
+                Dispatch::ToEditor(SelectSurround {
+                    enclosure,
+                    kind: kind.clone(),
+                })
+            }),
         }
     }
 
-    fn delete_surround_keymap_legend_config(context: &Context) -> KeymapLegendConfig {
+    fn delete_surround_keymap_legend_config() -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Delete Surround".to_string(),
 
-            keymaps: generate_enclosures_keymaps(
-                |enclosure| Dispatch::ToEditor(DeleteSurround(enclosure)),
-                context,
-            ),
+            keymap: generate_enclosures_keymap(|enclosure| {
+                Dispatch::ToEditor(DeleteSurround(enclosure))
+            }),
         }
     }
 
-    fn surround_keymap_legend_config(context: &Context) -> KeymapLegendConfig {
+    fn surround_keymap_legend_config() -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Surround".to_string(),
 
-            keymaps: Keymaps::new(
-                &generate_enclosures_keymaps(
-                    |enclosure| {
-                        let (open, close) = enclosure.open_close_symbols_str();
-                        Dispatch::ToEditor(Surround(open.to_string(), close.to_string()))
-                    },
-                    context,
-                )
+            keymap: Keymap::new(
+                &generate_enclosures_keymap(|enclosure| {
+                    let (open, close) = enclosure.open_close_symbols_str();
+                    Dispatch::ToEditor(Surround(open.to_string(), close.to_string()))
+                })
                 .into_vec()
                 .into_iter()
-                .chain(Some(Keymap::new(
-                    context
-                        .keyboard_layout_kind()
-                        .get_surround_keymap(&Meaning::XML__),
+                .chain(Some(Keybinding::new(
+                    "p",
                     "<></>".to_string(),
                     Dispatch::OpenSurroundXmlPrompt,
                 )))
@@ -1890,39 +1643,28 @@ pub fn extend_mode_normal_mode_override(context: &Context) -> NormalModeOverride
         }
     }
 
-    fn change_surround_from_keymap_legend_config(
-        context: &Context,
-    ) -> super::keymap_legend::KeymapLegendConfig {
+    fn change_surround_from_keymap_legend_config() -> super::keymap_legend::KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Change Surround from:".to_string(),
 
-            keymaps: generate_enclosures_keymaps(
-                |enclosure| {
-                    Dispatch::ShowKeymapLegend(change_surround_to_keymap_legend_config(
-                        enclosure, context,
-                    ))
-                },
-                context,
-            ),
+            keymap: generate_enclosures_keymap(|enclosure| {
+                Dispatch::ShowKeymapLegend(change_surround_to_keymap_legend_config(enclosure))
+            }),
         }
     }
 
     fn change_surround_to_keymap_legend_config(
         from: EnclosureKind,
-        context: &Context,
     ) -> super::keymap_legend::KeymapLegendConfig {
         KeymapLegendConfig {
             title: format!("Change Surround from {} to:", from.to_str()),
 
-            keymaps: generate_enclosures_keymaps(
-                |enclosure| {
-                    Dispatch::ToEditor(ChangeSurround {
-                        from,
-                        to: enclosure,
-                    })
-                },
-                context,
-            ),
+            keymap: generate_enclosures_keymap(|enclosure| {
+                Dispatch::ToEditor(ChangeSurround {
+                    from,
+                    to: enclosure,
+                })
+            }),
         }
     }
     NormalModeOverride {
@@ -1930,56 +1672,40 @@ pub fn extend_mode_normal_mode_override(context: &Context) -> NormalModeOverride
             description: "Inside",
             dispatch: Dispatch::ShowKeymapLegend(select_surround_keymap_legend_config(
                 SurroundKind::Inside,
-                context,
             )),
         }),
         append: Some(KeymapOverride {
             description: "Around",
             dispatch: Dispatch::ShowKeymapLegend(select_surround_keymap_legend_config(
                 SurroundKind::Around,
-                context,
             )),
         }),
         delete: Some(KeymapOverride {
             description: "Delete Surround",
-            dispatch: Dispatch::ShowKeymapLegend(delete_surround_keymap_legend_config(context)),
+            dispatch: Dispatch::ShowKeymapLegend(delete_surround_keymap_legend_config()),
         }),
         change: Some(KeymapOverride {
             description: "Change Surround",
-            dispatch: Dispatch::ShowKeymapLegend(change_surround_from_keymap_legend_config(
-                context,
-            )),
+            dispatch: Dispatch::ShowKeymapLegend(change_surround_from_keymap_legend_config()),
         }),
         open: Some(KeymapOverride {
             description: "Surround",
-            dispatch: Dispatch::ShowKeymapLegend(surround_keymap_legend_config(context)),
+            dispatch: Dispatch::ShowKeymapLegend(surround_keymap_legend_config()),
         }),
         ..Default::default()
     }
 }
 
-pub fn multicursor_mode_normal_mode_override(direction: Direction) -> NormalModeOverride {
-    NormalModeOverride {
-        insert: Some(KeymapOverride {
-            description: "Keep Match",
-            dispatch: Dispatch::OpenFilterSelectionsPrompt { maintain: true },
-        }),
-        append: Some(KeymapOverride {
-            description: "Remove Match",
-            dispatch: Dispatch::OpenFilterSelectionsPrompt { maintain: false },
-        }),
-        change: Some(KeymapOverride {
-            description: "Keep Prime Curs",
-            dispatch: Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
-        }),
-        delete: Some(KeymapOverride {
-            description: "Delete Curs",
-            dispatch: Dispatch::ToEditor(DeleteCurrentCursor(direction)),
-        }),
-        multicursor: Some(KeymapOverride {
-            description: "Curs All",
-            dispatch: Dispatch::ToEditor(CursorAddToAllSelections),
-        }),
-        ..Default::default()
-    }
+fn primary_selection_modes() -> Vec<(&'static str, SelectionMode)> {
+    [
+        ("a", Line),
+        ("A", LineFull),
+        ("d", SyntaxNode),
+        ("D", SyntaxNodeFine),
+        ("s", Word),
+        ("S", BigWord),
+        ("w", Subword),
+        ("q", Character),
+    ]
+    .to_vec()
 }

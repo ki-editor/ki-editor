@@ -1,6 +1,7 @@
 pub mod crossterm;
 #[cfg(test)]
 pub mod mock;
+mod render;
 
 use std::any::Any;
 use std::io::Write;
@@ -8,14 +9,6 @@ use std::io::Write;
 use std::io::{self};
 
 use crate::{app::Dimension, components::component::Cursor, screen::Screen};
-use ::crossterm::{
-    cursor::MoveTo,
-    queue,
-    style::{
-        Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
-        SetUnderlineColor,
-    },
-};
 use itertools::Itertools;
 
 pub trait Frontend {
@@ -57,45 +50,7 @@ pub trait Frontend {
             "Cells should be sorted in reverse order by column to ensure proper rendering of
  multi-width characters in terminal displays"
         );
-        for cell in cells {
-            queue!(
-                self.writer(),
-                MoveTo(cell.position.column as u16, cell.position.line as u16),
-                SetAttribute(if cell.cell.is_bold {
-                    Attribute::Bold
-                } else {
-                    Attribute::NoBold
-                }),
-                SetUnderlineColor(
-                    cell.cell
-                        .line
-                        .map(|line| line.color.into())
-                        .unwrap_or(Color::Reset),
-                ),
-                SetAttribute(
-                    cell.cell
-                        .line
-                        .map(|line| match line.style {
-                            crate::grid::CellLineStyle::Undercurl => Attribute::Undercurled,
-                            crate::grid::CellLineStyle::Underline => Attribute::Underlined,
-                        })
-                        .unwrap_or(Attribute::NoUnderline),
-                ),
-                SetBackgroundColor(cell.cell.background_color.into()),
-                SetForegroundColor(cell.cell.foreground_color.into()),
-                Print(reveal(cell.cell.symbol)),
-                SetAttribute(Attribute::Reset),
-            )?;
-        }
-        Ok(())
-    }
-}
-/// Convert invisible character to visible character
-fn reveal(s: char) -> char {
-    match s {
-        '\n' => ' ',
-        '\t' => ' ',
-        _ => s,
+        render::render_cells(self.writer(), cells)
     }
 }
 

@@ -1,10 +1,24 @@
 # Themes
 
-Themes from [Zed Editor](https://zed.dev/) can be imported into Ki, examples of imported themes[^1]:
+Ki comes with a default set of inbuilt themes. These can be viewed [here](https://github.com/ki-editor/ki-editor/tree/master/themes).
+
+Ki can import themes made for [Zed Editor](https://zed.dev/), examples of imported themes[^1]:
 
 1. Gruvbox
 2. Ayu
 3. One
+
+The user can drop-in zed themes fetched from the internet into the config folder's
+theme directory, specifically this mean any of the following locations:
+
+- Global `~/.config/ki/themes/`
+- Workspace `.ki/themes/`
+
+Refer to [Space Menu](normal-mode/space-menu.md) to pick and change a theme from within Ki.
+
+To change your default theme refer to [Configuration](configuration.mdx).
+
+User may refer to [zed-themes.com](https://zed-themes.com) to download their preffered themes.
 
 ## Syntax highlighting
 

@@ -8,10 +8,10 @@ use crate::{
         editor::{
             Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement, PriorChange, Reveal,
         },
-        editor_keymap::{KeyboardLayoutKind, Meaning},
+        editor_keymap::KeyboardLayoutKind,
         editor_keymap_printer::KeymapDisplayOption,
         file_explorer::FileExplorer,
-        keymap_legend::{Keymap, KeymapLegendConfig, Keymaps, ReleaseKey},
+        keymap_legend::{Keybinding, Keymap, KeymapLegendConfig, ReleaseKey},
         prompt::{
             Prompt, PromptConfig, PromptHistoryKey, PromptItems, PromptItemsBackgroundTask,
             PromptOnChangeDispatch, PromptOnEnter,
@@ -564,10 +564,11 @@ impl<T: Frontend> App<T> {
                             .last()
                             .map(|search| FlexLayoutComponent::Text(format!("{search:?}"))),
                         StatusLineComponent::Help => {
-                            let key = self
+                            let help_key = self
+                                .context
                                 .keyboard_layout_kind()
-                                .get_space_keymap(&Meaning::SHelp);
-                            Some(FlexLayoutComponent::Text(format!("Help(Space+{key})")))
+                                .translate_char_to_qwerty('/');
+                            Some(FlexLayoutComponent::Text(format!("Help(Space+{help_key})")))
                         }
                         StatusLineComponent::KeyboardLayout => Some(FlexLayoutComponent::Text(
                             self.keyboard_layout_kind().display().to_string(),
@@ -1090,7 +1091,7 @@ impl<T: Frontend> App<T> {
                 self.add_quickfix_list_entries(locations)?
             }
             Dispatch::AppliedEdits { path, edits } => self.handle_applied_edits(path, edits),
-            Dispatch::ExecuteLeaderMeaning(meaning) => self.execute_leader_meaning(meaning)?,
+            Dispatch::ExecuteLeaderKey(key) => self.execute_leader_key(key)?,
             Dispatch::ShowBufferSaveConflictPrompt {
                 path,
                 content_editor,
@@ -1791,7 +1792,6 @@ impl<T: Frontend> App<T> {
         if self.is_running_as_embedded() {
             let title = keymap_legend_config.title.clone();
             let body = keymap_legend_config.display(
-                self.context.keyboard_layout_kind(),
                 usize::MAX,
                 &KeymapDisplayOption {
                     show_alt: false,
@@ -1886,17 +1886,9 @@ impl<T: Frontend> App<T> {
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
         self.handle_dispatch(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
             title: prompt.title.to_string(),
-            keymaps: Keymaps::new(&[
-                Keymap::new(
-                    self.keyboard_layout_kind().get_yes_no_key(&Meaning::Yes__),
-                    "Yes".to_string(),
-                    *prompt.yes,
-                ),
-                Keymap::new(
-                    self.keyboard_layout_kind().get_yes_no_key(&Meaning::No___),
-                    "No".to_string(),
-                    Dispatch::Null,
-                ),
+            keymap: Keymap::new(&[
+                Keybinding::new("d", "Yes".to_string(), *prompt.yes),
+                Keybinding::new("k", "No".to_string(), Dispatch::Null),
             ]),
         }))
     }
@@ -3275,8 +3267,8 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         ))
     }
 
-    fn execute_leader_meaning(&mut self, meaning: Meaning) -> anyhow::Result<()> {
-        if let Some((_, _, script)) = custom_keymap().into_iter().find(|(m, _, _)| *m == meaning) {
+    fn execute_leader_key(&mut self, key: String) -> anyhow::Result<()> {
+        if let Some((_, _, script)) = custom_keymap().into_iter().find(|(k, _, _)| k == &key) {
             let output = {
                 let component = self.current_component();
                 let borrow = component.borrow();
@@ -3614,7 +3606,7 @@ pub enum Dispatch {
         edits: Vec<Edit>,
         path: CanonicalizedPath,
     },
-    ExecuteLeaderMeaning(Meaning),
+    ExecuteLeaderKey(String),
     ShowBufferSaveConflictPrompt {
         path: CanonicalizedPath,
         content_filesystem: String,

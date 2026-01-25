@@ -1,9 +1,8 @@
-name: nightly
+name: latest
 on:
-  schedule:
-    - cron: '31 1 * * *' # 01:31 UTC, an intentionally odd time to distribute load
-  workflow_dispatch:
-    # So we can run it manually
+  push:
+    branches:
+      - master
 
 jobs:
   build:
@@ -21,8 +20,8 @@ jobs:
       - uses: actions/download-artifact@v7
       - name: Publish release
         run: |
-          gh release delete nightly --cleanup-tag --yes | true # Don't fail if the release doesn't exist
-          gh release create nightly --prerelease --title 'Nightly Release' \
+          gh release delete latest --cleanup-tag --yes | true # Don't fail if the release doesn't exist
+          gh release create latest --prerelease --title 'Latest master build' \
             ki-linux-x64/ki-linux-x64 \
             ki-linux-arm64/ki-linux-arm64 \
             ki-windows-x64/ki-windows-x64.exe \

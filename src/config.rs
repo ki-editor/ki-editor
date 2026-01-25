@@ -84,11 +84,11 @@ impl JsonSchema for ConfigThemeName {
 
 const DEFAULT_CONFIG: &str = include_str!("config_default.json");
 
-fn ki_workspace_directory() -> anyhow::Result<PathBuf> {
+pub fn ki_workspace_directory() -> anyhow::Result<PathBuf> {
     Ok(std::env::current_dir()?.join(".ki"))
 }
 
-fn ki_global_directory() -> PathBuf {
+pub fn ki_global_directory() -> PathBuf {
     ::grammar::config_dir()
 }
 

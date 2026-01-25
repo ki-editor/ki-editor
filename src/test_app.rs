@@ -32,6 +32,7 @@ pub use SelectionMode::*;
 use crate::{
     app::StatusLine,
     scripting::{ScriptInput, ScriptOutput},
+    selection_mode::GetGapMovement,
 };
 
 use shared::{canonicalized_path::CanonicalizedPath, language::LanguageId};
@@ -54,7 +55,7 @@ use crate::{
         },
         editor_keymap::KeyboardLayoutKind,
         editor_keymap_printer::KeymapPrintSections,
-        keymap_legend::Keymap,
+        keymap_legend::Keybinding,
         prompt::PromptHistoryKey,
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
@@ -476,6 +477,7 @@ impl ExpectKind {
             ),
             AppGridContains(substring) => {
                 let content = app.get_screen().unwrap().stringify();
+                println!("Actual=\n{}", content);
                 contextualize(content.contains(substring), true)
             }
             FileExplorerContent(expected) => contextualize(expected, &app.file_explorer_content()),
@@ -1151,7 +1153,7 @@ fn multi_paste() -> anyhow::Result<()> {
             Editor(ChangeCut),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("Some(".to_owned())),
-            Editor(PasteWithMovement(Right)),
+            Editor(PasteWithMovement(GetGapMovement::Right)),
             Editor(Insert(")".to_owned())),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }",
@@ -1160,7 +1162,7 @@ fn multi_paste() -> anyhow::Result<()> {
             App(SetClipboardContent {
                 copied_texts: CopiedTexts::one(".hello".to_owned()),
             }),
-            Editor(PasteWithMovement(Right)),
+            Editor(PasteWithMovement(GetGapMovement::Right)),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants)).hello; let y = Some(S(b)); }",
             )),
@@ -2033,17 +2035,17 @@ foo a // Line 10
                 // Line 10 should be placed below Line 2 (sorted numerically, not lexicograhically)
                 "
 src/foo.rs
-    2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
+     2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
     10:1  foo a // Line 10
 
 src/main.rs
-    1:1  foo d
-    2:1  foo c
+     1:1  foo d
+     2:1  foo c
                ".to_string()
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine("    2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
+            Expect(QuickfixListCurrentLine("     2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
             Expect(CurrentPath(s.foo_rs())),
             Expect(CurrentLine("foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
             Expect(CurrentSelectedTexts(&["foo"])),
@@ -2945,9 +2947,9 @@ fn doc_assets_export_keymaps_json() {
                     RowsJson(
                         keys.iter()
                             .map(|key| {
-                                let normal = key.normal.as_ref().map(Keymap::display);
-                                let alted = key.alted.as_ref().map(Keymap::display);
-                                let shifted = key.shifted.as_ref().map(Keymap::display);
+                                let normal = key.normal.as_ref().map(Keybinding::display);
+                                let alted = key.alted.as_ref().map(Keybinding::display);
+                                let shifted = key.shifted.as_ref().map(Keybinding::display);
 
                                 KeyJson {
                                     normal,
@@ -3020,7 +3022,7 @@ c1 c2 c3"
                 Editor(MoveSelection(Right)),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
-                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Expect(CurrentComponentContent(
                     "
@@ -3052,7 +3054,7 @@ fn pasting_when_clipboard_html_is_set_by_other_app() -> Result<(), anyhow::Error
                 }),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
                 Editor(SetContent("".to_string())),
-                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent("hello")),
             ])
         }
@@ -3785,7 +3787,7 @@ fn escape_global_diagnostics_should_not_change_selection() -> Result<(), anyhow:
             ))),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
             Expect(CurrentSelectedTexts(&["pub"])),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Expect(CurrentSelectedTexts(&["mod"])),
             App(HandleKeyEvent(key!("esc"))),

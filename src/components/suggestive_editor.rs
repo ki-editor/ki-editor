@@ -2,6 +2,7 @@ use crate::app::{Dispatch, Dispatches};
 use crate::context::{Context, GlobalMode};
 use crate::grid::StyleKey;
 use crate::selection::SelectionMode;
+use crossterm::event::KeyEventKind;
 use DispatchEditor::*;
 
 use crate::selection_range::SelectionRange;
@@ -16,8 +17,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::dropdown::{Dropdown, DropdownConfig};
 use super::editor::{Direction, DispatchEditor, IfCurrentNotFound};
-use super::editor_keymap::{alted, Meaning};
-use super::keymap_legend::{Keymap, Keymaps};
+use super::editor_keymap::alted;
+use super::keymap_legend::{Keybinding, Keymap};
 use super::{
     component::Component,
     dropdown::DropdownItem,
@@ -82,11 +83,14 @@ impl Component for SuggestiveEditor {
         event: event::KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
-            if let Some(keymap) = completion_item_keymaps(context).get(&event) {
+            let translated_event = context
+                .keyboard_layout_kind()
+                .translate_key_event_to_qwerty(event.clone());
+            if let Some(keymap) = completion_item_keymap().get(&translated_event) {
                 log::info!("dispatches = {:?}", keymap.get_dispatches());
                 return Ok(keymap.get_dispatches());
             };
-            match event {
+            match translated_event {
                 key!("down") => return self.next_completion_item(),
                 key!("up") => return self.previous_completion_item(),
                 key!("tab") => return self.select_completion_item(),
@@ -121,7 +125,7 @@ impl Component for SuggestiveEditor {
                 })
                 .collect_vec()
                 .into(),
-                _ if self.editor.mode == Mode::Insert => {
+                _ if self.editor.mode == Mode::Insert && event.kind != KeyEventKind::Release => {
                     vec![Dispatch::RequestCompletion, Dispatch::RequestSignatureHelp].into()
                 }
                 _ => Default::default(),
@@ -1164,22 +1168,22 @@ impl Decoration {
     }
 }
 
-pub fn completion_item_keymaps(context: &Context) -> Keymaps {
-    Keymaps::new(&[
-        Keymap::new_extended(
-            alted(context.keyboard_layout_kind().get_key(&Meaning::Right)),
+pub fn completion_item_keymap() -> Keymap {
+    Keymap::new(&[
+        Keybinding::new_extended(
+            alted("l"),
             Direction::End.format_action("Comp"),
             "Next Completion Item".to_string(),
             Dispatch::MoveToCompletionItem(Direction::End),
         ),
-        Keymap::new_extended(
-            alted(context.keyboard_layout_kind().get_key(&Meaning::Left_)),
+        Keybinding::new_extended(
+            alted("j"),
             Direction::Start.format_action("Comp"),
             "Previous Completion Item".to_string(),
             Dispatch::MoveToCompletionItem(Direction::Start),
         ),
-        Keymap::new_extended(
-            alted(context.keyboard_layout_kind().get_key(&Meaning::Cut__)),
+        Keybinding::new_extended(
+            alted("x"),
             "Replace Comp".to_string(),
             "Replace Completion Item".to_string(),
             Dispatch::SelectCompletionItem,

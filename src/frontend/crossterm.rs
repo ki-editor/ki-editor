@@ -25,6 +25,8 @@ impl Crossterm {
     }
 }
 
+#[cfg(not(windows))]
+use crossterm::event::PopKeyboardEnhancementFlags;
 use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
     event::{
@@ -100,6 +102,12 @@ impl Frontend for Crossterm {
     }
 
     fn leave_alternate_screen(&mut self) -> anyhow::Result<()> {
+        // Need to disable keyboard enhancement when closing Ki
+        // so that we don't leave the terminal in a weird state
+        // (because most terminal apps cannot react to KKP events properly)
+        #[cfg(not(windows))]
+        self.stdout.execute(PopKeyboardEnhancementFlags)?;
+
         self.stdout.execute(LeaveAlternateScreen)?;
         self.stdout.execute(DisableBracketedPaste)?;
         Ok(())

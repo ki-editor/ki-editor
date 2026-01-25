@@ -167,6 +167,7 @@ mod test_word {
     use crate::buffer::BufferOwner;
 
     use crate::selection::SelectionMode;
+    use crate::selection_mode::GetGapMovement;
     use crate::test_app::*;
 
     use super::*;
@@ -333,7 +334,7 @@ mod test_word {
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["barBar"])),
                 Editor(Copy),
-                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent("fooFoo barBar barBar\nspamSpam")),
             ])
         })
@@ -358,7 +359,7 @@ mod test_word {
                 Expect(CurrentSelectedTexts(&["barBar"])),
                 Editor(Copy),
                 Editor(SwapCursor),
-                Editor(PasteWithMovement(Right)),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent("fooFoo barBar barBar\nspamSpam")),
             ])
         })
