@@ -3570,7 +3570,7 @@ impl Editor {
         let (hidden_parent_lines, _) = self.get_parent_lines()?;
         Ok(hidden_parent_lines
             .into_iter()
-            .map(|line| (line.line..line.line + 1))
+            .map(|line| line.line..line.line + 1)
             .collect_vec())
     }
 
