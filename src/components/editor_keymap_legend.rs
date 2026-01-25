@@ -36,28 +36,24 @@ use Movement::*;
 impl Editor {
     pub fn keymap_core_movements(&self, prior_change: Option<PriorChange>) -> Vec<Keybinding> {
         [
-            Keybinding::new_extended(
+            Keybinding::new(
                 "j",
                 "<<".to_string(),
-                "Left".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Movement::Left, prior_change)),
             ),
-            Keybinding::new_extended(
+            Keybinding::new(
                 "l",
                 ">>".to_string(),
-                "Right".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Right, prior_change)),
             ),
-            Keybinding::new_extended(
+            Keybinding::new(
                 "i",
                 "^".to_string(),
-                "Up".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Up, prior_change)),
             ),
-            Keybinding::new_extended(
+            Keybinding::new(
                 "k",
                 "v".to_string(),
-                "Down".to_string(),
                 Dispatch::ToEditor(MoveSelectionWithPriorChange(Down, prior_change)),
             ),
             Keybinding::new(
