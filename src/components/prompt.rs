@@ -227,20 +227,15 @@ impl std::fmt::Debug for PromptConfig {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Default)]
 pub enum PromptItems {
+    #[default]
     None,
     Precomputed(Vec<DropdownItem>),
     BackgroundTask {
         task: PromptItemsBackgroundTask,
         on_nucleo_tick_debounced: Callback<()>,
     },
-}
-
-impl Default for PromptItems {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -276,7 +271,9 @@ impl PromptItemsBackgroundTask {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Hash, PartialEq, Eq, Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Default,
+)]
 pub enum PromptHistoryKey {
     MoveToIndex,
     Search,
@@ -287,21 +284,18 @@ pub enum PromptHistoryKey {
     Symbol,
     OpenFile,
     CodeAction,
+    #[default]
     Null,
     Theme,
     PipeToShell,
-    FilterSelectionsMatchingSearch { maintain: bool },
+    FilterSelectionsMatchingSearch {
+        maintain: bool,
+    },
     KeyboardLayout,
     SurroundXmlTag,
     ResolveBufferSaveConflict,
     WorkspaceSymbol,
     ChangeWorkingDirectory,
-}
-
-impl Default for PromptHistoryKey {
-    fn default() -> Self {
-        Self::Null
-    }
 }
 
 impl Prompt {
