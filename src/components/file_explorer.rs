@@ -380,17 +380,12 @@ impl Tree {
     }
 
     fn reveal(self, path: &CanonicalizedPath) -> anyhow::Result<Self> {
-        let components = path.components();
+        let paths = path.ancestors()?;
 
-        let paths = (1..=components.len())
-            .map(|i| components[..i].to_vec())
-            .map(|components| -> Result<CanonicalizedPath, _> {
-                components.join(std::path::MAIN_SEPARATOR_STR).try_into()
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
+        // Reverse because ancestors returns the parent first, not the topmost directory
         Ok(paths
             .into_iter()
+            .rev()
             .fold(self, |tree, path| tree.toggle(&path, |_| true)))
     }
 
