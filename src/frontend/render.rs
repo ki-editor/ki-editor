@@ -78,6 +78,14 @@ impl<'a> Renderer<'a> {
     }
 }
 
+/// This struct is created so that we can avoid emitting redundant terminal
+/// escape sequences.
+/// Once terminal attributes (colors, bold, underline) are
+/// set, they persist for all subsequent character prints until explicitly
+/// changed.
+/// By tracking the current state, we only emit styling commands when
+/// attributes actually differ from the previous cell, rather than redundantly
+/// setting the same styles for every cell.
 struct TerminalState<'a> {
     renderer: Renderer<'a>,
     position: Position,
