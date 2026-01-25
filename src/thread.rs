@@ -120,3 +120,30 @@ pub fn set_timeout(callback: Callback<()>, duration: Duration) {
         callback.call(())
     });
 }
+
+pub fn throttle<T: Send + Sync + 'static>(
+    callback: Callback<T>,
+    duration: Duration,
+) -> Callback<T> {
+    let (sender, receiver) = std::sync::mpsc::channel::<T>();
+
+    std::thread::spawn(move || {
+        let mut last_executed = None::<Instant>;
+
+        while let Ok(event) = receiver.recv() {
+            let now = Instant::now();
+            let should_execute = last_executed
+                .map(|last| now.duration_since(last) >= duration)
+                .unwrap_or(true);
+
+            if should_execute {
+                callback.call(event);
+                last_executed = Some(now);
+            }
+        }
+    });
+
+    Callback::new(Arc::new(move |event| {
+        let _ = sender.send(event);
+    }))
+}

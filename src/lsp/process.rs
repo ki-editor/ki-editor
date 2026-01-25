@@ -51,12 +51,26 @@ struct LspServerProcess {
 
     sender: Sender<LspServerProcessMessage>,
     progress_tokens: HashMap<String, ProgressData>,
+
+    progress_notification_throttler: Callback<ProgressNotification>,
+}
+
+#[derive(Eq)]
+struct ProgressNotification {
+    message: String,
+}
+
+impl PartialEq for ProgressNotification {
+    fn eq(&self, other: &Self) -> bool {
+        true
+    }
 }
 
 #[derive(Clone)]
 struct ProgressData {
     title: String,
     interval: Interval,
+    percentage: Option<u32>,
 }
 
 type RequestId = u64;
@@ -289,6 +303,21 @@ impl LspServerProcess {
             app_message_sender: app_message_sender.clone(),
             sender: sender.clone(),
             progress_tokens: Default::default(),
+            progress_notification_throttler: {
+                let sender = app_message_sender.clone();
+                crate::thread::throttle(
+                    Callback::new(Arc::new(move |notification| {
+                        sender
+                            .send(AppMessage::LspNotification(Box::new(
+                                LspNotification::Progress {
+                                    message: notification.message,
+                                },
+                            )))
+                            .unwrap()
+                    })),
+                    Duration::from_millis(100),
+                )
+            },
         };
 
         lsp_server_process.initialize()?;
@@ -1628,6 +1657,7 @@ impl LspServerProcess {
                             Arc::new(move |count| {
                                 let chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
                                 let char = chars[count % chars.len()];
+
                                 sender
                                     .send(AppMessage::LspNotification(Box::new(
                                         LspNotification::Progress {
@@ -1639,8 +1669,14 @@ impl LspServerProcess {
                         }),
                         Duration::from_millis(160),
                     );
-                    self.progress_tokens
-                        .insert(token.clone(), ProgressData { title, interval });
+                    self.progress_tokens.insert(
+                        token.clone(),
+                        ProgressData {
+                            title,
+                            interval,
+                            percentage: None,
+                        },
+                    );
                     self.app_message_sender
                         .send(AppMessage::LspNotification(Box::new(
                             LspNotification::Progress {
@@ -1651,10 +1687,11 @@ impl LspServerProcess {
                         )))
                         .unwrap()
                 }
-                WorkDoneProgress::End(_) => {
+                WorkDoneProgress::End(work_end_progress) => {
                     if let Some(progress_data) = self.progress_tokens.remove(&token) {
                         let command = self.lsp_command.command().to_string();
                         progress_data.interval.cancel();
+
                         self.app_message_sender
                             .send(AppMessage::LspNotification(Box::new(
                                 LspNotification::Progress {
@@ -1681,11 +1718,34 @@ impl LspServerProcess {
                         Duration::from_secs(5),
                     )
                 }
-                WorkDoneProgress::Report(_) => {
+                WorkDoneProgress::Report(work_done_progress_report) => {
+                    if let Some(progress_data) = self.progress_tokens.get_mut(&token) {
+                        progress_data.percentage = work_done_progress_report.percentage;
+                        self.report_progress()
+                    }
                     // Ignore it as it's very noisy (at least when the LSP is Rust Analyzer)
                 }
             },
         }
+    }
+
+    fn report_progress(&self) {
+        let progress = self
+            .progress_tokens
+            .iter()
+            .map(|(token, progress_data)| {
+                progress_data
+                    .percentage
+                    .map(|percentage| format!("{percentage}%"))
+                    .unwrap_or("?".to_string())
+            })
+            .join("/");
+        let command = self.lsp_command.command().to_string();
+
+        self.progress_notification_throttler
+            .call(ProgressNotification {
+                message: format!("{command}: {progress}"),
+            });
     }
 }
 
