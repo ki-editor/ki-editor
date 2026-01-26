@@ -1020,10 +1020,11 @@ impl HighlightSpan {
                 };
 
                 let remaining = [
-                    (range.start < intersection.start)
-                        .then(|| HighlightSpanRange::ByteRange(range.start..intersection.start)),
+                    (range.start < intersection.start).then_some(HighlightSpanRange::ByteRange(
+                        range.start..intersection.start,
+                    )),
                     (intersection.end < range.end)
-                        .then(|| HighlightSpanRange::ByteRange(intersection.end..range.end)),
+                        .then_some(HighlightSpanRange::ByteRange(intersection.end..range.end)),
                 ];
 
                 (HighlightSpanRange::ByteRange(intersection), remaining)
