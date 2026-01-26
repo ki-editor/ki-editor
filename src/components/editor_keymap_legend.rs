@@ -1517,8 +1517,6 @@ pub fn marked_file_keymap() -> Keymap {
             ("l", Movement::Right),
             ("y", Movement::First),
             ("p", Movement::Last),
-            ("u", Movement::Previous),
-            ("o", Movement::Next),
         ]
         .into_iter()
         .map(|(key, movement)| {
@@ -1528,6 +1526,17 @@ pub fn marked_file_keymap() -> Keymap {
                 Dispatch::CycleMarkedFile(movement),
             )
         })
+        .chain(
+            [("u", Movement::Previous), ("o", Movement::Next)]
+                .into_iter()
+                .map(|(key, movement)| {
+                    Keybinding::new(
+                        key,
+                        movement.format_action("Opened File"),
+                        Dispatch::CycleMarkedFile(movement),
+                    )
+                }),
+        )
         .chain(Some(Keybinding::new_extended(
             "k",
             "Mark File".to_string(),

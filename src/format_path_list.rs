@@ -90,7 +90,7 @@ pub fn get_formatted_paths(
     }
 
     // Generate formatted strings for all paths in the list
-    let result = paths
+    let result: Vec<String> = paths
         .iter()
         .map(|&p| {
             if p == current_path {
@@ -101,9 +101,9 @@ pub fn get_formatted_paths(
         })
         .collect();
     if !contains_current_path {
-        Some(current_path_display)
+        result
             .into_iter()
-            .chain(result)
+            .chain(Some(current_path_display))
             .collect()
     } else {
         result

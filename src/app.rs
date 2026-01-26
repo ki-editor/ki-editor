@@ -2188,7 +2188,9 @@ impl<T: Frontend> App<T> {
 
                 let mut merged_file_paths_map = IndexMap::<CanonicalizedPath, bool>::new();
                 marked_file_paths.iter().for_each(|path| {
-                    merged_file_paths_map.insert((*path).clone(), true);
+                    if !merged_file_paths_map.contains_key(*path) {
+                        merged_file_paths_map.insert((*path).clone(), true);
+                    }
                 });
                 buffer_file_paths.iter().for_each(|path| {
                     if !merged_file_paths_map.contains_key(path) {
