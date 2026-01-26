@@ -138,10 +138,10 @@ impl Editor {
             ),
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "e",
-                description: "Mark".to_string(),
+                description: "Buffer".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Marked File Keymap".to_string(),
-                    keymap: marked_file_keymap(),
+                    title: "Buffer".to_string(),
+                    keymap: buffer_keymap(),
                 },
                 on_tap: Some(OnTap::new(
                     "Toggle Selection Mark",
@@ -1510,7 +1510,7 @@ pub fn cut_keymap() -> Keymap {
     )
 }
 
-pub fn marked_file_keymap() -> Keymap {
+pub fn buffer_keymap() -> Keymap {
     Keymap::new(
         &[
             ("j", Movement::Left),
