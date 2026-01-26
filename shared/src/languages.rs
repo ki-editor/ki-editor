@@ -55,6 +55,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("odin", odin()),
         ("dune", dune()),
         ("python", python()),
+        ("perl", perl()),
         ("rescript", rescript()),
         ("roc", roc()),
         ("ruby", ruby()),
@@ -813,6 +814,27 @@ fn python() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "python".to_string(),
             kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Python),
+        }),
+        line_comment_prefix: Some("#".to_string()),
+        ..Language::new()
+    }
+}
+
+fn perl() -> Language {
+    Language {
+        extensions: to_vec(&[
+            "pl", "pm", "t", "psgi", "raku", "rakumod", "rakutest", "rakudoc", "nqp", "p6", "pl6",
+            "pm6",
+        ]),
+        //formatter: Some(Command::new("pertidy"])),
+        lsp_command: Some(LspCommand {
+            command: Command::new("perlnavigator", &[]),
+            ..LspCommand::default()
+        }),
+        lsp_language_id: Some(LanguageId::new("perl")),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "perl".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Perl),
         }),
         line_comment_prefix: Some("#".to_string()),
         ..Language::new()
