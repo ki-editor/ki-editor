@@ -84,17 +84,32 @@ pub fn batch<T: Send + Sync + 'static>(
 
 #[derive(Clone)]
 pub struct Interval {
-    callback: Callback<()>,
+    callback: Callback<IntervalEvent>,
 }
 
 impl Interval {
     pub fn cancel(&self) {
-        self.callback.call(())
+        self.callback.call(IntervalEvent::Cancel)
+    }
+
+    pub(crate) fn resume(&self) {
+        self.callback.call(IntervalEvent::Resume)
+    }
+
+    pub(crate) fn pause(&self) {
+        self.callback.call(IntervalEvent::Pause)
     }
 }
 
+#[derive(Clone)]
+enum IntervalEvent {
+    Resume,
+    Pause,
+    Cancel,
+}
+
 pub fn set_interval(callback: Callback<usize>, duration: Duration) -> Interval {
-    let (sender, receiver) = std::sync::mpsc::channel::<()>();
+    let (sender, receiver) = std::sync::mpsc::channel::<IntervalEvent>();
 
     let mut iteration_count = 0;
 
@@ -102,8 +117,19 @@ pub fn set_interval(callback: Callback<usize>, duration: Duration) -> Interval {
         callback.call(iteration_count);
         iteration_count += 1;
         std::thread::sleep(duration);
-        if receiver.try_recv().is_ok() {
-            break;
+
+        if let Ok(event) = receiver.try_recv() {
+            match event {
+                IntervalEvent::Resume => continue,
+                IntervalEvent::Pause => {
+                    while let Ok(event) = receiver.recv() {
+                        if matches!(event, IntervalEvent::Resume) {
+                            break;
+                        }
+                    }
+                }
+                IntervalEvent::Cancel => break,
+            }
         }
     });
 
@@ -112,38 +138,4 @@ pub fn set_interval(callback: Callback<usize>, duration: Duration) -> Interval {
             let _ = sender.send(event);
         })),
     }
-}
-
-pub fn set_timeout(callback: Callback<()>, duration: Duration) {
-    std::thread::spawn(move || {
-        std::thread::sleep(duration);
-        callback.call(())
-    });
-}
-
-pub fn throttle<T: Send + Sync + 'static>(
-    callback: Callback<T>,
-    duration: Duration,
-) -> Callback<T> {
-    let (sender, receiver) = std::sync::mpsc::channel::<T>();
-
-    std::thread::spawn(move || {
-        let mut last_executed = None::<Instant>;
-
-        while let Ok(event) = receiver.recv() {
-            let now = Instant::now();
-            let should_execute = last_executed
-                .map(|last| now.duration_since(last) >= duration)
-                .unwrap_or(true);
-
-            if should_execute {
-                callback.call(event);
-                last_executed = Some(now);
-            }
-        }
-    });
-
-    Callback::new(Arc::new(move |event| {
-        let _ = sender.send(event);
-    }))
 }

@@ -1,5 +1,6 @@
 use crate::app::{RequestParams, Scope};
-use crate::thread::{Callback, Interval};
+use crate::lsp::progress_notification_manager::ProgressNotificationManager;
+use crate::thread::Callback;
 use anyhow::Context;
 use debounce::EventDebouncer;
 use itertools::Itertools;
@@ -11,7 +12,7 @@ use lsp_types::*;
 use my_proc_macros::NamedVariant;
 use shared::canonicalized_path::CanonicalizedPath;
 use shared::language::Language;
-use shared::process_command::{ProcessCommand, SpawnCommandResult};
+use shared::process_command::SpawnCommandResult;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 
@@ -36,7 +37,6 @@ use crate::quickfix_list::Location;
 
 struct LspServerProcess {
     language: Language,
-    lsp_command: ProcessCommand,
     stdin: process::ChildStdin,
 
     /// This is hacky, but we need to keep the stdout around so that it doesn't get dropped
@@ -50,27 +50,7 @@ struct LspServerProcess {
     app_message_sender: Sender<AppMessage>,
 
     sender: Sender<LspServerProcessMessage>,
-    progress_tokens: HashMap<String, ProgressData>,
-
-    progress_notification_throttler: Callback<ProgressNotification>,
-}
-
-#[derive(Eq)]
-struct ProgressNotification {
-    message: String,
-}
-
-impl PartialEq for ProgressNotification {
-    fn eq(&self, other: &Self) -> bool {
-        true
-    }
-}
-
-#[derive(Clone)]
-struct ProgressData {
-    title: String,
-    interval: Interval,
-    percentage: Option<u32>,
+    progress_notification_manager: ProgressNotificationManager,
 }
 
 type RequestId = u64;
@@ -292,7 +272,6 @@ impl LspServerProcess {
         let (sender, receiver) = std::sync::mpsc::channel::<LspServerProcessMessage>();
         let mut lsp_server_process = LspServerProcess {
             language: language.clone(),
-            lsp_command: process_command,
             stdin,
             stdout: Some(stdout),
             stderr: Some(stderr),
@@ -302,22 +281,17 @@ impl LspServerProcess {
             server_capabilities: None,
             app_message_sender: app_message_sender.clone(),
             sender: sender.clone(),
-            progress_tokens: Default::default(),
-            progress_notification_throttler: {
-                let sender = app_message_sender.clone();
-                crate::thread::throttle(
-                    Callback::new(Arc::new(move |notification| {
-                        sender
-                            .send(AppMessage::LspNotification(Box::new(
-                                LspNotification::Progress {
-                                    message: notification.message,
-                                },
-                            )))
-                            .unwrap()
-                    })),
-                    Duration::from_millis(100),
-                )
-            },
+            progress_notification_manager: ProgressNotificationManager::new(
+                process_command.command().to_string(),
+                Callback::new(Arc::new({
+                    let app_message_sender = app_message_sender.clone();
+                    move |message| {
+                        let _ = app_message_sender.send(AppMessage::LspNotification(Box::new(
+                            LspNotification::Progress { message },
+                        )));
+                    }
+                })),
+            ),
         };
 
         lsp_server_process.initialize()?;
@@ -1646,106 +1620,11 @@ impl LspServerProcess {
             NumberOrString::String(string) => string,
         };
         match params.value {
-            ProgressParamsValue::WorkDone(work_done_progress) => match work_done_progress {
-                WorkDoneProgress::Begin(work_done_progress_begin) => {
-                    let title = work_done_progress_begin.title.clone();
-                    let interval = crate::thread::set_interval(
-                        Callback::new({
-                            let sender = self.app_message_sender.clone();
-                            let title = title.clone();
-                            let command = self.lsp_command.command().to_string();
-                            Arc::new(move |count| {
-                                let chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-                                let char = chars[count % chars.len()];
-
-                                sender
-                                    .send(AppMessage::LspNotification(Box::new(
-                                        LspNotification::Progress {
-                                            message: format!("{command}: {title} {char}",),
-                                        },
-                                    )))
-                                    .unwrap()
-                            })
-                        }),
-                        Duration::from_millis(160),
-                    );
-                    self.progress_tokens.insert(
-                        token.clone(),
-                        ProgressData {
-                            title,
-                            interval,
-                            percentage: None,
-                        },
-                    );
-                    self.app_message_sender
-                        .send(AppMessage::LspNotification(Box::new(
-                            LspNotification::Progress {
-                                message: work_done_progress_begin
-                                    .message
-                                    .unwrap_or(work_done_progress_begin.title),
-                            },
-                        )))
-                        .unwrap()
-                }
-                WorkDoneProgress::End(work_end_progress) => {
-                    if let Some(progress_data) = self.progress_tokens.remove(&token) {
-                        let command = self.lsp_command.command().to_string();
-                        progress_data.interval.cancel();
-
-                        self.app_message_sender
-                            .send(AppMessage::LspNotification(Box::new(
-                                LspNotification::Progress {
-                                    message: format!("{command}: {} [ENDED].", progress_data.title),
-                                },
-                            )))
-                            .unwrap();
-                    }
-
-                    // Clear the message after 5 seconds
-                    crate::thread::set_timeout(
-                        Callback::new({
-                            let sender = self.app_message_sender.clone();
-                            Arc::new(move |_| {
-                                sender
-                                    .send(AppMessage::LspNotification(Box::new(
-                                        LspNotification::Progress {
-                                            message: "".to_string(),
-                                        },
-                                    )))
-                                    .unwrap();
-                            })
-                        }),
-                        Duration::from_secs(5),
-                    )
-                }
-                WorkDoneProgress::Report(work_done_progress_report) => {
-                    if let Some(progress_data) = self.progress_tokens.get_mut(&token) {
-                        progress_data.percentage = work_done_progress_report.percentage;
-                        self.report_progress()
-                    }
-                    // Ignore it as it's very noisy (at least when the LSP is Rust Analyzer)
-                }
-            },
+            ProgressParamsValue::WorkDone(work_done_progress) => {
+                self.progress_notification_manager
+                    .update_progress(token, work_done_progress);
+            }
         }
-    }
-
-    fn report_progress(&self) {
-        let progress = self
-            .progress_tokens
-            .iter()
-            .map(|(token, progress_data)| {
-                progress_data
-                    .percentage
-                    .map(|percentage| format!("{percentage}%"))
-                    .unwrap_or("?".to_string())
-            })
-            .join("/");
-        let command = self.lsp_command.command().to_string();
-
-        self.progress_notification_throttler
-            .call(ProgressNotification {
-                message: format!("{command}: {progress}"),
-            });
     }
 }
 
@@ -1862,7 +1741,6 @@ mod test_lsp_server_process {
 
         let lsp_process = LspServerProcess {
             language: Language::default(),
-            lsp_command: ProcessCommand::new("nothing", &[]),
             stdin,
             stdout: Some(stdout),
             stderr: Some(stderr),
@@ -1872,7 +1750,10 @@ mod test_lsp_server_process {
             pending_response_requests: HashMap::new(),
             app_message_sender: app_sender.clone(),
             sender,
-            progress_tokens: Default::default(),
+            progress_notification_manager: ProgressNotificationManager::new(
+                "nothing".to_string(),
+                Callback::new(Arc::new(|_| {})),
+            ),
         };
 
         // Start listening in a separate thread
