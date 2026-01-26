@@ -6,7 +6,7 @@ default:
     @just test 
     @just doc 
 
-check: build check-typeshare fmt-check lint 
+check: check-typeshare fmt-check lint 
     
 build-all: tree-sitter-quickfix build vscode-build
     
