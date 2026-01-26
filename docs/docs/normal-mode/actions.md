@@ -152,20 +152,7 @@ File unmarking has two behaviors:
 1. When the current file is the only marked file: File remains unmarked and focused.
 2. When the current file is NOT the only marked file: File is unmarked and focus shifts to the next marked file, similar to closing a tab.
 
-To move between marked files, see [here](other-movements#-markedmarked-).
-
-#### Workflow Overview
-
-This workflow is designed to streamline your editing process by allowing quick
-access to your primary files. During an editing session, you often work on
-primary files while occasionally referring to other less important files. Using
-`alt+j` and `alt+l` (on Qwerty), you can quickly jump back to your main files, enhancing your
-productivity and focus.
-
-By utilizing file marking, you can efficiently navigate your editing
-environment and maintain your workflow's momentum.
-
-<TutorialFallback filename="mark-file"/>
+To move between marked files, see [Buffer MoL](../momentary-layers/buffer-mol).
 
 ### `Undo`/`Redo`
 
