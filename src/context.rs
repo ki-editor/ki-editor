@@ -241,7 +241,7 @@ impl Context {
             Ok(_) => {}
             Err(err) => {
                 log::error!(
-                    "Context::get_clipboard_content: cannot access system clipboard due to {err:?}"
+                    "Context::change_working_directory: cannot change process working directory due to error: {err:?}"
                 )
             }
         }
