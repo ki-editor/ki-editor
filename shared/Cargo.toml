@@ -55,6 +55,7 @@ tree-sitter-scheme = "0.24.7"
 tree-sitter-haskell = "0.23.1"
 tree-sitter-julia = "0.23.1"
 nvim-treesitter-highlight-queries = { version = "0.1.0", path = "../nvim-treesitter-highlight-queries" }
+tree-sitter-hcl = "1.1.0"
 
 
 [dev-dependencies]

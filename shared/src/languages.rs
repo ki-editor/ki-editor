@@ -36,6 +36,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("go", go()),
         ("graphql", graphql()),
         ("hare", hare()),
+        ("hcl", hcl()),
         ("heex", heex()),
         ("html", html()),
         ("idris", idris()),
@@ -473,6 +474,17 @@ fn hare() -> Language {
                 commit: "master".to_string(),
                 subpath: None,
             },
+        }),
+        ..Language::new()
+    }
+}
+
+fn hcl() -> Language {
+    Language {
+        extensions: to_vec(&["tf"]),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "hcl".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Hcl),
         }),
         ..Language::new()
     }
