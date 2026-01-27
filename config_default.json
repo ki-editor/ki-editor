@@ -19,9 +19,9 @@
             "components": [
                 "GitBranch",
                 "LineColumn",
+                "LspProgress",
                 "Spacer",
                 "CurrentFileParentFolder",
-                "Spacer",
                 "CurrentWorkingDirectory"
             ]
         }
