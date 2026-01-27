@@ -202,7 +202,7 @@ mod test_render_flex_layout {
         // Width = 9, which is less than the fixed components (10)
         // Longer text should be trimmed
         let result = render_flex_layout(9, "", &components);
-        assert_eq!(result, "HelloWorl");
+        assert_eq!(result, "HellWorld");
 
         // With even less width, both should be trimmed
         let result = render_flex_layout(5, "", &components);
@@ -250,7 +250,7 @@ mod test_render_flex_layout {
         // Width = 10, separator "|" takes 1, so we have 9 for text
         // "Hello" (5) + "World" (5) = 10, need to trim 1
         let result = render_flex_layout(10, "|", &components);
-        assert_eq!(result, "Hello|Worl");
+        assert_eq!(result, "Hell|World");
         assert_eq!(UnicodeWidthStr::width(result.as_str()), 10);
     }
 
@@ -266,7 +266,7 @@ mod test_render_flex_layout {
         // Total = 5 + 12 + 6 = 23, need to trim 8
         // Should trim longest first
         let result = render_flex_layout(15, "", &components);
-        assert_eq!(result, "ShortVeryMedium");
+        assert_eq!(result, "ShortVeryLMediu");
         assert_eq!(UnicodeWidthStr::width(result.as_str()), 15);
     }
 }

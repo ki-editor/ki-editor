@@ -88,7 +88,7 @@ check-config-schema:
     set -e
     set -x
     cargo build 
-    cargo test -- doc_assets_export_app_config_json_schema
+    cargo test -- doc_assets_export_json_schemas
     if ! git diff --exit-code docs/static/app_config_json_schema.json; then
         echo "❌ Config schema is out of date!"
         echo "Please run 'just check-config-schema' and commit 'docs/static/app_config_json_schema.json'."
