@@ -71,7 +71,8 @@
         "Heex",
         "Toml",
         "KiQuickfix",
-        "Haskell"
+        "Haskell",
+        "Hcl"
       ]
     },
     "Command": {

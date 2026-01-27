@@ -36,6 +36,7 @@ pub fn languages() -> HashMap<String, Language> {
         ("go", go()),
         ("graphql", graphql()),
         ("hare", hare()),
+        ("hcl", hcl()),
         ("heex", heex()),
         ("html", html()),
         ("idris", idris()),
@@ -473,6 +474,17 @@ fn hare() -> Language {
                 commit: "master".to_string(),
                 subpath: None,
             },
+        }),
+        ..Language::new()
+    }
+}
+
+fn hcl() -> Language {
+    Language {
+        extensions: to_vec(&["tf"]),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "hcl".to_string(),
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Hcl),
         }),
         ..Language::new()
     }
@@ -1111,7 +1123,7 @@ mod test {
             .collect();
 
         for lang in &ts_ids {
-            assert!(ts_languages.contains_key(lang), "{lang} was not searched for in nvim-treesitter! Fix nvim-treesitter-highlight-queries build.rs");
+            assert!(ts_languages.contains_key(lang), "{lang} was not searched for in nvim-treesitter! Add '{lang}' to INCLUDED_NVIM_TREESITTER_LANGUAGES");
         }
         for lang in ts_ids
             .iter()
