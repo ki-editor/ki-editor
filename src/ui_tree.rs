@@ -232,7 +232,7 @@ impl UiTree {
         }
     }
 
-    pub fn current_component(&self) -> Rc<RefCell<(dyn Component)>> {
+    pub fn current_component(&self) -> Rc<RefCell<dyn Component>> {
         self.get_current_node().data().component()
     }
 
