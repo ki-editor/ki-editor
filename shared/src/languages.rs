@@ -1123,7 +1123,7 @@ mod test {
             .collect();
 
         for lang in &ts_ids {
-            assert!(ts_languages.contains_key(lang), "{lang} was not searched for in nvim-treesitter! Fix nvim-treesitter-highlight-queries build.rs");
+            assert!(ts_languages.contains_key(lang), "{lang} was not searched for in nvim-treesitter! Add '{lang}' to INCLUDED_NVIM_TREESITTER_LANGUAGES");
         }
         for lang in ts_ids
             .iter()
