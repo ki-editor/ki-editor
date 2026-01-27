@@ -235,7 +235,16 @@ impl Context {
     }
 
     pub fn change_working_directory(&mut self, path: CanonicalizedPath) {
-        self.current_working_directory = path
+        self.current_working_directory = path;
+
+        match std::env::set_current_dir(self.current_working_directory.clone()) {
+            Ok(_) => {}
+            Err(err) => {
+                log::error!(
+                    "Context::get_clipboard_content: cannot access system clipboard due to {err:?}"
+                )
+            }
+        }
     }
 
     pub(crate) fn update_lsp_progress(&mut self, lsp_progress: String) {
