@@ -425,7 +425,8 @@
             "Help",
             "KeyboardLayout",
             "Reveal",
-            "CurrentFileParentFolder"
+            "CurrentFileParentFolder",
+            "LspProgress"
           ]
         },
         {

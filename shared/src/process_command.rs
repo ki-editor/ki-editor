@@ -31,6 +31,10 @@ impl ProcessCommand {
         }
     }
 
+    pub fn command(&self) -> &str {
+        &self.command
+    }
+
     pub fn spawn(&self) -> SpawnCommandResult {
         log::info!("ProcessCommand::spawn {:?} {:?}", self.command, self.args);
         if which::which(&self.command).is_err() {
