@@ -152,6 +152,7 @@ pub enum StatusLineComponent {
     /// each spacer will be given the similar width.
     Spacer,
     CurrentFileParentFolder,
+    LspProgress,
 }
 
 impl<T: Frontend> App<T> {
@@ -598,6 +599,9 @@ impl<T: Frontend> App<T> {
                                     .unwrap_or_else(|_| path.display_absolute())
                                 }))
                             })
+                        }
+                        StatusLineComponent::LspProgress => {
+                            Some(FlexLayoutComponent::Text(self.context.lsp_progress()))
                         }
                     })
                     .collect_vec(),
@@ -1607,6 +1611,10 @@ impl<T: Frontend> App<T> {
                 self.update_current_completion_item((*completion_item).into())
             }
             LspNotification::WorkspaceSymbols(symbols) => self.handle_workspace_symbols(symbols),
+            LspNotification::Progress { message } => {
+                self.context.update_lsp_progress(message);
+                Ok(())
+            }
         }
     }
 

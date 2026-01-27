@@ -81,3 +81,61 @@ pub fn batch<T: Send + Sync + 'static>(
 
     Arc::new(move |item| SendResult::from(sender.send(item)))
 }
+
+#[derive(Clone)]
+pub struct Interval {
+    callback: Callback<IntervalEvent>,
+}
+
+impl Interval {
+    pub fn cancel(&self) {
+        self.callback.call(IntervalEvent::Cancel)
+    }
+
+    pub(crate) fn resume(&self) {
+        self.callback.call(IntervalEvent::Resume)
+    }
+
+    pub(crate) fn pause(&self) {
+        self.callback.call(IntervalEvent::Pause)
+    }
+}
+
+#[derive(Clone)]
+enum IntervalEvent {
+    Resume,
+    Pause,
+    Cancel,
+}
+
+pub fn set_interval(callback: Callback<usize>, duration: Duration) -> Interval {
+    let (sender, receiver) = std::sync::mpsc::channel::<IntervalEvent>();
+
+    let mut iteration_count = 0;
+
+    std::thread::spawn(move || loop {
+        callback.call(iteration_count);
+        iteration_count += 1;
+        std::thread::sleep(duration);
+
+        if let Ok(event) = receiver.try_recv() {
+            match event {
+                IntervalEvent::Resume => continue,
+                IntervalEvent::Pause => {
+                    while let Ok(event) = receiver.recv() {
+                        if matches!(event, IntervalEvent::Resume) {
+                            break;
+                        }
+                    }
+                }
+                IntervalEvent::Cancel => break,
+            }
+        }
+    });
+
+    Interval {
+        callback: Callback::new(Arc::new(move |event| {
+            let _ = sender.send(event);
+        })),
+    }
+}

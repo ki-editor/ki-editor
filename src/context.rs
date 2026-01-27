@@ -46,6 +46,8 @@ pub struct Context {
     is_running_as_embedded: bool,
 
     persistence: Option<Persistence>,
+
+    lsp_progress: String,
 }
 
 pub struct QuickfixListState {
@@ -235,6 +237,14 @@ impl Context {
     pub fn change_working_directory(&mut self, path: CanonicalizedPath) {
         self.current_working_directory = path
     }
+
+    pub(crate) fn update_lsp_progress(&mut self, lsp_progress: String) {
+        self.lsp_progress = lsp_progress
+    }
+
+    pub(crate) fn lsp_progress(&self) -> String {
+        self.lsp_progress.clone()
+    }
 }
 
 impl Context {
@@ -295,6 +305,7 @@ impl Context {
             is_running_as_embedded,
             persistence,
             marks,
+            lsp_progress: "".to_string(),
         }
     }
 

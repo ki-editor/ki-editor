@@ -8,6 +8,7 @@ pub mod hover;
 pub mod manager;
 pub mod prepare_rename_response;
 pub mod process;
+mod progress_notification_manager;
 pub mod signature_help;
 pub mod symbols;
 pub mod workspace_edit;
