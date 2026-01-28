@@ -234,8 +234,13 @@ impl Context {
         }
     }
 
-    pub fn change_working_directory(&mut self, path: CanonicalizedPath) {
-        self.current_working_directory = path
+    pub fn change_working_directory(
+        &mut self,
+        path: CanonicalizedPath,
+    ) -> Result<(), std::io::Error> {
+        self.current_working_directory = path;
+        std::env::set_current_dir(self.current_working_directory.clone())?;
+        Ok(())
     }
 
     pub(crate) fn update_lsp_progress(&mut self, lsp_progress: String) {
