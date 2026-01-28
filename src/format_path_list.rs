@@ -169,7 +169,7 @@ mod test_format_path_list {
             &[0, 1], // Mark first two files
             2,       // Current is third file (not in list)
             false,   // Not dirty
-            "\u{200b} 📝 current.txt \u{200b} # 📝 file1.txt  # 📝 file2.txt ",
+            " # 📝 file1.txt  # 📝 file2.txt \u{200b} 📝 current.txt \u{200b}",
         )
     }
 
@@ -224,7 +224,7 @@ mod test_format_path_list {
             &[1],  // Mark the second file
             0,     // Current is first file
             false, // Not dirty
-            "\u{200B} 📝 dir1/same_name.txt \u{200B} # 📝 dir2/same_name.txt ",
+            " # 📝 dir2/same_name.txt \u{200B} 📝 dir1/same_name.txt \u{200B}",
         )
     }
 
