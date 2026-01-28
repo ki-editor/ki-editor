@@ -9,6 +9,7 @@ use crate::{
 
 pub fn recipe_groups() -> Vec<RecipeGroup> {
     [
+        parent_line(),
         swap_cursors(),
         swap_current_selection_using_a_different_selection_mode(),
         reveal_selections(),
@@ -2181,6 +2182,68 @@ fn main() {
                 events: keys!("a / s"),
                 expectations: Box::new([CurrentSelectedTexts(&[")"])]),
                 terminal_height: None,
+                similar_vim_combos: &[],
+                only: false,
+            },
+        ]
+        .to_vec(),
+    }
+}
+
+fn parent_line() -> RecipeGroup {
+    RecipeGroup {
+        filename: "parent-line",
+        recipes: [
+            Recipe {
+                description: "With Line selection mode",
+                content: "
+fn foo() {
+    // 
+    //
+    fn bar() {
+        //
+        //
+        fn spam() {
+        }
+    }
+}"
+                .trim(),
+                file_extension: "rs",
+                prepare_events: keys!("n d s enter a"),
+                events: keys!("a . ."),
+                expectations: Box::new([CurrentSelectedTexts(&["fn foo() {"])]),
+                terminal_height: Some(20),
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                description: "With Syntax Node selection mode",
+                content: "
+fn foo() {
+    // 
+    //
+    fn bar() {
+        //
+        //
+        fn spam() {
+        }
+    }
+}"
+                .trim(),
+                file_extension: "rs",
+                prepare_events: keys!("n d s enter"),
+                events: keys!("d . ."),
+                expectations: Box::new([CurrentSelectedTexts(&["fn foo() {
+    // 
+    //
+    fn bar() {
+        //
+        //
+        fn spam() {
+        }
+    }
+}"])]),
+                terminal_height: Some(20),
                 similar_vim_combos: &[],
                 only: false,
             },
