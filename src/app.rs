@@ -3471,8 +3471,10 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
     }
 
     fn change_working_directory(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
-        self.context.change_working_directory(path);
-        self.layout.refresh_file_explorer(&self.context)
+        self.context.change_working_directory(path)?;
+        self.layout.refresh_file_explorer(&self.context)?;
+
+        Ok(())
     }
 
     fn open_change_working_directory_prompt(&mut self) -> anyhow::Result<()> {

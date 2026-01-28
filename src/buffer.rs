@@ -214,8 +214,8 @@ impl Buffer {
             .collect()
     }
 
-    pub fn get_parent_lines(&self, line_number: usize) -> anyhow::Result<Vec<Line>> {
-        let char_index = self.line_to_char(line_number)?;
+    pub fn get_parent_lines(&self, line_index: usize) -> anyhow::Result<Vec<Line>> {
+        let char_index = self.line_to_char(line_index)?;
         let node = self.get_nearest_node_after_char(char_index);
         fn get_parent_lines(
             buffer: &Buffer,
@@ -256,7 +256,7 @@ impl Buffer {
             .into_iter()
             .rev()
             // Remove line that is not above `line`
-            .filter(|line| line.line < line_number)
+            .filter(|line| line.line < line_index)
             .collect_vec())
     }
 

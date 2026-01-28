@@ -94,6 +94,14 @@ impl Editor {
                 "To Index (1-based)".to_string(),
                 Dispatch::OpenMoveToIndexPrompt(prior_change),
             ),
+            Keybinding::new(
+                ".",
+                "Parent Line".to_string(),
+                Dispatch::ToEditor(MoveSelectionWithPriorChange(
+                    Movement::ParentLine,
+                    prior_change,
+                )),
+            ),
         ]
         .to_vec()
     }
