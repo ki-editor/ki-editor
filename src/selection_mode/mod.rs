@@ -441,6 +441,7 @@ pub trait SelectionModeTrait {
             MovementApplicandum::Expand => self.expand(params),
             MovementApplicandum::Next => convert(self.next(params)),
             MovementApplicandum::Previous => convert(self.previous(params)),
+            MovementApplicandum::ParentLine => convert(self.parent_line(params)),
         }
     }
 
@@ -461,6 +462,35 @@ pub trait SelectionModeTrait {
     fn next(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
 
     fn previous(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
+
+    fn parent_line(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        let cursor_char_index = params
+            .current_selection
+            .to_char_index(params.cursor_direction);
+        let line_index = params.buffer.char_to_line(cursor_char_index)?;
+
+        let parent_lines = params.buffer.get_parent_lines(line_index)?;
+        let Some(parent_line) = parent_lines.last() else {
+            return Ok(None);
+        };
+
+        // Get the char index of the first non-whitespace character of parent_line
+        let char_index = params.buffer.line_to_char(parent_line.line)?
+            + parent_line
+                .content
+                .chars()
+                .take_while(|c| c.is_whitespace())
+                .count();
+        let params = &SelectionModeParams {
+            buffer: params.buffer,
+            current_selection: &params
+                .current_selection
+                .clone()
+                .set_range((char_index..char_index + 1).into()),
+            cursor_direction: params.cursor_direction,
+        };
+        self.current(params, IfCurrentNotFound::LookBackward)
+    }
 
     fn selections_in_line_number_ranges(
         &self,
@@ -2153,5 +2183,51 @@ mod position_pair {
             ];
             assert_eq!(create_position_pairs(&input), expected);
         }
+    }
+}
+
+#[cfg(test)]
+mod test_movement {
+    use crate::{
+        app::Dispatch::*,
+        buffer::BufferOwner,
+        components::editor::{DispatchEditor::*, IfCurrentNotFound, Movement::*},
+        selection::SelectionMode,
+        test_app::{execute_test, ExpectKind::*, Step::*},
+    };
+
+    #[test]
+    fn parent_line_movement() -> anyhow::Result<()> {
+        execute_test(move |s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    "
+// foo
+fn x() {
+   if spam {
+       bar()
+   }
+}
+"
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("bar()".to_owned())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::SyntaxNode,
+                )),
+                Editor(MoveSelection(ParentLine)),
+                Expect(CurrentSelectedTexts(&["if spam {\n       bar()\n   }"])),
+                Editor(MoveSelection(ParentLine)),
+                Expect(CurrentSelectedTexts(&[
+                    "fn x() {\n   if spam {\n       bar()\n   }\n}",
+                ])),
+            ])
+        })
     }
 }

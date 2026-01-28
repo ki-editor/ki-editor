@@ -579,6 +579,7 @@ pub enum Movement {
     Expand,
     Previous,
     Next,
+    ParentLine,
 }
 impl Movement {
     pub fn into_movement_applicandum(
@@ -604,6 +605,7 @@ impl Movement {
             Movement::Expand => MovementApplicandum::Expand,
             Movement::Previous => MovementApplicandum::Previous,
             Movement::Next => MovementApplicandum::Next,
+            Movement::ParentLine => MovementApplicandum::ParentLine,
         }
     }
 
@@ -652,6 +654,7 @@ impl Movement {
             Movement::Expand => action.to_string(),
             Movement::Previous => format!("< {action}"),
             Movement::Next => format!("{action} >"),
+            Movement::ParentLine => "Parent Line".to_string(),
         }
     }
 }
@@ -677,6 +680,7 @@ pub enum MovementApplicandum {
     Expand,
     Next,
     Previous,
+    ParentLine,
 }
 
 impl Editor {
