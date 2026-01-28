@@ -2220,6 +2220,11 @@ impl<T: Frontend> App<T> {
                             Movement::Left => {
                                 let mut tmp_index = current_index;
                                 loop {
+                                    tmp_index = if tmp_index == 0 {
+                                        merged_file_paths_map.len() - 1
+                                    } else {
+                                        tmp_index.saturating_sub(1)
+                                    };
                                     if tmp_index == 0 {
                                         if let Some((_, marked_file)) =
                                             merged_file_paths_map.get_index(tmp_index)
@@ -2244,7 +2249,6 @@ impl<T: Frontend> App<T> {
                                             break current_index;
                                         }
                                     }
-                                    tmp_index = tmp_index.saturating_sub(1);
                                     if let Some((_file_path, marked_file)) =
                                         merged_file_paths_map.get_index(tmp_index)
                                     {
@@ -2257,6 +2261,11 @@ impl<T: Frontend> App<T> {
                             Movement::Right => {
                                 let mut tmp_index = current_index;
                                 loop {
+                                    tmp_index = if tmp_index == merged_file_paths_map.len() - 1 {
+                                        0
+                                    } else {
+                                        tmp_index.saturating_add(1)
+                                    };
                                     if tmp_index == merged_file_paths_map.len() - 1 {
                                         if let Some((_, marked_file)) =
                                             merged_file_paths_map.get_index(tmp_index)
@@ -2281,7 +2290,6 @@ impl<T: Frontend> App<T> {
                                             break current_index;
                                         }
                                     }
-                                    tmp_index = tmp_index.saturating_add(1);
                                     if let Some((_file_path, marked_file)) =
                                         merged_file_paths_map.get_index(tmp_index)
                                     {
