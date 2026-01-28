@@ -64,6 +64,7 @@ use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     any::TypeId,
     cell::RefCell,
+    collections::HashMap,
     path::{Path, PathBuf},
     rc::Rc,
     sync::{
@@ -96,7 +97,9 @@ pub struct App<T: Frontend> {
     /// Sender for integration events (used by external integrations like VSCode)
     integration_event_sender: Option<Sender<crate::integration_event::IntegrationEvent>>,
 
-    lsp_manager: LspManager,
+    /// Each working directory should have its own LSP manager
+    /// so that the LSPs functionalities still work when user change the working directory
+    lsp_manager: HashMap<PathBuf, LspManager>,
     enable_lsp: bool,
 
     global_title: Option<String>,
@@ -216,7 +219,12 @@ impl<T: Frontend> App<T> {
                 persistence,
             ),
             receiver,
-            lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
+            lsp_manager: [(
+                working_directory.clone().into_path_buf(),
+                LspManager::new(sender.clone(), working_directory.clone()),
+            )]
+            .into_iter()
+            .collect(),
             enable_lsp,
             debounce_lsp_request_completion: {
                 let sender = sender.clone();
@@ -356,7 +364,7 @@ impl<T: Frontend> App<T> {
     pub fn quit(&mut self) -> anyhow::Result<()> {
         self.prepare_to_suspend_or_quit()?;
 
-        self.lsp_manager.shutdown();
+        self.lsp_manager().shutdown();
 
         Ok(())
     }
@@ -728,7 +736,7 @@ impl<T: Frontend> App<T> {
             Dispatch::RequestCompletion => self.debounce_lsp_request_completion.call(()),
             Dispatch::RequestCompletionDebounced => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.send_message(
+                    self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::TextDocumentCompletion(params),
                     )?;
@@ -736,7 +744,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::ResolveCompletionItem(completion_item) => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.send_message(
+                    self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::CompletionItemResolve {
                             completion_item: Box::new(completion_item),
@@ -758,7 +766,7 @@ impl<T: Frontend> App<T> {
                             } else {
                                 "References (exclude declaration)"
                             });
-                    self.lsp_manager.send_message(
+                    self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::TextDocumentReferences {
                             params,
@@ -771,7 +779,7 @@ impl<T: Frontend> App<T> {
             Dispatch::RequestHover => {
                 if let Some(params) = self.get_request_params() {
                     let params = params.set_description("Hover");
-                    self.lsp_manager
+                    self.lsp_manager()
                         .send_message(params.path.clone(), FromEditor::TextDocumentHover(params))?;
                 }
 
@@ -780,7 +788,7 @@ impl<T: Frontend> App<T> {
             Dispatch::RequestDefinitions(scope) => {
                 if let Some(params) = self.get_request_params() {
                     let params = params.set_kind(Some(scope)).set_description("Definitions");
-                    self.lsp_manager.send_message(
+                    self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::TextDocumentDefinition(params),
                     )?;
@@ -791,7 +799,7 @@ impl<T: Frontend> App<T> {
             Dispatch::RequestDeclarations(scope) => {
                 if let Some(params) = self.get_request_params() {
                     let params = params.set_kind(Some(scope)).set_description("Declarations");
-                    self.lsp_manager.send_message(
+                    self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::TextDocumentDeclaration(params),
                     )?;
@@ -804,7 +812,7 @@ impl<T: Frontend> App<T> {
                     let params = params
                         .set_kind(Some(scope))
                         .set_description("Implementations");
-                    self.lsp_manager.send_message(
+                    self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::TextDocumentImplementation(params),
                     )?;
@@ -816,7 +824,7 @@ impl<T: Frontend> App<T> {
                     let params = params
                         .set_kind(Some(scope))
                         .set_description("Type Definitions");
-                    self.lsp_manager.send_message(
+                    self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::TextDocumentTypeDefinition(params),
                     )?;
@@ -826,7 +834,7 @@ impl<T: Frontend> App<T> {
             Dispatch::RequestDocumentSymbols => {
                 if let Some(params) = self.get_request_params() {
                     let params = params.set_description("Document Symbols");
-                    self.lsp_manager.send_message(
+                    self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::TextDocumentDocumentSymbol(params),
                     )?;
@@ -834,7 +842,7 @@ impl<T: Frontend> App<T> {
                 }
             }
             Dispatch::RequestWorkspaceSymbols { query, path } => {
-                self.lsp_manager.send_message(
+                self.lsp_manager().send_message(
                     path.clone(),
                     FromEditor::WorkspaceSymbol {
                         context: ResponseContext::default(),
@@ -844,7 +852,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::PrepareRename => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.send_message(
+                    self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::TextDocumentPrepareRename(params),
                     )?;
@@ -853,7 +861,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::RenameSymbol { new_name } => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.send_message(
+                    self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::TextDocumentRename { params, new_name },
                     )?;
@@ -861,7 +869,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::RequestCodeAction { diagnostics } => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.send_message(
+                    self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::TextDocumentCodeAction {
                             params,
@@ -873,7 +881,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::RequestSignatureHelp => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.send_message(
+                    self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::TextDocumentSignatureHelp(params),
                     )?;
@@ -895,7 +903,7 @@ impl<T: Frontend> App<T> {
                     )?;
                 }
                 if let Some(path) = path.clone() {
-                    self.lsp_manager.send_message(
+                    self.lsp_manager().send_message(
                         path.clone(),
                         FromEditor::TextDocumentDidChange {
                             content,
@@ -924,7 +932,7 @@ impl<T: Frontend> App<T> {
                     }
                 }
 
-                self.lsp_manager.send_message(
+                self.lsp_manager().send_message(
                     path.clone(),
                     FromEditor::TextDocumentDidSave { file_path: path },
                 )?;
@@ -987,7 +995,7 @@ impl<T: Frontend> App<T> {
             Dispatch::SetGlobalTitle(title) => self.set_global_title(title),
             Dispatch::LspExecuteCommand { command } => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.send_message(
+                    self.lsp_manager().send_message(
                         params.path.clone(),
                         FromEditor::WorkspaceExecuteCommand { params, command },
                     )?
@@ -1485,7 +1493,7 @@ impl<T: Frontend> App<T> {
             self.request_syntax_highlight(component_id, batch_id, language, content)?;
         }
         if self.enable_lsp {
-            self.lsp_manager.open_file(path.clone())?;
+            self.lsp_manager().open_file(path.clone())?;
         }
 
         self.send_file_watcher_input(FileWatcherInput::SyncOpenedPaths(
@@ -1551,7 +1559,7 @@ impl<T: Frontend> App<T> {
                         }
                     })
                     .collect_vec();
-                self.lsp_manager.initialized(*language, opened_documents);
+                self.lsp_manager().initialized(*language, opened_documents);
                 Ok(())
             }
             LspNotification::PublishDiagnostics(params) => {
@@ -1944,7 +1952,7 @@ impl<T: Frontend> App<T> {
 
         self.reveal_path_in_explorer(&to)?;
 
-        self.lsp_manager.send_message(
+        self.lsp_manager().send_message(
             from.clone(),
             FromEditor::WorkspaceDidRenameFiles {
                 old: from.clone(),
@@ -1962,7 +1970,7 @@ impl<T: Frontend> App<T> {
         self.layout.refresh_file_explorer(&self.context)?;
         let to = to.try_into()?;
         self.reveal_path_in_explorer(&to)?;
-        self.lsp_manager.send_message(
+        self.lsp_manager().send_message(
             from.clone(),
             FromEditor::WorkspaceDidCreateFiles { file_path: to },
         )?;
@@ -1991,7 +1999,7 @@ impl<T: Frontend> App<T> {
         self.layout.refresh_file_explorer(&self.context)?;
         let path: CanonicalizedPath = path.try_into()?;
         self.reveal_path_in_explorer(&path)?;
-        self.lsp_manager.send_message(
+        self.lsp_manager().send_message(
             path.clone(),
             FromEditor::WorkspaceDidCreateFiles { file_path: path },
         )?;
@@ -2790,8 +2798,8 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub fn lsp_request_sent(&self, from_editor: &FromEditor) -> bool {
-        self.lsp_manager.lsp_request_sent(from_editor)
+    pub fn lsp_request_sent(&mut self, from_editor: &FromEditor) -> bool {
+        self.lsp_manager().lsp_request_sent(from_editor)
     }
 
     fn open_pipe_to_shell_prompt(&mut self) -> anyhow::Result<()> {
@@ -3084,8 +3092,8 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub fn lsp_server_initialized_args(&self) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
-        self.lsp_manager.lsp_server_initialized_args()
+    pub fn lsp_server_initialized_args(&mut self) -> Option<(LanguageId, Vec<CanonicalizedPath>)> {
+        self.lsp_manager().lsp_server_initialized_args()
     }
 
     fn handle_nucleo_debounced(&mut self) -> Result<(), anyhow::Error> {
@@ -3504,6 +3512,13 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
 
     fn working_directory(&self) -> &CanonicalizedPath {
         self.context.current_working_directory()
+    }
+
+    fn lsp_manager(&mut self) -> &mut LspManager {
+        let working_directory = self.working_directory().clone();
+        self.lsp_manager
+            .entry(working_directory.to_path_buf().clone())
+            .or_insert_with(|| LspManager::new(self.sender.clone(), working_directory))
     }
 }
 
