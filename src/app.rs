@@ -2375,15 +2375,11 @@ impl<T: Frontend> App<T> {
                         // to ensure that Ki editor never crashes
                         return merged_file_paths_map
                             .get_index(next_index)
-                            .and_then(|(path, _)| Some(path));
+                            .map(|(path, _)| path);
                     }
                     None
                 })
-                .or_else(|| {
-                    merged_file_paths_map
-                        .first()
-                        .and_then(|(path, _)| Some(path))
-                })
+                .or_else(|| merged_file_paths_map.first().map(|(path, _)| path))
                 .cloned()
         } {
             let next_file_path = next_file_path.clone();
