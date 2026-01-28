@@ -1718,6 +1718,22 @@ foo bar spam
         }].to_vec(),
         },
         RecipeGroup {
+            filename: "open-file",
+            recipes: [
+            Recipe {
+            description: "Navigate Marked and Opened Files",
+            content: ""
+            .trim(),
+            file_extension: "md",
+            prepare_events: keys!("space ; n d s r c enter enter n d m a enter enter e k release-e space ; n d f o enter enter e k release-e space ; n d t e m enter enter e k release-e space ; n d g i t enter enter"),
+            events: keys!("e j j j l l l o o o l l k l o o o y p release-e"),
+            expectations: Box::new([CurrentComponentTitle(" # 🦀 foo.rs \n\u{200b} # 📚 temp.md [*] \u{200b}".to_string())]),
+            terminal_height: Some(10),
+            similar_vim_combos: &[],
+            only: false,
+        }].to_vec(),
+        },
+        RecipeGroup {
             filename: "enter-normal-mode",
             recipes: [
             Recipe {
