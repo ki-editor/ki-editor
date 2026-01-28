@@ -306,12 +306,19 @@ impl Editor {
         none_if_no_override: bool,
     ) -> Vec<Keybinding> {
         [
-            Keybinding::new_extended(
-                "f",
-                "Change".to_string(),
-                "Change".to_string(),
-                Dispatch::ToEditor(Change),
-            )
+            Keybinding::momentary_layer(MomentaryLayer {
+                key: "f",
+                description: "Change/Open".to_string(),
+                config: KeymapLegendConfig {
+                    title: "Open".to_string(),
+                    keymap: open_keymap(),
+                },
+                on_tap: Some(OnTap::new(
+                    "Change",
+                    Dispatches::one(Dispatch::ToEditor(Change)),
+                )),
+                on_spacebar_tapped: None,
+            })
             .override_keymap(normal_mode_override.change.as_ref(), none_if_no_override),
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "v",
@@ -657,7 +664,7 @@ impl Editor {
             )),
             Some(Keybinding::momentary_layer(MomentaryLayer {
                 key: "r",
-                description: "Multi-cursor Momentary Layer".to_string(),
+                description: "Multi-cursor".to_string(),
                 config: KeymapLegendConfig {
                     title: "Multi-cursor Momentary Layer".to_string(),
                     keymap: self.multicursor_momentary_layer_keymap(),
@@ -1562,6 +1569,40 @@ pub fn delete_keymap() -> Keymap {
                 Dispatch::ToEditor(DeleteWithMovement(movement)),
             )
         })
+        .collect_vec(),
+    )
+}
+
+pub fn open_keymap() -> Keymap {
+    Keymap::new(
+        &[
+            (GetGapMovement::Left, "<< Open", "j"),
+            (GetGapMovement::Right, "Open >>", "l"),
+            (GetGapMovement::Previous, "< Open", "u"),
+            (GetGapMovement::Next, "Open >", "o"),
+            (GetGapMovement::BeforeWithoutGap, "< Insert", "h"),
+            (GetGapMovement::AfterWithoutGap, "Insert >", ";"),
+        ]
+        .into_iter()
+        .map(|(movement, description, key)| {
+            Keybinding::new(
+                key,
+                description.to_string(),
+                Dispatch::ToEditor(DispatchEditor::OpenWithMovement(movement)),
+            )
+        })
+        .chain([
+            Keybinding::new(
+                "i",
+                "Open ^".to_string(),
+                Dispatch::ToEditor(OpenVertically(Direction::Start)),
+            ),
+            Keybinding::new(
+                "k",
+                "Open v".to_string(),
+                Dispatch::ToEditor(OpenVertically(Direction::End)),
+            ),
+        ])
         .collect_vec(),
     )
 }
