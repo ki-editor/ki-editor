@@ -308,10 +308,10 @@ impl Editor {
         [
             Keybinding::momentary_layer(MomentaryLayer {
                 key: "f",
-                description: "Change/Open".to_string(),
+                description: "Insert".to_string(),
                 config: KeymapLegendConfig {
-                    title: "Open".to_string(),
-                    keymap: open_keymap(),
+                    title: "Insert".to_string(),
+                    keymap: insert_keymap(),
                 },
                 on_tap: Some(OnTap::new(
                     "Change",
@@ -348,13 +348,8 @@ impl Editor {
                 Dispatch::ToEditor(EnterInsertMode(Direction::End)),
             )
             .override_keymap(normal_mode_override.append.as_ref(), none_if_no_override),
-            Keybinding::new_extended(
-                ",",
-                Direction::End.format_action("Open"),
-                Direction::End.format_action("Open"),
-                Dispatch::ToEditor(Open),
-            )
-            .override_keymap(normal_mode_override.open.as_ref(), none_if_no_override),
+            Keybinding::new(",", Direction::End.format_action(""), Dispatch::Null)
+                .override_keymap(normal_mode_override.open.as_ref(), none_if_no_override),
         ]
         .into_iter()
         .flatten()
@@ -1573,7 +1568,7 @@ pub fn delete_keymap() -> Keymap {
     )
 }
 
-pub fn open_keymap() -> Keymap {
+pub fn insert_keymap() -> Keymap {
     Keymap::new(
         &[
             (GetGapMovement::Left, "<< Open", "j"),

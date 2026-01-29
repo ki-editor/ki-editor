@@ -9,6 +9,9 @@ use crate::{
 
 pub fn recipe_groups() -> Vec<RecipeGroup> {
     [
+        change(),
+        insert(),
+        open(),
         parent_line(),
         swap_cursors(),
         swap_current_selection_using_a_different_selection_mode(),
@@ -904,74 +907,6 @@ impl<C> Iterator for PostorderTraverse<C>
                     only: false,
                 }
            ]
-            .to_vec(),
-        },
-        RecipeGroup {
-            filename: "open",
-            recipes: [
-                Recipe {
-                    description: "Open: syntax node selection mode (parameter)",
-                    content: "def foo(bar: Bar, spam: Spam): pass",
-                    file_extension: "py",
-                    prepare_events: keys!("n d s p a m enter"),
-                    events: keys!("d , x esc / , y"),
-                    expectations: Box::new([CurrentComponentContent("def foo(bar: Bar, spam: Spam, y, x): pass")]),
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-                Recipe {
-                    description: "Open: syntax node selection mode (statements)",
-                    content: "
-function foo() {
-  let x = hello();
-  let y = hey()
-     .bar();
-}
-".trim(),
-                    file_extension: "js",
-                    prepare_events: keys!("n d l e t space y enter"),
-                    events: keys!("d , l e t space z"),
-                    expectations: Box::new([CurrentComponentContent("function foo() {
-  let x = hello();
-  let y = hey()
-     .bar();
-  let z
-}")]),
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-                Recipe {
-                    description: "Open: Line selection mode",
-                    content: "
-fn foo() {
-    bar();
-}".trim(),
-                    file_extension: "md",
-                    prepare_events: &[],
-                    events: keys!("a , x esc / , y"),
-                    expectations: Box::new([CurrentComponentContent("fn foo() {
-    y
-    x
-    bar();
-}")]),
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-                Recipe {
-                    description: "Open: Word selection mode",
-                    content: "foo bar spam".trim(),
-                    file_extension: "md",
-                    prepare_events: &[],
-                    events: keys!("w , h i"),
-                    expectations: Box::new([CurrentComponentContent("foo hi bar spam")]),
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                }
-            ]
             .to_vec(),
         },
         RecipeGroup {
@@ -2552,4 +2487,165 @@ And drop on the deck and flop like a fish?
         },
     ]
     .to_vec()
+}
+
+fn change() -> RecipeGroup {
+    RecipeGroup {
+        filename: "change",
+        recipes: [Recipe {
+            description: "Change",
+            content: "foo bar spam".trim(),
+            file_extension: "md",
+            prepare_events: keys!("s l"),
+            events: keys!("f release-f x"),
+            expectations: Box::new([CurrentComponentContent("foo x spam")]),
+            terminal_height: Some(10),
+            similar_vim_combos: &[],
+            only: false,
+        }]
+        .to_vec(),
+    }
+}
+
+fn insert() -> RecipeGroup {
+    RecipeGroup {
+        filename: "insert",
+        recipes: [
+            Recipe {
+                description: "Enter insert mode (before selection)",
+                content: "foo bar spam".trim(),
+                file_extension: "md",
+                prepare_events: keys!("s l"),
+                events: keys!("f h release-f x"),
+                expectations: Box::new([CurrentComponentContent("foo xbar spam")]),
+                terminal_height: Some(10),
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                description: "Enter insert mode (after selection)",
+                content: "foo bar spam".trim(),
+                file_extension: "md",
+                prepare_events: keys!("s l"),
+                events: keys!("f ; release-f x"),
+                expectations: Box::new([CurrentComponentContent("foo barx spam")]),
+                terminal_height: Some(10),
+                similar_vim_combos: &[],
+                only: false,
+            },
+        ]
+        .to_vec(),
+    }
+}
+
+fn open() -> RecipeGroup {
+    RecipeGroup {
+        filename: "open",
+        recipes: [
+            Recipe {
+                description: "< Open",
+                content: "foo, bar spam".trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("s l f u release-f x"),
+                expectations: Box::new([CurrentComponentContent("foo, x bar spam")]),
+                terminal_height: Some(10),
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                description: "<< Open",
+                content: "foo, bar spam".trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("s l f j release-f x"),
+                expectations: Box::new([CurrentComponentContent("foo, x, bar spam")]),
+                terminal_height: Some(10),
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                description: "Open >",
+                content: "foo, bar spam".trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("s l f o release-f x"),
+                expectations: Box::new([CurrentComponentContent("foo, bar x spam")]),
+                terminal_height: Some(10),
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                description: "Open >>",
+                content: "foo, bar spam".trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("s l f l release-f x"),
+                expectations: Box::new([CurrentComponentContent("foo, bar, x spam")]),
+                terminal_height: Some(10),
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                description: "Open: syntax node selection mode (parameter)",
+                content: "def foo(bar: Bar, spam: Spam): pass",
+                file_extension: "py",
+                prepare_events: keys!("n d s p a m enter"),
+                events: keys!("d f l release-f x esc f j release-f y"),
+                expectations: Box::new([CurrentComponentContent(
+                    "def foo(bar: Bar, spam: Spam, y, x): pass",
+                )]),
+                terminal_height: Some(10),
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                description: "Open: syntax node selection mode (statements)",
+                content: "
+function foo() {
+  let x = hello();
+  let y = hey()
+     .bar();
+}
+"
+                .trim(),
+                file_extension: "js",
+                prepare_events: keys!("n d l e t space y enter"),
+                events: keys!("d f l release-f l e t space z"),
+                expectations: Box::new([CurrentComponentContent(
+                    "function foo() {
+  let x = hello();
+  let y = hey()
+     .bar();
+  let z
+}",
+                )]),
+                terminal_height: Some(10),
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                description: "Open above/below",
+                content: "
+fn foo() {
+    bar();
+}"
+                .trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("a l f i release-f y esc f k release-f x"),
+                expectations: Box::new([CurrentComponentContent(
+                    "fn foo() {
+    y
+    x
+    bar();
+}",
+                )]),
+                terminal_height: Some(10),
+                similar_vim_combos: &[],
+                only: false,
+            },
+        ]
+        .to_vec(),
+    }
 }
