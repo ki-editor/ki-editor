@@ -8,7 +8,7 @@ default:
 
 run:
     rustup default 1.89.0
-    cargo +nightly run
+    CARGO_UNSTABLE_CODEGEN_BACKEND=true cargo +nightly run
 
 check: check-typeshare fmt-check lint 
     
