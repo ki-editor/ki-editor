@@ -2198,25 +2198,22 @@ impl<T: Frontend> App<T> {
 
     fn cycle_marked_file(&mut self, movement: Movement) -> anyhow::Result<()> {
         if let Some(next_file_path) = {
-            let merge_file_paths_map = || {
+            let merged_file_paths_map: IndexMap<CanonicalizedPath, bool> = {
                 let marked_file_paths = self.context.get_marked_files();
                 let buffer_file_paths = self.layout.get_opened_files();
 
-                let mut merged_file_paths_map = IndexMap::<CanonicalizedPath, bool>::new();
-                marked_file_paths.iter().for_each(|path| {
-                    if !merged_file_paths_map.contains_key(*path) {
-                        merged_file_paths_map.insert((*path).clone(), true);
-                    }
-                });
-                buffer_file_paths.iter().for_each(|path| {
-                    if !merged_file_paths_map.contains_key(path) {
-                        merged_file_paths_map.insert((*path).clone(), false);
-                    }
-                });
-                merged_file_paths_map
+                // marked status is prioritized: overwrites the value of existing key
+                marked_file_paths
+                    .iter()
+                    .map(|path| ((*path).clone(), true))
+                    .chain(
+                        buffer_file_paths
+                            .iter()
+                            .filter(|path| !marked_file_paths.contains(path))
+                            .map(|path| (path.clone(), false)),
+                    )
+                    .collect()
             };
-
-            let merged_file_paths_map = merge_file_paths_map();
 
             self.get_current_file_path()
                 .and_then(|current_file_path| {
