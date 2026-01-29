@@ -6,6 +6,10 @@ default:
     @just test 
     @just doc 
 
+run:
+    rustup default 1.89.0
+    CARGO_CODEGEN_BACKEND=cranelift CARGO_UNSTABLE_CODEGEN_BACKEND=true cargo +nightly run
+
 check: check-typeshare fmt-check lint 
     
 build-all: tree-sitter-quickfix build vscode-build
