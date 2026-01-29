@@ -1583,7 +1583,7 @@ pub fn insert_keymap() -> Keymap {
             Keybinding::new(
                 key,
                 description.to_string(),
-                Dispatch::ToEditor(DispatchEditor::OpenWithMovement(movement)),
+                Dispatch::ToEditor(DispatchEditor::Open(movement)),
             )
         })
         .chain([

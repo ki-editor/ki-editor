@@ -305,7 +305,8 @@ impl Component for Editor {
                 self.selection_set
                     .move_right(&self.cursor_direction, len_chars)
             }
-            Open => return self.open(context, GetGapMovement::Next),
+            Open(get_gap_movement) => return self.open(context, get_gap_movement),
+            OpenVertically(direction) => return self.open_vertically(context, direction),
             GoBack => self.go_back(context),
             GoForward => self.go_forward(context),
             SelectSurround { enclosure, kind } => {
@@ -411,8 +412,6 @@ impl Component for Editor {
             }
             EnterMulticursorMode => self.mode = Mode::MultiCursor,
             PasteVertically(direction) => return self.paste_vertically(context, direction),
-            OpenWithMovement(get_gap_movement) => return self.open(context, get_gap_movement),
-            OpenVertically(direction) => return self.open_vertically(context, direction),
         }
         Ok(Default::default())
     }
@@ -4605,7 +4604,8 @@ pub enum DispatchEditor {
         enclosure: EnclosureKind,
         kind: SurroundKind,
     },
-    Open,
+    Open(GetGapMovement),
+    OpenVertically(Direction),
     EnterNormalMode,
     EnterSwapMode,
     EnterReplaceMode,
@@ -4698,8 +4698,6 @@ pub enum DispatchEditor {
     AddCursorWithMovement(Movement),
     EnterMulticursorMode,
     PasteVertically(Direction),
-    OpenWithMovement(GetGapMovement),
-    OpenVertically(Direction),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
