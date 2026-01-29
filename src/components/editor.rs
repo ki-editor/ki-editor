@@ -305,7 +305,8 @@ impl Component for Editor {
                 self.selection_set
                     .move_right(&self.cursor_direction, len_chars)
             }
-            Open => return self.open(context),
+            Open(get_gap_movement) => return self.open(context, get_gap_movement),
+            OpenVertically(direction) => return self.open_vertically(context, direction),
             GoBack => self.go_back(context),
             GoForward => self.go_forward(context),
             SelectSurround { enclosure, kind } => {
@@ -1368,7 +1369,7 @@ impl Editor {
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
-            self.get_selection_set_with_gap(&get_gap_movement, context, false)?
+            self.get_selection_set_with_gap(&get_gap_movement, context)?
                 .into_iter()
                 .enumerate()
                 .map(|(index, (selection, gap))| {
@@ -1439,7 +1440,17 @@ impl Editor {
         let Some((copied_texts, extra_dispatches)) = Self::pre_paste(context) else {
             return Ok(Default::default());
         };
-        let edit_transaction = EditTransaction::from_action_groups(
+        let edit_transaction =
+            self.get_paste_vertically_edit_transaction(direction, |index| copied_texts.get(index));
+        Ok(extra_dispatches.chain(self.apply_edit_transaction(edit_transaction, context)?))
+    }
+
+    fn get_paste_vertically_edit_transaction(
+        &self,
+        direction: Direction,
+        get_paste_text: impl Fn(usize) -> String,
+    ) -> EditTransaction {
+        EditTransaction::from_action_groups(
             self.selection_set
                 .selections
                 .iter()
@@ -1468,8 +1479,8 @@ impl Editor {
                     };
                     let insert_range = insert_position..insert_position;
                     let insert_text = match direction {
-                        Direction::Start => format!("{indentation}{}\n", copied_texts.get(index)),
-                        Direction::End => format!("{indentation}{}\n", copied_texts.get(index)),
+                        Direction::Start => format!("{indentation}{}\n", get_paste_text(index)),
+                        Direction::End => format!("{indentation}{}\n", get_paste_text(index)),
                     };
                     let select_range = {
                         let start = insert_range.start + indentation.chars().count();
@@ -1495,8 +1506,7 @@ impl Editor {
                     ))
                 })
                 .collect(),
-        );
-        Ok(extra_dispatches.chain(self.apply_edit_transaction(edit_transaction, context)?))
+        )
     }
 
     fn pre_paste(context: &Context) -> Option<(CopiedTexts, Dispatches)> {
@@ -2689,7 +2699,6 @@ impl Editor {
         &self,
         get_gap_movement: &GetGapMovement,
         context: &Context,
-        gap_at_most_one_newline: bool,
     ) -> anyhow::Result<Vec<(Selection, Rope)>> {
         self.selection_set
             .map(|selection| {
@@ -2709,75 +2718,60 @@ impl Editor {
                     },
                     get_gap_movement,
                 );
-
-                let gap: String = if gap_at_most_one_newline {
-                    gap.chars()
-                        .scan(false, |newline_found, c| {
-                            if c == '\n' {
-                                if *newline_found {
-                                    None
-                                } else {
-                                    *newline_found = true;
-                                    Some(c)
-                                }
-                            } else {
-                                Some(c)
-                            }
-                        })
-                        .collect()
-                } else {
-                    gap
-                };
                 Ok((selection.clone(), gap.into()))
             })
             .into_iter()
             .collect::<anyhow::Result<Vec<_>>>()
     }
 
-    fn open(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        let direction = self.cursor_direction.reverse();
+    fn open_vertically(
+        &mut self,
+        context: &Context,
+        direction: Direction,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let edit_transaction =
+            self.get_paste_vertically_edit_transaction(direction.clone(), |_| "".to_string());
+        Ok(self
+            .apply_edit_transaction(edit_transaction, context)?
+            .append(Dispatch::ToEditor(EnterInsertMode(direction))))
+    }
+
+    fn open(
+        &mut self,
+        context: &Context,
+        get_gap_movement: GetGapMovement,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let direction = get_gap_movement.to_direction();
         let edit_transaction = EditTransaction::from_action_groups(
-            self.get_selection_set_with_gap(
-                &match direction {
-                    Direction::Start => GetGapMovement::Left,
-                    Direction::End => GetGapMovement::Right,
-                },
-                context,
-                true,
-            )?
-            .into_iter()
-            .map(|(selection, gap)| {
-                let gap = if gap.len_chars() == 0 {
-                    Rope::from_str(" ")
-                } else {
-                    gap
-                };
-                let gap_len = gap.len_chars();
-                ActionGroup::new(
-                    [
-                        Action::Edit(Edit::new(
-                            self.buffer().rope(),
-                            {
+            self.get_selection_set_with_gap(&get_gap_movement, context)?
+                .into_iter()
+                .map(|(selection, gap)| {
+                    let gap_len = gap.len_chars();
+                    ActionGroup::new(
+                        [
+                            Action::Edit(Edit::new(
+                                self.buffer().rope(),
+                                {
+                                    let start = match direction {
+                                        Direction::Start => selection.range().start,
+                                        Direction::End => selection.range().end,
+                                    };
+                                    (start..start).into()
+                                },
+                                gap,
+                            )),
+                            Action::Select(selection.clone().set_range({
                                 let start = match direction {
                                     Direction::Start => selection.range().start,
-                                    Direction::End => selection.range().end,
+                                    Direction::End => selection.range().end + gap_len,
                                 };
                                 (start..start).into()
-                            },
-                            gap,
-                        )),
-                        Action::Select(selection.clone().set_range({
-                            let start = match direction {
-                                Direction::Start => selection.range().start,
-                                Direction::End => selection.range().end + gap_len,
-                            };
-                            (start..start).into()
-                        })),
-                    ]
-                    .to_vec(),
-                )
-            })
-            .collect_vec(),
+                            })),
+                        ]
+                        .to_vec(),
+                    )
+                })
+                .collect_vec(),
         );
 
         Ok(self
@@ -4610,7 +4604,8 @@ pub enum DispatchEditor {
         enclosure: EnclosureKind,
         kind: SurroundKind,
     },
-    Open,
+    Open(GetGapMovement),
+    OpenVertically(Direction),
     EnterNormalMode,
     EnterSwapMode,
     EnterReplaceMode,
