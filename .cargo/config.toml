@@ -1,2 +1,0 @@
-[profile.dev]
-codegen-backend = "cranelift"
