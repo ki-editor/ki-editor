@@ -45,7 +45,6 @@
         # Development-specific tools (only needed in devShell)
         devOnlyPackages = with pkgs; [
           python3
-          rustup
           which
           just
           alejandra
