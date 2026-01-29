@@ -1,14 +1,18 @@
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
 use grep_regex::RegexMatcher;
 use grep_searcher::{sinks, SearcherBuilder};
 
 use fancy_regex::Regex;
-use itertools::Itertools;
 
 use crate::{
-    app::Dispatches, buffer::Buffer, context::LocalSearchConfig, list::Match,
-    quickfix_list::Location, selection_mode::regex::get_regex, thread::SendResult,
+    app::Dispatches,
+    buffer::Buffer,
+    context::LocalSearchConfig,
+    list::{buffering_thread::buffer_entries_until_first_sorted_entry_found, Match},
+    quickfix_list::Location,
+    selection_mode::regex::get_regex,
+    thread::SendResult,
 };
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -116,84 +120,7 @@ pub fn run(
     let matcher = RegexMatcher::new_line_matcher(&pattern)?;
     let regex = Regex::new(&pattern)?;
 
-    // Create a thread to buffer non-first matches
-    // This is ensure the first entry sent to the main UI loop
-    // is also the first entry that in the final sorted list
-    enum Message {
-        MatchReceived { path_index: usize, match_: Match },
-        FileFinishedSearching { index: usize },
-    };
-    let (sender, receiver) = std::sync::mpsc::channel::<Message>();
-
-    let started_at = Instant::now();
-    std::thread::spawn(move || {
-        // Store the indices of files finished searching
-        let mut indices = vec![];
-        let mut buffered_matches = vec![];
-        let mut first_entry_sent = false;
-        let mut first_entry_sent_at = None;
-
-        while let Ok(message) = receiver.recv() {
-            match message {
-                Message::MatchReceived { path_index, match_ } => {
-                    if first_entry_sent {
-                        // If the first entry is already sent, we no longer need
-                        // to worry about subsequent items being sent in random order
-
-                        match send_match(match_) {
-                            SendResult::Succeeed => continue,
-                            SendResult::ReceiverDisconnected => {
-                                // Break the loop is the receiver of matches is killed
-                                return;
-                            }
-                        }
-                    } else {
-                        buffered_matches.push((path_index, match_))
-                    }
-                }
-                Message::FileFinishedSearching { index } => {
-                    if first_entry_sent {
-                        // Ignore the index if the first entry is already sent
-                    } else {
-                        // If all previous files have finished searching
-                        // send the first entry over.
-
-                        // For example: if `index` is 3 and `indices` is [0, 1, 2]
-                        // then we can send the results over.
-                        if indices.iter().take_while(|i| *i < &index).count() == index {
-                            // Send the buffered entries over in an ordered manner
-                            for (_, match_) in buffered_matches.drain(..).into_iter().sorted_by_key(
-                                |(path_index, m)| (*path_index, m.location.range.start),
-                            ) {
-                                match send_match(match_) {
-                                    SendResult::Succeeed => continue,
-                                    SendResult::ReceiverDisconnected => {
-                                        // Break the loop is the receiver of matches is killed
-                                        return;
-                                    }
-                                }
-                            }
-
-                            first_entry_sent = true;
-                            first_entry_sent_at = Some(Instant::now());
-                        } else {
-                            indices.push(index)
-                        }
-                    }
-                }
-            }
-        }
-
-        let finished_at = Instant::now();
-
-        if let Some(first_entry_sent_at) = first_entry_sent_at {
-            println!(
-                "First entry painted after {:?}, ahead of finished time by {:?}",
-                first_entry_sent_at - started_at,
-                finished_at - first_entry_sent_at
-            );
-        }
-    });
+    let buffering_thread = buffer_entries_until_first_sorted_entry_found(send_match);
 
     walk_builder_config.run_async(
         false,
@@ -216,9 +143,9 @@ pub fn run(
                                 line: line.to_string(),
                             };
 
-                            if sender
-                                .send(Message::MatchReceived { match_, path_index })
-                                .is_err()
+                            if buffering_thread
+                                .send_match(path_index, match_)
+                                .is_disconnected()
                             {
                                 // Stop search if receiving thread is killed
                                 return Ok(false);
@@ -228,7 +155,7 @@ pub fn run(
                     Ok(true)
                 }),
             );
-            let _ = sender.send(Message::FileFinishedSearching { index: path_index });
+            let _ = buffering_thread.notify_file_finished_searching(path_index);
         }),
     )
 }

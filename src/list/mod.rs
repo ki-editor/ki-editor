@@ -6,14 +6,17 @@ use std::{
 
 use globset::Glob;
 use ignore::{WalkBuilder, WalkState};
-use itertools::Itertools;
-use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use shared::canonicalized_path::CanonicalizedPath;
 
-use crate::{buffer::Buffer, quickfix_list::Location, thread::SendResult};
+use crate::{
+    buffer::Buffer, list::buffering_thread::buffer_entries_until_first_sorted_entry_found,
+    quickfix_list::Location, thread::SendResult,
+};
 
 pub mod ast_grep;
 
+pub mod buffering_thread;
 pub mod grep;
 pub mod naming_convention_agnostic;
 
@@ -31,25 +34,30 @@ impl WalkBuilderConfig {
         send_match: Arc<dyn Fn(Match) -> SendResult + Send + Sync>,
         get_ranges: Arc<GetRange>,
     ) -> anyhow::Result<()> {
+        let thread = buffer_entries_until_first_sorted_entry_found(send_match);
         self.run_async(
             enable_tree_sitter,
-            Arc::new(move |_, path, buffer| {
+            Arc::new(move |path_index, path, buffer| {
                 for range in get_ranges(&buffer) {
                     if let Ok(range) = buffer.byte_range_to_char_index_range(&range) {
                         if let Ok(line) = buffer.get_line_by_char_index(range.start) {
-                            let send_result = send_match(Match {
-                                location: Location {
-                                    path: path.clone(),
-                                    range,
+                            let send_result = thread.send_match(
+                                path_index,
+                                Match {
+                                    location: Location {
+                                        path: path.clone(),
+                                        range,
+                                    },
+                                    line: line.to_string(),
                                 },
-                                line: line.to_string(),
-                            });
+                            );
                             if send_result.is_receiver_disconnected() {
                                 break;
                             }
                         }
                     }
                 }
+                let _ = thread.notify_file_finished_searching(path_index);
             }),
         )
     }
@@ -150,7 +158,6 @@ impl WalkBuilderConfig {
                 })
                 .hidden(false)
                 .build()
-                .into_iter()
                 .filter_map(|path| path.ok())
                 .filter(|path| {
                     path.file_type()
@@ -205,6 +212,19 @@ impl WalkBuilderConfig {
 pub struct Match {
     pub location: Location,
     pub line: String,
+}
+
+impl PartialOrd for Match {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Match {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (self.location.path.clone(), self.location.range.start)
+            .cmp(&(other.location.path.clone(), other.location.range.start))
+    }
 }
 
 #[cfg(test)]
