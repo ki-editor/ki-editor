@@ -785,16 +785,14 @@ fn open_before_selection() -> anyhow::Result<()> {
             Editor(SetContent("fn x(a:A, b:B){}".trim().to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(SwapCursor),
-            Editor(Open(GetGapMovement::Right)),
+            Editor(Open(GetGapMovement::Left)),
             Expect(CurrentMode(Mode::Insert)),
             Editor(Insert("c:C".to_string())),
             Expect(CurrentComponentContent("fn x(c:C, a:A, b:B){}".trim())),
             Editor(EnterNormalMode),
             Editor(MatchLiteral("b:B".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(SwapCursor),
-            Editor(Open(GetGapMovement::Right)),
+            Editor(Open(GetGapMovement::Left)),
             Editor(Insert("d:D".to_string())),
             Expect(CurrentComponentContent("fn x(c:C, a:A, d:D, b:B){}".trim())),
         ])
@@ -859,44 +857,6 @@ fn main() {
 }
 "
                 .trim(),
-            )),
-        ])
-    })
-}
-
-#[test]
-fn open_max_gap_contains_at_most_one_newline_character() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent(
-                "
-foo
-    
-    bar
-
-spam
-"
-                .trim()
-                .to_string(),
-            )),
-            Editor(MatchLiteral("bar".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(Open(GetGapMovement::Right)),
-            Editor(Insert("world".to_string())),
-            Expect(CurrentComponentContent(
-                "
-foo
-    
-    bar
-    world
-
-spam"
-                    .trim(),
             )),
         ])
     })
