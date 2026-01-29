@@ -144,6 +144,8 @@ impl WalkBuilderConfig {
         let exclude_match = Arc::new(build_matcher(self.exclude.as_ref())?);
         std::thread::spawn(move || {
             WalkBuilder::new(self.root)
+                // NOTE: `sort_by_file_path` is crucial for
+                // `buffer_entries_until_first_sorted_entry_found` to work correctly.
                 .sort_by_file_path(|a, b| a.cmp(b))
                 .filter_entry(move |entry| {
                     let path = entry.path().display().to_string();
