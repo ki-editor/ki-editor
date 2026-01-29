@@ -6,9 +6,9 @@ default:
     @just test 
     @just doc 
 
-run:
+run path="":
     rustup default 1.89.0
-    CARGO_CODEGEN_BACKEND=cranelift CARGO_UNSTABLE_CODEGEN_BACKEND=true cargo +nightly run
+    CARGO_CODEGEN_BACKEND=cranelift CARGO_UNSTABLE_CODEGEN_BACKEND=true cargo +nightly run {{path}}
 
 check: check-typeshare fmt-check lint 
     
