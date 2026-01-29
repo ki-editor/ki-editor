@@ -11,9 +11,20 @@ In this MoL, every core movement means:
 
 > change focus to \<movement\> buffer.
 
+Buffers can be either marked or un-marked: each marked file gets its own tab
+on the tab bar, however only one the very rightmost end of the tabs on the tab bar
+show the open buffers.
+
+When using coarse movements like `>>` and `<<` you can only visit navigate to marked files.
+Opened but non-marked files can be navigated-to through fine-movements like `>` and `<`.
+Noteably, when doing `<<` on the left-most marked-file, the focus lands "warps" or cycles to
+the righmost file.
+
 ## Examples
 
 <TutorialFallback filename="mark-file"/>
+
+<TutorialFallback filename="open-file"/>
 
 ## Workflow Overview
 
