@@ -4533,6 +4533,12 @@ impl Editor {
             .flatten()
             .collect_vec())
     }
+
+    pub(crate) fn language(&self) -> Option<String> {
+        self.buffer()
+            .language()
+            .and_then(|language| language.tree_sitter_grammar_id())
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
