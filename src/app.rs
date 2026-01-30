@@ -155,6 +155,8 @@ pub enum StatusLineComponent {
     Spacer,
     CurrentFileParentFolder,
     LspProgress,
+    /// The detected language for the current file
+    Language,
 }
 
 impl<T: Frontend> App<T> {
@@ -610,6 +612,12 @@ impl<T: Frontend> App<T> {
                         StatusLineComponent::LspProgress => {
                             Some(FlexLayoutComponent::Text(self.context.lsp_progress()))
                         }
+                        StatusLineComponent::Language => self
+                            .current_component()
+                            .borrow()
+                            .editor()
+                            .language()
+                            .map(FlexLayoutComponent::Text),
                     })
                     .collect_vec(),
             )
