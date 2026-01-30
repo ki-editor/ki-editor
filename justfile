@@ -6,9 +6,9 @@ default:
     @just test 
     @just doc 
 
-run:
+run path="":
     rustup default 1.89.0
-    CARGO_CODEGEN_BACKEND=cranelift CARGO_UNSTABLE_CODEGEN_BACKEND=true cargo +nightly run
+    CARGO_CODEGEN_BACKEND=cranelift CARGO_UNSTABLE_CODEGEN_BACKEND=true cargo +nightly run {{path}}
 
 check: check-typeshare fmt-check lint 
     
@@ -115,7 +115,7 @@ codecov:
     
 
 watch-test testname:
-	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains --ignore 'mock_repos/*' --ignore 'docs/static/*.json' -- cargo test --workspace  -- {{testname}}
+	CARGO_CODEGEN_BACKEND=cranelift CARGO_UNSTABLE_CODEGEN_BACKEND=true RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains --ignore 'mock_repos/*' --ignore 'docs/static/*.json' -- cargo test --workspace  -- {{testname}}
 	
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch --ignore ki-vscode --ignore ki-jetbrains -- cargo clippy --workspace --tests

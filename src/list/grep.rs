@@ -6,8 +6,13 @@ use grep_searcher::{sinks, SearcherBuilder};
 use fancy_regex::Regex;
 
 use crate::{
-    app::Dispatches, buffer::Buffer, context::LocalSearchConfig, list::Match,
-    quickfix_list::Location, selection_mode::regex::get_regex, thread::SendResult,
+    app::Dispatches,
+    buffer::Buffer,
+    context::LocalSearchConfig,
+    list::{buffering_thread::buffer_entries_until_first_sorted_entry_found, Match},
+    quickfix_list::Location,
+    selection_mode::regex::get_regex,
+    thread::SendResult,
 };
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -115,9 +120,11 @@ pub fn run(
     let matcher = RegexMatcher::new_line_matcher(&pattern)?;
     let regex = Regex::new(&pattern)?;
 
+    let buffering_thread = buffer_entries_until_first_sorted_entry_found(send_match);
+
     walk_builder_config.run_async(
         false,
-        Arc::new(move |path, buffer| {
+        Arc::new(move |path_index, path, buffer| {
             let mut searcher = SearcherBuilder::new().build();
             let _ = searcher.search_path(
                 &matcher,
@@ -131,12 +138,16 @@ pub fn run(
                         regex.clone(),
                     ) {
                         for location in locations {
-                            let m = Match {
+                            let match_ = Match {
                                 location,
                                 line: line.to_string(),
                             };
-                            if send_match(m).is_receiver_disconnected() {
-                                // Stop search
+
+                            if buffering_thread
+                                .send_match(path_index, match_)
+                                .is_disconnected()
+                            {
+                                // Stop search if receiving thread is killed
                                 return Ok(false);
                             }
                         }
@@ -144,6 +155,7 @@ pub fn run(
                     Ok(true)
                 }),
             );
+            let _ = buffering_thread.notify_file_finished_searching(path_index);
         }),
     )
 }
