@@ -3,8 +3,6 @@ use itertools::Itertools;
 use nonempty::NonEmpty;
 use scraper::{Html, Selector};
 
-use crate::osc52;
-
 #[derive(Clone)]
 pub struct Clipboard {
     history: RingHistory<CopiedTexts>,
@@ -40,11 +38,11 @@ impl CopiedTexts {
         CopiedTexts::new(NonEmpty::singleton(string))
     }
 
-    fn to_text(&self) -> String {
+    pub fn to_text(&self) -> String {
         self.join("\n")
     }
 
-    fn to_html(&self) -> String {
+    pub fn to_html(&self) -> String {
         // Multiple elements (multi-cursor), wrap in HTML format
         let html = Xml::Node {
             tag: "div",
@@ -169,11 +167,9 @@ impl Clipboard {
 
     pub fn set(&mut self, copied_texts: CopiedTexts) -> anyhow::Result<()> {
         self.history.add(copied_texts.clone());
-        arboard::Clipboard::new()
-            .and_then(|mut clipboard| {
-                clipboard.set_html(copied_texts.to_html(), Some(copied_texts.to_text()))
-            })
-            .or_else(|_| osc52::copy_to_clipboard(&copied_texts.to_text()))?;
+        arboard::Clipboard::new().and_then(|mut clipboard| {
+            clipboard.set_html(copied_texts.to_html(), Some(copied_texts.to_text()))
+        })?;
         Ok(())
     }
 
