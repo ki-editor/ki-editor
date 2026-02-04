@@ -354,7 +354,7 @@ impl Context {
     }
 
     pub fn set_clipboard_content(&mut self, contents: CopiedTexts) -> anyhow::Result<()> {
-        self.clipboard.set(contents.clone())
+        self.clipboard.set(contents)
     }
     pub fn mode(&self) -> Option<GlobalMode> {
         self.mode.clone()
