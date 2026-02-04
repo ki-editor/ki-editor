@@ -984,7 +984,14 @@ impl<T: Frontend> App<T> {
             Dispatch::RefreshFileExplorer => self.layout.refresh_file_explorer(&self.context)?,
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
-            } => self.context.set_clipboard_content(contents)?,
+            } => {
+                self.context
+                    .set_clipboard_content(contents.clone())
+                    .or_else(|_| {
+                        let mut frontend = self.frontend.lock().unwrap();
+                        frontend.set_clipboard_with_osc52(&contents.to_text())
+                    })?;
+            }
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode)?,
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
