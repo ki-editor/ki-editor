@@ -431,7 +431,6 @@ impl DiagnosticSeverityRange {
 
 #[cfg(test)]
 mod test_quickfix_list {
-    
 
     use crate::{
         app::{
