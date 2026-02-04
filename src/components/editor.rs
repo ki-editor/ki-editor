@@ -1024,7 +1024,7 @@ impl Editor {
         selection: &Selection,
         use_current_selection_mode: bool,
         working_directory: &shared::canonicalized_path::CanonicalizedPath,
-        quickfix_list_items: Vec<&QuickfixListItem>,
+        quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         if use_current_selection_mode {
@@ -1931,6 +1931,7 @@ impl Editor {
             {
                 self.reveal = None
             }
+
             self.move_selection_with_selection_mode_without_global_mode(
                 Movement::Current(if_current_not_found),
                 selection_mode.clone(),
