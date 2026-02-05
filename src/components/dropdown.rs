@@ -695,6 +695,10 @@ impl Dropdown {
             self.current_item_index = item.item_index as usize;
         }
     }
+
+    pub(crate) fn items_count(&self) -> usize {
+        self.items.len()
+    }
 }
 
 #[cfg(test)]

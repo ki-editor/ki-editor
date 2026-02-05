@@ -119,7 +119,7 @@ impl Editor {
             editor.get_grid_with_dimension(
                 &theme,
                 context.current_working_directory(),
-                Vec::new(),
+                &Vec::new(),
                 dimension,
                 0,
                 None,
@@ -282,7 +282,7 @@ impl Editor {
         &self,
         theme: &Theme,
         working_directory: &CanonicalizedPath,
-        quickfix_list_items: Vec<&QuickfixListItem>,
+        quickfix_list_items: &[QuickfixListItem],
         dimension: Dimension,
         scroll_offset: usize,
         protected_range: Option<CharIndexRange>,
@@ -536,7 +536,7 @@ impl Editor {
         hidden_parent_line_ranges: &[Range<usize>],
         visible_parent_lines: &[Line],
         protected_range: Option<CharIndexRange>,
-        quickfix_list_items: Vec<&QuickfixListItem>,
+        quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
@@ -916,7 +916,7 @@ impl Editor {
         selection: &Selection,
         working_directory: &CanonicalizedPath,
         line_number_range: &Range<usize>,
-        quickfix_list_items: Vec<&QuickfixListItem>,
+        quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> anyhow::Result<Vec<ByteRange>> {
         let object = self.get_selection_mode_trait_object(
@@ -944,7 +944,7 @@ impl Editor {
         &self,
         selection: &Selection,
         working_directory: &CanonicalizedPath,
-        quickfix_list_items: Vec<&QuickfixListItem>,
+        quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> anyhow::Result<Vec<ByteRange>> {
         self.get_selection_mode_trait_object(

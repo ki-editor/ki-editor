@@ -437,7 +437,7 @@ impl Layout {
 
     pub fn show_quickfix_list(
         &mut self,
-        quickfix_list: QuickfixList,
+        quickfix_list: &QuickfixList,
         context: &Context,
     ) -> anyhow::Result<(Rc<RefCell<Editor>>, Dispatches)> {
         let render = quickfix_list.render();
@@ -587,7 +587,7 @@ impl Layout {
                     })
                 })
                 .collect_vec(),
-            QuickfixListSource::Custom(items) => items.iter().cloned().collect_vec(),
+            QuickfixListSource::Custom(items) => items.clone(),
         }
     }
 

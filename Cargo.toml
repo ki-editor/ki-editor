@@ -136,3 +136,6 @@ debug = false # Set this to true when using `sudo cargo flamegraph`
 [profile.release-lto]
 inherits = 'release'
 lto = true
+
+[lints.clippy]
+dbg_macro = "warn"

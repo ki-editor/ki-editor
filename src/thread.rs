@@ -60,23 +60,35 @@ impl<T> From<Result<(), SendError<T>>> for SendResult {
     }
 }
 
+pub enum BatchResult<T> {
+    Items(Vec<T>),
+    LimitReached,
+}
+
 pub fn batch<T: Send + Sync + 'static>(
-    callback: Arc<dyn Fn(Vec<T>) -> SendResult + Send + Sync>,
+    callback: Arc<dyn Fn(BatchResult<T>) -> SendResult + Send + Sync>,
     interval: Duration,
+    limit: usize,
 ) -> Arc<dyn Fn(T) -> SendResult + Send + Sync> {
     let (sender, receiver) = std::sync::mpsc::channel::<T>();
 
     std::thread::spawn(move || {
+        let mut count = 0;
         let mut batch = vec![];
         let mut last_sent = Instant::now();
         while let Ok(item) = receiver.recv() {
+            count += 1;
             batch.push(item);
             if Instant::now() - last_sent > interval {
-                callback(std::mem::take(&mut batch));
+                callback(BatchResult::Items(std::mem::take(&mut batch)));
                 last_sent = Instant::now();
             }
+            if count > limit {
+                callback(BatchResult::LimitReached);
+                break;
+            }
         }
-        callback(std::mem::take(&mut batch))
+        callback(BatchResult::Items(std::mem::take(&mut batch)))
     });
 
     Arc::new(move |item| SendResult::from(sender.send(item)))
