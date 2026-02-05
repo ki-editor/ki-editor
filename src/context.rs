@@ -13,7 +13,7 @@ use crate::{
     components::{editor_keymap::KeyboardLayoutKind, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
     persistence::{Persistence, WorkspaceSession},
-    quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
+    quickfix_list::{DiagnosticSeverityRange, Location, QuickfixList, QuickfixListItem},
     selection::SelectionMode,
     themes::Theme,
 };
@@ -28,7 +28,7 @@ pub struct Context {
     current_working_directory: CanonicalizedPath,
     local_search_config: LocalSearchConfig,
     global_search_config: GlobalSearchConfig,
-    quickfix_list_state: Option<QuickfixListState>,
+    quickfix_list: QuickfixList,
     prompt_histories: HashMap<PromptHistoryKey, IndexSet<String>>,
     last_non_contiguous_selection_mode: Option<Either<SelectionMode, GlobalMode>>,
     keyboard_layout_kind: KeyboardLayoutKind,
@@ -50,12 +50,7 @@ pub struct Context {
     lsp_progress: String,
 }
 
-pub struct QuickfixListState {
-    pub title: String,
-    pub source: QuickfixListSource,
-    pub current_item_index: usize,
-}
-
+#[derive(Debug)]
 pub enum QuickfixListSource {
     Diagnostic(DiagnosticSeverityRange),
     Mark,
@@ -112,53 +107,13 @@ impl Context {
         }
     }
 
-    pub fn extend_quickfix_list_items(&mut self, new_items: Vec<QuickfixListItem>) {
-        if let Some(QuickfixListState {
-            source: QuickfixListSource::Custom(items),
-            ..
-        }) = self.quickfix_list_state.as_mut()
-        {
-            items.extend(new_items)
-        }
-    }
-
-    pub fn quickfix_list_items(&self) -> Vec<&QuickfixListItem> {
-        if let Some(QuickfixListState {
-            source: QuickfixListSource::Custom(items),
-            ..
-        }) = &self.quickfix_list_state
-        {
-            items.iter().collect()
-        } else {
-            Default::default()
-        }
+    pub fn quickfix_list_items(&self) -> &[QuickfixListItem] {
+        self.quickfix_list.items()
     }
 
     pub fn handle_applied_edits(&mut self, path: CanonicalizedPath, edits: Vec<crate::edit::Edit>) {
-        if let Some(state) = self.quickfix_list_state.take() {
-            self.quickfix_list_state = Some(match state.source {
-                QuickfixListSource::Diagnostic(_) => state,
-                QuickfixListSource::Mark => state,
-                QuickfixListSource::Custom(quickfix_list_items) => {
-                    let items = quickfix_list_items
-                        .into_iter()
-                        .filter_map(|item| {
-                            if item.location().path == path {
-                                edits
-                                    .iter()
-                                    .try_fold(item, |item, edit| item.apply_edit(edit))
-                            } else {
-                                Some(item)
-                            }
-                        })
-                        .collect_vec();
-                    QuickfixListState {
-                        source: QuickfixListSource::Custom(items),
-                        ..state
-                    }
-                }
-            })
-        }
+        self.quickfix_list
+            .handle_applied_edits(&path, &edits, &self.current_working_directory);
 
         self.marks = std::mem::take(&mut self.marks)
             .into_iter()
@@ -250,6 +205,32 @@ impl Context {
     pub(crate) fn lsp_progress(&self) -> String {
         self.lsp_progress.clone()
     }
+
+    pub(crate) fn quickfix_list(&self) -> &QuickfixList {
+        &self.quickfix_list
+    }
+
+    pub(crate) fn get_quickfix_list_item(
+        &mut self,
+        movement: crate::components::editor::Movement,
+    ) -> Option<(usize, crate::app::Dispatches)> {
+        self.quickfix_list.get_item(movement)
+    }
+
+    pub(crate) fn set_quickfix_list_items(&mut self, title: &str, items: Vec<QuickfixListItem>) {
+        self.quickfix_list.set_title(title);
+        self.quickfix_list
+            .set_items(items, &self.current_working_directory)
+    }
+
+    pub(crate) fn quickfix_list_items_count(&self) -> usize {
+        self.quickfix_list.items_count()
+    }
+
+    pub(crate) fn extend_quickfix_list_items(&mut self, items: Vec<QuickfixListItem>) {
+        self.quickfix_list
+            .extend_items(items, &self.current_working_directory);
+    }
 }
 
 impl Context {
@@ -300,7 +281,6 @@ impl Context {
             current_working_directory,
             local_search_config: LocalSearchConfig::default(),
             global_search_config: GlobalSearchConfig::default(),
-            quickfix_list_state: Default::default(),
             prompt_histories,
             last_non_contiguous_selection_mode: None,
             keyboard_layout_kind: crate::config::AppConfig::singleton().keyboard_layout_kind(),
@@ -311,6 +291,7 @@ impl Context {
             persistence,
             marks,
             lsp_progress: "".to_string(),
+            quickfix_list: QuickfixList::default(),
         }
     }
 
@@ -354,7 +335,7 @@ impl Context {
     }
 
     pub fn set_clipboard_content(&mut self, contents: CopiedTexts) -> anyhow::Result<()> {
-        self.clipboard.set(contents.clone())
+        self.clipboard.set(contents)
     }
     pub fn mode(&self) -> Option<GlobalMode> {
         self.mode.clone()
@@ -419,25 +400,9 @@ impl Context {
         }
     }
 
-    pub fn quickfix_list_state(&self) -> &Option<QuickfixListState> {
-        &self.quickfix_list_state
-    }
-
     pub fn set_quickfix_list_current_item_index(&mut self, current_item_index: usize) {
-        if let Some(state) = self.quickfix_list_state.take() {
-            self.quickfix_list_state = Some(QuickfixListState {
-                current_item_index,
-                ..state
-            })
-        }
-    }
-
-    pub fn set_quickfix_list_source(&mut self, title: String, source: QuickfixListSource) {
-        self.quickfix_list_state = Some(QuickfixListState {
-            title,
-            source,
-            current_item_index: 0,
-        })
+        self.quickfix_list
+            .set_current_item_index(current_item_index);
     }
 
     pub fn push_history_prompt(&mut self, key: PromptHistoryKey, line: String) {

@@ -231,11 +231,7 @@ fn c_sharp() -> Language {
         lsp_language_id: Some(LanguageId::new("c_sharp")),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "c_sharp".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/tree-sitter/tree-sitter-c-sharp".to_string(),
-                subpath: None,
-                commit: "master".to_string(),
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::CSharp),
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
@@ -788,11 +784,7 @@ fn odin() -> Language {
         formatter: Some(Command::new("odinfmt", &["-stdin"])),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "odin".to_string(),
-            kind: GrammarConfigKind::FromSource {
-                url: "https://github.com/tree-sitter-grammars/tree-sitter-odin".to_string(),
-                commit: "master".to_string(),
-                subpath: None,
-            },
+            kind: GrammarConfigKind::CargoLinked(CargoLinkedTreesitterLanguage::Odin),
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),

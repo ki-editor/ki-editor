@@ -99,6 +99,8 @@ pub enum CargoLinkedTreesitterLanguage {
     KiQuickfix,
     Haskell,
     Hcl,
+    Odin,
+    CSharp,
 }
 
 impl CargoLinkedTreesitterLanguage {
@@ -144,6 +146,8 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Toml => tree_sitter_toml_ng::LANGUAGE.into(),
             CargoLinkedTreesitterLanguage::KiQuickfix => tree_sitter_quickfix::language(),
             CargoLinkedTreesitterLanguage::Hcl => tree_sitter_hcl::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::Odin => tree_sitter_odin::LANGUAGE.into(),
+            CargoLinkedTreesitterLanguage::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
         }
     }
 
@@ -191,6 +195,8 @@ impl CargoLinkedTreesitterLanguage {
             CargoLinkedTreesitterLanguage::Toml => Some(tree_sitter_toml_ng::HIGHLIGHTS_QUERY),
             CargoLinkedTreesitterLanguage::KiQuickfix => Some(r#" (header) @keyword"#),
             CargoLinkedTreesitterLanguage::Hcl => None,
+            CargoLinkedTreesitterLanguage::Odin => Some(tree_sitter_odin::HIGHLIGHTS_QUERY),
+            CargoLinkedTreesitterLanguage::CSharp => None,
         }
     }
 }

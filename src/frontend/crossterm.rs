@@ -28,6 +28,7 @@ impl Crossterm {
 #[cfg(not(windows))]
 use crossterm::event::PopKeyboardEnhancementFlags;
 use crossterm::{
+    clipboard::CopyToClipboard,
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
     event::{
         DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
@@ -206,5 +207,10 @@ impl Frontend for Crossterm {
 
     fn set_previous_screen(&mut self, previous_screen: Screen) {
         self.previous_screen = previous_screen
+    }
+
+    fn set_clipboard_with_osc52(&mut self, content: &str) -> anyhow::Result<()> {
+        queue!(self.stdout, CopyToClipboard::to_clipboard_from(content))?;
+        Ok(())
     }
 }
