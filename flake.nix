@@ -30,7 +30,7 @@
         mkRustToolchain = targets:
           pkgs.rust-bin.stable."1.89.0".default.override {
             inherit targets;
-            extensions = ["rust-src" "rust-analyzer"];
+            extensions = ["rust-src"];
           };
 
         # Shared base dependencies across all environments
@@ -46,7 +46,6 @@
         devOnlyPackages = with pkgs; [
           python3
           which
-          rust-analyzer
           just
           alejandra
           fd
@@ -344,18 +343,16 @@
           "x86_64-windows-gnu" = x86_64-windows-gnu-ki;
         };
 
-        devShells.default = (crane.mkLib pkgs).devShell {
+        devShells.default = pkgs.mkShell {
           packages =
             commonNativeBuildInputs
             ++ platformBuildInputs
-            ++ devOnlyPackages
-            ++ [rustToolchain];
+            ++ devOnlyPackages;
 
           # Include common environment variables and platform-specific paths
           shellHook = ''
             export OPENSSL_STATIC=1
             export LIBICONV_STATIC=1
-            export RUST_SRC_PATH="${rustToolchain}/lib/rustlib/src/rust/library"
 
             ${
               if pkgs.stdenv.isDarwin

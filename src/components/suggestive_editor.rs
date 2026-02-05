@@ -112,12 +112,12 @@ impl Component for SuggestiveEditor {
                     Dispatch::ToEditor(EnterNormalMode),
                 ]
                 .into_iter()
-                .chain(match (context.mode(), context.quickfix_list_state()) {
-                    (Some(GlobalMode::QuickfixListItem), Some(state)) => {
+                .chain(match context.mode() {
+                    Some(GlobalMode::QuickfixListItem) => {
                         Some(Dispatch::ToEditor(SetSelectionMode(
                             IfCurrentNotFound::LookForward,
                             SelectionMode::LocalQuickfix {
-                                title: state.title.clone(),
+                                title: context.quickfix_list().title().clone(),
                             },
                         )))
                     }

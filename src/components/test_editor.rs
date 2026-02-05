@@ -785,16 +785,14 @@ fn open_before_selection() -> anyhow::Result<()> {
             Editor(SetContent("fn x(a:A, b:B){}".trim().to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(SwapCursor),
-            Editor(Open),
+            Editor(Open(GetGapMovement::Left)),
             Expect(CurrentMode(Mode::Insert)),
             Editor(Insert("c:C".to_string())),
             Expect(CurrentComponentContent("fn x(c:C, a:A, b:B){}".trim())),
             Editor(EnterNormalMode),
             Editor(MatchLiteral("b:B".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(SwapCursor),
-            Editor(Open),
+            Editor(Open(GetGapMovement::Left)),
             Editor(Insert("d:D".to_string())),
             Expect(CurrentComponentContent("fn x(c:C, a:A, d:D, b:B){}".trim())),
         ])
@@ -813,7 +811,7 @@ fn open_after_selection() -> anyhow::Result<()> {
             Editor(SetContent("fn x(a:A, b:B){}".trim().to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(Open),
+            Editor(Open(GetGapMovement::Right)),
             Expect(CurrentMode(Mode::Insert)),
             Editor(Insert("c:C".to_string())),
             Expect(CurrentComponentContent("fn x(a:A, c:C, b:B){}".trim())),
@@ -821,7 +819,7 @@ fn open_after_selection() -> anyhow::Result<()> {
             Editor(MatchLiteral("b:B".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["b:B"])),
-            Editor(Open),
+            Editor(Open(GetGapMovement::Right)),
             Editor(Insert("d:D".to_string())),
             Expect(CurrentComponentContent("fn x(a:A, c:C, b:B, d:D){}".trim())),
         ])
@@ -849,7 +847,7 @@ fn main() {
             Editor(MatchLiteral("hello".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Expect(CurrentSelectedTexts(&["// hello"])),
-            Editor(Open),
+            Editor(Open(GetGapMovement::Right)),
             Editor(Insert("// world".to_string())),
             Expect(CurrentComponentContent(
                 "
@@ -859,44 +857,6 @@ fn main() {
 }
 "
                 .trim(),
-            )),
-        ])
-    })
-}
-
-#[test]
-fn open_max_gap_contains_at_most_one_newline_character() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile {
-                path: s.main_rs(),
-                owner: BufferOwner::User,
-                focus: true,
-            }),
-            Editor(SetContent(
-                "
-foo
-    
-    bar
-
-spam
-"
-                .trim()
-                .to_string(),
-            )),
-            Editor(MatchLiteral("bar".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Editor(Open),
-            Editor(Insert("world".to_string())),
-            Expect(CurrentComponentContent(
-                "
-foo
-    
-    bar
-    world
-
-spam"
-                    .trim(),
             )),
         ])
     })

@@ -41,7 +41,7 @@ use crate::{
     },
     persistence::Persistence,
     position::Position,
-    quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
+    quickfix_list::{Location, QuickfixListItem, QuickfixListType},
     render_flex_layout::{self, FlexLayoutComponent},
     screen::{Screen, Window},
     scripting::{custom_keymap, ScriptDispatch, ScriptInput},
@@ -77,7 +77,7 @@ use strum::IntoEnumIterator;
 use DispatchEditor::*;
 
 #[cfg(test)]
-use crate::{layout::BufferContentsMap, test_app::RunTestOptions};
+use crate::{layout::BufferContentsMap, quickfix_list::QuickfixList, test_app::RunTestOptions};
 
 // TODO: rename current Context struct to RawContext struct
 // The new Context struct should always be derived, it should contains Hashmap of rectangles, keyed by Component ID
@@ -156,6 +156,8 @@ pub enum StatusLineComponent {
     Spacer,
     CurrentFileParentFolder,
     LspProgress,
+    /// The detected language for the current file
+    Language,
 }
 
 impl<T: Frontend> App<T> {
@@ -611,6 +613,12 @@ impl<T: Frontend> App<T> {
                         StatusLineComponent::LspProgress => {
                             Some(FlexLayoutComponent::Text(self.context.lsp_progress()))
                         }
+                        StatusLineComponent::Language => self
+                            .current_component()
+                            .borrow()
+                            .editor()
+                            .language()
+                            .map(FlexLayoutComponent::Text),
                     })
                     .collect_vec(),
             )
@@ -977,7 +985,14 @@ impl<T: Frontend> App<T> {
             Dispatch::RefreshFileExplorer => self.layout.refresh_file_explorer(&self.context)?,
             Dispatch::SetClipboardContent {
                 copied_texts: contents,
-            } => self.context.set_clipboard_content(contents)?,
+            } => {
+                self.context
+                    .set_clipboard_content(contents.clone())
+                    .or_else(|_| {
+                        let mut frontend = self.frontend.lock().unwrap();
+                        frontend.set_clipboard_with_osc52(&contents.to_text())
+                    })?;
+            }
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode)?,
             #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
@@ -1641,42 +1656,16 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    pub fn get_quickfix_list(&self) -> Option<QuickfixList> {
-        self.context.quickfix_list_state().as_ref().map(|state| {
-            let items = self
-                .layout
-                .get_quickfix_list_items(&state.source, &self.context);
-            // Preload the buffers to avoid unnecessarily rereading the files
-            let buffers = items
-                .iter()
-                .map(|item| &item.location().path)
-                .unique()
-                .filter_map(|path| {
-                    Some(Rc::new(RefCell::new(Buffer::from_path(path, false).ok()?)))
-                })
-                .collect_vec();
-            QuickfixList::new(
-                state.title.clone(),
-                items,
-                buffers,
-                self.context.current_working_directory(),
-            )
-            .set_current_item_index(state.current_item_index)
-        })
-    }
-
     fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
-        if let Some(mut quickfix_list) = self.get_quickfix_list() {
-            if let Some((current_item_index, dispatches)) = quickfix_list.get_item(movement) {
-                self.context
-                    .set_quickfix_list_current_item_index(current_item_index);
-                self.handle_dispatches(dispatches)?;
-                self.render_quickfix_list(
-                    quickfix_list.set_current_item_index(current_item_index),
-                )?;
-            } else {
-                log::info!("No current item found")
-            }
+        if let Some((current_item_index, dispatches)) =
+            self.context.get_quickfix_list_item(movement)
+        {
+            self.context
+                .set_quickfix_list_current_item_index(current_item_index);
+            self.handle_dispatches(dispatches)?;
+            self.render_quickfix_list()?;
+        } else {
+            log::info!("No current item found")
         }
         Ok(())
     }
@@ -1737,26 +1726,21 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         let title = context.description.unwrap_or_default();
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
-        let go_to_first_quickfix = match r#type {
+
+        let source = match r#type {
             QuickfixListType::Diagnostic(severity_range) => {
-                self.context.set_quickfix_list_source(
-                    title.clone(),
-                    QuickfixListSource::Diagnostic(severity_range),
-                );
-                true
+                QuickfixListSource::Diagnostic(severity_range)
             }
-            QuickfixListType::Items(items) => {
-                let is_empty = items.is_empty();
-                self.context
-                    .set_quickfix_list_source(title.clone(), QuickfixListSource::Custom(items));
-                !is_empty
-            }
-            QuickfixListType::Mark => {
-                self.context
-                    .set_quickfix_list_source(title.clone(), QuickfixListSource::Mark);
-                true
-            }
+            QuickfixListType::Items(items) => QuickfixListSource::Custom(items),
+            QuickfixListType::Mark => QuickfixListSource::Mark,
         };
+
+        let items = self.layout.get_quickfix_list_items(&source, &self.context);
+
+        let go_to_first_quickfix = !items.is_empty();
+
+        self.context.set_quickfix_list_items(&title, items);
+
         match context.scope {
             None | Some(Scope::Global) => {
                 if go_to_first_quickfix {
@@ -1854,12 +1838,23 @@ impl<T: Frontend> App<T> {
             return Ok(());
         }
         let sender = self.sender.clone();
-        let send_matches = Arc::new(move |matches: Vec<Match>| {
-            SendResult::from(sender.send(AppMessage::ExternalDispatch(Box::new(
-                Dispatch::AddQuickfixListEntries(matches),
-            ))))
+        let limit = 10000;
+        let send_matches = Arc::new(move |result: crate::thread::BatchResult<Match>| {
+            SendResult::from(
+                sender.send(AppMessage::ExternalDispatch(Box::new(match result {
+                    crate::thread::BatchResult::Items(matches) => {
+                        Dispatch::AddQuickfixListEntries(matches)
+                    }
+                    crate::thread::BatchResult::LimitReached => {
+                        Dispatch::ShowGlobalInfo(Info::new(
+                            "Search Halted".to_string(),
+                            format!("The search has more than {limit} matches and is thus halted to avoid performance issues."),
+                        ))
+                    }
+                }))),
+            )
         });
-        let send_match = crate::thread::batch(send_matches, Duration::from_millis(16)); // Around 30 ticks per second
+        let send_match = crate::thread::batch(send_matches, Duration::from_millis(16), limit); // Around 30 ticks per second
 
         // TODO: we need to create a new sender for each global search, so that it can be cancelled, but when?
         // Is it when the quickfix list is closed?
@@ -2478,10 +2473,13 @@ impl<T: Frontend> App<T> {
         self.layout.get_dropdown_infos_count()
     }
 
-    pub fn render_quickfix_list(&mut self, quickfix_list: QuickfixList) -> anyhow::Result<()> {
+    pub fn render_quickfix_list(&mut self) -> anyhow::Result<()> {
+        if self.context.quickfix_list_items_count() > 10000 {
+            return Ok(());
+        };
         let (editor, dispatches) = self
             .layout
-            .show_quickfix_list(quickfix_list, &self.context)?;
+            .show_quickfix_list(self.context.quickfix_list(), &self.context)?;
 
         let editor = editor.borrow();
         let buffer = editor.buffer();
@@ -3022,19 +3020,15 @@ impl<T: Frontend> App<T> {
     }
 
     fn add_quickfix_list_entries(&mut self, matches: Vec<Match>) -> anyhow::Result<()> {
-        let go_to_quickfix_item = self.context.quickfix_list_items().is_empty();
+        // Jump to quickfix item if the quickfix list was empty
+        let go_to_quickfix_item = self.context.quickfix_list_items_count() == 0;
+        let items = matches
+            .into_iter()
+            .map(|m| QuickfixListItem::new(m.location, None, Some(m.line)))
+            .collect_vec();
+        self.context.extend_quickfix_list_items(items);
 
-        self.context.extend_quickfix_list_items(
-            matches
-                .into_iter()
-                .map(|m| QuickfixListItem::new(m.location, None, Some(m.line)))
-                .collect_vec(),
-        );
-
-        let quickfix_list = self.get_quickfix_list();
-        if let Some(quickfix_list) = quickfix_list {
-            self.render_quickfix_list(quickfix_list)?;
-        }
+        self.render_quickfix_list()?;
         if go_to_quickfix_item {
             self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
         }
@@ -3400,6 +3394,11 @@ Conflict markers will be injected in areas that cannot be merged gracefully."
         self.lsp_manager
             .entry(working_directory.to_path_buf().clone())
             .or_insert_with(|| LspManager::new(self.sender.clone(), working_directory))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn quickfix_list(&self) -> &QuickfixList {
+        self.context.quickfix_list()
     }
 }
 

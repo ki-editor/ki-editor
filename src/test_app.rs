@@ -268,21 +268,18 @@ impl ExpectKind {
             }
             ComponentsLength(length) => contextualize(app.components().len(), *length),
             Quickfixes(expected_quickfixes) => contextualize(
-                app.get_quickfix_list()
-                    .map(|q| {
-                        q.items()
-                            .into_iter()
-                            .map(|quickfix| {
-                                let info = quickfix
-                                    .info()
-                                    .as_ref()
-                                    .map(|info| info.clone().set_decorations(Vec::new()));
-                                quickfix.set_info(info)
-                            })
-                            .collect_vec()
-                            .into_boxed_slice()
+                app.quickfix_list()
+                    .items()
+                    .iter()
+                    .map(|quickfix| {
+                        let info = quickfix
+                            .info()
+                            .as_ref()
+                            .map(|info| info.clone().set_decorations(Vec::new()));
+                        quickfix.clone().set_info(info)
                     })
-                    .unwrap_or_default(),
+                    .collect_vec()
+                    .into_boxed_slice(),
                 expected_quickfixes.clone(),
             ),
             EditorGrid(grid) => contextualize(
@@ -447,7 +444,7 @@ impl ExpectKind {
                 item,
             ),
             QuickfixListContent(content) => {
-                let actual = app.get_quickfix_list().unwrap().render().content;
+                let actual = app.quickfix_list().render().content;
                 let expected = content.to_string();
                 println!("Expected =\n{expected}");
                 println!("Actual =\n{actual}");
@@ -518,7 +515,7 @@ impl ExpectKind {
                 expected,
                 &app.context()
                     .quickfix_list_items()
-                    .into_iter()
+                    .iter()
                     .map(|d| d.location().range)
                     .collect_vec(),
             ),

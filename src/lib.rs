@@ -25,7 +25,6 @@ mod app;
 mod generate_recipes;
 pub mod history;
 mod non_empty_extensions;
-mod osc52;
 mod quickfix_list;
 #[cfg(test)]
 mod recipes;

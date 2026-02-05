@@ -501,7 +501,7 @@ impl SelectionMode {
         current_selection: &Selection,
         cursor_direction: &Direction,
         working_directory: &shared::canonicalized_path::CanonicalizedPath,
-        quickfix_list_items: Vec<&QuickfixListItem>,
+        quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionModeTrait>> {
         let params = SelectionModeParams {

@@ -63,17 +63,17 @@ For example:
 
 <TutorialFallback filename="open"/>
 
-### `Change`
+### `Insert`
 
-This deletes the current selected text, and enter [Insert mode](../insert-mode.md).
+Activates the [Insert MoL](../momentary-layers/insert-mol.mdx).
 
 ### `Delete`
 
-Activates the [Delete MOL](../momentary-layers/delete-mol.mdx).
+Activates the [Delete MoL](../momentary-layers/delete-mol.mdx).
 
 ### `Cut`
 
-Activates the [Cut MOL](../momentary-layers/cut-mol.mdx).
+Activates the [Cut MoL](../momentary-layers/cut-mol.mdx).
 
 ### `Replace #`
 
@@ -198,11 +198,11 @@ copied to the cursor-specific clipboard.
 
 ### `Paste`
 
-Activates the [Paste MOL](../momentary-layers/paste-mol.mdx).
+Activates the [Paste MoL](../momentary-layers/paste-mol.mdx).
 
 ### `Change X`
 
-This is similar to [Change](#change), but it copies the deleted text into the clipboard.Like `ctrl+x` in Windows and `cmd+x` in macOS.
+This is similar to [Change](../momentary-layers/insert-mol.mdx#tap-action-change), but it copies the deleted text into the clipboard.Like `ctrl+x` in Windows and `cmd+x` in macOS.
 
 ### `Replace`
 

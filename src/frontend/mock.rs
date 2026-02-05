@@ -75,6 +75,10 @@ impl super::Frontend for MockFrontend {
         self.previous_screen = previous_screen
     }
 
+    fn set_clipboard_with_osc52(&mut self, _content: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     fn writer(&mut self) -> &mut Box<dyn MyWriter> {
         &mut self.writer
     }
