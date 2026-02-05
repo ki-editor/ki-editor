@@ -2221,143 +2221,11 @@ impl<T: Frontend> App<T> {
                         .iter()
                         .position(|(path, _)| path == &current_file_path)
                     {
-                        let next_index = match movement {
-                            Movement::Left => {
-                                let mut tmp_index;
-                                if current_index == 0 {
-                                    tmp_index = merged_file_paths_map.len() - 1;
-                                } else {
-                                    tmp_index = current_index.saturating_sub(1);
-                                }
-
-                                loop {
-                                    if tmp_index == current_index {
-                                        break current_index;
-                                    }
-
-                                    if let Some((_file_path, marked_file)) =
-                                        merged_file_paths_map.get_index(tmp_index)
-                                    {
-                                        if *marked_file {
-                                            break tmp_index;
-                                        }
-                                    }
-
-                                    tmp_index = if tmp_index == 0 {
-                                        merged_file_paths_map.len() - 1
-                                    } else {
-                                        tmp_index.saturating_sub(1)
-                                    };
-                                }
-                            }
-                            Movement::Right => {
-                                let mut tmp_index;
-                                if current_index == merged_file_paths_map.len().saturating_sub(1) {
-                                    tmp_index = 0;
-                                } else {
-                                    tmp_index = current_index.saturating_add(1);
-                                }
-
-                                loop {
-                                    if tmp_index == current_index {
-                                        break current_index;
-                                    };
-
-                                    if let Some((_file_path, marked_file)) =
-                                        merged_file_paths_map.get_index(tmp_index)
-                                    {
-                                        if *marked_file {
-                                            break tmp_index;
-                                        }
-                                    }
-
-                                    tmp_index = if tmp_index == merged_file_paths_map.len() - 1 {
-                                        0
-                                    } else {
-                                        tmp_index.saturating_add(1)
-                                    };
-                                }
-                            }
-                            Movement::Previous => {
-                                let mut tmp_index = current_index;
-                                loop {
-                                    if tmp_index == 0 {
-                                        break current_index;
-                                    }
-                                    tmp_index = tmp_index.saturating_sub(1);
-                                    if let Some((_file_path, _marked_file)) =
-                                        merged_file_paths_map.get_index(tmp_index)
-                                    {
-                                        break tmp_index;
-                                    }
-                                }
-                            }
-                            Movement::Next => {
-                                let mut tmp_index = current_index;
-                                loop {
-                                    if tmp_index == merged_file_paths_map.len() - 1 {
-                                        break current_index;
-                                    }
-                                    tmp_index = tmp_index.saturating_add(1);
-                                    if let Some((_file_path, _marked_file)) =
-                                        merged_file_paths_map.get_index(tmp_index)
-                                    {
-                                        break tmp_index;
-                                    }
-                                }
-                            }
-                            Movement::Last => {
-                                let mut tmp_index = merged_file_paths_map.len() - 1;
-                                if let Some((_, marked_file)) =
-                                    merged_file_paths_map.get_index(tmp_index)
-                                {
-                                    if *marked_file {
-                                        tmp_index
-                                    } else {
-                                        loop {
-                                            tmp_index = tmp_index.saturating_sub(1);
-                                            if let Some((_, marked_file)) =
-                                                merged_file_paths_map.get_index(tmp_index)
-                                            {
-                                                if *marked_file {
-                                                    break tmp_index;
-                                                }
-                                            } else {
-                                                break current_index;
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    current_index
-                                }
-                            }
-                            Movement::First => {
-                                let mut tmp_index = 0;
-                                if let Some((_, marked_file)) =
-                                    merged_file_paths_map.get_index(tmp_index)
-                                {
-                                    if *marked_file {
-                                        tmp_index
-                                    } else {
-                                        loop {
-                                            tmp_index = tmp_index.saturating_add(1);
-                                            if let Some((_, marked_file)) =
-                                                merged_file_paths_map.get_index(tmp_index)
-                                            {
-                                                if *marked_file {
-                                                    break tmp_index;
-                                                }
-                                            } else {
-                                                break current_index;
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    current_index
-                                }
-                            }
-                            _ => return None,
-                        };
+                        let next_index = self.calculate_next_index(
+                            &merged_file_paths_map,
+                            current_index,
+                            movement,
+                        );
                         // We are doing defensive programming here
                         // to ensure that Ki editor never crashes
                         return merged_file_paths_map
@@ -2395,6 +2263,48 @@ impl<T: Frontend> App<T> {
             }
         }
         Ok(())
+    }
+
+    fn calculate_next_index(
+        &self,
+        merged_file_paths_map: &IndexMap<CanonicalizedPath, bool>,
+        current_index: usize,
+        movement: Movement,
+    ) -> usize {
+        let len = merged_file_paths_map.len();
+        if len < 1 {
+            return current_index;
+        }
+        let marked_indices: NonEmpty<usize> = NonEmpty::from_vec(
+            merged_file_paths_map
+                .iter()
+                .enumerate()
+                .filter_map(|(index, (_, is_marked))| is_marked.then_some(index))
+                .collect(),
+        )
+        .unwrap(); // len >= 1 as checked in previous conditional.
+
+        match movement {
+            Movement::First => *marked_indices.first(),
+            Movement::Last => *marked_indices.last(),
+            Movement::Left => *marked_indices
+                .iter()
+                .rev()
+                .find(|index| **index < current_index)
+                .unwrap_or(marked_indices.last()), // wrap to the other end
+            Movement::Right => *marked_indices
+                .iter()
+                .find(|index| **index > current_index)
+                .unwrap_or(marked_indices.first()), // wrap to the other end
+            Movement::Previous => (0..merged_file_paths_map.len())
+                .rev()
+                .find(|index| *index < current_index)
+                .unwrap_or(current_index),
+            Movement::Next => (0..merged_file_paths_map.len())
+                .find(|index| *index > current_index)
+                .unwrap_or(current_index),
+            _ => current_index,
+        }
     }
 
     #[cfg(test)]
