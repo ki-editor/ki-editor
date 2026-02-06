@@ -238,7 +238,7 @@ For example, to delete two selections:
 
 Since most deletions involve only one selection, the menu approach is more efficient for the common case while keeping the Delete Submode available for users who prefer chaining deletions.
 
-## Version 6: Momentary Layer
+## Version 6: Momentary Layer (MoL)
 
 [Momentary Layer](https://zmk.dev/docs/keymaps/behaviors/layers#momentary-layer) combines the best aspects of both the Delete Menu and Delete Submode approaches: it's as efficient as the Delete Menu for single deletions while being as repeatable as the Delete Submode for chained operations.
 
