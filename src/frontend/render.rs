@@ -108,41 +108,31 @@ impl<'a> TerminalState<'a> {
     }
 
     fn bold(&mut self, cell: &PositionedCell) -> anyhow::Result<()> {
-        if self.bold != cell.cell.is_bold {
-            self.renderer.bold(cell)?;
-        }
+        self.renderer.bold(cell)?;
         self.bold = cell.cell.is_bold;
         Ok(())
     }
 
     fn underline_color(&mut self, cell: &PositionedCell) -> anyhow::Result<()> {
-        if self.underline_color != cell_underline_color(cell) {
-            self.renderer.underline_color(cell)?;
-        }
+        self.renderer.underline_color(cell)?;
         self.underline_color = cell_underline_color(cell);
         Ok(())
     }
 
     fn underline_state(&mut self, cell: &PositionedCell) -> anyhow::Result<()> {
-        if self.underline_state != cell_underline_state(cell) {
-            self.renderer.underline_state(cell)?;
-        }
+        self.renderer.underline_state(cell)?;
         self.underline_state = cell_underline_state(cell);
         Ok(())
     }
 
     fn background_color(&mut self, cell: &PositionedCell) -> anyhow::Result<()> {
-        if self.background_color != cell.cell.background_color {
-            self.renderer.background_color(cell)?;
-        }
+        self.renderer.background_color(cell)?;
         self.background_color = cell.cell.background_color;
         Ok(())
     }
 
     fn foreground_color(&mut self, cell: &PositionedCell) -> anyhow::Result<()> {
-        if self.foreground_color != cell.cell.foreground_color {
-            self.renderer.foreground_color(cell)?;
-        }
+        self.renderer.foreground_color(cell)?;
         self.foreground_color = cell.cell.foreground_color;
         Ok(())
     }
