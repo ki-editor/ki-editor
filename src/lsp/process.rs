@@ -1629,7 +1629,8 @@ impl LspServerProcess {
 }
 
 fn path_buf_to_url(path: CanonicalizedPath) -> Result<Url, anyhow::Error> {
-    Ok(Url::parse(&format!("file://{}", path.display_absolute()))?)
+    Url::from_file_path(&path.display_absolute())
+        .map_err(|err| anyhow::anyhow!("Failed to convert path to URL: {err:?}"))
 }
 
 fn path_buf_to_text_document_identifier(
