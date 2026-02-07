@@ -2270,27 +2270,24 @@ impl<T: Frontend> App<T> {
         if len < 1 {
             return current_index;
         }
-        let marked_indices: NonEmpty<usize> = NonEmpty::from_vec(
-            merged_file_paths_map
-                .iter()
-                .enumerate()
-                .filter_map(|(index, (_, is_marked))| is_marked.then_some(index))
-                .collect(),
-        )
-        .unwrap(); // len >= 1 as checked in previous conditional.
+        let marked_indices: Vec<usize> = merged_file_paths_map
+            .iter()
+            .enumerate()
+            .filter_map(|(index, (_, is_marked))| is_marked.then_some(index))
+            .collect();
 
         match movement {
-            Movement::First => *marked_indices.first(),
-            Movement::Last => *marked_indices.last(),
+            Movement::First => *(marked_indices.first().unwrap_or(&current_index)),
+            Movement::Last => *(marked_indices.last().unwrap_or(&current_index)),
             Movement::Left => *marked_indices
                 .iter()
                 .rev()
                 .find(|index| **index < current_index)
-                .unwrap_or(marked_indices.last()), // wrap to the other end
+                .unwrap_or(marked_indices.last().unwrap_or(&current_index)), // wrap to the other end
             Movement::Right => *marked_indices
                 .iter()
                 .find(|index| **index > current_index)
-                .unwrap_or(marked_indices.first()), // wrap to the other end
+                .unwrap_or(marked_indices.first().unwrap_or(&current_index)), // wrap to the other end
             Movement::Previous => (0..merged_file_paths_map.len())
                 .rev()
                 .find(|index| *index < current_index)
