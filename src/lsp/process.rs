@@ -1629,7 +1629,7 @@ impl LspServerProcess {
 }
 
 fn path_buf_to_url(path: CanonicalizedPath) -> Result<Url, anyhow::Error> {
-    Url::from_file_path(&path.display_absolute())
+    Url::from_file_path(path.display_absolute())
         .map_err(|err| anyhow::anyhow!("Failed to convert path to URL: {err:?}"))
 }
 
