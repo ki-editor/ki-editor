@@ -1536,6 +1536,17 @@ pub fn buffer_keymap() -> Keymap {
                 Dispatch::CycleMarkedFile(movement),
             )
         })
+        .chain(
+            [("u", Movement::Previous), ("o", Movement::Next)]
+                .into_iter()
+                .map(|(key, movement)| {
+                    Keybinding::new(
+                        key,
+                        movement.format_action("Opened File"),
+                        Dispatch::CycleMarkedFile(movement),
+                    )
+                }),
+        )
         .chain(Some(Keybinding::new_extended(
             "k",
             "Mark File".to_string(),
