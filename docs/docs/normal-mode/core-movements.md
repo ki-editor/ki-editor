@@ -12,14 +12,27 @@ import {KeymapFallback} from '@site/src/components/KeymapFallback';
 Core Movements is one of the main concepts in Ki, because it is standardized for
 every [selection modes](./selection-modes/index.md).
 
-There are 9 movements in total:
-
+There are 10 movements in total:
 
 ## Keymap
 
 <KeymapFallback filename="Movements"/>
 
-### `◀` `▶` Left/Right
+## Navigational speed
+
+The following three sets of movements carry different connotations of speeds.
+
+The navigational experience of these movements in each selection mode should follow this table.
+
+| Movements | Speed                   |
+| --------- | ----------------------- |
+| `<` `>`   | Slowest, granular       |
+| `<<` `>>` | Moderate, commonly used |
+| `^` `v`   | Fastest                 |
+
+## Movements
+
+### `<<` `>>` Left/Right
 
 Left/Right means move to the previous/next **meaningful** selection of the current selection mode.
 
@@ -30,7 +43,7 @@ For example:
 | Syntax Node    | Next/Previous named sibling |
 | Word           | Non-symbol word             |
 
-### Previous/Next
+### `<` `>` Previous/Next
 
 Previous/Next means move to the previous/next selection of the current selection mode, **without** skipping any selections (generally).
 
@@ -42,15 +55,15 @@ For example:
 | Word           | All words including symbols            |
 | Line           | Empty lines                            |
 
-### `▲` `▼` Up/Down
+### `^` `v` Up/Down
 
 Up/Down means move to the nearest selection above/below the current line, except for
 the following selection modes:
 
-| Selection Mode | Meaning                             |
-| -------------- | ----------------------------------- |
-| Syntax Node    | Parent or First-Sibling             |
-| Quickfix       | To first item of next/previous file |
+| Selection Mode | Meaning                                 |
+| -------------- | --------------------------------------- |
+| Syntax Node    | Parent or First-Sibling                 |
+| Quickfix       | To the first item of next/previous file |
 
 #### Sticky Column
 
@@ -62,18 +75,18 @@ The sticky column will be cleared once any non-vertical movement is executed.
 
 <TutorialFallback filename="sticky-column"/>
 
-### First/Last
+### `|<` `>|` First/Last
 
 By default, First/Last moves to the first/last selection of the current selection mode.
 
-| Selection Mode   | Meaning                                |
-| ---------------- | -------------------------------------- |
-| Syntax Node      | First/Last named sibling               |
-| Quickfix         | First/Last item                        |
-| Char             | First/Last char in the current subword |
-| Subword          | First/Last subword in the current word |
-| Word             | Previous/Next symbolic words           |
-| Line & Full Line | First/Last line of the current file    |
+| Selection Mode   | Meaning                                    |
+| ---------------- | ------------------------------------------ |
+| Syntax Node      | First/Last named sibling                   |
+| Quickfix         | First/Last item of the whole quickfix list |
+| Char             | First/Last char in the current subword     |
+| Subword          | First/Last subword in the current word     |
+| Word             | Previous/Next symbolic words               |
+| Line & Full Line | First/Last line of the current file        |
 
 ### `Jump`
 
@@ -100,6 +113,17 @@ This movement can also work with the Swap mode to swap two syntax expressions th
 [^1]: hop.nvim, leap.nvim, lightspeed.nvim etc.
 
 <TutorialFallback filename="jump"/>
+
+### `Parent Line`
+
+This movement allows you to jump to the nearest parent line above the current line.
+
+Most of the time, nearest parent line is the same as the nearest dedented line above.
+
+It is particularly useful in the File Explorer (which is displayed in YAML), where you can jump
+to the parent directory with just a keypress.
+
+<TutorialFallback filename="parent-line"/>
 
 Note: All letters after the first will be selected based on key accessibility in the chosen keyboard layout.
 

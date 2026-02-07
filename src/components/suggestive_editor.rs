@@ -2,6 +2,7 @@ use crate::app::{Dispatch, Dispatches};
 use crate::context::{Context, GlobalMode};
 use crate::grid::StyleKey;
 use crate::selection::SelectionMode;
+use crossterm::event::KeyEventKind;
 use DispatchEditor::*;
 
 use crate::selection_range::SelectionRange;
@@ -16,8 +17,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::dropdown::{Dropdown, DropdownConfig};
 use super::editor::{Direction, DispatchEditor, IfCurrentNotFound};
-use super::editor_keymap::{alted, Meaning};
-use super::keymap_legend::{Keymap, Keymaps};
+use super::editor_keymap::alted;
+use super::keymap_legend::{Keybinding, Keymap};
 use super::{
     component::Component,
     dropdown::DropdownItem,
@@ -25,7 +26,7 @@ use super::{
 };
 
 /// Editor with auto-complete
-pub(crate) struct SuggestiveEditor {
+pub struct SuggestiveEditor {
     editor: Editor,
     completion_dropdown: Dropdown,
     trigger_characters: Vec<String>,
@@ -33,7 +34,7 @@ pub(crate) struct SuggestiveEditor {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum SuggestiveEditorFilter {
+pub enum SuggestiveEditorFilter {
     CurrentWord,
     CurrentLine,
 }
@@ -82,11 +83,14 @@ impl Component for SuggestiveEditor {
         event: event::KeyEvent,
     ) -> anyhow::Result<Dispatches> {
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
-            if let Some(keymap) = completion_item_keymaps(context).get(&event) {
+            let translated_event = context
+                .keyboard_layout_kind()
+                .translate_key_event_to_qwerty(event.clone());
+            if let Some(keymap) = completion_item_keymap().get(&translated_event) {
                 log::info!("dispatches = {:?}", keymap.get_dispatches());
                 return Ok(keymap.get_dispatches());
             };
-            match event {
+            match translated_event {
                 key!("down") => return self.next_completion_item(),
                 key!("up") => return self.previous_completion_item(),
                 key!("tab") => return self.select_completion_item(),
@@ -108,12 +112,12 @@ impl Component for SuggestiveEditor {
                     Dispatch::ToEditor(EnterNormalMode),
                 ]
                 .into_iter()
-                .chain(match (context.mode(), context.quickfix_list_state()) {
-                    (Some(GlobalMode::QuickfixListItem), Some(state)) => {
+                .chain(match context.mode() {
+                    Some(GlobalMode::QuickfixListItem) => {
                         Some(Dispatch::ToEditor(SetSelectionMode(
                             IfCurrentNotFound::LookForward,
                             SelectionMode::LocalQuickfix {
-                                title: state.title.clone(),
+                                title: context.quickfix_list().title().clone(),
                             },
                         )))
                     }
@@ -121,7 +125,7 @@ impl Component for SuggestiveEditor {
                 })
                 .collect_vec()
                 .into(),
-                _ if self.editor.mode == Mode::Insert => {
+                _ if self.editor.mode == Mode::Insert && event.kind != KeyEventKind::Release => {
                     vec![Dispatch::RequestCompletion, Dispatch::RequestSignatureHelp].into()
                 }
                 _ => Default::default(),
@@ -130,7 +134,7 @@ impl Component for SuggestiveEditor {
 }
 
 impl SuggestiveEditor {
-    pub(crate) fn from_buffer(buffer: Rc<RefCell<Buffer>>, filter: SuggestiveEditorFilter) -> Self {
+    pub fn from_buffer(buffer: Rc<RefCell<Buffer>>, filter: SuggestiveEditorFilter) -> Self {
         Self {
             editor: Editor::from_buffer(buffer),
             completion_dropdown: Dropdown::new(DropdownConfig {
@@ -141,7 +145,7 @@ impl SuggestiveEditor {
         }
     }
 
-    pub(crate) fn handle_dispatch(
+    pub fn handle_dispatch(
         &mut self,
         dispatch: DispatchSuggestiveEditor,
     ) -> anyhow::Result<Dispatches> {
@@ -173,24 +177,20 @@ impl SuggestiveEditor {
         }
     }
 
-    pub(crate) fn completion_dropdown_current_item(&mut self) -> Option<DropdownItem> {
+    pub fn completion_dropdown_current_item(&mut self) -> Option<DropdownItem> {
         self.completion_dropdown.current_item()
     }
 
-    pub(crate) fn all_filtered_items(&mut self) -> Vec<DropdownItem> {
-        self.completion_dropdown.all_filtered_items()
-    }
-
-    pub(crate) fn completion_dropdown_opened(&self) -> bool {
+    pub fn completion_dropdown_opened(&self) -> bool {
         !self.completion_dropdown.items().is_empty()
     }
 
-    pub(crate) fn set_completion(&mut self, completion: Completion) {
+    pub fn set_completion(&mut self, completion: Completion) {
         self.completion_dropdown.set_items(completion.items);
         self.trigger_characters = completion.trigger_characters;
     }
 
-    pub(crate) fn render_completion_dropdown(&self, ignore_insert_mode: bool) -> Dispatches {
+    pub fn render_completion_dropdown(&self, ignore_insert_mode: bool) -> Dispatches {
         log::info!(
             "ignore_insert_mode = {ignore_insert_mode} mode = {:?}",
             self.editor.mode
@@ -278,7 +278,7 @@ impl SuggestiveEditor {
         }
     }
 
-    pub(crate) fn update_current_line(
+    pub fn update_current_line(
         &mut self,
         context: &Context,
         display: &str,
@@ -286,13 +286,13 @@ impl SuggestiveEditor {
         self.editor_mut().update_current_line(context, display)
     }
 
-    pub(crate) fn update_items(&mut self, items: Vec<DropdownItem>) {
+    pub fn update_items(&mut self, items: Vec<DropdownItem>) {
         self.completion_dropdown.set_items(items)
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum DispatchSuggestiveEditor {
+pub enum DispatchSuggestiveEditor {
     #[cfg(test)]
     CompletionFilter(SuggestiveEditorFilter),
     Completion(Completion),
@@ -1068,13 +1068,13 @@ mod test_suggestive_editor {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
-pub(crate) struct Info {
+pub struct Info {
     title: String,
     content: String,
     decorations: Vec<Decoration>,
 }
 impl Info {
-    pub(crate) fn new(title: String, content: String) -> Info {
+    pub fn new(title: String, content: String) -> Info {
         Info {
             title,
             content,
@@ -1082,22 +1082,22 @@ impl Info {
         }
     }
 
-    pub(crate) fn content(&self) -> &String {
+    pub fn content(&self) -> &String {
         &self.content
     }
 
-    pub(crate) fn decorations(&self) -> &Vec<Decoration> {
+    pub fn decorations(&self) -> &Vec<Decoration> {
         &self.decorations
     }
 
-    pub(crate) fn set_decorations(self, decorations: Vec<Decoration>) -> Info {
+    pub fn set_decorations(self, decorations: Vec<Decoration>) -> Info {
         Info {
             decorations,
             ..self
         }
     }
 
-    pub(crate) fn join(self, other: Info) -> Info {
+    pub fn join(self, other: Info) -> Info {
         let separator = "=".repeat(10).to_string();
         let content = format!("{}\n{}\n{}", self.content, separator, other.content);
         let other_decorations = other
@@ -1117,17 +1117,17 @@ impl Info {
         }
     }
 
-    pub(crate) fn title(&self) -> String {
+    pub fn title(&self) -> String {
         self.title.clone()
     }
 
-    pub(crate) fn display(&self) -> String {
+    pub fn display(&self) -> String {
         format!("{}\n\n{}", self.title(), self.content())
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct Decoration {
+pub struct Decoration {
     selection_range: SelectionRange,
     style_key: StyleKey,
     adjustments: Vec<Adjustment>,
@@ -1144,15 +1144,15 @@ impl Decoration {
         self
     }
 
-    pub(crate) fn selection_range(&self) -> &SelectionRange {
+    pub fn selection_range(&self) -> &SelectionRange {
         &self.selection_range
     }
 
-    pub(crate) fn style_key(&self) -> &StyleKey {
+    pub fn style_key(&self) -> &StyleKey {
         &self.style_key
     }
 
-    pub(crate) fn new(selection_range: SelectionRange, style_key: StyleKey) -> Decoration {
+    pub fn new(selection_range: SelectionRange, style_key: StyleKey) -> Decoration {
         Decoration {
             selection_range,
             style_key,
@@ -1160,7 +1160,7 @@ impl Decoration {
         }
     }
 
-    pub(crate) fn move_left(self, count: usize) -> Decoration {
+    pub fn move_left(self, count: usize) -> Decoration {
         Decoration {
             selection_range: self.selection_range.move_left(count),
             ..self
@@ -1168,22 +1168,22 @@ impl Decoration {
     }
 }
 
-pub(crate) fn completion_item_keymaps(context: &Context) -> Keymaps {
-    Keymaps::new(&[
-        Keymap::new_extended(
-            alted(context.keyboard_layout_kind().get_key(&Meaning::Right)),
+pub fn completion_item_keymap() -> Keymap {
+    Keymap::new(&[
+        Keybinding::new_extended(
+            alted("l"),
             Direction::End.format_action("Comp"),
             "Next Completion Item".to_string(),
             Dispatch::MoveToCompletionItem(Direction::End),
         ),
-        Keymap::new_extended(
-            alted(context.keyboard_layout_kind().get_key(&Meaning::Left_)),
+        Keybinding::new_extended(
+            alted("j"),
             Direction::Start.format_action("Comp"),
             "Previous Completion Item".to_string(),
             Dispatch::MoveToCompletionItem(Direction::Start),
         ),
-        Keymap::new_extended(
-            alted(context.keyboard_layout_kind().get_key(&Meaning::Rplc_)),
+        Keybinding::new_extended(
+            alted("x"),
             "Replace Comp".to_string(),
             "Replace Completion Item".to_string(),
             Dispatch::SelectCompletionItem,

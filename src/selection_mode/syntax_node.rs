@@ -7,8 +7,8 @@ use crate::{
 
 use super::{ByteRange, IterBasedSelectionMode, TopNode};
 
-pub(crate) struct SyntaxNode {
-    pub(crate) coarse: bool,
+pub struct SyntaxNode {
+    pub coarse: bool,
 }
 
 impl IterBasedSelectionMode for SyntaxNode {
@@ -160,26 +160,6 @@ impl IterBasedSelectionMode for SyntaxNode {
             Ok(Box::new(std::iter::empty()))
         }
     }
-
-    fn process_paste_gap(
-        &self,
-        _: &super::SelectionModeParams,
-        prev_gap: Option<String>,
-        next_gap: Option<String>,
-        _: &Direction,
-    ) -> String {
-        match (prev_gap, next_gap) {
-            (None, None) => Default::default(),
-            (None, Some(gap)) | (Some(gap), None) => gap,
-            (Some(prev_gap), Some(next_gap)) => {
-                if prev_gap.chars().count() > next_gap.chars().count() {
-                    prev_gap
-                } else {
-                    next_gap
-                }
-            }
-        }
-    }
 }
 
 impl SyntaxNode {
@@ -208,7 +188,7 @@ impl SyntaxNode {
                 .ok()
         }))
     }
-    pub(crate) fn select_vertical(
+    pub fn select_vertical(
         &self,
         params: &super::SelectionModeParams,
         go_up: bool,
@@ -234,11 +214,7 @@ impl SyntaxNode {
     }
 }
 
-pub(crate) fn get_node(
-    node: tree_sitter::Node,
-    go_up: bool,
-    coarse: bool,
-) -> Option<tree_sitter::Node> {
+pub fn get_node(node: tree_sitter::Node, go_up: bool, coarse: bool) -> Option<tree_sitter::Node> {
     match (go_up, coarse) {
         (true, _) => node.parent(),
         (false, true) => node.named_child(0),
@@ -250,6 +226,7 @@ pub(crate) fn get_node(
 mod test_syntax_node {
     use crate::buffer::BufferOwner;
     use crate::selection::SelectionMode;
+    use crate::selection_mode::GetGapMovement;
     use crate::test_app::*;
     use crate::{
         buffer::Buffer,
@@ -398,7 +375,7 @@ fn main() {
                 )),
                 Editor(MoveSelection(Right)),
                 Editor(Copy),
-                Editor(Paste),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
             ])
         })
@@ -422,9 +399,48 @@ fn main() {
                 )),
                 Editor(MoveSelection(Right)),
                 Editor(Copy),
-                Editor(SwapCursor),
-                Editor(Paste),
+                Editor(PasteWithMovement(GetGapMovement::Left)),
                 Expect(CurrentComponentContent("fn f(x: X, y: Y, y: Y) {}")),
+            ])
+        })
+    }
+
+    #[serial]
+    #[test]
+    fn paste_indented_blocks_with_gaps() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    "
+mod x {
+    fn main() {}
+
+    fn foo() {}
+}"
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("fn foo() {}".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::SyntaxNode,
+                )),
+                Editor(Copy),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
+                Expect(CurrentComponentContent(
+                    "
+mod x {
+    fn main() {}
+
+    fn foo() {}
+
+    fn foo() {}
+}",
+                )),
             ])
         })
     }

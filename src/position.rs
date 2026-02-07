@@ -4,36 +4,36 @@ use serde::Serialize;
 use crate::{buffer::Buffer, selection::CharIndex};
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Default, Serialize, JsonSchema)]
-pub(crate) struct Position {
+pub struct Position {
     /// 0-based
-    pub(crate) line: usize,
+    pub line: usize,
     /// 0-based
-    pub(crate) column: usize,
+    pub column: usize,
 }
 
 impl Position {
-    pub(crate) fn new(line: usize, column: usize) -> Self {
+    pub fn new(line: usize, column: usize) -> Self {
         Self { line, column }
     }
-    pub(crate) fn to_char_index(self, buffer: &Buffer) -> anyhow::Result<CharIndex> {
+    pub fn to_char_index(self, buffer: &Buffer) -> anyhow::Result<CharIndex> {
         buffer.position_to_char(self)
     }
 
-    pub(crate) fn sub_column(&self, column: usize) -> Self {
+    pub fn sub_column(&self, column: usize) -> Self {
         Self {
             line: self.line,
             column: self.column.saturating_sub(column),
         }
     }
 
-    pub(crate) fn move_right(&self, by: usize) -> Position {
+    pub fn move_right(&self, by: usize) -> Position {
         Position {
             line: self.line,
             column: self.column + by,
         }
     }
 
-    pub(crate) fn move_up(&self, by: usize) -> Option<Position> {
+    pub fn move_up(&self, by: usize) -> Option<Position> {
         if self.line < by {
             None
         } else {
@@ -44,39 +44,39 @@ impl Position {
         }
     }
 
-    pub(crate) fn move_left(&self, by: usize) -> Position {
+    pub fn move_left(&self, by: usize) -> Position {
         Position {
             line: self.line,
             column: self.column.saturating_sub(by),
         }
     }
 
-    pub(crate) fn set_line(self, line: usize) -> Position {
+    pub fn set_line(self, line: usize) -> Position {
         Position { line, ..self }
     }
 
-    pub(crate) fn move_down(&self, line: usize) -> Position {
+    pub fn move_down(&self, line: usize) -> Position {
         Position {
             line: self.line + line,
             column: self.column,
         }
     }
 
-    pub(crate) fn translate(&self, Position { line, column }: Position) -> Position {
+    pub fn translate(&self, Position { line, column }: Position) -> Position {
         Position {
             line: self.line + line,
             column: self.column + column,
         }
     }
 
-    pub(crate) fn set_column(self, new_column: usize) -> Position {
+    pub fn set_column(self, new_column: usize) -> Position {
         Position {
             column: new_column,
             ..self
         }
     }
 
-    pub(crate) fn to_host_position(self) -> ki_protocol_types::Position {
+    pub fn to_host_position(self) -> ki_protocol_types::Position {
         ki_protocol_types::Position {
             character: self.column as u32,
             line: self.line as u32,

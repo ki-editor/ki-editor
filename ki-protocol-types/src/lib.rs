@@ -57,7 +57,6 @@ pub enum EditorMode {
     FindOneChar,
     Swap,
     Replace,
-    Delete,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -78,6 +77,7 @@ pub enum SelectionMode {
     Diagnostic(DiagnosticKind),
     GitHunk,
     LocalQuickfix,
+    BigWord,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

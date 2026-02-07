@@ -10,18 +10,18 @@ use crate::{
 
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
 /// A struct to represent a rectangle with origin, width and height
-pub(crate) struct Rectangle {
-    pub(crate) origin: Position,
-    pub(crate) width: usize,
-    pub(crate) height: usize,
+pub struct Rectangle {
+    pub origin: Position,
+    pub width: usize,
+    pub height: usize,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 /// A struct to represent a border with direction, start and length
-pub(crate) struct Border {
-    pub(crate) direction: BorderDirection,
-    pub(crate) start: Position,
-    pub(crate) length: usize,
+pub struct Border {
+    pub direction: BorderDirection,
+    pub start: Position,
+    pub length: usize,
 }
 
 impl Border {
@@ -50,7 +50,7 @@ impl Border {
         }
     }
 
-    pub(crate) fn to_positioned_cells(&self, border_style: Style) -> Vec<PositionedCell> {
+    pub fn to_positioned_cells(&self, border_style: Style) -> Vec<PositionedCell> {
         self.positions()
             .into_iter()
             .map(|position| PositionedCell {
@@ -95,7 +95,7 @@ impl Border {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 // An enum to represent the direction of a border (horizontal or vertical)
-pub(crate) enum BorderDirection {
+pub enum BorderDirection {
     Horizontal,
     Vertical,
 }
@@ -105,7 +105,7 @@ enum Element {
     Border(Border),
 }
 
-pub(crate) fn spread(length: usize, count: usize) -> Vec<usize> {
+pub fn spread(length: usize, count: usize) -> Vec<usize> {
     if count == 0 {
         return vec![];
     }
@@ -332,7 +332,7 @@ impl Rectangle {
 
     // A method to generate a vector of rectangles and a vector of borders based on bspwm tiling algorithm
     #[cfg(test)]
-    pub(crate) fn generate_binary_partition(
+    pub fn generate_binary_partition(
         count: usize,
         dimension: Dimension,
     ) -> (Vec<Rectangle>, Vec<Border>) {
@@ -376,7 +376,7 @@ impl Rectangle {
         (rectangles, borders)
     }
 
-    pub(crate) fn dimension(&self) -> Dimension {
+    pub fn dimension(&self) -> Dimension {
         Dimension {
             width: self.width,
             height: self.height,
@@ -384,7 +384,7 @@ impl Rectangle {
     }
 
     /// Split the rectangle horizontally at the given line.
-    pub(crate) fn split_horizontally_at(&self, line: usize) -> (Rectangle, Rectangle) {
+    pub fn split_horizontally_at(&self, line: usize) -> (Rectangle, Rectangle) {
         let up = Rectangle {
             origin: self.origin,
             width: self.width,
@@ -398,7 +398,7 @@ impl Rectangle {
         (up, bottom)
     }
 
-    pub(crate) fn split_vertically_at(&self, column: usize) -> (Rectangle, Rectangle) {
+    pub fn split_vertically_at(&self, column: usize) -> (Rectangle, Rectangle) {
         let left = Rectangle {
             origin: self.origin,
             width: column,
@@ -446,7 +446,7 @@ impl Rectangle {
         }
     }
 
-    pub(crate) fn generate(
+    pub fn generate(
         kind: LayoutKind,
         count: usize,
         ratio: f32,
@@ -460,7 +460,7 @@ impl Rectangle {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum LayoutKind {
+pub enum LayoutKind {
     #[allow(unused)]
     Tall,
     Wide,

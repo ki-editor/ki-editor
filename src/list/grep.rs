@@ -14,18 +14,18 @@ use shared::canonicalized_path::CanonicalizedPath;
 use super::WalkBuilderConfig;
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub(crate) struct RegexConfig {
-    pub(crate) escaped: bool,
-    pub(crate) case_sensitive: bool,
-    pub(crate) match_whole_word: bool,
+pub struct RegexConfig {
+    pub escaped: bool,
+    pub case_sensitive: bool,
+    pub match_whole_word: bool,
 }
 
 impl RegexConfig {
-    pub(crate) fn to_regex(self, pattern: &str) -> Result<Regex, anyhow::Error> {
+    pub fn to_regex(self, pattern: &str) -> Result<Regex, anyhow::Error> {
         get_regex(pattern, self)
     }
 
-    pub(crate) fn literal() -> RegexConfig {
+    pub fn literal() -> RegexConfig {
         RegexConfig {
             case_sensitive: false,
             escaped: true,
@@ -33,7 +33,7 @@ impl RegexConfig {
         }
     }
 
-    pub(crate) fn strict() -> RegexConfig {
+    pub fn strict() -> RegexConfig {
         RegexConfig {
             escaped: true,
             match_whole_word: true,
@@ -41,7 +41,7 @@ impl RegexConfig {
         }
     }
 
-    pub(crate) fn regex() -> RegexConfig {
+    pub fn regex() -> RegexConfig {
         RegexConfig {
             escaped: false,
             match_whole_word: false,
@@ -49,7 +49,7 @@ impl RegexConfig {
         }
     }
 
-    pub(crate) fn match_whole_word() -> RegexConfig {
+    pub fn match_whole_word() -> RegexConfig {
         RegexConfig {
             escaped: true,
             match_whole_word: true,
@@ -57,7 +57,7 @@ impl RegexConfig {
         }
     }
 
-    pub(crate) fn case_sensitive() -> RegexConfig {
+    pub fn case_sensitive() -> RegexConfig {
         RegexConfig {
             escaped: true,
             match_whole_word: false,
@@ -77,7 +77,7 @@ impl Default for RegexConfig {
 }
 
 /// Returns list of affected files
-pub(crate) fn replace(
+pub fn replace(
     walk_builder_config: WalkBuilderConfig,
     local_search_config: LocalSearchConfig,
 ) -> anyhow::Result<(Dispatches, Vec<CanonicalizedPath>)> {
@@ -105,7 +105,7 @@ pub(crate) fn replace(
     Ok((dispatches, paths))
 }
 
-pub(crate) fn run(
+pub fn run(
     pattern: &str,
     walk_builder_config: WalkBuilderConfig,
     grep_config: RegexConfig,

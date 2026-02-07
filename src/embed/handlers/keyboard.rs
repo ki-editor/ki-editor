@@ -54,7 +54,7 @@ impl EmbeddedApp {
             }
         };
 
-        event::KeyEvent::new(code, event_modifiers)
+        event::KeyEvent::pressed(code, event_modifiers)
     }
 
     /// Handle keyboard.input request

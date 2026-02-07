@@ -1,36 +1,14 @@
-use crate::app::Dispatch;
 use crate::components::editor::DispatchEditor;
-use crate::components::editor_keymap::KeyboardMeaningLayout;
-use crate::components::editor_keymap::Meaning::{self, *};
 use crate::components::suggestive_editor::Info;
 use crate::config::AppConfig;
 use crate::position::Position;
-use itertools::Itertools;
+use crate::{app::Dispatch, components::editor_keymap::QWERTY};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{io::Write, ops::Range, process::Stdio};
 
-pub(crate) const LEADER_KEYMAP_LAYOUT: KeyboardMeaningLayout = [
-    [
-        __Q__, __W__, __E__, __R__, __T__, /****/ __Y__, __U__, __I__, __O__, __P__,
-    ],
-    [
-        __A__, __S__, __D__, __F__, __G__, /****/ __H__, __J__, __K__, __L__, _SEMI,
-    ],
-    [
-        __Z__, __X__, __C__, __V__, __B__, /****/ __N__, __M__, _COMA, _DOT_, _SLSH,
-    ],
-];
-
-pub(crate) fn leader_meanings() -> Vec<Meaning> {
-    LEADER_KEYMAP_LAYOUT
-        .iter()
-        .flat_map(|row| row.iter().cloned())
-        .collect_vec()
-}
-
-pub(crate) fn custom_keymap() -> Vec<CustomActionKeymap> {
+pub fn custom_keymap() -> Vec<CustomActionKeymap> {
     AppConfig::singleton()
         .leader_keymap()
         .keybindings()
@@ -40,39 +18,45 @@ pub(crate) fn custom_keymap() -> Vec<CustomActionKeymap> {
                 .iter()
                 .filter_map(|keybinding| keybinding.clone())
         })
-        .zip(leader_meanings())
-        .map(|(keybinding, meaning)| (meaning, keybinding.name.clone(), keybinding.script.clone()))
+        .zip(QWERTY.iter().flatten())
+        .map(|(keybinding, key)| {
+            (
+                key.to_string(),
+                keybinding.name.clone(),
+                keybinding.script.clone(),
+            )
+        })
         .collect()
 }
 
 #[derive(Clone, Deserialize, Serialize, JsonSchema)]
-pub(crate) struct Keybinding {
-    pub(crate) name: String,
-    pub(crate) script: Script,
+pub struct Keybinding {
+    pub name: String,
+    pub script: Script,
 }
 
-pub(crate) type CustomActionKeymap = (Meaning, String, Script);
+pub type CustomActionKeymap = (String, String, Script);
 
 #[derive(Serialize, Clone, JsonSchema)]
-pub(crate) struct ScriptInput {
-    pub(crate) current_file_path: Option<String>,
+pub struct ScriptInput {
+    pub current_file_path: Option<String>,
     /// 0-based index
-    pub(crate) selections: Vec<Selection>,
+    pub selections: Vec<Selection>,
 }
 
 #[derive(Serialize, Clone, JsonSchema)]
-pub(crate) struct Selection {
-    pub(crate) content: String,
-    pub(crate) range: Range<Position>,
+pub struct Selection {
+    pub content: String,
+    pub range: Range<Position>,
 }
 
 #[derive(Deserialize, JsonSchema)]
-pub(crate) struct ScriptOutput {
-    pub(crate) dispatches: Vec<ScriptDispatch>,
+pub struct ScriptOutput {
+    pub dispatches: Vec<ScriptDispatch>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug, PartialEq, Clone)]
-pub(crate) enum ScriptDispatch {
+pub enum ScriptDispatch {
     ShowInfo { title: String, content: String },
     ReplaceSelections(Vec<String>),
 }
@@ -83,16 +67,13 @@ struct ScriptName(String);
 
 #[derive(Clone, Deserialize, Serialize, JsonSchema, Debug)]
 #[serde(try_from = "ScriptName", into = "ScriptName")]
-pub(crate) struct Script {
-    pub(crate) path: CanonicalizedPath,
-    pub(crate) name: String,
+pub struct Script {
+    pub path: CanonicalizedPath,
+    pub name: String,
 }
 
 impl Script {
-    pub(crate) fn execute(
-        &self,
-        context: crate::scripting::ScriptInput,
-    ) -> anyhow::Result<ScriptOutput> {
+    pub fn execute(&self, context: crate::scripting::ScriptInput) -> anyhow::Result<ScriptOutput> {
         let json = serde_json::to_string(&context)?;
 
         let mut child = std::process::Command::new(self.path.display_absolute())
@@ -136,7 +117,7 @@ impl From<Script> for ScriptName {
 }
 
 impl ScriptDispatch {
-    pub(crate) fn into_app_dispatch(self) -> Dispatch {
+    pub fn into_app_dispatch(self) -> Dispatch {
         match self {
             ScriptDispatch::ShowInfo { title, content } => {
                 Dispatch::ShowGlobalInfo(Info::new(title, content))
@@ -172,7 +153,7 @@ mod test_scripting {
                 // This will execute the script from .ki/scripts/example_show_info.py
                 App(HandleKeyEvents(keys!("backslash q").to_vec())),
                 Expect(GlobalInfo(
-                    "The current selected texts are [\"pub(crate) struct Foo {\"]",
+                    "The current selected texts are [\"pub(crate) struct Foo {\"]".to_string(),
                 )),
             ])
         })

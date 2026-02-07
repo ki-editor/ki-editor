@@ -27,7 +27,7 @@ There are two Syntax Node selection modes:
 | Movement                                           | Meaning                                              |
 | -------------------------------------------------- | ---------------------------------------------------- |
 | [Left/Right](../core-movements.md#--leftright)     | Next/Previous **named** sibling node                 |
-| [Previous/Next](../core-movements.md#previousnext) | Next/Previous sibling node, including anonymous ones |
+| [Previous/Next](../core-movements.md#--previousnext) | Next/Previous sibling node, including anonymous ones |
 | Up                                                 | Parent node                                          |
 | Down                                               | First **named** child                                |
 | Current                                            | Select the largest node                              |
@@ -73,7 +73,7 @@ Fine Syntax Node.
 | Movement                                           | Meaning                                              |
 | -------------------------------------------------- | ---------------------------------------------------- |
 | [Left/Right](../core-movements.md#--leftright)     | Next/Previous **named** sibling node                 |
-| [Previous/Next](../core-movements.md#previousnext) | Next/Previous sibling node, including anonymous ones |
+| [Previous/Next](../core-movements.md#--previousnext) | Next/Previous sibling node, including anonymous ones |
 | Up                                                 | Parent node                                          |
 | Shrink                                             | First child (including anonymous)                    |
 | Current                                            | Smallest node that matches the current selection     |
@@ -144,6 +144,23 @@ If the current selection is selecting `use`, the following table demonstrates ho
 [^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 [^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 
+## `Word*`
+
+Big Word.
+
+A big word is either:
+
+1. a sequence of non-whitespace characters
+2. a sequence of non-newline whitespaces
+3. a single newline character
+
+| Movement              | Meaning                                               |
+| --------------------- | ----------------------------------------------------- |
+| Up/Down/Previous/Next | Move to all kinds of big words, including whitespaces |
+| Left/Right            | Move to non-whitespace big words only                 |
+
+<TutorialFallback filename="big-word"/>
+
 ## `Subword`
 
 This selects subword within a subword.
@@ -165,6 +182,6 @@ Character.
 
 In this selection mode, the movements behave like the usual editor, where [Left/Right](./../core-movements.md#--leftright) means left/right, and so on.
 
-[First/Last](./../core-movements.md#firstlast) means the first/last character of the current word.
+[First/Last](./../core-movements.md#--firstlast) means the first/last character of the current word.
 
 <TutorialFallback filename="char"/>

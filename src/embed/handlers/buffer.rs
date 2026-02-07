@@ -18,7 +18,7 @@ use ropey::Rope;
 
 impl EmbeddedApp {
     /// Handle buffer open request from Host
-    pub(crate) fn handle_buffer_open_request(&mut self, params: BufferOpenParams) -> Result<()> {
+    pub fn handle_buffer_open_request(&mut self, params: BufferOpenParams) -> Result<()> {
         let BufferOpenParams {
             uri,
             content,
@@ -53,7 +53,7 @@ impl EmbeddedApp {
     }
 
     /// Handle buffer active request from Host
-    pub(crate) fn handle_buffer_active_request(&mut self, params: BufferParams) -> Result<()> {
+    pub fn handle_buffer_active_request(&mut self, params: BufferParams) -> Result<()> {
         let path = uri_to_path(&params.uri)?;
         self.app
             .lock()
@@ -68,10 +68,7 @@ impl EmbeddedApp {
     }
 
     /// Handle buffer change request from Host
-    pub(crate) fn handle_buffer_change_request(
-        &mut self,
-        params: BufferDiffParams,
-    ) -> anyhow::Result<()> {
+    pub fn handle_buffer_change_request(&mut self, params: BufferDiffParams) -> anyhow::Result<()> {
         let BufferDiffParams { buffer_id, edits } = params;
 
         let path = uri_to_path(&buffer_id)?;
@@ -126,7 +123,7 @@ impl EmbeddedApp {
         Ok(())
     }
 
-    pub(crate) fn handle_sync_buffer_response(
+    pub fn handle_sync_buffer_response(
         &self,
         params: SyncBufferResponseParams,
     ) -> std::result::Result<(), anyhow::Error> {

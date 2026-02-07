@@ -1,10 +1,12 @@
 import io
 import pathlib
 import re
+import sys
 import urllib.request
 import zipfile
 
-hash = input("Commit hash of nvim-treesitter to use: ")
+assert len(sys.argv) > 1, "No commit hash passed!"
+hash = sys.argv[1]
 
 with open("nvim-treesitter-commit-hash.txt", "w") as f:
     f.write(hash)

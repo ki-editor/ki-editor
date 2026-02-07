@@ -71,7 +71,10 @@
         "Heex",
         "Toml",
         "KiQuickfix",
-        "Haskell"
+        "Haskell",
+        "Hcl",
+        "Odin",
+        "CSharp"
       ]
     },
     "Command": {
@@ -425,13 +428,19 @@
             "Help",
             "KeyboardLayout",
             "Reveal",
-            "CurrentFileParentFolder"
+            "CurrentFileParentFolder",
+            "LspProgress"
           ]
         },
         {
           "description": "A spacer pushes its preceding group of components to the left,\nand the following to the right.\n\nIf a status line contains more than one spacers,\neach spacer will be given the similar width.",
           "type": "string",
           "const": "Spacer"
+        },
+        {
+          "description": "The detected language for the current file",
+          "type": "string",
+          "const": "Language"
         }
       ]
     }

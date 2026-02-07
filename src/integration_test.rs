@@ -6,7 +6,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 #[cfg(test)]
 use crate::layout::BufferContentsMap;
 
-pub(crate) struct TestRunner {
+pub struct TestRunner {
     temp_dir: CanonicalizedPath,
 }
 
@@ -17,13 +17,13 @@ impl Drop for TestRunner {
 }
 
 #[derive(Debug)]
-pub(crate) struct TestOutput {
-    pub(crate) term_output: Option<String>,
-    pub(crate) buffer_contents_map: BufferContentsMap,
+pub struct TestOutput {
+    pub term_output: Option<String>,
+    pub buffer_contents_map: BufferContentsMap,
 }
 
 impl TestRunner {
-    pub(crate) fn run(
+    pub fn run(
         callback: impl Fn(CanonicalizedPath) -> anyhow::Result<TestOutput>,
     ) -> anyhow::Result<TestOutput> {
         let (runner, _) = Self::new()?;
@@ -31,7 +31,7 @@ impl TestRunner {
         Ok(output)
     }
     fn new() -> anyhow::Result<(Self, Receiver<AppMessage>)> {
-        const MOCK_REPO_PATH: &str = "tests/mock_repos/rust1";
+        const MOCK_REPO_PATH: &str = "mock_repos/rust1";
 
         let path = tempfile::tempdir()?.keep();
         std::fs::create_dir_all(path.clone())?;

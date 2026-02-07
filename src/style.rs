@@ -4,11 +4,11 @@ use crate::{
 };
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy, Hash, PartialOrd, Ord)]
-pub(crate) struct Style {
-    pub(crate) foreground_color: Option<Color>,
-    pub(crate) background_color: Option<Color>,
-    pub(crate) line: Option<CellLine>,
-    pub(crate) is_bold: bool,
+pub struct Style {
+    pub foreground_color: Option<Color>,
+    pub background_color: Option<Color>,
+    pub line: Option<CellLine>,
+    pub is_bold: bool,
 }
 
 pub const fn fg(color: Color) -> Style {
@@ -48,42 +48,35 @@ impl Style {
         }
     }
 
-    pub(crate) fn set_some_background_color(self, background_color: Option<Color>) -> Style {
+    pub fn set_some_background_color(self, background_color: Option<Color>) -> Style {
         Style {
             background_color,
             ..self
         }
     }
 
-    pub(crate) fn set_some_foreground_color(self, foreground_color: Option<Color>) -> Style {
+    pub fn set_some_foreground_color(self, foreground_color: Option<Color>) -> Style {
         Style {
             foreground_color,
             ..self
         }
     }
 
-    pub(crate) const fn line(self, line: Option<CellLine>) -> Style {
+    pub const fn line(self, line: Option<CellLine>) -> Style {
         Style { line, ..self }
     }
 
-    pub(crate) const fn underline(self, color: Color) -> Style {
+    pub const fn underline(self, color: Color) -> Style {
         self.line(Some(CellLine {
             color,
             style: CellLineStyle::Underline,
         }))
     }
 
-    pub(crate) const fn undercurl(&self, color: Color) -> Style {
+    pub const fn undercurl(&self, color: Color) -> Style {
         self.line(Some(CellLine {
             color,
             style: CellLineStyle::Undercurl,
         }))
-    }
-
-    pub(crate) const fn bold(self) -> Style {
-        Style {
-            is_bold: true,
-            ..self
-        }
     }
 }

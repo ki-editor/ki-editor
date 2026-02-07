@@ -48,14 +48,6 @@ This replaces the parent node of the current node, with the current node.
 
 Note: Raise should never cause any syntax errors, if it does that's a bug.
 
-### `← Replace`/`Replace →`
-
-Replace current selection with previous/next copied text in the clipboard history.
-
-This is similar to [Yanking Earlier Kills](https://www.gnu.org/software/emacs/manual/html_node/emacs/Earlier-Kills.html) in Emacs.
-
-This is useful when you want to retrieve earlier copies.
-
 ### `Open`
 
 Open next to current selection.
@@ -71,35 +63,17 @@ For example:
 
 <TutorialFallback filename="open"/>
 
-### `Change`
+### `Insert`
 
-This deletes the current selected text, and enter [Insert mode](../insert-mode.md).
+Activates the [Insert MoL](../momentary-layers/insert-mol.mdx).
 
 ### `Delete`
 
-This opens a menu with several actions:
+Activates the [Delete MoL](../momentary-layers/delete-mol.mdx).
 
-| Name                 | Meaning                                                                                                                                             |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Delete One           | Deletes the current selection and collapses the selection.                                                                                          |
-| Delete `<movement>`  | Delete the current selection and the gap between the current selection and the `<movement>` selection, and then selects the `<movement>` selection. |
-| Enter Delete Submode | See more at [Delete Submode](../sub-modes/delete-mode.md)                                                                                           |
+### `Cut`
 
-<TutorialFallback filename="delete"/>
-
-<TutorialFallback filename="delete-finer-movement"/>
-
-<TutorialFallback filename="delete-one" />
-
-If you are interested about why Delete works like this, read more at [Evolution of Delete](/ki-editor/blog/evoluation-of-delete).
-
-### `Delete X`
-
-Delete Cut.
-
-This is similar to `Delete`, but the current selection(s) will be copied before deletion is executed.
-
-<TutorialFallback filename="delete-cut"/>
+Activates the [Cut MoL](../momentary-layers/cut-mol.mdx).
 
 ### `Replace #`
 
@@ -178,20 +152,7 @@ File unmarking has two behaviors:
 1. When the current file is the only marked file: File remains unmarked and focused.
 2. When the current file is NOT the only marked file: File is unmarked and focus shifts to the next marked file, similar to closing a tab.
 
-To move between marked files, see [here](other-movements#-markedmarked-).
-
-#### Workflow Overview
-
-This workflow is designed to streamline your editing process by allowing quick
-access to your primary files. During an editing session, you often work on
-primary files while occasionally referring to other less important files. Using
-`alt+j` and `alt+l` (on Qwerty), you can quickly jump back to your main files, enhancing your
-productivity and focus.
-
-By utilizing file marking, you can efficiently navigate your editing
-environment and maintain your workflow's momentum.
-
-<TutorialFallback filename="mark-file"/>
+To move between marked files, see [Buffer MoL](../momentary-layers/buffer-mol).
 
 ### `Undo`/`Redo`
 
@@ -237,52 +198,15 @@ copied to the cursor-specific clipboard.
 
 ### `Paste`
 
-Paste copied content next to current selection.
-
-`Paste` is directional[^directionality].
-
-This action pastes the content from the clipboard, next to the current selection.
-
-Notes:
-
-- It does not replace the current selection.
-- The pasted text will be selected.
-
-#### Smart Paste
-
-Smart Paste will be executed when the selection mode is [contiguous](selection-modes/index.md#contiguity).
-
-Smart Paste works by analyzing the gap between the current selection and the
-previous/next selection, then insert the gap before/after the pasted text.
-
-For example, consider the following Javascript code:
-
-```js
-hello(x, y);
-```
-
-Assuming the current selection mode is [Syntax Node](selection-modes/primary.md#syntax), and the current selection is `y`, and the
-copied text is `z`, performing a `p` results in the following:
-
-```js
-hello(x, y, z);
-```
-
-<TutorialFallback filename="paste"/>
+Activates the [Paste MoL](../momentary-layers/paste-mol.mdx).
 
 ### `Change X`
 
-This is similar to [Change](#change), but it copies the deleted text into the clipboard.Like `ctrl+x` in Windows and `cmd+x` in macOS.
+This is similar to [Change](../momentary-layers/insert-mol.mdx#tap-action-change), but it copies the deleted text into the clipboard.Like `ctrl+x` in Windows and `cmd+x` in macOS.
 
 ### `Replace`
 
 This replaces the current selected text with the copied text.
-
-### `Replace X`
-
-Replace Cut, swaps the current selection with the content in the clipboard.
-
-<TutorialFallback filename="replace-cut"/>
 
 ### `Change keyboard layout`
 

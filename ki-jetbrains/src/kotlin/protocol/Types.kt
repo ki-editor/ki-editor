@@ -167,8 +167,6 @@ enum class EditorMode(val string: String) {
 	Swap("swap"),
 	@SerialName("replace")
 	Replace("replace"),
-	@SerialName("delete")
-	Delete("delete"),
 }
 
 @Serializable
@@ -342,6 +340,9 @@ sealed class SelectionMode {
 	@Serializable
 	@SerialName("LocalQuickfix")
 	object LocalQuickfix: SelectionMode()
+	@Serializable
+	@SerialName("BigWord")
+	object BigWord: SelectionMode()
 }
 
 @Serializable

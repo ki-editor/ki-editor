@@ -15,44 +15,44 @@ use strum::IntoEnumIterator;
 use unicode_width::UnicodeWidthChar;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Grid {
-    pub(crate) rows: Vec<Vec<Cell>>,
-    pub(crate) width: usize,
+pub struct Grid {
+    pub rows: Vec<Vec<Cell>>,
+    pub width: usize,
 }
 
 const DEFAULT_TAB_SIZE: usize = 4;
-pub(crate) const LINE_NUMBER_VERTICAL_BORDER: &str = "│";
+pub const LINE_NUMBER_VERTICAL_BORDER: &str = "│";
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
-pub(crate) struct Cell {
-    pub(crate) symbol: char,
-    pub(crate) foreground_color: Color,
-    pub(crate) background_color: Color,
-    pub(crate) line: Option<CellLine>,
-    pub(crate) is_cursor: bool,
+pub struct Cell {
+    pub symbol: char,
+    pub foreground_color: Color,
+    pub background_color: Color,
+    pub line: Option<CellLine>,
+    pub is_cursor: bool,
     /// Need for folded sections where the cursor is not in them
-    pub(crate) is_protected_range_start: bool,
+    pub is_protected_range_start: bool,
     /// For debugging purposes, so that we can trace this Cell is updated by which
     /// decoration, e.g. Diagnostic
-    pub(crate) source: Option<StyleKey>,
-    pub(crate) is_bold: bool,
+    pub source: Option<StyleKey>,
+    pub is_bold: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Copy, PartialOrd, Ord)]
-pub(crate) struct CellLine {
-    pub(crate) color: Color,
-    pub(crate) style: CellLineStyle,
+pub struct CellLine {
+    pub color: Color,
+    pub style: CellLineStyle,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Copy, PartialOrd, Ord)]
-pub(crate) enum CellLineStyle {
+pub enum CellLineStyle {
     Undercurl,
     Underline,
 }
 
 impl Cell {
     #[cfg(test)]
-    pub(crate) fn from_char(c: char) -> Self {
+    pub fn from_char(c: char) -> Self {
         Cell {
             symbol: c,
             ..Default::default()
@@ -96,19 +96,19 @@ impl Default for Cell {
 }
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct CellUpdate {
-    pub(crate) position: Position,
-    pub(crate) symbol: Option<char>,
-    pub(crate) style: Style,
-    pub(crate) is_cursor: bool,
+pub struct CellUpdate {
+    pub position: Position,
+    pub symbol: Option<char>,
+    pub style: Style,
+    pub is_cursor: bool,
 
     /// For debugging purposes
-    pub(crate) source: Option<StyleKey>,
-    pub(crate) is_protected_range_start: bool,
+    pub source: Option<StyleKey>,
+    pub is_protected_range_start: bool,
 }
 
 impl CellUpdate {
-    pub(crate) fn new(position: Position) -> Self {
+    pub fn new(position: Position) -> Self {
         CellUpdate {
             position,
             symbol: None,
@@ -119,11 +119,11 @@ impl CellUpdate {
         }
     }
 
-    pub(crate) fn set_is_cursor(self, is_cursor: bool) -> CellUpdate {
+    pub fn set_is_cursor(self, is_cursor: bool) -> CellUpdate {
         CellUpdate { is_cursor, ..self }
     }
 
-    pub(crate) fn set_position_line(self, line: usize) -> CellUpdate {
+    pub fn set_position_line(self, line: usize) -> CellUpdate {
         CellUpdate {
             position: self.position.set_line(line),
             ..self
@@ -131,11 +131,11 @@ impl CellUpdate {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_symbol(self, symbol: Option<char>) -> CellUpdate {
+    pub fn set_symbol(self, symbol: Option<char>) -> CellUpdate {
         CellUpdate { symbol, ..self }
     }
 
-    pub(crate) fn set_is_protected_range_start(self, is_protected_range_start: bool) -> Self {
+    pub fn set_is_protected_range_start(self, is_protected_range_start: bool) -> Self {
         CellUpdate {
             is_protected_range_start,
             ..self
@@ -148,9 +148,9 @@ impl CellUpdate {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default, Hash)]
-pub(crate) struct PositionedCell {
-    pub(crate) cell: Cell,
-    pub(crate) position: Position,
+pub struct PositionedCell {
+    pub cell: Cell,
+    pub position: Position,
 }
 
 impl PartialOrd for PositionedCell {
@@ -184,7 +184,7 @@ impl std::fmt::Display for Grid {
     }
 }
 
-pub(crate) enum RenderContentLineNumber {
+pub enum RenderContentLineNumber {
     NoLineNumber,
     LineNumber {
         /// 0-based
@@ -194,7 +194,7 @@ pub(crate) enum RenderContentLineNumber {
 }
 
 impl Grid {
-    pub(crate) fn new(dimension: Dimension) -> Grid {
+    pub fn new(dimension: Dimension) -> Grid {
         let mut cells: Vec<Vec<Cell>> = vec![];
         cells.resize_with(dimension.height, || {
             let mut cells = vec![];
@@ -207,7 +207,7 @@ impl Grid {
         }
     }
 
-    pub(crate) fn to_positioned_cells(&self) -> Vec<PositionedCell> {
+    pub fn to_positioned_cells(&self) -> Vec<PositionedCell> {
         self.rows
             .iter()
             .enumerate()
@@ -225,7 +225,7 @@ impl Grid {
     }
 
     #[cfg(test)]
-    pub(crate) fn from_text(dimension: Dimension, text: &str) -> Grid {
+    pub fn from_text(dimension: Dimension, text: &str) -> Grid {
         Grid::from_rope(dimension, &Rope::from_str(text))
     }
 
@@ -247,14 +247,14 @@ impl Grid {
         grid
     }
 
-    pub(crate) fn dimension(&self) -> Dimension {
+    pub fn dimension(&self) -> Dimension {
         Dimension {
             height: self.rows.len(),
             width: self.width,
         }
     }
 
-    pub(crate) fn apply_cell_update(mut self, update: CellUpdate) -> Grid {
+    pub fn apply_cell_update(mut self, update: CellUpdate) -> Grid {
         let Position { line, column } = update.position;
         if line < self.rows.len() && column < self.rows[line].len() {
             self.rows[line][column] = self.rows[line][column].apply_update(update);
@@ -262,19 +262,19 @@ impl Grid {
         self
     }
 
-    pub(crate) fn apply_cell_updates(self, updates: Vec<CellUpdate>) -> Grid {
+    pub fn apply_cell_updates(self, updates: Vec<CellUpdate>) -> Grid {
         updates
             .into_iter()
             .fold(self, |grid, update| grid.apply_cell_update(update))
     }
 
-    pub(crate) fn merge_vertical(self, bottom: Grid) -> Grid {
+    pub fn merge_vertical(self, bottom: Grid) -> Grid {
         let mut top = self;
         top.rows.extend(bottom.rows);
         top
     }
 
-    pub(crate) fn clamp_bottom(self, by: usize) -> Grid {
+    pub fn clamp_bottom(self, by: usize) -> Grid {
         let mut grid = self;
         let dimension = grid.dimension();
         let height = dimension.height.saturating_sub(by);
@@ -285,7 +285,7 @@ impl Grid {
         grid
     }
 
-    pub(crate) fn get_cursor_position(&self) -> Option<Position> {
+    pub fn get_cursor_position(&self) -> Option<Position> {
         self.to_positioned_cells().into_iter().find_map(|cell| {
             if cell.cell.is_cursor {
                 Some(cell.position)
@@ -295,7 +295,7 @@ impl Grid {
         })
     }
 
-    pub(crate) fn get_row_cell_updates(
+    pub fn get_row_cell_updates(
         &self,
         row_index: usize,
         column_start: Option<usize>,
@@ -337,7 +337,7 @@ impl Grid {
     /// - `line_index_start` is 0-based.
     /// - If `max_line_number` is
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn render_content(
+    pub fn render_content(
         self,
         content: &str,
         line_number: RenderContentLineNumber,
@@ -557,7 +557,7 @@ impl Grid {
                     if let Ok(calibrated_position) =
                         wrapped_lines.calibrate(update.cell_update.position)
                     {
-                        Box::new(calibrated_position.into_iter().enumerate().map(
+                        Box::new(calibrated_position.into_inner().enumerate().map(
                             move |(index, position)| CellUpdate {
                                 position:
                                     position.move_right(
@@ -631,7 +631,7 @@ impl Grid {
         self
     }
 
-    pub(crate) fn get_protected_range_start_position(&self) -> Option<Position> {
+    pub fn get_protected_range_start_position(&self) -> Option<Position> {
         self.to_positioned_cells().into_iter().find_map(|cell| {
             if cell.cell.is_protected_range_start {
                 Some(cell.position)
@@ -641,7 +641,7 @@ impl Grid {
         })
     }
 
-    pub(crate) fn height(&self) -> usize {
+    pub fn height(&self) -> usize {
         self.rows.len()
     }
 }
@@ -653,27 +653,27 @@ impl Grid {
 /// there are over 50,000 highlight spans,
 /// and copying the style key as strings are very expensive.
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
-pub(crate) struct IndexedHighlightGroup(usize);
+pub struct IndexedHighlightGroup(usize);
 impl IndexedHighlightGroup {
-    pub(crate) fn new(index: usize) -> Self {
+    pub fn new(index: usize) -> Self {
         Self(index)
     }
 
     #[cfg(test)]
-    pub(crate) fn from_str(name: &str) -> Option<Self> {
+    pub fn from_str(name: &str) -> Option<Self> {
         crate::themes::highlight_names()
             .iter()
             .position(|highlight_name| highlight_name == &name)
             .map(Self)
     }
 
-    pub(crate) fn to_highlight_name(&self) -> Option<crate::themes::HighlightName> {
+    pub fn to_highlight_name(&self) -> Option<crate::themes::HighlightName> {
         HighlightName::iter().nth(self.0)
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
-pub(crate) enum StyleKey {
+pub enum StyleKey {
     Syntax(IndexedHighlightGroup),
     UiPrimarySelection,
 
@@ -693,9 +693,6 @@ pub(crate) enum StyleKey {
     HunkOldEmphasized,
     HunkNew,
     HunkNewEmphasized,
-    KeymapHint,
-    KeymapArrow,
-    KeymapKey,
     UiFuzzyMatchedChar,
     ParentLine,
     UiPrimarySelectionSecondaryCursor,
@@ -708,7 +705,7 @@ pub(crate) enum StyleKey {
 
 impl StyleKey {
     #[cfg(test)]
-    pub(crate) fn display(&self) -> String {
+    pub fn display(&self) -> String {
         match self {
             StyleKey::Syntax(highlight_group) => {
                 let str: &'static str = highlight_group.to_highlight_name().unwrap().into();
@@ -720,11 +717,11 @@ impl StyleKey {
 }
 
 /// TODO: in the future, tab size should be configurable
-pub(crate) fn get_string_width(str: &str) -> usize {
+pub fn get_string_width(str: &str) -> usize {
     str.chars().map(get_char_width).sum()
 }
 
-pub(crate) fn get_char_width(c: char) -> usize {
+pub fn get_char_width(c: char) -> usize {
     match c {
         '\t' => DEFAULT_TAB_SIZE,
         _ => UnicodeWidthChar::width(c).unwrap_or(1),
@@ -732,10 +729,10 @@ pub(crate) fn get_char_width(c: char) -> usize {
 }
 
 #[derive(Clone)]
-pub(crate) struct LineUpdate {
+pub struct LineUpdate {
     /// 0-based
-    pub(crate) line_index: usize,
-    pub(crate) style: Style,
+    pub line_index: usize,
+    pub style: Style,
 }
 
 #[cfg(test)]
@@ -1187,14 +1184,14 @@ mod test_cell {
                     style: CellLineStyle::Underline,
                 })),
             is_cursor: true,
-            source: Some(StyleKey::KeymapHint),
+            source: Some(StyleKey::UiMark),
             is_protected_range_start: true,
         });
         assert_eq!(cell.symbol, 'b');
         assert_eq!(cell.foreground_color, hex!("#dddddd"));
         assert_eq!(cell.background_color, hex!("#eeeeee"));
         assert!(cell.is_cursor);
-        assert_eq!(cell.source, Some(StyleKey::KeymapHint));
+        assert_eq!(cell.source, Some(StyleKey::UiMark));
         assert_eq!(
             cell.line,
             Some(CellLine {

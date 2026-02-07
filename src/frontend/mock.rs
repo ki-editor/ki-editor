@@ -4,7 +4,7 @@ use crate::{components::component::Cursor, screen::Screen};
 
 use super::{MyWriter, StringWriter};
 
-pub(crate) struct MockFrontend {
+pub struct MockFrontend {
     /// Used for diffing to reduce unnecessary re-painting.
     previous_screen: Screen,
     writer: Box<dyn MyWriter>,
@@ -18,7 +18,7 @@ const DIMENSION: crate::app::Dimension = crate::app::Dimension {
 };
 
 impl MockFrontend {
-    pub(crate) fn new(writer: Box<dyn MyWriter>) -> Self {
+    pub fn new(writer: Box<dyn MyWriter>) -> Self {
         Self {
             previous_screen: Default::default(),
             writer,
@@ -75,6 +75,10 @@ impl super::Frontend for MockFrontend {
         self.previous_screen = previous_screen
     }
 
+    fn set_clipboard_with_osc52(&mut self, _content: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     fn writer(&mut self) -> &mut Box<dyn MyWriter> {
         &mut self.writer
     }
@@ -82,7 +86,7 @@ impl super::Frontend for MockFrontend {
 
 #[cfg(test)]
 impl MockFrontend {
-    pub(crate) fn string_content(&self) -> Option<String> {
+    pub fn string_content(&self) -> Option<String> {
         self.writer
             .as_any()
             .downcast_ref::<StringWriter>()

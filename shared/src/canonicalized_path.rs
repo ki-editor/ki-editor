@@ -202,4 +202,21 @@ impl CanonicalizedPath {
     pub fn last_modified_time(&self) -> anyhow::Result<SystemTime> {
         Ok(self.0.metadata()?.modified()?)
     }
+
+    pub fn is_parent_of(&self, path: &CanonicalizedPath) -> bool {
+        path.0.starts_with(&self.0)
+    }
+
+    /// This function might return optional on non-Unix OS like Windows which has
+    ///  multiple roots (e.g. C:\, D:\, E:\, etc.).
+    pub fn nearest_common_ancestor(
+        path1: &CanonicalizedPath,
+        path2: &CanonicalizedPath,
+    ) -> Option<CanonicalizedPath> {
+        path1
+            .0
+            .ancestors()
+            .find(|ancestor| path2.0.starts_with(ancestor))
+            .map(|p| CanonicalizedPath(p.to_path_buf()))
+    }
 }

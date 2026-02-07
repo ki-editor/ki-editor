@@ -115,7 +115,6 @@ export enum EditorMode {
 	FindOneChar = "findOneChar",
 	Swap = "swap",
 	Replace = "replace",
-	Delete = "delete",
 }
 
 export interface ModeParams {
@@ -194,7 +193,8 @@ export type SelectionMode =
 }}
 	| { tag: "Diagnostic", params: DiagnosticKind }
 	| { tag: "GitHunk", params?: undefined }
-	| { tag: "LocalQuickfix", params?: undefined };
+	| { tag: "LocalQuickfix", params?: undefined }
+	| { tag: "BigWord", params?: undefined };
 
 export interface SelectionModeParams {
 	mode: SelectionMode;

@@ -1,6 +1,7 @@
 name: Rust
 
 on:
+  merge_group:
   push:
     branches: ["master"]
   pull_request:
@@ -25,6 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: cachix/install-nix-action@v30
+      - name: Install rustfmt
+        run: rustup component add --toolchain 1.89.0-aarch64-apple-darwin rustfmt clippy rust-analyzer
       - run: nix develop --command just ${{ matrix.task }}
 
   doc:

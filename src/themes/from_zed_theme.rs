@@ -147,11 +147,6 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
             .unwrap_or_default(),
             incremental_search_match_background: from_some_hex(theme.style.search_match_background)
                 .unwrap_or_default(),
-            keymap_hint: Style::new().underline(text_accent),
-            keymap_key: Style::new().bold().foreground_color(text_accent),
-            keymap_arrow: Style::new().set_some_foreground_color(
-                theme.style.text_muted.and_then(|hex| from_hex(&hex).ok()),
-            ),
             fuzzy_matched_char: Style::new()
                 .foreground_color(text_accent)
                 .underline(text_accent),
@@ -176,6 +171,6 @@ pub(super) fn from_theme_content(theme: ThemeContent) -> Theme {
         } else {
             super::HunkStyles::dark()
         },
-        git_gutter: GitGutterStyles::new(),
+        git_gutter: GitGutterStyles::default(),
     }
 }

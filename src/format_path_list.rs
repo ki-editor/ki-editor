@@ -17,7 +17,7 @@ fn format_path_list(
     formatted_paths.join("")
 }
 
-pub(crate) fn get_formatted_paths(
+pub fn get_formatted_paths(
     paths: &[&CanonicalizedPath],
     current_path: &CanonicalizedPath,
     current_working_directory: &CanonicalizedPath,
@@ -90,7 +90,7 @@ pub(crate) fn get_formatted_paths(
     }
 
     // Generate formatted strings for all paths in the list
-    let result = paths
+    let result: Vec<String> = paths
         .iter()
         .map(|&p| {
             if p == current_path {
@@ -101,9 +101,9 @@ pub(crate) fn get_formatted_paths(
         })
         .collect();
     if !contains_current_path {
-        Some(current_path_display)
+        result
             .into_iter()
-            .chain(result)
+            .chain(Some(current_path_display))
             .collect()
     } else {
         result
@@ -169,7 +169,7 @@ mod test_format_path_list {
             &[0, 1], // Mark first two files
             2,       // Current is third file (not in list)
             false,   // Not dirty
-            "\u{200b} 📝 current.txt \u{200b} # 📝 file1.txt  # 📝 file2.txt ",
+            " # 📝 file1.txt  # 📝 file2.txt \u{200b} 📝 current.txt \u{200b}",
         )
     }
 
@@ -224,7 +224,7 @@ mod test_format_path_list {
             &[1],  // Mark the second file
             0,     // Current is first file
             false, // Not dirty
-            "\u{200B} 📝 dir1/same_name.txt \u{200B} # 📝 dir2/same_name.txt ",
+            " # 📝 dir2/same_name.txt \u{200B} 📝 dir1/same_name.txt \u{200B}",
         )
     }
 

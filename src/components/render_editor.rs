@@ -37,16 +37,16 @@ static FOCUSED_TAB_REGEX: &Lazy<regex::Regex> =
     // We need multiline string so that wrapped filename will be highlighted as well
     lazy_regex::regex!("(?s)(?<focused_tab>\u{200B}(.*)\u{200B})");
 
-pub(crate) fn markup_focused_tab(path: &str) -> String {
+pub fn markup_focused_tab(path: &str) -> String {
     format!("\u{200B}{path}\u{200B}")
 }
 
 impl Editor {
-    pub(crate) fn get_grid(&mut self, context: &Context, focused: bool) -> GetGridResult {
+    pub fn get_grid(&mut self, context: &Context, focused: bool) -> GetGridResult {
         let hunks = self.buffer_mut().simple_hunks(context).unwrap_or_default();
         self.get_grid_with_scroll_offset(context, focused, self.scroll_offset(), &hunks)
     }
-    pub(crate) fn get_grid_with_scroll_offset(
+    pub fn get_grid_with_scroll_offset(
         &self,
         context: &Context,
         focused: bool,
@@ -119,7 +119,7 @@ impl Editor {
             editor.get_grid_with_dimension(
                 &theme,
                 context.current_working_directory(),
-                Vec::new(),
+                &Vec::new(),
                 dimension,
                 0,
                 None,
@@ -143,7 +143,7 @@ impl Editor {
         }
     }
 
-    pub(crate) fn title_impl(&self, context: &Context) -> Option<String> {
+    pub fn title_impl(&self, context: &Context) -> Option<String> {
         let dimension = self.dimension();
         let result = if dimension.height <= 1 {
             vec![]
@@ -282,7 +282,7 @@ impl Editor {
         &self,
         theme: &Theme,
         working_directory: &CanonicalizedPath,
-        quickfix_list_items: Vec<&QuickfixListItem>,
+        quickfix_list_items: &[QuickfixListItem],
         dimension: Dimension,
         scroll_offset: usize,
         protected_range: Option<CharIndexRange>,
@@ -536,7 +536,7 @@ impl Editor {
         hidden_parent_line_ranges: &[Range<usize>],
         visible_parent_lines: &[Line],
         protected_range: Option<CharIndexRange>,
-        quickfix_list_items: Vec<&QuickfixListItem>,
+        quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> Vec<HighlightSpan> {
         use StyleKey::*;
@@ -911,12 +911,12 @@ impl Editor {
             .collect_vec()
     }
 
-    pub(crate) fn possible_selections_in_line_number_range(
+    pub fn possible_selections_in_line_number_range(
         &self,
         selection: &Selection,
         working_directory: &CanonicalizedPath,
         line_number_range: &Range<usize>,
-        quickfix_list_items: Vec<&QuickfixListItem>,
+        quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> anyhow::Result<Vec<ByteRange>> {
         let object = self.get_selection_mode_trait_object(
@@ -940,11 +940,11 @@ impl Editor {
         )
     }
 
-    pub(crate) fn revealed_selections(
+    pub fn revealed_selections(
         &self,
         selection: &Selection,
         working_directory: &CanonicalizedPath,
-        quickfix_list_items: Vec<&QuickfixListItem>,
+        quickfix_list_items: &[QuickfixListItem],
         marks: &[CharIndexRange],
     ) -> anyhow::Result<Vec<ByteRange>> {
         self.get_selection_mode_trait_object(
@@ -963,11 +963,11 @@ impl Editor {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub(crate) struct HighlightSpan {
-    pub(crate) source: Source,
-    pub(crate) range: HighlightSpanRange,
-    pub(crate) set_symbol: Option<char>,
-    pub(crate) is_cursor: bool,
+pub struct HighlightSpan {
+    pub source: Source,
+    pub range: HighlightSpanRange,
+    pub set_symbol: Option<char>,
+    pub is_cursor: bool,
     is_protected_range_start: bool,
 }
 
@@ -1020,10 +1020,11 @@ impl HighlightSpan {
                 };
 
                 let remaining = [
-                    (range.start < intersection.start)
-                        .then(|| HighlightSpanRange::ByteRange(range.start..intersection.start)),
+                    (range.start < intersection.start).then_some(HighlightSpanRange::ByteRange(
+                        range.start..intersection.start,
+                    )),
                     (intersection.end < range.end)
-                        .then(|| HighlightSpanRange::ByteRange(intersection.end..range.end)),
+                        .then_some(HighlightSpanRange::ByteRange(intersection.end..range.end)),
                 ];
 
                 (HighlightSpanRange::ByteRange(intersection), remaining)
@@ -1183,13 +1184,13 @@ fn range_intersection<T: Ord + Copy>(a: &Range<T>, b: &Range<T>) -> Option<Range
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub(crate) enum Source {
+pub enum Source {
     StyleKey(StyleKey),
     Style(Style),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) enum HighlightSpanRange {
+pub enum HighlightSpanRange {
     CharIndexRange(CharIndexRange),
     ByteRange(Range<usize>),
     CharIndex(CharIndex),

@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::{collections::HashMap, io::Read, path::PathBuf, str::FromStr};
+use std::{collections::HashMap, io::Read, path::PathBuf};
 
 use itertools::Itertools;
 use regex::Regex;
@@ -18,7 +18,7 @@ use shared::language::{self, Language};
 
 #[derive(Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct AppConfig {
+pub struct AppConfig {
     languages: HashMap<String, Language>,
     keyboard_layout: KeyboardLayoutKind,
     theme: ConfigTheme,
@@ -34,9 +34,9 @@ pub(crate) struct AppConfig {
 /// 2nd row is "asdfghjkl;",  
 /// and 3rd row is "zxcvbnm,./".  
 #[derive(Clone, Deserialize, Serialize, JsonSchema)]
-pub(crate) struct LeaderKeymap([[Option<Keybinding>; 10]; 3]);
+pub struct LeaderKeymap([[Option<Keybinding>; 10]; 3]);
 impl LeaderKeymap {
-    pub(crate) fn keybindings(&self) -> &[[Option<Keybinding>; 10]; 3] {
+    pub fn keybindings(&self) -> &[[Option<Keybinding>; 10]; 3] {
         &self.0
     }
 }
@@ -84,15 +84,15 @@ impl JsonSchema for ConfigThemeName {
 
 const DEFAULT_CONFIG: &str = include_str!("config_default.json");
 
-fn ki_workspace_directory() -> anyhow::Result<PathBuf> {
-    Ok(PathBuf::from_str(".")?.join(".ki"))
+pub fn ki_workspace_directory() -> anyhow::Result<PathBuf> {
+    Ok(std::env::current_dir()?.join(".ki"))
 }
 
-fn ki_global_directory() -> PathBuf {
+pub fn ki_global_directory() -> PathBuf {
     ::grammar::config_dir()
 }
 
-pub(crate) fn load_script(script_name: &str) -> anyhow::Result<Script> {
+pub fn load_script(script_name: &str) -> anyhow::Result<Script> {
     // Trying reading from workspace directory first
     let workspace_path = ki_workspace_directory()?.join("scripts").join(script_name);
     let global_path = ki_global_directory().join("scripts").join(script_name);
@@ -128,7 +128,7 @@ impl AppConfig {
         }
     }
 
-    pub(crate) fn load_from_current_directory() -> anyhow::Result<Self> {
+    pub fn load_from_current_directory() -> anyhow::Result<Self> {
         let workspace_dir = ki_workspace_directory()?;
         let workspace_config = |extension: &str| workspace_dir.join(format!("config.{extension}"));
         let global_config =
@@ -145,7 +145,7 @@ impl AppConfig {
         Ok(config)
     }
 
-    pub(crate) fn singleton() -> &'static AppConfig {
+    pub fn singleton() -> &'static AppConfig {
         static INSTANCE: OnceCell<AppConfig> = OnceCell::new();
         INSTANCE.get_or_init(|| match AppConfig::load_from_current_directory() {
             Ok(config) => config,
@@ -159,34 +159,34 @@ impl AppConfig {
         })
     }
 
-    pub(crate) fn languages(&self) -> &HashMap<std::string::String, language::Language> {
+    pub fn languages(&self) -> &HashMap<std::string::String, language::Language> {
         &self.languages
     }
 
-    pub(crate) fn keyboard_layout_kind(&self) -> KeyboardLayoutKind {
+    pub fn keyboard_layout_kind(&self) -> KeyboardLayoutKind {
         self.keyboard_layout
     }
 
-    pub(crate) fn theme(&self) -> &Theme {
+    pub fn theme(&self) -> &Theme {
         &self.theme.0
     }
 
-    pub(crate) fn status_lines(&self) -> Vec<crate::app::StatusLine> {
+    pub fn status_lines(&self) -> Vec<crate::app::StatusLine> {
         self.status_lines.clone()
     }
 
-    pub(crate) fn leader_keymap(&self) -> &LeaderKeymap {
+    pub fn leader_keymap(&self) -> &LeaderKeymap {
         &self.leader_keymap
     }
 }
 
-pub(crate) fn from_path(path: &CanonicalizedPath) -> Option<Language> {
+pub fn from_path(path: &CanonicalizedPath) -> Option<Language> {
     path.extension()
         .and_then(from_extension)
         .or_else(|| from_filename(path))
 }
 
-pub(crate) fn from_extension(extension: &str) -> Option<Language> {
+pub fn from_extension(extension: &str) -> Option<Language> {
     AppConfig::singleton()
         .languages()
         .iter()
@@ -194,7 +194,7 @@ pub(crate) fn from_extension(extension: &str) -> Option<Language> {
         .map(|(_, language)| (*language).clone())
 }
 
-pub(crate) fn from_filename(path: &CanonicalizedPath) -> Option<Language> {
+pub fn from_filename(path: &CanonicalizedPath) -> Option<Language> {
     let file_name = path.file_name()?;
     AppConfig::singleton()
         .languages()
@@ -216,7 +216,7 @@ pub(crate) fn from_filename(path: &CanonicalizedPath) -> Option<Language> {
 /// - `# mode: bash
 ///
 /// Spaces and other content on the line do not matter.
-pub(crate) fn from_content_directive(content: &str) -> Option<Language> {
+pub fn from_content_directive(content: &str) -> Option<Language> {
     let first_line = content.lines().next()?;
 
     let re = Regex::new(r"(?:(?:^#!.*/)|(?:mode:)|(?:ft\s*=))\s*(\w+)").unwrap();

@@ -2,13 +2,13 @@ use crate::{buffer::Buffer, list::grep::RegexConfig};
 
 use super::{ByteRange, IterBasedSelectionMode};
 
-pub(crate) struct Regex {
+pub struct Regex {
     regex: fancy_regex::Regex,
     content: String,
 }
 
 /// BOTTLENECK 3
-pub(crate) fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<fancy_regex::Regex> {
+pub fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<fancy_regex::Regex> {
     let pattern = if config.escaped {
         regex::escape(pattern)
     } else {
@@ -29,7 +29,7 @@ pub(crate) fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<fa
 }
 
 impl Regex {
-    pub(crate) fn from_config(
+    pub fn from_config(
         buffer: &Buffer,
         pattern: &str,
         config: RegexConfig,

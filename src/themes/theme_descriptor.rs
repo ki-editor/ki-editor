@@ -1,17 +1,17 @@
 use std::{collections::HashMap, sync::LazyLock};
 
 use super::{from_zed_theme, vscode_dark, vscode_light, Theme};
-use zed_theme::get_zed_themes;
+use zed_theme::{get_custom_themes, get_zed_themes};
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ThemeDescriptor(String);
+pub struct ThemeDescriptor(String);
 
 impl ThemeDescriptor {
-    pub(crate) fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.0
     }
 
-    pub(crate) fn to_theme(&self) -> Theme {
+    pub fn to_theme(&self) -> Theme {
         let theme_map = &*THEMES;
         theme_map
             .get(&self.0)
@@ -38,10 +38,39 @@ static THEMES: LazyLock<HashMap<String, Theme>> = LazyLock::new(|| {
         themes.insert(name, from_zed_theme::from_theme_content(theme));
     }
 
+    // Zed ~/.config/themes/ directory loaded themes
+    let global_glob_os_string = crate::config::ki_global_directory()
+        .join("themes/*.json")
+        .into_os_string();
+    let global_glob = global_glob_os_string
+        .to_str()
+        .expect("Not able to convert global glob os string to str");
+
+    get_custom_themes(global_glob)
+        .into_iter()
+        .for_each(|(name, theme)| {
+            themes.insert(name, from_zed_theme::from_theme_content(theme));
+        });
+
+    // Zed .ki/themes/ directory loaded themes
+    let workspace_glob_os_string = crate::config::ki_workspace_directory()
+        .map(|path| path.join("themes/*.json").into_os_string());
+
+    if let Ok(workspace_glob_os_string) = workspace_glob_os_string {
+        let workspace_glob = workspace_glob_os_string
+            .to_str()
+            .expect("Not able to convert workspace glob os string to str");
+        get_custom_themes(workspace_glob)
+            .into_iter()
+            .for_each(|(name, theme)| {
+                themes.insert(name, from_zed_theme::from_theme_content(theme));
+            });
+    };
+
     themes
 });
 
-pub(crate) fn all() -> Vec<ThemeDescriptor> {
+pub fn all() -> Vec<ThemeDescriptor> {
     THEMES.keys().cloned().map(ThemeDescriptor).collect()
 }
 

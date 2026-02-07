@@ -1,7 +1,7 @@
 use super::{ByteRange, IterBasedSelectionMode};
 use itertools::Itertools;
 
-pub(crate) struct TopNode;
+pub struct TopNode;
 
 impl IterBasedSelectionMode for TopNode {
     fn iter<'a>(

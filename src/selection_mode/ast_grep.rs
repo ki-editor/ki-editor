@@ -2,13 +2,13 @@ use ast_grep_core::{language::TSLanguage, NodeMatch, StrDoc};
 
 use super::{ByteRange, IterBasedSelectionMode};
 
-pub(crate) struct AstGrep {
+pub struct AstGrep {
     pattern: ast_grep_core::matcher::Pattern<TSLanguage>,
     grep: ast_grep_core::AstGrep<StrDoc<TSLanguage>>,
 }
 
 impl AstGrep {
-    pub(crate) fn new(buffer: &crate::buffer::Buffer, pattern: &str) -> anyhow::Result<Self> {
+    pub fn new(buffer: &crate::buffer::Buffer, pattern: &str) -> anyhow::Result<Self> {
         let Some(language) = buffer.treesitter_language() else {
             return Err(anyhow::anyhow!(
                 "Unable to launch AST Grep because no Tree-sitter language is found."
@@ -20,7 +20,7 @@ impl AstGrep {
         Ok(Self { pattern, grep })
     }
 
-    pub(crate) fn replace(
+    pub fn replace(
         language: tree_sitter::Language,
         source_code: &str,
         pattern: &str,
@@ -33,7 +33,7 @@ impl AstGrep {
         Ok(grep.root().replace_all(pattern.clone(), replacement))
     }
 
-    pub(crate) fn find_all(&self) -> impl Iterator<Item = NodeMatch<'_, StrDoc<TSLanguage>>> {
+    pub fn find_all(&self) -> impl Iterator<Item = NodeMatch<'_, StrDoc<TSLanguage>>> {
         self.grep.root().find_all(self.pattern.clone())
     }
 }

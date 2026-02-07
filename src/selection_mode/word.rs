@@ -65,7 +65,7 @@ impl PositionBasedSelectionMode for Word {
     }
 }
 
-pub(crate) fn process_paste_gap(prev_gap: Option<String>, next_gap: Option<String>) -> String {
+pub fn process_paste_gap(prev_gap: Option<String>, next_gap: Option<String>) -> String {
     match (prev_gap, next_gap) {
         (None, None) => Default::default(),
         (None, Some(gap)) | (Some(gap), None) => gap,
@@ -167,6 +167,7 @@ mod test_word {
     use crate::buffer::BufferOwner;
 
     use crate::selection::SelectionMode;
+    use crate::selection_mode::GetGapMovement;
     use crate::test_app::*;
 
     use super::*;
@@ -333,7 +334,7 @@ mod test_word {
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["barBar"])),
                 Editor(Copy),
-                Editor(Paste),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent("fooFoo barBar barBar\nspamSpam")),
             ])
         })
@@ -358,7 +359,7 @@ mod test_word {
                 Expect(CurrentSelectedTexts(&["barBar"])),
                 Editor(Copy),
                 Editor(SwapCursor),
-                Editor(Paste),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent("fooFoo barBar barBar\nspamSpam")),
             ])
         })

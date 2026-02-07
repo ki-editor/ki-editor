@@ -1,0 +1,26 @@
+import {TutorialFallback} from '@site/src/components/TutorialFallback';
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
+
+# Cut MoL
+
+This is the essentially equivalent to the [Delete MoL](./delete-mol.mdx), except that the current selection will be **copied** to the clipboard before it is deleted.
+
+## Keymap
+
+<KeymapFallback filename="Cut"/>
+
+### Directional Cuts
+
+<TutorialFallback filename="cut"/>
+
+### Cut One
+
+If the layer is deactivated immediately without pressing any movement key, the current selection is cut and collapses to a single-character selection at the cursor position.
+
+<TutorialFallback filename="cut-one" />
+
+### `Replace Cut`
+
+Replace Cut, swaps the current selection with the content in the clipboard.
+
+<TutorialFallback filename="replace-cut"/>

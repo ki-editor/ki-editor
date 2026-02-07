@@ -1,39 +1,41 @@
-pub(crate) mod ast_grep;
-pub(crate) mod character;
-pub(crate) mod custom;
-pub(crate) mod diagnostic;
-pub(crate) mod git_hunk;
-pub(crate) mod mark;
-pub(crate) mod naming_convention_agnostic;
-pub(crate) mod syntax_token;
+pub mod ast_grep;
+pub mod character;
+pub mod custom;
+pub mod diagnostic;
+pub mod git_hunk;
+pub mod mark;
+pub mod naming_convention_agnostic;
+pub mod syntax_token;
 
-pub(crate) mod top_node;
+pub mod top_node;
 
-pub(crate) mod line_full;
-pub(crate) mod line_trimmed;
-pub(crate) mod local_quickfix;
-pub(crate) mod regex;
-pub(crate) mod subword;
-pub(crate) mod syntax_node;
-pub(crate) mod word;
-pub(crate) use self::regex::Regex;
-pub(crate) use ast_grep::AstGrep;
-pub(crate) use character::Character;
-pub(crate) use custom::Custom;
-pub(crate) use diagnostic::Diagnostic;
-pub(crate) use git_hunk::GitHunk;
+pub mod big_word;
+pub mod line_full;
+pub mod line_trimmed;
+pub mod local_quickfix;
+pub mod regex;
+pub mod subword;
+pub mod syntax_node;
+pub mod word;
+pub use self::regex::Regex;
+pub use ast_grep::AstGrep;
+pub use big_word::BigWord;
+pub use character::Character;
+pub use custom::Custom;
+pub use diagnostic::Diagnostic;
+pub use git_hunk::GitHunk;
 use itertools::Itertools;
-pub(crate) use line_full::LineFull;
-pub(crate) use line_trimmed::LineTrimmed;
-pub(crate) use local_quickfix::LocalQuickfix;
-pub(crate) use mark::Mark;
-pub(crate) use naming_convention_agnostic::NamingConventionAgnostic;
+pub use line_full::LineFull;
+pub use line_trimmed::LineTrimmed;
+pub use local_quickfix::LocalQuickfix;
+pub use mark::Mark;
+pub use naming_convention_agnostic::NamingConventionAgnostic;
 use position_pair::ParsedChar;
 use std::ops::Range;
-pub(crate) use subword::Subword;
-pub(crate) use syntax_node::SyntaxNode;
-pub(crate) use top_node::TopNode;
-pub(crate) use word::Word;
+pub use subword::Subword;
+pub use syntax_node::SyntaxNode;
+pub use top_node::TopNode;
+pub use word::Word;
 
 use crate::{
     buffer::Buffer,
@@ -48,26 +50,26 @@ use crate::{
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
-pub(crate) struct ByteRange {
+pub struct ByteRange {
     range: Range<usize>,
     info: Option<Info>,
 }
 impl ByteRange {
-    pub(crate) fn new(range: Range<usize>) -> Self {
+    pub fn new(range: Range<usize>) -> Self {
         Self { range, info: None }
     }
 
-    pub(crate) fn with_info(range: Range<usize>, info: Info) -> Self {
+    pub fn with_info(range: Range<usize>, info: Info) -> Self {
         Self {
             range,
             info: Some(info),
         }
     }
-    pub(crate) fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<CharIndexRange> {
+    pub fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<CharIndexRange> {
         Ok((buffer.byte_to_char(self.range.start)?..buffer.byte_to_char(self.range.end)?).into())
     }
 
-    pub(crate) fn to_selection(
+    pub fn to_selection(
         &self,
         buffer: &Buffer,
         selection: &Selection,
@@ -82,11 +84,11 @@ impl ByteRange {
         ByteRange { info, ..self }
     }
 
-    pub(crate) fn range(&self) -> &Range<usize> {
+    pub fn range(&self) -> &Range<usize> {
         &self.range
     }
 
-    pub(crate) fn info(&self) -> Option<Info> {
+    pub fn info(&self) -> Option<Info> {
         self.info.clone()
     }
 }
@@ -106,10 +108,10 @@ impl Ord for ByteRange {
     }
 }
 
-pub(crate) struct SelectionModeParams<'a> {
-    pub(crate) buffer: &'a Buffer,
-    pub(crate) current_selection: &'a Selection,
-    pub(crate) cursor_direction: &'a Direction,
+pub struct SelectionModeParams<'a> {
+    pub buffer: &'a Buffer,
+    pub current_selection: &'a Selection,
+    pub cursor_direction: &'a Direction,
 }
 impl SelectionModeParams<'_> {
     fn cursor_char_index(&self) -> CharIndex {
@@ -263,13 +265,13 @@ impl SelectionModeParams<'_> {
     }
 }
 #[derive(Debug, Clone)]
-pub(crate) struct ApplyMovementResult {
-    pub(crate) selection: Selection,
-    pub(crate) sticky_column_index: Option<usize>,
+pub struct ApplyMovementResult {
+    pub selection: Selection,
+    pub sticky_column_index: Option<usize>,
 }
 
 impl ApplyMovementResult {
-    pub(crate) fn from_selection(selection: Selection) -> Self {
+    pub fn from_selection(selection: Selection) -> Self {
         Self {
             selection,
             sticky_column_index: None,
@@ -439,6 +441,7 @@ pub trait SelectionModeTrait {
             MovementApplicandum::Expand => self.expand(params),
             MovementApplicandum::Next => convert(self.next(params)),
             MovementApplicandum::Previous => convert(self.previous(params)),
+            MovementApplicandum::ParentLine => convert(self.parent_line(params)),
         }
     }
 
@@ -459,6 +462,35 @@ pub trait SelectionModeTrait {
     fn next(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
 
     fn previous(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>>;
+
+    fn parent_line(&self, params: &SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        let cursor_char_index = params
+            .current_selection
+            .to_char_index(params.cursor_direction);
+        let line_index = params.buffer.char_to_line(cursor_char_index)?;
+
+        let parent_lines = params.buffer.get_parent_lines(line_index)?;
+        let Some(parent_line) = parent_lines.last() else {
+            return Ok(None);
+        };
+
+        // Get the char index of the first non-whitespace character of parent_line
+        let char_index = params.buffer.line_to_char(parent_line.line)?
+            + parent_line
+                .content
+                .chars()
+                .take_while(|c| c.is_whitespace())
+                .count();
+        let params = &SelectionModeParams {
+            buffer: params.buffer,
+            current_selection: &params
+                .current_selection
+                .clone()
+                .set_range((char_index..char_index + 1).into()),
+            cursor_direction: params.cursor_direction,
+        };
+        self.current(params, IfCurrentNotFound::LookBackward)
+    }
 
     fn selections_in_line_number_ranges(
         &self,
@@ -603,13 +635,27 @@ pub trait SelectionModeTrait {
         assert_eq!(expected, actual_backward, "backward assertion");
     }
 
-    fn get_paste_gap(&self, params: &SelectionModeParams, direction: &Direction) -> String {
+    fn get_paste_gap(
+        &self,
+        params: &SelectionModeParams,
+        get_gap_movement: &GetGapMovement,
+    ) -> String {
         let buffer = params.buffer;
         let selection = params.current_selection;
-        let get_in_between_gap = |direction: Direction| {
-            let other = match direction {
-                Direction::Start => self.left(params),
-                Direction::End => self.right(params),
+        let get_in_between_gap = |reversed: bool| {
+            let get_gap_movement = if reversed {
+                get_gap_movement.reversed()
+            } else {
+                get_gap_movement.clone()
+            };
+            let other = match get_gap_movement {
+                GetGapMovement::Left => self.left(params),
+                GetGapMovement::Right => self.right(params),
+                GetGapMovement::Next => self.next(params),
+                GetGapMovement::Previous => self.previous(params),
+                GetGapMovement::BeforeWithoutGap | GetGapMovement::AfterWithoutGap => {
+                    return Some("".to_string())
+                }
             }
             .ok()??;
             if other.range() == selection.range() {
@@ -622,9 +668,14 @@ pub trait SelectionModeTrait {
                 Some(buffer.slice(&in_between_range.into()).ok()?.to_string())
             }
         };
-        let prev_gap = get_in_between_gap(Direction::Start);
-        let next_gap = get_in_between_gap(Direction::End);
-        self.process_paste_gap(params, prev_gap, next_gap, direction)
+        let gap = get_in_between_gap(false);
+        let gap_in_reversed_direction = get_in_between_gap(true);
+        self.process_paste_gap(
+            params,
+            gap,
+            gap_in_reversed_direction,
+            &get_gap_movement.to_direction(),
+        )
     }
 
     fn process_paste_gap(
@@ -634,6 +685,39 @@ pub trait SelectionModeTrait {
         next_gap: Option<String>,
         direction: &Direction,
     ) -> String;
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum GetGapMovement {
+    Next,
+    Previous,
+    Right,
+    Left,
+    BeforeWithoutGap,
+    AfterWithoutGap,
+}
+impl GetGapMovement {
+    pub(crate) fn to_direction(&self) -> Direction {
+        match self {
+            GetGapMovement::Next => Direction::End,
+            GetGapMovement::Right => Direction::End,
+            GetGapMovement::Previous => Direction::Start,
+            GetGapMovement::Left => Direction::Start,
+            GetGapMovement::BeforeWithoutGap => Direction::Start,
+            GetGapMovement::AfterWithoutGap => Direction::End,
+        }
+    }
+
+    fn reversed(&self) -> GetGapMovement {
+        match self {
+            GetGapMovement::Next => GetGapMovement::Previous,
+            GetGapMovement::Previous => GetGapMovement::Next,
+            GetGapMovement::Right => GetGapMovement::Left,
+            GetGapMovement::Left => GetGapMovement::Right,
+            GetGapMovement::BeforeWithoutGap => GetGapMovement::AfterWithoutGap,
+            GetGapMovement::AfterWithoutGap => GetGapMovement::BeforeWithoutGap,
+        }
+    }
 }
 
 pub trait PositionBasedSelectionMode {
@@ -1103,19 +1187,28 @@ pub trait PositionBasedSelectionMode {
         Ok(None)
     }
 
-    /// By default, paste gap should be empty string
     fn process_paste_gap(
         &self,
         _: &SelectionModeParams,
-        _: Option<String>,
-        _: Option<String>,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
         _: &Direction,
     ) -> String {
-        Default::default()
+        match (prev_gap, next_gap) {
+            (None, None) => Default::default(),
+            (None, Some(gap)) | (Some(gap), None) => gap,
+            (Some(prev_gap), Some(next_gap)) => {
+                if prev_gap.chars().count() > next_gap.chars().count() {
+                    prev_gap
+                } else {
+                    next_gap
+                }
+            }
+        }
     }
 }
-pub(crate) struct PositionBased<T: PositionBasedSelectionMode>(pub(crate) T);
-pub(crate) struct IterBased<T: IterBasedSelectionMode>(pub(crate) T);
+pub struct PositionBased<T: PositionBasedSelectionMode>(pub T);
+pub struct IterBased<T: IterBasedSelectionMode>(pub T);
 
 impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
     fn all_selections<'a>(
@@ -1226,7 +1319,7 @@ impl<T: IterBasedSelectionMode> SelectionModeTrait for IterBased<T> {
     }
 }
 
-pub(crate) trait IterBasedSelectionMode {
+pub trait IterBasedSelectionMode {
     /// NOTE: this method should not be used directly,
     /// Use `iter_filtered` instead.
     /// I wish to have private trait methods :(
@@ -1709,15 +1802,24 @@ pub(crate) trait IterBasedSelectionMode {
         assert_eq!(expected, actual);
     }
 
-    /// By default, paste gap should be empty string
     fn process_paste_gap(
         &self,
         _: &SelectionModeParams,
-        _: Option<String>,
-        _: Option<String>,
+        prev_gap: Option<String>,
+        next_gap: Option<String>,
         _: &Direction,
     ) -> String {
-        Default::default()
+        match (prev_gap, next_gap) {
+            (None, None) => Default::default(),
+            (None, Some(gap)) | (Some(gap), None) => gap,
+            (Some(prev_gap), Some(next_gap)) => {
+                if prev_gap.chars().count() > next_gap.chars().count() {
+                    prev_gap
+                } else {
+                    next_gap
+                }
+            }
+        }
     }
 }
 
@@ -1922,33 +2024,27 @@ mod position_pair {
     use crate::surround::EnclosureKind;
 
     #[derive(Debug, PartialEq)]
-    pub(crate) enum Position {
+    pub enum Position {
         Open,
         Close,
         Escaped,
     }
 
     #[derive(Debug, PartialEq)]
-    pub(crate) enum ParsedChar {
+    pub enum ParsedChar {
         Enclosure(Position, EnclosureKind),
         Other(char),
     }
 
     impl ParsedChar {
-        pub(crate) fn is_closing_of(
-            &self,
-            enclosure_kind: &crate::surround::EnclosureKind,
-        ) -> bool {
+        pub fn is_closing_of(&self, enclosure_kind: &crate::surround::EnclosureKind) -> bool {
             match self {
                 ParsedChar::Enclosure(Position::Close, kind) => kind == enclosure_kind,
                 _ => false,
             }
         }
 
-        pub(crate) fn is_opening_of(
-            &self,
-            enclosure_kind: &crate::surround::EnclosureKind,
-        ) -> bool {
+        pub fn is_opening_of(&self, enclosure_kind: &crate::surround::EnclosureKind) -> bool {
             match self {
                 ParsedChar::Enclosure(Position::Open, kind) => kind == enclosure_kind,
                 _ => false,
@@ -1956,7 +2052,7 @@ mod position_pair {
         }
     }
 
-    pub(crate) fn create_position_pairs(chars: &[char]) -> Vec<ParsedChar> {
+    pub fn create_position_pairs(chars: &[char]) -> Vec<ParsedChar> {
         use EnclosureKind::*;
         use Position::*;
         let mut parsed_chars = Vec::new();
@@ -2087,5 +2183,51 @@ mod position_pair {
             ];
             assert_eq!(create_position_pairs(&input), expected);
         }
+    }
+}
+
+#[cfg(test)]
+mod test_movement {
+    use crate::{
+        app::Dispatch::*,
+        buffer::BufferOwner,
+        components::editor::{DispatchEditor::*, IfCurrentNotFound, Movement::*},
+        selection::SelectionMode,
+        test_app::{execute_test, ExpectKind::*, Step::*},
+    };
+
+    #[test]
+    fn parent_line_movement() -> anyhow::Result<()> {
+        execute_test(move |s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Editor(SetContent(
+                    "
+// foo
+fn x() {
+   if spam {
+       bar()
+   }
+}
+"
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("bar()".to_owned())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::SyntaxNode,
+                )),
+                Editor(MoveSelection(ParentLine)),
+                Expect(CurrentSelectedTexts(&["if spam {\n       bar()\n   }"])),
+                Editor(MoveSelection(ParentLine)),
+                Expect(CurrentSelectedTexts(&[
+                    "fn x() {\n   if spam {\n       bar()\n   }\n}",
+                ])),
+            ])
+        })
     }
 }

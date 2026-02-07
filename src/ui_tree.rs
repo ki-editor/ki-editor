@@ -5,7 +5,7 @@ use nary_tree::{NodeId, NodeMut, NodeRef, RemoveBehavior};
 
 use crate::components::{component::Component, editor::Editor};
 
-pub(crate) struct UiTree {
+pub struct UiTree {
     tree: nary_tree::Tree<KindedComponent>,
     focused_component_id: NodeId,
 }
@@ -14,7 +14,7 @@ pub(crate) struct UiTree {
 /// the root of this `Tree` is always defined,
 /// which makes its usage more pleasing.
 impl UiTree {
-    pub(crate) fn new() -> UiTree {
+    pub fn new() -> UiTree {
         let mut tree = nary_tree::Tree::new();
         let mut editor = Editor::from_text(Some(tree_sitter_md::LANGUAGE.into()), "");
         editor.set_title("[ROOT] (Cannot be saved)".to_string());
@@ -28,20 +28,16 @@ impl UiTree {
         }
     }
 
-    pub(crate) fn root(&self) -> NodeRef<'_, KindedComponent> {
+    pub fn root(&self) -> NodeRef<'_, KindedComponent> {
         self.tree.root().unwrap()
     }
 
-    pub(crate) fn get(&self, id: NodeId) -> Option<NodeRef<'_, KindedComponent>> {
+    pub fn get(&self, id: NodeId) -> Option<NodeRef<'_, KindedComponent>> {
         self.tree.get(id)
     }
 
     /// The root will never be removed to ensure that this tree always contain one component
-    pub(crate) fn remove(
-        &mut self,
-        node_id: NodeId,
-        change_focus: bool,
-    ) -> Option<KindedComponent> {
+    pub fn remove(&mut self, node_id: NodeId, change_focus: bool) -> Option<KindedComponent> {
         if node_id == self.root_id() {
             return None;
         }
@@ -64,7 +60,7 @@ impl UiTree {
         self.tree.get_mut(id)
     }
 
-    pub(crate) fn remain_only_current_component(&mut self) {
+    pub fn remain_only_current_component(&mut self) {
         if !self
             .root()
             .children()
@@ -87,7 +83,7 @@ impl UiTree {
     }
 
     /// Append `component` to the Node of given `node_id`
-    pub(crate) fn append_component(
+    pub fn append_component(
         &mut self,
         node_id: NodeId,
         component: KindedComponent,
@@ -104,7 +100,7 @@ impl UiTree {
         id
     }
 
-    pub(crate) fn append_component_to_current(&mut self, component: KindedComponent, focus: bool) {
+    pub fn append_component_to_current(&mut self, component: KindedComponent, focus: bool) {
         self.append_component(self.focused_component_id, component, focus);
     }
 
@@ -114,7 +110,7 @@ impl UiTree {
 
     /// This return everything except the root, but if only root exists, then the root will be returned.
     /// This behaviour ensures that the tree always contain a component.
-    pub(crate) fn components(&self) -> Vec<KindedComponent> {
+    pub fn components(&self) -> Vec<KindedComponent> {
         if self.root().children().count() == 0 {
             Some(self.root().data().clone()).into_iter().collect_vec()
         } else {
@@ -128,15 +124,15 @@ impl UiTree {
         }
     }
 
-    pub(crate) fn root_id(&self) -> NodeId {
+    pub fn root_id(&self) -> NodeId {
         self.root().node_id()
     }
 
-    pub(crate) fn remove_current_child(&mut self, kind: ComponentKind) -> Option<KindedComponent> {
+    pub fn remove_current_child(&mut self, kind: ComponentKind) -> Option<KindedComponent> {
         self.remove_node_child(self.focused_component_id, kind)
     }
 
-    pub(crate) fn remove_node_child(
+    pub fn remove_node_child(
         &mut self,
         node_id: NodeId,
         kind: ComponentKind,
@@ -153,20 +149,20 @@ impl UiTree {
         }
     }
 
-    pub(crate) fn get_current_node_child_id(&self, kind: ComponentKind) -> Option<NodeId> {
+    pub fn get_current_node_child_id(&self, kind: ComponentKind) -> Option<NodeId> {
         let node_id = self.focused_component_id;
         self.get_node_child_id(node_id, kind)
     }
 
     #[cfg(test)]
-    pub(crate) fn count_by_kind(&self, kind: ComponentKind) -> usize {
+    pub fn count_by_kind(&self, kind: ComponentKind) -> usize {
         self.root()
             .traverse_pre_order()
             .filter(|node| node.data().kind == kind)
             .count()
     }
 
-    pub(crate) fn set_focus_component_id(&mut self, id: NodeId) {
+    pub fn set_focus_component_id(&mut self, id: NodeId) {
         // This check is necessary.
         // In case of any logical error that causes `id` to be pointing to node that is removed from the tree,
         // it should always fallback to use root ID
@@ -181,11 +177,11 @@ impl UiTree {
         };
     }
 
-    pub(crate) fn focused_component_id(&self) -> NodeId {
+    pub fn focused_component_id(&self) -> NodeId {
         self.focused_component_id
     }
 
-    pub(crate) fn cycle_component(&mut self) {
+    pub fn cycle_component(&mut self) {
         self.set_focus_component_id(
             self.root()
                 .traverse_pre_order()
@@ -200,12 +196,12 @@ impl UiTree {
         );
     }
 
-    pub(crate) fn get_current_node(&self) -> NodeRef<'_, KindedComponent> {
+    pub fn get_current_node(&self) -> NodeRef<'_, KindedComponent> {
         self.get(self.focused_component_id)
             .unwrap_or_else(|| self.root())
     }
 
-    pub(crate) fn replace_node_child(
+    pub fn replace_node_child(
         &mut self,
         id: NodeId,
         kind: ComponentKind,
@@ -216,7 +212,7 @@ impl UiTree {
         self.append_component(id, KindedComponent::new(kind, component), focus)
     }
 
-    pub(crate) fn replace_current_node_child(
+    pub fn replace_current_node_child(
         &mut self,
         kind: ComponentKind,
         component: Rc<RefCell<dyn Component>>,
@@ -227,7 +223,7 @@ impl UiTree {
         self.append_component(id, KindedComponent::new(kind, component), focus)
     }
 
-    pub(crate) fn close_current_and_focus_parent(&mut self) {
+    pub fn close_current_and_focus_parent(&mut self) {
         if let Some(node) = self.tree.get(self.focused_component_id) {
             let parent_id = node.parent().map(|parent| parent.node_id());
             self.tree
@@ -236,11 +232,11 @@ impl UiTree {
         }
     }
 
-    pub(crate) fn current_component(&self) -> Rc<RefCell<(dyn Component)>> {
+    pub fn current_component(&self) -> Rc<RefCell<dyn Component>> {
         self.get_current_node().data().component()
     }
 
-    pub(crate) fn replace_root_node_child(
+    pub fn replace_root_node_child(
         &mut self,
         kind: ComponentKind,
         component: Rc<RefCell<dyn Component>>,
@@ -249,7 +245,7 @@ impl UiTree {
         self.replace_node_child(self.root_id(), kind, component, focus)
     }
 
-    pub(crate) fn remove_all_root_children(&mut self) {
+    pub fn remove_all_root_children(&mut self) {
         let children_ids = self
             .root()
             .children()
@@ -261,10 +257,7 @@ impl UiTree {
         debug_assert_eq!(self.root().children().count(), 0);
     }
 
-    pub(crate) fn get_component_by_kind(
-        &self,
-        kind: ComponentKind,
-    ) -> Option<Rc<RefCell<dyn Component>>> {
+    pub fn get_component_by_kind(&self, kind: ComponentKind) -> Option<Rc<RefCell<dyn Component>>> {
         Some(
             self.root()
                 .traverse_pre_order()
@@ -284,7 +277,7 @@ impl UiTree {
         )
     }
 
-    pub(crate) fn get_component_by_id(
+    pub fn get_component_by_id(
         &self,
         component_id: crate::components::component::ComponentId,
     ) -> Option<Rc<RefCell<dyn Component>>> {
@@ -305,24 +298,21 @@ impl Default for UiTree {
 }
 
 #[derive(Clone)]
-pub(crate) struct KindedComponent {
+pub struct KindedComponent {
     component: Rc<RefCell<dyn Component>>,
     kind: ComponentKind,
 }
 
 impl KindedComponent {
-    pub(crate) fn new(
-        kind: ComponentKind,
-        component: Rc<RefCell<dyn Component>>,
-    ) -> KindedComponent {
+    pub fn new(kind: ComponentKind, component: Rc<RefCell<dyn Component>>) -> KindedComponent {
         Self { kind, component }
     }
 
-    pub(crate) fn component(&self) -> Rc<RefCell<dyn Component>> {
+    pub fn component(&self) -> Rc<RefCell<dyn Component>> {
         self.component.clone()
     }
 
-    pub(crate) fn kind(&self) -> ComponentKind {
+    pub fn kind(&self) -> ComponentKind {
         self.kind
     }
 }
@@ -336,7 +326,7 @@ impl std::fmt::Debug for KindedComponent {
 #[derive(PartialEq, Eq, Clone, Copy, Debug, PartialOrd, Ord)]
 /// The order of variants in this enum is significant
 /// Higher-rank variant will be rendered before lower-rank variant
-pub(crate) enum ComponentKind {
+pub enum ComponentKind {
     SuggestiveEditor,
     FileExplorer,
     QuickfixList,

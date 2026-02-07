@@ -9,13 +9,13 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct Edit {
-    pub(crate) range: CharIndexRange,
-    pub(crate) new: Rope,
-    pub(crate) old: Rope,
+pub struct Edit {
+    pub range: CharIndexRange,
+    pub new: Rope,
+    pub old: Rope,
 }
 impl Edit {
-    pub(crate) fn new(rope: &Rope, range: CharIndexRange, new: Rope) -> Self {
+    pub fn new(rope: &Rope, range: CharIndexRange, new: Rope) -> Self {
         Self {
             range,
             old: rope.slice(range.as_usize_range()).into(),
@@ -30,15 +30,15 @@ impl Edit {
         }
     }
 
-    pub(crate) fn end(&self) -> CharIndex {
+    pub fn end(&self) -> CharIndex {
         self.range.end
     }
 
-    pub(crate) fn range(&self) -> CharIndexRange {
+    pub fn range(&self) -> CharIndexRange {
         self.range
     }
 
-    pub(crate) fn chars_offset(&self) -> isize {
+    pub fn chars_offset(&self) -> isize {
         self.new.len_chars() as isize - self.range.len() as isize
     }
 
@@ -46,7 +46,7 @@ impl Edit {
         self.range().intersects_with(&other.range())
     }
 
-    pub(crate) fn to_vscode_diff_edit(
+    pub fn to_vscode_diff_edit(
         &self,
         buffer: &Buffer,
     ) -> anyhow::Result<ki_protocol_types::DiffEdit> {
@@ -80,7 +80,7 @@ impl ApplyOffset for CharIndexRange {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Action {
+pub enum Action {
     Select(Selection),
     Edit(Edit),
 }
@@ -118,7 +118,7 @@ impl Action {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct EditTransaction {
+pub struct EditTransaction {
     /// This `action_group` should be always normalized.
     action_group: ActionGroup,
 
@@ -144,7 +144,7 @@ impl EditTransaction {
         (selections, rope)
     }
 
-    pub(crate) fn edits(&self) -> Vec<&Edit> {
+    pub fn edits(&self) -> Vec<&Edit> {
         self.action_group
             .actions
             .iter()
@@ -155,7 +155,7 @@ impl EditTransaction {
             .collect_vec()
     }
 
-    pub(crate) fn from_action_groups(action_groups: Vec<ActionGroup>) -> Self {
+    pub fn from_action_groups(action_groups: Vec<ActionGroup>) -> Self {
         let unnormalized_edits = action_groups
             .iter()
             .flat_map(|action_group| {
@@ -176,7 +176,7 @@ impl EditTransaction {
     }
 
     #[cfg(test)]
-    pub(crate) fn from_tuples(action_groups: Vec<ActionGroup>) -> Self {
+    pub fn from_tuples(action_groups: Vec<ActionGroup>) -> Self {
         Self {
             action_group: Self::normalize_action_groups(action_groups),
             unnormalized_edits: Default::default(),
@@ -206,7 +206,7 @@ impl EditTransaction {
         ActionGroup { actions: result }
     }
 
-    pub(crate) fn min_char_index(&self) -> CharIndex {
+    pub fn min_char_index(&self) -> CharIndex {
         self.action_group
             .actions
             .iter()
@@ -215,7 +215,7 @@ impl EditTransaction {
             .unwrap_or(CharIndex(0))
     }
 
-    pub(crate) fn max_char_index(&self) -> CharIndex {
+    pub fn max_char_index(&self) -> CharIndex {
         self.action_group
             .actions
             .iter()
@@ -224,7 +224,7 @@ impl EditTransaction {
             .unwrap_or(CharIndex(0))
     }
 
-    pub(crate) fn merge(edit_transactions: Vec<EditTransaction>) -> EditTransaction {
+    pub fn merge(edit_transactions: Vec<EditTransaction>) -> EditTransaction {
         let unnormalized_edits = edit_transactions
             .iter()
             .flat_map(|edit_transaction| edit_transaction.unnormalized_edits.clone())
@@ -241,7 +241,7 @@ impl EditTransaction {
         }
     }
 
-    pub(crate) fn selections(&self) -> Vec<&Selection> {
+    pub fn selections(&self) -> Vec<&Selection> {
         self.action_group
             .actions
             .iter()
@@ -252,11 +252,11 @@ impl EditTransaction {
             .collect_vec()
     }
 
-    pub(crate) fn range(&self) -> CharIndexRange {
+    pub fn range(&self) -> CharIndexRange {
         (self.min_char_index()..self.max_char_index()).into()
     }
 
-    pub(crate) fn non_empty_selections(&self) -> Option<NonEmpty<Selection>> {
+    pub fn non_empty_selections(&self) -> Option<NonEmpty<Selection>> {
         if let Some((head, tail)) = self.selections().split_first() {
             Some(NonEmpty {
                 head: (*head).to_owned(),
@@ -267,7 +267,7 @@ impl EditTransaction {
         }
     }
 
-    pub(crate) fn inverse(&self) -> EditTransaction {
+    pub fn inverse(&self) -> EditTransaction {
         let action_group = ActionGroup::new(
             self.action_group
                 .actions
@@ -296,19 +296,19 @@ impl EditTransaction {
         }
     }
 
-    pub(crate) fn unnormalized_edits(&self) -> Vec<Edit> {
+    pub fn unnormalized_edits(&self) -> Vec<Edit> {
         self.unnormalized_edits.clone()
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// This is for grouping actions that should not offset each other
-pub(crate) struct ActionGroup {
-    pub(crate) actions: Vec<Action>,
+pub struct ActionGroup {
+    pub actions: Vec<Action>,
 }
 
 impl ActionGroup {
-    pub(crate) fn new(actions: Vec<Action>) -> Self {
+    pub fn new(actions: Vec<Action>) -> Self {
         Self { actions }
     }
     fn get_net_offset(&self) -> isize {

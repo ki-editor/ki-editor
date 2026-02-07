@@ -23,15 +23,16 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-pub(crate) use Dispatch::*;
-pub(crate) use DispatchEditor::*;
+pub use Dispatch::*;
+pub use DispatchEditor::*;
 
-pub(crate) use Movement::*;
-pub(crate) use SelectionMode::*;
+pub use Movement::*;
+pub use SelectionMode::*;
 
 use crate::{
     app::StatusLine,
     scripting::{ScriptInput, ScriptOutput},
+    selection_mode::GetGapMovement,
 };
 
 use shared::{canonicalized_path::CanonicalizedPath, language::LanguageId};
@@ -54,7 +55,7 @@ use crate::{
         },
         editor_keymap::KeyboardLayoutKind,
         editor_keymap_printer::KeymapPrintSections,
-        keymap_legend::Keymap,
+        keymap_legend::Keybinding,
         prompt::PromptHistoryKey,
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
@@ -84,7 +85,7 @@ use crate::{
 use crate::{lsp::process::LspNotification, themes::Color};
 
 #[allow(clippy::large_enum_variant)]
-pub(crate) enum Step {
+pub enum Step {
     App(Dispatch),
     Shell(&'static str, Vec<String>),
     AppLater(Box<dyn Fn() -> Dispatch>),
@@ -119,7 +120,7 @@ impl Step {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum ExpectKind {
+pub enum ExpectKind {
     // This is just a placeholder for ending a test case without actual assertions.
     // Such test cases are those that just expect the series of actions to not result in failure.
     NoError,
@@ -131,6 +132,7 @@ pub(crate) enum ExpectKind {
     DropdownInfosCount(usize),
     QuickfixListContent(String),
     CompletionDropdownContent(&'static str),
+    CompletionDropdownContentString(String),
     CompletionDropdownInfoContent(&'static str),
     CompletionDropdownIsOpen(bool),
     CompletionDropdownSelectedItem(&'static str),
@@ -138,6 +140,7 @@ pub(crate) enum ExpectKind {
     CurrentLine(&'static str),
     Not(Box<ExpectKind>),
     CurrentComponentContent(&'static str),
+    CurrentComponentContentString(String),
     CurrentComponentContentMatches(&'static lazy_regex::Lazy<regex::Regex>),
     CurrentSearch(Scope, &'static str),
     EditorCursorPosition(Position),
@@ -176,7 +179,7 @@ pub(crate) enum ExpectKind {
     ComponentCount(usize),
     CurrentComponentPath(Option<CanonicalizedPath>),
     OpenedFilesCount(usize),
-    GlobalInfo(&'static str),
+    GlobalInfo(String),
     ComponentsOrder(Vec<ComponentKind>),
     CurrentComponentTitle(String),
     CurrentSelectionMode(SelectionMode),
@@ -200,6 +203,7 @@ pub(crate) enum ExpectKind {
     },
     CurrentEditorIncrementalSearchMatches(Vec<std::ops::Range<usize>>),
     CurrentRangeAndInitialRange(CharIndexRange, Option<CharIndexRange>),
+    CurrentWorkingDirectory(CanonicalizedPath),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     if !is_ci::cached() {
@@ -243,6 +247,12 @@ impl ExpectKind {
                 println!("\nExpected =\n{expected_content}");
                 contextualize(actual, expected_content.to_string())
             }
+            CurrentComponentContentString(expected_content) => {
+                let actual = app.get_current_component_content();
+                println!("Actual =\n{actual}");
+                println!("\nExpected =\n{expected_content}");
+                contextualize(actual, expected_content.to_owned())
+            }
             CurrentComponentContentMatches(regex) => {
                 let content = app.get_current_component_content();
                 contextualize_regex_match(&content, regex)
@@ -258,21 +268,18 @@ impl ExpectKind {
             }
             ComponentsLength(length) => contextualize(app.components().len(), *length),
             Quickfixes(expected_quickfixes) => contextualize(
-                app.get_quickfix_list()
-                    .map(|q| {
-                        q.items()
-                            .into_iter()
-                            .map(|quickfix| {
-                                let info = quickfix
-                                    .info()
-                                    .as_ref()
-                                    .map(|info| info.clone().set_decorations(Vec::new()));
-                                quickfix.set_info(info)
-                            })
-                            .collect_vec()
-                            .into_boxed_slice()
+                app.quickfix_list()
+                    .items()
+                    .iter()
+                    .map(|quickfix| {
+                        let info = quickfix
+                            .info()
+                            .as_ref()
+                            .map(|info| info.clone().set_decorations(Vec::new()));
+                        quickfix.clone().set_info(info)
                     })
-                    .unwrap_or_default(),
+                    .collect_vec()
+                    .into_boxed_slice(),
                 expected_quickfixes.clone(),
             ),
             EditorGrid(grid) => contextualize(
@@ -413,6 +420,13 @@ impl ExpectKind {
                     .content(),
                 content.to_string(),
             ),
+            CompletionDropdownContentString(content) => contextualize(
+                app.current_completion_dropdown()
+                    .unwrap()
+                    .borrow()
+                    .content(),
+                content.to_string(),
+            ),
             CompletionDropdownInfoContent(content) => contextualize(
                 app.current_completion_dropdown_info()
                     .unwrap()
@@ -430,7 +444,7 @@ impl ExpectKind {
                 item,
             ),
             QuickfixListContent(content) => {
-                let actual = app.get_quickfix_list().unwrap().render().content;
+                let actual = app.quickfix_list().render().content;
                 let expected = content.to_string();
                 println!("Expected =\n{expected}");
                 println!("Actual =\n{actual}");
@@ -460,6 +474,7 @@ impl ExpectKind {
             ),
             AppGridContains(substring) => {
                 let content = app.get_screen().unwrap().stringify();
+                println!("Actual=\n{}", content);
                 contextualize(content.contains(substring), true)
             }
             FileExplorerContent(expected) => contextualize(expected, &app.file_explorer_content()),
@@ -500,7 +515,7 @@ impl ExpectKind {
                 expected,
                 &app.context()
                     .quickfix_list_items()
-                    .into_iter()
+                    .iter()
                     .map(|d| d.location().range)
                     .collect_vec(),
             ),
@@ -509,7 +524,7 @@ impl ExpectKind {
                 contextualize(expected, &app.current_component().borrow().path())
             }
             OpenedFilesCount(expected) => contextualize(expected, &app.opened_files_count()),
-            GlobalInfo(expected) => contextualize(*expected, &app.global_info().unwrap()),
+            GlobalInfo(expected) => contextualize(expected, &app.global_info().unwrap()),
             ComponentsOrder(expected) => contextualize(expected, &app.components_order()),
             CurrentComponentTitle(expected) => {
                 // Provide a minimal height and width
@@ -623,6 +638,9 @@ impl ExpectKind {
                     (&selection.range, &selection.initial_range),
                 )
             }
+            CurrentWorkingDirectory(expected) => {
+                contextualize(expected, app.context().current_working_directory())
+            }
         })
     }
 }
@@ -666,10 +684,10 @@ fn run_range_style_key_check(
     )
 }
 
-pub(crate) use ExpectKind::*;
-pub(crate) use Step::*;
+pub use ExpectKind::*;
+pub use Step::*;
 #[derive(Clone)]
-pub(crate) struct State {
+pub struct State {
     temp_dir: CanonicalizedPath,
     main_rs: CanonicalizedPath,
     foo_rs: CanonicalizedPath,
@@ -677,32 +695,32 @@ pub(crate) struct State {
     git_ignore: CanonicalizedPath,
 }
 impl State {
-    pub(crate) fn main_rs(&self) -> CanonicalizedPath {
+    pub fn main_rs(&self) -> CanonicalizedPath {
         self.main_rs.clone()
     }
 
-    pub(crate) fn foo_rs(&self) -> CanonicalizedPath {
+    pub fn foo_rs(&self) -> CanonicalizedPath {
         self.foo_rs.clone()
     }
 
-    pub(crate) fn hello_ts(&self) -> CanonicalizedPath {
+    pub fn hello_ts(&self) -> CanonicalizedPath {
         self.hello_ts.clone()
     }
 
-    pub(crate) fn new_path(&self, path: &str) -> PathBuf {
+    pub fn new_path(&self, path: &str) -> PathBuf {
         self.temp_dir.to_path_buf().join(path)
     }
 
-    pub(crate) fn gitignore(&self) -> CanonicalizedPath {
+    pub fn gitignore(&self) -> CanonicalizedPath {
         self.git_ignore.clone()
     }
 
-    pub(crate) fn temp_dir(&self) -> CanonicalizedPath {
+    pub fn temp_dir(&self) -> CanonicalizedPath {
         self.temp_dir.clone()
     }
 }
 
-pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<()> {
+pub fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<()> {
     execute_test_helper(
         || Box::new(NullWriter),
         false,
@@ -721,7 +739,7 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
     Ok(())
 }
 
-pub(crate) fn execute_test_custom(
+pub fn execute_test_custom(
     options: RunTestOptions,
     callback: impl Fn(State) -> Box<[Step]>,
 ) -> anyhow::Result<()> {
@@ -739,7 +757,7 @@ pub(crate) fn execute_test_custom(
     Ok(())
 }
 
-pub(crate) fn execute_recipe(
+pub fn execute_recipe(
     callback: impl Fn(State) -> Box<[Step]>,
     assert_last_step_is_expect: bool,
 ) -> anyhow::Result<TestOutput> {
@@ -856,10 +874,10 @@ fn execute_test_helper(
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct RunTestOptions {
-    pub(crate) enable_lsp: bool,
-    pub(crate) enable_syntax_highlighting: bool,
-    pub(crate) enable_file_watcher: bool,
+pub struct RunTestOptions {
+    pub enable_lsp: bool,
+    pub enable_syntax_highlighting: bool,
+    pub enable_file_watcher: bool,
 }
 
 fn run_test(
@@ -1132,7 +1150,7 @@ fn multi_paste() -> anyhow::Result<()> {
             Editor(ChangeCut),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("Some(".to_owned())),
-            Editor(Paste),
+            Editor(PasteWithMovement(GetGapMovement::Right)),
             Editor(Insert(")".to_owned())),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }",
@@ -1141,7 +1159,7 @@ fn multi_paste() -> anyhow::Result<()> {
             App(SetClipboardContent {
                 copied_texts: CopiedTexts::one(".hello".to_owned()),
             }),
-            Editor(Paste),
+            Editor(PasteWithMovement(GetGapMovement::Right)),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants)).hello; let y = Some(S(b)); }",
             )),
@@ -1220,7 +1238,7 @@ fn signature_help() -> anyhow::Result<()> {
 }
 
 #[test]
-pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
+pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let path_new_file = s.new_path("new_file.md");
         fn strs_to_strings(strs: &[&str]) -> Option<Info> {
@@ -1292,7 +1310,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
 }
 
 #[test]
-pub(crate) fn revert_modified_hunk() -> Result<(), anyhow::Error> {
+pub fn revert_modified_hunk() -> Result<(), anyhow::Error> {
     let original_content = "pub(crate) struct Foo {
     a: (),
     b: (),
@@ -1371,7 +1389,7 @@ fn main() {
 }
 
 #[test]
-pub(crate) fn non_git_ignored_files() -> Result<(), anyhow::Error> {
+pub fn non_git_ignored_files() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let temp_dir = s.temp_dir();
         Box::new([
@@ -2014,17 +2032,17 @@ foo a // Line 10
                 // Line 10 should be placed below Line 2 (sorted numerically, not lexicograhically)
                 "
 src/foo.rs
-    2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
+     2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
     10:1  foo a // Line 10
 
 src/main.rs
-    1:1  foo d
-    2:1  foo c
+     1:1  foo d
+     2:1  foo c
                ".to_string()
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine("    2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
+            Expect(QuickfixListCurrentLine("     2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
             Expect(CurrentPath(s.foo_rs())),
             Expect(CurrentLine("foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
             Expect(CurrentSelectedTexts(&["foo"])),
@@ -2088,7 +2106,7 @@ fn main() {
                 ),
             )),
             App(SetGlobalMode(Some(GlobalMode::QuickfixListItem))),
-            Expect(ExpectKind::GlobalInfo("This is fine")),
+            Expect(ExpectKind::GlobalInfo("This is fine".to_string())),
             App(OpenFile {
                 path: s.foo_rs(),
                 owner: BufferOwner::User,
@@ -2926,9 +2944,9 @@ fn doc_assets_export_keymaps_json() {
                     RowsJson(
                         keys.iter()
                             .map(|key| {
-                                let normal = key.normal.as_ref().map(Keymap::display);
-                                let alted = key.alted.as_ref().map(Keymap::display);
-                                let shifted = key.shifted.as_ref().map(Keymap::display);
+                                let normal = key.normal.as_ref().map(Keybinding::display);
+                                let alted = key.alted.as_ref().map(Keybinding::display);
+                                let shifted = key.shifted.as_ref().map(Keybinding::display);
 
                                 KeyJson {
                                     normal,
@@ -3001,7 +3019,7 @@ c1 c2 c3"
                 Editor(MoveSelection(Right)),
                 Editor(MoveSelection(Right)),
                 Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
-                Editor(Paste),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Expect(CurrentComponentContent(
                     "
@@ -3033,7 +3051,7 @@ fn pasting_when_clipboard_html_is_set_by_other_app() -> Result<(), anyhow::Error
                 }),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
                 Editor(SetContent("".to_string())),
-                Editor(Paste),
+                Editor(PasteWithMovement(GetGapMovement::Right)),
                 Expect(CurrentComponentContent("hello")),
             ])
         }
@@ -3228,7 +3246,7 @@ fn mark_files_tabline_wrapping_no_word_break() -> anyhow::Result<()> {
                 width: 20,
                 height: 3,
             })),
-            Expect(EditorGrid("🦀  foo.rs\n# 🦀  main.rs\n1│█ub(crate) struct")),
+            Expect(EditorGrid("# 🦀  main.rs\n🦀  foo.rs\n1│█ub(crate) struct")),
         ])
     })
 }
@@ -3255,13 +3273,12 @@ fn mark_files_tabline_wrapping_with_word_break() -> anyhow::Result<()> {
             })),
             Expect(EditorGrid(
                 "
-🙈  .gitig
-nore
 # 🦀  main
 .rs
-1│█arget/
-"
-                .trim(),
+🙈  .gitig
+nore
+1│█arget/"
+                    .trim(),
             )),
         ])
     })
@@ -3360,7 +3377,7 @@ fn close_buffer_should_remove_mark() -> anyhow::Result<()> {
             }),
             App(ToggleFileMark),
             App(CloseCurrentWindow),
-            App(CycleMarkedFile(Direction::End)),
+            App(CycleMarkedFile(Movement::Right)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
         ])
     })
@@ -3651,7 +3668,7 @@ fn navigating_to_marked_file_that_is_deleted_should_not_cause_error() -> anyhow:
             )),
             Expect(CurrentPath(s.gitignore())),
             App(DeletePaths(NonEmpty::new(s.main_rs()))),
-            App(CycleMarkedFile(Direction::Start)),
+            App(CycleMarkedFile(Movement::Last)),
             Expect(NoError),
             Expect(CurrentPath(s.hello_ts())),
             // Expect main.rs is removed from the tabline
@@ -3714,9 +3731,9 @@ fn renaming_marked_files_should_update_file_marks() -> anyhow::Result<()> {
                 .to_string(),
             )),
             Expect(CurrentPath(s.gitignore())),
-            App(MoveFile {
-                from: s.gitignore(),
-                to: new_path.clone(),
+            App(MovePaths {
+                sources: NonEmpty::new(s.gitignore()),
+                destinations: NonEmpty::new(new_path.clone()),
             }),
             // Press enter to hide File Explorer and focus the renamed file
             App(HandleKeyEvent(key!("enter"))),
@@ -3766,7 +3783,7 @@ fn escape_global_diagnostics_should_not_change_selection() -> Result<(), anyhow:
             ))),
             Expect(CurrentComponentPath(Some(s.foo_rs()))),
             Expect(CurrentSelectedTexts(&["pub"])),
-            Editor(MoveSelection(Right)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Expect(CurrentSelectedTexts(&["mod"])),
             App(HandleKeyEvent(key!("esc"))),
@@ -3797,7 +3814,7 @@ fn unable_to_close_marked_files_that_became_a_directory() -> Result<(), anyhow::
                 let foo_path = foo_path.clone();
                 move || CurrentPath(foo_path.clone().try_into().unwrap())
             })),
-            App(CycleMarkedFile(Direction::End)),
+            App(CycleMarkedFile(Movement::Right)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Shell("mv",[foo_path.display().to_string(),temp_path.display().to_string()].to_vec()),
             Shell("mkdir",[foo_path.display().to_string()
@@ -3807,10 +3824,10 @@ fn unable_to_close_marked_files_that_became_a_directory() -> Result<(), anyhow::
                 temp_path.display().to_string(),
                 foo_path.display().to_string()
             ].to_vec()),
-            App(CycleMarkedFile(Direction::End)),
+            App(CycleMarkedFile(Movement::Left)),
             Expect(CurrentComponentPath(Some(s.main_rs()))),
             Expect(MarkedFiles([s.main_rs()].to_vec())),
-            Expect(GlobalInfo("The file mark \"foo\" is removed from the list as it cannot be opened due to the following error:\n\nThe path \"foo\" is not a file.")),
+            Expect(GlobalInfo("The file mark \"foo\" is removed from the list as it cannot be opened due to the following error:\n\nThe path \"foo\" is not a file.".to_string())),
         ])
     })
 }
@@ -3861,6 +3878,43 @@ fn closing_all_buffers_should_land_on_scratch_buffer() -> Result<(), anyhow::Err
  Close current window"
                     .to_string(),
             )),
+        ])
+    })
+}
+
+#[test]
+fn change_working_directory_prompt() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        let get_path = |child: &str| {
+            format!(
+                "{}{}",
+                s.temp_dir().join(child).unwrap().display_absolute(),
+                std::path::MAIN_SEPARATOR
+            )
+        };
+        Box::new([
+            App(OpenFile {
+                path: s.foo_rs(),
+                owner: BufferOwner::User,
+                focus: true,
+            }),
+            Expect(CurrentWorkingDirectory(s.temp_dir())),
+            App(OpenChangeWorkingDirectoryPrompt),
+            Expect(ExpectKind::CompletionDropdownIsOpen(false)),
+            // Expect the prompt is opened with the current working directory
+            Expect(CurrentComponentContentString(get_path(""))),
+            // Type slash to simulate the computation of suggested items
+            App(HandleKeyEvent(key!("/"))),
+            Expect(ExpectKind::CompletionDropdownIsOpen(true)),
+            // The suggested items should be the children directories
+            // of the current directory (i.e., the content of the prompt)
+            Expect(ExpectKind::CompletionDropdownContentString(
+                [get_path("src"), get_path(".git")].join("\n").to_string(),
+            )),
+            App(HandleKeyEvent(key!("tab"))),
+            Expect(CurrentComponentContentString(get_path("src"))),
+            App(HandleKeyEvent(key!("enter"))),
+            Expect(CurrentWorkingDirectory(s.temp_dir().join("src").unwrap())),
         ])
     })
 }

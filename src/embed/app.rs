@@ -22,18 +22,17 @@ use super::logger::HostLogger;
 use super::utils::*;
 use crate::embed::handlers;
 
-pub(crate) struct EmbeddedApp {
-    pub(crate) app: Rc<Mutex<App<Crossterm>>>,
-    pub(crate) app_sender: mpsc::Sender<AppMessage>,
-    pub(crate) integration_event_receiver:
-        mpsc::Receiver<crate::integration_event::IntegrationEvent>,
-    pub(crate) app_message_receiver: mpsc::Receiver<AppMessage>,
-    pub(crate) ipc_handler: WebSocketIpc,
-    pub(crate) context: Context,
+pub struct EmbeddedApp {
+    pub app: Rc<Mutex<App<Crossterm>>>,
+    pub app_sender: mpsc::Sender<AppMessage>,
+    pub integration_event_receiver: mpsc::Receiver<crate::integration_event::IntegrationEvent>,
+    pub app_message_receiver: mpsc::Receiver<AppMessage>,
+    pub ipc_handler: WebSocketIpc,
+    pub context: Context,
 }
 
 impl EmbeddedApp {
-    pub(crate) fn new(working_directory: Option<CanonicalizedPath>) -> Result<Self> {
+    pub fn new(working_directory: Option<CanonicalizedPath>) -> Result<Self> {
         let log_level = if std::env::var("KI_DEBUG").is_ok() {
             log::LevelFilter::Debug
         } else {
@@ -83,13 +82,13 @@ impl EmbeddedApp {
         })
     }
 
-    pub(crate) fn send_message_to_host(&self, message: OutputMessageWrapper) -> Result<()> {
+    pub fn send_message_to_host(&self, message: OutputMessageWrapper) -> Result<()> {
         self.ipc_handler
             .send_message_to_host(message)
             .map_err(|e| anyhow::anyhow!("Failed to send message to IPC handler: {}", e))
     }
 
-    pub(crate) fn send_notification(&self, wrapper: OutputMessageWrapper) -> Result<()> {
+    pub fn send_notification(&self, wrapper: OutputMessageWrapper) -> Result<()> {
         let notification_type = format!("{:?}", wrapper.message);
         trace!(
             "SENDING Notification: Type={:?}, ID={}",
@@ -143,7 +142,7 @@ impl EmbeddedApp {
         result
     }
 
-    pub(crate) fn run(&mut self) -> Result<()> {
+    pub fn run(&mut self) -> Result<()> {
         trace!("Starting Host main loop");
 
         loop {
@@ -236,7 +235,7 @@ impl EmbeddedApp {
         Ok(())
     }
 
-    pub(crate) fn get_editor_component_by_path(
+    pub fn get_editor_component_by_path(
         &self,
         path: &CanonicalizedPath,
     ) -> Option<std::rc::Rc<std::cell::RefCell<dyn crate::components::component::Component>>> {
@@ -262,7 +261,7 @@ impl EmbeddedApp {
         None
     }
 
-    pub(crate) fn send_response(&self, id: u32, message: OutputMessage) -> Result<()> {
+    pub fn send_response(&self, id: u32, message: OutputMessage) -> Result<()> {
         info!("Sending response for request ID {id}: {message:?}");
         let wrapper = OutputMessageWrapper {
             id,
@@ -272,7 +271,7 @@ impl EmbeddedApp {
         self.send_message_to_host(wrapper)
     }
 
-    pub(crate) fn send_error_response(&self, id: u32, error_message: &str) -> Result<()> {
+    pub fn send_error_response(&self, id: u32, error_message: &str) -> Result<()> {
         let error_response = OutputMessageWrapper {
             id,
             message: OutputMessage::Error(error_message.to_string()),
@@ -471,7 +470,6 @@ impl EmbeddedApp {
             Mode::FindOneChar(_) => ki_protocol_types::EditorMode::FindOneChar,
             Mode::Swap => ki_protocol_types::EditorMode::Swap,
             Mode::Replace => ki_protocol_types::EditorMode::Replace,
-            Mode::Delete => ki_protocol_types::EditorMode::Delete,
         };
 
         self.send_notification(OutputMessageWrapper {
@@ -518,6 +516,7 @@ impl EmbeddedApp {
             crate::selection::SelectionMode::SyntaxNodeFine => {
                 ki_protocol_types::SelectionMode::SyntaxNodeFine
             }
+            crate::selection::SelectionMode::BigWord => ki_protocol_types::SelectionMode::BigWord,
             crate::selection::SelectionMode::Diagnostic(kind) => {
                 ki_protocol_types::SelectionMode::Diagnostic(match kind {
                     crate::quickfix_list::DiagnosticSeverityRange::All => {
@@ -807,7 +806,7 @@ impl EmbeddedApp {
     }
 }
 
-pub(crate) fn run_embedded_ki(working_directory: CanonicalizedPath) -> anyhow::Result<()> {
+pub fn run_embedded_ki(working_directory: CanonicalizedPath) -> anyhow::Result<()> {
     eprintln!("== Ki running as embedded app ==");
 
     let mut embedded_app = EmbeddedApp::new(Some(working_directory))?;

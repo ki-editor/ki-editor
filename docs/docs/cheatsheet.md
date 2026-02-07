@@ -54,7 +54,7 @@ These modes mirror normal mode except for the changed binds listed.
 
 #### Multi-Cursor Submode
 
-<KeymapFallback filename="Multi-cursor"/>
+<KeymapFallback filename="Multi-cursor Momentary Layer"/>
 
 ## Insert Mode
 

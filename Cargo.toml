@@ -16,14 +16,14 @@ members = [
   'ki-protocol-types',
   'nvim-treesitter-highlight-queries',
 ]
-exclude = ['tests/mock_repos/rust1']
+exclude = ['mock_repos/rust1']
 
 [workspace.dependencies]
 # `use-dev-tty` is needed so that the app doesn't hang if STDIN is present
 # See:
 # - https://github.com/crossterm-rs/crossterm/pull/956
 # - https://github.com/crossterm-rs/crossterm/issues/828
-crossterm = { version = "0.28.1", features = ["use-dev-tty"] }
+crossterm = { version = "0.29.0", features = ["osc52", "use-dev-tty"] }
 convert_case = "0.6.0"
 regex = "1.8.1"
 fancy-regex = "0.14.0"
@@ -99,7 +99,6 @@ nary_tree = "0.4.3"
 strum = "0.26.2"
 strum_macros = "0.26.2"
 nonempty = "~0.11.0"
-base64 = "0.22.1"
 comfy-table = "7.1.3"
 chrono = "0.4.39"
 ki-protocol-types = { path = "ki-protocol-types" }
@@ -133,3 +132,10 @@ tempfile.workspace = true
 
 [profile.release]
 debug = false # Set this to true when using `sudo cargo flamegraph`
+
+[profile.release-lto]
+inherits = 'release'
+lto = true
+
+[lints.clippy]
+dbg_macro = "warn"

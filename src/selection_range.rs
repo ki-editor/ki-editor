@@ -6,12 +6,12 @@ use std::ops::Range;
 use crate::{char_index_range::CharIndexRange, position::Position};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum SelectionRange {
+pub enum SelectionRange {
     Byte(Range<usize>),
     Position(Range<Position>),
 }
 impl SelectionRange {
-    pub(crate) fn to_char_index_range(
+    pub fn to_char_index_range(
         &self,
         buffer: &crate::buffer::Buffer,
     ) -> anyhow::Result<CharIndexRange> {
@@ -23,7 +23,7 @@ impl SelectionRange {
         }
     }
 
-    pub(crate) fn move_left(&self, count: usize) -> SelectionRange {
+    pub fn move_left(&self, count: usize) -> SelectionRange {
         match self {
             SelectionRange::Byte(_) => todo!(),
             SelectionRange::Position(range) => {

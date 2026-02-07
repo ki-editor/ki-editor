@@ -19,14 +19,14 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub(crate) enum FileWatcherInput {
+pub enum FileWatcherInput {
     SyncOpenedPaths(Vec<CanonicalizedPath>),
     FileWatcherEvent(FileWatcherEvent),
     SyncFileExplorerExpandedFolders(Vec<CanonicalizedPath>),
 }
 
 #[derive(Default)]
-pub(crate) struct FileWatcherState {
+pub struct FileWatcherState {
     opened_paths: Vec<CanonicalizedPath>,
     expanded_folders: Vec<CanonicalizedPath>,
 }
@@ -60,7 +60,7 @@ impl FileWatcherState {
     }
 }
 
-pub(crate) fn watch_file_changes(
+pub fn watch_file_changes(
     path: &CanonicalizedPath,
     app_message_sender: Sender<AppMessage>,
 ) -> anyhow::Result<Sender<FileWatcherInput>> {
@@ -178,7 +178,7 @@ impl EventHandler {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum FileWatcherEvent {
+pub enum FileWatcherEvent {
     ContentModified(CanonicalizedPath),
     /// We don't attached the Path so that all PathCreated event can be grouped together
     /// by the debouncer, since we don't really care what files are added.

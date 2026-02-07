@@ -1,0 +1,73 @@
+import {TutorialFallback} from '@site/src/components/TutorialFallback';
+import {KeymapFallback} from '@site/src/components/KeymapFallback';
+
+# Paste MoL
+
+## Keymap
+
+<KeymapFallback filename="Paste"/>
+
+## Paste
+
+| Action    | Meaning                                |
+| --------- | -------------------------------------- |
+| `< Paste` | Paste **BEFORE** the current selection |
+| `Paste >` | Paste **AFTER** the current selection  |
+
+Paste the clipboard content before/after the current selection, without automatic gaps insertion.
+
+<TutorialFallback filename="paste"/>
+
+## Vertical Paste
+
+| Action    | Meaning                               |
+| --------- | ------------------------------------- |
+| `Paste ^` | Paste **ABOVE** the current selection |
+| `Paste v` | Paste **BELOW** the current selection |
+
+Paste above/below the current selection, following the indentation of the first/last line of the current selection (which can be multiple lines).
+
+<TutorialFallback filename="vertical-paste"/>
+
+## Gap Paste
+
+| Action         | Meaning                                                                                                               |
+| -------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `< Gap Paste`  | Paste **BEFORE** the current selection with gaps between the current selection and the **`<`**/**`>`** selection(s)   |
+| `Gap Paste >`  | Paste **AFTER** the current selection with gaps between the current selection and the **`<`**/**`>`** selection(s)    |
+| `<< Gap Paste` | Paste **BEFORE** the current selection with gaps between the current selection and the **`<<`**/**`>>`** selection(s) |
+| `Gap Paste >>` | Paste **AFTER** the current selection with gaps between the current selection and the **`<<`**/**`>>`** selection(s)  |
+
+Gap Paste works by analyzing the gap between the current selection and the
+`<`/`>`/`<<`/`>>` selection, then insert the gap before/after the pasted text.
+
+For example, consider the following Javascript code:
+
+```js
+hello(x, y);
+```
+
+Assuming the current selection mode is Syntax Node, and the current selection is `y`, and the
+copied text is `z`, performing a `Paste >>` results in the following:
+
+```js
+hello(x, y, z);
+```
+
+Because the gap between the current selection (`y`) and the the `<<`/`>>` selection is `, `, where the `<<` selection is `x`.
+
+<TutorialFallback filename="paste-with-gaps"/>
+
+## Replace
+
+If this layer is deactivated immediately without pressing any movement key, the current selection is replaced with the clipboard content.
+
+<TutorialFallback filename="replace"/>
+
+### Replace with copied text
+
+Replace current selection with previous/next copied text in the clipboard history.
+
+This is similar to [Yanking Earlier Kills](https://www.gnu.org/software/emacs/manual/html_node/emacs/Earlier-Kills.html) in Emacs.
+
+This is useful when you want to retrieve earlier copies.

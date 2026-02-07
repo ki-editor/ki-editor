@@ -30,7 +30,7 @@
         mkRustToolchain = targets:
           pkgs.rust-bin.stable."1.89.0".default.override {
             inherit targets;
-            extensions = ["rust-src" "rust-analyzer"];
+            extensions = ["rust-src"];
           };
 
         # Shared base dependencies across all environments
@@ -46,7 +46,6 @@
         devOnlyPackages = with pkgs; [
           python3
           which
-          rust-analyzer
           just
           alejandra
           fd
@@ -141,16 +140,7 @@
           # Common arguments for all builds
           crossArgs =
             {
-              # Use a custom source filtering to include necessary files
-              src = pkgs.lib.cleanSourceWith {
-                src = ./.;
-                filter = path: type:
-                  (crossCraneLib.filterCargoSources path type)
-                  || (builtins.match ".*contrib/emoji-icon-theme.json$" path != null)
-                  || (builtins.match ".*tree_sitter_quickfix/src/.*$" path != null)
-                  || (builtins.match ".*nvim-treesitter-highlight-queries/queries/.*.scm$" path != null)
-                  || (builtins.match ".*src/config_default.json$" path != null);
-              };
+              src = pkgs.nix-gitignore.gitignoreSource [] (pkgs.lib.cleanSource ./.);
 
               # Add a preBuild phase to create the VERSION file
               preBuildPhases = ["createVersionPhase"];
@@ -353,18 +343,16 @@
           "x86_64-windows-gnu" = x86_64-windows-gnu-ki;
         };
 
-        devShells.default = (crane.mkLib pkgs).devShell {
+        devShells.default = pkgs.mkShell {
           packages =
             commonNativeBuildInputs
             ++ platformBuildInputs
-            ++ devOnlyPackages
-            ++ [rustToolchain];
+            ++ devOnlyPackages;
 
           # Include common environment variables and platform-specific paths
           shellHook = ''
             export OPENSSL_STATIC=1
             export LIBICONV_STATIC=1
-            export RUST_SRC_PATH="${rustToolchain}/lib/rustlib/src/rust/library"
 
             ${
               if pkgs.stdenv.isDarwin

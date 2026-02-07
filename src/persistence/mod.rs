@@ -16,18 +16,18 @@ use std::{
 
 use crate::char_index_range::CharIndexRange;
 
-pub(crate) mod _00001;
-pub(crate) mod _00002;
-pub(crate) mod _00003;
-pub(crate) mod _00004;
+pub mod _00001;
+pub mod _00002;
+pub mod _00003;
+pub mod _00004;
 
 #[derive(serde::Serialize, serde::Deserialize)]
-pub(crate) struct Version(pub(crate) u8);
+pub struct Version(pub u8);
 
-pub(crate) type Root = _00004::Root;
-pub(crate) type WorkspaceSession = _00004::WorkspaceSession;
+pub type Root = _00004::Root;
+pub type WorkspaceSession = _00004::WorkspaceSession;
 
-pub(crate) struct Persistence {
+pub struct Persistence {
     path: PathBuf,
     root: Root,
 }
@@ -62,11 +62,11 @@ impl Persistence {
         (parser.parse)(content)
     }
 
-    pub(crate) fn load_or_default(path: PathBuf) -> Self {
+    pub fn load_or_default(path: PathBuf) -> Self {
         Persistence::load(path.clone())
             .map_err(|err| {
                 #[cfg(test)]
-                dbg!("Persistence::load_or_default error: {err}");
+                println!("Persistence::load_or_default error: {err}");
 
                 log::error!("Unable to load persisted data due to {err:?}")
             })
@@ -76,29 +76,25 @@ impl Persistence {
             })
     }
 
-    pub(crate) fn write(&self) -> anyhow::Result<()> {
+    pub fn write(&self) -> anyhow::Result<()> {
         std::fs::write(self.path.clone(), serde_json::to_string_pretty(&self.root)?)?;
         Ok(())
     }
 
-    pub(crate) fn set_workspace_session(
-        &mut self,
-        working_directory: &Path,
-        session: WorkspaceSession,
-    ) {
+    pub fn set_workspace_session(&mut self, working_directory: &Path, session: WorkspaceSession) {
         self.root
             .workspace_sessions
             .insert(working_directory.to_path_buf(), session);
     }
 
-    pub(crate) fn get_marked_files(&self, workding_directory: &PathBuf) -> Option<Vec<PathBuf>> {
+    pub fn get_marked_files(&self, workding_directory: &PathBuf) -> Option<Vec<PathBuf>> {
         self.root
             .workspace_sessions
             .get(workding_directory)
             .map(|session| session.marked_files.clone())
     }
 
-    pub(crate) fn get_marks(
+    pub fn get_marks(
         &self,
         working_directory: &PathBuf,
     ) -> Option<HashMap<PathBuf, Vec<CharIndexRange>>> {
@@ -108,7 +104,7 @@ impl Persistence {
             .map(|session| session.marks.clone())
     }
 
-    pub(crate) fn get_prompt_histories(
+    pub fn get_prompt_histories(
         &self,
         working_directory: &Path,
     ) -> Option<HashMap<crate::components::prompt::PromptHistoryKey, indexmap::IndexSet<String>>>
@@ -120,7 +116,7 @@ impl Persistence {
     }
 }
 
-pub(crate) trait Migration:
+pub trait Migration:
     Default + serde::de::DeserializeOwned + serde::Serialize + std::fmt::Debug
 {
     type PreviousVersion: Migration;

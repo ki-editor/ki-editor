@@ -237,3 +237,13 @@ For example, to delete two selections:
 - **With Extend + Delete Menu**: Extend → Right → Open Delete Menu → Right
 
 Since most deletions involve only one selection, the menu approach is more efficient for the common case while keeping the Delete Submode available for users who prefer chaining deletions.
+
+## Version 6: Momentary Layer (MoL)
+
+[Momentary Layer](https://zmk.dev/docs/keymaps/behaviors/layers#momentary-layer) combines the best aspects of both the Delete Menu and Delete Submode approaches: it's as efficient as the Delete Menu for single deletions while being as repeatable as the Delete Submode for chained operations.
+
+Here's how it works: when the Delete key (`v` at the time of writing) is **held down**, the Delete submode activates, allowing you to repeatedly press movement keys like Right to delete multiple selections forward. As soon as you release the Delete key, the Delete submode automatically deactivates.
+
+When **tapped** (pressed and released immediately), it executes the Delete One action directly, making the most common case even more efficient than the Delete Menu, which required two keypresses (i.e. `v v`).
+
+The momentary layer approach eliminates the keypress overhead of explicitly entering and exiting modes, making deletion feel more natural and immediate.

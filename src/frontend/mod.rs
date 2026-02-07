@@ -1,6 +1,7 @@
-pub(crate) mod crossterm;
+pub mod crossterm;
 #[cfg(test)]
-pub(crate) mod mock;
+pub mod mock;
+mod render;
 
 use std::any::Any;
 use std::io::Write;
@@ -8,17 +9,9 @@ use std::io::Write;
 use std::io::{self};
 
 use crate::{app::Dimension, components::component::Cursor, screen::Screen};
-use ::crossterm::{
-    cursor::MoveTo,
-    queue,
-    style::{
-        Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
-        SetUnderlineColor,
-    },
-};
 use itertools::Itertools;
 
-pub(crate) trait Frontend {
+pub trait Frontend {
     fn get_terminal_dimension(&self) -> anyhow::Result<Dimension>;
     fn enter_alternate_screen(&mut self) -> anyhow::Result<()>;
     fn enable_mouse_capture(&mut self) -> anyhow::Result<()>;
@@ -32,6 +25,7 @@ pub(crate) trait Frontend {
     fn writer(&mut self) -> &mut Box<dyn MyWriter>;
     fn previous_screen(&mut self) -> Screen;
     fn set_previous_screen(&mut self, previous_screen: Screen);
+    fn set_clipboard_with_osc52(&mut self, content: &str) -> anyhow::Result<()>;
     fn render_screen(&mut self, mut screen: Screen) -> anyhow::Result<()> {
         let cells = {
             // Only perform diff if the dimension is the same
@@ -57,49 +51,11 @@ pub(crate) trait Frontend {
             "Cells should be sorted in reverse order by column to ensure proper rendering of
  multi-width characters in terminal displays"
         );
-        for cell in cells {
-            queue!(
-                self.writer(),
-                MoveTo(cell.position.column as u16, cell.position.line as u16),
-                SetAttribute(if cell.cell.is_bold {
-                    Attribute::Bold
-                } else {
-                    Attribute::NoBold
-                }),
-                SetUnderlineColor(
-                    cell.cell
-                        .line
-                        .map(|line| line.color.into())
-                        .unwrap_or(Color::Reset),
-                ),
-                SetAttribute(
-                    cell.cell
-                        .line
-                        .map(|line| match line.style {
-                            crate::grid::CellLineStyle::Undercurl => Attribute::Undercurled,
-                            crate::grid::CellLineStyle::Underline => Attribute::Underlined,
-                        })
-                        .unwrap_or(Attribute::NoUnderline),
-                ),
-                SetBackgroundColor(cell.cell.background_color.into()),
-                SetForegroundColor(cell.cell.foreground_color.into()),
-                Print(reveal(cell.cell.symbol)),
-                SetAttribute(Attribute::Reset),
-            )?;
-        }
-        Ok(())
-    }
-}
-/// Convert invisible character to visible character
-fn reveal(s: char) -> char {
-    match s {
-        '\n' => ' ',
-        '\t' => ' ',
-        _ => s,
+        render::render_cells(self.writer(), cells)
     }
 }
 
-pub(crate) trait MyWriter: Write + Any {
+pub trait MyWriter: Write + Any {
     #[cfg(test)]
     fn as_any(&self) -> &dyn Any;
 }
@@ -119,17 +75,18 @@ impl MyWriter for NullWriter {
 }
 
 #[cfg(test)]
-pub(crate) struct StringWriter {
+#[derive(Default)]
+pub struct StringWriter {
     buffer: Vec<u8>,
 }
 
 #[cfg(test)]
 impl StringWriter {
-    pub(crate) fn new() -> Self {
-        StringWriter { buffer: Vec::new() }
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub(crate) fn get_string(&self) -> String {
+    pub fn get_string(&self) -> String {
         String::from_utf8(self.buffer.clone()).unwrap_or_default()
     }
 }
@@ -147,7 +104,7 @@ impl Write for StringWriter {
 }
 
 #[cfg(test)]
-pub(crate) struct NullWriter;
+pub struct NullWriter;
 
 #[cfg(test)]
 impl Write for NullWriter {

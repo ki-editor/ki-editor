@@ -1,5 +1,7 @@
 use std::{collections::HashSet, fmt};
 
+use crossterm::event::KeyEventKind;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Event {
     Key(KeyEvent),
@@ -31,6 +33,7 @@ impl From<crossterm::event::Event> for Event {
 pub struct KeyEvent {
     pub code: crossterm::event::KeyCode,
     pub modifiers: KeyModifiers,
+    pub kind: crossterm::event::KeyEventKind,
 }
 impl fmt::Debug for KeyEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -38,17 +41,34 @@ impl fmt::Debug for KeyEvent {
     }
 }
 impl KeyEvent {
-    pub const fn new(key: crossterm::event::KeyCode, modifiers: KeyModifiers) -> KeyEvent {
+    pub const fn pressed(key: crossterm::event::KeyCode, modifiers: KeyModifiers) -> KeyEvent {
         KeyEvent {
             code: key,
             modifiers,
+            kind: crossterm::event::KeyEventKind::Press,
+        }
+    }
+
+    pub const fn released(key: crossterm::event::KeyCode, modifiers: KeyModifiers) -> KeyEvent {
+        KeyEvent {
+            code: key,
+            modifiers,
+            kind: crossterm::event::KeyEventKind::Release,
+        }
+    }
+
+    pub const fn repeated(key: crossterm::event::KeyCode, modifiers: KeyModifiers) -> KeyEvent {
+        KeyEvent {
+            code: key,
+            modifiers,
+            kind: crossterm::event::KeyEventKind::Repeat,
         }
     }
 
     pub fn to_rust_code(&self) -> String {
         format!(
-            "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::KeyModifiers::{:#?}, }}",
-            self.code, self.modifiers
+            "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::KeyModifiers::{:#?}, kind: crossterm::event::KeyEventKind::{:#?} }}",
+            self.code, self.modifiers, self.kind
         )
     }
 
@@ -90,14 +110,37 @@ impl KeyEvent {
         } else {
             None
         };
-        format!(
+        let modified = format!(
             "{}{key_code}",
             if let Some(modifier) = modifier {
                 format!("{modifier}+")
             } else {
                 "".to_string()
             }
+        );
+        format!(
+            "{}{modified}",
+            if self.kind == KeyEventKind::Release {
+                "release-"
+            } else {
+                ""
+            }
         )
+    }
+
+    pub fn set_event_kind(self, kind: KeyEventKind) -> KeyEvent {
+        Self { kind, ..self }
+    }
+
+    #[allow(clippy::match_like_matches_macro)]
+    pub fn is_press_or_repeat_equivalent(&self, event: &KeyEvent) -> bool {
+        match (self.kind, event.kind) {
+            (
+                KeyEventKind::Press | KeyEventKind::Repeat,
+                KeyEventKind::Press | KeyEventKind::Repeat,
+            ) if self.code == event.code && self.modifiers == event.modifiers => true,
+            _ => false,
+        }
     }
 }
 
@@ -106,6 +149,7 @@ impl From<crossterm::event::KeyEvent> for KeyEvent {
         Self {
             code: value.code,
             modifiers: value.modifiers.into(),
+            kind: value.kind,
         }
     }
 }
@@ -124,7 +168,7 @@ pub enum KeyModifiers {
 }
 
 impl KeyModifiers {
-    pub(crate) fn add_shift(self, shift: bool) -> KeyModifiers {
+    pub(crate) fn add_shift(self, shift: bool) -> Self {
         use KeyModifiers::*;
         if !shift {
             return self;
@@ -136,6 +180,28 @@ impl KeyModifiers {
             CtrlAlt => CtrlAltShift,
             Unknown => Shift,
             _ => self,
+        }
+    }
+
+    pub(crate) fn remove_shift(self, shift: bool) -> Self {
+        use KeyModifiers::*;
+        if shift {
+            return self;
+        }
+        match self {
+            Shift => None,
+            CtrlShift => Ctrl,
+            AltShift => Alt,
+            CtrlAltShift => CtrlAlt,
+            _ => self,
+        }
+    }
+
+    pub fn set_shift(self, shift: bool) -> Self {
+        if shift {
+            self.add_shift(shift)
+        } else {
+            self.remove_shift(shift)
         }
     }
 

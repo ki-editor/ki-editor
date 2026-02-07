@@ -15,26 +15,26 @@ use super::{
     editor_keymap_legend::{KeymapOverride, NormalModeOverride},
 };
 
-pub(crate) struct FileExplorer {
+pub struct FileExplorer {
     editor: Editor,
     tree: Tree,
 }
 
-pub(crate) fn file_explorer_normal_mode_override() -> NormalModeOverride {
+pub fn file_explorer_normal_mode_override() -> NormalModeOverride {
     NormalModeOverride {
         append: Some(KeymapOverride {
             description: "Add Path",
             dispatch: Dispatch::OpenAddPathPrompt,
         }),
         change: Some(KeymapOverride {
-            description: "Move Path",
-            dispatch: Dispatch::OpenMoveFilePrompt,
+            description: "Move Paths",
+            dispatch: Dispatch::OpenMovePathsPrompt,
         }),
         delete: Some(KeymapOverride {
             description: "Delete Paths",
             dispatch: Dispatch::OpenDeletePathsPrompt,
         }),
-        replace: Some(KeymapOverride {
+        cut: Some(KeymapOverride {
             description: "Refresh",
             dispatch: Dispatch::RefreshFileExplorer,
         }),
@@ -50,7 +50,7 @@ pub(crate) fn file_explorer_normal_mode_override() -> NormalModeOverride {
     }
 }
 impl FileExplorer {
-    pub(crate) fn new(path: &CanonicalizedPath) -> anyhow::Result<Self> {
+    pub fn new(path: &CanonicalizedPath) -> anyhow::Result<Self> {
         let tree = Tree::new(path)?;
         let text = tree.render();
         let mut editor = Editor::from_text(
@@ -63,7 +63,7 @@ impl FileExplorer {
         Ok(Self { editor, tree })
     }
 
-    pub(crate) fn expanded_folders(&self) -> Vec<CanonicalizedPath> {
+    pub fn expanded_folders(&self) -> Vec<CanonicalizedPath> {
         self.tree
             .walk_visible(Vec::new(), |result, node| Continuation {
                 state: if matches!(node.kind, NodeKind::Directory { open: true, .. }) {
@@ -75,11 +75,26 @@ impl FileExplorer {
             })
     }
 
-    pub(crate) fn reveal(
+    pub fn reveal(
         &mut self,
         path: &CanonicalizedPath,
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
+        if !context.current_working_directory().is_parent_of(path) {
+            // Use the nearest common ancestor if possible
+            let new_root_dir = CanonicalizedPath::nearest_common_ancestor(
+                context.current_working_directory(),
+                path,
+            )
+            .unwrap_or_else(|| {
+                // Otherwise just use the parent of the path,
+                // and worse case scenario we will just use the path itself.
+                path.parent().ok().flatten().unwrap_or_else(|| path.clone())
+            });
+            let tree = std::mem::take(&mut self.tree);
+            self.tree = tree.refresh(&new_root_dir)?;
+        }
+
         let tree = std::mem::take(&mut self.tree);
         self.tree = tree.reveal(path)?;
         self.refresh_editor(context)?;
@@ -90,7 +105,7 @@ impl FileExplorer {
         }
     }
 
-    pub(crate) fn refresh(&mut self, context: &Context) -> anyhow::Result<()> {
+    pub fn refresh(&mut self, context: &Context) -> anyhow::Result<()> {
         let tree = std::mem::take(&mut self.tree);
         self.tree = tree.refresh(context.current_working_directory())?;
         self.refresh_editor(context)?;
@@ -115,20 +130,17 @@ impl FileExplorer {
             .collect_vec())
     }
 
-    pub(crate) fn get_selected_paths(&self) -> anyhow::Result<Vec<CanonicalizedPath>> {
+    pub fn get_selected_paths(&self) -> anyhow::Result<Vec<CanonicalizedPath>> {
         self.get_selected_nodes()
             .map(|nodes| nodes.into_iter().map(|node| node.path).collect_vec())
     }
 
-    pub(crate) fn get_current_path(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
+    pub fn get_current_path(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
         self.get_current_node()
             .map(|node| node.map(|node| node.path))
     }
 
-    pub(crate) fn toggle_or_open_paths(
-        &mut self,
-        context: &Context,
-    ) -> Result<Dispatches, anyhow::Error> {
+    pub fn toggle_or_open_paths(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
         let nodes = self.get_selected_nodes()?;
         let Some(nodes) = NonEmpty::from_vec(nodes) else {
             return Err(anyhow::anyhow!("No paths are selected."));
@@ -459,7 +471,8 @@ mod test_file_explorer {
     use my_proc_macros::{key, keys};
 
     use crate::buffer::BufferOwner;
-    use crate::components::editor::IfCurrentNotFound;
+    use crate::components::editor::{Direction, IfCurrentNotFound};
+    use crate::selection::SelectionMode;
     use crate::test_app::*;
 
     #[test]
@@ -501,7 +514,7 @@ mod test_file_explorer {
                 Expect(ComponentCount(1)),
                 App(HandleKeyEvents(keys!("f").to_vec())),
                 Expect(ComponentCount(2)),
-                Expect(CurrentComponentTitle("Move path".to_string())),
+                Expect(CurrentComponentTitle("Move paths".to_string())),
                 Editor(Insert("/hello/world.rs".to_string())),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(ComponentCount(2)),
@@ -639,6 +652,68 @@ mod test_file_explorer {
     }
 
     #[test]
+    fn rename_multiple_paths_at_once_using_extened_selections() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(RevealInExplorer(s.main_rs())),
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("Cargo.lock".to_owned())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+                Editor(EnableSelectionExtension),
+                Editor(MoveSelection(Right)),
+                Expect(CurrentSelectedTexts(&[
+                    "- 🔒  Cargo.lock\n - 📄  Cargo.toml",
+                ])),
+                App(OpenMovePathsPrompt),
+                // Expect the prompt shows the selected paths
+                Expect(CurrentComponentContentMatches(lazy_regex::regex!(
+                    "Cargo.lock"
+                ))),
+                Expect(CurrentComponentContentMatches(lazy_regex::regex!(
+                    "Cargo.toml"
+                ))),
+                // Add ".x" to the end of the paths
+                Editor(EnterNormalMode),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SelectionMode::Line,
+                )),
+                Editor(CursorAddToAllSelections),
+                Editor(EnterInsertMode(Direction::End)),
+                App(HandleKeyEvents(keys!(". x enter").to_vec())),
+                // Expect the two files paths are appended with ".x"
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 📄  Cargo.lock.x
+ - 📄  Cargo.toml.x
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 📘  hello.ts
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+            ])
+        })
+    }
+
+    #[test]
     fn open_file() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
@@ -647,6 +722,73 @@ mod test_file_explorer {
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(ComponentCount(1)),
                 Expect(CurrentComponentPath(Some(s.main_rs()))),
+            ])
+        })
+    }
+
+    #[test]
+    fn revealing_a_deleted_file() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile {
+                    path: s.main_rs(),
+                    owner: BufferOwner::User,
+                    focus: true,
+                }),
+                Shell("rm", [s.main_rs().display_absolute()].to_vec()),
+                App(RevealInExplorer(s.main_rs())),
+                // Although main.rs is deleted, expects the File Explorer
+                // still renders properly
+                Expect(CurrentComponentContent(
+                    " - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📁  src/ :
+",
+                )),
+                // Expect an error is shown in the global info
+                Expect(GlobalInfo(format!(
+                    r#"Unable to reveal 'src/main.rs' due to the following error:
+
+Cannot canonicalize path: "/{}". Error: Os {{ code: 2, kind: NotFound, message: "No such file or directory" }}"#,
+                    s.main_rs().display_absolute()
+                ))),
+            ])
+        })
+    }
+
+    #[test]
+    /// Meaning of Excwd:
+    /// - ex = Outside of
+    /// - cwd = Current working directory
+    ///
+    /// "Outside of Current working directory"
+    fn revealing_a_excwd_path() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                // Change cwd to ./src
+                App(ChangeWorkingDirectory(
+                    s.new_path("src").try_into().unwrap(),
+                )),
+                // Reveal `src/main.rs`
+                App(RevealInExplorer(s.main_rs())),
+                // Expect the root of the file explorer is `src` now
+                Expect(CurrentComponentContent(
+                    " - 🦀  foo.rs
+ - 📘  hello.ts
+ - 🦀  main.rs",
+                )),
+                // Reveal a file which is outside of ./src
+                App(RevealInExplorer(s.gitignore())),
+                Expect(CurrentComponentContent(
+                    " - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📁  src/ :",
+                )),
+                Expect(CurrentSelectedTexts(&[" - 🙈  .gitignore\n"])),
             ])
         })
     }

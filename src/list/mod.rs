@@ -10,20 +10,20 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{buffer::Buffer, quickfix_list::Location, thread::SendResult};
 
-pub(crate) mod ast_grep;
+pub mod ast_grep;
 
-pub(crate) mod grep;
-pub(crate) mod naming_convention_agnostic;
+pub mod grep;
+pub mod naming_convention_agnostic;
 
-pub(crate) struct WalkBuilderConfig {
-    pub(crate) root: PathBuf,
-    pub(crate) include: Option<Glob>,
-    pub(crate) exclude: Option<Glob>,
+pub struct WalkBuilderConfig {
+    pub root: PathBuf,
+    pub include: Option<Glob>,
+    pub exclude: Option<Glob>,
 }
 type GetRange = dyn Fn(&Buffer) -> Vec<Range<usize>> + Send + Sync;
 
 impl WalkBuilderConfig {
-    pub(crate) fn run_with_search(
+    pub fn run_with_search(
         self,
         enable_tree_sitter: bool,
         send_match: Arc<dyn Fn(Match) -> SendResult + Send + Sync>,
@@ -51,7 +51,7 @@ impl WalkBuilderConfig {
             }),
         )
     }
-    pub(crate) fn run<T: Send>(
+    pub fn run<T: Send>(
         self,
         f: Box<dyn Fn(PathBuf, Sender<T>) -> anyhow::Result<()> + Send + Sync>,
     ) -> anyhow::Result<Vec<T>> {
@@ -113,7 +113,7 @@ impl WalkBuilderConfig {
         Ok(receiver.into_iter().collect::<Vec<_>>())
     }
 
-    pub(crate) fn run_async(
+    pub fn run_async(
         self,
         enable_tree_sitter: bool,
         on_visit_buffer: Arc<dyn Fn(CanonicalizedPath, Buffer) + Send + Sync>,
@@ -177,10 +177,7 @@ impl WalkBuilderConfig {
     /// `on_entry` takes `PathBuf` instead of `CanonicalizedPath`
     /// because constructing `CanonicalizedPath` is expensive.
     /// For reference: read https://blobfolio.com/2021/faster-path-canonicalization-rust/
-    pub(crate) fn get_non_git_ignored_files(
-        root: PathBuf,
-        on_entry: Arc<dyn Fn(PathBuf) + Send + Sync>,
-    ) {
+    pub fn get_non_git_ignored_files(root: PathBuf, on_entry: Arc<dyn Fn(PathBuf) + Send + Sync>) {
         WalkBuilder::new(root)
             .hidden(false)
             .build_parallel()
@@ -204,9 +201,9 @@ impl WalkBuilderConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Match {
-    pub(crate) location: Location,
-    pub(crate) line: String,
+pub struct Match {
+    pub location: Location,
+    pub line: String,
 }
 
 #[cfg(test)]
@@ -221,7 +218,7 @@ mod test_walk_builder_config {
     #[test]
     fn test_exclude() -> anyhow::Result<()> {
         let config = WalkBuilderConfig {
-            root: "./tests/mock_repos/rust1".into(),
+            root: "./mock_repos/rust1".into(),
             include: None,
             exclude: Some(Glob::new("src/*.rs")?),
         };
@@ -232,10 +229,10 @@ mod test_walk_builder_config {
         assert_eq!(
             paths.into_iter().sorted().collect_vec(),
             [
-                PathBuf::from("./tests/mock_repos/rust1/.gitignore"),
-                PathBuf::from("./tests/mock_repos/rust1/Cargo.lock"),
-                PathBuf::from("./tests/mock_repos/rust1/Cargo.toml"),
-                PathBuf::from("./tests/mock_repos/rust1/src/hello.ts")
+                PathBuf::from("./mock_repos/rust1/.gitignore"),
+                PathBuf::from("./mock_repos/rust1/Cargo.lock"),
+                PathBuf::from("./mock_repos/rust1/Cargo.toml"),
+                PathBuf::from("./mock_repos/rust1/src/hello.ts")
             ]
         );
         Ok(())
@@ -244,7 +241,7 @@ mod test_walk_builder_config {
     #[test]
     fn test_include() -> anyhow::Result<()> {
         let config = WalkBuilderConfig {
-            root: "./tests/mock_repos/rust1".into(),
+            root: "./mock_repos/rust1".into(),
             include: Some(Glob::new("src/*.rs")?),
             exclude: None,
         };
@@ -255,8 +252,8 @@ mod test_walk_builder_config {
         assert_eq!(
             paths.into_iter().sorted().collect_vec(),
             [
-                PathBuf::from("./tests/mock_repos/rust1/src/foo.rs"),
-                PathBuf::from("./tests/mock_repos/rust1/src/main.rs")
+                PathBuf::from("./mock_repos/rust1/src/foo.rs"),
+                PathBuf::from("./mock_repos/rust1/src/main.rs")
             ]
         );
         Ok(())

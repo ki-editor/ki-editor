@@ -18,9 +18,9 @@ use crate::{
 use shared::language::Language;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct HighlightedSpan {
-    pub(crate) byte_range: Range<usize>,
-    pub(crate) style_key: StyleKey,
+pub struct HighlightedSpan {
+    pub byte_range: Range<usize>,
+    pub style_key: StyleKey,
 }
 
 pub trait GetHighlightConfig {
@@ -108,7 +108,7 @@ impl Highlight for HighlightConfiguration {
 }
 
 #[derive(Clone, Default, Debug)]
-pub(crate) struct HighlightedSpans(pub Vec<HighlightedSpan>);
+pub struct HighlightedSpans(pub Vec<HighlightedSpan>);
 impl HighlightedSpans {
     /// This method only updates the highlight spans within the affected range.
     /// The affected range starts from the smallest point of edit to the last visible range.
@@ -117,7 +117,7 @@ impl HighlightedSpans {
     /// 1. That is expensive due to the huge number of highlight spans
     /// 2. The highlight spans will be recomputed quickly, so there's no point
     ///    in updating the out-of-bound ones.
-    pub(crate) fn apply_edit_mut(&mut self, affected_range: &Range<usize>, change: isize) {
+    pub fn apply_edit_mut(&mut self, affected_range: &Range<usize>, change: isize) {
         if self.0.is_empty() {
             return;
         }
@@ -143,23 +143,23 @@ impl HighlightedSpans {
 }
 
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
-pub(crate) struct SyntaxHighlightRequestBatchId(u8);
+pub struct SyntaxHighlightRequestBatchId(u8);
 
 impl SyntaxHighlightRequestBatchId {
-    pub(crate) fn increment(&mut self) {
+    pub fn increment(&mut self) {
         self.0 = self.0.wrapping_add(1)
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct SyntaxHighlightRequest {
-    pub(crate) component_id: ComponentId,
-    pub(crate) batch_id: SyntaxHighlightRequestBatchId,
-    pub(crate) language: Language,
-    pub(crate) source_code: String,
+pub struct SyntaxHighlightRequest {
+    pub component_id: ComponentId,
+    pub batch_id: SyntaxHighlightRequestBatchId,
+    pub language: Language,
+    pub source_code: String,
 }
 
-pub(crate) fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightRequest> {
+pub fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightRequest> {
     let (sender, receiver) = std::sync::mpsc::channel::<SyntaxHighlightRequest>();
     use debounce::EventDebouncer;
     struct Event(SyntaxHighlightRequest);
@@ -221,16 +221,17 @@ pub(crate) fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlig
 }
 type TreeSitterGrammarId = String;
 /// We have to cache the highlight configurations because they load slowly.
-pub(crate) struct HighlightConfigs(
+#[derive(Default)]
+pub struct HighlightConfigs(
     HashMap<TreeSitterGrammarId, tree_sitter_highlight::HighlightConfiguration>,
 );
 
 impl HighlightConfigs {
-    pub(crate) fn new() -> HighlightConfigs {
-        HighlightConfigs(Default::default())
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub(crate) fn highlight(
+    pub fn highlight(
         &mut self,
         language: Language,
         source_code: &str,

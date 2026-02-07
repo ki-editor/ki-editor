@@ -4,13 +4,7 @@ use crate::selection_mode::ApplyMovementResult;
 
 use super::{ByteRange, PositionBasedSelectionMode};
 
-pub(crate) struct LineFull;
-
-impl LineFull {
-    pub(crate) fn new() -> Self {
-        Self
-    }
-}
+pub struct LineFull;
 
 impl PositionBasedSelectionMode for LineFull {
     fn up(
@@ -138,49 +132,16 @@ impl PositionBasedSelectionMode for LineFull {
         )?;
         Ok(Some(ByteRange::new(range)))
     }
-
-    fn process_paste_gap(
-        &self,
-        _: &super::SelectionModeParams,
-        prev_gap: Option<String>,
-        next_gap: Option<String>,
-        _: &crate::components::editor::Direction,
-    ) -> String {
-        let add_newline = |gap: String| {
-            if gap.chars().any(|c| c == '\n') {
-                gap
-            } else {
-                format!("\n{gap}")
-            }
-        };
-        add_newline(match (prev_gap, next_gap) {
-            (None, None) => "".to_string(),
-            (None, Some(gap)) | (Some(gap), None) => gap,
-            (Some(prev_gap), Some(next_gap)) => {
-                if prev_gap.len() > next_gap.len() {
-                    prev_gap
-                } else {
-                    next_gap
-                }
-            }
-        })
-    }
 }
 
 #[cfg(test)]
 mod test_line_full {
-    use crate::buffer::BufferOwner;
-    use crate::components::editor::IfCurrentNotFound;
-    use crate::selection::SelectionMode;
-    use crate::test_app::*;
 
     use crate::{
         buffer::Buffer,
         selection::Selection,
         selection_mode::{PositionBased, SelectionModeTrait as _},
     };
-
-    use serial_test::serial;
 
     #[test]
     fn case_1() {
@@ -209,52 +170,5 @@ mod test_line_full {
             Selection::default(),
             &[(0..1, "a")],
         );
-    }
-
-    #[serial]
-    #[test]
-    fn still_paste_forward_to_newline_despite_only_one_line_present() -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent("  foo".to_string())),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    SelectionMode::LineFull,
-                )),
-                Editor(Copy),
-                Editor(Paste),
-                Editor(Paste),
-                Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
-            ])
-        })
-    }
-
-    #[serial]
-    #[test]
-    fn still_paste_backward_to_newline_despite_only_one_line_present() -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile {
-                    path: s.main_rs(),
-                    owner: BufferOwner::User,
-                    focus: true,
-                }),
-                Editor(SetContent("  foo".to_string())),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    SelectionMode::LineFull,
-                )),
-                Editor(Copy),
-                Editor(SwapCursor),
-                Editor(Paste),
-                Editor(Paste),
-                Expect(CurrentComponentContent("  foo\n  foo\n  foo")),
-            ])
-        })
     }
 }

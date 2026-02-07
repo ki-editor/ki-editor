@@ -3,7 +3,7 @@ use std::io::{self};
 
 use super::{Frontend, MyWriter};
 
-pub(crate) struct Crossterm {
+pub struct Crossterm {
     stdout: Box<dyn MyWriter>,
     /// Used for diffing to reduce unnecessary re-painting.
     previous_screen: Screen,
@@ -17,7 +17,7 @@ impl MyWriter for std::io::Stdout {
 }
 
 impl Crossterm {
-    pub(crate) fn new() -> anyhow::Result<Crossterm> {
+    pub fn new() -> anyhow::Result<Crossterm> {
         Ok(Crossterm {
             stdout: Box::new(io::stdout()),
             previous_screen: Screen::default(),
@@ -25,9 +25,15 @@ impl Crossterm {
     }
 }
 
+#[cfg(not(windows))]
+use crossterm::event::PopKeyboardEnhancementFlags;
 use crossterm::{
+    clipboard::CopyToClipboard,
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
-    event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
+    event::{
+        DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+        KeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    },
     execute, queue,
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
@@ -72,6 +78,17 @@ impl Frontend for Crossterm {
     fn enter_alternate_screen(&mut self) -> anyhow::Result<()> {
         self.stdout.execute(EnterAlternateScreen)?;
         self.stdout.execute(EnableBracketedPaste)?;
+
+        // Enable [Kitty's Keyboard Protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/)
+        // so that we can detect Key Release events
+        // which is crucial for implementing momentary layers
+        // HACK: crossterm on windows unconditionally errors when we attempt KKP initializaiton. See #1212
+        #[cfg(not(windows))]
+        self.stdout.execute(PushKeyboardEnhancementFlags(
+            KeyboardEnhancementFlags::REPORT_EVENT_TYPES
+                | KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES,
+            // DISAMBIGUATE_ESCAPE_CODES is necessary for preventing an Esc tap to be captured as a double esc presses
+        ))?;
         Ok(())
     }
 
@@ -86,6 +103,12 @@ impl Frontend for Crossterm {
     }
 
     fn leave_alternate_screen(&mut self) -> anyhow::Result<()> {
+        // Need to disable keyboard enhancement when closing Ki
+        // so that we don't leave the terminal in a weird state
+        // (because most terminal apps cannot react to KKP events properly)
+        #[cfg(not(windows))]
+        self.stdout.execute(PopKeyboardEnhancementFlags)?;
+
         self.stdout.execute(LeaveAlternateScreen)?;
         self.stdout.execute(DisableBracketedPaste)?;
         Ok(())
@@ -184,5 +207,10 @@ impl Frontend for Crossterm {
 
     fn set_previous_screen(&mut self, previous_screen: Screen) {
         self.previous_screen = previous_screen
+    }
+
+    fn set_clipboard_with_osc52(&mut self, content: &str) -> anyhow::Result<()> {
+        queue!(self.stdout, CopyToClipboard::to_clipboard_from(content))?;
+        Ok(())
     }
 }
