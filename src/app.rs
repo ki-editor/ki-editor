@@ -52,6 +52,7 @@ use crate::{
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
+use indexmap::IndexMap;
 use itertools::{Either, Itertools};
 use my_proc_macros::NamedVariant;
 use nonempty::NonEmpty;
@@ -2192,32 +2193,43 @@ impl<T: Frontend> App<T> {
 
     fn cycle_marked_file(&mut self, movement: Movement) -> anyhow::Result<()> {
         if let Some(next_file_path) = {
-            let file_paths = self.context.get_marked_files();
+            let merged_file_paths_map: IndexMap<CanonicalizedPath, bool> = {
+                let marked_file_paths = self.context.get_marked_files();
+                let buffer_file_paths = self.layout.get_opened_files();
+
+                // marked status is prioritized: overwrites the value of existing key
+                marked_file_paths
+                    .iter()
+                    .map(|path| ((*path).clone(), true))
+                    .chain(
+                        buffer_file_paths
+                            .iter()
+                            .filter(|path| !marked_file_paths.contains(path))
+                            .map(|path| (path.clone(), false)),
+                    )
+                    .collect()
+            };
+
             self.get_current_file_path()
                 .and_then(|current_file_path| {
-                    if let Some(current_index) = file_paths
+                    if let Some(current_index) = merged_file_paths_map
                         .iter()
-                        .position(|path| path == &&current_file_path)
+                        .position(|(path, _)| path == &current_file_path)
                     {
-                        let next_index = match movement {
-                            Movement::Left if current_index == 0 => 0,
-                            Movement::Left => current_index - 1,
-                            Movement::Right if current_index == file_paths.len() - 1 => {
-                                file_paths.len() - 1
-                            }
-                            Movement::Right => current_index + 1,
-                            Movement::First => 0,
-                            Movement::Last => file_paths.len() - 1,
-
-                            _ => return None,
-                        };
+                        let next_index = self.calculate_next_index(
+                            &merged_file_paths_map,
+                            current_index,
+                            movement,
+                        );
                         // We are doing defensive programming here
                         // to ensure that Ki editor never crashes
-                        return file_paths.get(next_index);
+                        return merged_file_paths_map
+                            .get_index(next_index)
+                            .map(|(path, _)| path);
                     }
                     None
                 })
-                .or_else(|| file_paths.first())
+                .or_else(|| merged_file_paths_map.first().map(|(path, _)| path))
                 .cloned()
         } {
             let next_file_path = next_file_path.clone();
@@ -2246,6 +2258,45 @@ impl<T: Frontend> App<T> {
             }
         }
         Ok(())
+    }
+
+    fn calculate_next_index(
+        &self,
+        merged_file_paths_map: &IndexMap<CanonicalizedPath, bool>,
+        current_index: usize,
+        movement: Movement,
+    ) -> usize {
+        let len = merged_file_paths_map.len();
+        if len < 1 {
+            return current_index;
+        }
+        let marked_indices: Vec<usize> = merged_file_paths_map
+            .iter()
+            .enumerate()
+            .filter_map(|(index, (_, is_marked))| is_marked.then_some(index))
+            .collect();
+
+        match movement {
+            Movement::First => *(marked_indices.first().unwrap_or(&current_index)),
+            Movement::Last => *(marked_indices.last().unwrap_or(&current_index)),
+            Movement::Left => *marked_indices
+                .iter()
+                .rev()
+                .find(|index| **index < current_index)
+                .unwrap_or(marked_indices.last().unwrap_or(&current_index)), // wrap to the other end
+            Movement::Right => *marked_indices
+                .iter()
+                .find(|index| **index > current_index)
+                .unwrap_or(marked_indices.first().unwrap_or(&current_index)), // wrap to the other end
+            Movement::Previous => (0..merged_file_paths_map.len())
+                .rev()
+                .find(|index| *index < current_index)
+                .unwrap_or(current_index),
+            Movement::Next => (0..merged_file_paths_map.len())
+                .find(|index| *index > current_index)
+                .unwrap_or(current_index),
+            _ => current_index,
+        }
     }
 
     #[cfg(test)]

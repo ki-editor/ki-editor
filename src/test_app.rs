@@ -3246,7 +3246,7 @@ fn mark_files_tabline_wrapping_no_word_break() -> anyhow::Result<()> {
                 width: 20,
                 height: 3,
             })),
-            Expect(EditorGrid("🦀  foo.rs\n# 🦀  main.rs\n1│█ub(crate) struct")),
+            Expect(EditorGrid("# 🦀  main.rs\n🦀  foo.rs\n1│█ub(crate) struct")),
         ])
     })
 }
@@ -3273,13 +3273,12 @@ fn mark_files_tabline_wrapping_with_word_break() -> anyhow::Result<()> {
             })),
             Expect(EditorGrid(
                 "
-🙈  .gitig
-nore
 # 🦀  main
 .rs
-1│█arget/
-"
-                .trim(),
+🙈  .gitig
+nore
+1│█arget/"
+                    .trim(),
             )),
         ])
     })
