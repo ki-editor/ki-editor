@@ -256,7 +256,7 @@ mod test_walk_builder_config {
                 PathBuf::from("./mock_repos/rust1/.gitignore"),
                 PathBuf::from("./mock_repos/rust1/Cargo.lock"),
                 PathBuf::from("./mock_repos/rust1/Cargo.toml"),
-                PathBuf::from("./mock_repos/rust1/src/.ts")
+                PathBuf::from("./mock_repos/rust1/src/hello.ts")
             ]
         );
         Ok(())
