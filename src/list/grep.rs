@@ -6,8 +6,13 @@ use grep_searcher::{sinks, SearcherBuilder};
 use fancy_regex::Regex;
 
 use crate::{
-    app::Dispatches, buffer::Buffer, context::LocalSearchConfig, list::Match,
-    quickfix_list::Location, selection_mode::regex::get_regex, thread::SendResult,
+    app::Dispatches,
+    buffer::Buffer,
+    context::LocalSearchConfig,
+    list::{reorder_batches::reorder_batches, Match},
+    quickfix_list::Location,
+    selection_mode::regex::get_regex,
+    thread::SendResult,
 };
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -115,10 +120,14 @@ pub fn run(
     let matcher = RegexMatcher::new_line_matcher(&pattern)?;
     let regex = Regex::new(&pattern)?;
 
+    let sender = reorder_batches(send_match);
+
     walk_builder_config.run_async(
         false,
-        Arc::new(move |path, buffer| {
+        Arc::new(move |path_index, path, buffer| {
             let mut searcher = SearcherBuilder::new().build();
+            let mut matches = vec![];
+
             let _ = searcher.search_path(
                 &matcher,
                 path.clone(),
@@ -130,20 +139,18 @@ pub fn run(
                         line,
                         regex.clone(),
                     ) {
-                        for location in locations {
-                            let m = Match {
-                                location,
-                                line: line.to_string(),
-                            };
-                            if send_match(m).is_receiver_disconnected() {
-                                // Stop search
-                                return Ok(false);
-                            }
-                        }
+                        matches.extend(locations.into_iter().map(|location| Match {
+                            location,
+                            line: line.to_string(),
+                        }))
                     }
                     Ok(true)
                 }),
             );
+
+            // The path_index needs to be sent even if there is no matches
+            // otherwise buffer_entries will not work
+            let _ = sender.send((path_index, matches));
         }),
     )
 }
