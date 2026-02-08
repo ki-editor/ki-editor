@@ -10,7 +10,7 @@ use crate::{
     app::Dispatches,
     buffer::Buffer,
     context::LocalSearchConfig,
-    list::{buffering_thread::buffer_entries, Match},
+    list::{reorder_batches::reorder_batches, Match},
     quickfix_list::Location,
     selection_mode::regex::get_regex,
     thread::SendResult,
@@ -121,7 +121,7 @@ pub fn run(
     let matcher = RegexMatcher::new_line_matcher(&pattern)?;
     let regex = Regex::new(&pattern)?;
 
-    let sender = buffer_entries(send_match);
+    let sender = reorder_batches(send_match);
 
     walk_builder_config.run_async(
         false,

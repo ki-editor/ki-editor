@@ -11,15 +11,15 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
-    buffer::Buffer, list::buffering_thread::buffer_entries, quickfix_list::Location,
+    buffer::Buffer, list::reorder_batches::reorder_batches, quickfix_list::Location,
     thread::SendResult,
 };
 
 pub mod ast_grep;
 
-pub mod buffering_thread;
 pub mod grep;
 pub mod naming_convention_agnostic;
+pub mod reorder_batches;
 
 pub struct WalkBuilderConfig {
     pub root: PathBuf,
@@ -35,7 +35,7 @@ impl WalkBuilderConfig {
         send_match: Arc<dyn Fn(Match) -> SendResult + Send + Sync>,
         get_ranges: Arc<GetRange>,
     ) -> anyhow::Result<()> {
-        let sender = buffer_entries(send_match);
+        let sender = reorder_batches(send_match);
         self.run_async(
             enable_tree_sitter,
             Arc::new(move |path_index, path, buffer| {
