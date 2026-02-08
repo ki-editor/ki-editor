@@ -788,6 +788,11 @@ fn odin() -> Language {
         }),
         line_comment_prefix: Some("//".to_string()),
         block_comment_affixes: Some(("/*".to_string(), "*/".to_string())),
+        lsp_language_id: Some(LanguageId::new("odin")),
+        lsp_command: Some(LspCommand {
+            command: Command::new("ols", &[]),
+            ..LspCommand::default()
+        }),
         ..Language::new()
     }
 }
